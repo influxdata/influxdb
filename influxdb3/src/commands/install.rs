@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use influxdb3_clap_blocks::plugins::ProcessingEngineConfig;
 use influxdb3_client::Client;
 use secrecy::{ExposeSecret, Secret};
@@ -49,11 +51,15 @@ pub struct PackageConfig {
     /// Package names to install
     #[arg(required_unless_present = "requirements")]
     packages: Vec<String>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 impl PackageConfig {
     async fn run_command(&self) -> Result<(), anyhow::Error> {
-        let mut client = Client::new(self.host_url.clone())?;
+        let mut client = Client::new(self.host_url.clone(), self.ca_cert.clone())?;
         if let Some(token) = &self.auth_token {
             client = client.with_auth_token(token.expose_secret());
         }

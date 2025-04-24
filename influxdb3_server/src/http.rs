@@ -1,9 +1,8 @@
 //! HTTP API service implementations for `server`
 
-use crate::CommonServerState;
+use crate::{CommonServerState, all_paths};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
-use authz::Authorizer;
 use authz::http::AuthorizationHeaderExtension;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
@@ -21,6 +20,7 @@ use hyper::http::HeaderValue;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb_influxql_parser::select::GroupByClause;
 use influxdb_influxql_parser::statement::Statement;
+use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
 use influxdb3_cache::distinct_cache;
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
@@ -41,7 +41,7 @@ use iox_http::write::{WriteParseError, WriteRequestUnifier};
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error, info, trace};
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -235,9 +235,9 @@ pub enum Error {
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum AuthorizationError {
-    #[error("the request was not authorized")]
-    Unauthorized,
+pub(crate) enum AuthenticationError {
+    #[error("the request was not authenticated")]
+    Unauthenticated,
     #[error("the request was not in the form of 'Authorization: Bearer <token>'")]
     MalformedRequest,
     #[error("requestor is forbidden from requested resource")]
@@ -274,7 +274,10 @@ impl IntoResponse for CatalogError {
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
-            Self::TooManyColumns | Self::TooManyTables | Self::TooManyDbs => {
+            Self::TooManyColumns(_)
+            | Self::TooManyTables(_)
+            | Self::TooManyDbs(_)
+            | Self::TooManyTagColumns => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: self.to_string(),
                     data: None,
@@ -340,6 +343,10 @@ impl IntoResponse for Error {
                     .body(body)
                     .unwrap()
             }
+            Self::WriteBuffer(err @ WriteBufferError::EmptyWrite) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::WriteBuffer(err @ WriteBufferError::ColumnDoesNotExist(_)) => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: err.to_string(),
@@ -496,7 +503,7 @@ pub(crate) struct HttpApi {
     time_provider: Arc<dyn TimeProvider>,
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
     max_request_bytes: usize,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn AuthProvider>,
     legacy_write_param_unifier: SingleTenantRequestUnifier,
 }
 
@@ -508,9 +515,12 @@ impl HttpApi {
         query_executor: Arc<dyn QueryExecutor>,
         processing_engine: Arc<ProcessingEngineManagerImpl>,
         max_request_bytes: usize,
-        authorizer: Arc<dyn Authorizer>,
+        authorizer: Arc<dyn AuthProvider>,
     ) -> Self {
-        let legacy_write_param_unifier = SingleTenantRequestUnifier::new(Arc::clone(&authorizer));
+        // there is a global authentication setup, passing in auth provider just does the same
+        // check twice. So, instead we pass in a NoAuthAuthenticator to avoid authenticating twice.
+        let legacy_write_param_unifier =
+            SingleTenantRequestUnifier::new(Arc::clone(&NoAuthAuthenticator.upcast()));
         Self {
             common_state,
             time_provider,
@@ -573,6 +583,42 @@ impl HttpApi {
         }
     }
 
+    pub(crate) async fn create_admin_token(
+        &self,
+        _req: Request<Body>,
+    ) -> Result<Response<Body>, Error> {
+        let catalog = self.write_buffer.catalog();
+        let (token_info, token) = catalog.create_admin_token(false).await?;
+
+        let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
+        let body = serde_json::to_vec(&response)?;
+
+        let body = Response::builder()
+            .status(StatusCode::CREATED)
+            .header(CONTENT_TYPE, "json")
+            .body(Body::from(body));
+
+        Ok(body?)
+    }
+
+    pub(crate) async fn regenerate_admin_token(
+        &self,
+        _req: Request<Body>,
+    ) -> Result<Response<Body>, Error> {
+        let catalog = self.write_buffer.catalog();
+        let (token_info, token) = catalog.create_admin_token(true).await?;
+
+        let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
+        let body = serde_json::to_vec(&response)?;
+
+        let body = Response::builder()
+            .status(StatusCode::CREATED)
+            .header(CONTENT_TYPE, "json")
+            .body(Body::from(body));
+
+        Ok(body?)
+    }
+
     async fn query_sql(&self, req: Request<Body>) -> Result<Response<Body>> {
         let QueryRequest {
             database,
@@ -608,7 +654,6 @@ impl HttpApi {
         } = self.extract_query_request::<Option<String>>(req).await?;
 
         info!(?database, %query_str, ?format, "handling query_influxql");
-
         let (stream, _) = self
             .query_influxql_inner(database, &query_str, params)
             .await?;
@@ -699,14 +744,17 @@ impl HttpApi {
         Ok(decoded_data.into())
     }
 
-    async fn authorize_request(&self, req: &mut Request<Body>) -> Result<(), AuthorizationError> {
+    async fn authenticate_request(
+        &self,
+        req: &mut Request<Body>,
+    ) -> Result<(), AuthenticationError> {
         // Extend the request with the authorization token; this is used downstream in some
         // APIs, such as write, that need the full header value to authorize a request.
         let auth_header = req.headers().get(AUTHORIZATION).cloned();
         req.extensions_mut()
-            .insert(AuthorizationHeaderExtension::new(auth_header));
+            .insert(AuthorizationHeaderExtension::new(auth_header.clone()));
 
-        let auth = if let Some(p) = extract_v1_auth_token(req) {
+        let auth_token = if let Some(p) = extract_v1_auth_token(req) {
             Some(p)
         } else {
             // We won't need the authorization header anymore and we don't want to accidentally log it.
@@ -719,10 +767,17 @@ impl HttpApi {
 
         // Currently we pass an empty permissions list, but in future we may be able to derive
         // the permissions based on the incoming request
-        let permissions = self.authorizer.permissions(auth, &[]).await?;
+        let token_id = self
+            .authorizer
+            .authenticate(auth_token.clone())
+            .await
+            .map_err(|e| {
+                error!(?e, "cannot authenticate token");
+                AuthenticationError::Unauthenticated
+            })?;
 
-        // Extend the request with the permissions, which may be useful in future
-        req.extensions_mut().insert(permissions);
+        // Extend the request with the token, which can be looked up later in authorization
+        req.extensions_mut().insert(token_id);
 
         Ok(())
     }
@@ -851,13 +906,9 @@ impl HttpApi {
             )
             .await
         {
-            Ok(Some(batch)) => Response::builder()
+            Ok(batch) => Response::builder()
                 .status(StatusCode::CREATED)
                 .body(Body::from(serde_json::to_vec(&batch)?))
-                .map_err(Into::into),
-            Ok(None) => Response::builder()
-                .status(StatusCode::NO_CONTENT)
-                .body(Body::empty())
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
         }
@@ -909,13 +960,9 @@ impl HttpApi {
             )
             .await
         {
-            Ok(Some(batch)) => Response::builder()
+            Ok(batch) => Response::builder()
                 .status(StatusCode::CREATED)
                 .body(Body::from(serde_json::to_vec(&batch)?))
-                .map_err(Into::into),
-            Ok(None) => Response::builder()
-                .status(StatusCode::NO_CONTENT)
-                .body(Body::empty())
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
         }
@@ -1239,6 +1286,19 @@ impl HttpApi {
             .unwrap())
     }
 
+    async fn delete_token(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let delete_req = serde_urlencoded::from_str::<TokenDeleteRequest>(query)?;
+        self.write_buffer
+            .catalog()
+            .delete_token(&delete_req.token_name)
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
+    }
+
     async fn read_body_json<ReqBody: DeserializeOwned>(
         &self,
         req: hyper::Request<Body>,
@@ -1302,33 +1362,33 @@ fn extract_v1_auth_token(req: &mut Request<Body>) -> Option<Vec<u8>> {
         .map(String::into_bytes)
 }
 
-fn validate_auth_header(header: HeaderValue) -> Result<Vec<u8>, AuthorizationError> {
+fn validate_auth_header(header: HeaderValue) -> Result<Vec<u8>, AuthenticationError> {
     // Split the header value into two parts
     let mut header = header.to_str()?.split(' ');
 
     // Check that the header is the 'Bearer' or 'Token' auth scheme
-    let auth_scheme = header.next().ok_or(AuthorizationError::MalformedRequest)?;
+    let auth_scheme = header.next().ok_or(AuthenticationError::MalformedRequest)?;
     if auth_scheme != "Bearer" && auth_scheme != "Token" {
-        return Err(AuthorizationError::MalformedRequest);
+        return Err(AuthenticationError::MalformedRequest);
     }
 
     // Get the token that we want to hash to check the request is valid
-    let token = header.next().ok_or(AuthorizationError::MalformedRequest)?;
+    let token = header.next().ok_or(AuthenticationError::MalformedRequest)?;
 
     // There should only be two parts the 'Bearer' scheme and the actual
     // token, error otherwise
     if header.next().is_some() {
-        return Err(AuthorizationError::MalformedRequest);
+        return Err(AuthenticationError::MalformedRequest);
     }
 
     Ok(token.as_bytes().to_vec())
 }
 
-impl From<authz::Error> for AuthorizationError {
+impl From<authz::Error> for AuthenticationError {
     fn from(auth_error: authz::Error) -> Self {
         match auth_error {
             authz::Error::Forbidden => Self::Forbidden,
-            _ => Self::Unauthorized,
+            _ => Self::Unauthenticated,
         }
     }
 }
@@ -1606,47 +1666,39 @@ async fn record_batch_stream_to_body(
 pub(crate) async fn route_request(
     http_server: Arc<HttpApi>,
     mut req: Request<Body>,
+    started_without_auth: bool,
 ) -> Result<Response<Body>, Infallible> {
-    if let Err(e) = http_server.authorize_request(&mut req).await {
-        match e {
-            AuthorizationError::Unauthorized => {
-                return Ok(Response::builder()
-                    .status(StatusCode::UNAUTHORIZED)
-                    .body(Body::empty())
-                    .unwrap());
-            }
-            AuthorizationError::MalformedRequest => {
-                return Ok(Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from("{\"error\":\
-                        \"Authorization header was malformed and should be in the form 'Authorization: Bearer <token>'\"\
-                    }"))
-                    .unwrap());
-            }
-            AuthorizationError::Forbidden => {
-                return Ok(Response::builder()
-                    .status(StatusCode::FORBIDDEN)
-                    .body(Body::empty())
-                    .unwrap());
-            }
-            // We don't expect this to happen, but if the header is messed up
-            // better to handle it then not at all
-            AuthorizationError::ToStr(_) => {
-                return Ok(Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Body::empty())
-                    .unwrap());
-            }
-        }
-    }
-    debug!(request = ?req,"Processing request");
-
     let method = req.method().clone();
     let uri = req.uri().clone();
+    if started_without_auth && uri.path().starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
+        return Ok(Response::builder()
+            .status(StatusCode::METHOD_NOT_ALLOWED)
+            .body("".into())
+            .unwrap());
+    }
+
+    // admin token creation
+    if uri.path() != all_paths::API_V3_CONFIGURE_ADMIN_TOKEN {
+        trace!(?uri, "authenticating request");
+        if let Some(authentication_error) = authenticate(&http_server, &mut req).await {
+            return authentication_error;
+        }
+    }
+
+    trace!(request = ?req,"Processing request");
     let content_length = req.headers().get("content-length").cloned();
 
-    let response = match (method.clone(), uri.path()) {
-        (Method::POST, "/write") => {
+    let path = uri.path();
+
+    let response = match (method.clone(), path) {
+        (Method::DELETE, all_paths::API_V3_CONFIGURE_TOKEN) => http_server.delete_token(req).await,
+        (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN) => {
+            http_server.create_admin_token(req).await
+        }
+        (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
+            http_server.regenerate_admin_token(req).await
+        }
+        (Method::POST, all_paths::API_LEGACY_WRITE) => {
             let params = match http_server.legacy_write_param_unifier.parse_v1(&req).await {
                 Ok(p) => p.into(),
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
@@ -1654,71 +1706,77 @@ pub(crate) async fn route_request(
 
             http_server.write_lp_inner(params, req, true).await
         }
-        (Method::POST, "/api/v2/write") => {
+        (Method::POST, all_paths::API_V2_WRITE) => {
             let params = match http_server.legacy_write_param_unifier.parse_v2(&req).await {
                 Ok(p) => p.into(),
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
-
             http_server.write_lp_inner(params, req, false).await
         }
-        (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
-        (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
-        (Method::GET | Method::POST, "/api/v3/query_influxql") => {
+        (Method::POST, all_paths::API_V3_WRITE) => http_server.write_lp(req).await,
+        (Method::GET | Method::POST, all_paths::API_V3_QUERY_SQL) => {
+            http_server.query_sql(req).await
+        }
+        (Method::GET | Method::POST, all_paths::API_V3_QUERY_INFLUXQL) => {
             http_server.query_influxql(req).await
         }
-        (Method::GET | Method::POST, "/query") => http_server.v1_query(req).await,
-        (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
-        (Method::GET | Method::POST, "/ping") => http_server.ping(),
-        (Method::GET, "/metrics") => http_server.handle_metrics(),
-        (Method::GET | Method::POST, path) if path.starts_with("/api/v3/engine/") => {
-            let path = path.strip_prefix("/api/v3/engine/").unwrap();
+        (Method::GET | Method::POST, all_paths::API_V1_QUERY) => http_server.v1_query(req).await,
+        (Method::GET, all_paths::API_V3_HEALTH | all_paths::API_V1_HEALTH) => http_server.health(),
+        (Method::GET | Method::POST, all_paths::API_PING) => http_server.ping(),
+        (Method::GET, all_paths::API_METRICS) => http_server.handle_metrics(),
+        (Method::GET | Method::POST, path) if path.starts_with(all_paths::API_V3_ENGINE) => {
+            let path = path.strip_prefix(all_paths::API_V3_ENGINE).unwrap();
             http_server
                 .processing_engine_request_plugin(path, req)
                 .await
         }
-        (Method::POST, "/api/v3/configure/distinct_cache") => {
+        (Method::POST, all_paths::API_V3_CONFIGURE_DISTINCT_CACHE) => {
             http_server.configure_distinct_cache_create(req).await
         }
-        (Method::DELETE, "/api/v3/configure/distinct_cache") => {
+        (Method::DELETE, all_paths::API_V3_CONFIGURE_DISTINCT_CACHE) => {
             http_server.configure_distinct_cache_delete(req).await
         }
-        (Method::POST, "/api/v3/configure/last_cache") => {
+        (Method::POST, all_paths::API_V3_CONFIGURE_LAST_CACHE) => {
             http_server.configure_last_cache_create(req).await
         }
-        (Method::DELETE, "/api/v3/configure/last_cache") => {
+        (Method::DELETE, all_paths::API_V3_CONFIGURE_LAST_CACHE) => {
             http_server.configure_last_cache_delete(req).await
         }
-        (Method::POST, "/api/v3/configure/processing_engine_trigger/disable") => {
+        (Method::POST, all_paths::API_V3_CONFIGURE_PROCESSING_ENGINE_DISABLE) => {
             http_server.disable_processing_engine_trigger(req).await
         }
-        (Method::POST, "/api/v3/configure/processing_engine_trigger/enable") => {
+        (Method::POST, all_paths::API_V3_CONFIGURE_PROCESSING_ENGINE_ENABLE) => {
             http_server.enable_processing_engine_trigger(req).await
         }
-        (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
+        (Method::POST, all_paths::API_V3_CONFIGURE_PROCESSING_ENGINE_TRIGGER) => {
             http_server.configure_processing_engine_trigger(req).await
         }
-        (Method::DELETE, "/api/v3/configure/processing_engine_trigger") => {
+        (Method::DELETE, all_paths::API_V3_CONFIGURE_PROCESSING_ENGINE_TRIGGER) => {
             http_server.delete_processing_engine_trigger(req).await
         }
-        (Method::POST, "/api/v3/configure/plugin_environment/install_packages") => {
+        (Method::POST, all_paths::API_V3_CONFIGURE_PLUGIN_INSTALL_PACKAGES) => {
             http_server.install_plugin_environment_packages(req).await
         }
-        (Method::POST, "/api/v3/configure/plugin_environment/install_requirements") => {
+        (Method::POST, all_paths::API_V3_CONFIGURE_PLUGIN_INSTALL_REQUIREMENTS) => {
             http_server
                 .install_plugin_environment_requirements(req)
                 .await
         }
-        (Method::GET, "/api/v3/configure/database") => http_server.show_databases(req).await,
-        (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
-        (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
-        (Method::POST, "/api/v3/configure/table") => http_server.create_table(req).await,
-        // TODO: make table delete to use path param (DELETE db/foodb/table/bar)
-        (Method::DELETE, "/api/v3/configure/table") => http_server.delete_table(req).await,
-        (Method::POST, "/api/v3/plugin_test/wal") => {
+        (Method::GET, all_paths::API_V3_CONFIGURE_DATABASE) => {
+            http_server.show_databases(req).await
+        }
+        (Method::POST, all_paths::API_V3_CONFIGURE_DATABASE) => {
+            http_server.create_database(req).await
+        }
+        (Method::DELETE, all_paths::API_V3_CONFIGURE_DATABASE) => {
+            http_server.delete_database(req).await
+        }
+        (Method::POST, all_paths::API_V3_CONFIGURE_TABLE) => http_server.create_table(req).await,
+        (Method::DELETE, all_paths::API_V3_CONFIGURE_TABLE) => http_server.delete_table(req).await,
+        (Method::POST, all_paths::API_V3_TEST_WAL_ROUTE) => {
             http_server.test_processing_engine_wal_plugin(req).await
         }
-        (Method::POST, "/api/v3/plugin_test/schedule") => {
+        (Method::POST, all_paths::API_V3_TEST_PLUGIN_ROUTE) => {
             http_server
                 .test_processing_engine_schedule_plugin(req)
                 .await
@@ -1743,6 +1801,45 @@ pub(crate) async fn route_request(
             Ok(error.into_response())
         }
     }
+}
+
+async fn authenticate(
+    http_server: &Arc<HttpApi>,
+    req: &mut Request<Body>,
+) -> Option<std::result::Result<Response<Body>, Infallible>> {
+    if let Err(e) = http_server.authenticate_request(req).await {
+        match e {
+            AuthenticationError::Unauthenticated => {
+                return Some(Ok(Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .body(Body::empty())
+                    .unwrap()));
+            }
+            AuthenticationError::MalformedRequest => {
+                return Some(Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(Body::from("{\"error\":\
+                            \"Authorization header was malformed and should be in the form 'Authorization: Bearer <token>'\"\
+                        }"))
+                        .unwrap()));
+            }
+            AuthenticationError::Forbidden => {
+                return Some(Ok(Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .body(Body::empty())
+                    .unwrap()));
+            }
+            // We don't expect this to happen, but if the header is messed up
+            // better to handle it then not at all
+            AuthenticationError::ToStr(_) => {
+                return Some(Ok(Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::empty())
+                    .unwrap()));
+            }
+        }
+    }
+    None
 }
 
 fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {

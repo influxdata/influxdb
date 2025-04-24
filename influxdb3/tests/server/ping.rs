@@ -6,7 +6,7 @@ use crate::server::TestServer;
 #[tokio::test]
 async fn test_ping() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
 
     struct TestCase<'a> {
         url: &'a str,

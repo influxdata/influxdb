@@ -94,7 +94,7 @@ async fn api_v3_query_sql_params() {
         .await
         .unwrap();
 
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!("{base}/api/v3/query_sql", base = server.client_addr());
 
     // Use a POST request
@@ -356,6 +356,7 @@ async fn api_v3_query_influxql() {
                     +---------------+---------+\n\
                     | iox::database | deleted |\n\
                     +---------------+---------+\n\
+                    | _internal     | false   |\n\
                     | bar           | false   |\n\
                     | foo           | false   |\n\
                     +---------------+---------+",
@@ -366,6 +367,7 @@ async fn api_v3_query_influxql() {
             expected: "+---------------+---------+----------+\n\
                     | iox::database | name    | duration |\n\
                     +---------------+---------+----------+\n\
+                    | _internal     | autogen |          |\n\
                     | bar           | autogen |          |\n\
                     | foo           | autogen |          |\n\
                     +---------------+---------+----------+",
@@ -434,7 +436,7 @@ async fn api_v3_query_influxql_params() {
         .await
         .unwrap();
 
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!("{base}/api/v3/query_influxql", base = server.client_addr());
 
     // Use a POST request
@@ -667,6 +669,10 @@ async fn api_v3_query_json_format() {
             expected: json!([
                 {
                   "deleted": false,
+                  "iox::database": "_internal",
+                },
+                {
+                  "deleted": false,
                   "iox::database": "foo",
                 },
             ]),
@@ -675,6 +681,10 @@ async fn api_v3_query_json_format() {
             database: None,
             query: "SHOW RETENTION POLICIES",
             expected: json!([
+                {
+                  "iox::database": "_internal",
+                  "name": "autogen",
+                },
                 {
                   "iox::database": "foo",
                   "name": "autogen",
@@ -771,12 +781,16 @@ async fn api_v3_query_jsonl_format() {
         TestCase {
             database: None,
             query: "SHOW DATABASES",
-            expected: "{\"iox::database\":\"foo\",\"deleted\":false}\n".into(),
+            expected:
+            "{\"iox::database\":\"_internal\",\"deleted\":false}\n\
+            {\"iox::database\":\"foo\",\"deleted\":false}\n".into(),
         },
         TestCase {
             database: None,
             query: "SHOW RETENTION POLICIES",
-            expected: "{\"iox::database\":\"foo\",\"name\":\"autogen\"}\n".into(),
+            expected:
+            "{\"iox::database\":\"_internal\",\"name\":\"autogen\"}\n\
+            {\"iox::database\":\"foo\",\"name\":\"autogen\"}\n".into(),
         },
     ];
     for t in test_cases {
@@ -1287,9 +1301,14 @@ async fn api_v1_query_chunked() {
         }
         let stream = server.api_v1_query(&params, None).await.bytes_stream();
         let values = stream
-            .map(|chunk| {
-                println!("{chunk:?}");
-                serde_json::from_slice(chunk.unwrap().as_ref()).unwrap()
+            .filter_map(|chunk| async move {
+                let chunk = chunk.unwrap();
+                if chunk.is_empty() {
+                    None
+                } else {
+                    println!("{chunk:?}");
+                    Some(serde_json::from_slice(&chunk).unwrap())
+                }
             })
             .collect::<Vec<Value>>()
             .await;
@@ -1628,7 +1647,15 @@ async fn api_v1_query_group_by() {
         ];
         let stream = server.api_v1_query(&params, None).await.bytes_stream();
         let values = stream
-            .map(|chunk| serde_json::from_slice(&chunk.unwrap()).unwrap())
+            .filter_map(|chunk| async move {
+                let chunk = chunk.unwrap();
+                if chunk.is_empty() {
+                    None
+                } else {
+                    println!("{chunk:?}");
+                    Some(serde_json::from_slice(&chunk).unwrap())
+                }
+            })
             .collect::<Vec<Value>>()
             .await;
         // Use a snapshot to assert on the output structure. This deserializes each emitted line as
@@ -1722,7 +1749,15 @@ async fn api_v1_query_group_by_with_nulls() {
         ];
         let stream = server.api_v1_query(&params, None).await.bytes_stream();
         let values = stream
-            .map(|chunk| serde_json::from_slice(&chunk.unwrap()).unwrap())
+            .filter_map(|chunk| async move {
+                let chunk = chunk.unwrap();
+                if chunk.is_empty() {
+                    None
+                } else {
+                    println!("{chunk:?}");
+                    Some(serde_json::from_slice(&chunk).unwrap())
+                }
+            })
             .collect::<Vec<Value>>()
             .await;
         // Use a snapshot to assert on the output structure. This deserializes each emitted line as
@@ -1828,7 +1863,7 @@ async fn api_v3_query_null_tag_values_null_fields() {
         .await
         .unwrap();
 
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!("{base}/api/v3/query_sql", base = server.client_addr());
 
     let resp = client
@@ -1932,4 +1967,32 @@ async fn api_query_with_default_browser_header() {
         +------+--------+---------------------+-------+",
         resp
     );
+}
+
+#[tokio::test]
+async fn api_v3_query_show_tables_ordering() {
+    let server = TestServer::spawn().await;
+
+    let tables = [
+        "xxx",
+        "table_002",
+        "table_009",
+        "table_001",
+        "table_003",
+        "table_006",
+        "aaa",
+    ];
+
+    for table in tables {
+        server.create_table("foo", table).run_api().await.unwrap();
+    }
+
+    let output = server
+        .api_v3_query_sql(&[("db", "foo"), ("format", "pretty"), ("q", "SHOW TABLES")])
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::assert_snapshot!(output);
 }

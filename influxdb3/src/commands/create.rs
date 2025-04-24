@@ -1,6 +1,6 @@
+pub mod token;
+
 use crate::commands::common::{DataType, InfluxDb3Config, SeparatedKeyValue, parse_key_val};
-use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
 use humantime::Duration;
 use influxdb3_catalog::log::ErrorBehavior;
@@ -9,15 +9,17 @@ use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_client::Client;
 use influxdb3_types::http::LastCacheSize;
 use influxdb3_types::http::LastCacheTtl;
-use rand::RngCore;
-use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
-use sha2::Digest;
-use sha2::Sha512;
+use serde_json::json;
 use std::error::Error;
 use std::num::NonZeroUsize;
+use std::path::PathBuf;
 use std::str;
+use token::AdminTokenConfig;
+use token::TokenCommands;
+use token::TokenSubCommand;
+use token::handle_token_creation;
 use url::Url;
 
 #[derive(Debug, clap::Parser)]
@@ -28,13 +30,15 @@ pub struct Config {
 
 impl Config {
     fn get_client(&self) -> Result<Client, Box<dyn Error>> {
-        match &self.cmd {
+        let (host_url, auth_token, ca_cert) = match &self.cmd {
             SubCommand::Database(DatabaseConfig {
                 host_url,
                 auth_token,
+                ca_cert,
                 ..
             })
             | SubCommand::LastCache(LastCacheConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -44,6 +48,7 @@ impl Config {
                 ..
             })
             | SubCommand::DistinctCache(DistinctCacheConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -53,6 +58,7 @@ impl Config {
                 ..
             })
             | SubCommand::Table(TableConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -62,6 +68,7 @@ impl Config {
                 ..
             })
             | SubCommand::Trigger(TriggerConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -69,17 +76,25 @@ impl Config {
                         ..
                     },
                 ..
-            }) => {
-                let mut client = Client::new(host_url.clone())?;
-                if let Some(token) = &auth_token {
-                    client = client.with_auth_token(token.expose_secret());
-                }
-                Ok(client)
+            }) => (host_url, auth_token, ca_cert),
+            SubCommand::Token(token_commands) => {
+                let (host_url, auth_token, ca_cert) = match &token_commands.commands {
+                    token::TokenSubCommand::Admin(AdminTokenConfig {
+                        host_url,
+                        auth_token,
+                        ca_cert,
+                        ..
+                    }) => (host_url, auth_token, ca_cert),
+                };
+                (host_url, auth_token, ca_cert)
             }
-            // We don't need a client for this, so we're just creating a
-            // placeholder client with an unusable URL
-            SubCommand::Token => Ok(Client::new("http://recall.invalid")?),
+        };
+
+        let mut client = Client::new(host_url.clone(), ca_cert.clone())?;
+        if let Some(token) = &auth_token {
+            client = client.with_auth_token(token.expose_secret());
         }
+        Ok(client)
     }
 }
 
@@ -96,7 +111,7 @@ pub enum SubCommand {
     /// Create a new table in a database
     Table(TableConfig),
     /// Create a new auth token
-    Token,
+    Token(TokenCommands),
     /// Create a new trigger for the processing engine that executes a plugin on either WAL rows, scheduled tasks, or requests to the serve at `/api/v3/engine/<path>`
     Trigger(TriggerConfig),
 }
@@ -120,6 +135,10 @@ pub struct DatabaseConfig {
     /// alphanumeric with - and _ allowed and starts with a letter or number
     #[clap(env = "INFLUXDB3_DATABASE_NAME", required = true)]
     pub database_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -158,6 +177,10 @@ pub struct LastCacheConfig {
     /// Give a name for the cache.
     #[clap(required = false)]
     cache_name: Option<String>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -179,11 +202,11 @@ pub struct DistinctCacheConfig {
     columns: Vec<String>,
 
     /// The maximum number of distinct value combinations to hold in the cache
-    #[clap(long = "max-cardinality")]
+    #[clap(long = "max-cardinality", default_value = "100000")]
     max_cardinality: Option<NonZeroUsize>,
 
     /// The maximum age of an entry in the cache entered as a human-readable duration, e.g., "30d", "24h"
-    #[clap(long = "max-age")]
+    #[clap(long = "max-age", default_value = "1d")]
     max_age: Option<humantime::Duration>,
 
     /// Give the name of the cache.
@@ -191,13 +214,17 @@ pub struct DistinctCacheConfig {
     /// This will be automatically generated if not provided
     #[clap(required = false)]
     cache_name: Option<String>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct TableConfig {
-    #[clap(long = "tags", required = true, value_delimiter = ',')]
+    #[clap(long = "tags", value_delimiter = ',', num_args = 1..)]
     /// The list of tag names to be created for the table. Tags are alphanumeric, can contain - and _, and start with a letter or number
-    tags: Vec<String>,
+    tags: Option<Vec<String>>,
 
     #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, value_delimiter = ',')]
     /// The list of field names and their data type to be created for the table. Fields are alphanumeric, can contain - and _, and start with a letter or number
@@ -210,6 +237,10 @@ pub struct TableConfig {
     #[clap(required = true)]
     /// The name of the table to be created
     table_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -240,6 +271,10 @@ pub struct TriggerConfig {
     error_behavior: ErrorBehavior,
     /// Name for the new trigger
     trigger_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -258,6 +293,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             value_columns,
             count,
             ttl,
+            ..
         }) => {
             let mut b = client.api_v3_configure_last_cache_create(database_name, table);
 
@@ -295,6 +331,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             columns,
             max_cardinality,
             max_age,
+            ..
         }) => {
             let mut b =
                 client.api_v3_configure_distinct_cache_create(database_name, table, columns);
@@ -324,9 +361,15 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             table_name,
             tags,
             fields,
+            ..
         }) => {
             client
-                .api_v3_configure_table_create(&database_name, &table_name, tags, fields)
+                .api_v3_configure_table_create(
+                    &database_name,
+                    &table_name,
+                    tags.unwrap_or_default(),
+                    fields,
+                )
                 .await?;
 
             println!(
@@ -334,25 +377,42 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 &database_name, &table_name
             );
         }
-        SubCommand::Token => {
-            let token = {
-                let mut token = String::from("apiv3_");
-                let mut key = [0u8; 64];
-                OsRng.fill_bytes(&mut key);
-                token.push_str(&B64.encode(key));
-                token
-            };
-            println!(
-                "\
-                Token: {token}\n\
-                Hashed Token: {hashed}\n\n\
-                Start the server with the Hashed Token provided as the `--bearer-token` argument:\n\n
-                `influxdb3 serve --bearer-token {hashed} --node-id <NODE_ID> [OPTIONS]`\n\n\
-                HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
-                This will grant you access to every HTTP endpoint or deny it otherwise.
-            ",
-                hashed = hex::encode(&Sha512::digest(&token)[..])
-            );
+        SubCommand::Token(token_commands) => {
+            let output_format = match token_commands.commands {
+                TokenSubCommand::Admin(AdminTokenConfig { ref format, .. }) => format.clone(),
+            }
+            .unwrap_or(token::TokenOutputFormat::Text);
+
+            match handle_token_creation(client, token_commands).await {
+                Ok(response) => {
+                    match output_format {
+                        token::TokenOutputFormat::Json => {
+                            let help_msg = format!(
+                                "HTTP requests require the following header: \"Authorization: Bearer {}\"",
+                                response.token
+                            );
+                            let json = json!({"token": response.token, "help_msg": help_msg});
+                            let stringified = serde_json::to_string_pretty(&json)
+                                .expect("token details to be parseable");
+                            println!("{}", stringified);
+                        }
+                        token::TokenOutputFormat::Text => {
+                            println!(
+                                "\n\
+                                Token: {token}\n\
+                                    \n\
+                                HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
+                                This will grant you access to HTTP/GRPC API.
+                            ",
+                                token = response.token,
+                            );
+                        }
+                    };
+                }
+                Err(err) => {
+                    println!("Failed to create token, error: {:?}", err);
+                }
+            }
         }
         SubCommand::Trigger(TriggerConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
@@ -363,6 +423,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             disabled,
             run_asynchronous,
             error_behavior,
+            ..
         }) => {
             let trigger_arguments: Option<HashMap<String, String>> = trigger_arguments.map(|a| {
                 a.into_iter()
@@ -433,6 +494,7 @@ mod tests {
             count,
             ttl,
             influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
+            ..
         }) = args.cmd
         else {
             panic!("Did not parse args correctly: {args:#?}")
@@ -470,6 +532,7 @@ mod tests {
             run_asynchronous,
             error_behavior,
             influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
+            ..
         }) = args.cmd
         else {
             panic!("Did not parse args correctly: {args:#?}")

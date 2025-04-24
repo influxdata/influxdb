@@ -10,6 +10,7 @@ impl From<super::CatalogSnapshot> for v2::CatalogSnapshot {
             sequence: value.sequence,
             catalog_id: value.catalog_id,
             catalog_uuid: value.catalog_uuid,
+            tokens: v2::RepositorySnapshot::default(),
         }
     }
 }

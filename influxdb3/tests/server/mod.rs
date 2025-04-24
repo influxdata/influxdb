@@ -11,8 +11,10 @@ use assert_cmd::cargo::CommandCargoExt;
 use futures::TryStreamExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use influxdb3_client::Precision;
-use reqwest::Response;
+use influxdb3_types::http::FieldType;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::{Certificate, Response, tls::Version};
+use tonic::transport::ClientTlsConfig;
 
 mod auth;
 mod client;
@@ -33,6 +35,12 @@ pub trait ConfigProvider {
     /// Get the auth token from this config if it was set
     fn auth_token(&self) -> Option<&str>;
 
+    /// Get if auth is enabled
+    fn auth_enabled(&self) -> bool;
+
+    /// Get if admin token needs to be generated
+    fn should_generate_admin_token(&self) -> bool;
+
     /// Spawn a new [`TestServer`] with this configuration
     ///
     /// This will run the `influxdb3 serve` command and bind its HTTP address to a random port
@@ -49,6 +57,8 @@ pub trait ConfigProvider {
 #[derive(Debug, Default)]
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
+    auth: bool,
+    without_admin_token: bool,
     node_id: Option<String>,
     plugin_dir: Option<String>,
     virtual_env_dir: Option<String>,
@@ -65,6 +75,18 @@ impl TestConfig {
         raw_token: R,
     ) -> Self {
         self.auth_token = Some((hashed_token.into(), raw_token.into()));
+        self
+    }
+
+    /// Set the auth (setting this will auto generate admin token)
+    pub fn with_auth(mut self) -> Self {
+        self.auth = true;
+        self
+    }
+
+    /// Set the auth token for this [`TestServer`]
+    pub fn with_no_admin_token(mut self) -> Self {
+        self.without_admin_token = true;
         self
     }
 
@@ -101,9 +123,10 @@ impl TestConfig {
 impl ConfigProvider for TestConfig {
     fn as_args(&self) -> Vec<String> {
         let mut args = vec![];
-        if let Some((token, _)) = &self.auth_token {
-            args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
+        if !self.auth {
+            args.append(&mut vec!["--without-auth".to_string()]);
         }
+
         if let Some(plugin_dir) = &self.plugin_dir {
             args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
         }
@@ -144,6 +167,14 @@ impl ConfigProvider for TestConfig {
     fn auth_token(&self) -> Option<&str> {
         self.auth_token.as_ref().map(|(_, t)| t.as_str())
     }
+
+    fn auth_enabled(&self) -> bool {
+        self.auth
+    }
+
+    fn should_generate_admin_token(&self) -> bool {
+        self.without_admin_token
+    }
 }
 
 /// A running instance of the `influxdb3 serve` process
@@ -179,6 +210,7 @@ impl TestServer {
     }
 
     async fn spawn_inner(config: &impl ConfigProvider) -> Self {
+        create_certs().await;
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
@@ -187,6 +219,8 @@ impl TestServer {
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
             .args(["--wal-snapshot-size", "1"])
+            .args(["--tls-cert", "../testing-certs/localhost.pem"])
+            .args(["--tls-key", "../testing-certs/localhost.key"])
             .args(config.as_args())
             .stdout(Stdio::piped());
 
@@ -231,20 +265,50 @@ impl TestServer {
             }
         });
 
+        let http_client = reqwest::ClientBuilder::new()
+            .min_tls_version(Version::TLS_1_3)
+            .use_rustls_tls()
+            .add_root_certificate(
+                Certificate::from_pem(&std::fs::read("../testing-certs/rootCA.pem").unwrap())
+                    .unwrap(),
+            )
+            .build()
+            .unwrap();
+
         let server = Self {
             auth_token: config.auth_token().map(|s| s.to_owned()),
             bind_addr,
             server_process,
-            http_client: reqwest::Client::new(),
+            http_client,
         };
 
         server.wait_until_ready().await;
+
+        let (mut server, token) = if config.auth_enabled() && !config.should_generate_admin_token()
+        {
+            let result = server
+                .run(
+                    vec!["create", "token", "--admin"],
+                    &["--tls-ca", "../testing-certs/rootCA.pem"],
+                )
+                .unwrap();
+            let token = parse_token(result);
+            (server, Some(token))
+        } else {
+            (server, None)
+        };
+
+        server.auth_token = token;
+
         server
     }
 
     /// Get the URL of the running service for use with an HTTP client
     pub fn client_addr(&self) -> String {
-        format!("http://{addr}", addr = self.bind_addr)
+        format!(
+            "https://localhost:{}",
+            self.bind_addr.split(':').nth(1).unwrap()
+        )
     }
 
     /// Get the token for the server
@@ -252,10 +316,20 @@ impl TestServer {
         self.auth_token.as_ref()
     }
 
+    /// Set the token for the server
+    pub fn set_token(&mut self, token: Option<String>) {
+        self.auth_token = token;
+    }
+
     /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
     pub async fn flight_sql_client(&self, database: &str) -> FlightSqlClient {
+        let cert = tonic::transport::Certificate::from_pem(
+            std::fs::read("../testing-certs/rootCA.pem").unwrap(),
+        );
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
+            .tls_config(ClientTlsConfig::new().ca_certificate(cert))
+            .unwrap()
             .connect()
             .await
             .expect("connect to gRPC client");
@@ -266,12 +340,21 @@ impl TestServer {
 
     /// Get a raw [`FlightClient`] for performing Flight actions directly
     pub async fn flight_client(&self) -> FlightClient {
+        let cert = tonic::transport::Certificate::from_pem(
+            std::fs::read("../testing-certs/rootCA.pem").unwrap(),
+        );
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
+            .tls_config(ClientTlsConfig::new().ca_certificate(cert))
+            .unwrap()
             .connect()
             .await
             .expect("connect to gRPC client");
         FlightClient::new(channel)
+    }
+
+    pub fn http_client(&self) -> &reqwest::Client {
+        &self.http_client
     }
 
     pub fn kill(&mut self) {
@@ -319,7 +402,11 @@ impl TestServer {
         lp: impl ToString,
         precision: Precision,
     ) -> Result<(), influxdb3_client::Error> {
-        let mut client = influxdb3_client::Client::new(self.client_addr()).unwrap();
+        let mut client = influxdb3_client::Client::new(
+            self.client_addr(),
+            Some("../testing-certs/rootCA.pem".into()),
+        )
+        .unwrap();
         if let Some(token) = &self.auth_token {
             client = client.with_auth_token(token);
         }
@@ -328,6 +415,27 @@ impl TestServer {
             .body(lp.to_string())
             .precision(precision)
             .send()
+            .await
+    }
+
+    pub async fn api_v3_create_table(
+        &self,
+        database: &str,
+        table: &str,
+        tags: Vec<String>,
+        fields: Vec<(String, FieldType)>,
+    ) -> Result<(), influxdb3_client::Error> {
+        let mut client = influxdb3_client::Client::new(
+            self.client_addr(),
+            Some("../testing-certs/rootCA.pem".into()),
+        )
+        .unwrap();
+        if let Some(token) = &self.auth_token {
+            client = client.with_auth_token(token);
+        }
+
+        client
+            .api_v3_configure_table_create(database, table, tags, fields)
             .await
     }
 
@@ -389,7 +497,7 @@ impl TestServer {
         }
 
         self.http_client
-            .get(format!("{base}/query", base = self.client_addr(),))
+            .get(format!("{base}/query", base = self.client_addr()))
             .headers(header_map)
             .query(params)
             .send()
@@ -470,6 +578,60 @@ impl TestServer {
     }
 }
 
+/// Generate certs for tests if they do not already exist. For the most part this
+/// is needed only in CI for fresh builds. Locally it'll generate them the first
+/// time and then should be valid for longer than anyone is alive or this software
+/// is used.
+pub async fn create_certs() {
+    use rcgen::CertificateParams;
+    use rcgen::IsCa;
+    use rcgen::KeyPair;
+    use std::fs;
+    use std::fs::OpenOptions;
+    use std::io::ErrorKind;
+
+    const LOCK_FILE: &str = "../testing-certs/certs.lock";
+    const ROOT_FILE: &str = "../testing-certs/rootCA.pem";
+    const LOCAL_FILE: &str = "../testing-certs/localhost.pem";
+    const LOCAL_KEY_FILE: &str = "../testing-certs/localhost.key";
+
+    if fs::exists(ROOT_FILE).unwrap()
+        && fs::exists(LOCAL_FILE).unwrap()
+        && fs::exists(LOCAL_KEY_FILE).unwrap()
+    {
+        return;
+    }
+
+    fs::create_dir_all("../testing-certs").unwrap();
+    let lock_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(LOCK_FILE);
+    match lock_file.map_err(|e| e.kind()) {
+        Ok(_) => {
+            let mut ca = CertificateParams::new(Vec::new()).unwrap();
+            let ca_key = KeyPair::generate().unwrap();
+            let local_key = KeyPair::generate().unwrap();
+            ca.is_ca = IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+            let ca = ca.self_signed(&ca_key).unwrap();
+            let localhost = CertificateParams::new(vec!["localhost".into()]).unwrap();
+            let localhost = localhost.signed_by(&local_key, &ca, &ca_key).unwrap();
+
+            fs::write(ROOT_FILE, ca.pem()).unwrap();
+            fs::write(LOCAL_FILE, localhost.pem()).unwrap();
+            fs::write(LOCAL_KEY_FILE, local_key.serialize_pem()).unwrap();
+
+            fs::remove_file(LOCK_FILE).unwrap();
+        }
+        Err(ErrorKind::AlreadyExists) => {
+            while fs::exists(LOCK_FILE).unwrap() {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+        Err(_) => panic!("Failed to acquire cert lock"),
+    }
+}
+
 /// Write to the server with the line protocol
 pub async fn write_lp_to_db(
     server: &TestServer,
@@ -477,13 +639,27 @@ pub async fn write_lp_to_db(
     lp: &str,
     precision: Precision,
 ) -> Result<(), influxdb3_client::Error> {
-    let client = influxdb3_client::Client::new(server.client_addr()).unwrap();
+    let client = influxdb3_client::Client::new(
+        server.client_addr(),
+        Some("../testing-certs/rootCA.pem".into()),
+    )
+    .unwrap();
     client
         .api_v3_write_lp(database)
         .body(lp.to_string())
         .precision(precision)
         .send()
         .await
+}
+
+pub fn parse_token(result: String) -> String {
+    let all_lines: Vec<&str> = result.split('\n').collect();
+    let token = all_lines
+        .iter()
+        .find(|line| line.starts_with("Token:"))
+        .expect("token line to be present")
+        .replace("Token: ", "");
+    token
 }
 
 #[allow(dead_code)]

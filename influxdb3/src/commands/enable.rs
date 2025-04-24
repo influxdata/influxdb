@@ -1,7 +1,7 @@
 use crate::commands::common::InfluxDb3Config;
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
-use std::error::Error;
+use std::{error::Error, path::PathBuf};
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -11,8 +11,9 @@ pub struct Config {
 
 impl Config {
     fn get_client(&self) -> Result<Client, Box<dyn Error>> {
-        let (host_url, auth_token) = match &self.cmd {
+        let (host_url, auth_token, ca_cert) = match &self.cmd {
             SubCommand::Trigger(TriggerConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -20,9 +21,9 @@ impl Config {
                         ..
                     },
                 ..
-            }) => (host_url, auth_token),
+            }) => (host_url, auth_token, ca_cert),
         };
-        let mut client = Client::new(host_url.clone())?;
+        let mut client = Client::new(host_url.clone(), ca_cert.clone())?;
         if let Some(token) = &auth_token {
             client = client.with_auth_token(token.expose_secret());
         }
@@ -44,6 +45,10 @@ struct TriggerConfig {
     /// Name of trigger to enable
     #[clap(required = true)]
     trigger_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    pub ca_cert: Option<PathBuf>,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -52,6 +57,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Trigger(TriggerConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             trigger_name,
+            ..
         }) => {
             client
                 .api_v3_configure_processing_engine_trigger_enable(database_name, &trigger_name)

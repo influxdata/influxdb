@@ -6,6 +6,9 @@ readonly BOLDGREEN='\033[1;32m'
 readonly DIM='\033[2m'
 readonly NC='\033[0m' # No Color
 
+# No diagnostics for: 'printf "...${FOO}"'
+# shellcheck disable=SC2059
+
 ARCHITECTURE=$(uname -m)
 ARTIFACT=""
 OS=""
@@ -13,6 +16,7 @@ INSTALL_LOC=~/.influxdb
 BINARY_NAME="influxdb3"
 PORT=8181
 
+INFLUXDB_VERSION="3.0.1"
 EDITION="Core"
 EDITION_TAG="core"
 if [ "$1" = "enterprise" ]; then
@@ -33,12 +37,10 @@ if [ "${OS}" = "Linux" ]; then
     # prevents it from running when invoked directly. Since we only want to
     # use '--verbose', find the path to ldd, then invoke under sh to bypass ldd
     # hardening.
-    # XXX: use 'uname -o | grep GNU' instead?
-    ldd_exec=$(command -v ldd)
     if [ "${ARCHITECTURE}" = "x86_64" ] || [ "${ARCHITECTURE}" = "amd64" ]; then
-        ARTIFACT="x86_64-unknown-linux-gnu"
+        ARTIFACT="linux_amd64"
     elif [ "${ARCHITECTURE}" = "aarch64" ] || [ "${ARCHITECTURE}" = "arm64" ]; then
-        ARTIFACT="aarch64-unknown-linux-gnu"
+        ARTIFACT="linux_arm64"
     fi
 elif [ "${OS}" = "Darwin" ]; then
     if [ "${ARCHITECTURE}" = "x86_64" ]; then
@@ -47,7 +49,7 @@ elif [ "${OS}" = "Darwin" ]; then
         printf "View alternative binaries on our Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
         exit 1
     else
-        ARTIFACT="aarch64-apple-darwin"
+        ARTIFACT="darwin_arm64"
     fi
 fi
 
@@ -59,7 +61,7 @@ fi
     exit 1
 }
 
-URL="https://dl.influxdata.com/influxdb/snapshots/influxdb3-${EDITION_TAG}_${ARTIFACT}.tar.gz"
+URL="https://dl.influxdata.com/influxdb/releases/influxdb3-${EDITION_TAG}-${INFLUXDB_VERSION}_${ARTIFACT}.tar.gz"
 
 START_TIME=$(date +%s)
 
@@ -83,22 +85,22 @@ read -r INSTALL_TYPE
 case "$INSTALL_TYPE" in
     1)
         printf "\n\n${BOLD}Download and Tag Docker Image${NC}\n"
-        printf "├─ ${DIM}docker pull quay.io/influxdb/influxdb3-${EDITION_TAG}:latest${NC}\n"
-        printf "└─ ${DIM}docker tag quay.io/influxdb/influxdb3-${EDITION_TAG}:latest influxdb3-${EDITION_TAG}${NC}\n\n"
-        if ! docker pull "quay.io/influxdb/influxdb3-${EDITION_TAG}:latest"; then
+        printf "├─ ${DIM}docker pull influxdb:${EDITION_TAG}${NC}\n"
+        printf "└─ ${DIM}docker tag influxdb:${EDITION_TAG} influxdb3-${EDITION_TAG}${NC}\n\n"
+        if ! docker pull "influxdb:3-${EDITION_TAG}"; then
             printf "└─ Error: Failed to download Docker image.\n"
             exit 1
         fi
-        docker tag quay.io/influxdb/influxdb3-${EDITION_TAG}:latest influxdb3-${EDITION_TAG}
+        docker tag influxdb:3-${EDITION_TAG} influxdb3-${EDITION_TAG}
         # Exit script after Docker installation
         echo
         printf "${BOLD}NEXT STEPS${NC}\n"
         printf "1) Run the Docker image:\n"
         printf "   ├─ ${BOLD}mkdir plugins${NC} ${DIM}(To store and access plugins)${NC}\n"
         if [ "${EDITION}" = "Core" ]; then
-            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
+            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} influxdb3 serve --object-store memory --node-id node0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
         else
-            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --cluster-id cluster0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
+            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} influxdb3 serve --object-store memory --node-id node0 --cluster-id cluster0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
         fi
         printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
 
@@ -135,42 +137,49 @@ fi
 printf "${BOLD}Downloading InfluxDB 3 %s to %s${NC}\n" "$EDITION" "$INSTALL_LOC"
 printf "├─${DIM} mkdir -p '%s'${NC}\n" "$INSTALL_LOC"
 mkdir -p "$INSTALL_LOC"
-printf "└─${DIM} curl -sSL '%s' -o '%s/influxdb3.tar.gz'${NC}\n" "${URL}" "$INSTALL_LOC"
-curl -sSL "${URL}" -o "$INSTALL_LOC/influxdb3.tar.gz"
+printf "└─${DIM} curl -sSL '%s' -o '%s/influxdb3-${EDITION_TAG}.tar.gz'${NC}\n" "${URL}" "$INSTALL_LOC"
+curl -sSL "${URL}" -o "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz"
 
 echo
-printf "${BOLD}Verifying '%s/influxdb3.tar.gz'${NC}\n" "$INSTALL_LOC"
-printf "└─${DIM} curl -sSL '%s.sha256' -o '%s/influxdb3.tar.gz.sha256'${NC}\n" "${URL}" "$INSTALL_LOC"
-curl -sSL "${URL}.sha256" -o "$INSTALL_LOC/influxdb3.tar.gz.sha256"
-dl_sha=$(cut -d ' ' -f 1 "$INSTALL_LOC/influxdb3.tar.gz.sha256" | grep -E '^[0-9a-f]{64}$')
+printf "${BOLD}Verifying '%s/influxdb3-${EDITION_TAG}.tar.gz'${NC}\n" "$INSTALL_LOC"
+printf "└─${DIM} curl -sSL '%s.sha256' -o '%s/influxdb3-${EDITION_TAG}.tar.gz.sha256'${NC}\n" "${URL}" "$INSTALL_LOC"
+curl -sSL "${URL}.sha256" -o "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz.sha256"
+dl_sha=$(cut -d ' ' -f 1 "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz.sha256" | grep -E '^[0-9a-f]{64}$')
 if [ -z "$dl_sha" ]; then
-    printf "Could not find properly formatted SHA256 in '%s/influxdb3.tar.gz.sha256'. Aborting.\n" "$INSTALL_LOC"
+    printf "Could not find properly formatted SHA256 in '%s/influxdb3-${EDITION_TAG}.tar.gz.sha256'. Aborting.\n" "$INSTALL_LOC"
     exit 1
 fi
-printf "└─${DIM} sha256sum '%s/influxdb3.tar.gz'" "$INSTALL_LOC"
-ch_sha=$(sha256sum "$INSTALL_LOC/influxdb3.tar.gz" | cut -d ' ' -f 1)
+
+ch_sha=
+if [ "${OS}" = "Darwin" ]; then
+    printf "└─${DIM} shasum -a 256 '%s/influxdb3-${EDITION_TAG}.tar.gz'" "$INSTALL_LOC"
+    ch_sha=$(shasum -a 256 "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz" | cut -d ' ' -f 1)
+else
+    printf "└─${DIM} sha256sum '%s/influxdb3-${EDITION_TAG}.tar.gz'" "$INSTALL_LOC"
+    ch_sha=$(sha256sum "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz" | cut -d ' ' -f 1)
+fi
 if [ "$ch_sha" = "$dl_sha" ]; then
     printf " (OK: %s = %s)${NC}\n" "$ch_sha" "$dl_sha"
 else
     printf " (ERROR: %s != %s). Aborting.${NC}\n" "$ch_sha" "$dl_sha"
     exit 1
 fi
-printf "└─${DIM} rm '%s/influxdb3.tar.gz.sha256'${NC}\n" "$INSTALL_LOC"
-rm "$INSTALL_LOC/influxdb3.tar.gz.sha256"
+printf "└─${DIM} rm '%s/influxdb3-${EDITION_TAG}.tar.gz.sha256'${NC}\n" "$INSTALL_LOC"
+rm "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz.sha256"
 
 echo
 printf "${BOLD}Extracting and Processing${NC}\n"
 
 # some tarballs have a leading component, check for that
 TAR_LEVEL=0
-if tar -tf "$INSTALL_LOC/influxdb3.tar.gz" | grep -q '[a-zA-Z0-9]/influxdb3$' ; then
+if tar -tf "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz" | grep -q '[a-zA-Z0-9]/influxdb3$' ; then
     TAR_LEVEL=1
 fi
-printf "├─${DIM} tar -xf '%s/influxdb3.tar.gz' --strip-components=${TAR_LEVEL} -C '%s'${NC}\n" "$INSTALL_LOC" "$INSTALL_LOC"
-tar -xf "$INSTALL_LOC/influxdb3.tar.gz" --strip-components="${TAR_LEVEL}" -C "$INSTALL_LOC"
+printf "├─${DIM} tar -xf '%s/influxdb3-${EDITION_TAG}.tar.gz' --strip-components=${TAR_LEVEL} -C '%s'${NC}\n" "$INSTALL_LOC" "$INSTALL_LOC"
+tar -xf "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz" --strip-components="${TAR_LEVEL}" -C "$INSTALL_LOC"
 
-printf "└─${DIM} rm '%s/influxdb3.tar.gz'${NC}\n" "$INSTALL_LOC"
-rm "$INSTALL_LOC/influxdb3.tar.gz"
+printf "└─${DIM} rm '%s/influxdb3-${EDITION_TAG}.tar.gz'${NC}\n" "$INSTALL_LOC"
+rm "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz"
 
 if [ -n "$shellrc" ] && ! grep -q "export PATH=.*$INSTALL_LOC" "$shellrc"; then
     echo

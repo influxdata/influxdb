@@ -1,11 +1,12 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
-use crate::{CommonServerState, Server, auth::DefaultAuthorizer, http::HttpApi};
-use authz::Authorizer;
+use crate::{CommonServerState, Server, http::HttpApi};
+use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_write::{WriteBuffer, persister::Persister};
 use iox_time::TimeProvider;
+use rustls::SupportedProtocolVersion;
 use tokio::net::TcpListener;
 
 #[derive(Debug)]
@@ -18,7 +19,7 @@ pub struct ServerBuilder<W, Q, P, T, L, E> {
     persister: P,
     listener: L,
     processing_engine: E,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn AuthProvider>,
 }
 
 impl
@@ -40,7 +41,7 @@ impl
             query_executor: NoQueryExec,
             persister: NoPersister,
             listener: NoListener,
-            authorizer: Arc::new(DefaultAuthorizer),
+            authorizer: Arc::new(NoAuthAuthenticator),
             processing_engine: NoProcessingEngine,
         }
     }
@@ -52,7 +53,7 @@ impl<W, Q, P, T, L, E> ServerBuilder<W, Q, P, T, L, E> {
         self
     }
 
-    pub fn authorizer(mut self, a: Arc<dyn Authorizer>) -> Self {
+    pub fn authorizer(mut self, a: Arc<dyn AuthProvider>) -> Self {
         self.authorizer = a;
         self
     }
@@ -202,7 +203,12 @@ impl
         WithProcessingEngine,
     >
 {
-    pub async fn build(self) -> Server {
+    pub async fn build<'a>(
+        self,
+        cert_file: Option<PathBuf>,
+        key_file: Option<PathBuf>,
+        tls_minimum_version: &'a [&'static SupportedProtocolVersion],
+    ) -> Server<'a> {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let processing_engine = Arc::clone(&self.processing_engine.0);
@@ -228,6 +234,9 @@ impl
         Server {
             common_state: self.common_state,
             http,
+            cert_file,
+            key_file,
+            tls_minimum_version,
             persister,
             authorizer,
             listener: self.listener.0,

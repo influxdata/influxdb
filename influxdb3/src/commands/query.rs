@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::str::Utf8Error;
 
 use clap::{Parser, ValueEnum};
@@ -71,6 +72,10 @@ pub struct Config {
 
     /// The query string to execute
     query: Option<String>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, ValueEnum, Clone)]
@@ -85,7 +90,7 @@ pub(crate) async fn command(config: Config) -> Result<()> {
         database_name,
         auth_token,
     } = config.influxdb3_config;
-    let mut client = influxdb3_client::Client::new(host_url)?;
+    let mut client = influxdb3_client::Client::new(host_url, config.ca_cert)?;
     if let Some(t) = auth_token {
         client = client.with_auth_token(t.expose_secret());
     }

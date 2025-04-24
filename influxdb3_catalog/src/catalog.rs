@@ -1,16 +1,31 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use bimap::BiHashMap;
+use influxdb3_authz::Actions;
+use influxdb3_authz::Permission;
+use influxdb3_authz::ResourceIdentifier;
+use influxdb3_authz::ResourceType;
+use influxdb3_authz::TokenInfo;
+use influxdb3_authz::TokenProvider;
 use influxdb3_id::{
-    CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId,
+    CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId, TokenId,
     TriggerId,
 };
+use influxdb3_shutdown::ShutdownToken;
 use iox_time::{Time, TimeProvider};
+use metric::Registry;
+use metrics::CatalogMetrics;
 use object_store::ObjectStore;
-use observability_deps::tracing::{debug, info, trace, warn};
+use observability_deps::tracing::{debug, error, info, trace, warn};
 use parking_lot::RwLock;
+use rand::RngCore;
+use rand::rngs::OsRng;
 use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
+use sha2::Sha512;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -19,14 +34,16 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
+mod metrics;
 mod update;
 pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
 use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
+use crate::log::CreateAdminTokenDetails;
 use crate::log::{
     CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
-    RegisterNodeLog,
+    RegenerateAdminTokenDetails, RegisterNodeLog, StopNodeLog, TokenBatch, TokenCatalogOp,
 };
 use crate::object_store::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
@@ -44,6 +61,13 @@ use crate::{
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
 pub const TIME_COLUMN_NAME: &str = "time";
+
+pub const INTERNAL_DB_NAME: &str = "_internal";
+
+const DEFAULT_ADMIN_TOKEN_NAME: &str = "_admin";
+
+/// Limit for the number of tag columns on a table
+pub(crate) const NUM_TAG_COLUMNS_LIMIT: usize = 250;
 
 /// The sequence number of a batch of WAL operations.
 #[derive(
@@ -85,8 +109,10 @@ pub struct Catalog {
     time_provider: Arc<dyn TimeProvider>,
     /// Connection to the object store for managing persistence and updates to the catalog
     store: ObjectStoreCatalog,
+    metrics: Arc<CatalogMetrics>,
     /// In-memory representation of the catalog
     pub(crate) inner: RwLock<InnerCatalog>,
+    limits: CatalogLimits,
 }
 
 /// Custom implementation of `Debug` for the `Catalog` type to avoid serializing the object store
@@ -100,24 +126,43 @@ impl std::fmt::Debug for Catalog {
 
 const CATALOG_CHECKPOINT_INTERVAL: u64 = 100;
 
+#[derive(Debug, Clone, Copy)]
+pub struct CatalogLimits {
+    num_dbs: usize,
+    num_tables: usize,
+    num_columns_per_table: usize,
+}
+
+impl Default for CatalogLimits {
+    fn default() -> Self {
+        Self {
+            num_dbs: Catalog::NUM_DBS_LIMIT,
+            num_tables: Catalog::NUM_TABLES_LIMIT,
+            num_columns_per_table: Catalog::NUM_COLUMNS_PER_TABLE_LIMIT,
+        }
+    }
+}
+
 impl Catalog {
     /// Limit for the number of Databases that InfluxDB 3 Core can have
-    pub(crate) const NUM_DBS_LIMIT: usize = 5;
+    pub const NUM_DBS_LIMIT: usize = 5;
     /// Limit for the number of columns per table that InfluxDB 3 Core can have
-    pub(crate) const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
+    pub const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
     /// Limit for the number of tables across all DBs that InfluxDB 3 Core can have
-    pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
+    pub const NUM_TABLES_LIMIT: usize = 2000;
 
     pub async fn new(
-        catalog_id: impl Into<Arc<str>>,
+        node_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
     ) -> Result<Self> {
-        let node_id = catalog_id.into();
+        let node_id = node_id.into();
         let store =
             ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
         let subscriptions = Default::default();
-        store
+        let metrics = Arc::new(CatalogMetrics::new(&metric_registry));
+        let mut catalog = store
             .load_or_create_catalog()
             .await
             .map_err(Into::into)
@@ -126,8 +171,56 @@ impl Catalog {
                 subscriptions,
                 time_provider,
                 store,
+                metrics,
                 inner,
-            })
+                limits: Default::default(),
+            });
+
+        create_internal_db(&mut catalog).await;
+        catalog
+    }
+
+    pub async fn new_with_shutdown(
+        node_id: impl Into<Arc<str>>,
+        store: Arc<dyn ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
+        shutdown_token: ShutdownToken,
+    ) -> Result<Arc<Self>> {
+        let node_id = node_id.into();
+        let catalog =
+            Arc::new(Self::new(Arc::clone(&node_id), store, time_provider, metric_registry).await?);
+        let catalog_cloned = Arc::clone(&catalog);
+        tokio::spawn(async move {
+            shutdown_token.wait_for_shutdown().await;
+            info!(
+                node_id = node_id.as_ref(),
+                "updating node state to stopped in catalog"
+            );
+            if let Err(error) = catalog_cloned
+                .update_node_state_stopped(node_id.as_ref())
+                .await
+            {
+                error!(
+                    ?error,
+                    node_id = node_id.as_ref(),
+                    "encountered error while updating node to stopped state in catalog"
+                );
+            }
+        });
+        Ok(catalog)
+    }
+
+    fn num_dbs_limit(&self) -> usize {
+        self.limits.num_dbs
+    }
+
+    fn num_tables_limit(&self) -> usize {
+        self.limits.num_tables
+    }
+
+    fn num_columns_per_table_limit(&self) -> usize {
+        self.limits.num_columns_per_table
     }
 
     pub fn object_store_prefix(&self) -> Arc<str> {
@@ -171,6 +264,7 @@ impl Catalog {
         // will be the sequence number that the catalog is updated to.
         let mut permit = CATALOG_WRITE_PERMIT.lock().await;
         if sequence != self.sequence_number() {
+            self.metrics.catalog_operation_retries.inc(1);
             return Prompt::Retry(());
         }
         *permit = self.sequence_number().next();
@@ -226,8 +320,8 @@ impl Catalog {
             None => {
                 let mut inner = self.inner.write();
 
-                if inner.database_count() >= Self::NUM_DBS_LIMIT {
-                    return Err(CatalogError::TooManyDbs);
+                if inner.database_count() >= self.num_dbs_limit() {
+                    return Err(CatalogError::TooManyDbs(self.num_dbs_limit()));
                 }
 
                 info!(database_name = db_name, "creating new database");
@@ -321,6 +415,119 @@ impl Catalog {
             .collect();
         result
     }
+
+    pub fn get_tokens(&self) -> Vec<Arc<TokenInfo>> {
+        self.inner
+            .read()
+            .tokens
+            .repo()
+            .iter()
+            .map(|(_, token_info)| Arc::clone(token_info))
+            .collect()
+    }
+
+    pub async fn create_admin_token(&self, regenerate: bool) -> Result<(Arc<TokenInfo>, String)> {
+        // if regen, if token is present already create a new token and hash and update the
+        // existing token otherwise we should insert to catalog (essentially an upsert)
+        let (token, hash) = create_token_and_hash();
+        self.catalog_update_with_retry(|| {
+            if regenerate {
+                let default_admin_token = self
+                    .inner
+                    .read()
+                    .tokens
+                    .repo()
+                    .get_by_name(DEFAULT_ADMIN_TOKEN_NAME);
+
+                if default_admin_token.is_none() {
+                    return Err(CatalogError::MissingAdminTokenToUpdate);
+                }
+
+                // now just update the hash and updated at
+                Ok(CatalogBatch::Token(TokenBatch {
+                    time_ns: self.time_provider.now().timestamp_nanos(),
+                    ops: vec![TokenCatalogOp::RegenerateAdminToken(
+                        RegenerateAdminTokenDetails {
+                            token_id: default_admin_token.unwrap().as_ref().id,
+                            hash: hash.clone(),
+                            updated_at: self.time_provider.now().timestamp_millis(),
+                        },
+                    )],
+                }))
+            } else {
+                // validate name
+                if self
+                    .inner
+                    .read()
+                    .tokens
+                    .repo()
+                    .contains_name(DEFAULT_ADMIN_TOKEN_NAME)
+                {
+                    return Err(CatalogError::TokenNameAlreadyExists(
+                        DEFAULT_ADMIN_TOKEN_NAME.to_owned(),
+                    ));
+                }
+
+                let (token_id, created_at, expiry) = {
+                    let mut inner = self.inner.write();
+                    let token_id = inner.tokens.get_and_increment_next_id();
+                    let created_at = self.time_provider.now();
+                    let expiry = None;
+                    (token_id, created_at.timestamp_millis(), expiry)
+                };
+
+                Ok(CatalogBatch::Token(TokenBatch {
+                    time_ns: created_at,
+                    ops: vec![TokenCatalogOp::CreateAdminToken(CreateAdminTokenDetails {
+                        token_id,
+                        name: Arc::from(DEFAULT_ADMIN_TOKEN_NAME),
+                        hash: hash.clone(),
+                        created_at,
+                        updated_at: None,
+                        expiry,
+                    })],
+                }))
+            }
+        })
+        .await?;
+
+        let token_info = {
+            self.inner
+                .read()
+                .tokens
+                .repo()
+                .get_by_name(DEFAULT_ADMIN_TOKEN_NAME)
+                .expect("token info must be present after token creation by name")
+        };
+
+        // we need to pass these details back, especially this token as this is what user should
+        // send in subsequent requests
+        Ok((token_info, token))
+    }
+}
+
+async fn create_internal_db(catalog: &mut std::result::Result<Catalog, CatalogError>) {
+    // if catalog is initialised, create internal db
+    if let Ok(catalog) = catalog.as_mut() {
+        let result = catalog.create_database(INTERNAL_DB_NAME).await;
+        // what is the best outcome if "_internal" cannot be created?
+        match result {
+            Ok(_) => info!("created internal database"),
+            Err(err) => {
+                match err {
+                    CatalogError::AlreadyExists => {
+                        // this is probably ok
+                        debug!("not creating internal db as it exists already");
+                    }
+                    _ => {
+                        // all other errors are unexpected state
+                        error!(?err, "unexpected error when creating internal db");
+                        panic!("cannot create internal db");
+                    }
+                }
+            }
+        };
+    }
 }
 
 impl Catalog {
@@ -335,7 +542,8 @@ impl Catalog {
 
         let store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        Self::new(catalog_id.into(), store, time_provider).await
+        let metric_registry = Default::default();
+        Self::new(catalog_id.into(), store, time_provider, metric_registry).await
     }
 
     /// Create a new `Catalog` with the specified checkpoint interval
@@ -347,6 +555,7 @@ impl Catalog {
         catalog_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
         checkpoint_interval: u64,
     ) -> Result<Self> {
         let store = ObjectStoreCatalog::new(catalog_id, checkpoint_interval, store);
@@ -357,8 +566,16 @@ impl Catalog {
             subscriptions,
             time_provider,
             store,
+            metrics: Arc::new(CatalogMetrics::new(&metric_registry)),
             inner: RwLock::new(inner),
+            limits: Default::default(),
         })
+    }
+}
+
+impl TokenProvider for Catalog {
+    fn get_token(&self, token_hash: Vec<u8>) -> Option<Arc<TokenInfo>> {
+        self.inner.read().tokens.hash_to_info(token_hash)
     }
 }
 
@@ -515,6 +732,9 @@ pub struct InnerCatalog {
     pub(crate) nodes: Repository<NodeId, NodeDefinition>,
     /// The catalog is a map of databases with their table schemas
     pub(crate) databases: Repository<DbId, DatabaseSchema>,
+    /// This holds all the tokens created and saved in catalog
+    /// saved in catalog snapshot
+    pub(crate) tokens: TokenRepository,
 }
 
 impl InnerCatalog {
@@ -525,6 +745,7 @@ impl InnerCatalog {
             catalog_uuid,
             nodes: Repository::default(),
             databases: Repository::default(),
+            tokens: TokenRepository::default(),
         }
     }
 
@@ -533,7 +754,11 @@ impl InnerCatalog {
     }
 
     pub fn database_count(&self) -> usize {
-        self.databases.iter().filter(|db| !db.1.deleted).count()
+        self.databases
+            .iter()
+            // count if not db deleted _and_ not internal
+            .filter(|db| !db.1.deleted && db.1.name().as_ref() != INTERNAL_DB_NAME)
+            .count()
     }
 
     pub fn table_count(&self) -> usize {
@@ -558,6 +783,7 @@ impl InnerCatalog {
         let updated = match catalog_batch {
             CatalogBatch::Node(root_batch) => self.apply_node_batch(root_batch)?,
             CatalogBatch::Database(database_batch) => self.apply_database_batch(database_batch)?,
+            CatalogBatch::Token(token_batch) => self.apply_token_batch(token_batch)?,
         };
 
         Ok(updated.then(|| {
@@ -604,28 +830,79 @@ impl InnerCatalog {
                     }
                     true
                 }
+                NodeCatalogOp::StopNode(StopNodeLog {
+                    stopped_time_ns, ..
+                }) => {
+                    let mut new_node = self
+                        .nodes
+                        .get_by_id(&node_batch.node_catalog_id)
+                        .expect("node should exist");
+                    Arc::make_mut(&mut new_node).state = NodeState::Stopped {
+                        stopped_time_ns: *stopped_time_ns,
+                    };
+                    self.nodes
+                        .update(node_batch.node_catalog_id, new_node)
+                        .expect("there should be a node to update");
+                    true
+                }
             };
         }
         Ok(updated)
     }
 
+    fn apply_token_batch(&mut self, token_batch: &TokenBatch) -> Result<bool> {
+        let mut is_updated = false;
+        for op in &token_batch.ops {
+            is_updated |= match op {
+                TokenCatalogOp::CreateAdminToken(create_admin_token_details) => {
+                    let mut token_info = TokenInfo::new(
+                        create_admin_token_details.token_id,
+                        Arc::clone(&create_admin_token_details.name),
+                        create_admin_token_details.hash.clone(),
+                        create_admin_token_details.created_at,
+                        create_admin_token_details.expiry,
+                    );
+
+                    token_info.set_permissions(vec![Permission {
+                        resource_type: ResourceType::Wildcard,
+                        resource_identifier: ResourceIdentifier::Wildcard,
+                        actions: Actions::Wildcard,
+                    }]);
+                    // add the admin token itself
+                    self.tokens
+                        .add_token(create_admin_token_details.token_id, token_info)?;
+                    true
+                }
+                TokenCatalogOp::RegenerateAdminToken(regenerate_admin_token_details) => {
+                    self.tokens.update_admin_token_hash(
+                        regenerate_admin_token_details.token_id,
+                        regenerate_admin_token_details.hash.clone(),
+                        regenerate_admin_token_details.updated_at,
+                    )?;
+                    true
+                }
+                TokenCatalogOp::DeleteToken(delete_token_details) => {
+                    self.tokens
+                        .delete_token(delete_token_details.token_name.to_owned())?;
+                    true
+                }
+            };
+        }
+
+        Ok(is_updated)
+    }
+
     fn apply_database_batch(&mut self, database_batch: &DatabaseBatch) -> Result<bool> {
-        let table_count = self.table_count();
         if let Some(db) = self.databases.get_by_id(&database_batch.database_id) {
             let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(&db, database_batch)?
             else {
                 return Ok(false);
             };
-            check_overall_table_count(Some(&db), &new_db, table_count)?;
             self.databases
                 .update(db.id, new_db)
                 .expect("existing database should be updated");
         } else {
-            if self.database_count() >= Catalog::NUM_DBS_LIMIT {
-                return Err(CatalogError::TooManyDbs);
-            }
             let new_db = DatabaseSchema::new_from_batch(database_batch)?;
-            check_overall_table_count(None, &new_db, table_count)?;
             self.databases
                 .insert(new_db.id, new_db)
                 .expect("new database should be inserted");
@@ -635,30 +912,6 @@ impl InnerCatalog {
 
     pub fn db_exists(&self, db_id: DbId) -> bool {
         self.databases.get_by_id(&db_id).is_some()
-    }
-}
-
-fn check_overall_table_count(
-    existing_db: Option<&Arc<DatabaseSchema>>,
-    new_db: &DatabaseSchema,
-    current_table_count: usize,
-) -> Result<()> {
-    let existing_table_count = if let Some(existing_db) = existing_db {
-        existing_db.table_count()
-    } else {
-        0
-    };
-    let new_table_count = new_db.table_count();
-    match new_table_count.cmp(&existing_table_count) {
-        Ordering::Less | Ordering::Equal => Ok(()),
-        Ordering::Greater => {
-            let newly_added_table_count = new_db.table_count() - existing_table_count;
-            if current_table_count + newly_added_table_count > Catalog::NUM_TABLES_LIMIT {
-                Err(CatalogError::TooManyTables)
-            } else {
-                Ok(())
-            }
-        }
     }
 }
 
@@ -1125,11 +1378,6 @@ impl TableDefinition {
         columns: Vec<(ColumnId, Arc<str>, InfluxColumnType)>,
         series_key: Vec<ColumnId>,
     ) -> Result<Self> {
-        // ensure we're under the column limit
-        if columns.len() > Catalog::NUM_COLUMNS_PER_TABLE_LIMIT {
-            return Err(CatalogError::TooManyColumns);
-        }
-
         // Use a BTree to ensure that the columns are ordered:
         let mut ordered_columns = BTreeMap::new();
         for (col_id, name, column_type) in &columns {
@@ -1288,11 +1536,6 @@ impl TableDefinition {
             }
         }
 
-        // ensure we don't go over the column limit
-        if cols.len() > Catalog::NUM_COLUMNS_PER_TABLE_LIMIT {
-            return Err(CatalogError::TooManyColumns);
-        }
-
         let mut schema_builder = SchemaBuilder::with_capacity(cols.len());
         // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
         // tests, so I am omitting this for now:
@@ -1330,6 +1573,13 @@ impl TableDefinition {
 
     pub fn num_columns(&self) -> usize {
         self.influx_schema().len()
+    }
+
+    pub fn num_tag_columns(&self) -> usize {
+        self.columns
+            .resource_iter()
+            .filter(|c| matches!(c.data_type, InfluxColumnType::Tag))
+            .count()
     }
 
     pub fn field_type_by_name(&self, name: impl AsRef<str>) -> Option<InfluxColumnType> {
@@ -1517,6 +1767,99 @@ impl ColumnDefinition {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct TokenRepository {
+    repo: Repository<TokenId, TokenInfo>,
+    hash_lookup_map: BiHashMap<TokenId, Vec<u8>>,
+}
+
+impl TokenRepository {
+    pub(crate) fn new(
+        repo: Repository<TokenId, TokenInfo>,
+        hash_lookup_map: BiHashMap<TokenId, Vec<u8>>,
+    ) -> Self {
+        Self {
+            repo,
+            hash_lookup_map,
+        }
+    }
+
+    pub(crate) fn repo(&self) -> &Repository<TokenId, TokenInfo> {
+        &self.repo
+    }
+
+    pub(crate) fn get_and_increment_next_id(&mut self) -> TokenId {
+        self.repo.get_and_increment_next_id()
+    }
+
+    pub(crate) fn hash_to_info(&self, hash: Vec<u8>) -> Option<Arc<TokenInfo>> {
+        let id = self
+            .hash_lookup_map
+            .get_by_right(&hash)
+            .map(|id| id.to_owned())?;
+        self.repo.get_by_id(&id)
+    }
+
+    pub(crate) fn add_token(&mut self, token_id: TokenId, token_info: TokenInfo) -> Result<()> {
+        self.hash_lookup_map
+            .insert(token_id, token_info.hash.clone());
+        self.repo.insert(token_id, token_info)?;
+        Ok(())
+    }
+
+    pub(crate) fn update_admin_token_hash(
+        &mut self,
+        token_id: TokenId,
+        hash: Vec<u8>,
+        updated_at: i64,
+    ) -> Result<()> {
+        let mut token_info = self
+            .repo
+            .get_by_id(&token_id)
+            .ok_or_else(|| CatalogError::MissingAdminTokenToUpdate)?;
+        let updatable = Arc::make_mut(&mut token_info);
+        updatable.hash = hash.clone();
+        updatable.updated_at = Some(updated_at);
+        updatable.updated_by = Some(token_id);
+        self.repo.update(token_id, token_info)?;
+        self.hash_lookup_map.insert(token_id, hash);
+        Ok(())
+    }
+
+    pub(crate) fn delete_token(&mut self, token_name: String) -> Result<()> {
+        let token_id = self
+            .repo
+            .name_to_id(&token_name)
+            .ok_or_else(|| CatalogError::NotFound)?;
+        self.repo.remove(&token_id);
+        self.hash_lookup_map.remove_by_left(&token_id);
+        Ok(())
+    }
+}
+
+impl CatalogResource for TokenInfo {
+    type Identifier = TokenId;
+
+    fn id(&self) -> Self::Identifier {
+        self.id
+    }
+
+    fn name(&self) -> Arc<str> {
+        Arc::clone(&self.name)
+    }
+}
+
+fn create_token_and_hash() -> (String, Vec<u8>) {
+    let token = {
+        let mut token = String::from("apiv3_");
+        let mut key = [0u8; 64];
+        OsRng.fill_bytes(&mut key);
+        token.push_str(&B64.encode(key));
+        token
+    };
+    (token.clone(), Sha512::digest(&token).to_vec())
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1584,7 +1927,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -1672,7 +2015,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -1719,7 +2062,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -1765,7 +2108,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -2050,6 +2393,7 @@ mod tests {
                 "test",
                 Arc::clone(&local_disk) as _,
                 Arc::clone(&time_provider) as _,
+                Default::default(),
             )
             .await
             .unwrap()
@@ -2096,6 +2440,7 @@ mod tests {
                 "test",
                 Arc::clone(&obj_store) as _,
                 Arc::clone(&time_provider) as _,
+                Default::default(),
                 10,
             )
             .await
@@ -2153,6 +2498,7 @@ mod tests {
                 "test",
                 Arc::clone(&obj_store) as _,
                 Arc::clone(&time_provider) as _,
+                Default::default(),
             )
             .await
             .unwrap()
@@ -2234,5 +2580,43 @@ mod tests {
         // this file should have been read on re-init, as it would not be covered by a
         // checkpoint:
         assert_eq!(1, last_log_read_count);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn apply_catalog_batch_fails_for_add_fields_past_tag_limit() {
+        let catalog = Catalog::new_in_memory("host").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
+        let tags = (0..NUM_TAG_COLUMNS_LIMIT)
+            .map(|i| format!("tag_{i}"))
+            .collect::<Vec<_>>();
+        catalog
+            .create_table("foo", "bar", &tags, &[("f1", FieldDataType::String)])
+            .await
+            .unwrap();
+
+        let mut txn = catalog.begin("foo").unwrap();
+        let err = txn
+            .column_or_create("bar", "tag_too_much", FieldDataType::Tag)
+            .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Update to schema would exceed number of tag columns per table limit of 250 columns"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn apply_catalog_batch_fails_to_create_table_with_too_many_tags() {
+        let catalog = Catalog::new_in_memory("host").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
+        let tags = (0..NUM_TAG_COLUMNS_LIMIT + 1)
+            .map(|i| format!("tag_{i}"))
+            .collect::<Vec<_>>();
+        let err = catalog
+            .create_table("foo", "bar", &tags, &[("f1", FieldDataType::String)])
+            .await;
+        assert_contains!(
+            err.unwrap_err().to_string(),
+            "Update to schema would exceed number of tag columns per table limit of 250 columns"
+        );
     }
 }

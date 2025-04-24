@@ -12,15 +12,15 @@ use super::{
 };
 use crate::{
     CatalogError, Result,
-    catalog::NodeDefinition,
+    catalog::{NUM_TAG_COLUMNS_LIMIT, NodeDefinition},
     log::{
         AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
-        DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition,
-        FieldDataType, FieldDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl,
-        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
-        OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
-        TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition,
-        ValidPluginFilename,
+        DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails, DeleteTriggerLog,
+        DistinctCacheDefinition, FieldDataType, FieldDefinition, LastCacheDefinition,
+        LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge, MaxCardinality,
+        NodeCatalogOp, NodeMode, OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog,
+        SoftDeleteTableLog, StopNodeLog, TokenBatch, TokenCatalogOp, TriggerDefinition,
+        TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
 };
@@ -33,14 +33,16 @@ impl Catalog {
             Some(database_schema) => Ok(DatabaseCatalogTransaction {
                 catalog_sequence: inner.sequence_number(),
                 current_table_count: inner.table_count(),
+                table_limit: self.num_tables_limit(),
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 database_schema: Arc::clone(&database_schema),
                 ops: vec![],
+                columns_per_table_limit: self.num_columns_per_table_limit(),
             }),
             None => {
                 let inner = self.inner.read();
-                if inner.database_count() >= Self::NUM_DBS_LIMIT {
-                    return Err(CatalogError::TooManyDbs);
+                if inner.database_count() >= self.num_dbs_limit() {
+                    return Err(CatalogError::TooManyDbs(self.num_dbs_limit()));
                 }
                 let database_id = inner.databases.next_id();
                 let database_name = Arc::from(db_name);
@@ -54,9 +56,11 @@ impl Catalog {
                 Ok(DatabaseCatalogTransaction {
                     catalog_sequence: inner.sequence_number(),
                     current_table_count: inner.table_count(),
+                    table_limit: self.num_tables_limit(),
                     time_ns,
                     database_schema,
                     ops,
+                    columns_per_table_limit: self.num_columns_per_table_limit(),
                 })
             }
         }
@@ -97,7 +101,7 @@ impl Catalog {
         node_id: &str,
         core_count: u64,
         mode: Vec<NodeMode>,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(node_id, core_count, mode = ?mode, "register node");
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
@@ -155,7 +159,27 @@ impl Catalog {
         .await
     }
 
-    pub async fn create_database(&self, name: &str) -> Result<Option<OrderedCatalogBatch>> {
+    pub async fn update_node_state_stopped(&self, node_id: &str) -> Result<OrderedCatalogBatch> {
+        info!(node_id, "updating node state to Stopped in catalog");
+        self.catalog_update_with_retry(|| {
+            let time_ns = self.time_provider.now().timestamp_nanos();
+            let Some(node) = self.node(node_id) else {
+                return Err(crate::CatalogError::NotFound);
+            };
+            Ok(CatalogBatch::node(
+                time_ns,
+                node.node_catalog_id,
+                Arc::clone(&node.node_id),
+                vec![NodeCatalogOp::StopNode(StopNodeLog {
+                    node_id: Arc::clone(&node.node_id),
+                    stopped_time_ns: time_ns,
+                })],
+            ))
+        })
+        .await
+    }
+
+    pub async fn create_database(&self, name: &str) -> Result<OrderedCatalogBatch> {
         info!(name, "create database");
         self.catalog_update_with_retry(|| {
             let (_, Some(batch)) =
@@ -168,7 +192,7 @@ impl Catalog {
         .await
     }
 
-    pub async fn soft_delete_database(&self, name: &str) -> Result<Option<OrderedCatalogBatch>> {
+    pub async fn soft_delete_database(&self, name: &str) -> Result<OrderedCatalogBatch> {
         info!(name, "soft delete database");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(name) else {
@@ -201,7 +225,7 @@ impl Catalog {
         table_name: &str,
         tags: &[impl AsRef<str> + Send + Sync],
         fields: &[(impl AsRef<str> + Send + Sync, FieldDataType)],
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, "create table");
         self.catalog_update_with_retry(|| {
             let mut txn = self.begin(db_name)?;
@@ -215,7 +239,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, "soft delete database");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -249,7 +273,7 @@ impl Catalog {
         columns: &[impl AsRef<str> + Send + Sync],
         max_cardinality: MaxCardinality,
         max_age_seconds: MaxAge,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, cache_name = ?cache_name, "create distinct cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -329,7 +353,7 @@ impl Catalog {
         db_name: &str,
         table_name: &str,
         cache_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, cache_name, "delete distinct cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -368,7 +392,7 @@ impl Catalog {
         value_columns: Option<&[impl AsRef<str> + Send + Sync]>,
         count: LastCacheSize,
         ttl: LastCacheTtl,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, cache_name = ?cache_name, "create last cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -482,7 +506,7 @@ impl Catalog {
         db_name: &str,
         table_name: &str,
         cache_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, cache_name, "delete last cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -521,7 +545,7 @@ impl Catalog {
         trigger_settings: TriggerSettings,
         trigger_arguments: &Option<HashMap<String, String>>,
         disabled: bool,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, trigger_name, "create processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(mut db) = self.db_schema(db_name) else {
@@ -559,7 +583,7 @@ impl Catalog {
         db_name: &str,
         trigger_name: &str,
         force: bool,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, trigger_name, "delete processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -591,7 +615,7 @@ impl Catalog {
         &self,
         db_name: &str,
         trigger_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, trigger_name, "enable processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -622,7 +646,7 @@ impl Catalog {
         &self,
         db_name: &str,
         trigger_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, trigger_name, "disable processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -649,10 +673,30 @@ impl Catalog {
         .await
     }
 
-    async fn catalog_update_with_retry<F>(
+    pub async fn delete_token(&self, token_name: &str) -> Result<OrderedCatalogBatch> {
+        info!(token_name, "delete token");
+        self.catalog_update_with_retry(|| {
+            if !self.inner.read().tokens.repo().contains_name(token_name) {
+                // maybe deleted by another node or genuinely not present
+                return Err(CatalogError::NotFound);
+            }
+
+            Ok(CatalogBatch::Token(TokenBatch {
+                time_ns: self.time_provider.now().timestamp_nanos(),
+                ops: vec![TokenCatalogOp::DeleteToken(DeleteTokenDetails {
+                    token_name: token_name.to_owned(),
+                })],
+            }))
+        })
+        .await
+    }
+
+    /// Perform a catalog update and retry if the catalog has been updated elsewhere until the
+    /// operation succeeds or fails
+    pub(crate) async fn catalog_update_with_retry<F>(
         &self,
         batch_creator_fn: F,
-    ) -> Result<Option<OrderedCatalogBatch>>
+    ) -> Result<OrderedCatalogBatch>
     where
         F: Fn() -> Result<CatalogBatch>,
     {
@@ -670,15 +714,13 @@ impl Catalog {
                         .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
                         .await?
                     {
-                        UpdatePrompt::Retry => {
-                            continue;
-                        }
+                        UpdatePrompt::Retry => continue,
                         UpdatePrompt::Applied => {
                             self.apply_ordered_catalog_batch(&ordered_batch, &permit);
                             self.background_checkpoint(&ordered_batch);
                             self.broadcast_update(ordered_batch.clone().into_batch())
                                 .await?;
-                            return Ok(Some(ordered_batch));
+                            return Ok(ordered_batch);
                         }
                     }
                 }
@@ -727,6 +769,7 @@ impl Catalog {
                     permit,
                 )
                 .await?;
+                self.metrics.catalog_operation_retries.inc(1);
                 Ok(UpdatePrompt::Retry)
             }
         }
@@ -819,6 +862,8 @@ impl CatalogUpdate {
 pub struct DatabaseCatalogTransaction {
     catalog_sequence: CatalogSequenceNumber,
     current_table_count: usize,
+    table_limit: usize,
+    columns_per_table_limit: usize,
     time_ns: i64,
     database_schema: Arc<DatabaseSchema>,
     ops: Vec<DatabaseCatalogOp>,
@@ -850,6 +895,9 @@ impl DatabaseCatalogTransaction {
         match self.database_schema.table_definition(table_name) {
             Some(def) => Ok(def),
             None => {
+                if self.current_table_count >= self.table_limit {
+                    return Err(CatalogError::TooManyTables(self.table_limit));
+                }
                 let database_id = self.database_schema.id;
                 let database_name = Arc::clone(&self.database_schema.name);
                 let db_schema = Arc::make_mut(&mut self.database_schema);
@@ -890,6 +938,14 @@ impl DatabaseCatalogTransaction {
                 got: column_type.into(),
             }),
             None => {
+                if table_def.num_columns() >= self.columns_per_table_limit {
+                    return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
+                }
+                if matches!(column_type, FieldDataType::Tag)
+                    && table_def.num_tag_columns() >= NUM_TAG_COLUMNS_LIMIT
+                {
+                    return Err(CatalogError::TooManyTagColumns);
+                }
                 let database_id = self.database_schema.id;
                 let database_name = Arc::clone(&self.database_schema.name);
                 let db_schema = Arc::make_mut(&mut self.database_schema);
@@ -930,8 +986,14 @@ impl DatabaseCatalogTransaction {
         if self.database_schema.table_definition(table_name).is_some() {
             return Err(CatalogError::AlreadyExists);
         }
-        if self.current_table_count >= Catalog::NUM_TABLES_LIMIT {
-            return Err(CatalogError::TooManyTables);
+        if self.current_table_count >= self.table_limit {
+            return Err(CatalogError::TooManyTables(self.table_limit));
+        }
+        if tags.len() > NUM_TAG_COLUMNS_LIMIT {
+            return Err(CatalogError::TooManyTagColumns);
+        }
+        if tags.len() + fields.len() > self.columns_per_table_limit - 1 {
+            return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
         }
         let db_schema = Arc::make_mut(&mut self.database_schema);
         let mut table_def_arc = db_schema.create_new_empty_table(table_name)?;

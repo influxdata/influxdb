@@ -63,6 +63,9 @@ pub enum Error {
     #[error("parsing for line protocol failed")]
     ParseError(WriteLineError),
 
+    #[error("incoming write was empty")]
+    EmptyWrite,
+
     #[error("column type mismatch for column {name}: existing: {existing:?}, new: {new:?}")]
     ColumnTypeMismatch {
         name: String,
@@ -298,17 +301,25 @@ impl WriteBufferImpl {
                 }
             };
 
-            let ops = vec![WalOp::Write(result.valid_data)];
+            // Only buffer to the WAL if there are actually writes in the batch; it
+            // is possible to get empty writes with `accept_partial`:
+            if result.line_count > 0 {
+                let ops = vec![WalOp::Write(result.valid_data)];
 
-            if no_sync {
-                self.wal.write_ops_unconfirmed(ops).await?;
-            } else {
-                // write to the wal. Behind the scenes the ops get buffered in memory and once a second (or
-                // whatever the configured wal flush interval is set to) the buffer is flushed and all the
-                // data is persisted into a single wal file in the configured object store. Then the
-                // contents are sent to the configured notifier, which in this case is the queryable buffer.
-                // Thus, after this returns, the data is both durable and queryable.
-                self.wal.write_ops(ops).await?;
+                if no_sync {
+                    self.wal.write_ops_unconfirmed(ops).await?;
+                } else {
+                    // write to the wal. Behind the scenes the ops get buffered in memory and once a second (or
+                    // whatever the configured wal flush interval is set to) the buffer is flushed and all the
+                    // data is persisted into a single wal file in the configured object store. Then the
+                    // contents are sent to the configured notifier, which in this case is the queryable buffer.
+                    // Thus, after this returns, the data is both durable and queryable.
+                    self.wal.write_ops(ops).await?;
+                }
+            }
+
+            if result.line_count == 0 && result.errors.is_empty() {
+                return Err(Error::EmptyWrite);
             }
 
             // record metrics for lines written, rejected, and bytes written
@@ -682,7 +693,7 @@ mod tests {
         let obj_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let catalog = Arc::new(
-            Catalog::new(node_id, obj_store, time_provider)
+            Catalog::new(node_id, obj_store, time_provider, Default::default())
                 .await
                 .unwrap(),
         );
@@ -703,7 +714,7 @@ mod tests {
             .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
-        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
+        let db = catalog.db_schema_by_id(&DbId::from(1)).unwrap();
 
         assert_eq!(db.tables.len(), 2);
         // cpu table
@@ -729,7 +740,7 @@ mod tests {
         let obj_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let catalog = Arc::new(
-            Catalog::new("test_host", obj_store, time_provider)
+            Catalog::new("test_host", obj_store, time_provider, Default::default())
                 .await
                 .unwrap(),
         );
@@ -843,6 +854,7 @@ mod tests {
                 "test_host",
                 catalog.object_store(),
                 Arc::clone(&time_provider),
+                Default::default(),
             )
             .await
             .unwrap(),
@@ -934,6 +946,7 @@ mod tests {
                     "test_host",
                     Arc::clone(&obj_store),
                     Arc::clone(&time_provider),
+                    Default::default(),
                 )
                 .await
                 .unwrap(),
@@ -1192,6 +1205,7 @@ mod tests {
                 "test_host",
                 Arc::clone(&obj_store) as _,
                 Arc::clone(&time_provider),
+                Default::default(),
             )
             .await
             .unwrap(),
@@ -1476,7 +1490,7 @@ mod tests {
         let persisted_snapshot =
             serde_json::from_slice::<PersistedSnapshot>(&persisted_snapshot_bytes).unwrap();
         assert_eq!(
-            CatalogSequenceNumber::new(1),
+            CatalogSequenceNumber::new(2),
             persisted_snapshot.catalog_sequence_number
         );
     }
@@ -1899,7 +1913,7 @@ mod tests {
 
         // this persists the catalog immediately, so we don't wait for anything, just assert that
         // the next db id is 1, since the above would have used 0
-        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(1));
+        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(2));
 
         // drop the write buffer, and create a new one that replays and re-loads the catalog:
         drop(wbuf);
@@ -1919,7 +1933,7 @@ mod tests {
         .await;
 
         // check that the next db id is still 1
-        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(1));
+        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(2));
     }
 
     #[test_log::test(tokio::test)]
@@ -1941,7 +1955,7 @@ mod tests {
         )
         .await;
         let db_name = "my_corp";
-        let db_id = DbId::from(0);
+        let db_id = DbId::from(1);
         let tbl_name = "temp";
         let tbl_id = TableId::from(0);
 
@@ -2049,7 +2063,7 @@ mod tests {
         )
         .await;
         let db_name = "my_corp";
-        let db_id = DbId::from(0);
+        let db_id = DbId::from(1);
         let tbl_name = "temp";
         let tbl_id = TableId::from(0);
 
@@ -2768,7 +2782,7 @@ mod tests {
         // get the path for the created parquet file
         let persisted_files = write_buffer
             .persisted_files()
-            .get_files(DbId::from(0), TableId::from(0));
+            .get_files(DbId::from(1), TableId::from(0));
         assert_eq!(1, persisted_files.len());
         let path = ObjPath::from(persisted_files[0].path.as_str());
 
@@ -2797,7 +2811,7 @@ mod tests {
         // at this point everything should've been snapshotted
         drop(write_buffer);
 
-        debug!(">>> test: stopped");
+        debug!("test: stopped");
         // nothing in the cache at this point and not in buffer
         let (write_buffer, ctx, _) = setup_cache_optional(
             // move the time
@@ -2898,7 +2912,7 @@ mod tests {
             .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
-        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
+        let db = catalog.db_schema_by_id(&DbId::from(1)).unwrap();
 
         assert_eq!(db.tables.len(), 1);
         assert_eq!(
@@ -2926,12 +2940,71 @@ mod tests {
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         assert_eq!(db.tables.len(), 1);
-        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
+        let db = catalog.db_schema_by_id(&DbId::from(1)).unwrap();
         let table = db.tables.get_by_id(&TableId::from(0)).unwrap();
         assert_eq!(table.num_columns(), 4);
         assert_eq!(table.series_key.len(), 2);
         assert_eq!(table.series_key[0], ColumnId::from(0));
         assert_eq!(table.series_key[1], ColumnId::from(3));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_empty_write_does_not_corrupt_wal() {
+        let object_store = Arc::new(InMemory::new());
+
+        let init = async || -> Arc<WriteBufferImpl> {
+            let (buf, _, _) = setup(
+                Time::from_timestamp_nanos(0),
+                Arc::clone(&object_store) as _,
+                WalConfig {
+                    gen1_duration: Gen1Duration::new_1m(),
+                    max_write_buffer_size: 1,
+                    flush_interval: Duration::from_millis(10),
+                    snapshot_size: 1,
+                },
+            )
+            .await;
+            buf
+        };
+
+        let buf = init().await;
+
+        // empty write should be rejected:
+        let err = buf
+            .write_lp(
+                NamespaceName::new("cats").unwrap(),
+                "",
+                Time::from_timestamp_nanos(1),
+                true,
+                Precision::Nanosecond,
+                false,
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, Error::EmptyWrite),
+            "should get an empty write error"
+        );
+
+        // do a write with only invalid lines:
+        let res = buf
+            .write_lp(
+                NamespaceName::new("cats").unwrap(),
+                "not_valid_line_protocol",
+                Time::from_timestamp_nanos(1),
+                true,
+                Precision::Nanosecond,
+                false,
+            )
+            .await
+            .unwrap();
+        assert_eq!(0, res.line_count);
+        assert_eq!(1, res.invalid_lines.len());
+
+        drop(buf);
+
+        // this should replay the wal and successfully initialize:
+        let _buf = init().await;
     }
 
     struct TestWrite<LP> {
@@ -3074,6 +3147,7 @@ mod tests {
                 "test_host",
                 Arc::clone(&object_store),
                 Arc::clone(&time_provider),
+                Default::default(),
             )
             .await
             .unwrap(),

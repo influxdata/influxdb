@@ -12,7 +12,9 @@ use cron::Schedule;
 use hashbrown::HashMap;
 use humantime::{format_duration, parse_duration};
 use influxdb_line_protocol::FieldValue;
-use influxdb3_id::{ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId, TriggerId};
+use influxdb3_id::{
+    ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId, TokenId, TriggerId,
+};
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +24,7 @@ use crate::{CatalogError, Result, catalog::CatalogSequenceNumber};
 pub enum CatalogBatch {
     Node(NodeBatch),
     Database(DatabaseBatch),
+    Token(TokenBatch),
 }
 
 impl CatalogBatch {
@@ -57,6 +60,7 @@ impl CatalogBatch {
         match self {
             CatalogBatch::Node(node_batch) => node_batch.ops.len(),
             CatalogBatch::Database(database_batch) => database_batch.ops.len(),
+            CatalogBatch::Token(token_batch) => token_batch.ops.len(),
         }
     }
 
@@ -64,6 +68,7 @@ impl CatalogBatch {
         match self {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
+            CatalogBatch::Token(_) => None,
         }
     }
 
@@ -71,6 +76,7 @@ impl CatalogBatch {
         match self {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
+            CatalogBatch::Token(_) => None,
         }
     }
 }
@@ -134,6 +140,7 @@ impl Ord for OrderedCatalogBatch {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum NodeCatalogOp {
     RegisterNode(RegisterNodeLog),
+    StopNode(StopNodeLog),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -178,9 +185,23 @@ pub struct RegisterNodeLog {
     pub mode: Vec<NodeMode>,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StopNodeLog {
+    pub node_id: Arc<str>,
+    pub stopped_time_ns: i64,
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum NodeMode {
     Core,
+}
+
+impl std::fmt::Display for NodeMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NodeMode::Core => write!(f, "core"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -784,4 +805,43 @@ impl TriggerSpecificationDefinition {
             TriggerSpecificationDefinition::RequestPath { .. } => PluginType::Request,
         }
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
+pub struct TokenBatch {
+    pub time_ns: i64,
+    pub ops: Vec<TokenCatalogOp>,
+}
+
+// PK: I cannot come up with better names for variants, I _think_
+//     it is ok to ignore. Maybe I can break them into separate
+//     enum for each type
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum TokenCatalogOp {
+    CreateAdminToken(CreateAdminTokenDetails),
+    RegenerateAdminToken(RegenerateAdminTokenDetails),
+    DeleteToken(DeleteTokenDetails),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CreateAdminTokenDetails {
+    pub token_id: TokenId,
+    pub name: Arc<str>,
+    pub hash: Vec<u8>,
+    pub created_at: i64,
+    pub updated_at: Option<i64>,
+    pub expiry: Option<i64>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RegenerateAdminTokenDetails {
+    pub token_id: TokenId,
+    pub hash: Vec<u8>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DeleteTokenDetails {
+    pub token_name: String,
 }

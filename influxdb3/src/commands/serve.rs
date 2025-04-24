@@ -3,6 +3,7 @@
 use anyhow::{Context, bail};
 use datafusion_util::config::register_iox_object_store;
 use futures::{FutureExt, future::FusedFuture, pin_mut};
+use influxdb3_authz::TokenAuthenticator;
 use influxdb3_cache::{
     distinct_cache::DistinctCacheProvider,
     last_cache::{self, LastCacheProvider},
@@ -28,7 +29,6 @@ use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::virtualenv::find_python;
 use influxdb3_server::{
     CommonServerState,
-    auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
     serve,
@@ -51,9 +51,13 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::process::Command;
+use rustls::{
+    SupportedProtocolVersion,
+    version::{TLS12, TLS13},
+};
 use std::{env, num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{path::Path, str::FromStr};
+use std::{path::PathBuf, process::Command};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
@@ -113,6 +117,9 @@ pub enum Error {
 
     #[error("lost HTTP/gRPC service")]
     LostHttpGrpc,
+
+    #[error("tls requires both a cert and a key file to be passed in to work")]
+    NoCertOrKeyFile,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -176,9 +183,9 @@ pub struct Config {
     )]
     pub exec_mem_pool_bytes: MemorySizeMb,
 
-    /// bearer token to be set for requests
-    #[clap(long = "bearer-token", env = "INFLUXDB3_BEARER_TOKEN", action)]
-    pub bearer_token: Option<String>,
+    /// Flag to indicate that server should start without auth
+    #[clap(long = "without-auth", env = "INFLUXDB3_START_WITHOUT_AUTH", action)]
+    pub without_auth: bool,
 
     /// Duration that the Parquet files get arranged into. The data timestamps will land each
     /// row into a file of this duration. 1m, 5m, and 10m are supported. These are known as
@@ -369,6 +376,50 @@ pub struct Config {
     /// smaller time ranges if possible in a query.
     #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
     pub query_file_limit: Option<usize>,
+
+    #[clap(long = "tls-key", env = "INFLUXDB3_TLS_KEY")]
+    pub key_file: Option<PathBuf>,
+
+    #[clap(long = "tls-cert", env = "INFLUXDB3_TLS_CERT")]
+    pub cert_file: Option<PathBuf>,
+
+    #[clap(
+        long = "tls-minimum-version",
+        env = "INFLUXDB3_TLS_MINIMUM_VERSION",
+        default_value = "tls-1.2"
+    )]
+    pub tls_minimum_version: TlsMinimumVersion,
+}
+
+/// The minimum version of TLS to use for InfluxDB
+#[derive(Debug, Clone, Copy, Default)]
+pub enum TlsMinimumVersion {
+    #[default]
+    Tls1_2,
+    Tls1_3,
+}
+
+impl FromStr for TlsMinimumVersion {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
+        match s {
+            "tls-1.2" => Ok(Self::Tls1_2),
+            "tls-1.3" => Ok(Self::Tls1_3),
+            _ => Err("Valid minimum version strings are tls-1.2 and tls-1.3".into()),
+        }
+    }
+}
+
+impl From<TlsMinimumVersion> for &'static [&'static SupportedProtocolVersion] {
+    fn from(val: TlsMinimumVersion) -> Self {
+        static TLS1_2: &[&SupportedProtocolVersion] = &[&TLS12, &TLS13];
+        static TLS1_3: &[&SupportedProtocolVersion] = &[&TLS13];
+        match val {
+            TlsMinimumVersion::Tls1_2 => TLS1_2,
+            TlsMinimumVersion::Tls1_3 => TLS1_3,
+        }
+    }
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -436,6 +487,14 @@ fn ensure_directory_exists(p: &Path) {
 }
 
 pub async fn command(config: Config) -> Result<()> {
+    // Check that both a cert file and key file are present if TLS is being set up
+    match (&config.cert_file, &config.key_file) {
+        (Some(_), None) | (None, Some(_)) => {
+            return Err(Error::NoCertOrKeyFile);
+        }
+        (Some(_), Some(_)) | (None, None) => {}
+    }
+
     let startup_timer = Instant::now();
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
@@ -545,14 +604,14 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
-    let catalog = Arc::new(
-        Catalog::new(
-            config.node_identifier_prefix.as_str(),
-            Arc::clone(&object_store),
-            Arc::<SystemProvider>::clone(&time_provider),
-        )
-        .await?,
-    );
+    let catalog = Catalog::new_with_shutdown(
+        config.node_identifier_prefix.as_str(),
+        Arc::clone(&object_store),
+        Arc::<SystemProvider>::clone(&time_provider),
+        Arc::clone(&metrics),
+        shutdown_manager.register(),
+    )
+    .await?;
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
 
     let _ = catalog
@@ -635,6 +694,8 @@ pub async fn command(config: Config) -> Result<()> {
         query_log_size: config.query_log_size,
         telemetry_store: Arc::clone(&telemetry_store),
         sys_events_store: Arc::clone(&sys_events_store),
+        // convert to positive here so that we can avoid double negatives downstream
+        started_with_auth: !config.without_auth,
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)
@@ -656,18 +717,26 @@ pub async fn command(config: Config) -> Result<()> {
         .max_request_size(config.max_http_request_size)
         .write_buffer(write_buffer)
         .query_executor(query_executor)
-        .time_provider(time_provider)
+        .time_provider(Arc::clone(&time_provider) as _)
         .persister(persister)
         .tcp_listener(listener)
         .processing_engine(processing_engine);
 
-    let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
+    let cert_file = config.cert_file;
+    let key_file = config.key_file;
+    let server = if config.without_auth {
         builder
-            .authorizer(Arc::new(AllOrNothingAuthorizer::new(token)))
-            .build()
+            .build(cert_file, key_file, config.tls_minimum_version.into())
             .await
     } else {
-        builder.build().await
+        let authentication_provider = Arc::new(TokenAuthenticator::new(
+            Arc::clone(&catalog) as _,
+            Arc::clone(&time_provider) as _,
+        ));
+        builder
+            .authorizer(authentication_provider as _)
+            .build(cert_file, key_file, config.tls_minimum_version.into())
+            .await
     };
 
     // There are two different select! macros - tokio::select and futures::select
@@ -693,7 +762,13 @@ pub async fn command(config: Config) -> Result<()> {
 
     // Create the FusedFutures that will be waited on before exiting the process
     let signal = wait_for_signal().fuse();
-    let frontend = serve(server, frontend_shutdown.clone(), startup_timer).fuse();
+    let frontend = serve(
+        server,
+        frontend_shutdown.clone(),
+        startup_timer,
+        config.without_auth,
+    )
+    .fuse();
     let backend = shutdown_manager.join().fuse();
 
     // pin_mut constructs a Pin<&mut T> from a T by preventing moving the T

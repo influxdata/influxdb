@@ -1186,9 +1186,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.14"
+version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06ba6d68e24814cb8de6bb986db8222d3a027d15872cabc0d18817bc3c0e4471"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -2481,6 +2481,23 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "399c78f9338483cb7e630c8474b07268983c6bd5acee012e4211f9f7bb21b070"
+dependencies = [
+ "futures-util",
+ "http 0.2.12",
+ "hyper 0.14.32",
+ "log",
+ "rustls 0.22.4",
+ "rustls-native-certs 0.7.3",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls 0.25.0",
+]
+
+[[package]]
+name = "hyper-rustls"
 version = "0.27.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d191583f3da1305256f22463b9bb0471acad48a4e534a5218b9963e9c1f59b2"
@@ -2739,7 +2756,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -2759,6 +2776,7 @@ dependencies = [
  "hex",
  "humantime",
  "hyper 0.14.32",
+ "influxdb3_authz",
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_clap_blocks",
@@ -2781,12 +2799,15 @@ dependencies = [
  "num_cpus",
  "object_store",
  "observability_deps",
+ "owo-colors",
  "panic_logging",
  "parking_lot",
  "parquet_file",
  "pretty_assertions",
  "rand",
+ "rcgen",
  "reqwest 0.11.27",
+ "rustls 0.22.4",
  "secrecy",
  "serde",
  "serde_json",
@@ -2810,8 +2831,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_authz"
+version = "3.0.1"
+dependencies = [
+ "async-trait",
+ "authz",
+ "hashbrown 0.15.2",
+ "influxdb3_id",
+ "iox_time",
+ "observability_deps",
+ "serde",
+ "sha2",
+ "test-log",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "influxdb3_cache"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -2846,10 +2884,11 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_catalog"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "arrow",
+ "base64 0.21.7",
  "bimap",
  "bitcode",
  "byteorder",
@@ -2860,22 +2899,28 @@ dependencies = [
  "cron",
  "futures",
  "hashbrown 0.15.2",
+ "hex",
  "humantime",
  "indexmap 2.7.0",
  "influxdb-line-protocol",
+ "influxdb3_authz",
  "influxdb3_id",
+ "influxdb3_shutdown",
  "influxdb3_test_helpers",
  "influxdb3_wal",
  "insta",
  "iox_time",
+ "metric",
  "object_store",
  "observability_deps",
  "parking_lot",
  "pretty_assertions",
+ "rand",
  "schema",
  "serde",
  "serde_json",
  "serde_with",
+ "sha2",
  "test-log",
  "test_helpers",
  "thiserror 1.0.69",
@@ -2885,7 +2930,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_clap_blocks"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2918,7 +2963,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_client"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "bytes",
  "hashbrown 0.15.2",
@@ -2938,7 +2983,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_id"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "indexmap 2.7.0",
  "serde",
@@ -2947,7 +2992,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_internal_api"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2963,7 +3008,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_load_generator"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2991,7 +3036,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_process"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "iox_time",
  "metric",
@@ -3004,7 +3049,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_processing_engine"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3045,7 +3090,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_py_api"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -3072,7 +3117,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_server"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3097,7 +3142,9 @@ dependencies = [
  "http 0.2.12",
  "humantime",
  "hyper 0.14.32",
+ "hyper-rustls 0.25.0",
  "influxdb-line-protocol",
+ "influxdb3_authz",
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_client",
@@ -3133,6 +3180,8 @@ dependencies = [
  "pretty_assertions",
  "pyo3",
  "regex",
+ "rustls 0.22.4",
+ "rustls-pemfile 2.2.0",
  "schema",
  "secrecy",
  "serde",
@@ -3159,7 +3208,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_shutdown"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "futures",
  "futures-util",
@@ -3171,7 +3220,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_sys_events"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -3190,7 +3239,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_telemetry"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "futures",
  "futures-util",
@@ -3211,7 +3260,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_test_helpers"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3224,11 +3273,14 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_types"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
+ "chrono",
  "hashbrown 0.15.2",
+ "hex",
  "hyper 0.14.32",
+ "influxdb3_authz",
  "influxdb3_cache",
  "influxdb3_catalog",
  "iox_http",
@@ -3239,7 +3291,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_wal"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "async-trait",
  "bitcode",
@@ -3269,7 +3321,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_write"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3526,7 +3578,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql_rewrite"
-version = "3.0.0-beta.3"
+version = "3.0.1"
 dependencies = [
  "influxdb_influxql_parser",
  "thiserror 1.0.69",
@@ -4267,6 +4319,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
+name = "owo-colors"
+version = "4.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1036865bb9422d3300cf723f657c2851d0e9ab12567854b1f4eba3d77decf564"
+
+[[package]]
 name = "panic_logging"
 version = "0.1.0"
 source = "git+https://github.com/influxdata/influxdb3_core?rev=26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f#26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f"
@@ -4420,6 +4478,16 @@ dependencies = [
  "pbjson-build",
  "prost 0.12.6",
  "prost-build",
+ "serde",
+]
+
+[[package]]
+name = "pem"
+version = "3.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38af38e8470ac9dee3ce1bae1af9c1671fffc44ddfd8bd1d0a3445bf349a8ef3"
+dependencies = [
+ "base64 0.22.1",
  "serde",
 ]
 
@@ -5079,6 +5147,19 @@ checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "rcgen"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75e669e5202259b5314d1ea5397316ad400819437857b90861765f24c4cf80a2"
+dependencies = [
+ "pem",
+ "ring",
+ "rustls-pki-types",
+ "time",
+ "yasna",
 ]
 
 [[package]]
@@ -6465,9 +6546,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.43.0"
+version = "1.44.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d61fa4ffa3de412bfea335c6ecff681de2b609ba3c77ef3e00e521813a9ed9e"
+checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
 dependencies = [
  "backtrace",
  "bytes",
@@ -7669,6 +7750,15 @@ name = "yansi"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
+
+[[package]]
+name = "yasna"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e17bb3549cc1321ae1296b9cdc2698e2b6cb1992adfa19a8c72e5b7a738f44cd"
+dependencies = [
+ "time",
+]
 
 [[package]]
 name = "yoke"

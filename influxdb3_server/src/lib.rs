@@ -11,7 +11,7 @@ clippy::clone_on_ref_ptr,
 clippy::future_not_send
 )]
 
-pub mod auth;
+pub mod all_paths;
 pub mod builder;
 mod grpc;
 mod http;
@@ -27,13 +27,19 @@ use authz::Authorizer;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
+use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
+use rustls::ServerConfig;
+use rustls::SupportedProtocolVersion;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -115,24 +121,28 @@ impl CommonServerState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server {
+pub struct Server<'a> {
     common_state: CommonServerState,
     http: Arc<HttpApi>,
     persister: Arc<Persister>,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn AuthProvider>,
     listener: TcpListener,
+    key_file: Option<PathBuf>,
+    cert_file: Option<PathBuf>,
+    tls_minimum_version: &'a [&'static SupportedProtocolVersion],
 }
 
-impl Server {
+impl Server<'_> {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
-        Arc::clone(&self.authorizer)
+        Arc::clone(&self.authorizer.upcast())
     }
 }
 
 pub async fn serve(
-    server: Server,
+    server: Server<'_>,
     shutdown: CancellationToken,
     startup_timer: Instant,
+    without_auth: bool,
 ) -> Result<()> {
     let req_metrics = RequestMetrics::new(
         Arc::clone(&server.common_state.metrics),
@@ -145,47 +155,104 @@ pub async fn serve(
         TRACE_SERVER_NAME,
     );
 
-    let grpc_service = trace_layer.clone().layer(make_flight_server(
-        Arc::clone(&server.http.query_executor),
-        Some(server.authorizer()),
-    ));
+    if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
+        let grpc_service = trace_layer.clone().layer(make_flight_server(
+            Arc::clone(&server.http.query_executor),
+            Some(server.authorizer()),
+        ));
 
-    let rest_service = hyper::service::make_service_fn(|_| {
-        let http_server = Arc::clone(&server.http);
-        let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-            route_request(Arc::clone(&http_server), req)
+        let rest_service = hyper::service::make_service_fn(|_| {
+            let http_server = Arc::clone(&server.http);
+            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+                route_request(Arc::clone(&http_server), req, without_auth)
+            });
+            let service = trace_layer.layer(service);
+            futures::future::ready(Ok::<_, Infallible>(service))
         });
-        let service = trace_layer.layer(service);
-        futures::future::ready(Ok::<_, Infallible>(service))
-    });
 
-    let hybrid_make_service = hybrid(rest_service, grpc_service);
+        let hybrid_make_service = hybrid(rest_service, grpc_service);
+        let mut addr = AddrIncoming::from_listener(server.listener)?;
+        addr.set_nodelay(true);
+        let certs = {
+            let cert_file = File::open(cert_file).unwrap();
+            let mut buf_reader = BufReader::new(cert_file);
+            rustls_pemfile::certs(&mut buf_reader)
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        let key = {
+            let key_file = File::open(key_file).unwrap();
+            let mut buf_reader = BufReader::new(key_file);
+            rustls_pemfile::private_key(&mut buf_reader)
+                .unwrap()
+                .unwrap()
+        };
 
-    let addr = AddrIncoming::from_listener(server.listener)?;
-    let timer_end = Instant::now();
-    let startup_time = timer_end.duration_since(startup_timer);
-    info!(
-        address = %addr.local_addr(),
-        "startup time: {}ms",
-        startup_time.as_millis()
-    );
-    hyper::server::Builder::new(addr, Http::new())
-        .tcp_nodelay(true)
-        .serve(hybrid_make_service)
-        .with_graceful_shutdown(shutdown.cancelled())
-        .await?;
+        let timer_end = Instant::now();
+        let startup_time = timer_end.duration_since(startup_timer);
+        info!(
+            address = %addr.local_addr(),
+            "startup time: {}ms",
+            startup_time.as_millis()
+        );
+
+        let acceptor = hyper_rustls::TlsAcceptor::builder()
+            .with_tls_config(
+                ServerConfig::builder_with_protocol_versions(server.tls_minimum_version)
+                    .with_no_client_auth()
+                    .with_single_cert(certs, key)
+                    .unwrap(),
+            )
+            .with_all_versions_alpn()
+            .with_incoming(addr);
+        hyper::server::Server::builder(acceptor)
+            .serve(hybrid_make_service)
+            .with_graceful_shutdown(shutdown.cancelled())
+            .await?;
+    } else {
+        let grpc_service = trace_layer.clone().layer(make_flight_server(
+            Arc::clone(&server.http.query_executor),
+            Some(server.authorizer()),
+        ));
+
+        let rest_service = hyper::service::make_service_fn(|_| {
+            let http_server = Arc::clone(&server.http);
+            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+                route_request(Arc::clone(&http_server), req, without_auth)
+            });
+            let service = trace_layer.layer(service);
+            futures::future::ready(Ok::<_, Infallible>(service))
+        });
+
+        let hybrid_make_service = hybrid(rest_service, grpc_service);
+        let addr = AddrIncoming::from_listener(server.listener)?;
+
+        let timer_end = Instant::now();
+        let startup_time = timer_end.duration_since(startup_timer);
+        info!(
+            address = %addr.local_addr(),
+            "startup time: {}ms",
+            startup_time.as_millis()
+        );
+
+        hyper::server::Builder::new(addr, Http::new())
+            .tcp_nodelay(true)
+            .serve(hybrid_make_service)
+            .with_graceful_shutdown(shutdown.cancelled())
+            .await?;
+    }
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::auth::DefaultAuthorizer;
     use crate::builder::ServerBuilder;
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{Body, Client, Request, Response, StatusCode, body};
+    use influxdb3_authz::NoAuthAuthenticator;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
@@ -753,6 +820,7 @@ mod tests {
                 sample_node_id,
                 Arc::clone(&object_store),
                 Arc::clone(&time_provider) as _,
+                Default::default(),
             )
             .await
             .unwrap(),
@@ -807,6 +875,7 @@ mod tests {
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
             sys_events_store: Arc::clone(&sys_events_store),
+            started_with_auth: false,
         }));
 
         // bind to port 0 will assign a random available port:
@@ -831,19 +900,26 @@ mod tests {
         )
         .await;
 
+        // We declare this as a static so that the lifetimes workout here and that
+        // it lives long enough.
+        static TLS_MIN_VERSION: &[&rustls::SupportedProtocolVersion] =
+            &[&rustls::version::TLS12, &rustls::version::TLS13];
+
         let server = ServerBuilder::new(common_state)
             .write_buffer(Arc::clone(&write_buffer))
             .query_executor(query_executor)
             .persister(persister)
-            .authorizer(Arc::new(DefaultAuthorizer))
+            .authorizer(Arc::new(NoAuthAuthenticator))
             .time_provider(Arc::clone(&time_provider) as _)
             .tcp_listener(listener)
             .processing_engine(processing_engine)
-            .build()
+            .build(None, None, TLS_MIN_VERSION)
             .await;
         let shutdown = frontend_shutdown.clone();
 
-        tokio::spawn(async move { serve(server, frontend_shutdown, server_start_time).await });
+        tokio::spawn(
+            async move { serve(server, frontend_shutdown, server_start_time, false).await },
+        );
 
         (format!("http://{addr}"), shutdown, write_buffer)
     }

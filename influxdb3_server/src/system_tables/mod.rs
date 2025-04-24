@@ -8,12 +8,13 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use distinct_caches::DistinctCachesTable;
-use influxdb3_catalog::catalog::DatabaseSchema;
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
 use parquet_files::ParquetFilesTable;
+use tokens::TokenSystemTable;
 use tonic::async_trait;
 
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
@@ -25,6 +26,7 @@ use crate::system_tables::python_call::{ProcessingEngineLogsTable, ProcessingEng
 
 mod python_call;
 mod queries;
+mod tokens;
 
 pub(crate) const SYSTEM_SCHEMA_NAME: &str = "system";
 pub(crate) const TABLE_NAME_PREDICATE: &str = "table_name";
@@ -33,6 +35,7 @@ pub(crate) const QUERIES_TABLE_NAME: &str = "queries";
 pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
 pub(crate) const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
+pub(crate) const TOKENS_TABLE_NAME: &str = "tokens";
 
 const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
 
@@ -89,6 +92,8 @@ impl AllSystemSchemaTablesProvider {
         query_log: Arc<QueryLog>,
         buffer: Arc<dyn WriteBuffer>,
         sys_events_store: Arc<SysEventStore>,
+        catalog: Arc<Catalog>,
+        started_with_auth: bool,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
@@ -124,6 +129,15 @@ impl AllSystemSchemaTablesProvider {
             ProcessingEngineLogsTable::new(sys_events_store),
         )));
         tables.insert(PROCESSING_ENGINE_LOGS_TABLE_NAME, logs_table);
+        if db_schema.name.as_ref() == INTERNAL_DB_NAME {
+            tables.insert(
+                TOKENS_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(TokenSystemTable::new(
+                    Arc::clone(&catalog),
+                    started_with_auth,
+                )))),
+            );
+        }
         Self { tables }
     }
 }

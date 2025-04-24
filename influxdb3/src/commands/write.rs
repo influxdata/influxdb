@@ -1,6 +1,7 @@
 use std::{
     fs,
     io::{BufReader, IsTerminal, Read, stdin},
+    path::PathBuf,
 };
 
 use clap::Parser;
@@ -58,6 +59,10 @@ pub struct Config {
     /// Specify a supported precision (eg: ns, us, ms, s).
     #[clap(short = 'p', long = "precision")]
     precision: Option<Precision>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 pub(crate) async fn command(config: Config) -> Result<()> {
@@ -66,7 +71,7 @@ pub(crate) async fn command(config: Config) -> Result<()> {
         database_name,
         auth_token,
     } = config.influxdb3_config;
-    let mut client = influxdb3_client::Client::new(host_url)?;
+    let mut client = influxdb3_client::Client::new(host_url, config.ca_cert)?;
     if let Some(t) = auth_token {
         client = client.with_auth_token(t.expose_secret());
     }

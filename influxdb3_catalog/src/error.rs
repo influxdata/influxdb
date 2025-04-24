@@ -3,7 +3,10 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use schema::InfluxColumnType;
 
-use crate::{catalog::Catalog, channel::SubscriptionError, object_store::ObjectStoreCatalogError};
+use crate::{
+    catalog::NUM_TAG_COLUMNS_LIMIT, channel::SubscriptionError,
+    object_store::ObjectStoreCatalogError,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
@@ -44,23 +47,20 @@ pub enum CatalogError {
     #[error("invalid node registration")]
     InvalidNodeRegistration,
 
-    #[error(
-        "Update to schema would exceed number of columns per table limit of {} columns",
-        Catalog::NUM_COLUMNS_PER_TABLE_LIMIT - 1
-    )]
-    TooManyColumns,
+    #[error("Update to schema would exceed number of columns per table limit of {0} columns")]
+    TooManyColumns(usize),
 
     #[error(
-        "Update to schema would exceed number of tables limit of {} tables",
-        Catalog::NUM_TABLES_LIMIT
+        "Update to schema would exceed number of tag columns per table limit of {} columns",
+        NUM_TAG_COLUMNS_LIMIT
     )]
-    TooManyTables,
+    TooManyTagColumns,
 
-    #[error(
-        "Adding a new database would exceed limit of {} databases",
-        Catalog::NUM_DBS_LIMIT
-    )]
-    TooManyDbs,
+    #[error("Update to schema would exceed number of tables limit of {0} tables")]
+    TooManyTables(usize),
+
+    #[error("Adding a new database would exceed limit of {0} databases")]
+    TooManyDbs(usize),
 
     #[error("Table {} not in DB schema for {}", table_name, db_name)]
     TableNotFound {
@@ -163,6 +163,15 @@ pub enum CatalogError {
 
     #[error("invalid error behavior {0}")]
     InvalidErrorBehavior(String),
+
+    #[error("token name already exists, {0}")]
+    TokenNameAlreadyExists(String),
+
+    #[error("missing admin token, cannot update")]
+    MissingAdminTokenToUpdate,
+
+    #[error("cannot delete internal db")]
+    CannotDeleteInternalDatabase,
 }
 
 impl CatalogError {

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
@@ -41,7 +43,15 @@ pub enum SubCommand {
 }
 
 pub async fn command(config: SystemConfig) -> Result<()> {
-    let mut client = Client::new(config.core_config.host_url.clone())?;
+    let mut client = Client::new(
+        config.core_config.host_url.clone(),
+        match config.subcommand {
+            SubCommand::TableList(TableListConfig { ref ca_cert, .. }) => ca_cert,
+            SubCommand::Table(TableConfig { ref ca_cert, .. }) => ca_cert,
+            SubCommand::Summary(SummaryConfig { ref ca_cert, .. }) => ca_cert,
+        }
+        .clone(),
+    )?;
     if let Some(token) = config
         .core_config
         .auth_token
@@ -77,6 +87,10 @@ pub struct TableListConfig {
     /// The format in which to output the query
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 const SYS_TABLES_QUERY: &str = "WITH cols (table_name, column_name) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'system' ORDER BY (table_name, column_name)) SELECT table_name, array_agg(column_name) AS column_names FROM cols GROUP BY table_name ORDER BY table_name";
@@ -134,6 +148,10 @@ pub struct TableConfig {
     /// The format in which to output the query
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 impl SystemCommandRunner {
@@ -157,6 +175,7 @@ impl SystemCommandRunner {
             select,
             order_by,
             output_format,
+            ..
         } = &config;
 
         let select_expr = if !select.is_empty() {
@@ -221,6 +240,10 @@ pub struct SummaryConfig {
     /// The format in which to output the query
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
 }
 
 impl SystemCommandRunner {

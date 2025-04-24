@@ -2,6 +2,7 @@
 # In alphabetical order
 members = [
     "influxdb3",
+    "influxdb3_authz",
     "influxdb3_cache",
     "influxdb3_catalog",
     "influxdb3_clap_blocks",
@@ -37,7 +38,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "3.0.0-beta.3"
+version = "3.0.1"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -63,6 +64,7 @@ chrono = "0.4"
 cron = "0.15"
 clap = { version = "4", features = ["derive", "env", "string"] }
 clru = "0.6.2"
+owo-colors = "4.2.0"
 crc32fast = "1.2.0"
 criterion = { version = "0.5", features = ["html_reports"] }
 crossbeam-channel = "0.5.11"
@@ -81,6 +83,7 @@ hex = "0.4.3"
 http = "0.2.9"
 humantime = "2.1.0"
 hyper = "0.14"
+hyper-rustls = { version = "0.25", features = ["http1", "http2", "ring", "rustls-native-certs"] }
 insta = { version = "1.39", features = ["json", "redactions", "yaml"] }
 indexmap = { version = "2.2.6" }
 itertools = "0.13.0"
@@ -105,8 +108,11 @@ prost-types = "0.12.6"
 proptest = { version = "1", default-features = false, features = ["std"] }
 pyo3 = { version = "0.24.1", features = ["experimental-async"]}
 rand = "0.8.5"
+rcgen = "0.13.2"
 regex = "1.11.1"
 reqwest = { version = "0.11.27", default-features = false, features = ["rustls-tls", "stream", "json"] }
+rustls = "0.22.1"
+rustls-pemfile = "2.2.0"
 secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }
 # serde_json is set to 1.0.127 to prevent a conflict with core, if that gets updated upstream, this
@@ -122,7 +128,7 @@ sysinfo = "0.30.8"
 tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.43.1", features = ["full"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 tonic = { version = "0.11.0", features = ["tls", "tls-roots"] }
 tonic-build = "0.11.0"
@@ -157,7 +163,7 @@ metric_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev =
 observability_deps = { git = "https://github.com/influxdata/influxdb3_core", rev = "26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f" }
 panic_logging = { git = "https://github.com/influxdata/influxdb3_core", rev = "26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f" }
 parquet_file = { git = "https://github.com/influxdata/influxdb3_core", rev = "26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f" }
-schema = { git = "https://github.com/influxdata/influxdb3_core", rev = "26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f", features = ["v3"]  }
+schema = { git = "https://github.com/influxdata/influxdb3_core", rev = "26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f", features = ["v3"]}
 service_common = { git = "https://github.com/influxdata/influxdb3_core", rev = "26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f" }
 service_grpc_flight = { git = "https://github.com/influxdata/influxdb3_core", rev = "26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f" }
 test_helpers = { git = "https://github.com/influxdata/influxdb3_core", rev = "26a30bf8d6e2b6b3f1dd905c4ec27e3db6e20d5f" }

@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use chrono::{DateTime, Utc};
+use influxdb3_authz::TokenInfo;
 use influxdb3_catalog::log::TriggerSettings;
 
 use crate::write::Precision;
@@ -349,4 +353,35 @@ impl From<iox_http::write::WriteParams> for WriteParams {
             no_sync: Some(false),
         }
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CreateTokenWithPermissionsResponse {
+    pub id: u64,
+    name: Arc<str>,
+    pub token: Arc<str>,
+    pub hash: Arc<str>,
+    created_at: chrono::DateTime<Utc>,
+    expiry: Option<chrono::DateTime<Utc>>,
+}
+
+impl CreateTokenWithPermissionsResponse {
+    pub fn from_token_info(token_info: Arc<TokenInfo>, token: String) -> Option<Self> {
+        let expiry = token_info
+            .maybe_expiry_millis()
+            .and_then(DateTime::from_timestamp_millis);
+        Some(Self {
+            id: token_info.id.get(),
+            name: Arc::clone(&token_info.name),
+            token: Arc::from(token.as_str()),
+            hash: hex::encode(&token_info.hash).into(),
+            created_at: DateTime::from_timestamp_millis(token_info.created_at)?,
+            expiry,
+        })
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TokenDeleteRequest {
+    pub token_name: String,
 }

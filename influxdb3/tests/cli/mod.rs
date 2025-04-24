@@ -1,19 +1,14 @@
 mod api;
 
-use crate::server::{ConfigProvider, TestServer};
+use crate::server::{ConfigProvider, TestServer, parse_token};
 use assert_cmd::Command as AssertCmd;
-use assert_cmd::cargo::CommandCargoExt;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, info};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::fs::File;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{
-    fs,
-    io::Write,
-    process::{Command, Stdio},
-};
+use std::{fs, io::Write};
 use test_helpers::tempfile::NamedTempFile;
 use test_helpers::tempfile::TempDir;
 use test_helpers::{assert_contains, assert_not_contains};
@@ -186,6 +181,7 @@ async fn test_show_databases() {
         +---------------+\n\
         | iox::database |\n\
         +---------------+\n\
+        | _internal     |\n\
         | bar           |\n\
         | foo           |\n\
         +---------------+\
@@ -196,7 +192,7 @@ async fn test_show_databases() {
     // Show databases with JSON format
     let output = server.show_databases().with_format("json").run().unwrap();
     assert_eq!(
-        r#"[{"iox::database":"bar"},{"iox::database":"foo"}]"#,
+        r#"[{"iox::database":"_internal"},{"iox::database":"bar"},{"iox::database":"foo"}]"#,
         output
     );
 
@@ -205,6 +201,7 @@ async fn test_show_databases() {
     assert_eq!(
         "\
         iox::database\n\
+        _internal\n\
         bar\n\
         foo\
         ",
@@ -215,6 +212,7 @@ async fn test_show_databases() {
     let output = server.show_databases().with_format("jsonl").run().unwrap();
     assert_eq!(
         "\
+        {\"iox::database\":\"_internal\"}\n\
         {\"iox::database\":\"bar\"}\n\
         {\"iox::database\":\"foo\"}\
         ",
@@ -231,6 +229,7 @@ async fn test_show_databases() {
         +---------------+\n\
         | iox::database |\n\
         +---------------+\n\
+        | _internal     |\n\
         | bar           |\n\
         +---------------+",
         output
@@ -240,30 +239,6 @@ async fn test_show_databases() {
     let output = server.show_databases().show_deleted(true).run().unwrap();
     // don't assert on actual output since it contains a time stamp which would be flaky
     assert_contains!(output, "foo-");
-}
-
-#[test_log::test(tokio::test)]
-async fn test_show_empty_database() {
-    let server = TestServer::spawn().await;
-
-    // Show empty database list with default format (pretty)
-    let output = server.show_databases().run().unwrap();
-    assert_eq!(
-        "\
-        +---------------+\n\
-        | iox::database |\n\
-        +---------------+\n\
-        +---------------+",
-        output
-    );
-
-    // Show empty database list with JSON format
-    let output = server.show_databases().with_format("json").run().unwrap();
-    assert_eq!(output, "[]");
-
-    // Show empty database list with JSONL format
-    let output = server.show_databases().with_format("jsonl").run().unwrap();
-    assert_eq!(output, "");
 }
 
 #[test_log::test(tokio::test)]
@@ -440,6 +415,48 @@ async fn test_create_table_fail_existing() {
         .unwrap_err();
 
     insta::assert_snapshot!("test_create_table_fail_existing", err.to_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_table_tags_not_required() {
+    let server = TestServer::spawn().await;
+    let db_name = "foo";
+    let table_name = "bar";
+
+    // Create database
+    let result = server.create_database(db_name).run().unwrap();
+    debug!(result = ?result, "create database");
+    assert_contains!(&result, "Database \"foo\" created successfully");
+
+    // Create table successfully
+    let result = server.create_table(db_name, table_name).run().unwrap();
+
+    assert_contains!(&result, "Table \"foo\".\"bar\" created successfully");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_table_fail_empty_tags() {
+    let server = TestServer::spawn().await;
+    let db_name = "foo";
+    let table_name = "bar";
+
+    // Create database
+    let result = server.create_database(db_name).run().unwrap();
+    debug!(result = ?result, "create database");
+    assert_contains!(&result, "Database \"foo\" created successfully");
+
+    // Create table successfully
+    let result = server
+        .run(
+            vec!["create", "table"],
+            &["--database", db_name, table_name, "--tags"],
+        )
+        .unwrap_err();
+
+    assert_contains!(
+        result.to_string(),
+        "error: a value is required for '--tags <TAGS>...' but none was supplied"
+    );
 }
 
 #[test_log::test(tokio::test)]
@@ -740,6 +757,7 @@ async fn test_database_create_persists() {
         r#"+---------------+
 | iox::database |
 +---------------+
+| _internal     |
 | foo           |
 +---------------+"#,
         result
@@ -875,20 +893,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
     assert_contains!(&result, "Trigger test_trigger created successfully");
 }
 
-#[test]
-fn test_create_token() {
-    let process = Command::cargo_bin("influxdb3")
-        .unwrap()
-        .args(["create", "token"])
-        .stdout(Stdio::piped())
-        .output()
-        .unwrap();
-    let result: String = String::from_utf8_lossy(&process.stdout).trim().into();
-    assert_contains!(
-        &result,
-        "This will grant you access to every HTTP endpoint or deny it otherwise"
-    );
-}
 #[test_log::test(tokio::test)]
 async fn test_show_system() {
     let server = TestServer::configure().spawn().await;
@@ -928,7 +932,10 @@ async fn test_show_system() {
     // Test failure cases
     // 1. Missing database (this can't be tested with the fluent API since we always require a db name)
     let output = server
-        .run(vec!["show", "system"], &["table-list"])
+        .run(
+            vec!["show", "system"],
+            &["table-list", "--tls-ca", "../testing-certs/rootCA.pem"],
+        )
         .unwrap_err()
         .to_string();
     insta::assert_snapshot!("fail_without_database_name", output);
@@ -1620,7 +1627,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_contains!(&result, "Trigger foo created successfully");
 
     // send an HTTP request to the server
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .post(format!("{}/api/v3/engine/bar", server.client_addr()))
         .header("Content-Type", "application/json")
@@ -1709,7 +1716,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test string response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1753,7 +1760,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test dict/JSON response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1803,7 +1810,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test tuple with status response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1847,7 +1854,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test tuple with headers response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1898,7 +1905,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test tuple with status and headers response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1946,7 +1953,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test list/JSON response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1971,7 +1978,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         yield "Line 1\n"
         yield "Line 2\n"
         yield "Line 3\n"
-    
+
     return generate_content()
 "#;
     let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
@@ -1998,7 +2005,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test iterator/generator response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -2020,17 +2027,17 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
             self.response = response
             self.status_code = status
             self.headers = headers or {}
-            
+
         def get_data(self):
             return self.response
-            
+
         def __flask_response__(self):
             return True
-    
+
     # Return a Flask Response object
     response = FlaskResponse(
-        "Custom Flask Response", 
-        status=202, 
+        "Custom Flask Response",
+        status=202,
         headers={"Content-Type": "text/custom", "X-Generated-By": "FlaskResponse"}
     )
     return response
@@ -2056,7 +2063,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .unwrap();
 
     // Send request to test Flask Response object
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -2104,7 +2111,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .unwrap();
 
     // Send request to test JSON dict with status
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -2901,4 +2908,176 @@ async fn test_wal_overwritten() {
         "p1 should have stopped due to internal shutdown"
     );
     assert!(!p2.is_stopped(), "p2 should not be stopped");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_admin_token() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    println!("{:?}", result);
+    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_admin_token_json_format() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
+    let args = &[
+        "--tls-ca",
+        "../testing-certs/rootCA.pem",
+        "--format",
+        "json",
+    ];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+
+    let value: Value =
+        serde_json::from_str(&result).expect("token creation response should be in json format");
+    let token = value
+        .get("token")
+        .expect("token to be present")
+        .as_str()
+        .expect("token to be a str");
+    // check if the token generated works by using it to regenerate
+    let result = server
+        .run_with_confirmation(
+            vec!["create", "token", "--admin"],
+            &[
+                "--regenerate",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+                "--token",
+                token,
+            ],
+        )
+        .unwrap();
+    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_admin_token_allowed_once() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(
+        &result,
+        "Failed to create token, error: ApiError { code: 500, message: \"token name already exists, _admin\" }"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_regenerate_admin_token() {
+    // when created with_auth, TestServer spins up server and generates admin token.
+    let mut server = TestServer::configure().with_auth().spawn().await;
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    // already has admin token, so it cannot be created again
+    assert_contains!(
+        &result,
+        "Failed to create token, error: ApiError { code: 500, message: \"token name already exists, _admin\" }"
+    );
+
+    // regenerating token is allowed
+    let result = server
+        .run_with_confirmation(
+            vec!["create", "token", "--admin"],
+            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
+        )
+        .unwrap();
+    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+    let old_token = server.token().expect("admin token to be present");
+    let new_token = parse_token(result);
+    assert!(old_token != &new_token);
+
+    // old token cannot access
+    let res = server
+        .create_database("sample_db")
+        .run()
+        .err()
+        .unwrap()
+        .to_string();
+    assert_contains!(&res, "401 Unauthorized");
+
+    // new token should allow
+    server.set_token(Some(new_token));
+    let res = server.create_database("sample_db").run().unwrap();
+    assert_contains!(&res, "Database \"sample_db\" created successfully");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_token() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
+    let args = &[];
+    let result = server
+        .run(
+            vec![
+                "create",
+                "token",
+                "--admin",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            args,
+        )
+        .unwrap();
+    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+    let token = parse_token(result);
+
+    let result = server
+        .run_with_confirmation(
+            vec!["delete", "token"],
+            &[
+                "--token-name",
+                "_admin",
+                "--token",
+                &token,
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+        )
+        .unwrap();
+    info!(result, "test: deleted token using token name");
+
+    // you should be able to create the token again
+    let result = server
+        .run(
+            vec![
+                "create",
+                "token",
+                "--admin",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            args,
+        )
+        .unwrap();
+    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
 }

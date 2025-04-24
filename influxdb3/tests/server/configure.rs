@@ -1,15 +1,16 @@
 use hyper::StatusCode;
-use observability_deps::tracing::debug;
+use influxdb3_types::http::CreateTokenWithPermissionsResponse;
+use observability_deps::tracing::{debug, info};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use test_helpers::assert_contains;
 
-use crate::server::TestServer;
+use crate::server::{ConfigProvider, TestServer};
 
 #[tokio::test]
 async fn api_v3_configure_distinct_cache_create() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/distinct_cache",
         base = server.client_addr()
@@ -174,7 +175,7 @@ async fn api_v3_configure_distinct_cache_create() {
 #[tokio::test]
 async fn api_v3_configure_distinct_cache_delete() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/distinct_cache",
         base = server.client_addr()
@@ -388,7 +389,7 @@ async fn api_v3_configure_distinct_cache_delete() {
 #[tokio::test]
 async fn api_v3_configure_last_cache_create() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/last_cache",
         base = server.client_addr()
@@ -567,7 +568,7 @@ async fn api_v3_configure_last_cache_create() {
 #[tokio::test]
 async fn api_v3_configure_last_cache_delete() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/last_cache",
         base = server.client_addr()
@@ -760,7 +761,7 @@ async fn api_v3_configure_db_delete() {
     let db_name = "foo";
     let tbl_name = "tbl";
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/database?db={db_name}",
         base = server.client_addr()
@@ -782,9 +783,8 @@ async fn api_v3_configure_db_delete() {
         .json::<Value>()
         .await
         .unwrap();
-    debug!(result = ?result, ">> RESULT");
     assert_eq!(
-        json!([{ "deleted": false, "iox::database": "foo" } ]),
+        json!([{ "deleted": false, "iox::database": "_internal" }, { "deleted": false, "iox::database": "foo" } ]),
         result
     );
 
@@ -802,12 +802,22 @@ async fn api_v3_configure_db_delete() {
         .json::<Value>()
         .await
         .unwrap();
-    debug!(result = ?result, ">> RESULT");
     let array_result = result.as_array().unwrap();
-    assert_eq!(1, array_result.len());
+    assert_eq!(2, array_result.len());
     let first_db = array_result.first().unwrap();
     assert_contains!(
         first_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "_internal"
+    );
+    let second_db = array_result.get(1).unwrap();
+    assert_contains!(
+        second_db
             .as_object()
             .unwrap()
             .get("iox::database")
@@ -832,15 +842,25 @@ async fn api_v3_configure_db_delete() {
         .json::<Value>()
         .await
         .unwrap();
-    debug!(result = ?result, ">> RESULT");
     let array_result = result.as_array().unwrap();
     // check there are 2 dbs now, foo and foo-*
-    assert_eq!(2, array_result.len());
+    assert_eq!(3, array_result.len());
     let first_db = array_result.first().unwrap();
     let second_db = array_result.get(1).unwrap();
+    let third_db = array_result.get(2).unwrap();
+    assert_contains!(
+        first_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "_internal"
+    );
     assert_eq!(
         "foo",
-        first_db
+        second_db
             .as_object()
             .unwrap()
             .get("iox::database")
@@ -849,7 +869,7 @@ async fn api_v3_configure_db_delete() {
             .unwrap(),
     );
     assert_contains!(
-        second_db
+        third_db
             .as_object()
             .unwrap()
             .get("iox::database")
@@ -864,7 +884,7 @@ async fn api_v3_configure_db_delete() {
 async fn api_v3_configure_db_delete_no_db() {
     let db_name = "db";
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/database?db={db_name}",
         base = server.client_addr()
@@ -881,7 +901,7 @@ async fn api_v3_configure_db_delete_no_db() {
 #[tokio::test]
 async fn api_v3_configure_db_delete_missing_query_param() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/database",
         base = server.client_addr()
@@ -898,7 +918,7 @@ async fn api_v3_configure_db_delete_missing_query_param() {
 #[test_log::test(tokio::test)]
 async fn api_v3_configure_db_create() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/database",
         base = server.client_addr()
@@ -916,7 +936,7 @@ async fn api_v3_configure_db_create() {
 #[test_log::test(tokio::test)]
 async fn api_v3_configure_db_create_db_with_same_name() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/database",
         base = server.client_addr()
@@ -942,7 +962,7 @@ async fn api_v3_configure_db_create_db_with_same_name() {
 #[test_log::test(tokio::test)]
 async fn api_v3_configure_db_create_db_hit_limit() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/database",
         base = server.client_addr()
@@ -969,7 +989,7 @@ async fn api_v3_configure_db_create_db_hit_limit() {
 #[test_log::test(tokio::test)]
 async fn api_v3_configure_db_create_db_reuse_old_name() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/database",
         base = server.client_addr()
@@ -999,7 +1019,7 @@ async fn api_v3_configure_db_create_db_reuse_old_name() {
 #[test_log::test(tokio::test)]
 async fn api_v3_configure_table_create_then_write() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let db_url = format!(
         "{base}/api/v3/configure/database",
         base = server.client_addr()
@@ -1085,7 +1105,7 @@ async fn api_v3_configure_table_create_then_write() {
 #[test_log::test(tokio::test)]
 async fn api_v3_configure_table_create_no_fields() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let db_url = format!(
         "{base}/api/v3/configure/database",
         base = server.client_addr()
@@ -1143,11 +1163,37 @@ async fn api_v3_configure_table_create_no_fields() {
 }
 
 #[test_log::test(tokio::test)]
+async fn api_v3_configure_table_create_invalid_field_types() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let table_url = format!("{base}/api/v3/configure/table", base = server.client_addr());
+
+    let resp = client
+        .post(&table_url)
+        .json(&json!({
+            "db": "foo",
+            "table": "bar",
+            "tags": ["tag1"],
+            "fields": [
+                {
+                    "name": "invalid",
+                    "type": "foobar"
+                }
+            ]
+        }))
+        .send()
+        .await
+        .expect("create table call failed");
+
+    assert!(resp.status().is_client_error());
+}
+
+#[test_log::test(tokio::test)]
 async fn api_v3_configure_table_delete() {
     let db_name = "foo";
     let tbl_name = "tbl";
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}",
         base = server.client_addr()
@@ -1238,7 +1284,7 @@ async fn api_v3_configure_table_delete() {
 async fn api_v3_configure_table_delete_no_db() {
     let db_name = "db";
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!(
         "{base}/api/v3/configure/table?db={db_name}&table=foo",
         base = server.client_addr()
@@ -1255,7 +1301,7 @@ async fn api_v3_configure_table_delete_no_db() {
 #[tokio::test]
 async fn api_v3_configure_table_delete_missing_query_param() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!("{base}/api/v3/configure/table", base = server.client_addr());
 
     let resp = client
@@ -1271,7 +1317,7 @@ async fn try_deleting_table_after_db_is_deleted() {
     let db_name = "db";
     let tbl_name = "tbl";
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let delete_db_url = format!(
         "{base}/api/v3/configure/database?db={db_name}",
         base = server.client_addr()
@@ -1305,4 +1351,77 @@ async fn try_deleting_table_after_db_is_deleted() {
         .await
         .expect("delete table call succeed");
     assert_eq!(StatusCode::NOT_FOUND, resp.status());
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_token_delete() {
+    let token_name = "_admin";
+    let server = TestServer::configure().with_auth().spawn().await;
+    let client = server.http_client();
+    let create_url = format!(
+        "{base}/api/v3/configure/token/admin",
+        base = server.client_addr()
+    );
+    let delete_url = format!("{base}/api/v3/configure/token", base = server.client_addr());
+
+    let admin_token = server.token().expect("admin token to be present");
+
+    let delete_result = client
+        .delete(&delete_url)
+        .bearer_auth(admin_token)
+        .query(&[("token_name", token_name)])
+        .send()
+        .await
+        .unwrap();
+    info!(?delete_result, "test: result running the token delete");
+
+    // create admin token again
+    let result = client.post(&create_url).send().await.unwrap();
+    info!(?result, "test: result running the create token");
+    assert_eq!(result.status(), StatusCode::CREATED);
+    let json: CreateTokenWithPermissionsResponse = result.json().await.unwrap();
+    info!(?json, "test: result running the token delete");
+    assert_eq!(json.id, 1);
+
+    // delete again
+    let delete_result = client
+        .delete(&delete_url)
+        .bearer_auth(&json.token)
+        .query(&[("token_name", token_name)])
+        .send()
+        .await
+        .unwrap();
+    info!(?delete_result, "test: result running the token delete");
+
+    // create admin token once again
+    let result = client.post(&create_url).send().await.unwrap();
+    info!(?result, "test: result running the create token");
+    assert_eq!(result.status(), StatusCode::CREATED);
+    let json: CreateTokenWithPermissionsResponse = result.json().await.unwrap();
+    info!(?json, "test: result running the token delete");
+    assert_eq!(json.id, 2);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_token_paths_are_not_allowed_when_starting_without_auth() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let create_url = format!(
+        "{base}/api/v3/configure/token/admin",
+        base = server.client_addr()
+    );
+
+    let regenerate_url = format!(
+        "{base}/api/v3/configure/token/admin",
+        base = server.client_addr()
+    );
+
+    let delete_url = format!("{base}/api/v3/configure/token", base = server.client_addr());
+
+    for url in &[create_url, regenerate_url] {
+        let result = client.post(url).send().await.unwrap();
+        assert_eq!(result.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+    let result = client.delete(delete_url).send().await.unwrap();
+    assert_eq!(result.status(), StatusCode::METHOD_NOT_ALLOWED);
 }
