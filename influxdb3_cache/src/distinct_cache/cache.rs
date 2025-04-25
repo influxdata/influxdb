@@ -167,7 +167,7 @@ impl DistinctCache {
             ?predicates,
             ?projection,
             ?limit,
-            ">>> distinct cache record batches"
+            "distinct cache record batches"
         );
         let n_columns = projection
             .as_ref()
@@ -410,6 +410,7 @@ impl Node {
                 } else if next_predicates.is_empty() && next_builders.is_empty() {
                     if let Some(builder) = builder {
                         builder.append_value(value.0);
+                        total_count += 1;
                     }
                 }
                 if let Some(new_limit) = limit.checked_sub(count) {
@@ -417,10 +418,8 @@ impl Node {
                 } else {
                     break;
                 }
-            } else {
-                if let Some(builder) = builder {
-                    builder.append_value(value.0);
-                }
+            } else if let Some(builder) = builder {
+                builder.append_value(value.0);
                 total_count += 1;
             }
         }

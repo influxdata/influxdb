@@ -224,6 +224,10 @@ impl Catalog {
         Ok(catalog)
     }
 
+    pub fn time_provider(&self) -> Arc<dyn TimeProvider> {
+        Arc::clone(&self.time_provider)
+    }
+
     pub fn set_state_shutdown(&self) {
         *self.state.lock() = CatalogState::Shutdown;
     }
