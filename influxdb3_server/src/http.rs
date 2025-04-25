@@ -27,7 +27,7 @@ use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::log::FieldDataType;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
-use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
+use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, PROCESS_UUID};
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::manager::ProcessingEngineError;
 use influxdb3_types::http::*;
@@ -675,6 +675,7 @@ impl HttpApi {
         let body = serde_json::to_string(&PingResponse {
             version: INFLUXDB3_VERSION.to_string(),
             revision: INFLUXDB3_GIT_HASH_SHORT.to_string(),
+            process_id: *PROCESS_UUID,
         })?;
 
         Ok(Response::new(Body::from(body)))

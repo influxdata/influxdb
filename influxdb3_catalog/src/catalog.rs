@@ -105,6 +105,7 @@ static CATALOG_WRITE_PERMIT: Mutex<CatalogSequenceNumber> =
 pub type CatalogWritePermit = MutexGuard<'static, CatalogSequenceNumber>;
 
 pub struct Catalog {
+    state: parking_lot::Mutex<CatalogState>,
     subscriptions: Arc<tokio::sync::RwLock<CatalogSubscriptions>>,
     time_provider: Arc<dyn TimeProvider>,
     /// Connection to the object store for managing persistence and updates to the catalog
@@ -121,6 +122,18 @@ impl std::fmt::Debug for Catalog {
         f.debug_struct("Catalog")
             .field("inner", &self.inner)
             .finish()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CatalogState {
+    Active,
+    Shutdown,
+}
+
+impl CatalogState {
+    fn is_shutdown(&self) -> bool {
+        matches!(self, Self::Shutdown)
     }
 }
 
@@ -162,22 +175,22 @@ impl Catalog {
             ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
         let subscriptions = Default::default();
         let metrics = Arc::new(CatalogMetrics::new(&metric_registry));
-        let mut catalog = store
+        let catalog = store
             .load_or_create_catalog()
             .await
-            .map_err(Into::into)
             .map(RwLock::new)
             .map(|inner| Self {
+                state: parking_lot::Mutex::new(CatalogState::Active),
                 subscriptions,
                 time_provider,
                 store,
                 metrics,
                 inner,
                 limits: Default::default(),
-            });
+            })?;
 
-        create_internal_db(&mut catalog).await;
-        catalog
+        create_internal_db(&catalog).await;
+        Ok(catalog)
     }
 
     pub async fn new_with_shutdown(
@@ -209,6 +222,10 @@ impl Catalog {
             }
         });
         Ok(catalog)
+    }
+
+    pub fn set_state_shutdown(&self) {
+        *self.state.lock() = CatalogState::Shutdown;
     }
 
     fn num_dbs_limit(&self) -> usize {
@@ -506,28 +523,25 @@ impl Catalog {
     }
 }
 
-async fn create_internal_db(catalog: &mut std::result::Result<Catalog, CatalogError>) {
-    // if catalog is initialised, create internal db
-    if let Ok(catalog) = catalog.as_mut() {
-        let result = catalog.create_database(INTERNAL_DB_NAME).await;
-        // what is the best outcome if "_internal" cannot be created?
-        match result {
-            Ok(_) => info!("created internal database"),
-            Err(err) => {
-                match err {
-                    CatalogError::AlreadyExists => {
-                        // this is probably ok
-                        debug!("not creating internal db as it exists already");
-                    }
-                    _ => {
-                        // all other errors are unexpected state
-                        error!(?err, "unexpected error when creating internal db");
-                        panic!("cannot create internal db");
-                    }
+async fn create_internal_db(catalog: &Catalog) {
+    let result = catalog.create_database(INTERNAL_DB_NAME).await;
+    // what is the best outcome if "_internal" cannot be created?
+    match result {
+        Ok(_) => info!("created internal database"),
+        Err(err) => {
+            match err {
+                CatalogError::AlreadyExists => {
+                    // this is probably ok
+                    debug!("not creating internal db as it exists already");
+                }
+                _ => {
+                    // all other errors are unexpected state
+                    error!(?err, "unexpected error when creating internal db");
+                    panic!("cannot create internal db");
                 }
             }
-        };
-    }
+        }
+    };
 }
 
 impl Catalog {
@@ -562,14 +576,18 @@ impl Catalog {
         let inner = store.load_or_create_catalog().await?;
         let subscriptions = Default::default();
 
-        Ok(Self {
+        let catalog = Self {
+            state: parking_lot::Mutex::new(CatalogState::Active),
             subscriptions,
             time_provider,
             store,
             metrics: Arc::new(CatalogMetrics::new(&metric_registry)),
             inner: RwLock::new(inner),
             limits: Default::default(),
-        })
+        };
+
+        create_internal_db(&catalog).await;
+        Ok(catalog)
     }
 }
 
@@ -802,28 +820,32 @@ impl InnerCatalog {
                     registered_time_ns,
                     core_count,
                     mode,
+                    ..
                 }) => {
-                    let new_node = Arc::new(NodeDefinition {
-                        node_id: Arc::clone(node_id),
-                        node_catalog_id: node_batch.node_catalog_id,
-                        instance_id: Arc::clone(instance_id),
-                        mode: mode.clone(),
-                        core_count: *core_count,
-                        state: NodeState::Running {
-                            registered_time_ns: *registered_time_ns,
-                        },
-                    });
-                    if let Some(node) = self.nodes.get_by_name(node_id) {
+                    if let Some(mut node) = self.nodes.get_by_name(node_id) {
                         if &node.instance_id != instance_id {
                             return Err(CatalogError::InvalidNodeRegistration);
                         }
-                        if node == new_node {
-                            continue;
-                        }
+                        let n = Arc::make_mut(&mut node);
+                        n.mode = mode.clone();
+                        n.core_count = *core_count;
+                        n.state = NodeState::Running {
+                            registered_time_ns: *registered_time_ns,
+                        };
                         self.nodes
-                            .update(node_batch.node_catalog_id, new_node)
+                            .update(node_batch.node_catalog_id, node)
                             .expect("existing node should update");
                     } else {
+                        let new_node = Arc::new(NodeDefinition {
+                            node_id: Arc::clone(node_id),
+                            node_catalog_id: node_batch.node_catalog_id,
+                            instance_id: Arc::clone(instance_id),
+                            mode: mode.clone(),
+                            core_count: *core_count,
+                            state: NodeState::Running {
+                                registered_time_ns: *registered_time_ns,
+                            },
+                        });
                         self.nodes
                             .insert(node_batch.node_catalog_id, new_node)
                             .expect("there should not already be a node");
@@ -837,7 +859,8 @@ impl InnerCatalog {
                         .nodes
                         .get_by_id(&node_batch.node_catalog_id)
                         .expect("node should exist");
-                    Arc::make_mut(&mut new_node).state = NodeState::Stopped {
+                    let n = Arc::make_mut(&mut new_node);
+                    n.state = NodeState::Stopped {
                         stopped_time_ns: *stopped_time_ns,
                     };
                     self.nodes
@@ -929,6 +952,33 @@ impl NodeDefinition {
     pub fn instance_id(&self) -> Arc<str> {
         Arc::clone(&self.instance_id)
     }
+
+    pub fn node_id(&self) -> Arc<str> {
+        Arc::clone(&self.node_id)
+    }
+
+    pub fn node_catalog_id(&self) -> NodeId {
+        self.node_catalog_id
+    }
+
+    pub fn modes(&self) -> &Vec<NodeMode> {
+        &self.mode
+    }
+
+    pub fn is_running(&self) -> bool {
+        match self.state {
+            NodeState::Running { .. } => true,
+            NodeState::Stopped { .. } => false,
+        }
+    }
+
+    pub fn core_count(&self) -> u64 {
+        self.core_count
+    }
+
+    pub fn state(&self) -> NodeState {
+        self.state
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]
@@ -1007,7 +1057,7 @@ impl DatabaseSchema {
         &mut self,
         table_name: impl Into<Arc<str>>,
     ) -> Result<Arc<TableDefinition>> {
-        let table_id = self.tables.next_id();
+        let table_id = self.tables.get_and_increment_next_id();
         let table_def = Arc::new(TableDefinition::new_empty(table_id, table_name.into()));
         self.tables.insert(table_id, Arc::clone(&table_def))?;
         Ok(table_def)
