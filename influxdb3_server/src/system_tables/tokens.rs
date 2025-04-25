@@ -100,7 +100,7 @@ fn to_record_batch(
         name_arr.append_value(&token.name);
 
         if started_with_auth {
-            hash_arr.append_value(hex::encode(&token.hash));
+            hash_arr.append_value(&hex::encode(&token.hash)[..9]);
         }
         created_at_arr.append_value(token.created_at);
         if token.description.is_some() {
