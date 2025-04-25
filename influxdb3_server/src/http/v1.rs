@@ -1002,7 +1002,9 @@ impl GroupByEval {
             .iter()
             .filter_map(|dim| match dim {
                 Dimension::Time(_) => None,
-                Dimension::VarRef(tag) => Some(Ok(GroupByEvalType::Tag(tag.to_string()))),
+                Dimension::VarRef(tag) => {
+                    Some(Ok(GroupByEvalType::Tag(tag.name.as_str().to_string())))
+                }
                 Dimension::Regex(regex) => Some(
                     Regex::new(regex.as_str())
                         .map(GroupByEvalType::Regex)
