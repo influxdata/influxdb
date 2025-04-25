@@ -2148,9 +2148,9 @@ func (e *Engine) isFileOptimized(f string) (bool, string) {
 	}
 }
 
-// isGroupOptimized returns true if any file in a compaction group appears to be have been previously optimized.
+// IsGroupOptimized returns true if any file in a compaction group appears to be have been previously optimized.
 // The name of the first optimized file found along with the heuristic used to determine this is returned.
-func (e *Engine) isGroupOptimized(group CompactionGroup) (optimized bool, file string, heuristic string) {
+func (e *Engine) IsGroupOptimized(group CompactionGroup) (optimized bool, file string, heuristic string) {
 	for _, f := range group {
 		if isOpt, heur := e.isFileOptimized(f); isOpt {
 			return true, f, heur
@@ -2218,7 +2218,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level4Groups := make([]CompactionGroup, 0, len(initialLevellevel4Groups))
 			level5Groups := make([]CompactionGroup, 0, len(initialLevellevel4Groups))
 			for _, group := range initialLevellevel4Groups {
-				if isOpt, filename, heur := e.isGroupOptimized(group); isOpt {
+				if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
 					e.logger.Info("Promoting full compaction level 4 group to optimized level 5 compaction group because it contains an already optimized TSM file",
 						zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
 					level5Groups = append(level5Groups, group)
@@ -2301,7 +2301,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 					if level5Aggressive {
 						log.Info("Planning aggressive optimized compaction because all level 5 is planned for aggressive")
 						aggressive = true
-					} else if isOpt, filename, heur := e.isGroupOptimized(theGroup); isOpt {
+					} else if isOpt, filename, heur := e.IsGroupOptimized(theGroup); isOpt {
 						log.Info("Planning aggressive optimized compaction because group contains an already aggressively optimized TSM file", zap.String("file", filename), zap.String("heuristic", heur))
 						aggressive = true
 					}

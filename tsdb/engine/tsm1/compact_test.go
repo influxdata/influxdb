@@ -3896,6 +3896,92 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 
 }
 
+func TestIsGroupOptimized(t *testing.T) {
+	testSet := []tsm1.FileStat{
+		{
+			Path: "01-05.tsm1",
+			Size: 256 * 1024 * 1024,
+		},
+		{
+			Path: "02-05.tsm1",
+			Size: 256 * 1024 * 1024,
+		},
+		{
+			Path: "03-05.tsm1",
+			Size: 256 * 1024 * 1024,
+		},
+		{
+			Path: "04-04.tsm1",
+			Size: 256 * 1024 * 1024,
+		},
+	}
+	blockCounts := []struct {
+		blockCounts   []int
+		optimizedName string
+	}{
+		{
+			blockCounts: []int{
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
+			optimizedName: "",
+		},
+		{
+			blockCounts: []int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
+			optimizedName: "01-05.tsm1",
+		},
+		{
+			blockCounts: []int{
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
+			optimizedName: "02-05.tsm1",
+		},
+		{
+			blockCounts: []int{
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			},
+			optimizedName: "04-04.tsm1",
+		},
+	}
+
+	ffs := &fakeFileStore{
+		PathsFn: func() []tsm1.FileStat {
+			return testSet
+		},
+	}
+	cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+
+	e := MustOpenEngine(tsdb.InmemIndexName)
+	e.CompactionPlan = cp
+	e.Compactor = tsm1.NewCompactor()
+	e.Compactor.FileStore = ffs
+
+	fileGroup := make([]string, 0, len(testSet))
+	for j := 0; j < len(testSet); j++ {
+		fileGroup = append(fileGroup, testSet[j].Path)
+	}
+
+	for i := 0; i < len(blockCounts); i++ {
+		require.NoError(t, ffs.SetBlockCounts(blockCounts[i].blockCounts), "failed setting block counts")
+		ok, fName, _ := e.IsGroupOptimized(fileGroup)
+		require.Equal(t, blockCounts[i].optimizedName != "", ok, "unexpected result for optimization check")
+		require.Equal(t, blockCounts[i].optimizedName, fName, "unexpected file name in optimization check")
+	}
+}
+
 func assertValueEqual(t *testing.T, a, b tsm1.Value) {
 	if got, exp := a.UnixNano(), b.UnixNano(); got != exp {
 		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
