@@ -1,7 +1,6 @@
 use std::{
     future::Future,
-    io::{BufRead, BufReader},
-    process::{Child, Command, Stdio},
+    process::{Child, Command},
     time::{Duration, SystemTime},
 };
 
@@ -14,6 +13,8 @@ use influxdb3_client::Precision;
 use influxdb3_types::http::FieldType;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Certificate, Response, tls::Version};
+use tempfile::TempDir;
+use tokio::io::AsyncReadExt;
 use tonic::transport::ClientTlsConfig;
 
 mod auth;
@@ -207,15 +208,18 @@ impl ConfigProvider for TestConfig {
 
 /// A running instance of the `influxdb3 serve` process
 ///
-/// Logs will be emitted to stdout/stderr if the TEST_LOG environment variable is set, e.g.,
+/// Logs will be emitted to stdout/stderr if the `TEST_LOG` environment variable is set, e.g.,
 /// ```
 /// TEST_LOG= cargo nextest run -p influxdb3 --nocapture
 /// ```
-/// This will forward the value provided in `TEST_LOG` to the `LOG_FILTER` env var on the running
-/// `influxdb` binary. By default, a log filter of `info` is used, which would provide similar
-/// output to what is seen in production, however, per-crate filters can be provided via this
-/// argument, e.g., `info,influxdb3_write=debug` would emit logs at `INFO` level for all crates
-/// except for the `influxdb3_write` crate, which will emit logs at the `DEBUG` level.
+///
+/// This also respects the RUST_LOG environment variable, which is typically used to set the
+/// log filter for tracing/tests.
+///
+/// - `TEST_LOG=` (empty) will result in `INFO` logs being emitted
+/// - `TEST_LOG=<filter>` will result in the provided `<filter>` being used as the `LOG_FILTER`
+/// - if both `TEST_LOG` and `RUST_LOG` are set, the value provided in `RUST_LOG` will be used
+///   as the `LOG_FILTER`
 pub struct TestServer {
     auth_token: Option<String>,
     bind_addr: String,
@@ -249,14 +253,30 @@ impl TestServer {
 
     async fn spawn_inner(config: &impl ConfigProvider) -> Self {
         create_certs().await;
+        // Create a temporary file for storing the TCP Listener address. We start the server with
+        // a bind address of 0.0.0.0:0, which will have the OS assign a randomly available port.
+        //
+        // To determine which port is selected, the server will write the listener address to the
+        // file path provided in the --tcp-listener-file-path argument, which we use below to assign
+        // the bind address for the TestServer harness.
+        //
+        // The file is deleted when it goes out of scope (the end of this method) by the TempDir type.
+        let tmp_dir = TempDir::new().unwrap();
+        let tmp_dir_path = tmp_dir.into_path();
+        let tcp_addr_file = tmp_dir_path.join("tcp-listener");
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
             .arg("--disable-telemetry-upload")
-            // bind to port 0 to get a random port assigned:
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
             .args(["--wal-snapshot-size", "1"])
+            .args([
+                "--tcp-listener-file-path",
+                tcp_addr_file
+                    .to_str()
+                    .expect("valid tcp listener file path"),
+            ])
             .args([
                 "--tls-cert",
                 if config.bad_tls() {
@@ -281,49 +301,46 @@ impl TestServer {
                     "tls-1.2"
                 },
             ])
-            .args(config.as_args())
-            .stdout(Stdio::piped());
+            .args(config.as_args());
 
-        // Use the TEST_LOG env var to determine if logs are emitted from the spawned process
-        let emit_logs = if std::env::var("TEST_LOG").is_ok() {
-            // use "info" filter, as would be used in production:
-            command.env("LOG_FILTER", "info");
-            true
-        } else {
-            false
-        };
+        // Determine the LOG_FILTER that is passed down to the process, if necessary
+        match (std::env::var("TEST_LOG"), std::env::var("RUST_LOG")) {
+            (Ok(t), Ok(r)) if t.is_empty() && r.is_empty() => {
+                command.env("LOG_FILTER", "info");
+            }
+            (Ok(t), Err(_)) if t.is_empty() => {
+                command.env("LOG_FILTER", "info");
+            }
+            (Ok(filter), Err(_)) | (Ok(_), Ok(filter)) => {
+                command.env("LOG_FILTER", filter);
+            }
+            (Err(_), _) => (),
+        }
 
-        let mut server_process = command.spawn().expect("spawn the influxdb3 server process");
+        let server_process = command.spawn().expect("spawn the influxdb3 server process");
 
-        // pipe stdout so we can get the randomly assigned port from the log output:
-        let process_stdout = server_process
-            .stdout
-            .take()
-            .expect("should acquire stdout from process");
-
-        let mut lines = BufReader::new(process_stdout).lines();
         let bind_addr = loop {
-            let Some(Ok(line)) = lines.next() else {
-                panic!("stdout closed unexpectedly");
-            };
-            if emit_logs {
-                println!("{line}");
-            }
-            if line.contains("startup time") {
-                if let Some(address) = line.split("address=").last() {
-                    break address.to_string();
+            match tokio::fs::File::open(&tcp_addr_file).await {
+                Ok(mut file) => {
+                    let mut buf = String::new();
+                    file.read_to_string(&mut buf)
+                        .await
+                        .expect("read from tcp listener file");
+                    if buf.is_empty() {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                        continue;
+                    } else {
+                        break buf;
+                    }
+                }
+                Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound) => {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+                Err(error) => {
+                    panic!("unexpected error while checking for tcp listener file: {error:?}")
                 }
             }
         };
-
-        tokio::task::spawn_blocking(move || {
-            for line in lines {
-                let line = line.expect("io error while getting line from stdout");
-                if emit_logs {
-                    println!("{line}");
-                }
-            }
-        });
 
         let http_client = reqwest::ClientBuilder::new()
             .min_tls_version(Version::TLS_1_3)
