@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 use crate::log::versions::v2;
 
 impl From<super::OrderedCatalogBatch> for v2::OrderedCatalogBatch {
@@ -49,6 +51,9 @@ impl From<super::RegisterNodeLog> for v2::RegisterNodeLog {
             registered_time_ns: value.registered_time_ns,
             core_count: value.core_count,
             mode: value.mode.into_iter().map(Into::into).collect(),
+            // NB: just default to a new random UUID, this is no different than if an actual
+            // process's UUID was used, which is also random.
+            process_uuid: Uuid::new_v4(),
         }
     }
 }

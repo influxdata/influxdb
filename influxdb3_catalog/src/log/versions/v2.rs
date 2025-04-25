@@ -17,6 +17,7 @@ use influxdb3_id::{
 };
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{CatalogError, Result, catalog::CatalogSequenceNumber};
 
@@ -76,6 +77,14 @@ impl CatalogBatch {
         match self {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
+            CatalogBatch::Token(_) => None,
+        }
+    }
+
+    pub fn as_node(&self) -> Option<&NodeBatch> {
+        match self {
+            CatalogBatch::Node(node_batch) => Some(node_batch),
+            CatalogBatch::Database(_) => None,
             CatalogBatch::Token(_) => None,
         }
     }
@@ -183,12 +192,32 @@ pub struct RegisterNodeLog {
     pub registered_time_ns: i64,
     pub core_count: u64,
     pub mode: Vec<NodeMode>,
+    /// `Uuid` that is unique to the process that registered the node
+    ///
+    /// # Implementation note
+    ///
+    /// This uses a default since the field was not included in the original v2 `RegisterNodeLog`
+    /// type. By initializing it to a new random v4 UUID, we acheive the same effect, from the
+    /// perspective of any node that deserializes this, i.e., the UUID will be different from the
+    /// one that its process generates.
+    #[serde(default = "Uuid::new_v4")]
+    pub process_uuid: Uuid,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct StopNodeLog {
     pub node_id: Arc<str>,
     pub stopped_time_ns: i64,
+    /// `Uuid` that is unique to the process that registered the node
+    ///
+    /// # Implementation note
+    ///
+    /// This uses a default since the field was not included in the original v2 `RegisterNodeLog`
+    /// type. By initializing it to a new random v4 UUID, we acheive the same effect, from the
+    /// perspective of any node that deserializes this, i.e., the UUID will be different from the
+    /// one that its process generates.
+    #[serde(default = "Uuid::new_v4")]
+    pub process_uuid: Uuid,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
