@@ -16,10 +16,8 @@ use std::error::Error;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::str;
-use token::AdminTokenConfig;
-use token::TokenCommands;
-use token::TokenSubCommand;
-use token::handle_token_creation;
+use token::CreateTokenConfig;
+use token::handle_token_creation_with_config;
 use url::Url;
 
 #[derive(Debug, clap::Parser)]
@@ -77,16 +75,13 @@ impl Config {
                     },
                 ..
             }) => (host_url, auth_token, ca_cert),
-            SubCommand::Token(token_commands) => {
-                let (host_url, auth_token, ca_cert) = match &token_commands.commands {
-                    token::TokenSubCommand::Admin(AdminTokenConfig {
-                        host_url,
-                        auth_token,
-                        ca_cert,
-                        ..
-                    }) => (host_url, auth_token, ca_cert),
-                };
-                (host_url, auth_token, ca_cert)
+            SubCommand::Token(create_token_config) => {
+                let host_settings = create_token_config.get_connection_settings()?;
+                (
+                    &host_settings.host_url,
+                    &host_settings.auth_token,
+                    &host_settings.ca_cert,
+                )
             }
         };
 
@@ -111,7 +106,7 @@ pub enum SubCommand {
     /// Create a new table in a database
     Table(TableConfig),
     /// Create a new auth token
-    Token(TokenCommands),
+    Token(CreateTokenConfig),
     /// Create a new trigger for the processing engine that executes a plugin on either WAL rows, scheduled tasks, or requests to the serve at `/api/v3/engine/<path>`
     Trigger(TriggerConfig),
 }
@@ -377,27 +372,25 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 &database_name, &table_name
             );
         }
-        SubCommand::Token(token_commands) => {
-            let output_format = match token_commands.commands {
-                TokenSubCommand::Admin(AdminTokenConfig { ref format, .. }) => format.clone(),
-            }
-            .unwrap_or(token::TokenOutputFormat::Text);
-
-            match handle_token_creation(client, token_commands).await {
-                Ok(response) => {
-                    match output_format {
-                        token::TokenOutputFormat::Json => {
-                            let help_msg = format!(
-                                "HTTP requests require the following header: \"Authorization: Bearer {}\"",
-                                response.token
-                            );
-                            let json = json!({"token": response.token, "help_msg": help_msg});
-                            let stringified = serde_json::to_string_pretty(&json)
-                                .expect("token details to be parseable");
-                            println!("{}", stringified);
-                        }
-                        token::TokenOutputFormat::Text => {
-                            println!(
+        SubCommand::Token(token_creation_config) => {
+            let output_format = token_creation_config
+                .get_output_format()
+                .cloned()
+                .unwrap_or(token::TokenOutputFormat::Text);
+            match handle_token_creation_with_config(client, token_creation_config).await {
+                Ok(response) => match output_format {
+                    token::TokenOutputFormat::Json => {
+                        let help_msg = format!(
+                            "HTTP requests require the following header: \"Authorization: Bearer {}\"",
+                            response.token
+                        );
+                        let json = json!({"token": response.token, "help_msg": help_msg});
+                        let stringified = serde_json::to_string_pretty(&json)
+                            .expect("token details to be parseable");
+                        println!("{}", stringified);
+                    }
+                    token::TokenOutputFormat::Text => {
+                        println!(
                                 "\n\
                                 Token: {token}\n\
                                     \n\
@@ -406,9 +399,8 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                             ",
                                 token = response.token,
                             );
-                        }
-                    };
-                }
+                    }
+                },
                 Err(err) => {
                     println!("Failed to create token, error: {:?}", err);
                 }

@@ -1,71 +1,26 @@
 use std::{error::Error, io, path::PathBuf};
 
-use clap::{Parser, ValueEnum};
+use clap::{Arg, Args, Command as ClapCommand, CommandFactory, FromArgMatches, Parser, ValueEnum};
 use influxdb3_client::Client;
 use influxdb3_types::http::CreateTokenWithPermissionsResponse;
 use secrecy::Secret;
 use url::Url;
 
-#[derive(Debug, clap::Parser)]
-pub struct TokenCommands {
-    #[clap(subcommand)]
-    pub commands: TokenSubCommand,
-}
-
-#[derive(Debug, clap::Subcommand)]
-pub enum TokenSubCommand {
-    #[clap(name = "--admin")]
-    Admin(AdminTokenConfig),
-}
-
-#[derive(Debug, Parser)]
-pub struct AdminTokenConfig {
-    /// The host URL of the running InfluxDB 3 Enterprise server
-    #[clap(
-        short = 'H',
-        long = "host",
-        env = "INFLUXDB3_HOST_URL",
-        default_value = "http://127.0.0.1:8181"
-    )]
-    pub host_url: Url,
-
-    /// Admin token will be regenerated when this is set
-    #[clap(long, default_value = "false")]
-    pub regenerate: bool,
-
-    /// The token for authentication with the InfluxDB 3 Enterprise server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
-    pub auth_token: Option<Secret<String>>,
-
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
-    pub ca_cert: Option<PathBuf>,
-
-    /// Output format for token, supports just json or text
-    #[clap(long)]
-    pub format: Option<TokenOutputFormat>,
-}
-
-#[derive(Debug, ValueEnum, Clone)]
-pub enum TokenOutputFormat {
-    Json,
-    Text,
-}
-
-pub(crate) async fn handle_token_creation(
+pub(crate) async fn handle_token_creation_with_config(
     client: Client,
-    config: TokenCommands,
+    config: CreateTokenConfig,
 ) -> Result<CreateTokenWithPermissionsResponse, Box<dyn Error>> {
-    match config.commands {
-        TokenSubCommand::Admin(admin_token_config) => {
-            handle_admin_token_creation(client, admin_token_config).await
-        }
+    match config.admin_config {
+        Some(admin_config) => handle_admin_token_creation(client, admin_config).await,
+        _ => Err(
+            "cannot create token, error with parameters run `influxdb3 create token --help`".into(),
+        ),
     }
 }
 
 pub(crate) async fn handle_admin_token_creation(
     client: Client,
-    config: AdminTokenConfig,
+    config: CreateAdminTokenConfig,
 ) -> Result<CreateTokenWithPermissionsResponse, Box<dyn Error>> {
     let json_body = if config.regenerate {
         println!("Are you sure you want to regenerate admin token? Enter 'yes' to confirm",);
@@ -86,4 +41,135 @@ pub(crate) async fn handle_admin_token_creation(
             .expect("token creation to return full token info")
     };
     Ok(json_body)
+}
+
+#[derive(Debug, ValueEnum, Clone)]
+pub enum TokenOutputFormat {
+    Json,
+    Text,
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct InfluxDb3ServerConfig {
+    /// The host URL of the running InfluxDB 3 Core server
+    #[clap(
+        name = "host",
+        long = "host",
+        default_value = "http://127.0.0.1:8181",
+        env = "INFLUXDB3_HOST_URL"
+    )]
+    pub host_url: Url,
+
+    /// The token for authentication with the InfluxDB 3 Core server to create permissions.
+    /// This will be the admin token to create tokens with permissions
+    #[clap(name = "token", long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    pub auth_token: Option<Secret<String>>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(name = "tls-ca", long = "tls-ca")]
+    pub ca_cert: Option<PathBuf>,
+}
+
+#[derive(Parser, Debug)]
+pub struct CreateAdminTokenConfig {
+    /// Admin token will be regenerated when this is set
+    #[clap(name = "regenerate", long = "regenerate")]
+    pub regenerate: bool,
+
+    #[clap(flatten)]
+    pub host: InfluxDb3ServerConfig,
+
+    /// Output format for token, supports just json or text
+    #[clap(long)]
+    pub format: Option<TokenOutputFormat>,
+}
+
+impl CreateAdminTokenConfig {
+    pub fn as_args() -> Vec<Arg> {
+        let admin_config = Self::command();
+        let args = admin_config.get_arguments();
+        args.into_iter().map(|arg| arg.to_owned()).collect()
+    }
+}
+
+// There are few traits manually implemented for CreateTokenConfig. The reason is,
+//   `influxdb3 create token --permission` was implemented as subcommands. With clap it is not
+//   possible to have multiple `--permission` when it is implemented as a subcommand. In order to
+//   maintain backwards compatibility `CreateTokenConfig` is implemented with roughly the shape of
+//   an enum. But it is wired manually into clap's lifecycle by implementing the traits,
+//     - `CommandFactory`, this allows us to dynamically switch the "expected" command.
+//         For example,
+//           - when triggering `--help` the command sent back is exactly the same as what was
+//           before (using subcommands). The help messages are overridden so that redundant
+//           switches are removed in global "usage" section.
+//           - when triggered without `--help` switch then it has `--admin` as a subcommand and the
+//           non admin config is included directly on the CreateTokenConfig. This is key, as this
+//           enables `--permission` to be set multiple times.
+//     - `FromArgMatches`, this allows us to check if it's for `--admin` and populate the right
+//       variant. This is a handle for getting all the matches (based on command generated) that we
+//       could use to initialise `CreateTokenConfig`
+#[derive(Debug)]
+pub struct CreateTokenConfig {
+    pub admin_config: Option<CreateAdminTokenConfig>,
+}
+
+impl CreateTokenConfig {
+    pub fn get_connection_settings(&self) -> Result<&InfluxDb3ServerConfig, &'static str> {
+        match &self.admin_config {
+            Some(admin_config) => Ok(&admin_config.host),
+            None => Err("cannot find server config"),
+        }
+    }
+
+    pub fn get_output_format(&self) -> Option<&TokenOutputFormat> {
+        match &self.admin_config {
+            Some(admin_config) => admin_config.format.as_ref(),
+            None => None,
+        }
+    }
+}
+
+impl FromArgMatches for CreateTokenConfig {
+    fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
+        let admin_matches = matches
+            .subcommand_matches("--admin")
+            .expect("--admin must be present");
+        Ok(Self {
+            admin_config: Some(CreateAdminTokenConfig::from_arg_matches(admin_matches)?),
+        })
+    }
+
+    fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
+        *self = Self::from_arg_matches(matches)?;
+        Ok(())
+    }
+}
+
+impl Args for CreateTokenConfig {
+    // we're not flattening so these can just return command()
+    fn augment_args(_cmd: clap::Command) -> clap::Command {
+        Self::command()
+    }
+
+    fn augment_args_for_update(_cmd: clap::Command) -> clap::Command {
+        Self::command()
+    }
+}
+
+impl CommandFactory for CreateTokenConfig {
+    fn command() -> clap::Command {
+        let admin_sub_cmd =
+            ClapCommand::new("--admin").override_usage("influxdb3 create token --admin [OPTIONS]");
+        let all_args = CreateAdminTokenConfig::as_args();
+        let admin_sub_cmd = admin_sub_cmd.args(all_args);
+
+        // NB: Because of using enum variants `--admin` and `--permission`, we require this
+        //     elaborate wiring of `--permission` to allow `--permission` to be specified
+        //     multiple times. See `CreateTokenConfig` for full explanation
+        ClapCommand::new("token").subcommand(admin_sub_cmd)
+    }
+
+    fn command_for_update() -> clap::Command {
+        Self::command()
+    }
 }
