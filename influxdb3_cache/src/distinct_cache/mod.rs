@@ -1144,8 +1144,28 @@ mod tests {
                 "+----------+",
                 "| t2       |",
                 "+----------+",
-                "| \"(0, 1]\"|",
+                "| \"(0, 1]\" |",
                 "+----------+",
+            ],
+            &results
+        );
+
+        // should be able to query with projection and a WHERE clause:
+        let results = ctx
+            .sql("select t2, t3 from distinct_cache('bar', 'foo') where t1 = 'BB'")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        assert_batches_eq!(
+            [
+                "+----------+--------------+",
+                "| t2       | t3           |",
+                "+----------+--------------+",
+                "| \"(0, 1]\" | \"(2.0, 4.0]\" |",
+                "+----------+--------------+",
             ],
             &results
         );
