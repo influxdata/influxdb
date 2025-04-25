@@ -389,6 +389,16 @@ pub struct Config {
         default_value = "tls-1.2"
     )]
     pub tls_minimum_version: TlsMinimumVersion,
+
+    /// Provide a file path to write the address that the server is listening on to.
+    ///
+    /// This is mainly intended for testing purposes and is not considered stable.
+    #[clap(
+        long = "tcp-listener-file-path",
+        env = "INFLUXDB3_TCP_LISTINER_FILE_PATH",
+        hide = true
+    )]
+    pub tcp_listener_file_path: Option<PathBuf>,
 }
 
 /// The minimum version of TLS to use for InfluxDB
@@ -767,6 +777,7 @@ pub async fn command(config: Config) -> Result<()> {
         frontend_shutdown.clone(),
         startup_timer,
         config.without_auth,
+        config.tcp_listener_file_path,
     )
     .fuse();
     let backend = shutdown_manager.join().fuse();
