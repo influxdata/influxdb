@@ -249,7 +249,7 @@ expression: catalog.snapshot()
                             2,
                             3
                           ],
-                          "n": 10,
+                          "n": 100,
                           "ttl": 500
                         }
                       ]
