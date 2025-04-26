@@ -1224,7 +1224,7 @@ mod tests {
                 Some("test_cache_2"),
                 Some(&["t1"]),
                 Some(&["f1", "time"]),
-                LastCacheSize::new(10).unwrap(),
+                LastCacheSize::new(5).unwrap(),
                 LastCacheTtl::from_secs(60),
             )
             .await

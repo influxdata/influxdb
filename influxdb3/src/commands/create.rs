@@ -158,7 +158,9 @@ pub struct LastCacheConfig {
     value_columns: Option<Vec<String>>,
 
     /// The number of entries per unique key column combination the cache will store
-    #[clap(long = "count")]
+    ///
+    /// Higher values can increase memory usage significantly.
+    #[clap(long = "count", default = "1")]
     count: Option<LastCacheSize>,
 
     /// The time-to-live (TTL) for entries in a cache. This uses a humantime form for example: --ttl "10s",
