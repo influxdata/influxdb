@@ -388,7 +388,7 @@ pub struct LastCacheSize(pub(crate) usize);
 
 impl LastCacheSize {
     pub fn new(size: usize) -> Result<Self> {
-        if size == 0{
+        if size == 0 {
             Err(CatalogError::InvalidLastCacheSize)
         } else {
             Ok(Self(size))

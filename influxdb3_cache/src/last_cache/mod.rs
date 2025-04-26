@@ -911,7 +911,7 @@ mod tests {
 
         let table_def = writer.db_schema().table_definition("temp").unwrap();
 
-        // Create the last cache using defaults and a count of 15
+        // Create the last cache using defaults and a count of 10
         let mut cache = LastCache::new(CreateLastCacheArgs {
             table_def: Arc::clone(&table_def),
             count: LastCacheSize::new(10).unwrap(),

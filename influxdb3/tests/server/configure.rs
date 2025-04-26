@@ -528,8 +528,8 @@ async fn api_v3_configure_last_cache_create() {
             description: "Use an invalid cache size is a bad request",
             db: Some(db_name),
             table: Some(tbl_name),
-            cache_name: Some("too_big"),
-            count: Some(11),
+            cache_name: Some("too_small"),
+            count: Some(0),
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
