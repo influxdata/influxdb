@@ -380,18 +380,15 @@ pub enum LastCacheValueColumnsDef {
     AllNonKeyColumns,
 }
 
-/// The maximum allowed size for a last cache
-pub const LAST_CACHE_MAX_SIZE: usize = 10;
-
 /// The size of the last cache
 ///
-/// Must be between 1 and [`LAST_CACHE_MAX_SIZE`]
+/// Must be greater than 0
 #[derive(Debug, Serialize, Eq, PartialEq, Clone, Copy)]
 pub struct LastCacheSize(pub(crate) usize);
 
 impl LastCacheSize {
     pub fn new(size: usize) -> Result<Self> {
-        if size == 0 || size > LAST_CACHE_MAX_SIZE {
+        if size == 0{
             Err(CatalogError::InvalidLastCacheSize)
         } else {
             Ok(Self(size))

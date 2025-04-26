@@ -911,7 +911,7 @@ mod tests {
 
         let table_def = writer.db_schema().table_definition("temp").unwrap();
 
-        // Create the last cache using defaults and a count of 10
+        // Create the last cache using defaults and a count of 15
         let mut cache = LastCache::new(CreateLastCacheArgs {
             table_def: Arc::clone(&table_def),
             count: LastCacheSize::new(10).unwrap(),
@@ -1224,7 +1224,7 @@ mod tests {
                 Some("test_cache_2"),
                 Some(&["t1"]),
                 Some(&["f1", "time"]),
-                LastCacheSize::new(5).unwrap(),
+                LastCacheSize::new(10).unwrap(),
                 LastCacheTtl::from_secs(60),
             )
             .await
@@ -1236,7 +1236,7 @@ mod tests {
                 Some("test_cache_3"),
                 Option::<&[&str]>::Some(&[]),
                 Some(&["f2", "time"]),
-                LastCacheSize::new(10).unwrap(),
+                LastCacheSize::new(100).unwrap(),
                 LastCacheTtl::from_secs(500),
             )
             .await

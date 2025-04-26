@@ -475,7 +475,7 @@ mod tests {
             "--ttl",
             "1 hour",
             "--count",
-            "5",
+            "15",
             "bar",
         ]);
         let super::SubCommand::LastCache(super::LastCacheConfig {
@@ -496,7 +496,7 @@ mod tests {
         assert!(cache_name.is_some_and(|n| n == "bar"));
         assert!(key_columns.is_some_and(|keys| keys == ["tag1", "tag2", "tag3"]));
         assert!(value_columns.is_some_and(|vals| vals == ["field1", "field2", "field3"]));
-        assert!(count.is_some_and(|c| c == 5));
+        assert!(count.is_some_and(|c| c == 15));
         assert!(ttl.is_some_and(|t| t.as_secs() == 3600));
     }
 
