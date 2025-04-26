@@ -2203,64 +2203,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 				}
 			}
 
-			// Find our compaction plans
-			level1Groups, len1 := e.CompactionPlan.PlanLevel(1)
-			level2Groups, len2 := e.CompactionPlan.PlanLevel(2)
-			level3Groups, len3 := e.CompactionPlan.PlanLevel(3)
-			initialLevellevel4Groups, _ := e.CompactionPlan.Plan(e.LastModified())
-
-			// Some groups in level 4 may contain already optimized files. In these cases, we want
-			// to maintain optimization for the entire group to avoid "going backwards" on the
-			// optimization level. For instance, if an optimized cold shard had back-fill data
-			// added to it, we should maintain the optimization to avoid unoptimizing the bulk of
-			// the shards only to need to reoptimize them later.
-			// In an ideal world, CompactionPlan.Plan and CompactionPlan.PlanOptimize might handle this.
-			level4Groups := make([]CompactionGroup, 0, len(initialLevellevel4Groups))
-			level5Groups := make([]CompactionGroup, 0, len(initialLevellevel4Groups))
-			for _, group := range initialLevellevel4Groups {
-				if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
-					e.logger.Info("Promoting full compaction level 4 group to optimized level 5 compaction group because it contains an already optimized TSM file",
-						zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
-					level5Groups = append(level5Groups, group)
-				} else {
-					level4Groups = append(level4Groups, group)
-				}
-			}
-
-			// level5Aggressive indicates if /all/ level 5 compactions should be done at the aggressive points per block, or only those
-			// which have already been done at the aggressive points per block.
-			var level5Aggressive bool
-
-			// If no full compactions are needed, see if an optimize is needed
-			if len(level4Groups) == 0 {
-				plannedLevel5Groups, _, genCount := e.CompactionPlan.PlanOptimize(e.LastModified())
-
-				// All level 5 is only aggressive if the planned level 5 is a single generation.
-				if genCount == 1 {
-					e.logger.Info("Planned optimized level 5 compactions belong to single generation. All groups will use aggressive points per block.")
-					level5Aggressive = true
-				} else {
-					e.logger.Info("Planned optimized level 5 compactions are multi-generational. Only already aggressive groups will use aggressive points per block.")
-				}
-
-				// Put the planned optimize compaction groups after any promoted full compaction groups.
-				for _, group := range plannedLevel5Groups {
-					e.logger.Info("Planning optimized level 5 compaction group", zap.Strings("files", group), zap.Bool("aggressive", level5Aggressive))
-					level5Groups = append(level5Groups, group)
-				}
-			}
-
-			len4 := int64(len(level4Groups))
-			len5 := int64(len(level5Groups))
-
-			// Update the level plan queue stats
-			// For stats, use the length needed, even if the lock was
-			// not acquired
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], len1)
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], len2)
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], len3)
-			atomic.StoreInt64(&e.stats.TSMFullCompactionsQueue, len4)
-			atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, len5)
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups, level5Aggressive := e.PlanCompactions()
 
 			// Set the queue depths on the scheduler
 			// Use the real queue depth, dependent on acquiring
@@ -2337,6 +2280,71 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			e.CompactionPlan.Release(level5Groups)
 		}
 	}
+}
+
+func (e *Engine) PlanCompactions() (level1Groups []CompactionGroup,
+	level2Groups []CompactionGroup,
+	level3Groups []CompactionGroup,
+	level4Groups []CompactionGroup,
+	level5Groups []CompactionGroup,
+	level5Aggressive bool) {
+	// Find our compaction plans
+	level1Groups, len1 := e.CompactionPlan.PlanLevel(1)
+	level2Groups, len2 := e.CompactionPlan.PlanLevel(2)
+	level3Groups, len3 := e.CompactionPlan.PlanLevel(3)
+	initialLevellevel4Groups, _ := e.CompactionPlan.Plan(e.LastModified())
+
+	// Some groups in level 4 may contain already optimized files. In these cases, we want
+	// to maintain optimization for the entire group to avoid "going backwards" on the
+	// optimization level. For instance, if an optimized cold shard had back-fill data
+	// added to it, we should maintain the optimization to avoid unoptimizing the bulk of
+	// the shards only to need to reoptimize them later.
+	// In an ideal world, CompactionPlan.Plan and CompactionPlan.PlanOptimize might handle this.
+	level4Groups = make([]CompactionGroup, 0, len(initialLevellevel4Groups))
+	level5Groups = make([]CompactionGroup, 0, len(initialLevellevel4Groups))
+	for _, group := range initialLevellevel4Groups {
+		if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
+			e.logger.Info("Promoting full compaction level 4 group to optimized level 5 compaction group because it contains an already optimized TSM file",
+				zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
+			level5Groups = append(level5Groups, group)
+		} else {
+			level4Groups = append(level4Groups, group)
+		}
+	}
+
+	// level5Aggressive indicates if /all/ level 5 compactions should be done at the aggressive points per block, or only those
+	// which have already been done at the aggressive points per block.
+	// If no full compactions are needed, see if an optimize is needed
+	if len(level4Groups) == 0 {
+		plannedLevel5Groups, _, genCount := e.CompactionPlan.PlanOptimize(e.LastModified())
+
+		// All level 5 is only aggressive if the planned level 5 is a single generation.
+		if genCount == 1 {
+			e.logger.Info("Planned optimized level 5 compactions belong to single generation. All groups will use aggressive points per block.")
+			level5Aggressive = true
+		} else {
+			e.logger.Info("Planned optimized level 5 compactions are multi-generational. Only already aggressive groups will use aggressive points per block.")
+		}
+
+		// Put the planned optimize compaction groups after any promoted full compaction groups.
+		for _, group := range plannedLevel5Groups {
+			e.logger.Info("Planning optimized level 5 compaction group", zap.Strings("files", group), zap.Bool("aggressive", level5Aggressive))
+			level5Groups = append(level5Groups, group)
+		}
+	}
+
+	len4 := int64(len(level4Groups))
+	len5 := int64(len(level5Groups))
+
+	// Update the level plan queue stats
+	// For stats, use the length needed, even if the lock was
+	// not acquired
+	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], len1)
+	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], len2)
+	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], len3)
+	atomic.StoreInt64(&e.stats.TSMFullCompactionsQueue, len4)
+	atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, len5)
+	return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups, level5Aggressive
 }
 
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns

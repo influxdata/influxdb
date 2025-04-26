@@ -3899,19 +3899,19 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 func TestIsGroupOptimized(t *testing.T) {
 	testSet := []tsm1.FileStat{
 		{
-			Path: "01-05.tsm1",
+			Path: "01-05.tsm",
 			Size: 256 * 1024 * 1024,
 		},
 		{
-			Path: "02-05.tsm1",
+			Path: "02-05.tsm",
 			Size: 256 * 1024 * 1024,
 		},
 		{
-			Path: "03-05.tsm1",
+			Path: "03-05.tsm",
 			Size: 256 * 1024 * 1024,
 		},
 		{
-			Path: "04-04.tsm1",
+			Path: "04-04.tsm",
 			Size: 256 * 1024 * 1024,
 		},
 	}
@@ -3935,7 +3935,7 @@ func TestIsGroupOptimized(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			optimizedName: "01-05.tsm1",
+			optimizedName: "01-05.tsm",
 		},
 		{
 			blockCounts: []int{
@@ -3944,7 +3944,7 @@ func TestIsGroupOptimized(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			optimizedName: "02-05.tsm1",
+			optimizedName: "02-05.tsm",
 		},
 		{
 			blockCounts: []int{
@@ -3953,7 +3953,7 @@ func TestIsGroupOptimized(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 			},
-			optimizedName: "04-04.tsm1",
+			optimizedName: "04-04.tsm",
 		},
 	}
 
@@ -3979,6 +3979,118 @@ func TestIsGroupOptimized(t *testing.T) {
 		ok, fName, _ := e.IsGroupOptimized(fileGroup)
 		require.Equal(t, blockCounts[i].optimizedName != "", ok, "unexpected result for optimization check")
 		require.Equal(t, blockCounts[i].optimizedName, fName, "unexpected file name in optimization check")
+	}
+}
+
+func TestEnginePlanCompactions(t *testing.T) {
+	testFileSets := [][]tsm1.FileStat{
+		[]tsm1.FileStat{
+			{
+				Path: "01-05.tsm",
+				Size: 256 * 1024 * 1024,
+			},
+			{
+				Path: "02-05.tsm",
+				Size: 256 * 1024 * 1024,
+			},
+			{
+				Path: "03-05.tsm",
+				Size: 256 * 1024 * 1024,
+			},
+			{
+				Path: "04-04.tsm",
+				Size: 256 * 1024 * 1024,
+			},
+		},
+		[]tsm1.FileStat{
+			{
+				Path: "01-05.tsm",
+				Size: 256 * 1024 * 1024,
+			},
+			{
+				Path: "02-05.tsm",
+				Size: 256 * 1024 * 1024,
+			},
+			{
+				Path: "03-05.tsm",
+				Size: 256 * 1024 * 1024,
+			},
+			{
+				Path: "04-05.tsm",
+				Size: 256 * 1024 * 1024,
+			},
+		},
+	}
+	testBlockCountsAndResults := []struct {
+		blockCounts      []int
+		level1Groups     []tsm1.CompactionGroup
+		level2Groups     []tsm1.CompactionGroup
+		level3Groups     []tsm1.CompactionGroup
+		level4Groups     []tsm1.CompactionGroup
+		level5Groups     []tsm1.CompactionGroup
+		level5Aggressive bool
+	}{
+		{
+			blockCounts: []int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
+			level5Groups: []tsm1.CompactionGroup{
+				{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
+			},
+			level5Aggressive: false,
+		},
+		{
+			blockCounts: []int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
+			level5Groups: []tsm1.CompactionGroup{
+				{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-05.tsm"},
+			},
+			level5Aggressive: false,
+		},
+	}
+
+	e, err := NewEngine(tsdb.InmemIndexName)
+	require.NoError(t, err, "create engine")
+	e.SetEnabled(false)
+	require.NoError(t, e.Open(), "open engine")
+	defer func() { require.NoError(t, e.Close(), "close engine") }()
+	e.Compactor = tsm1.NewCompactor()
+	defer e.Compactor.Close()
+
+	for i := range testFileSets {
+		ffs := &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return testFileSets[i]
+			},
+		}
+		cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+		require.NoError(t, ffs.SetBlockCounts(testBlockCountsAndResults[i].blockCounts), "failed setting block counts")
+		e.CompactionPlan = cp
+		e.Compactor.FileStore = ffs
+
+		level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups, level5Aggressive := e.PlanCompactions()
+		compareLevelGroups(t, testBlockCountsAndResults[i].level1Groups, level1Groups, "unexpected level 1 group")
+		compareLevelGroups(t, testBlockCountsAndResults[i].level2Groups, level2Groups, "unexpected level 2 group")
+		compareLevelGroups(t, testBlockCountsAndResults[i].level3Groups, Level3Groups, "unexpected level 3 group")
+		compareLevelGroups(t, testBlockCountsAndResults[i].level4Groups, Level4Groups, "unexpected level 4 group")
+		compareLevelGroups(t, testBlockCountsAndResults[i].level5Groups, Level5Groups, "unexpected level 5 group")
+		require.Equal(t, testBlockCountsAndResults[i].level5Aggressive, level5Aggressive, "unexpected level5aggressive")
+	}
+}
+
+// Necessary specialize comparison because require.Elements.Match thinks nested nil and zero length slices differ
+func compareLevelGroups(t *testing.T, exp, got []tsm1.CompactionGroup, message string) {
+	require.Lenf(t, got, len(exp), "%s %s", message, " collection length mismatch")
+	for i := range exp {
+		require.Lenf(t, got[i], len(exp[i]), "%s %s", message, "length mismatch")
+		require.ElementsMatchf(t, got[i], exp[i], "%s %s", message, "mismatch")
 	}
 }
 
