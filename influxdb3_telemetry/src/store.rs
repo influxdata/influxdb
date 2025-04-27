@@ -14,6 +14,18 @@ use crate::{
     sender::{TelemetryPayload, send_telemetry_in_background},
 };
 
+#[derive(Debug)]
+pub struct CreateTelemetryStoreArgs {
+    pub instance_id: Arc<str>,
+    pub os: Arc<str>,
+    pub influx_version: Arc<str>,
+    pub storage_type: Arc<str>,
+    pub cores: usize,
+    pub persisted_files: Option<Arc<dyn ParquetMetrics>>,
+    pub telemetry_endpoint: String,
+    pub catalog_uuid: String,
+}
+
 /// This store is responsible for holding all the stats which will be sent in the background
 /// to the server. There are primarily 4 different types of data held in the store:
 ///   - static info (like instance ids, OS etc): These are passed in to create telemetry store.
@@ -37,13 +49,16 @@ const MAIN_SENDER_INTERVAL_SECS: u64 = 60 * 60;
 
 impl TelemetryStore {
     pub async fn new(
-        instance_id: Arc<str>,
-        os: Arc<str>,
-        influx_version: Arc<str>,
-        storage_type: Arc<str>,
-        cores: usize,
-        persisted_files: Option<Arc<dyn ParquetMetrics>>,
-        telemetry_endpoint: String,
+        CreateTelemetryStoreArgs {
+            instance_id,
+            os,
+            influx_version,
+            storage_type,
+            cores,
+            persisted_files,
+            telemetry_endpoint,
+            catalog_uuid,
+        }: CreateTelemetryStoreArgs,
     ) -> Arc<Self> {
         debug!(
             instance_id = ?instance_id,
@@ -53,7 +68,14 @@ impl TelemetryStore {
             cores = ?cores,
             "Initializing telemetry store"
         );
-        let inner = TelemetryStoreInner::new(instance_id, os, influx_version, storage_type, cores);
+        let inner = TelemetryStoreInner::new(
+            instance_id,
+            os,
+            influx_version,
+            storage_type,
+            cores,
+            catalog_uuid,
+        );
         let store = Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
             persisted_files,
@@ -83,7 +105,15 @@ impl TelemetryStore {
         let influx_version = Arc::from("influxdb3-0.1.0");
         let storage_type = Arc::from("Memory");
         let cores = 10;
-        let inner = TelemetryStoreInner::new(instance_id, os, influx_version, storage_type, cores);
+        let sample_catalog_uuid = "catalog_uuid".to_owned();
+        let inner = TelemetryStoreInner::new(
+            instance_id,
+            os,
+            influx_version,
+            storage_type,
+            cores,
+            sample_catalog_uuid,
+        );
         Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
             persisted_files,
@@ -146,6 +176,7 @@ struct TelemetryStoreInner {
     start_timer: Instant,
     cores: usize,
     cpu: Cpu,
+    catalog_uuid: String,
     memory: Memory,
     // Both write/read events are captured in this bucket
     // and then later rolledup / summarized in
@@ -168,6 +199,7 @@ impl TelemetryStoreInner {
         influx_version: Arc<str>,
         storage_type: Arc<str>,
         cores: usize,
+        catalog_uuid: String,
     ) -> Self {
         TelemetryStoreInner {
             os,
@@ -175,6 +207,7 @@ impl TelemetryStoreInner {
             influx_version,
             storage_type,
             cores,
+            catalog_uuid,
             start_timer: Instant::now(),
             cpu: Cpu::default(),
             memory: Memory::default(),
@@ -198,6 +231,8 @@ impl TelemetryStoreInner {
             storage_type: Arc::clone(&self.storage_type),
             cores: self.cores,
             product_type: "Core",
+            // cluster_uuid == catalog_uuid
+            cluster_uuid: Arc::from(self.catalog_uuid.as_str()),
             uptime_secs: self.start_timer.elapsed().as_secs(),
 
             cpu_utilization_percent_min_1m: self.cpu.utilization.min,
@@ -319,15 +354,16 @@ mod tests {
     async fn test_telemetry_store_cpu_mem() {
         // create store
         let parqet_file_metrics = Arc::new(SampleParquetMetrics);
-        let store: Arc<TelemetryStore> = TelemetryStore::new(
-            Arc::from("some-instance-id"),
-            Arc::from("Linux"),
-            Arc::from("Core-v3.0"),
-            Arc::from("Memory"),
-            10,
-            Some(parqet_file_metrics),
-            "http://localhost/telemetry".to_string(),
-        )
+        let store: Arc<TelemetryStore> = TelemetryStore::new(CreateTelemetryStoreArgs {
+            instance_id: Arc::from("some-instance-id"),
+            os: Arc::from("Linux"),
+            influx_version: Arc::from("Core-v3.0"),
+            storage_type: Arc::from("Memory"),
+            cores: 10,
+            persisted_files: Some(parqet_file_metrics),
+            telemetry_endpoint: "http://localhost/telemetry".to_owned(),
+            catalog_uuid: "catalog_but_cluster_uuid".to_owned(),
+        })
         .await;
         tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -335,6 +371,7 @@ mod tests {
         let snapshot = store.snapshot();
         assert_eq!("some-instance-id", &*snapshot.instance_id);
         assert_eq!(1, snapshot.uptime_secs);
+        assert_eq!("catalog_but_cluster_uuid", &*snapshot.cluster_uuid);
 
         // add cpu/mem and snapshot 1
         let mem_used_bytes = 123456789;
