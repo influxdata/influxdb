@@ -36,7 +36,7 @@ use influxdb3_server::{
 };
 use influxdb3_shutdown::{ShutdownManager, wait_for_signal};
 use influxdb3_sys_events::SysEventStore;
-use influxdb3_telemetry::store::TelemetryStore;
+use influxdb3_telemetry::store::{CreateTelemetryStoreArgs, TelemetryStore};
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     WriteBuffer,
@@ -684,6 +684,7 @@ pub async fn command(config: Config) -> Result<()> {
         Some(Arc::clone(&write_buffer_impl.persisted_files())),
         config.telemetry_endpoint.as_str(),
         config.disable_telemetry_upload,
+        catalog.catalog_uuid().to_string(),
     )
     .await;
 
@@ -889,6 +890,7 @@ async fn setup_telemetry_store(
     persisted_files: Option<Arc<PersistedFiles>>,
     telemetry_endpoint: &str,
     disable_upload: bool,
+    catalog_uuid: String,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -905,15 +907,16 @@ async fn setup_telemetry_store(
         TelemetryStore::new_without_background_runners(persisted_files.map(|p| p as _))
     } else {
         debug!("Initializing TelemetryStore with upload enabled for {telemetry_endpoint}.");
-        TelemetryStore::new(
+        TelemetryStore::new(CreateTelemetryStoreArgs {
             instance_id,
-            Arc::from(os),
-            Arc::from(influx_version),
-            Arc::from(storage_type),
-            num_cpus,
-            persisted_files.map(|p| p as _),
-            telemetry_endpoint.to_string(),
-        )
+            os: Arc::from(os),
+            influx_version: Arc::from(influx_version),
+            storage_type: Arc::from(storage_type),
+            cores: num_cpus,
+            persisted_files: persisted_files.map(|p| p as _),
+            telemetry_endpoint: telemetry_endpoint.to_string(),
+            catalog_uuid,
+        })
         .await
     }
 }

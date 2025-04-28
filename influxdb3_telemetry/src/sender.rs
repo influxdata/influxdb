@@ -50,6 +50,11 @@ pub(crate) struct TelemetryPayload {
     pub cores: usize,
     pub product_type: &'static str,
     pub uptime_secs: u64,
+    // this is the same as catalog_uuid
+    // we call it as catalog_uuid everywhere but we save it as cluster_uuid in telemetry as it's
+    // called cluster_uuid in licensing service. Calling it as `cluster_uuid` here makes it easier
+    // when mapping telemetry and licensing data
+    pub cluster_uuid: Arc<str>,
     // cpu
     pub cpu_utilization_percent_min_1m: f32,
     pub cpu_utilization_percent_max_1m: f32,
@@ -164,6 +169,7 @@ mod tests {
             storage_type: Arc::from("sample-str"),
             instance_id: Arc::from("sample-str"),
             cores: 10,
+            cluster_uuid: Arc::from("cluster_uuid"),
             product_type: "OSS",
             cpu_utilization_percent_min_1m: 100.0,
             cpu_utilization_percent_max_1m: 100.0,
