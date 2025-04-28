@@ -391,17 +391,20 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                         println!("{}", stringified);
                     }
                     token::TokenOutputFormat::Text => {
+
+                        let red = "\x1b[1;31m";
+                        let bold = "\x1b[1m";
+                        let underline = "\x1b[1;4m";
+                        let reset = "\x1b[0m";
+                        let token = response.token;
+
                         println!(
                             "\n\
-                            {underline}New token created successfully!{reset}\n\n\
-                            {bold}Token:{reset} {token}\n\
-                            {bold}HTTP Requests Header:{reset} Authorization: Bearer {token}\n\n\
-                            {red}IMPORTANT:{reset} Store this token securely, as it will not be shown again.\n",
-                            red = "\x1b[1;31m",
-                            bold = "\x1b[1m",
-                            underline = "\x1b[1;4m",
-                            reset = "\x1b[0m",
-                            token = response.token,
+                            {}New token created successfully!{}\n\n\
+                            {}Token:{} {}\n\
+                            {}HTTP Requests Header:{} Authorization: Bearer {}\n\n\
+                            {}IMPORTANT:{} Store this token securely, as it will not be shown again.\n",
+                            underline, reset, bold, reset, token, bold, reset, token, red, reset
                         );
                     }
                 },
