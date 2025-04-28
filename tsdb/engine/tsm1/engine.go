@@ -2234,8 +2234,6 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 						level4Groups = level4Groups[1:]
 					}
 				case 5:
-					// This is a heuristic. The unoptimized default points per block default is suitable for
-					// when we have a single generation with multiple files at max block size under 2 GB.
 					theGroup := level5Groups[0]
 					log := e.logger.With(zap.Strings("files", theGroup))
 
@@ -2243,9 +2241,6 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 					var aggressive bool
 					if level5Aggressive {
 						log.Info("Planning aggressive optimized compaction because all level 5 is planned for aggressive")
-						aggressive = true
-					} else if isOpt, filename, heur := e.IsGroupOptimized(theGroup); isOpt {
-						log.Info("Planning aggressive optimized compaction because group contains an already aggressively optimized TSM file", zap.String("file", filename), zap.String("heuristic", heur))
 						aggressive = true
 					}
 					log = log.With(zap.Bool("aggressive", aggressive))
@@ -2307,6 +2302,11 @@ func (e *Engine) PlanCompactions() (level1Groups []CompactionGroup,
 			e.logger.Info("Promoting full compaction level 4 group to optimized level 5 compaction group because it contains an already optimized TSM file",
 				zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
 			level5Groups = append(level5Groups, group)
+
+			// Should set this compaction group to aggressive. IsGroupOptimized will check the
+			// block count and return true if there is a file at aggressivePointsPerBlock.
+			// We will need to run aggressive compaction on this group if that's the case.
+			level5Aggressive = true
 		} else {
 			level4Groups = append(level4Groups, group)
 		}

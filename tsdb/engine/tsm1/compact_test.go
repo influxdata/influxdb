@@ -2467,10 +2467,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			tsdb.SingleGenerationReasonText,
 			1,
 		},
@@ -2546,9 +2546,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0,
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2566,9 +2566,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			"",
 			0,
 		},
@@ -2590,10 +2590,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0,
 		},
 	}
 
@@ -2687,9 +2687,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0, true,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0, true,
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2707,9 +2707,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			"",
 			0, true,
 		},
@@ -2731,10 +2731,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, tsdb.SingleGenerationReasonText, 1, false,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, tsdb.SingleGenerationReasonText, 1, false,
 		},
 	}
 
@@ -2905,23 +2905,23 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 400 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
 
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
 
-				tsdb.DefaultMaxPointsPerBlock,
-				// Use some magic numbers but these are just small values for block counts
-				100,
-				10,
-			},
+			tsdb.DefaultMaxPointsPerBlock,
+			// Use some magic numbers but these are just small values for block counts
+			100,
+			10,
+		},
 		},
 		{
 			"1.12.0 RC0 Planner issue mock data from cluster",
@@ -4040,7 +4040,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			level5Groups: []tsm1.CompactionGroup{
 				{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
 			},
-			level5Aggressive: false,
+			level5Aggressive: true,
 		},
 		{
 			blockCounts: []int{
@@ -4052,7 +4052,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			level5Groups: []tsm1.CompactionGroup{
 				{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-05.tsm"},
 			},
-			level5Aggressive: false,
+			level5Aggressive: true,
 		},
 	}
 
