@@ -404,7 +404,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                             token = response.token,
                         );
                     }
-
                 },
                 Err(err) => {
                     println!("Failed to create token, error: {:?}", err);
