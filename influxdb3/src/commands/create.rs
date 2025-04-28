@@ -397,7 +397,10 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                             {bold}Token:{reset} {token}\n\
                             {bold}HTTP Requests Header:{reset} Authorization: Bearer {token}\n\n\
                             {red}IMPORTANT:{reset} Store this token securely, as it will not be shown again.\n",
-                            red = "\x1b[1;31m", bold = "\x1b[1m", underline = "\x1b[1;4m", reset = "\x1b[0m",
+                            red = "\x1b[1;31m",
+                            bold = "\x1b[1m",
+                            underline = "\x1b[1;4m",
+                            reset = "\x1b[0m",
                             token = response.token,
                         );
                     }
