@@ -381,7 +381,8 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 Ok(response) => match output_format {
                     token::TokenOutputFormat::Json => {
                         let help_msg = format!(
-                            "HTTP requests require the following header: \"Authorization: Bearer {}\"",
+                            "Store this token securely, as it will not be shown again. \
+                            HTTP requests require the following header: \"Authorization: Bearer {}\"",
                             response.token
                         );
                         let json = json!({"token": response.token, "help_msg": help_msg});
@@ -391,15 +392,16 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     }
                     token::TokenOutputFormat::Text => {
                         println!(
-                                "\n\
-                                Token: {token}\n\
-                                    \n\
-                                HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
-                                This will grant you access to HTTP/GRPC API.
-                            ",
-                                token = response.token,
-                            );
+                            "\n\
+                            {underline}New token created successfully!{reset}\n\n\
+                            {bold}Token:{reset} {token}\n\
+                            {bold}HTTP Requests Header:{reset} Authorization: Bearer {token}\n\n\
+                            {red}IMPORTANT:{reset} Store this token securely, as it will not be shown again.\n",
+                            red = "\x1b[1;31m", bold = "\x1b[1m", underline = "\x1b[1;4m", reset = "\x1b[0m",
+                            token = response.token,
+                        );
                     }
+
                 },
                 Err(err) => {
                     println!("Failed to create token, error: {:?}", err);
