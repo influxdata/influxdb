@@ -1236,7 +1236,7 @@ mod tests {
                 Some("test_cache_3"),
                 Option::<&[&str]>::Some(&[]),
                 Some(&["f2", "time"]),
-                LastCacheSize::new(10).unwrap(),
+                LastCacheSize::new(100).unwrap(),
                 LastCacheTtl::from_secs(500),
             )
             .await

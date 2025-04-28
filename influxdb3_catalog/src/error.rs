@@ -152,7 +152,7 @@ pub enum CatalogError {
     #[error("failed to parse trigger from {}", trigger_spec)]
     ProcessingEngineTriggerSpecParseError { trigger_spec: String },
 
-    #[error("last cache size must be from 1 to 10")]
+    #[error("last cache size must be greater than 0")]
     InvalidLastCacheSize,
 
     #[error("failed to parse trigger from {trigger_spec}{}", .context.as_ref().map(|context| format!(": {context}")).unwrap_or_default())]

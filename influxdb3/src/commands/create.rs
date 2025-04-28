@@ -145,7 +145,7 @@ pub struct LastCacheConfig {
     #[clap(short = 't', long = "table")]
     table: String,
 
-    /// Which columns in the table to use as keys in the cache. This is a comma separated list.
+    /// Which columns in the table to use as keys in the cache. This is a comma separated list
     ///
     /// Example: --key-columns "foo,bar,baz"
     #[clap(long = "key-columns", value_delimiter = ',')]
@@ -158,15 +158,16 @@ pub struct LastCacheConfig {
     value_columns: Option<Vec<String>>,
 
     /// The number of entries per unique key column combination the cache will store
-    #[clap(long = "count")]
+    ///
+    /// Higher values can increase memory usage significantly
+    #[clap(long = "count", default_value = "1")]
     count: Option<LastCacheSize>,
 
-    /// The time-to-live (TTL) for entries in a cache. This uses a humantime form for example: --ttl "10s",
-    /// --ttl "1min 30sec", --ttl "3 hours"
+    /// The time-to-live (TTL) for entries in a cache. This uses a humantime form: "10s", "1min 30sec", "3 hours"
     ///
     /// See the parse_duration docs for more details about acceptable forms:
     /// <https://docs.rs/humantime/2.1.0/humantime/fn.parse_duration.html>
-    #[clap(long = "ttl")]
+    #[clap(long = "ttl", default_value = "4 hours")]
     ttl: Option<Duration>,
 
     /// Give a name for the cache.
@@ -475,7 +476,7 @@ mod tests {
             "--ttl",
             "1 hour",
             "--count",
-            "5",
+            "15",
             "bar",
         ]);
         let super::SubCommand::LastCache(super::LastCacheConfig {
@@ -496,7 +497,7 @@ mod tests {
         assert!(cache_name.is_some_and(|n| n == "bar"));
         assert!(key_columns.is_some_and(|keys| keys == ["tag1", "tag2", "tag3"]));
         assert!(value_columns.is_some_and(|vals| vals == ["field1", "field2", "field3"]));
-        assert!(count.is_some_and(|c| c == 5));
+        assert!(count.is_some_and(|c| c == 15));
         assert!(ttl.is_some_and(|t| t.as_secs() == 3600));
     }
 
