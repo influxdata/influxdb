@@ -9,6 +9,7 @@ use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_client::Client;
 use influxdb3_types::http::LastCacheSize;
 use influxdb3_types::http::LastCacheTtl;
+use owo_colors::OwoColorize;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
 use serde_json::json;
@@ -391,20 +392,18 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                         println!("{}", stringified);
                     }
                     token::TokenOutputFormat::Text => {
-
-                        let red = "\x1b[1;31m";
-                        let bold = "\x1b[1m";
-                        let underline = "\x1b[1;4m";
-                        let reset = "\x1b[0m";
                         let token = response.token;
-
+                        let title = format!("{}", "New token created successfully!".underline());
+                        let token_label = format!("{}", "Token:".bold());
+                        let header_label = format!("{}", "HTTP Requests Header:".bold());
+                        let important_label = format!("{}", "IMPORTANT:".red().bold());
+                        let important_message =
+                            "Store this token securely, as it will not be shown again.";
                         println!(
-                            "\n\
-                            {}New token created successfully!{}\n\n\
-                            {}Token:{} {}\n\
-                            {}HTTP Requests Header:{} Authorization: Bearer {}\n\n\
-                            {}IMPORTANT:{} Store this token securely, as it will not be shown again.\n",
-                            underline, reset, bold, reset, token, bold, reset, token, red, reset
+                            "\n{title}\n\n\
+                            {token_label} {token}\n\
+                            {header_label} Authorization: Bearer {token}\n\n\
+                            {important_label} {important_message}\n"
                         );
                     }
                 },
