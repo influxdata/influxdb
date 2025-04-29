@@ -1695,7 +1695,7 @@ pub(crate) async fn route_request(
     if started_without_auth && uri.path().starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
         return Ok(Response::builder()
             .status(StatusCode::METHOD_NOT_ALLOWED)
-            .body("".into())
+            .body("endpoint disabled, started without auth".into())
             .unwrap());
     }
 
