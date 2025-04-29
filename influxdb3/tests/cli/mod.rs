@@ -3089,3 +3089,18 @@ async fn test_delete_token() {
         .unwrap();
     assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
 }
+
+#[test_log::test(tokio::test)]
+async fn test_create_admin_token_endpoint_disabled() {
+    let server = TestServer::configure().spawn().await;
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+    let expected = "code: 405, message: \"endpoint disabled, started without auth\"";
+
+    let run_args = vec!["create", "token", "--admin"];
+    let result = server.run(run_args, args).unwrap();
+    assert_contains!(&result, expected);
+
+    let regen_args = vec!["create", "token", "--admin", "--regenerate"];
+    let result = server.run_with_confirmation(regen_args, args).unwrap();
+    assert_contains!(&result, expected);
+}

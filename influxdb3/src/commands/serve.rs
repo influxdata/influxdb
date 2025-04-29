@@ -697,6 +697,12 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&telemetry_store),
     );
 
+    if config.without_auth {
+        warn!(
+            "server started without auth (`--without-auth` switch), all token creation and regeneration of admin token endpoints are disabled"
+        );
+    }
+
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
         catalog: write_buffer.catalog(),
         write_buffer: Arc::clone(&write_buffer),
