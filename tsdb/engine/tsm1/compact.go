@@ -618,7 +618,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			gen := generations[j]
 			lvl := gen.level()
 
-			// Skip compacting this Group if there happens to be any lower level files in the
+			// Skip compacting this group if there happens to be any lower level files in the
 			// middle.  These will get picked up by the level compactors.
 			if lvl <= 3 {
 				skipGroup = true
@@ -649,7 +649,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		return nil, 0
 	}
 
-	// With the groups, we need to evaluate whether the Group as a whole can be compacted
+	// With the groups, we need to evaluate whether the group as a whole can be compacted
 	compactable := []tsmGenerations{}
 	for _, group := range groups {
 		// if we don't have enough generations to compact, skip it
@@ -660,7 +660,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	}
 
 	// All the files to be compacted must be compacted in order.  We need to convert each
-	// Group to the actual set of files in that Group to be compacted.
+	// group to the actual set of files in that group to be compacted.
 	var tsmFiles []CompactionGroup
 	for _, c := range compactable {
 		var cGroup CompactionGroup
@@ -749,7 +749,7 @@ func (c *DefaultPlanner) acquire(groups []CompactionGroup) bool {
 	return true
 }
 
-// Release removes the files reference in each compaction Group allowing new plans
+// Release removes the files reference in each compaction group allowing new plans
 // to be able to use them.
 func (c *DefaultPlanner) Release(groups []CompactionGroup) {
 	c.mu.Lock()
