@@ -2806,6 +2806,7 @@ dependencies = [
  "pretty_assertions",
  "rand",
  "rcgen",
+ "regex",
  "reqwest 0.11.27",
  "rustls 0.22.4",
  "secrecy",

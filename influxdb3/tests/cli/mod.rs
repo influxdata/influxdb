@@ -2930,7 +2930,7 @@ async fn test_create_admin_token() {
         .run(vec!["create", "token", "--admin"], args)
         .unwrap();
     println!("{:?}", result);
-    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+    assert_contains!(&result, "New token created successfully!");
 }
 
 #[test_log::test(tokio::test)]
@@ -2970,7 +2970,7 @@ async fn test_create_admin_token_json_format() {
             ],
         )
         .unwrap();
-    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+    assert_contains!(&result, "New token created successfully!");
 }
 
 #[test_log::test(tokio::test)]
@@ -2984,7 +2984,7 @@ async fn test_create_admin_token_allowed_once() {
     let result = server
         .run(vec!["create", "token", "--admin"], args)
         .unwrap();
-    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+    assert_contains!(&result, "New token created successfully!");
 
     let result = server
         .run(vec!["create", "token", "--admin"], args)
@@ -3016,7 +3016,7 @@ async fn test_regenerate_admin_token() {
             &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
         )
         .unwrap();
-    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+    assert_contains!(&result, "New token created successfully!");
     let old_token = server.token().expect("admin token to be present");
     let new_token = parse_token(result);
     assert!(old_token != &new_token);
@@ -3056,7 +3056,7 @@ async fn test_delete_token() {
             args,
         )
         .unwrap();
-    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+    assert_contains!(&result, "New token created successfully!");
     let token = parse_token(result);
 
     let result = server
@@ -3087,7 +3087,7 @@ async fn test_delete_token() {
             args,
         )
         .unwrap();
-    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+    assert_contains!(&result, "New token created successfully!");
 }
 
 #[test_log::test(tokio::test)]
