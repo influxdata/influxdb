@@ -104,7 +104,7 @@ type TSMFile interface {
 	Type(key []byte) (byte, error)
 
 	// BatchDelete return a BatchDeleter that allows for multiple deletes in batches
-	// and Group commit or rollback.
+	// and group commit or rollback.
 	BatchDelete() BatchDeleter
 
 	// Delete removes the keys from the set of keys available in this file.

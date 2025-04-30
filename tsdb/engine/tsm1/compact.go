@@ -109,8 +109,8 @@ type CompactionGroup []string
 type CompactionPlanner interface {
 	Plan(lastWrite time.Time) ([]CompactionGroup, int64)
 	PlanLevel(level int) ([]CompactionGroup, int64)
-	// PlanOptimize will return the groups for compaction, the compaction Group length,
-	// and the amount of generations within the compaction Group.
+	// PlanOptimize will return the groups for compaction, the compaction group length,
+	// and the amount of generations within the compaction group.
 	// generationCount needs to be set to decide how many points per block during compaction.
 	// This value is mostly ignored in normal compaction code paths, but,
 	// for the edge case where there is a single generation with many
@@ -324,7 +324,7 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 	}
 
 	// Group each generation by level such that two adjacent generations in the same
-	// level become part of the same Group.
+	// level become part of the same group.
 	var currentGen tsmGenerations
 	var groups []tsmGenerations
 	for i := 0; i < len(generations); i++ {
@@ -396,7 +396,7 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 }
 
 // PlanOptimize returns all TSM files if they are in different generations in order
-// to optimize the index across TSM files.  Each returned compaction Group can be
+// to optimize the index across TSM files.  Each returned compaction group can be
 // compacted concurrently.
 func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
 	// If a full plan has been requested, don't plan any levels which will prevent
@@ -419,7 +419,7 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 	}
 
 	// Group each generation by level such that two adjacent generations in the same
-	// level become part of the same Group.
+	// level become part of the same group.
 	var currentGen tsmGenerations
 	var groups []tsmGenerations
 	for i := 0; i < len(generations); i++ {
@@ -597,7 +597,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		}
 	}
 
-	// step is how may files to compact in a Group.  We want to clamp it at 4 but also stil
+	// step is how may files to compact in a group.  We want to clamp it at 4 but also stil
 	// return groups smaller than 4.
 	step := 4
 	if step > end {
@@ -608,7 +608,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	generations = generations[start:end]
 
 	// Loop through the generations in groups of size step and see if we can compact all (or
-	// some of them as Group)
+	// some of them as group)
 	groups := []tsmGenerations{}
 	for i := 0; i < len(generations); i += step {
 		var skipGroup bool
