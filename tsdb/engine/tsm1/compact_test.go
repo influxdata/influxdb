@@ -1710,7 +1710,7 @@ func TestDefaultPlanner_Plan_MultipleGroups(t *testing.T) {
 	tsm, pLen := cp.Plan(time.Now())
 
 	if got, exp := len(tsm), 2; got != exp {
-		t.Fatalf("compaction group length mismatch: got %v, exp %v", got, exp)
+		t.Fatalf("compaction Group length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
 		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
 	}
@@ -2270,9 +2270,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 	}
 
 	furtherCompactedTests := []PlanOptimizeTests{
-		// Large multi generation group with files at and under 2GB
+		// Large multi generation Group with files at and under 2GB
 		{
-			"Large multi generation group with files at and under 2GB",
+			"Large multi generation Group with files at and under 2GB",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2331,9 +2331,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			"not fully compacted and not idle because of more than one generation",
 			3,
 		},
-		// ~650mb group size
+		// ~650mb Group size
 		{
-			"Small group size with single generation",
+			"Small Group size with single generation",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2356,9 +2356,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			tsdb.SingleGenerationReasonText,
 			1,
 		},
-		// ~650 MB total group size with generations under 4
+		// ~650 MB total Group size with generations under 4
 		{
-			"Small group size with single generation and levels under 4",
+			"Small Group size with single generation and levels under 4",
 			[]tsm1.FileStat{
 				{
 					Path: "01-02.tsm1",
@@ -2378,7 +2378,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			1,
 		},
 		{
-			"Small group size with single generation all at DefaultMaxPointsPerBlock",
+			"Small Group size with single generation all at DefaultMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2400,10 +2400,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			tsdb.SingleGenerationReasonText,
 			1,
 		},
-		// > 2 GB total group size
+		// > 2 GB total Group size
 		// 50% of files are at aggressive max block size
 		{
-			"Small group size with single generation 50% at DefaultMaxPointsPerBlock and 50% at DefaultAggressiveMaxPointsPerBlock",
+			"Small Group size with single generation 50% at DefaultMaxPointsPerBlock and 50% at DefaultAggressiveMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2482,18 +2482,18 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		require.False(t, compacted, "is fully compacted")
 
 		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(1)")
 		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(2)")
 		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(3)")
 
 		tsmP, pLenP := cp.Plan(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Zero(t, len(tsmP), "compaction group; Plan()")
-		require.Zero(t, pLenP, "compaction group length; Plan()")
+		require.Zero(t, len(tsmP), "compaction Group; Plan()")
+		require.Zero(t, pLenP, "compaction Group length; Plan()")
 
 		_, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Equal(t, int64(1), cgLen, "compaction group length")
+		require.Equal(t, int64(1), cgLen, "compaction Group length")
 		require.Equal(t, generationCountExp, genLen, "generation count")
 
 	}
@@ -2532,7 +2532,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			"", 0,
 		},
 		{
-			// This test is added to account for a single generation that has a group size
+			// This test is added to account for a single generation that has a Group size
 			// over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
 			// It should not compact any further.
 			"TSM files at DefaultAggressiveMaxPointsPerBlock",
@@ -2551,7 +2551,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		}, "", 0,
 		},
 		{
-			// This test is added to account for a single generation that has a group size
+			// This test is added to account for a single generation that has a Group size
 			// over 2 GB at max points per block with aggressive compaction, and, 1 file
 			// under 2 GB at default max points per block.
 			// It should not compact any further.
@@ -2573,7 +2573,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			0,
 		},
 		{
-			// This test is added to account for a single generation that has a group size
+			// This test is added to account for a single generation that has a Group size
 			// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
 			"Group size over 2 with multiple files under 2GB and at DefaultAggressiveMaxPointsPerBlock",
 			[]tsm1.FileStat{
@@ -2603,19 +2603,19 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		require.True(t, compacted, "is fully compacted")
 
 		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(1)")
 		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(2)")
 		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(3)")
 
 		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-		require.Zero(t, len(tsmP), "compaction group; Plan()")
-		require.Zero(t, pLenP, "compaction group length; Plan()")
+		require.Zero(t, len(tsmP), "compaction Group; Plan()")
+		require.Zero(t, pLenP, "compaction Group length; Plan()")
 
 		cgroup, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-		require.Zero(t, cgLen, "compaction group length")
+		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction Group")
+		require.Zero(t, cgLen, "compaction Group length")
 		require.Zero(t, genLen, "generation count")
 	}
 
@@ -2673,7 +2673,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			"", 0, true,
 		},
 		{
-			// This test is added to account for a single generation that has a group size
+			// This test is added to account for a single generation that has a Group size
 			// over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
 			// It should not compact any further.
 			"TSM files at DefaultAggressiveMaxPointsPerBlock with increased block count",
@@ -2692,7 +2692,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		}, "", 0, true,
 		},
 		{
-			// This test is added to account for a single generation that has a group size
+			// This test is added to account for a single generation that has a Group size
 			// over 2 GB at max points per block with aggressive compaction, and, 1 file
 			// under 2 GB at default max points per block.
 			// It should not compact any further.
@@ -2714,7 +2714,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			0, true,
 		},
 		{
-			// This test is added to account for a single generation that has a group size
+			// This test is added to account for a single generation that has a Group size
 			// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
 			"Group size over 2 with multiple files under 2GB and at DefaultAggressiveMaxPointsPerBlock with increased block count",
 			[]tsm1.FileStat{
@@ -2745,11 +2745,11 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 
 		// Ensure that no level planning takes place
 		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(1)")
 		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(2)")
 		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(3)")
 	}
 
 	// These tests will decrease the max points per block for aggressive compaction.
@@ -3253,21 +3253,21 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 	planBeforePlanOptimizedRunner := func(cp *tsm1.DefaultPlanner) {
 		// Ensure that no level planning takes place
 		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(1)")
 		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(2)")
 		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+		require.Zero(t, cgLen, "compaction Group length; PlanLevel(3)")
 
 		// Plan should schedule
 		tsmP, pLenP := cp.Plan(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Equal(t, 1, len(tsmP), "compaction group; Plan()")
-		require.Equal(t, int64(1), pLenP, "compaction group length; Plan()")
+		require.Equal(t, 1, len(tsmP), "compaction Group; Plan()")
+		require.Equal(t, int64(1), pLenP, "compaction Group length; Plan()")
 
 		// PlanOptimize should not schedule
 		cgroup, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-		require.Zero(t, cgLen, "compaction group length")
+		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction Group")
+		require.Zero(t, cgLen, "compaction Group length")
 		require.Zero(t, genLen, "generation count")
 	}
 
@@ -4022,13 +4022,12 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 	}
 	testBlockCountsAndResults := []struct {
-		blockCounts      []int
-		level1Groups     []tsm1.CompactionGroup
-		level2Groups     []tsm1.CompactionGroup
-		level3Groups     []tsm1.CompactionGroup
-		level4Groups     []tsm1.CompactionGroup
-		level5Groups     []tsm1.CompactionGroup
-		level5Aggressive bool
+		blockCounts  []int
+		level1Groups []tsm1.PlannedCompactionGroup
+		level2Groups []tsm1.PlannedCompactionGroup
+		level3Groups []tsm1.PlannedCompactionGroup
+		level4Groups []tsm1.PlannedCompactionGroup
+		level5Groups []tsm1.PlannedCompactionGroup
 	}{
 		{
 			blockCounts: []int{
@@ -4037,10 +4036,12 @@ func TestEnginePlanCompactions(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			level5Groups: []tsm1.CompactionGroup{
-				{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
+			level5Groups: []tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
+					tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
 			},
-			level5Aggressive: true,
 		},
 		{
 			blockCounts: []int{
@@ -4049,10 +4050,12 @@ func TestEnginePlanCompactions(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			level5Groups: []tsm1.CompactionGroup{
-				{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-05.tsm"},
+			level5Groups: []tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-05.tsm"},
+					tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
 			},
-			level5Aggressive: true,
 		},
 	}
 
@@ -4075,22 +4078,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 		e.CompactionPlan = cp
 		e.Compactor.FileStore = ffs
 
-		level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups, level5Aggressive := e.PlanCompactions()
-		compareLevelGroups(t, testBlockCountsAndResults[i].level1Groups, level1Groups, "unexpected level 1 group")
-		compareLevelGroups(t, testBlockCountsAndResults[i].level2Groups, level2Groups, "unexpected level 2 group")
-		compareLevelGroups(t, testBlockCountsAndResults[i].level3Groups, Level3Groups, "unexpected level 3 group")
-		compareLevelGroups(t, testBlockCountsAndResults[i].level4Groups, Level4Groups, "unexpected level 4 group")
-		compareLevelGroups(t, testBlockCountsAndResults[i].level5Groups, Level5Groups, "unexpected level 5 group")
-		require.Equal(t, testBlockCountsAndResults[i].level5Aggressive, level5Aggressive, "unexpected level5aggressive")
+		level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions()
+		compareLevelGroups(t, testBlockCountsAndResults[i].level1Groups, level1Groups, "unexpected level 1 Group")
+		compareLevelGroups(t, testBlockCountsAndResults[i].level2Groups, level2Groups, "unexpected level 2 Group")
+		compareLevelGroups(t, testBlockCountsAndResults[i].level3Groups, Level3Groups, "unexpected level 3 Group")
+		compareLevelGroups(t, testBlockCountsAndResults[i].level4Groups, Level4Groups, "unexpected level 4 Group")
+		compareLevelGroups(t, testBlockCountsAndResults[i].level5Groups, Level5Groups, "unexpected level 5 Group")
 	}
 }
 
 // Necessary specialize comparison because require.Elements.Match thinks nested nil and zero length slices differ
-func compareLevelGroups(t *testing.T, exp, got []tsm1.CompactionGroup, message string) {
+func compareLevelGroups(t *testing.T, exp, got []tsm1.PlannedCompactionGroup, message string) {
 	require.Lenf(t, got, len(exp), "%s %s", message, " collection length mismatch")
-	for i := range exp {
-		require.Lenf(t, got[i], len(exp[i]), "%s %s", message, "length mismatch")
-		require.ElementsMatchf(t, got[i], exp[i], "%s %s", message, "mismatch")
+	for i, group := range exp {
+		require.Equal(t, group.Group, got[i].Group, message)
+		require.Equal(t, group.PointsPerBlock, got[i].PointsPerBlock, message)
 	}
 }
 
