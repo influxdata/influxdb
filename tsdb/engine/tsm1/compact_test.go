@@ -2551,7 +2551,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		}, "", 0,
 		},
 		{
-			// This test is added to account for a single generation that has a Group size
+			// This test is added to account for a single generation that has a group size
 			// over 2 GB at max points per block with aggressive compaction, and, 1 file
 			// under 2 GB at default max points per block.
 			// It should not compact any further.
@@ -2714,7 +2714,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			0, true,
 		},
 		{
-			// This test is added to account for a single generation that has a Group size
+			// This test is added to account for a single generation that has a group size
 			// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
 			"Group size over 2 with multiple files under 2GB and at DefaultAggressiveMaxPointsPerBlock with increased block count",
 			[]tsm1.FileStat{
