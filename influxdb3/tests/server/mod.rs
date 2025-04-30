@@ -11,6 +11,7 @@ use futures::TryStreamExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use influxdb3_client::Precision;
 use influxdb3_types::http::FieldType;
+use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Certificate, Response, tls::Version};
 use tempfile::TempDir;
@@ -748,13 +749,22 @@ pub async fn write_lp_to_db(
 }
 
 pub fn parse_token(result: String) -> String {
-    let all_lines: Vec<&str> = result.split('\n').collect();
-    let token = all_lines
-        .iter()
-        .find(|line| line.starts_with("Token:"))
-        .expect("token line to be present")
-        .replace("Token: ", "");
-    token
+    let ansi_regex = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+
+    let token_line = result
+        .lines()
+        .find(|line| line.contains("Token:"))
+        .expect("token line to be present");
+
+    let clean_line = ansi_regex.replace_all(token_line, "");
+
+    let raw_token = clean_line
+        .split_once("Token: ")
+        .expect("expected 'Token: ' in line")
+        .1
+        .trim();
+
+    raw_token.to_string()
 }
 
 #[allow(dead_code)]
