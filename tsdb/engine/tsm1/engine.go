@@ -2330,22 +2330,21 @@ func (e *Engine) PlanCompactions() (
 
 	for _, group := range l1Groups {
 		level1Groups = append(level1Groups, PlannedCompactionGroup{
-			Group:          group,
-			PointsPerBlock: e.MaxPointsPerBlock,
+			Group: group,
 		})
 	}
 
 	for _, group := range l2Groups {
 		level2Groups = append(level2Groups, PlannedCompactionGroup{
 			Group:          group,
-			PointsPerBlock: e.MaxPointsPerBlock,
+			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
 		})
 	}
 
 	for _, group := range l3Groups {
 		level3Groups = append(level3Groups, PlannedCompactionGroup{
 			Group:          group,
-			PointsPerBlock: e.MaxPointsPerBlock,
+			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
 		})
 	}
 
@@ -2372,7 +2371,7 @@ func (e *Engine) PlanCompactions() (
 		} else {
 			level4Groups = append(level4Groups, PlannedCompactionGroup{
 				Group:          group,
-				PointsPerBlock: e.MaxPointsPerBlock,
+				PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
 			})
 		}
 	}
@@ -2393,7 +2392,7 @@ func (e *Engine) PlanCompactions() (
 				e.logger.Info("Planning optimized level 5 compaction Group", zap.Strings("files", group))
 				level5Groups = append(level5Groups, PlannedCompactionGroup{
 					Group:          group,
-					PointsPerBlock: e.MaxPointsPerBlock,
+					PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
 				})
 			}
 		}

@@ -3,7 +3,6 @@ package tsm1_test
 import (
 	"errors"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"io/fs"
 	"math"
 	"os"
@@ -2267,7 +2266,19 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		bc                              []int
 		expectedFullyCompactedReasonExp string
 		expectedgenerationCount         int64
+		level1Groups                    []tsm1.PlannedCompactionGroup
+		level2Groups                    []tsm1.PlannedCompactionGroup
+		level3Groups                    []tsm1.PlannedCompactionGroup
+		level4Groups                    []tsm1.PlannedCompactionGroup
+		level5Groups                    []tsm1.PlannedCompactionGroup
 	}
+
+	e, err := NewEngine(tsdb.InmemIndexName)
+	require.NoError(t, err, "open engine")
+	e.SetEnabled(false)
+	defer func() { require.NoError(t, e.Close(), "close engine") }()
+	e.Compactor = tsm1.NewCompactor()
+	defer e.Compactor.Close()
 
 	furtherCompactedTests := []PlanOptimizeTests{
 		// Large multi generation group with files at and under 2GB
@@ -2330,6 +2341,26 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			},
 			"not fully compacted and not idle because of more than one generation",
 			3,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-05.tsm1",
+						"01-06.tsm1",
+						"01-07.tsm1",
+						"01-08.tsm1",
+						"02-05.tsm1",
+						"02-06.tsm1",
+						"02-07.tsm1",
+						"02-08.tsm1",
+						"03-04.tsm1",
+						"03-05.tsm1",
+					},
+					tsdb.DefaultMaxPointsPerBlock,
+				},
+			},
 		},
 		// ~650mb group size
 		{
@@ -2355,6 +2386,20 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			[]int{},
 			tsdb.SingleGenerationReasonText,
 			1,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-05.tsm1",
+						"01-06.tsm1",
+						"01-07.tsm1",
+						"01-08.tsm1",
+					},
+					tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+			},
 		},
 		// ~650 MB total group size with generations under 4
 		{
@@ -2376,6 +2421,19 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			[]int{},
 			tsdb.SingleGenerationReasonText,
 			1,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-02.tsm1",
+						"01-03.tsm1",
+						"01-04.tsm1",
+					},
+					tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+			},
 		},
 		{
 			"Small group size with single generation all at DefaultMaxPointsPerBlock",
@@ -2396,9 +2454,24 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "01-08.tsm1",
 					Size: 50 * 1024 * 1024,
 				},
-			}, []int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock},
+			},
+			[]int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock},
 			tsdb.SingleGenerationReasonText,
 			1,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-05.tsm1",
+						"01-06.tsm1",
+						"01-07.tsm1",
+						"01-08.tsm1",
+					},
+					tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+			},
 		},
 		// > 2 GB total group size
 		// 50% of files are at aggressive max block size
@@ -2450,6 +2523,24 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			},
 			tsdb.SingleGenerationReasonText,
 			1,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-05.tsm1",
+						"01-06.tsm1",
+						"01-07.tsm1",
+						"01-08.tsm1",
+						"01-09.tsm1",
+						"01-10.tsm1",
+						"01-11.tsm1",
+						"01-12.tsm1",
+					},
+					tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+			},
 		},
 		{
 			"Group size over 2GB with single generation",
@@ -2466,39 +2557,31 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "01-15.tsm1",
 					Size: 450 * 1024 * 1024,
 				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-		},
+			},
+			[]int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
 			tsdb.SingleGenerationReasonText,
 			1,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-13.tsm1",
+						"01-14.tsm1",
+						"01-15.tsm1",
+					},
+					tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+			},
 		},
 	}
 
-	expectedNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, generationCountExp int64) {
-		compacted, reason := cp.FullyCompacted()
-		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
-		require.False(t, compacted, "is fully compacted")
-
-		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
-		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
-		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
-
-		tsmP, pLenP := cp.Plan(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Zero(t, len(tsmP), "compaction group; Plan()")
-		require.Zero(t, pLenP, "compaction group length; Plan()")
-
-		_, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Equal(t, int64(1), cgLen, "compaction group length")
-		require.Equal(t, generationCountExp, genLen, "generation count")
-
-	}
-
-	for _, test := range furtherCompactedTests {
+	for i, test := range furtherCompactedTests {
 		t.Run(test.name, func(t *testing.T) {
 			ffs := &fakeFileStore{
 				PathsFn: func() []tsm1.FileStat {
@@ -2506,13 +2589,21 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			}
 
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+
 			if len(test.bc) > 0 {
 				err := ffs.SetBlockCounts(test.bc)
 				require.NoError(t, err, "setting block counts")
 			}
 
-			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-			expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount)
+			e.CompactionPlan = cp
+			e.Compactor.FileStore = ffs
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
+			compareLevelGroups(t, furtherCompactedTests[i].level1Groups, level1Groups, "unexpected level 1 Group")
+			compareLevelGroups(t, furtherCompactedTests[i].level2Groups, level2Groups, "unexpected level 2 Group")
+			compareLevelGroups(t, furtherCompactedTests[i].level3Groups, level3Groups, "unexpected level 3 Group")
+			compareLevelGroups(t, furtherCompactedTests[i].level4Groups, level4Groups, "unexpected level 4 Group")
+			compareLevelGroups(t, furtherCompactedTests[i].level5Groups, level5Groups, "unexpected level 5 Group")
 		})
 	}
 
@@ -2529,7 +2620,13 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			},
 			[]int{},
-			"", 0,
+			"",
+			0,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2545,10 +2642,18 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "01-14.tsm1",
 					Size: 691 * 1024 * 1024,
 				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-		}, "", 0,
+			},
+			[]int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			},
+			"",
+			0,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2565,12 +2670,18 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "01-14.tsm1",
 					Size: 691 * 1024 * 1024,
 				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-		},
+			},
+			[]int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
 			"",
 			0,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2589,37 +2700,23 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "01-15.tsm1",
 					Size: 450 * 1024 * 1024,
 				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-		}, "", 0,
+			},
+			[]int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			},
+			"",
+			0,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 	}
 
-	expectedFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string) {
-		compacted, reason := cp.FullyCompacted()
-		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
-		require.True(t, compacted, "is fully compacted")
-
-		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
-		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
-		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
-
-		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-		require.Zero(t, len(tsmP), "compaction group; Plan()")
-		require.Zero(t, pLenP, "compaction group length; Plan()")
-
-		cgroup, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-		require.Zero(t, cgLen, "compaction group length")
-		require.Zero(t, genLen, "generation count")
-	}
-
-	for _, test := range areFullyCompactedTests {
+	for i, test := range areFullyCompactedTests {
 		t.Run(test.name, func(t *testing.T) {
 			ffs := &fakeFileStore{
 				PathsFn: func() []tsm1.FileStat {
@@ -2627,24 +2724,22 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			}
 
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+
 			if len(test.bc) > 0 {
 				err := ffs.SetBlockCounts(test.bc)
 				require.NoError(t, err, "setting block counts")
 			}
 
-			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-			expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp)
+			e.CompactionPlan = cp
+			e.Compactor.FileStore = ffs
 
-			// Reverse test files and re-run tests
-			slices.Reverse(test.fs)
-			if len(test.bc) > 0 {
-				slices.Reverse(test.bc)
-				err := ffs.SetBlockCounts(test.bc)
-				require.NoError(t, err, "setting reverse block counts")
-			}
-
-			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-			expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp)
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
+			compareLevelGroups(t, areFullyCompactedTests[i].level1Groups, level1Groups, "unexpected level 1 Group")
+			compareLevelGroups(t, areFullyCompactedTests[i].level2Groups, level2Groups, "unexpected level 2 Group")
+			compareLevelGroups(t, areFullyCompactedTests[i].level3Groups, level3Groups, "unexpected level 3 Group")
+			compareLevelGroups(t, areFullyCompactedTests[i].level4Groups, level4Groups, "unexpected level 4 Group")
+			compareLevelGroups(t, areFullyCompactedTests[i].level5Groups, level5Groups, "unexpected level 5 Group")
 		})
 	}
 
@@ -2655,6 +2750,11 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		expectedFullyCompactedReasonExp string
 		expectedgenerationCount         int64
 		fullyCompacted                  bool
+		level1Groups                    []tsm1.PlannedCompactionGroup
+		level2Groups                    []tsm1.PlannedCompactionGroup
+		level3Groups                    []tsm1.PlannedCompactionGroup
+		level4Groups                    []tsm1.PlannedCompactionGroup
+		level5Groups                    []tsm1.PlannedCompactionGroup
 	}
 
 	mixedPlanOptimizeTests := []PlanOptimizeMixedTests{
@@ -2670,7 +2770,14 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			},
 			[]int{},
-			"", 0, true,
+			"",
+			0,
+			true,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2686,10 +2793,19 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "01-14.tsm1",
 					Size: 691 * 1024 * 1024,
 				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-		}, "", 0, true,
+			},
+			[]int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			},
+			"",
+			0,
+			true,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2706,12 +2822,19 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "01-14.tsm1",
 					Size: 691 * 1024 * 1024,
 				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-		},
+			},
+			[]int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
 			"",
-			0, true,
+			0,
+			true,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2730,33 +2853,28 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "01-15.tsm1",
 					Size: 450 * 1024 * 1024,
 				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-		}, tsdb.SingleGenerationReasonText, 1, false,
+			},
+			[]int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			},
+			tsdb.SingleGenerationReasonText,
+			1,
+			false,
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
 		},
-	}
-
-	mixedPlanOptimizeTestRunner := func(cp *tsm1.DefaultPlanner, reasonExp string, fullyCompacted bool) {
-		compacted, reason := cp.FullyCompacted()
-		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
-		require.Equal(t, compacted, fullyCompacted, "is fully compacted")
-
-		// Ensure that no level planning takes place
-		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
-		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
-		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 	}
 
 	// These tests will decrease the max points per block for aggressive compaction.
 	// For SetAggressiveCompactionPointsPerBlock we are using 10x the default to
 	// mock an administrator setting the max points per block to 100_000 and overriding
 	// the default of 10_000.
-	for _, test := range mixedPlanOptimizeTests {
+	for i, test := range mixedPlanOptimizeTests {
 		t.Run(test.name, func(t *testing.T) {
 			ffs := &fakeFileStore{
 				PathsFn: func() []tsm1.FileStat {
@@ -2764,35 +2882,36 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			}
 
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+
 			if len(test.bc) > 0 {
 				err := ffs.SetBlockCounts(test.bc)
 				require.NoError(t, err, "setting block counts")
 			}
 
-			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-			cp.SetAggressiveCompactionPointsPerBlock(tsdb.DefaultAggressiveMaxPointsPerBlock * 10)
-			mixedPlanOptimizeTestRunner(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
+			e.CompactionPlan = cp
+			e.Compactor.FileStore = ffs
 
-			// Reverse test files and re-run tests
-			slices.Reverse(test.fs)
-			if len(test.bc) > 0 {
-				slices.Reverse(test.bc)
-				err := ffs.SetBlockCounts(test.bc)
-				require.NoError(t, err, "setting reverse block counts")
-			}
-
-			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-			cp.SetAggressiveCompactionPointsPerBlock(tsdb.DefaultAggressiveMaxPointsPerBlock * 10)
-			mixedPlanOptimizeTestRunner(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
+			compareLevelGroups(t, mixedPlanOptimizeTests[i].level1Groups, level1Groups, "unexpected level 1 Group")
+			compareLevelGroups(t, mixedPlanOptimizeTests[i].level2Groups, level2Groups, "unexpected level 2 Group")
+			compareLevelGroups(t, mixedPlanOptimizeTests[i].level3Groups, level3Groups, "unexpected level 3 Group")
+			compareLevelGroups(t, mixedPlanOptimizeTests[i].level4Groups, level4Groups, "unexpected level 4 Group")
+			compareLevelGroups(t, mixedPlanOptimizeTests[i].level5Groups, level5Groups, "unexpected level 5 Group")
 		})
 	}
 
 	// The following tests ensure that if Plan() is scheduled
 	// for a shard than PlanOptimize() should not be scheduled for that shard
 	type PlanBeforePlanOptimizeTests struct {
-		name string
-		fs   []tsm1.FileStat
-		bc   []int
+		name         string
+		fs           []tsm1.FileStat
+		bc           []int
+		level1Groups []tsm1.PlannedCompactionGroup
+		level2Groups []tsm1.PlannedCompactionGroup
+		level3Groups []tsm1.PlannedCompactionGroup
+		level4Groups []tsm1.PlannedCompactionGroup
+		level5Groups []tsm1.PlannedCompactionGroup
 	}
 
 	planBeforePlanOptimized := []PlanBeforePlanOptimizeTests{
@@ -2840,14 +2959,36 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 2048 * 1024 * 1024,
 				},
 				{
-					Path: "03-04.tsm1",
+					Path: "03-05.tsm1",
 					Size: 600 * 1024 * 1024,
 				},
 				{
 					Path: "03-06.tsm1",
 					Size: 500 * 1024 * 1024,
 				},
-			}, []int{},
+			},
+			[]int{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-05.tsm1",
+						"01-06.tsm1",
+						"01-07.tsm1",
+						"01-08.tsm1",
+						"02-05.tsm1",
+						"02-06.tsm1",
+						"02-07.tsm1",
+						"02-08.tsm1",
+						"03-03.tsm1",
+						"03-04.tsm1",
+						"03-05.tsm1",
+						"03-06.tsm1"},
+					tsdb.DefaultMaxPointsPerBlock,
+				},
+			},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 		{
 			// This test will mock a 'backfill' condition where we have a single
@@ -2904,24 +3045,35 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Path: "03-03.tsm1",
 					Size: 400 * 1024 * 1024,
 				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			},
+			[]int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
 
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
 
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
 
-			tsdb.DefaultMaxPointsPerBlock,
-			// Use some magic numbers but these are just small values for block counts
-			100,
-			10,
-		},
+				tsdb.DefaultMaxPointsPerBlock,
+				// Use some magic numbers but these are just small values for block counts
+				100,
+				10,
+			},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{
+						"02-04.tsm1", "02-05.tsm1", "02-06.tsm1", "03-02.tsm1", "03-03.tsm1", "03-03.tsm1", "03-04.tsm1", "04-01.tsm1", "04-02.tsm1",
+					}, tsdb.DefaultAggressiveMaxPointsPerBlock},
+			},
 		},
 		{
 			"1.12.0 RC0 Planner issue mock data from cluster",
@@ -3247,31 +3399,101 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 1717986918,
 				},
 			}, []int{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{},
+			[]tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{
+						"000029202-000000004.tsm",
+						"000029202-000000005.tsm",
+						"000029202-000000006.tsm",
+						"000029202-000000007.tsm",
+						"000029202-000000008.tsm",
+						"000029202-000000009.tsm",
+						"000029202-000000010.tsm",
+						"000029202-000000011.tsm",
+						"000029202-000000012.tsm",
+						"000029202-000000013.tsm",
+						"000029202-000000014.tsm",
+						"000029202-000000015.tsm",
+						"000029202-000000016.tsm",
+						"000029202-000000017.tsm",
+						"000029202-000000018.tsm",
+						"000029202-000000019.tsm",
+						"000029202-000000020.tsm",
+						"000029202-000000021.tsm",
+						"000029202-000000022.tsm",
+						"000029202-000000023.tsm",
+						"000029202-000000024.tsm",
+						"000029202-000000025.tsm",
+						"000029202-000000026.tsm",
+						"000029202-000000027.tsm",
+						"000029202-000000028.tsm",
+						"000029202-000000029.tsm",
+						"000029202-000000030.tsm",
+						"000029202-000000031.tsm",
+						"000029202-000000032.tsm",
+						"000029202-000000033.tsm",
+						"000029202-000000034.tsm",
+						"000029202-000000035.tsm",
+						"000029202-000000036.tsm",
+						"000029202-000000037.tsm",
+						"000029202-000000038.tsm",
+						"000029202-000000039.tsm",
+						"000029202-000000040.tsm",
+						"000029202-000000041.tsm",
+						"000029202-000000042.tsm",
+						"000029202-000000043.tsm",
+						"000029202-000000044.tsm",
+						"000029202-000000045.tsm",
+						"000029202-000000046.tsm",
+						"000029235-000000003.tsm",
+						"000029267-000000003.tsm",
+						"000029268-000000001.tsm",
+						"000029268-000000002.tsm",
+						"000029268-000000003.tsm",
+						"000029268-000000004.tsm",
+						"000029268-000000005.tsm",
+						"000029268-000000006.tsm",
+						"000029268-000000007.tsm",
+						"000029268-000000008.tsm",
+						"000029268-000000009.tsm",
+						"000029268-000000010.tsm",
+						"000029268-000000011.tsm",
+						"000029268-000000012.tsm",
+						"000029268-000000013.tsm",
+						"000029268-000000014.tsm",
+						"000029268-000000015.tsm",
+						"000029268-000000016.tsm",
+						"000029268-000000017.tsm",
+						"000029268-000000018.tsm",
+						"000029268-000000019.tsm",
+						"000029268-000000020.tsm",
+						"000029268-000000021.tsm",
+						"000029268-000000022.tsm",
+						"000029268-000000023.tsm",
+						"000029268-000000024.tsm",
+						"000029268-000000025.tsm",
+						"000029268-000000026.tsm",
+						"000029268-000000027.tsm",
+						"000029268-000000028.tsm",
+						"000029268-000000029.tsm",
+						"000029268-000000030.tsm",
+						"000029268-000000031.tsm",
+						"000029268-000000032.tsm",
+						"000029268-000000033.tsm",
+						"000029268-000000034.tsm",
+						"000029268-000000035.tsm",
+					},
+					tsdb.DefaultMaxPointsPerBlock,
+				},
+			},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 	}
 
-	planBeforePlanOptimizedRunner := func(cp *tsm1.DefaultPlanner) {
-		// Ensure that no level planning takes place
-		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
-		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
-		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
-
-		// Plan should schedule
-		tsmP, pLenP := cp.Plan(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Equal(t, 1, len(tsmP), "compaction group; Plan()")
-		require.Equal(t, int64(1), pLenP, "compaction group length; Plan()")
-
-		// PlanOptimize should not schedule
-		cgroup, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-		require.Zero(t, cgLen, "compaction group length")
-		require.Zero(t, genLen, "generation count")
-	}
-
-	for _, test := range planBeforePlanOptimized {
+	for i, test := range planBeforePlanOptimized {
 		t.Run(test.name, func(t *testing.T) {
 			ffs := &fakeFileStore{
 				PathsFn: func() []tsm1.FileStat {
@@ -3279,13 +3501,22 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			}
 
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+
 			if len(test.bc) > 0 {
 				err := ffs.SetBlockCounts(test.bc)
 				require.NoError(t, err, "setting block counts")
 			}
 
-			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-			planBeforePlanOptimizedRunner(cp)
+			e.CompactionPlan = cp
+			e.Compactor.FileStore = ffs
+
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
+			compareLevelGroups(t, planBeforePlanOptimized[i].level1Groups, level1Groups, "unexpected level 1 Group")
+			compareLevelGroups(t, planBeforePlanOptimized[i].level2Groups, level2Groups, "unexpected level 2 Group")
+			compareLevelGroups(t, planBeforePlanOptimized[i].level3Groups, level3Groups, "unexpected level 3 Group")
+			compareLevelGroups(t, planBeforePlanOptimized[i].level4Groups, level4Groups, "unexpected level 4 Group")
+			compareLevelGroups(t, planBeforePlanOptimized[i].level5Groups, level5Groups, "unexpected level 5 Group")
 		})
 	}
 }
@@ -4075,6 +4306,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 		}
 		cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
 		require.NoError(t, ffs.SetBlockCounts(testBlockCountsAndResults[i].blockCounts), "failed setting block counts")
+		e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
 		e.CompactionPlan = cp
 		e.Compactor.FileStore = ffs
 
@@ -4087,7 +4319,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 	}
 }
 
-// Necessary specialize comparison because require.Elements.Match thinks nested nil and zero length slices differ
 func compareLevelGroups(t *testing.T, exp, got []tsm1.PlannedCompactionGroup, message string) {
 	require.Lenf(t, got, len(exp), "%s %s", message, " collection length mismatch")
 	for i, group := range exp {
