@@ -38,7 +38,15 @@ exclude = [
 ]
 
 [workspace.package]
-version = "3.0.1"
+# `version` uses a `-nightly` on `main` branch so that snapshot releases cut from main will display
+# `-nightly` in the revision information of the running server. Releases cut from a release branch
+# will not use `-nightly`.
+#
+# The version here leads the latest released minor version. So, if the latest release is `3.0.2`,
+# then this will be `3.1.0-nightly`. Once `3.1.0` is released, this will be bumped to `3.2.0-nightly`,
+# and will remain that regardless of how many `3.1.x` patch releases are done prior to the `3.2.0`
+# release.
+version = "3.1.0-nightly"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
