@@ -2261,16 +2261,14 @@ func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
 
 func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 	type PlanOptimizeTests struct {
-		name                            string
-		fs                              []tsm1.FileStat
-		bc                              []int
-		expectedFullyCompactedReasonExp string
-		expectedgenerationCount         int64
-		level1Groups                    []tsm1.PlannedCompactionGroup
-		level2Groups                    []tsm1.PlannedCompactionGroup
-		level3Groups                    []tsm1.PlannedCompactionGroup
-		level4Groups                    []tsm1.PlannedCompactionGroup
-		level5Groups                    []tsm1.PlannedCompactionGroup
+		name         string
+		fs           []tsm1.FileStat
+		bc           []int
+		level1Groups []tsm1.PlannedCompactionGroup
+		level2Groups []tsm1.PlannedCompactionGroup
+		level3Groups []tsm1.PlannedCompactionGroup
+		level4Groups []tsm1.PlannedCompactionGroup
+		level5Groups []tsm1.PlannedCompactionGroup
 	}
 
 	e, err := NewEngine(tsdb.InmemIndexName)
@@ -2339,8 +2337,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				10,
 				5,
 			},
-			"not fully compacted and not idle because of more than one generation",
-			3,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2384,8 +2380,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			},
 			[]int{},
-			tsdb.SingleGenerationReasonText,
-			1,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2419,8 +2413,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			},
 			[]int{},
-			tsdb.SingleGenerationReasonText,
-			1,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2456,8 +2448,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			},
 			[]int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock},
-			tsdb.SingleGenerationReasonText,
-			1,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2521,8 +2511,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			tsdb.SingleGenerationReasonText,
-			1,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2563,8 +2551,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			tsdb.SingleGenerationReasonText,
-			1,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2620,8 +2606,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			},
 			[]int{},
-			"",
-			0,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2647,8 +2631,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 			},
-			"",
-			0,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2675,8 +2657,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			"",
-			0,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2706,8 +2686,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 			},
-			"",
-			0,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2744,17 +2722,14 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 	}
 
 	type PlanOptimizeMixedTests struct {
-		name                            string
-		fs                              []tsm1.FileStat
-		bc                              []int
-		expectedFullyCompactedReasonExp string
-		expectedgenerationCount         int64
-		fullyCompacted                  bool
-		level1Groups                    []tsm1.PlannedCompactionGroup
-		level2Groups                    []tsm1.PlannedCompactionGroup
-		level3Groups                    []tsm1.PlannedCompactionGroup
-		level4Groups                    []tsm1.PlannedCompactionGroup
-		level5Groups                    []tsm1.PlannedCompactionGroup
+		name         string
+		fs           []tsm1.FileStat
+		bc           []int
+		level1Groups []tsm1.PlannedCompactionGroup
+		level2Groups []tsm1.PlannedCompactionGroup
+		level3Groups []tsm1.PlannedCompactionGroup
+		level4Groups []tsm1.PlannedCompactionGroup
+		level5Groups []tsm1.PlannedCompactionGroup
 	}
 
 	mixedPlanOptimizeTests := []PlanOptimizeMixedTests{
@@ -2770,9 +2745,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			},
 			[]int{},
-			"",
-			0,
-			true,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2798,9 +2770,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 			},
-			"",
-			0,
-			true,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2827,9 +2796,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			"",
-			0,
-			true,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
@@ -2859,9 +2825,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 				tsdb.DefaultAggressiveMaxPointsPerBlock,
 			},
-			tsdb.SingleGenerationReasonText,
-			1,
-			false,
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
