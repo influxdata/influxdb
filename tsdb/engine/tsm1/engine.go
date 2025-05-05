@@ -2118,26 +2118,6 @@ func (e *Engine) ShouldCompactCache(t time.Time) bool {
 	return t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration
 }
 
-// isSingleGeneration returns true if a group contains files from a single generation.
-func (e *Engine) isSingleGeneration(group CompactionGroup) bool {
-	minGen := math.MaxInt
-	maxGen := math.MinInt
-	for _, f := range group {
-		if gen, _, err := e.FileStore.ParseFileName(f); err != nil {
-			e.logger.Error("error parsing TSM file name", zap.Error(err), zap.String("file", f))
-			return false
-		} else {
-			minGen = min(minGen, gen)
-			maxGen = max(maxGen, gen)
-			if minGen != maxGen {
-				break
-			}
-		}
-	}
-
-	return minGen == maxGen
-}
-
 // isFileOptimized returns true if a TSM file appears to have already been previously optimized.
 // If file appears previously optimized, a description of the heuristic used to determine this is also returned.
 func (e *Engine) isFileOptimized(f string) (bool, string) {
