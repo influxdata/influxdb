@@ -2390,11 +2390,25 @@ func (e *Engine) PlanCompactions() (
 					PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
 				})
 			} else {
-				e.logger.Info("Planning optimized level 5 compaction Group", zap.Strings("files", group))
-				level5Groups = append(level5Groups, PlannedCompactionGroup{
-					Group:          group,
-					PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
-				})
+				if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
+					e.logger.Info("Planning optimized level 5 compaction Group at aggressive points per block.",
+						zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
+					// Should set this compaction group to aggressive. IsGroupOptimized will check the
+					// block count and return true if there is a file at aggressivePointsPerBlock.
+					// We will need to run aggressive compaction on this group if that's the case.
+					level5Groups = append(level5Groups, PlannedCompactionGroup{
+						Group:          group,
+						PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
+					})
+				} else {
+					e.logger.Info("Planning optimized level 5 compaction Group", zap.Strings("files", group))
+					level5Groups = append(level5Groups, PlannedCompactionGroup{
+						Group:          group,
+						PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+					})
+
+				}
+
 			}
 		}
 	}
