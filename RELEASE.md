@@ -69,7 +69,16 @@
 
 - When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_VERSION`
 
+- Once the above is complete, the official Docker image repository needs to be updated. See
+  [Official Docker Image Repository](#official-docker-image-repository) for the steps required to
+  do so.
+
+- Lastly, `apt` and `yum` repositories need to be updated. This can be done with a change to the
+  respective files for `core`/`enterprise` in the private `repos` repository (see [example][repos-commit]).
+
 _At some point this should be scripted so that versions etc are in sync between the steps_
+
+[repos-commit]: https://github.com/influxdata/repos/pull/179/commits/fa0f8374e52ee86359efd00ce7dcb011d5ebb37a
 
 ## Commit Tagging
 
@@ -85,3 +94,23 @@ Annotated tags can be created with `git tag -a <tag_name> -m <description>`, e.g
 There is a full explanation on what each portion of the tag means, as well as how git tags map to
 filenames in `.circleci/packages/config.yaml`. This tag should match the regex as configured in
 `release-filter` in `.circleci/config.yml`.
+
+## Official Docker Image Repository
+
+Influx maintains a [repository][influx-docker] of `Dockerfile`s for various projects. The official
+Docker image [repository][docker-official] refers to the former.
+
+When a release is complete, the above repositories need to be updated by:
+
+- Updating the `INFLUXDB_VERSION` in the following files in `influxdata-docker` (see [example][ex1]):
+  - `influxdb/3.0-core/Dockerfile`
+  - `influxdb/3.0-enterprise/Dockerfile`
+
+- Once merged, take the commit SHA from the merge commit, and use it to update the official docker
+  image manifest for Influx. In addition to updating the SHA, the image tag with the full version
+  numbers need to be updated for `core` and `enterprise` images (see [example][ex2]).
+
+[influx-docker]: https://github.com/influxdata/influxdata-docker
+[docker-official]: https://github.com/docker-library/official-images
+[ex1]: https://github.com/influxdata/influxdata-docker/commit/a956adaa6d24473d3ea6b9c638d9b4658dfecc44
+[ex2]: https://github.com/docker-library/official-images/pull/18972/commits/e543ab7774878d9246ee95c50e8719844b6c6788
