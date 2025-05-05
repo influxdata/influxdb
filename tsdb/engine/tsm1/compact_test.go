@@ -2704,6 +2704,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 
 			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
 
+			compacted, _ := cp.FullyCompacted()
+			require.True(t, compacted, "Should be fully compacted")
+
 			if len(test.bc) > 0 {
 				err := ffs.SetBlockCounts(test.bc)
 				require.NoError(t, err, "setting block counts")
