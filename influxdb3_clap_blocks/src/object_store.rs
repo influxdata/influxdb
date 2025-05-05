@@ -340,13 +340,13 @@ macro_rules! object_store_config_inner {
                 ///
                 /// * memory (default): Effectively no object persistence.
                 /// * memorythrottled: Like `memory` but with latency and throughput that somewhat resamble a cloud
-                ///    object store. Useful for testing and benchmarking.
+                ///   object store. Useful for testing and benchmarking.
                 /// * file: Stores objects in the local filesystem. Must also set `--data-dir`.
                 /// * s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
-                ///    possibly `--aws-default-region`.
+                ///   possibly `--aws-default-region`.
                 /// * google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
                 /// * azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
-                ///    and `--azure-storage-access-key`.
+                ///   and `--azure-storage-access-key`.
                 #[clap(
                     value_enum,
                     id = gen_name!($prefix, "object-store"),

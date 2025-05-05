@@ -392,7 +392,7 @@ impl IntoResponse for Error {
                         .body(Body::from(mc_err.to_string()))
                         .unwrap(),
                 },
-                distinct_cache::ProviderError::CacheNotFound { .. } => Response::builder()
+                distinct_cache::ProviderError::CacheNotFound => Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
