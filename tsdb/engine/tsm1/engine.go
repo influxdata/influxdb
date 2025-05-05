@@ -2330,7 +2330,8 @@ func (e *Engine) PlanCompactions() (
 
 	for _, group := range l1Groups {
 		level1Groups = append(level1Groups, PlannedCompactionGroup{
-			Group: group,
+			Group:          group,
+			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
 		})
 	}
 
