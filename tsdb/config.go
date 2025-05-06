@@ -146,11 +146,16 @@ type Config struct {
 	// A value of 0 disables the limit.
 	MaxValuesPerTag int `toml:"max-values-per-tag"`
 
-	// MaxConcurrentCompactions is the maximum number of concurrent level and full compactions
+	// MaxConcurrentCompactions is the maximum number of concurrent level, full, and optimized compactions
 	// that can be running at one time across all shards.  Compactions scheduled to run when the
 	// limit is reached are blocked until a running compaction completes.  Snapshot compactions are
 	// not affected by this limit.  A value of 0 limits compactions to runtime.GOMAXPROCS(0).
 	MaxConcurrentCompactions int `toml:"max-concurrent-compactions"`
+
+	// MaxConcurrentOptimizedCompactions is the maximum number of concurrent optimized compactions
+	// that can be running across all shards. Optimized compactions scheduled to run when the limit
+	// is reached are aborted, saving them for a later compaction run.
+	MaxConcurrentOptimizedCompactions int `toml:"max-concurrent-optimized-compactions"`
 
 	// MaxIndexLogFileSize is the threshold, in bytes, when an index write-ahead log file will
 	// compact into an index file. Lower sizes will cause log files to be compacted more quickly
