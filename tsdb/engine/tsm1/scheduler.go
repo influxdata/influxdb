@@ -4,15 +4,16 @@ import (
 	"sync/atomic"
 )
 
-var defaultWeights = [4]float64{0.4, 0.3, 0.2, 0.1}
+// Level 5 (optimize) is set so much lower because level 5 compactions take so much longer.
+var defaultWeights = [TotalCompactionLevels]float64{0.4, 0.3, 0.2, 0.1, 0.01}
 
 type scheduler struct {
 	maxConcurrency int
 	stats          *EngineStatistics
 
 	// queues is the depth of work pending for each compaction level
-	queues  [4]int
-	weights [4]float64
+	queues  [TotalCompactionLevels]int
+	weights [TotalCompactionLevels]float64
 }
 
 func newScheduler(stats *EngineStatistics, maxConcurrency int) *scheduler {
@@ -36,9 +37,10 @@ func (s *scheduler) next() (int, bool) {
 	level1Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[0]))
 	level2Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[1]))
 	level3Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[2]))
-	level4Running := int(atomic.LoadInt64(&s.stats.TSMFullCompactionsActive) + atomic.LoadInt64(&s.stats.TSMOptimizeCompactionsActive))
+	level4Running := int(atomic.LoadInt64(&s.stats.TSMFullCompactionsActive))
+	level5Running := int(atomic.LoadInt64(&s.stats.TSMOptimizeCompactionsActive))
 
-	if level1Running+level2Running+level3Running+level4Running >= s.maxConcurrency {
+	if level1Running+level2Running+level3Running+level4Running+level5Running >= s.maxConcurrency {
 		return 0, false
 	}
 
@@ -50,7 +52,7 @@ func (s *scheduler) next() (int, bool) {
 	loLimit, _ := s.limits()
 
 	end := len(s.queues)
-	if level3Running+level4Running >= loLimit && s.maxConcurrency-(level1Running+level2Running) == 0 {
+	if level3Running+level4Running+level5Running >= loLimit && s.maxConcurrency-(level1Running+level2Running) == 0 {
 		end = 2
 	}
 
