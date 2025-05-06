@@ -55,6 +55,12 @@ func init() {
 }
 
 var (
+	ErrCompactionLimited         = errors.New("reached concurrent compaction limit")
+	ErrNoCompactionStrategy      = errors.New("no compaction strategy")
+	ErrOptimizeCompactionLimited = errors.New("reached concurrent optimized compaction limit")
+)
+
+var (
 	// Ensure Engine implements the interface.
 	_ tsdb.Engine = &Engine{}
 	// Static objects to prevent small allocs.
@@ -78,6 +84,21 @@ const (
 
 	// deleteFlushThreshold is the size in bytes of a batch of series keys to delete.
 	deleteFlushThreshold = 50 * 1024 * 1024
+
+	// DoNotCompactFile is the name of the file that disables compactions.
+	DoNotCompactFile = "do_not_compact"
+
+	// LevelCompactionCount is the number of level compactions (e.g. 1, 2, 3).
+	LevelCompactionCount = 3
+
+	// FullCompactionLevel is the compaction level for full compactions.
+	FullCompactionLevel = 4
+
+	// OptimizeCompactionLevel is the compaction level for optimized compactions.
+	OptimizeCompactionLevel = 5
+
+	// TotalCompactionLevels is the overall number of compaction levels.
+	TotalCompactionLevels = 5
 )
 
 // Engine represents a storage engine with compressed blocks.
@@ -143,6 +164,9 @@ type Engine struct {
 
 	// Limiter for concurrent compactions.
 	compactionLimiter limiter.Fixed
+
+	// Limiter for concurrent optimized compactions.
+	optimizedCompactionLimiter limiter.Fixed
 
 	scheduler *scheduler
 
@@ -221,6 +245,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		formatFileName:                DefaultFormatFileName,
 		stats:                         stats,
 		compactionLimiter:             opt.CompactionLimiter,
+		optimizedCompactionLimiter:    opt.OptimizedCompactionLimiter,
 		seriesIDSets:                  opt.SeriesIDSets,
 	}
 
@@ -2053,9 +2078,36 @@ func (e *Engine) ShouldCompactCache(t time.Time) bool {
 	return t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration
 }
 
+// isFileOptimized returns true if a TSM file appears to have already been previously optimized.
+// If file appears previously optimized, a description of the heuristic used to determine this is also returned.
+func (e *Engine) isFileOptimized(f string) (bool, string) {
+	if tsmPointsPerBlock := e.Compactor.FileStore.BlockCount(f, 1); tsmPointsPerBlock >= e.CompactionPlan.GetAggressiveCompactionPointsPerBlock() {
+		return true, fmt.Sprintf("first block of file contains aggressive points per block (%d >= %d)", tsmPointsPerBlock, e.CompactionPlan.GetAggressiveCompactionPointsPerBlock())
+	} else {
+		return false, ""
+	}
+}
+
+// IsGroupOptimized returns true if any file in a compaction group appears to be have been previously optimized.
+// The name of the first optimized file found along with the heuristic used to determine this is returned.
+func (e *Engine) IsGroupOptimized(group CompactionGroup) (optimized bool, file string, heuristic string) {
+	for _, f := range group {
+		if isOpt, heur := e.isFileOptimized(f); isOpt {
+			return true, f, heur
+		}
+	}
+	return false, "", ""
+}
+
+const waitForOptimization = time.Hour
+const tickPeriod = time.Second
+
+var waitMessage = fmt.Sprintf("waiting %s before optimizing compaction", waitForOptimization.String())
+
 func (e *Engine) compact(wg *sync.WaitGroup) {
-	t := time.NewTicker(time.Second)
+	t := time.NewTicker(tickPeriod)
 	defer t.Stop()
+	startTime := time.Now()
 
 	for {
 		e.mu.RLock()
@@ -2068,32 +2120,15 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 
 		case <-t.C:
 
-			// Find our compaction plans
-			level1Groups, len1 := e.CompactionPlan.PlanLevel(1)
-			level2Groups, len2 := e.CompactionPlan.PlanLevel(2)
-			level3Groups, len3 := e.CompactionPlan.PlanLevel(3)
-			level4Groups, len4 := e.CompactionPlan.Plan(e.LastModified())
-
-			e.stats.Queued.With(prometheus.Labels{levelKey: levelFull}).Set(float64(len4))
-
-			// If no full compactions are need, see if an optimize is needed
-			var genLen int64
-			if len(level4Groups) == 0 {
-				level4Groups, len4, genLen = e.CompactionPlan.PlanOptimize(e.LastModified())
-				if len(level4Groups) > 0 {
-					for _, group := range level4Groups {
-						e.logger.Info("TSM scheduled for optimized compaction", zap.Strings("files", group))
-					}
+			skipOptimize := func() (bool, string) {
+				if time.Since(startTime) < waitForOptimization {
+					return true, waitMessage
+				} else {
+					return false, ""
 				}
-				e.stats.Queued.With(prometheus.Labels{levelKey: levelOpt}).Set(float64(len4))
 			}
 
-			// Update the level plan queue stats
-			// For stats, use the length needed, even if the lock was
-			// not acquired
-			e.stats.Queued.With(prometheus.Labels{levelKey: level1}).Set(float64(len1))
-			e.stats.Queued.With(prometheus.Labels{levelKey: level2}).Set(float64(len2))
-			e.stats.Queued.With(prometheus.Labels{levelKey: level3}).Set(float64(len3))
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
 
 			// Set the queue depths on the scheduler
 			// Use the real queue depth, dependent on acquiring
@@ -2102,62 +2137,224 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			e.scheduler.setDepth(2, len(level2Groups))
 			e.scheduler.setDepth(3, len(level3Groups))
 			e.scheduler.setDepth(4, len(level4Groups))
+			e.scheduler.setDepth(5, len(level5Groups))
 
 			// Find the next compaction that can run and try to kick it off
 			if level, runnable := e.scheduler.next(); runnable {
 				switch level {
 				case 1:
-					if e.compactHiPriorityLevel(level1Groups[0], 1, false, tsdb.DefaultMaxPointsPerBlock, wg) {
+					if e.compactHiPriorityLevel(level1Groups[0].Group, 1, false, wg) {
 						level1Groups = level1Groups[1:]
 					}
 				case 2:
-					if e.compactHiPriorityLevel(level2Groups[0], 2, false, tsdb.DefaultMaxPointsPerBlock, wg) {
+					if e.compactHiPriorityLevel(level2Groups[0].Group, 2, false, wg) {
 						level2Groups = level2Groups[1:]
 					}
 				case 3:
-					if e.compactLoPriorityLevel(level3Groups[0], 3, true, tsdb.DefaultMaxPointsPerBlock, wg) {
+					if e.compactLoPriorityLevel(level3Groups[0].Group, 3, true, wg) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
-					var pointsPerBlock int
-					// This is a heuristic. The 10_000 points per block default is suitable for when we have a
-					// single generation with multiple files at max block size under 2 GB.
-					if genLen == 1 {
-						// Log TSM files that will have an increased points per block count.
-						for _, f := range level4Groups[0] {
-							e.logger.Info("TSM optimized compaction on single generation running, increasing total points per block.", zap.String("path", f), zap.Int("points-per-block", e.CompactionPlan.GetAggressiveCompactionPointsPerBlock()))
-						}
-						pointsPerBlock = e.CompactionPlan.GetAggressiveCompactionPointsPerBlock()
-					} else {
-						pointsPerBlock = tsdb.DefaultMaxPointsPerBlock
-						for _, group := range level4Groups {
-							for _, f := range group {
-								if tsmPointsPerBlock := e.Compactor.FileStore.BlockCount(f, 1); tsmPointsPerBlock >= e.CompactionPlan.GetAggressiveCompactionPointsPerBlock() {
-									pointsPerBlock = e.CompactionPlan.GetAggressiveCompactionPointsPerBlock()
-									e.logger.Info("TSM compaction on shard with increased points per block.", zap.String("path", f), zap.Int("points-per-block", e.CompactionPlan.GetAggressiveCompactionPointsPerBlock()))
-									break
-								}
-							}
-						}
-					}
-					if e.compactFull(level4Groups[0], pointsPerBlock, wg) {
+					if e.compactFull(level4Groups[0].Group, wg) {
 						level4Groups = level4Groups[1:]
+					}
+				case 5:
+					theGroup := level5Groups[0].Group
+					pointsPerBlock := level5Groups[0].PointsPerBlock
+					log := e.logger.With(zap.Strings("files", theGroup))
+
+					log = log.With(zap.Bool("aggressive", true))
+					if skip, reason := skipOptimize(); skip {
+						log.Info("Skipping optimized level 5 compaction group", zap.String("reason", reason))
+					} else {
+						log.Info("Running optimized compaction for level 5 group")
+						if err := e.compactOptimize(theGroup, pointsPerBlock, wg); err != nil {
+							if errors.Is(err, ErrOptimizeCompactionLimited) {
+								// We've reached the limit of optimized compactions. Let's not schedule anything else this schedule cycle
+								// in an effort to avoid starving level compactions.
+								log.Info("Reached limit for optimized compactions. Ending optimized compaction scheduling for this scheduling cycle")
+							} else if errors.Is(err, ErrCompactionLimited) {
+								// We've reached the maximum amount of total concurrent compactions. Again, don't schedule any more optimized
+								// compactions this cycle to prevent starving level compactions.
+								log.Info("Reached limit for concurrent compactions while attempting optimized compaction. Ending optimized compaction scheduling for this scheduling cycle")
+							} else {
+								log.Error("Error during compactOptimize", zap.Error(err))
+							}
+						} else {
+							level5Groups = level5Groups[1:]
+						}
 					}
 				}
 			}
 
 			// Release all the plans we didn't start.
-			e.CompactionPlan.Release(level1Groups)
-			e.CompactionPlan.Release(level2Groups)
-			e.CompactionPlan.Release(level3Groups)
-			e.CompactionPlan.Release(level4Groups)
+			e.releaseCompactionPlans(level1Groups, level2Groups, level3Groups, level4Groups, level5Groups)
 		}
 	}
 }
 
-// compactHiPriorityLevel kicks off compactions using the level strategy. It returns
-// true if the compaction was started
-func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast bool, pointsPerBlock int, wg *sync.WaitGroup) bool {
+func (e *Engine) releaseCompactionPlans(
+	level1Groups []PlannedCompactionGroup,
+	level2Groups []PlannedCompactionGroup,
+	level3Groups []PlannedCompactionGroup,
+	level4Groups []PlannedCompactionGroup,
+	level5Groups []PlannedCompactionGroup) {
+	for _, compactGroup := range level1Groups {
+		e.CompactionPlan.Release([]CompactionGroup{
+			compactGroup.Group,
+		})
+	}
+
+	for _, compactGroup := range level2Groups {
+		e.CompactionPlan.Release([]CompactionGroup{
+			compactGroup.Group,
+		})
+	}
+
+	for _, compactGroup := range level3Groups {
+		e.CompactionPlan.Release([]CompactionGroup{
+			compactGroup.Group,
+		})
+	}
+
+	for _, compactGroup := range level4Groups {
+		e.CompactionPlan.Release([]CompactionGroup{
+			compactGroup.Group,
+		})
+	}
+
+	for _, compactGroup := range level5Groups {
+		e.CompactionPlan.Release([]CompactionGroup{
+			compactGroup.Group,
+		})
+	}
+}
+
+// During compaction planning we need to indicate whether or
+// not the points per block has changed. PlannedCompactionGroup
+// is an abstraction on top of CompactionGroup that includes
+// PointsPerBlock for compaction processing. Without this we
+// may unroll a compacted TSM file that is above our max points per block
+// and rewrite it in its entirety at max points per block.
+type PlannedCompactionGroup struct {
+	Group          CompactionGroup
+	PointsPerBlock int
+}
+
+func (e *Engine) PlanCompactions() (
+	level1Groups []PlannedCompactionGroup,
+	level2Groups []PlannedCompactionGroup,
+	level3Groups []PlannedCompactionGroup,
+	level4Groups []PlannedCompactionGroup,
+	level5Groups []PlannedCompactionGroup) {
+	// Find our compaction plans
+	l1Groups, len1 := e.CompactionPlan.PlanLevel(1)
+	l2Groups, len2 := e.CompactionPlan.PlanLevel(2)
+	l3Groups, len3 := e.CompactionPlan.PlanLevel(3)
+	initialLevellevel4Groups, _ := e.CompactionPlan.Plan(e.LastModified())
+
+	for _, group := range l1Groups {
+		level1Groups = append(level1Groups, PlannedCompactionGroup{
+			Group:          group,
+			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+		})
+	}
+
+	for _, group := range l2Groups {
+		level2Groups = append(level2Groups, PlannedCompactionGroup{
+			Group:          group,
+			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+		})
+	}
+
+	for _, group := range l3Groups {
+		level3Groups = append(level3Groups, PlannedCompactionGroup{
+			Group:          group,
+			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+		})
+	}
+
+	// Some groups in level 4 may contain already optimized files. In these cases, we want
+	// to maintain optimization for the entire group to avoid "going backwards" on the
+	// optimization level. For instance, if an optimized cold shard had back-fill data
+	// added to it, we should maintain the optimization to avoid unoptimizing the bulk of
+	// the shards only to need to reoptimize them later.
+	// In an ideal world, CompactionPlan.Plan and CompactionPlan.PlanOptimize might handle this.
+	level4Groups = make([]PlannedCompactionGroup, 0, len(initialLevellevel4Groups))
+	level5Groups = make([]PlannedCompactionGroup, 0, len(initialLevellevel4Groups))
+	for _, group := range initialLevellevel4Groups {
+		if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
+			e.logger.Info("Promoting full compaction level 4 group to optimized level 5 compaction group because it contains an already optimized TSM file",
+				zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
+
+			// Should set this compaction group to aggressive. IsGroupOptimized will check the
+			// block count and return true if there is a file at aggressivePointsPerBlock.
+			// We will need to run aggressive compaction on this group if that's the case.
+			level5Groups = append(level5Groups, PlannedCompactionGroup{
+				Group:          group,
+				PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
+			})
+		} else {
+			level4Groups = append(level4Groups, PlannedCompactionGroup{
+				Group:          group,
+				PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+			})
+		}
+	}
+
+	if len(level4Groups) == 0 {
+		plannedLevel5Groups, _, genCount := e.CompactionPlan.PlanOptimize(e.LastModified())
+
+		for _, group := range plannedLevel5Groups {
+			// If a level5 optimized compaction group is a single generation. We will need to rewrite
+			// the files at a higher points per block count in order to fully compact them in to a single TSM file.
+			if genCount == 1 {
+				e.logger.Info("Planned optimized level 5 compactions belong to single generation. All groups will use aggressive points per block.")
+				level5Groups = append(level5Groups, PlannedCompactionGroup{
+					Group:          group,
+					PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
+				})
+			} else {
+				if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
+					e.logger.Info("Planning optimized level 5 compaction Group at aggressive points per block.",
+						zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
+					// Should set this compaction group to aggressive. IsGroupOptimized will check the
+					// block count and return true if there is a file at aggressivePointsPerBlock.
+					// We will need to run aggressive compaction on this group if that's the case.
+					level5Groups = append(level5Groups, PlannedCompactionGroup{
+						Group:          group,
+						PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
+					})
+				} else {
+					e.logger.Info("Planning optimized level 5 compaction Group", zap.Strings("files", group))
+					level5Groups = append(level5Groups, PlannedCompactionGroup{
+						Group:          group,
+						PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+					})
+
+				}
+
+			}
+		}
+	}
+
+	len4 := int64(len(level4Groups))
+	len5 := int64(len(level5Groups))
+
+	// Update the level plan queue stats
+	// For stats, use the length needed, even if the lock was
+	// not acquired
+	atomic.StoreInt64(&e.activeCompactions.l1, len1)
+	atomic.StoreInt64(&e.activeCompactions.l2, len2)
+	atomic.StoreInt64(&e.activeCompactions.l3, len3)
+	atomic.StoreInt64(&e.activeCompactions.full, len4)
+	atomic.StoreInt64(&e.activeCompactions.optimize, len5)
+	return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
+}
+
+// compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
+// true if the compaction was started.
+func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast bool, wg *sync.WaitGroup) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
@@ -2178,7 +2375,7 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast boo
 			}()
 
 			defer e.compactionLimiter.Release()
-			s.Apply(pointsPerBlock)
+			s.Apply()
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
 		}()
@@ -2191,7 +2388,7 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast boo
 
 // compactLoPriorityLevel kicks off compactions using the lo priority policy. It returns
 // the plans that were not able to be started
-func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast bool, pointsPerBlock int, wg *sync.WaitGroup) bool {
+func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast bool, wg *sync.WaitGroup) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
@@ -2207,7 +2404,7 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast boo
 			val := atomic.AddInt64(e.activeCompactions.countForLevel(level), 1)
 			e.stats.Active.With(labelForLevel(level)).Set(float64(val))
 			defer e.compactionLimiter.Release()
-			s.Apply(pointsPerBlock)
+			s.Apply()
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
 		}()
@@ -2218,8 +2415,8 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast boo
 
 // compactFull kicks off full and optimize compactions using the lo priority policy. It returns
 // the plans that were not able to be started.
-func (e *Engine) compactFull(grp CompactionGroup, pointsPerBlock int, wg *sync.WaitGroup) bool {
-	s := e.fullCompactionStrategy(grp, false)
+func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
+	s := e.fullCompactionStrategy(grp)
 	if s == nil {
 		return false
 	}
@@ -2238,7 +2435,7 @@ func (e *Engine) compactFull(grp CompactionGroup, pointsPerBlock int, wg *sync.W
 				e.stats.Active.With(prometheus.Labels{levelKey: levelFull}).Set(float64(val))
 			}()
 			defer e.compactionLimiter.Release()
-			s.Apply(pointsPerBlock)
+			s.Apply()
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
 		}()
@@ -2247,12 +2444,50 @@ func (e *Engine) compactFull(grp CompactionGroup, pointsPerBlock int, wg *sync.W
 	return false
 }
 
+// compactOptimize kicks off an optimize compaction using the lo priority policy.
+// On success, it returns no error. It returns an ErrOptimizeCompactionLimited if
+// the optimized compaction limiter has no available slots. Other errors are returned as appropriate.
+func (e *Engine) compactOptimize(grp CompactionGroup, pointsPerBlock int, wg *sync.WaitGroup) error {
+	s := e.optimizeCompactionStrategy(grp, pointsPerBlock)
+	if s == nil {
+		return ErrNoCompactionStrategy
+	}
+
+	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
+	// Ordering for taking and releasing limiters:
+	// 1. Take compactionLimiter
+	// 2. Take optimizedCompactionLimiter
+	// 3. Release optimizedCompactionLimiter
+	// 4/ Release compactionLimiter
+	if e.compactionLimiter.TryTake() {
+		if !e.optimizedCompactionLimiter.TryTake() {
+			e.compactionLimiter.Release()
+			return ErrOptimizeCompactionLimited
+		}
+		atomic.AddInt64(&e.activeCompactions.optimize, 1)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer atomic.AddInt64(&e.activeCompactions.optimize, -1)
+			defer e.compactionLimiter.Release()          // Happens second
+			defer e.optimizedCompactionLimiter.Release() // Happens first
+			s.Apply()
+			// Release the files in the compaction plan
+			e.CompactionPlan.Release([]CompactionGroup{s.group})
+		}()
+		return nil
+	} else {
+		return ErrCompactionLimited
+	}
+}
+
 // compactionStrategy holds the details of what to do in a compaction.
 type compactionStrategy struct {
 	group CompactionGroup
 
-	fast  bool
-	level int
+	fast           bool
+	level          int
+	pointsPerBlock int
 
 	durationSecondsStat prometheus.Observer
 	errorStat           prometheus.Counter
@@ -2265,17 +2500,22 @@ type compactionStrategy struct {
 }
 
 // Apply concurrently compacts all the groups in a compaction strategy.
-func (s *compactionStrategy) Apply(pointsPerBlock int) {
+func (s *compactionStrategy) Apply() {
 	start := time.Now()
-	s.compactGroup(pointsPerBlock)
+	s.compactGroup()
 	s.durationSecondsStat.Observe(time.Since(start).Seconds())
 }
 
 // compactGroup executes the compaction strategy against a single CompactionGroup.
-func (s *compactionStrategy) compactGroup(pointsPerBlock int) {
+func (s *compactionStrategy) compactGroup() {
 	group := s.group
 	log, logEnd := logger.NewOperation(context.TODO(), s.logger, "TSM compaction", "tsm1_compact_group", logger.Shard(s.engine.id))
 	defer logEnd()
+
+	pointsPerBlock := s.pointsPerBlock
+	if pointsPerBlock <= 0 {
+		pointsPerBlock = tsdb.DefaultMaxPointsPerBlock
+	}
 
 	log.Info("Beginning compaction", zap.Int("tsm1_files_n", len(group)))
 	for i, f := range group {
@@ -2353,17 +2593,17 @@ func MoveTsmOnReadErr(err error, log *zap.Logger, replaceFn func([]string, []str
 }
 
 // levelCompactionStrategy returns a compactionStrategy for the given level.
-// It returns nil if there are no TSM files to compact.
 func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level int) *compactionStrategy {
 	label := labelForLevel(level)
 	return &compactionStrategy{
-		group:     group,
-		logger:    e.logger.With(zap.Int("tsm1_level", level), zap.String("tsm1_strategy", "level")),
-		fileStore: e.FileStore,
-		compactor: e.Compactor,
-		fast:      fast,
-		engine:    e,
-		level:     level,
+		group:          group,
+		logger:         e.logger.With(zap.Int("tsm1_level", level), zap.String("tsm1_strategy", "level")),
+		fileStore:      e.FileStore,
+		compactor:      e.Compactor,
+		pointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+		fast:           fast,
+		engine:         e,
+		level:          level,
 
 		errorStat:           e.stats.Failed.With(label),
 		durationSecondsStat: e.stats.Duration.With(label),
@@ -2371,25 +2611,40 @@ func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level
 }
 
 // fullCompactionStrategy returns a compactionStrategy for higher level generations of TSM files.
-// It returns nil if there are no TSM files to compact.
-func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *compactionStrategy {
-	s := &compactionStrategy{
-		group:     group,
-		logger:    e.logger.With(zap.String("tsm1_strategy", "full"), zap.Bool("tsm1_optimize", optimize)),
-		fileStore: e.FileStore,
-		compactor: e.Compactor,
-		fast:      optimize,
-		engine:    e,
-		level:     4,
-	}
+func (e *Engine) fullCompactionStrategy(group CompactionGroup) *compactionStrategy {
+	pointsPerBlock := tsdb.DefaultMaxPointsPerBlock
+	label := prometheus.Labels{levelKey: levelFull}
+	return &compactionStrategy{
+		group:          group,
+		logger:         e.logger.With(zap.String("tsm1_strategy", "full"), zap.Int("points-per-block", pointsPerBlock)),
+		fileStore:      e.FileStore,
+		compactor:      e.Compactor,
+		pointsPerBlock: pointsPerBlock,
+		fast:           false,
+		engine:         e,
+		level:          FullCompactionLevel,
 
-	plabel := prometheus.Labels{levelKey: levelFull}
-	if optimize {
-		plabel = prometheus.Labels{levelKey: levelOpt}
+		errorStat:           e.stats.Failed.With(label),
+		durationSecondsStat: e.stats.Duration.With(label),
 	}
-	s.errorStat = e.stats.Failed.With(plabel)
-	s.durationSecondsStat = e.stats.Duration.With(plabel)
-	return s
+}
+
+// optimizeCompactionStrategy returns a compactionStrategy for optimized compaction of TSM files.
+func (e *Engine) optimizeCompactionStrategy(group CompactionGroup, pointsPerBlock int) *compactionStrategy {
+	label := prometheus.Labels{levelKey: levelOpt}
+	return &compactionStrategy{
+		group:          group,
+		logger:         e.logger.With(zap.String("tsm1_strategy", "optimize"), zap.Bool("aggressive", pointsPerBlock >= e.CompactionPlan.GetAggressiveCompactionPointsPerBlock()), zap.Int("points-per-block", pointsPerBlock)),
+		fileStore:      e.FileStore,
+		compactor:      e.Compactor,
+		pointsPerBlock: pointsPerBlock,
+		fast:           false,
+		engine:         e,
+		level:          OptimizeCompactionLevel,
+
+		errorStat:           e.stats.Failed.With(label),
+		durationSecondsStat: e.stats.Duration.With(label),
+	}
 }
 
 // reloadCache reads the WAL segment files and loads them into the cache.

@@ -141,6 +141,11 @@ type Config struct {
 	// not affected by this limit.  A value of 0 limits compactions to runtime.GOMAXPROCS(0).
 	MaxConcurrentCompactions int `toml:"max-concurrent-compactions"`
 
+	// MaxConcurrentOptimizedCompactions is the maximum number of concurrent optimized compactions
+	// that can be running across all shards. Optimized compactions scheduled to run when the limit
+	// is reached are aborted, saving them for a later compaction run.
+	MaxConcurrentOptimizedCompactions int `toml:"max-concurrent-optimized-compactions"`
+
 	// MaxIndexLogFileSize is the threshold, in bytes, when an index write-ahead log file will
 	// compact into an index file. Lower sizes will cause log files to be compacted more quickly
 	// and result in lower heap usage at the expense of write throughput. Higher sizes will
