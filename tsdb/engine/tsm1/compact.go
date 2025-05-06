@@ -270,12 +270,16 @@ func (c *DefaultPlanner) generationsFullyCompacted(gens tsmGenerations) (bool, s
 			aggressivePointsPerBlockCount := 0
 			filesUnderMaxTsmSizeCount := 0
 			for _, tsmFile := range gens[0].files {
-				if c.FileStore.BlockCount(tsmFile.Path, 1) >= c.aggressiveCompactionPointsPerBlock {
+				if c.FileStore.BlockCount(tsmFile.Path, 1) >= c.GetAggressiveCompactionPointsPerBlock() {
 					aggressivePointsPerBlockCount++
 				}
 				if tsmFile.Size < tsdb.MaxTSMFileSize {
 					filesUnderMaxTsmSizeCount++
 				}
+			}
+
+			if aggressivePointsPerBlockCount == len(gens[0].files) {
+				return true, "fully compacted because all files are at aggressivePointsPerBlock"
 			}
 
 			if filesUnderMaxTsmSizeCount > 1 && aggressivePointsPerBlockCount < len(gens[0].files) {
