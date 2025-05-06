@@ -179,17 +179,26 @@ func (f *LogFile) Close() error {
 	f.wg.Wait()
 
 	if f.w != nil {
-		f.w.Flush()
+		err := f.w.Flush()
+		if err != nil {
+			return err
+		}
 		f.w = nil
 	}
 
 	if f.file != nil {
-		f.file.Close()
+		err := f.file.Close()
+		if err != nil {
+			return err
+		}
 		f.file = nil
 	}
 
 	if f.data != nil {
-		mmap.Unmap(f.data)
+		err := mmap.Unmap(f.data)
+		if err != nil {
+			return err
+		}
 	}
 
 	f.mms = make(logMeasurements)
