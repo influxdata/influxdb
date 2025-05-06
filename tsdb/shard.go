@@ -102,15 +102,23 @@ func (e ShardError) Unwrap() error {
 // PartialWriteError indicates a write request could only write a portion of the
 // requested values.
 type PartialWriteError struct {
-	Reason  string
-	Dropped int
-
+	Reason          string
+	Dropped         int
+	Database        string
+	RetentionPolicy string
 	// A sorted slice of series keys that were dropped.
 	DroppedKeys [][]byte
 }
 
 func (e PartialWriteError) Error() string {
-	return fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
+	message := fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
+	if len(e.Database) > 0 {
+		message = fmt.Sprintf("%s for database: %s", message, e.Database)
+	}
+	if len(e.RetentionPolicy) > 0 {
+		message = fmt.Sprintf("%s for retention policy: %s", message, e.RetentionPolicy)
+	}
+	return message
 }
 
 // Shard represents a self-contained time series database. An inverted index of

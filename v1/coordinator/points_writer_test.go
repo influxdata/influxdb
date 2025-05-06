@@ -2,7 +2,9 @@ package coordinator_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -48,6 +50,47 @@ func TestPointsWriter_MapShards_One(t *testing.T) {
 
 	if exp := 1; len(shardMappings.Points) != exp {
 		t.Errorf("MapShards() len mismatch. got %v, exp %v", len(shardMappings.Points), exp)
+	}
+}
+
+func MapPoints(t *testing.T, c *coordinator.PointsWriter, pr *coordinator.WritePointsRequest, values []float64, droppedCount int, minDropped *coordinator.DroppedPoint, maxDropped *coordinator.DroppedPoint, summary string) {
+	var (
+		shardMappings *coordinator.ShardMapping
+		err           error
+	)
+	if shardMappings, err = c.MapShards(pr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if exp := 1; len(shardMappings.Points) != exp {
+		t.Errorf("MapShards() len mismatch. got %v, exp %v", len(shardMappings.Points), exp)
+	}
+
+	p := func() []models.Point {
+		for _, v := range shardMappings.Points {
+			return v
+		}
+		return nil
+	}()
+	verify :=
+		func(p []models.Point, values []float64) {
+			require.Equal(t, len(values), len(p), "unexpected number of points")
+			for i, expV := range values {
+				f, err := p[i].Fields()
+				require.NoError(t, err, "error retrieving fields")
+				v, ok := f["value"]
+				require.True(t, ok, "\"value\" field not found")
+				require.Equal(t, expV, v, "unexpected value")
+			}
+		}
+	verify(p, values)
+	require.Equal(t, shardMappings.Dropped(), droppedCount, "wrong number of points dropped")
+	if shardMappings.Dropped() > 0 {
+		require.Equal(t, minDropped.Point, shardMappings.MinDropped.Point, "minimum dropped point mismatch")
+		require.Equal(t, minDropped.Reason, shardMappings.MinDropped.Reason, "minimum dropped reason mismatch")
+		require.Equal(t, maxDropped.Point, shardMappings.MaxDropped.Point, "maximum dropped point mismatch")
+		require.Equal(t, maxDropped.Reason, shardMappings.MaxDropped.Reason, "maximum dropped reason mismatch")
+		require.Contains(t, shardMappings.SummariseDropped(), summary, "summary mismatch")
 	}
 }
 
@@ -239,9 +282,11 @@ func TestPointsWriter_MapShards_Invalid(t *testing.T) {
 		t.Errorf("MapShards() len mismatch. got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(shardMappings.Dropped), 1; got != exp {
+	if got, exp := shardMappings.RetentionDropped, 1; got != exp {
 		t.Fatalf("MapShard() dropped mismatch: got %v, exp %v", got, exp)
 	}
+
+	require.Equal(t, coordinator.RetentionPolicyBound, shardMappings.MinDropped.Reason, "unexpected reason for dropped point")
 }
 
 func TestPointsWriter_WritePoints(t *testing.T) {
@@ -288,7 +333,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		pr.AddPoint("cpu", 3.0, time.Now().Add(time.Hour+time.Second), nil)
 
 		// copy to prevent data race
-		sm := coordinator.NewShardMapping(16)
+		sm := coordinator.NewShardMapping(nil, 16)
 		sm.MapPoint(
 			&meta.ShardInfo{ID: uint64(1), Owners: []meta.ShardOwner{
 				{NodeID: 1},
@@ -360,15 +405,8 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	// are created.
 	ms := NewPointsWriterMetaClient()
 
-	// Three points that range over the shardGroup duration (1h) and should map to two
-	// distinct shards
+	// Add a point earlier than the retention period
 	pr.AddPoint("cpu", 1.0, time.Now().Add(-24*time.Hour), nil)
-
-	// copy to prevent data race
-	sm := coordinator.NewShardMapping(16)
-
-	// ShardMapper dropped this point
-	sm.Dropped = append(sm.Dropped, pr.Points[0])
 
 	// Local coordinator.Node ShardWriter
 	// lock on the write increment since these functions get called in parallel
@@ -392,13 +430,20 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	c.TSDBStore = store
 	c.Node = &influxdb.Node{ID: 1}
 
-	c.Open()
-	defer c.Close()
+	require.NoError(t, c.Open(), "failure opening PointsWriter")
+	defer func(pw *coordinator.PointsWriter) {
+		require.NoError(t, pw.Close(), "failure closing PointsWriter")
+	}(c)
 
 	err := c.WritePointsPrivileged(context.Background(), pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
-	if _, ok := err.(tsdb.PartialWriteError); !ok {
+	require.Error(t, err, "unexpected success writing points")
+	var pwErr tsdb.PartialWriteError
+	if !errors.As(err, &pwErr) {
 		t.Errorf("PointsWriter.WritePoints(): got %v, exp %v", err, tsdb.PartialWriteError{})
 	}
+	require.Equal(t, 1, pwErr.Dropped, "wrong number of points dropped")
+	require.ErrorContains(t, pwErr, "partial write: dropped 1 points outside retention policy of duration 1h0m0s")
+	require.ErrorContains(t, pwErr, "Retention Policy Lower Bound")
 }
 
 var shardID uint64
