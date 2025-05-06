@@ -2142,15 +2142,14 @@ func (e *Engine) IsGroupOptimized(group CompactionGroup) (optimized bool, file s
 const waitForOptimization = time.Hour
 const tickPeriod = time.Second
 
-var ticksBeforeOptimize = int(waitForOptimization.Seconds())
 var waitMessage = fmt.Sprintf("waiting %s before optimizing compaction", waitForOptimization.String())
 
 func (e *Engine) compact(wg *sync.WaitGroup) {
 	t := time.NewTicker(tickPeriod)
 	defer t.Stop()
 
+	startTime := time.Now()
 	var nextDisabledMsg time.Time
-	var cycleCount int
 
 	for {
 		e.mu.RLock()
@@ -2174,9 +2173,8 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 				continue
 			}
 
-			cycleCount += 1
 			skipOptimize := func() (bool, string) {
-				if cycleCount <= ticksBeforeOptimize {
+				if time.Since(startTime) < waitForOptimization {
 					return true, waitMessage
 				} else {
 					return false, ""
