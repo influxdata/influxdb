@@ -190,6 +190,11 @@ impl Catalog {
             })?;
 
         create_internal_db(&catalog).await;
+        catalog.metrics.operation_observer(
+            catalog
+                .subscribe_to_updates("catalog_operation_metrics")
+                .await,
+        );
         Ok(catalog)
     }
 
