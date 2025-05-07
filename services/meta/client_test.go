@@ -956,10 +956,11 @@ func TestMetaClient_Shards(t *testing.T) {
 	// Test pre-creating shard groups.
 	dur := sg.EndTime.Sub(sg.StartTime) + time.Nanosecond
 	tmax := tmin.Add(dur)
-	if err, _ := c.PrecreateShardGroups(tmin, tmax); err != nil {
+	if newShardGroups, err := c.PrecreateShardGroups(tmin, tmax); err != nil {
 		t.Fatal(err)
+	} else if len(newShardGroups) != 1 {
+		t.Fatalf("wrong number of shard groups: %d", len(newShardGroups))
 	}
-	// TODO(DSB): check shard directories are created here
 	// Test finding shard groups by time range.
 	groups, err := c.ShardGroupsByTimeRange("db0", "autogen", tmin, tmax)
 	if err != nil {
@@ -1029,16 +1030,18 @@ func TestMetaClient_CreateShardGroupIdempotent(t *testing.T) {
 	// Test pre-creating shard groups.
 	dur := sg.EndTime.Sub(sg.StartTime) + time.Nanosecond
 	tmax := tmin.Add(dur)
-	if err, _ := c.PrecreateShardGroups(tmin, tmax); err != nil {
+	if newShardGroups, err := c.PrecreateShardGroups(tmin, tmax); err != nil {
 		t.Fatal(err)
+	} else if len(newShardGroups) != 1 {
+		t.Fatalf("wrong number of shard groups: %d", len(newShardGroups))
 	}
-	// TODO(DSB): check shard groups created
 	i = c.Data().Index
 	t.Log("index: ", i)
-	if err, _ := c.PrecreateShardGroups(tmin, tmax); err != nil {
+	if newShardGroups, err := c.PrecreateShardGroups(tmin, tmax); err != nil {
 		t.Fatal(err)
+	} else if len(newShardGroups) != 0 {
+		t.Fatalf("wrong number of shard groups: %d", len(newShardGroups))
 	}
-	// TODO(DSB): Test no shard groups created
 	t.Log("index: ", i)
 	if got, exp := c.Data().Index, i; got != exp {
 		t.Fatalf("PrecreateShardGroups failed: invalid index, got %d, exp %d", got, exp)

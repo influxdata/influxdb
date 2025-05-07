@@ -775,7 +775,8 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) ([]ShardGroupFullInfo,
 	data := c.cacheData.Clone()
 	var changed bool
 
-	newShardGroups := make([]ShardGroupFullInfo, 0)
+	// return nil if no shard groups are created
+	var newShardGroups []ShardGroupFullInfo = nil
 	for _, di := range data.Databases {
 		for _, rp := range di.RetentionPolicies {
 			if len(rp.ShardGroups) == 0 {
@@ -816,11 +817,10 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) ([]ShardGroupFullInfo,
 
 	if changed {
 		if err := c.commit(data); err != nil {
-			return newShardGroups, err
+			return nil, err
 		}
 	}
-
-	return nil, nil
+	return newShardGroups, nil
 }
 
 // ShardOwner returns the owning shard group info for a specific shard.
