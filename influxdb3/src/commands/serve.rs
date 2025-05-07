@@ -49,6 +49,7 @@ use influxdb3_write::{
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::ObjectStore;
+use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
@@ -539,11 +540,21 @@ pub async fn command(config: Config) -> Result<()> {
 
     let time_provider = Arc::new(SystemProvider::new());
     let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
+    // setup base object store:
     let object_store: Arc<dyn ObjectStore> = config
         .object_store_config
         .make_object_store()
         .map_err(Error::ObjectStoreParsing)?;
 
+    // setup metrics'd object store:
+    let object_store: Arc<dyn ObjectStore> = Arc::new(ObjectStoreMetrics::new(
+        object_store,
+        Arc::clone(&time_provider) as _,
+        "main",
+        &metrics,
+    ));
+
+    // setup cached object store:
     let (object_store, parquet_cache) = if !config.disable_parquet_mem_cache {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
             object_store,
