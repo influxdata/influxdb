@@ -1,6 +1,7 @@
 ---
 source: influxdb3_cache/src/last_cache/mod.rs
 expression: catalog.snapshot()
+snapshot_kind: text
 ---
 {
   "nodes": {
@@ -18,6 +19,7 @@ expression: catalog.snapshot()
             "repo": [],
             "next_id": 0
           },
+          "retention_period": "Indefinite",
           "processing_engine_triggers": {
             "repo": [],
             "next_id": 0
@@ -266,6 +268,7 @@ expression: catalog.snapshot()
             ],
             "next_id": 2
           },
+          "retention_period": "Indefinite",
           "processing_engine_triggers": {
             "repo": [],
             "next_id": 0

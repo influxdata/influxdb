@@ -54,7 +54,6 @@ use observability_deps::tracing::{debug, error, info, trace};
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::convert::Infallible;
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
@@ -62,6 +61,7 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 use std::task::Poll;
+use std::{convert::Infallible, time::Duration};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 use unicode_segmentation::UnicodeSegmentation;
@@ -242,6 +242,12 @@ pub enum Error {
 
     #[error(transparent)]
     Influxdb3TypesHttp(#[from] influxdb3_types::http::Error),
+
+    #[error("The following Database does not exist: {0}")]
+    MissingDb(String),
+
+    #[error("The following Database Table does not exist: {0}")]
+    MissingTable(String),
 }
 
 #[derive(Debug, Error)]
@@ -1340,6 +1346,61 @@ impl HttpApi {
         let bytes = self.read_body(req).await?;
         serde_json::from_slice(&bytes).map_err(Into::into)
     }
+
+    pub(crate) async fn set_retention_period_for_database(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, Error> {
+        #[derive(Deserialize)]
+        struct SetRetentionPeriod {
+            db: String,
+            duration: String,
+        }
+
+        let query = req.uri().query().unwrap_or("");
+        let create_req = serde_urlencoded::from_str::<SetRetentionPeriod>(query)?;
+        let catalog = self.write_buffer.catalog();
+
+        let duration: Duration = create_req
+            .duration
+            .parse::<humantime::Duration>()
+            .unwrap()
+            .into();
+
+        catalog
+            .set_retention_period_for_database(create_req.db.as_str(), duration)
+            .await?;
+
+        let body = Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .body(Body::empty());
+
+        Ok(body?)
+    }
+
+    pub(crate) async fn clear_retention_period_for_database(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, Error> {
+        #[derive(Deserialize)]
+        struct ClearRetentionPeriod {
+            db: String,
+        }
+
+        let query = req.uri().query().unwrap_or("");
+        let catalog = self.write_buffer.catalog();
+        let delete_req = serde_urlencoded::from_str::<ClearRetentionPeriod>(query)?;
+
+        catalog
+            .clear_retention_period_for_database(delete_req.db.as_str())
+            .await?;
+
+        let body = Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .body(Body::empty());
+
+        Ok(body?)
+    }
 }
 
 /// Check that the content type is application/json
@@ -1864,6 +1925,13 @@ pub(crate) async fn route_request(
             http_server
                 .test_processing_engine_schedule_plugin(req)
                 .await
+        }
+        (Method::POST, all_paths::API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD) => {
+            http_server.set_retention_period_for_database(req).await
+        }
+
+        (Method::DELETE, all_paths::API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD) => {
+            http_server.clear_retention_period_for_database(req).await
         }
         _ => {
             let body = bytes_to_response_body("not found");

@@ -367,6 +367,7 @@ impl TestServer {
 
         let http_client = reqwest::ClientBuilder::new()
             .min_tls_version(Version::TLS_1_3)
+            .timeout(Duration::from_secs(60))
             .use_rustls_tls()
             .add_root_certificate(
                 Certificate::from_pem(&std::fs::read("../testing-certs/rootCA.pem").unwrap())

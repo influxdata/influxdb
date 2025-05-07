@@ -21,6 +21,8 @@ pub(crate) const API_V3_CONFIGURE_PLUGIN_INSTALL_REQUIREMENTS: &str =
     "/api/v3/configure/plugin_environment/install_requirements";
 pub(crate) const API_V3_CONFIGURE_DATABASE: &str = "/api/v3/configure/database";
 pub(crate) const API_V3_CONFIGURE_TABLE: &str = "/api/v3/configure/table";
+pub(crate) const API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD: &str =
+    "/api/v3/configure/database/retention_period";
 pub const API_METRICS: &str = "/metrics";
 pub const API_PING: &str = "/ping";
 pub(crate) const API_V3_CONFIGURE_TOKEN: &str = "/api/v3/configure/token";
