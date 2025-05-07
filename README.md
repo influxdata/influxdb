@@ -55,7 +55,7 @@ We have nightly and versioned Docker images, Debian packages, RPM packages, and 
 - For InfluxDB 3 Core see the [InfluxDB 3 Core getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
 - For InfluxDB 3 Enterprise see the [InfluxDB 3 Enterprise getting started guide](https://docs.influxdata.com/influxdb3/enterprise/get-started/).
 
-If you are interested in building from source, see the [building from source](https://github.com/influxdata/influxdb/blob/main-2.x/CONTRIBUTING.md#building-from-source) guide for contributors.
+If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
 To begin using InfluxDB, visit our [Getting Started with InfluxDB](https://docs.influxdata.com/influxdb/v1/introduction/get-started/) documentation.
 

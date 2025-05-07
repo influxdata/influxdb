@@ -141,7 +141,7 @@ the `TEST_LOG` environment variable, for example:
 TEST_LOG= cargo nextest run -p influxdb3 --nocapture
 ```
 
-## Running `rustfmt` and `clippy`
+### Running `rustfmt` and `clippy`
 
 CI will check the code formatting with [`rustfmt`] and Rust best practices with [`clippy`].
 
@@ -171,3 +171,46 @@ cargo clippy --all-targets --workspace -- -D warnings
 
 [`rustfmt`]: https://github.com/rust-lang/rustfmt
 [`clippy`]: https://github.com/rust-lang/rust-clippy
+
+## Building from source
+
+InfluxDB 3 is built with Rust. Use [`rustup`][rustup] to install a recent Rust toolchain.
+
+You can clone and build the `influxdb3` binary:
+
+```
+git clone https://github.com/influxdata/influxdb.git
+cd influxdb
+cargo build
+```
+
+### System dependencies
+
+* `influxdb3` requires a working installation of `python3`. See [`README_processing_engine.md`](README_processing_engine.md)
+for more details on the system requirements.
+
+* `influxdb3` requires a working [`protoc`][protoc] Protocol Buffers compiler installed.
+
+### Build profiles
+
+The default build profile used when running `cargo build` will build quickly, but will not produce
+an optimized binary. To build a more optimized build, you can use a different `--profile`:
+
+```
+cargo build --profile <PROFILE>
+```
+
+The following profiles are available:
+
+* `release`: this profile optimizes for runtime performance and small binary size at the expense
+  of longer build times. It's most suitable for final release builds.
+* `quick-release`: this profile optimizes for short build times at the expense of larger binary
+  size and slower runtime performance. It's most suitable for development iterations. 
+* `quick-bench`: this profile extends the `quick-release` profile with debuginfo turned on in
+  order to produce more human friendly symbols for profiling tools.
+
+The [default profiles][cargo-default-profiles] supported by `cargo` can also be used.
+
+[rustup]: https://www.rust-lang.org/tools/install
+[protoc]: https://github.com/protocolbuffers/protobuf#protobuf-compiler-installation
+[cargo-default-profiles]: https://doc.rust-lang.org/cargo/reference/profiles.html
