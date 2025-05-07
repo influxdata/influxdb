@@ -4,11 +4,11 @@ package precreator // import "github.com/influxdata/influxdb/services/precreator
 import (
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/services/meta"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 )
 
