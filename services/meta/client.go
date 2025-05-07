@@ -759,16 +759,23 @@ func (c *Client) DeleteShardGroup(database, policy string, id uint64) error {
 	return nil
 }
 
+type ShardGroupFullInfo struct {
+	ShardGroup      *ShardGroupInfo
+	Database        string
+	RetentionPolicy string
+}
+
 // PrecreateShardGroups creates shard groups whose endtime is before the 'to' time passed in, but
 // is yet to expire before 'from'. This is to avoid the need for these shards to be created when data
 // for the corresponding time range arrives. Shard creation involves Raft consensus, and precreation
 // avoids taking the hit at write-time.
-func (c *Client) PrecreateShardGroups(from, to time.Time) error {
+func (c *Client) PrecreateShardGroups(from, to time.Time) ([]ShardGroupFullInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	data := c.cacheData.Clone()
 	var changed bool
 
+	newShardGroups := make([]ShardGroupFullInfo, 0)
 	for _, di := range data.Databases {
 		for _, rp := range di.RetentionPolicies {
 			if len(rp.ShardGroups) == 0 {
@@ -797,6 +804,7 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 						zap.Uint64("group_id", g.ID), zap.Error(err))
 					continue
 				}
+				newShardGroups = append(newShardGroups, ShardGroupFullInfo{ShardGroup: newGroup, Database: di.Name, RetentionPolicy: rp.Name})
 				changed = true
 				c.logger.Info("New shard group successfully precreated",
 					logger.ShardGroup(newGroup.ID),
@@ -808,11 +816,11 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 
 	if changed {
 		if err := c.commit(data); err != nil {
-			return err
+			return newShardGroups, err
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // ShardOwner returns the owning shard group info for a specific shard.

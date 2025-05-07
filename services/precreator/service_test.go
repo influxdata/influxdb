@@ -1,6 +1,7 @@
 package precreator_test
 
 import (
+	"github.com/influxdata/influxdb/services/meta"
 	"os"
 	"testing"
 	"time"
@@ -16,12 +17,12 @@ func TestShardPrecreation(t *testing.T) {
 	precreate := false
 
 	var mc internal.MetaClientMock
-	mc.PrecreateShardGroupsFn = func(now, cutoff time.Time) error {
+	mc.PrecreateShardGroupsFn = func(now, cutoff time.Time) ([]meta.ShardGroupFullInfo, error) {
 		if !precreate {
 			close(done)
 			precreate = true
 		}
-		return nil
+		return nil, nil
 	}
 
 	s := NewTestService()

@@ -32,7 +32,7 @@ type MetaClientMock struct {
 
 	OpenFn func() error
 
-	PrecreateShardGroupsFn func(from, to time.Time) error
+	PrecreateShardGroupsFn func(from, to time.Time) ([]meta.ShardGroupFullInfo, error)
 	PruneShardGroupsFn     func() error
 
 	RetentionPolicyFn func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
@@ -173,7 +173,7 @@ func (c *MetaClientMock) Open() error                { return c.OpenFn() }
 func (c *MetaClientMock) Data() meta.Data            { return c.DataFn() }
 func (c *MetaClientMock) SetData(d *meta.Data) error { return c.SetDataFn(d) }
 
-func (c *MetaClientMock) PrecreateShardGroups(from, to time.Time) error {
+func (c *MetaClientMock) PrecreateShardGroups(from, to time.Time) ([]meta.ShardGroupFullInfo, error) {
 	return c.PrecreateShardGroupsFn(from, to)
 }
 func (c *MetaClientMock) PruneShardGroups() error { return c.PruneShardGroupsFn() }
