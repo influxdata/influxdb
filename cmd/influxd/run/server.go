@@ -393,6 +393,7 @@ func (s *Server) appendPrecreatorService(c precreator.Config) error {
 	}
 	srv := precreator.NewService(c)
 	srv.MetaClient = s.MetaClient
+	srv.Store = s.TSDBStore
 	s.Services = append(s.Services, srv)
 	return nil
 }
