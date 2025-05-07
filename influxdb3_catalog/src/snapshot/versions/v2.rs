@@ -99,6 +99,12 @@ pub(crate) struct DatabaseSnapshot {
     pub(crate) deleted: bool,
 }
 
+/// A snapshot of a [`crate::catalog::TableDefinition`] used for serialization of table information from the
+/// catalog.
+///
+/// This is used over serde's `Serialize`/`Deserialize` implementations on the inner `Schema` type
+/// due to them being considered unstable. This type intends to mimic the structure of the Arrow
+/// `Schema`, and will help guard against potential breaking changes to the Arrow Schema types.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TableSnapshot {
     pub(crate) table_id: TableId,

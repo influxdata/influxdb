@@ -4,7 +4,10 @@ use metric::{Attributes, Metric, Registry, U64Counter};
 
 use crate::{
     channel::CatalogUpdateReceiver,
-    log::{CatalogBatch, DatabaseCatalogOp, NodeCatalogOp, TokenCatalogOp},
+    log::{
+        CatalogBatch, DatabaseCatalogOp, NodeCatalogOp, TokenCatalogOp,
+        versions::v3::{ClearRetentionPeriodLog, SetRetentionPeriodLog},
+    },
 };
 
 pub(super) const CATALOG_OPERATION_RETRIES_METRIC_NAME: &str =
@@ -122,6 +125,12 @@ impl AsMetricStr for DatabaseCatalogOp {
             DatabaseCatalogOp::DeleteTrigger(_) => "delete_trigger",
             DatabaseCatalogOp::EnableTrigger(_) => "enable_trigger",
             DatabaseCatalogOp::DisableTrigger(_) => "disable_trigger",
+            DatabaseCatalogOp::SetRetentionPeriod(SetRetentionPeriodLog { .. }) => {
+                "set_retention_period_db"
+            }
+            DatabaseCatalogOp::ClearRetentionPeriod(ClearRetentionPeriodLog { .. }) => {
+                "clear_retention_period_db"
+            }
         }
     }
 }
