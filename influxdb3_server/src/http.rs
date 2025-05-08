@@ -1402,19 +1402,21 @@ fn token_part_as_bytes(token: &str) -> Result<Vec<u8>, AuthenticationError> {
         AuthenticationError::MalformedRequest
     })?;
 
-    let token_parts = String::from_utf8(decoded)
-        .map_err(|err| {
-            error!(?err, "cannot decode basic auth token to string");
-            AuthenticationError::MalformedRequest
-        })?
-        .split(":")
-        .map(|part| part.to_owned())
-        .collect::<Vec<String>>();
+    let token_parts_string = String::from_utf8(decoded).map_err(|err| {
+        error!(?err, "cannot decode basic auth token to string");
+        AuthenticationError::MalformedRequest
+    })?;
 
-    let token_part = token_parts.get(1).ok_or_else(|| {
+    let token_parts = token_parts_string.rsplit_once(":");
+    let (username, token_part) = token_parts.ok_or_else(|| {
         error!("cannot find token part in decoded basic auth token");
         AuthenticationError::MalformedRequest
     })?;
+
+    if username.contains(":") {
+        error!("token username/password contains ':' which is not allowed");
+        return Err(AuthenticationError::MalformedRequest);
+    }
 
     Ok(token_part.as_bytes().to_vec())
 }
@@ -2200,6 +2202,18 @@ mod tests {
     fn test_basic_auth_token_invalid() {
         let invalid_token = token_part_as_bytes(
             "YXBpdjNfSmthbHYtSVBLcUpSMlA3UVQwbjI4Z0ZwZjFpRXdLLWVaN3E2aFhxeXpySnUwa0VQQi1WRTg4ZUdYVFR6OUdLaHdLbTM4LTZxa3lrS1BkaE5lZHVTOWc=",
+        );
+        assert!(matches!(
+            invalid_token,
+            Err(AuthenticationError::MalformedRequest)
+        ));
+    }
+
+    #[test]
+    fn test_basic_auth_token_should_not_allow_colon_in_username() {
+        //  echo -n "foo:bar:$TOKEN" | base64 -w 0
+        let invalid_token = token_part_as_bytes(
+            "Zm9vOmJhcjphcGl2M19Ka2Fsdi1JUEtxSlIyUDdRVDBuMjhnRnBmMWlFd0stZVo3cTZoWHF5enJKdTBrRVBCLVZFODhlR1hUVHo5R0tod0ttMzgtNnFreWtLUGRoTmVkdVM5Zw==",
         );
         assert!(matches!(
             invalid_token,
