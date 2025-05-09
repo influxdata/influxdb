@@ -1,7 +1,6 @@
 package tsm1
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -80,8 +79,8 @@ func TestCache_WriteMulti_Stats(t *testing.T) {
 	c.init()
 	c.store = ms
 
-	ms.writef = func(key []byte, v Values) (bool, error) {
-		if bytes.Equal(key, []byte("foo")) {
+	ms.writef = func(key string, v Values) (bool, error) {
+		if key == "foo" {
 			return false, errors.New("write failed")
 		}
 		return true, nil
@@ -811,7 +810,7 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 // Cache's storer implementation.
 type TestStore struct {
 	entryf       func(key []byte) *entry
-	writef       func(key []byte, values Values) (bool, error)
+	writef       func(key string, values Values) (bool, error)
 	removef      func(key []byte)
 	keysf        func(sorted bool) [][]byte
 	applyf       func(f func([]byte, *entry) error) error
@@ -823,7 +822,7 @@ type TestStore struct {
 
 func NewTestStore() *TestStore                                      { return &TestStore{} }
 func (s *TestStore) entry(key []byte) *entry                        { return s.entryf(key) }
-func (s *TestStore) write(key []byte, values Values) (bool, error)  { return s.writef(key, values) }
+func (s *TestStore) write(key string, values Values) (bool, error)  { return s.writef(key, values) }
 func (s *TestStore) remove(key []byte)                              { s.removef(key) }
 func (s *TestStore) keys(sorted bool) [][]byte                      { return s.keysf(sorted) }
 func (s *TestStore) apply(f func([]byte, *entry) error) error       { return s.applyf(f) }

@@ -11,7 +11,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/binaryutil"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"

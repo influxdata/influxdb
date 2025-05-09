@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 )
 
 // Filter represents a bloom filter.

@@ -22,7 +22,7 @@ import (
 	"sort"
 	"unsafe"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/influxdata/influxdb/v2/pkg/estimator"
 )
 
