@@ -47,6 +47,7 @@ function main () {
                 "$pkg"
             ;;
         windows_amd64)
+            export CGO_LDFLAGS="-lntdll -ladvapi32 -lkernel32 -luserenv -lws2_32 ${CGO_LDFLAGS}"
             export CC="$(xcc windows)"
             CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) go build \
                 -tags assets,sqlite_foreign_keys,sqlite_json,timetzdata \
