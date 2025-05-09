@@ -105,6 +105,9 @@ static CATALOG_WRITE_PERMIT: Mutex<CatalogSequenceNumber> =
 pub type CatalogWritePermit = MutexGuard<'static, CatalogSequenceNumber>;
 
 pub struct Catalog {
+    // The Catalog stores a reference to the metric registry so that other components in the
+    // system that are initialized from/with the catalog can easily access it as needed
+    metric_registry: Arc<Registry>,
     state: parking_lot::Mutex<CatalogState>,
     subscriptions: Arc<tokio::sync::RwLock<CatalogSubscriptions>>,
     time_provider: Arc<dyn TimeProvider>,
@@ -180,6 +183,7 @@ impl Catalog {
             .await
             .map(RwLock::new)
             .map(|inner| Self {
+                metric_registry,
                 state: parking_lot::Mutex::new(CatalogState::Active),
                 subscriptions,
                 time_provider,
@@ -227,6 +231,10 @@ impl Catalog {
             }
         });
         Ok(catalog)
+    }
+
+    pub fn metric_registry(&self) -> Arc<Registry> {
+        Arc::clone(&self.metric_registry)
     }
 
     pub fn time_provider(&self) -> Arc<dyn TimeProvider> {
@@ -591,6 +599,7 @@ impl Catalog {
             time_provider,
             store,
             metrics: Arc::new(CatalogMetrics::new(&metric_registry)),
+            metric_registry,
             inner: RwLock::new(inner),
             limits: Default::default(),
         };

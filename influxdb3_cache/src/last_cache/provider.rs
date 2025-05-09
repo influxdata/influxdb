@@ -18,6 +18,7 @@ use parking_lot::RwLock;
 use super::{
     CreateLastCacheArgs, Error,
     cache::{LastCache, LastCacheValueColumnsArg},
+    metrics::CacheMetrics,
 };
 
 /// A three level hashmap storing DbId -> TableId -> LastCacheId -> LastCache
@@ -27,6 +28,7 @@ type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<LastCacheId, LastC
 pub struct LastCacheProvider {
     pub(crate) catalog: Arc<Catalog>,
     pub(crate) cache_map: CacheMap,
+    pub(super) metrics: Arc<CacheMetrics>,
 }
 
 impl std::fmt::Debug for LastCacheProvider {
@@ -41,6 +43,10 @@ impl LastCacheProvider {
         let provider = Arc::new(LastCacheProvider {
             catalog: Arc::clone(&catalog),
             cache_map: Default::default(),
+            metrics: Arc::new(CacheMetrics::new(
+                catalog.metric_registry(),
+                catalog.time_provider(),
+            )),
         });
         for db_schema in catalog.list_db_schema() {
             for table_def in db_schema.tables() {

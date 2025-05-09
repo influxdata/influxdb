@@ -4,6 +4,7 @@ use influxdb3_id::ColumnId;
 
 mod cache;
 pub use cache::CreateLastCacheArgs;
+mod metrics;
 mod provider;
 pub use provider::LastCacheProvider;
 mod table_function;
