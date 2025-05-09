@@ -242,7 +242,7 @@ pub(crate) enum AuthenticationError {
     #[error("the request was not authenticated")]
     Unauthenticated,
     #[error(
-        "the request was not in the form of 'Authorization: <auth-scheme> <token>', supported auth-schemes are Bearer, Token and Basic"
+        "Authorization header was malformed, the request was not in the form of 'Authorization: <auth-scheme> <token>', supported auth-schemes are Bearer, Token and Basic"
     )]
     MalformedRequest,
     #[error("requestor is forbidden from requested resource")]
@@ -1877,11 +1877,9 @@ async fn authenticate(
             }
             AuthenticationError::MalformedRequest => {
                 return Some(Ok(Response::builder()
-                        .status(StatusCode::BAD_REQUEST)
-                        .body(Body::from("{\"error\":\
-                            \"Authorization header was malformed and should be in the form 'Authorization: Bearer <token>'\"\
-                        }"))
-                        .unwrap()));
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from(format!(r#"{{"error": "{e}"}}"#)))
+                    .unwrap()));
             }
             AuthenticationError::Forbidden => {
                 return Some(Ok(Response::builder()

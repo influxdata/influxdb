@@ -126,7 +126,7 @@ async fn auth_http() {
 }
 
 #[tokio::test]
-async fn http_v1_write_basic_auth() {
+async fn http_write_basic_auth() {
     let server = TestServer::configure().with_auth().spawn().await;
     let token = server
         .auth_token
@@ -174,18 +174,18 @@ async fn http_v1_write_basic_auth() {
         StatusCode::NO_CONTENT
     );
     // Malformed Header Tests
-    // Test that there is an extra string after the token foo
+    let resp = client
+        .get(&write_lp_url)
+        .query(&write_lp_params)
+        .header("Authorization", format!("Basic {token} whee"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     assert_eq!(
-        client
-            .get(&write_lp_url)
-            .query(&write_lp_params)
-            .header("Authorization", format!("Basic {token} whee"))
-            .send()
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::BAD_REQUEST
-    );
+        resp.text().await.unwrap(),
+        r#"{"error": "Authorization header was malformed, the request was not in the form of 'Authorization: <auth-scheme> <token>', supported auth-schemes are Bearer, Token and Basic"}"#
+    )
 }
 
 #[test_log::test(tokio::test)]
