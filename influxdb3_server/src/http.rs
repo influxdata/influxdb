@@ -4,6 +4,8 @@ use crate::{CommonServerState, all_paths};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
 use authz::http::AuthorizationHeaderExtension;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as B64_STANDARD;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
 use datafusion::error::DataFusionError;
@@ -239,7 +241,9 @@ pub enum Error {
 pub(crate) enum AuthenticationError {
     #[error("the request was not authenticated")]
     Unauthenticated,
-    #[error("the request was not in the form of 'Authorization: Bearer <token>'")]
+    #[error(
+        "Authorization header was malformed, the request was not in the form of 'Authorization: <auth-scheme> <token>', supported auth-schemes are Bearer, Token and Basic"
+    )]
     MalformedRequest,
     #[error("requestor is forbidden from requested resource")]
     Forbidden,
@@ -1370,7 +1374,7 @@ fn validate_auth_header(header: HeaderValue) -> Result<Vec<u8>, AuthenticationEr
 
     // Check that the header is the 'Bearer' or 'Token' auth scheme
     let auth_scheme = header.next().ok_or(AuthenticationError::MalformedRequest)?;
-    if auth_scheme != "Bearer" && auth_scheme != "Token" {
+    if auth_scheme != "Bearer" && auth_scheme != "Token" && auth_scheme != "Basic" {
         return Err(AuthenticationError::MalformedRequest);
     }
 
@@ -1383,7 +1387,38 @@ fn validate_auth_header(header: HeaderValue) -> Result<Vec<u8>, AuthenticationEr
         return Err(AuthenticationError::MalformedRequest);
     }
 
-    Ok(token.as_bytes().to_vec())
+    let token = if auth_scheme == "Basic" {
+        token_part_as_bytes(token)?
+    } else {
+        token.as_bytes().to_vec()
+    };
+
+    Ok(token)
+}
+
+fn token_part_as_bytes(token: &str) -> Result<Vec<u8>, AuthenticationError> {
+    let decoded = B64_STANDARD.decode(token).map_err(|err| {
+        error!(?err, "cannot decode basic auth token");
+        AuthenticationError::MalformedRequest
+    })?;
+
+    let token_parts_string = String::from_utf8(decoded).map_err(|err| {
+        error!(?err, "cannot decode basic auth token to string");
+        AuthenticationError::MalformedRequest
+    })?;
+
+    let token_parts = token_parts_string.rsplit_once(":");
+    let (username, token_part) = token_parts.ok_or_else(|| {
+        error!("cannot find token part in decoded basic auth token");
+        AuthenticationError::MalformedRequest
+    })?;
+
+    if username.contains(":") {
+        error!("token username/password contains ':' which is not allowed");
+        return Err(AuthenticationError::MalformedRequest);
+    }
+
+    Ok(token_part.as_bytes().to_vec())
 }
 
 impl From<authz::Error> for AuthenticationError {
@@ -1842,11 +1877,9 @@ async fn authenticate(
             }
             AuthenticationError::MalformedRequest => {
                 return Some(Ok(Response::builder()
-                        .status(StatusCode::BAD_REQUEST)
-                        .body(Body::from("{\"error\":\
-                            \"Authorization header was malformed and should be in the form 'Authorization: Bearer <token>'\"\
-                        }"))
-                        .unwrap()));
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from(format!(r#"{{"error": "{e}"}}"#)))
+                    .unwrap()));
             }
             AuthenticationError::Forbidden => {
                 return Some(Ok(Response::builder()
@@ -1886,9 +1919,12 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
 mod tests {
     use http::{HeaderMap, HeaderValue, header::ACCEPT};
 
+    use crate::http::AuthenticationError;
+
     use super::QueryFormat;
     use super::ValidateDbNameError;
     use super::record_batch_stream_to_body;
+    use super::token_part_as_bytes;
     use super::validate_db_name;
     use arrow_array::{Int32Array, RecordBatch, record_batch};
     use datafusion::execution::SendableRecordBatchStream;
@@ -2146,6 +2182,43 @@ mod tests {
             "a\n1\n1\n1\n1\n1\n"
         );
     }
+
+    #[test]
+    fn test_basic_auth_token_valid() {
+        let token_bytes =
+            token_part_as_bytes(
+                "PHVzZXJuYW1lPjphcGl2M19Ka2Fsdi1JUEtxSlIyUDdRVDBuMjhnRnBmMWlFd0stZVo3cTZoWHF5enJKdTBrRVBCLVZFODhlR1hUVHo5R0tod0ttMzgtNnFreWtLUGRoTmVkdVM5Zw==")
+            .expect("base64 encoded string to be valid");
+        let token_string = String::from_utf8_lossy(&token_bytes);
+        assert_eq!(
+            token_string,
+            "apiv3_Jkalv-IPKqJR2P7QT0n28gFpf1iEwK-eZ7q6hXqyzrJu0kEPB-VE88eGXTTz9GKhwKm38-6qkykKPdhNeduS9g"
+        );
+    }
+
+    #[test]
+    fn test_basic_auth_token_invalid() {
+        let invalid_token = token_part_as_bytes(
+            "YXBpdjNfSmthbHYtSVBLcUpSMlA3UVQwbjI4Z0ZwZjFpRXdLLWVaN3E2aFhxeXpySnUwa0VQQi1WRTg4ZUdYVFR6OUdLaHdLbTM4LTZxa3lrS1BkaE5lZHVTOWc=",
+        );
+        assert!(matches!(
+            invalid_token,
+            Err(AuthenticationError::MalformedRequest)
+        ));
+    }
+
+    #[test]
+    fn test_basic_auth_token_should_not_allow_colon_in_username() {
+        //  echo -n "foo:bar:$TOKEN" | base64 -w 0
+        let invalid_token = token_part_as_bytes(
+            "Zm9vOmJhcjphcGl2M19Ka2Fsdi1JUEtxSlIyUDdRVDBuMjhnRnBmMWlFd0stZVo3cTZoWHF5enJKdTBrRVBCLVZFODhlR1hUVHo5R0tod0ttMzgtNnFreWtLUGRoTmVkdVM5Zw==",
+        );
+        assert!(matches!(
+            invalid_token,
+            Err(AuthenticationError::MalformedRequest)
+        ));
+    }
+
     fn make_record_stream(records: Option<usize>) -> SendableRecordBatchStream {
         match records {
             None => make_record_stream_with_sizes(vec![]),

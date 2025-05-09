@@ -125,6 +125,69 @@ async fn auth_http() {
     );
 }
 
+#[tokio::test]
+async fn http_write_basic_auth() {
+    let server = TestServer::configure().with_auth().spawn().await;
+    let token = server
+        .auth_token
+        .clone()
+        .expect("admin token to have been present");
+
+    let client = server.http_client();
+    let base = server.client_addr();
+    let write_lp_url = format!("{base}/write");
+    let write_lp_params = [("db", "foo")];
+    let write_lp_params_with_user_and_password = [("db", "foo"), ("u", "ignored"), ("p", &token)];
+    assert_eq!(
+        client
+            .post(&write_lp_url)
+            .query(&write_lp_params)
+            .body("cpu,host=a val=1i 2998574937")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        client
+            .post(&write_lp_url)
+            .query(&write_lp_params)
+            .body("cpu,host=a val=1i 2998574937")
+            .basic_auth("username", Some(token.clone()))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NO_CONTENT
+    );
+    // Note: this test does not use Authorization header
+    assert_eq!(
+        client
+            .post(&write_lp_url)
+            .query(&write_lp_params_with_user_and_password)
+            .body("cpu,host=a val=1i 2998574937")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NO_CONTENT
+    );
+    // Malformed Header Tests
+    let resp = client
+        .get(&write_lp_url)
+        .query(&write_lp_params)
+        .header("Authorization", format!("Basic {token} whee"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        resp.text().await.unwrap(),
+        r#"{"error": "Authorization header was malformed, the request was not in the form of 'Authorization: <auth-scheme> <token>', supported auth-schemes are Bearer, Token and Basic"}"#
+    )
+}
+
 #[test_log::test(tokio::test)]
 async fn auth_grpc() {
     let server = TestServer::configure().with_auth().spawn().await;
