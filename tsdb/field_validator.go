@@ -2,6 +2,7 @@ package tsdb
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2/models"
@@ -10,12 +11,17 @@ import (
 
 const MaxFieldValueLength = 1048576
 
-// ValidateFields will return a PartialWriteError if:
+// ValidateAndCreateFields will return a PartialWriteError if:
 //   - the point has inconsistent fields, or
 //   - the point has fields that are too long
-func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) error {
+func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) ([]*FieldCreate, *PartialWriteError) {
 	pointSize := point.StringSize()
 	iter := point.FieldIterator()
+	var fieldsToCreate []*FieldCreate
+
+	// We return fieldsToCreate even on error, because other writes
+	// in parallel may depend on these previous fields having been
+	// created in memory
 	for iter.Next() {
 		if !skipSizeValidation {
 			// Check for size of field too large. Note it is much cheaper to check the whole point size
@@ -23,9 +29,9 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 			// unescape the string, and must at least parse the string)
 			if pointSize > MaxFieldValueLength && iter.Type() == models.String {
 				if sz := len(iter.StringValue()); sz > MaxFieldValueLength {
-					return PartialWriteError{
+					return fieldsToCreate, &PartialWriteError{
 						Reason: fmt.Sprintf(
-							"input field \"%s\" on measurement \"%s\" is too long, %d > %d",
+							"input field %q on measurement %q is too long, %d > %d",
 							iter.FieldKey(), point.Name(), sz, MaxFieldValueLength),
 						Dropped: 1,
 					}
@@ -33,14 +39,9 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 			}
 		}
 
+		fieldKey := iter.FieldKey()
 		// Skip fields name "time", they are illegal.
-		if bytes.Equal(iter.FieldKey(), timeBytes) {
-			continue
-		}
-
-		// If the fields is not present, there cannot be a conflict.
-		f := mf.FieldBytes(iter.FieldKey())
-		if f == nil {
+		if bytes.Equal(fieldKey, timeBytes) {
 			continue
 		}
 
@@ -49,18 +50,27 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 			continue
 		}
 
-		// If the types are not the same, there is a conflict.
-		if f.Type != dataType {
-			return PartialWriteError{
+		fieldName := string(fieldKey)
+		f, created, err := mf.CreateFieldIfNotExists(fieldName, dataType)
+		if errors.Is(err, ErrFieldTypeConflict) {
+			return fieldsToCreate, &PartialWriteError{
 				Reason: fmt.Sprintf(
-					"%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s",
-					ErrFieldTypeConflict, iter.FieldKey(), point.Name(), dataType, f.Type),
+					"%s: input field %q on measurement %q is type %s, already exists as type %s",
+					err, fieldName, point.Name(), dataType, f.Type),
 				Dropped: 1,
 			}
+		} else if err != nil {
+			return fieldsToCreate, &PartialWriteError{
+				Reason: fmt.Sprintf(
+					"error adding field %q to measurement %q: %s",
+					fieldName, point.Name(), err),
+				Dropped: 1,
+			}
+		} else if created {
+			fieldsToCreate = append(fieldsToCreate, &FieldCreate{point.Name(), f})
 		}
 	}
-
-	return nil
+	return fieldsToCreate, nil
 }
 
 // dataTypeFromModelsFieldType returns the influxql.DataType that corresponds to the
