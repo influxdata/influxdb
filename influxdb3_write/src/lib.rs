@@ -49,7 +49,7 @@ pub enum Error {
     #[error("queries not supported in compactor only mode")]
     CompactorOnly,
 
-    #[error(transparent)]
+    #[error("unexpected: {0:?}")]
     Anyhow(#[from] anyhow::Error),
 }
 
@@ -531,11 +531,18 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use influxdb3_catalog::catalog::CatalogSequenceNumber;
+    use arrow_schema::{DataType, TimeUnit};
+    use datafusion::{
+        logical_expr::{BinaryExpr, Operator, expr::ScalarFunction},
+        prelude::{Expr, cast, col, date_trunc, lit},
+    };
+    use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
     use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
+    use influxdb3_types::http::FieldDataType;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
+    use query_functions::tz::TZ_UDF;
 
-    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot};
+    use crate::{ChunkFilter, DatabaseTables, ParquetFile, PersistedSnapshot};
 
     #[test]
     fn test_overall_counts() {
@@ -692,5 +699,40 @@ mod tests {
         // add dbs_2 to snapshot
         let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&[]);
         assert_eq!((0, 0, 0), overall_counts);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_filter_on_time_with_date_trunc() {
+        let catalog = Catalog::new_in_memory("test-node").await.unwrap();
+        catalog
+            .create_table(
+                "foo",
+                "bar",
+                &["t1", "t2"],
+                &[("f1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        let table_def = catalog
+            .db_schema("foo")
+            .and_then(|db| db.table_definition("bar"))
+            .unwrap();
+        let tz_expr = Expr::ScalarFunction(ScalarFunction {
+            func: TZ_UDF.clone(),
+            args: vec![col("time"), lit("America/Detroit")],
+        });
+        let date_trunc_expr = date_trunc(lit("day"), tz_expr);
+        let expr = Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(date_trunc_expr),
+            op: Operator::GtEq,
+            right: Box::new(cast(
+                lit("2025-03-12T04:00:00Z"),
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+            )),
+        });
+
+        ChunkFilter::new(&table_def, &[expr])
+            .inspect(|f| println!("filter: {f:#?}"))
+            .expect("create ChunkFilter");
     }
 }

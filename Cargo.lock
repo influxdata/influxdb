@@ -3329,6 +3329,7 @@ version = "3.1.0-nightly"
 dependencies = [
  "anyhow",
  "arrow",
+ "arrow-schema",
  "arrow_util",
  "async-trait",
  "bimap",
@@ -3372,6 +3373,7 @@ dependencies = [
  "parquet_file",
  "pretty_assertions",
  "pyo3",
+ "query_functions",
  "schema",
  "serde",
  "serde_json",
