@@ -876,12 +876,12 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 		}(splits[i])
 	}
 
-	var err error
+	var errs []error
 	files := make([]string, 0, concurrency)
 	for i := 0; i < concurrency; i++ {
 		result := <-resC
 		if result.err != nil {
-			err = result.err
+			errs = append(errs, result.err)
 		}
 		files = append(files, result.files...)
 	}
@@ -900,7 +900,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 		return nil, errSnapshotsDisabled
 	}
 
-	return files, err
+	return files, errors.Join(errs...)
 }
 
 // compact writes multiple smaller TSM files into 1 or more larger files.
