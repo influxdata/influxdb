@@ -852,10 +852,10 @@ impl LastCacheStore {
                 column.push_null();
             }
         }
-        if self.instants.len() == self.count {
-            self.instants.pop_back();
-        }
         self.instants.push_front(Instant::now());
+        if self.instants.len() > self.count {
+            self.instants.truncate(self.count);
+        }
         self.last_time = Time::from_timestamp_nanos(row.time);
     }
 
@@ -913,12 +913,10 @@ impl LastCacheStore {
     ///
     /// Returns whether or not the store is empty after expired entries are removed.
     fn remove_expired(&mut self) -> bool {
-        while let Some(instant) = self.instants.back() {
-            if instant.elapsed() >= self.ttl {
-                self.instants.pop_back();
-            } else {
-                break;
-            }
+        // scan from right to find first non-expired entry:
+        match self.instants.iter().rposition(|i| i.elapsed() < self.ttl) {
+            Some(last_unexpired_position) => self.instants.truncate(last_unexpired_position + 1),
+            None => self.instants.clear(),
         }
         self.cache
             .iter_mut()
@@ -996,17 +994,17 @@ impl CacheColumn {
 
     /// Push [`FieldData`] from the buffer into this column
     fn push(&mut self, field_data: &FieldData) {
-        if self.data.len() >= self.size {
-            self.data.pop_back();
-        }
         self.data.push_front(field_data);
+        if self.data.len() > self.size {
+            self.data.truncate(self.size);
+        }
     }
 
     fn push_null(&mut self) {
-        if self.data.len() >= self.size {
-            self.data.pop_back();
-        }
         self.data.push_front_null();
+        if self.data.len() > self.size {
+            self.data.truncate(self.size);
+        }
     }
 
     /// Truncate the [`CacheColumn`]. This is useful for evicting expired entries.
@@ -1061,36 +1059,6 @@ impl CacheColumnData {
             CacheColumnData::Tag(buf) => buf.len(),
             CacheColumnData::Key(buf) => buf.len(),
             CacheColumnData::Time(buf) => buf.len(),
-        }
-    }
-
-    /// Pop the oldest element from the [`CacheColumn`]
-    fn pop_back(&mut self) {
-        match self {
-            CacheColumnData::I64(v) => {
-                v.pop_back();
-            }
-            CacheColumnData::U64(v) => {
-                v.pop_back();
-            }
-            CacheColumnData::F64(v) => {
-                v.pop_back();
-            }
-            CacheColumnData::String(v) => {
-                v.pop_back();
-            }
-            CacheColumnData::Bool(v) => {
-                v.pop_back();
-            }
-            CacheColumnData::Tag(v) => {
-                v.pop_back();
-            }
-            CacheColumnData::Key(v) => {
-                v.pop_back();
-            }
-            CacheColumnData::Time(v) => {
-                v.pop_back();
-            }
         }
     }
 
