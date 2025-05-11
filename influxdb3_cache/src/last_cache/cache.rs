@@ -56,9 +56,9 @@ pub(crate) struct LastCache {
     pub(crate) schema: ArrowSchemaRef,
     /// Stores the series key for tables for ensuring non-nullability in the column buffer for
     /// series key columns
-    series_key: HashSet<ColumnId>,
+    pub(crate) series_key: HashSet<ColumnId>,
     /// The internal state of the cache
-    state: LastCacheState,
+    pub(crate) state: LastCacheState,
 }
 
 #[derive(Debug, Clone)]
@@ -559,7 +559,7 @@ impl Predicate {
 
 /// Represents the hierarchical last cache structure
 #[derive(Debug)]
-enum LastCacheState {
+pub(crate) enum LastCacheState {
     /// An initialized state that is used for easy construction of the cache
     Init,
     /// Represents a branch node in the hierarchy of key columns for the cache
@@ -569,7 +569,7 @@ enum LastCacheState {
 }
 
 impl LastCacheState {
-    fn is_init(&self) -> bool {
+    pub(crate) fn is_init(&self) -> bool {
         matches!(self, Self::Init)
     }
 
@@ -587,14 +587,14 @@ impl LastCacheState {
         }
     }
 
-    fn as_key_mut(&mut self) -> Option<&mut LastCacheKey> {
+    pub(crate) fn as_key_mut(&mut self) -> Option<&mut LastCacheKey> {
         match self {
             LastCacheState::Key(key) => Some(key),
             LastCacheState::Store(_) | LastCacheState::Init => None,
         }
     }
 
-    fn as_store_mut(&mut self) -> Option<&mut LastCacheStore> {
+    pub(crate) fn as_store_mut(&mut self) -> Option<&mut LastCacheStore> {
         match self {
             LastCacheState::Key(_) | LastCacheState::Init => None,
             LastCacheState::Store(store) => Some(store),
@@ -613,13 +613,13 @@ impl LastCacheState {
 
 /// Holds a node within a [`LastCache`] for a given key column
 #[derive(Debug)]
-struct LastCacheKey {
+pub(crate) struct LastCacheKey {
     /// The column's ID
-    column_id: ColumnId,
+    pub(crate) column_id: ColumnId,
     /// A map of key column value to nested [`LastCacheState`]
     ///
     /// All values should point at either another key or a [`LastCacheStore`]
-    value_map: HashMap<KeyValue, LastCacheState>,
+    pub(crate) value_map: HashMap<KeyValue, LastCacheState>,
 }
 
 impl LastCacheKey {
@@ -698,7 +698,7 @@ impl From<&FieldData> for KeyValue {
 
 /// Stores the cached column data for the field columns of a given [`LastCache`]
 #[derive(Debug)]
-struct LastCacheStore {
+pub(crate) struct LastCacheStore {
     /// A map of column name to a [`CacheColumn`] which holds the buffer of data for the column
     /// in the cache.
     ///
@@ -706,29 +706,29 @@ struct LastCacheStore {
     /// as fast lookup (see [here][perf]).
     ///
     /// [perf]: https://github.com/indexmap-rs/indexmap?tab=readme-ov-file#performance
-    cache: IndexMap<ColumnId, CacheColumn>,
+    pub(crate) cache: IndexMap<ColumnId, CacheColumn>,
     /// A reference to the key column id lookup for the cache. This is within an `Arc` because it is
     /// shared with the parent `LastCache`.
-    key_column_ids: Arc<IndexSet<ColumnId>>,
+    pub(crate) key_column_ids: Arc<IndexSet<ColumnId>>,
     /// Whether or not this store accepts new fields when they are added to the cached table
-    value_column_ids: Option<Vec<ColumnId>>,
+    pub(crate) value_column_ids: Option<Vec<ColumnId>>,
     /// A ring buffer holding the instants at which entries in the cache were inserted
     ///
     /// This is used to evict cache values that outlive the `ttl`
-    instants: VecDeque<Instant>,
+    pub(crate) instants: VecDeque<Instant>,
     /// The capacity of the internal cache buffers
-    count: usize,
+    pub(crate) count: usize,
     /// Time-to-live (TTL) for values in the cache
-    ttl: Duration,
+    pub(crate) ttl: Duration,
     /// The timestamp of the last [`Row`] that was pushed into this store from the buffer.
     ///
     /// This is used to ignore rows that are received with older timestamps.
-    last_time: Time,
+    pub(crate) last_time: Time,
 }
 
 impl LastCacheStore {
     /// Create a new [`LastCacheStore`]
-    fn new(
+    pub(crate) fn new(
         count: usize,
         ttl: Duration,
         table_def: Arc<TableDefinition>,
@@ -978,7 +978,7 @@ fn update_last_cache_schema_for_new_fields(
 /// Stores its size so it can evict old data on push. Stores the time-to-live (TTL) in order
 /// to remove expired data.
 #[derive(Debug)]
-struct CacheColumn {
+pub(crate) struct CacheColumn {
     /// The number of entries the [`CacheColumn`] will hold before evicting old ones on push
     size: usize,
     /// The buffer containing data for the column
@@ -995,14 +995,14 @@ impl CacheColumn {
     }
 
     /// Push [`FieldData`] from the buffer into this column
-    fn push(&mut self, field_data: &FieldData) {
+    pub(crate) fn push(&mut self, field_data: &FieldData) {
         if self.data.len() >= self.size {
             self.data.pop_back();
         }
         self.data.push_front(field_data);
     }
 
-    fn push_null(&mut self) {
+    pub(crate) fn push_null(&mut self) {
         if self.data.len() >= self.size {
             self.data.pop_back();
         }
