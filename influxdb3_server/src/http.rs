@@ -1704,6 +1704,7 @@ pub(crate) async fn route_request(
     http_server: Arc<HttpApi>,
     mut req: Request<Body>,
     started_without_auth: bool,
+    paths_without_authz: Vec<String>,
 ) -> Result<Response<Body>, Infallible> {
     let method = req.method().clone();
     let uri = req.uri().clone();
@@ -1734,8 +1735,16 @@ pub(crate) async fn route_request(
             .unwrap());
     }
 
-    // admin token creation
-    if uri.path() != all_paths::API_V3_CONFIGURE_ADMIN_TOKEN {
+    let path = uri.path();
+    // admin token creation should be allowed without authentication
+    // and any endpoints that are disabled
+    if path == all_paths::API_V3_CONFIGURE_ADMIN_TOKEN
+        || paths_without_authz
+            .iter()
+            .any(|disabled_authz_path| disabled_authz_path.as_str() == path)
+    {
+        trace!(?uri, "not authenticating request");
+    } else {
         trace!(?uri, "authenticating request");
         if let Some(authentication_error) = authenticate(&http_server, &mut req).await {
             return authentication_error;
@@ -1744,8 +1753,6 @@ pub(crate) async fn route_request(
 
     trace!(request = ?req,"Processing request");
     let content_length = req.headers().get("content-length").cloned();
-
-    let path = uri.path();
 
     let response = match (method.clone(), path) {
         (Method::DELETE, all_paths::API_V3_CONFIGURE_TOKEN) => http_server.delete_token(req).await,

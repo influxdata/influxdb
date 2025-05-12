@@ -147,6 +147,7 @@ pub async fn serve(
     shutdown: CancellationToken,
     startup_timer: Instant,
     without_auth: bool,
+    paths_without_authz: Vec<String>,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
     let req_metrics = RequestMetrics::new(
@@ -168,8 +169,14 @@ pub async fn serve(
 
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
+            let paths_without_authz = paths_without_authz.clone();
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_request(Arc::clone(&http_server), req, without_auth)
+                route_request(
+                    Arc::clone(&http_server),
+                    req,
+                    without_auth,
+                    paths_without_authz.clone(),
+                )
             });
             let service = trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
@@ -228,8 +235,14 @@ pub async fn serve(
 
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
+            let paths_without_authz = paths_without_authz.clone();
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_request(Arc::clone(&http_server), req, without_auth)
+                route_request(
+                    Arc::clone(&http_server),
+                    req,
+                    without_auth,
+                    paths_without_authz.clone(),
+                )
             });
             let service = trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
@@ -928,7 +941,15 @@ mod tests {
         let shutdown = frontend_shutdown.clone();
 
         tokio::spawn(async move {
-            serve(server, frontend_shutdown, server_start_time, false, None).await
+            serve(
+                server,
+                frontend_shutdown,
+                server_start_time,
+                false,
+                vec![],
+                None,
+            )
+            .await
         });
 
         (format!("http://{addr}"), shutdown, write_buffer)
