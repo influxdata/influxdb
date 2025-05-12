@@ -2241,15 +2241,15 @@ func (s *compactionStrategy) compactGroup() {
 
 		log.Warn("Error compacting TSM files", zap.Error(err))
 
-		MoveTsmOnReadErr(err, log, s.fileStore.ReplaceWithCallback)
+		MoveTsmOnReadErr(err, log, s.fileStore.Replace)
 
 		s.errorStat.Inc()
 		time.Sleep(time.Second)
 		return
 	}
 
-	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
-		log.Info("Error replacing new TSM files", zap.Error(err))
+	if err := s.fileStore.Replace(group, files); err != nil {
+		log.Error("Error replacing new TSM files", zap.Error(err))
 		s.errorStat.Inc()
 		time.Sleep(time.Second)
 
@@ -2269,13 +2269,13 @@ func (s *compactionStrategy) compactGroup() {
 		zap.Int("tsm1_files_n", len(files)))
 }
 
-func MoveTsmOnReadErr(err error, log *zap.Logger, ReplaceWithCallback func([]string, []string, func([]TSMFile)) error) {
+func MoveTsmOnReadErr(err error, log *zap.Logger, replaceFn func([]string, []string) error) {
 	var blockReadErr errBlockRead
 	// We hit a bad TSM file - rename so the next compaction can proceed.
 	if ok := errors.As(err, &blockReadErr); ok {
 		path := blockReadErr.file
 		log.Info("Renaming a corrupt TSM file due to compaction error", zap.String("file", path), zap.Error(err))
-		if err := ReplaceWithCallback([]string{path}, nil, nil); err != nil {
+		if err := replaceFn([]string{path}, nil); err != nil {
 			log.Info("Error removing bad TSM file", zap.String("file", path), zap.Error(err))
 		} else if e := os.Rename(path, path+"."+BadTSMFileExtension); e != nil {
 			log.Info("Error renaming corrupt TSM file", zap.String("file", path), zap.Error(err))
