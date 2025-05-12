@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -65,6 +66,10 @@ func (e errCompactionInProgress) Error() string {
 	return "compaction in progress"
 }
 
+func (e errCompactionInProgress) Unwrap() error {
+	return e.err
+}
+
 type errCompactionAborted struct {
 	err error
 }
@@ -79,6 +84,15 @@ func (e errCompactionAborted) Error() string {
 type errBlockRead struct {
 	file string
 	err  error
+}
+
+func (e errBlockRead) Unwrap() error {
+	return e.err
+}
+
+func (e errBlockRead) Is(target error) bool {
+	_, ok := target.(errBlockRead)
+	return ok
 }
 
 func (e errBlockRead) Error() string {
@@ -876,12 +890,12 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 		}(splits[i])
 	}
 
-	var err error
+	var errs []error
 	files := make([]string, 0, concurrency)
 	for i := 0; i < concurrency; i++ {
 		result := <-resC
 		if result.err != nil {
-			err = result.err
+			errs = append(errs, result.err)
 		}
 		files = append(files, result.files...)
 	}
@@ -900,7 +914,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 		return nil, errSnapshotsDisabled
 	}
 
-	return files, err
+	return files, errors.Join(errs...)
 }
 
 // compact writes multiple smaller TSM files into 1 or more larger files.
@@ -1051,6 +1065,7 @@ func (c *Compactor) removeTmpFiles(files []string) error {
 func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter KeyIterator, throttle bool, logger *zap.Logger) ([]string, error) {
 	// These are the new TSM files written
 	var files []string
+	var eInProgress errCompactionInProgress
 
 	for {
 		sequence++
@@ -1060,15 +1075,15 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 		logger.Debug("Compacting files", zap.Int("file_count", len(src)), zap.String("output_file", fileName))
 
 		// Write as much as possible to this file
-		err := c.write(fileName, iter, throttle, logger)
+		rollToNext, err := c.write(fileName, iter, throttle, logger)
 
-		// We've hit the max file limit and there is more to write.  Create a new file
-		// and continue.
-		if err == errMaxFileExceeded || err == ErrMaxBlocksExceeded {
+		if rollToNext {
+			// We've hit the max file limit and there is more to write.  Create a new file
+			// and continue.
 			files = append(files, fileName)
 			logger.Debug("file size or block count exceeded, opening another output file", zap.String("output_file", fileName))
 			continue
-		} else if err == ErrNoValues {
+		} else if errors.Is(err, ErrNoValues) {
 			logger.Debug("Dropping empty file", zap.String("output_file", fileName))
 			// If the file only contained tombstoned entries, then it would be a 0 length
 			// file that we can drop.
@@ -1076,21 +1091,35 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 				return nil, err
 			}
 			break
-		} else if _, ok := err.(errCompactionInProgress); ok {
-			// Don't clean up the file as another compaction is using it.  This should not happen as the
-			// planner keeps track of which files are assigned to compaction plans now.
+		} else if errors.As(err, &eInProgress) {
+			if !errors.Is(eInProgress.err, fs.ErrExist) {
+				logger.Error("error creating compaction file", zap.String("output_file", fileName), zap.Error(err))
+			} else {
+				// Don't clean up the file as another compaction is using it.  This should not happen as the
+				// planner keeps track of which files are assigned to compaction plans now.
+				logger.Warn("file exists, compaction in progress already", zap.String("output_file", fileName))
+			}
 			return nil, err
 		} else if err != nil {
+			var errs []error
+			errs = append(errs, err)
 			// We hit an error and didn't finish the compaction.  Abort.
 			// Remove any tmp files we already completed
 			// discard later errors to return the first one from the write() call
 			for _, f := range files {
-				_ = os.RemoveAll(f)
+				err = os.RemoveAll(f)
+				if err != nil {
+					errs = append(errs, err)
+				}
 			}
 			// Remove the temp file
 			// discard later errors to return the first one from the write() call
-			_ = os.RemoveAll(fileName)
-			return nil, err
+			err = os.RemoveAll(fileName)
+			if err != nil {
+				errs = append(errs, err)
+			}
+
+			return nil, errors.Join(errs...)
 		}
 
 		files = append(files, fileName)
@@ -1100,10 +1129,10 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 	return files, nil
 }
 
-func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *zap.Logger) (err error) {
+func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *zap.Logger) (rollToNext bool, err error) {
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 	if err != nil {
-		return errCompactionInProgress{err: err}
+		return false, errCompactionInProgress{err: err}
 	}
 
 	// syncingWriter ensures that whatever we wrap the above file descriptor in
@@ -1128,33 +1157,31 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 	// in memory.
 	if iter.EstimatedIndexSize() > 64*1024*1024 {
 		w, err = NewTSMWriterWithDiskBuffer(limitWriter)
-		if err != nil {
-			return err
-		}
 	} else {
 		w, err = NewTSMWriter(limitWriter)
-		if err != nil {
-			return err
-		}
 	}
-
+	if err != nil {
+		// Close the file and return if we can't create the TSMWriter
+		return false, errors.Join(err, fd.Close())
+	}
 	defer func() {
+		var eInProgress errCompactionInProgress
+
+		errs := make([]error, 0, 3)
+		errs = append(errs, err)
 		closeErr := w.Close()
-		if err == nil {
-			err = closeErr
-		}
+		errs = append(errs, closeErr)
 
-		// Check for errors where we should not remove the file
-		_, inProgress := err.(errCompactionInProgress)
-		maxBlocks := err == ErrMaxBlocksExceeded
-		maxFileSize := err == errMaxFileExceeded
-		if inProgress || maxBlocks || maxFileSize {
+		// Check for conditions where we should not remove the file
+		inProgress := errors.As(err, &eInProgress) && errors.Is(eInProgress.err, fs.ErrExist)
+		if (closeErr == nil) && (inProgress || rollToNext) {
+			// do not join errors, there is only the one.
 			return
+		} else if err != nil || closeErr != nil {
+			// Remove the file, we have had a problem
+			errs = append(errs, w.Remove())
 		}
-
-		if err != nil {
-			_ = w.Remove()
-		}
+		err = errors.Join(errs...)
 	}()
 
 	lastLogSize := w.Size()
@@ -1164,38 +1191,38 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 		c.mu.RUnlock()
 
 		if !enabled {
-			return errCompactionAborted{}
+			return false, errCompactionAborted{}
 		}
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our
 		// chunk size (1000)
 		key, minTime, maxTime, block, err := iter.Read()
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		if minTime > maxTime {
-			return fmt.Errorf("invalid index entry for block. min=%d, max=%d", minTime, maxTime)
+			return false, fmt.Errorf("invalid index entry for block. min=%d, max=%d", minTime, maxTime)
 		}
 
 		// Write the key and value
-		if err := w.WriteBlock(key, minTime, maxTime, block); err == ErrMaxBlocksExceeded {
+		if err := w.WriteBlock(key, minTime, maxTime, block); errors.Is(err, ErrMaxBlocksExceeded) {
 			if err := w.WriteIndex(); err != nil {
-				return err
+				return false, err
 			}
-			return err
+			return true, err
 		} else if err != nil {
-			return err
+			return false, err
 		}
 
-		// If we have a max file size configured and we're over it, close out the file
+		// If we're over maxTSMFileSize, close out the file
 		// and return the error.
 		if w.Size() > maxTSMFileSize {
 			if err := w.WriteIndex(); err != nil {
-				return err
+				return false, err
 			}
 
-			return errMaxFileExceeded
+			return true, errMaxFileExceeded
 		} else if (w.Size() - lastLogSize) > logEvery {
 			logger.Debug("Compaction progress", zap.String("output_file", path), zap.Uint32("size", w.Size()))
 			lastLogSize = w.Size()
@@ -1204,15 +1231,15 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 
 	// Were there any errors encountered during iteration?
 	if err := iter.Err(); err != nil {
-		return err
+		return false, err
 	}
 
 	// We're all done.  Close out the file.
 	if err := w.WriteIndex(); err != nil {
-		return err
+		return false, err
 	}
 	logger.Debug("Compaction finished", zap.String("output_file", path), zap.Uint32("size", w.Size()))
-	return nil
+	return false, nil
 }
 
 func (c *Compactor) add(files []string) bool {
@@ -1339,6 +1366,9 @@ type tsmBatchKeyIterator struct {
 	// errs is any error we received while iterating values.
 	errs TSMErrors
 
+	// errSet is the error strings we have seen before
+	errSet map[string]struct{}
+
 	// indicates whether the iterator should choose a faster merging strategy over a more
 	// optimally compressed one.  If fast is true, multiple blocks will just be added as is
 	// and not combined.  In some cases, a slower path will need to be utilized even when
@@ -1384,13 +1414,18 @@ type tsmBatchKeyIterator struct {
 	overflowErrors int
 }
 
+// AppendError - store unique errors in the order of first appearance,
+// up to a limit of maxErrors.  If the error is unique and stored, return true.
 func (t *tsmBatchKeyIterator) AppendError(err error) bool {
-	if t.maxErrors > len(t.errs) {
+	s := err.Error()
+	if _, ok := t.errSet[s]; ok {
+		return true
+	} else if t.maxErrors > len(t.errs) {
 		t.errs = append(t.errs, err)
-		// Was the error stored?
+		t.errSet[s] = struct{}{}
 		return true
 	} else {
-		// Was the error dropped
+		// Was the error dropped?
 		t.overflowErrors++
 		return false
 	}
@@ -1408,6 +1443,7 @@ func NewTSMBatchKeyIterator(size int, fast bool, maxErrors int, interrupt chan s
 		readers:              readers,
 		values:               map[string][]Value{},
 		pos:                  make([]int, len(readers)),
+		errSet:               map[string]struct{}{},
 		size:                 size,
 		iterators:            iter,
 		fast:                 fast,
@@ -1607,11 +1643,11 @@ func (k *tsmBatchKeyIterator) merge() {
 }
 
 func (k *tsmBatchKeyIterator) handleEncodeError(err error, typ string) {
-	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %v", typ, k.key, err)})
+	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
 func (k *tsmBatchKeyIterator) handleDecodeError(err error, typ string) {
-	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %v", typ, k.key, err)})
+	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
 func (k *tsmBatchKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
@@ -1638,6 +1674,8 @@ func (k *tsmBatchKeyIterator) Close() error {
 	for _, r := range k.readers {
 		errSlice = append(errSlice, r.Close())
 	}
+	clear(k.errSet)
+	k.errs = nil
 	return errors.Join(errSlice...)
 }
 
@@ -1647,11 +1685,10 @@ func (k *tsmBatchKeyIterator) Err() error {
 		return nil
 	}
 	// Copy the errors before appending the dropped error count
-	var errs TSMErrors
-	errs = make([]error, 0, len(k.errs)+1)
+	errs := make([]error, 0, len(k.errs)+1)
 	errs = append(errs, k.errs...)
 	errs = append(errs, fmt.Errorf("additional errors dropped: %d", k.overflowErrors))
-	return errs
+	return errors.Join(errs...)
 }
 
 type cacheKeyIterator struct {
