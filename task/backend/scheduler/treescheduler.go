@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/google/btree"
 )
 
