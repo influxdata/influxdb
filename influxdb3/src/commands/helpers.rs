@@ -7,7 +7,7 @@ use observability_deps::tracing::trace;
 
 const DISABLED_AUTHZ_TOO_MANY_VALUES_ERR: &str = "--disable-authz cannot take more than 3 items";
 const DISABLED_AUTHZ_INVALID_VALUE_ERR: &str =
-    "invalid value passed in for --disable-authz, allowed values are health,ping and metrics";
+    "invalid value passed in for --disable-authz, allowed values are health, ping, and metrics";
 
 // This custom type is used to parse `--disable-authz health,ping,metrics`, it wasn't straight
 // forward to setup num_args and also collect the values into a list with a value_delimiter set.
