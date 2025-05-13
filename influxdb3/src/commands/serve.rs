@@ -797,7 +797,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     // Create the FusedFutures that will be waited on before exiting the process
     let signal = wait_for_signal().fuse();
-    let paths_without_authz: Vec<String> = config
+    let paths_without_authz: &'static Vec<&'static str> = config
         .disable_authz
         .unwrap_or_default()
         .get_mapped_endpoints();

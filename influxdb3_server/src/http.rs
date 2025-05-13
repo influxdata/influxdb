@@ -1704,7 +1704,7 @@ pub(crate) async fn route_request(
     http_server: Arc<HttpApi>,
     mut req: Request<Body>,
     started_without_auth: bool,
-    paths_without_authz: Vec<String>,
+    paths_without_authz: &'static Vec<&'static str>,
 ) -> Result<Response<Body>, Infallible> {
     let method = req.method().clone();
     let uri = req.uri().clone();
@@ -1741,7 +1741,7 @@ pub(crate) async fn route_request(
     if path == all_paths::API_V3_CONFIGURE_ADMIN_TOKEN
         || paths_without_authz
             .iter()
-            .any(|disabled_authz_path| disabled_authz_path.as_str() == path)
+            .any(|disabled_authz_path| *disabled_authz_path == path)
     {
         trace!(?uri, "not authenticating request");
     } else {
