@@ -70,6 +70,8 @@ use trogging::cli::LoggingConfig;
 
 use crate::commands::common::warn_use_of_deprecated_env_vars;
 
+use super::helpers::DisableAuthzList;
+
 /// The default name of the influxdb data directory
 #[allow(dead_code)]
 pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
@@ -188,6 +190,10 @@ pub struct Config {
     /// Flag to indicate that server should start without auth
     #[clap(long = "without-auth", env = "INFLUXDB3_START_WITHOUT_AUTH", action)]
     pub without_auth: bool,
+
+    /// Disable authz for certain resources, allowed values are health,ping,metrics
+    #[clap(long = "disable-authz", env = "INFLUXDB3_DISABLE_AUTHZ")]
+    pub disable_authz: Option<DisableAuthzList>,
 
     /// Duration that the Parquet files get arranged into. The data timestamps will land each
     /// row into a file of this duration. 1m, 5m, and 10m are supported. These are known as
@@ -791,11 +797,21 @@ pub async fn command(config: Config) -> Result<()> {
 
     // Create the FusedFutures that will be waited on before exiting the process
     let signal = wait_for_signal().fuse();
+    let paths_without_authz: &'static Vec<&'static str> = config
+        .disable_authz
+        .unwrap_or_default()
+        .get_mapped_endpoints();
+
+    info!(
+        ?paths_without_authz,
+        "setting up server with authz disabled for paths"
+    );
     let frontend = serve(
         server,
         frontend_shutdown.clone(),
         startup_timer,
         config.without_auth,
+        paths_without_authz,
         config.tcp_listener_file_path,
     )
     .fuse();

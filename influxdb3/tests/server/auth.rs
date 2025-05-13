@@ -1,6 +1,10 @@
 use arrow_flight::error::FlightError;
 use arrow_util::assert_batches_sorted_eq;
+use hashbrown::HashMap;
 use influxdb3_client::Precision;
+use influxdb3_server::all_paths;
+use itertools::Itertools;
+use observability_deps::tracing::info;
 use reqwest::StatusCode;
 
 use crate::server::{ConfigProvider, TestServer, collect_stream};
@@ -392,5 +396,172 @@ async fn v1_password_parameter() {
             .expect("send request")
             .status(),
         StatusCode::NO_CONTENT,
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn disabled_auth_for_health_and_ping() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_disable_authz(vec!["health".to_owned(), "ping".to_owned()])
+        .spawn()
+        .await;
+
+    let client = server.http_client();
+    let base = server.client_addr();
+
+    // health v3 API works
+    assert_eq!(
+        client
+            .get(format!("{base}/health"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+
+    // health v1 API works
+    assert_eq!(
+        client
+            .get(format!("{base}/api/v1/health"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+
+    // ping works
+    assert_eq!(
+        client
+            .get(format!("{base}/ping"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+
+    // metrics does not work, it requires token
+    assert_eq!(
+        client
+            .get(format!("{base}/metrics"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+
+    let token = server
+        .auth_token
+        .clone()
+        .expect("admin token to have been present");
+
+    // with token metrics endpoint works too
+    assert_eq!(
+        client
+            .get(format!("{base}/metrics"))
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn disabled_auth_test_exhaustive() {
+    let allowed_resources = ["health".to_owned(), "ping".to_owned(), "metrics".to_owned()];
+    let all_possible_disable_auth_resources =
+        allowed_resources.iter().powerset().collect::<Vec<_>>();
+
+    for combo in &all_possible_disable_auth_resources {
+        let resources_disabled: Vec<String> = combo.iter().map(|r| r.to_string()).collect();
+        let mut all_paths = HashMap::new();
+        all_paths.insert(
+            "health",
+            vec![all_paths::API_V3_HEALTH, all_paths::API_V1_HEALTH],
+        );
+        all_paths.insert("ping", vec![all_paths::API_PING]);
+        all_paths.insert("metrics", vec![all_paths::API_METRICS]);
+
+        let server = TestServer::configure()
+            .with_auth()
+            .with_disable_authz(resources_disabled.clone())
+            .spawn()
+            .await;
+
+        let client = server.http_client();
+        let base = server.client_addr();
+
+        // all disabled resources should be accessible
+        for resource in &resources_disabled {
+            let paths = all_paths
+                .get(resource.as_str())
+                .expect("resource to be mapped");
+            for path in paths {
+                assert_eq!(
+                    client
+                        .get(format!("{base}{path}"))
+                        .send()
+                        .await
+                        .unwrap()
+                        .status(),
+                    StatusCode::OK
+                );
+            }
+        }
+
+        // and anything that is not disabled should not be accessible
+        let resources_restricted = allowed_resources
+            .iter()
+            .filter(|path| !resources_disabled.contains(path))
+            .map(|path| path.to_owned())
+            .collect::<Vec<String>>();
+
+        let token = server
+            .auth_token
+            .clone()
+            .expect("admin token to have been present");
+
+        for resource in &resources_restricted {
+            let paths = all_paths
+                .get(resource.as_str())
+                .expect("resource to be mapped");
+
+            for path in paths {
+                // needs token to access
+                assert_eq!(
+                    client
+                        .get(format!("{base}{path}"))
+                        .send()
+                        .await
+                        .unwrap()
+                        .status(),
+                    StatusCode::UNAUTHORIZED
+                );
+
+                // with token it's fine to access
+                assert_eq!(
+                    client
+                        .get(format!("{base}{path}"))
+                        .bearer_auth(&token)
+                        .send()
+                        .await
+                        .unwrap()
+                        .status(),
+                    StatusCode::OK
+                );
+            }
+        }
+    }
+
+    // just useful to know what combos were used
+    info!(
+        ?all_possible_disable_auth_resources,
+        "finished running the tests for"
     );
 }

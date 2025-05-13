@@ -29,6 +29,7 @@ pub mod commands {
     pub mod delete;
     pub mod disable;
     pub mod enable;
+    pub mod helpers;
     pub mod install;
     pub mod query;
     pub mod serve;

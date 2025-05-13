@@ -75,6 +75,7 @@ pub struct TestConfig {
     package_manager: Option<String>,
     // If None, use memory object store.
     object_store_dir: Option<String>,
+    disable_authz: Vec<String>,
 }
 
 impl TestConfig {
@@ -140,6 +141,11 @@ impl TestConfig {
         self.tls_1_3 = tls_1_3;
         self
     }
+
+    pub fn with_disable_authz(mut self, disabled_list: Vec<String>) -> Self {
+        self.disable_authz = disabled_list;
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -181,6 +187,13 @@ impl ConfigProvider for TestConfig {
             args.append(&mut vec![
                 "--object-store".to_string(),
                 "memory".to_string(),
+            ]);
+        }
+
+        if !self.disable_authz.is_empty() {
+            args.append(&mut vec![
+                "--disable-authz".to_owned(),
+                self.disable_authz.join(","),
             ]);
         }
         args

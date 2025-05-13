@@ -147,6 +147,7 @@ pub async fn serve(
     shutdown: CancellationToken,
     startup_timer: Instant,
     without_auth: bool,
+    paths_without_authz: &'static Vec<&'static str>,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
     let req_metrics = RequestMetrics::new(
@@ -169,7 +170,12 @@ pub async fn serve(
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_request(Arc::clone(&http_server), req, without_auth)
+                route_request(
+                    Arc::clone(&http_server),
+                    req,
+                    without_auth,
+                    paths_without_authz,
+                )
             });
             let service = trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
@@ -229,7 +235,12 @@ pub async fn serve(
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_request(Arc::clone(&http_server), req, without_auth)
+                route_request(
+                    Arc::clone(&http_server),
+                    req,
+                    without_auth,
+                    paths_without_authz,
+                )
             });
             let service = trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
@@ -285,9 +296,11 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::num::NonZeroUsize;
-    use std::sync::Arc;
+    use std::sync::{Arc, OnceLock};
     use tokio::net::TcpListener;
     use tokio_util::sync::CancellationToken;
+
+    static EMPTY_PATHS: OnceLock<Vec<&'static str>> = OnceLock::new();
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn write_and_query() {
@@ -926,9 +939,17 @@ mod tests {
             .build(None, None, TLS_MIN_VERSION)
             .await;
         let shutdown = frontend_shutdown.clone();
-
+        let paths = EMPTY_PATHS.get_or_init(std::vec::Vec::new);
         tokio::spawn(async move {
-            serve(server, frontend_shutdown, server_start_time, false, None).await
+            serve(
+                server,
+                frontend_shutdown,
+                server_start_time,
+                false,
+                paths,
+                None,
+            )
+            .await
         });
 
         (format!("http://{addr}"), shutdown, write_buffer)

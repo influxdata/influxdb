@@ -2794,6 +2794,7 @@ dependencies = [
  "insta",
  "iox_query",
  "iox_time",
+ "itertools 0.13.0",
  "libc",
  "metric",
  "num_cpus",
