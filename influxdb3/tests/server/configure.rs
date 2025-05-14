@@ -1377,7 +1377,7 @@ async fn api_v3_configure_token_delete() {
     // create admin token again - this will fail as operator token already exists
     let result = client.post(&create_url).send().await.unwrap();
     info!(?result, "test: result running the create token");
-    assert_eq!(result.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(result.status(), StatusCode::CONFLICT);
 }
 
 #[test_log::test(tokio::test)]

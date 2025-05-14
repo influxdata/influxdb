@@ -2991,7 +2991,7 @@ async fn test_create_admin_token_allowed_once() {
         .unwrap();
     assert_contains!(
         &result,
-        "Failed to create token, error: ApiError { code: 500, message: \"token name already exists, _admin\" }"
+        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\" }"
     );
 }
 
@@ -3006,7 +3006,7 @@ async fn test_regenerate_admin_token() {
     // already has admin token, so it cannot be created again
     assert_contains!(
         &result,
-        "Failed to create token, error: ApiError { code: 500, message: \"token name already exists, _admin\" }"
+        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\" }"
     );
 
     // regenerating token is allowed
@@ -3060,7 +3060,7 @@ async fn test_delete_token() {
     let token = parse_token(result);
 
     let result = server
-        .run_with_confirmation(
+        .run(
             vec!["delete", "token"],
             &[
                 "--token-name",
@@ -3074,7 +3074,7 @@ async fn test_delete_token() {
         .unwrap();
     assert_contains!(
         result,
-        "Cannot delete operator token, to regenerate an operator token, use `influxdb3 create token --admin --regenerate --token $TOKEN`"
+        "The operator token \"_admin\" is required cannot be deleted. To regenerate an operator token, use influxdb3 create token --admin --regenerate --token $TOKEN"
     );
 
     // you should be able to create the token again
@@ -3092,7 +3092,7 @@ async fn test_delete_token() {
         .unwrap();
     assert_contains!(
         &result,
-        "Failed to create token, error: ApiError { code: 500, message: \"token name already exists, _admin\" }"
+        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\" }"
     );
 }
 
