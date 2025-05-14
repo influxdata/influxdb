@@ -295,7 +295,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Token(TokenConfig { token_name, .. }) => {
             if token_name == "_admin" {
                 println!(
-                    "The operator token \"_admin\" is required cannot be deleted. To regenerate an operator token, use influxdb3 create token --admin --regenerate --token $TOKEN"
+                    "The operator token \"_admin\" is required and cannot be deleted. To regenerate an operator token, use: influxdb3 create token --admin --regenerate --token [TOKEN]"
                 );
                 return Ok(());
             }
