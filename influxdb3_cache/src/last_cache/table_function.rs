@@ -18,7 +18,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use indexmap::{IndexMap, IndexSet};
-use influxdb3_catalog::catalog::TableDefinition;
+use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, LastCacheId};
 use schema::{InfluxColumnType, InfluxFieldType};
 
@@ -34,8 +34,8 @@ pub const LAST_CACHE_UDTF_NAME: &str = "last_cache";
 /// [`LastCacheFunction`]
 #[derive(Debug)]
 struct LastCacheFunctionProvider {
-    /// The database ID that the query calling to the cache is associated with
-    db_id: DbId,
+    /// The database schema that the query is associated with
+    db_schema: Arc<DatabaseSchema>,
     /// The table definition that the cache being called is associated with
     table_def: Arc<TableDefinition>,
     /// The id of the cache
@@ -75,9 +75,13 @@ impl TableProvider for LastCacheFunctionProvider {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        let mut recorder = self
+            .provider
+            .metrics
+            .query_duration_recorder(self.db_schema.name.to_string());
         let read = self.provider.cache_map.read();
         let (predicates, batches) = if let Some(cache) = read
-            .get(&self.db_id)
+            .get(&self.db_schema.id)
             .and_then(|db| db.get(&self.table_def.table_id))
             .and_then(|tbl| tbl.get(&self.cache_id))
         {
@@ -102,6 +106,7 @@ impl TableProvider for LastCacheFunctionProvider {
             self.schema(),
             projection.cloned(),
         )?;
+        recorder.set_success();
 
         let show_sizes = ctx.config_options().explain.show_sizes;
         exec = exec.with_show_sizes(show_sizes);
@@ -310,13 +315,12 @@ impl TableFunctionImpl for LastCacheFunction {
             }
             None => None,
         };
-        let Some(table_def) = self
+        let db_schema = self
             .provider
             .catalog
             .db_schema_by_id(&self.db_id)
-            .expect("db exists")
-            .table_definition(table_name.as_str())
-        else {
+            .expect("db exists");
+        let Some(table_def) = db_schema.table_definition(table_name.as_str()) else {
             return plan_err!("provided table name is invalid");
         };
         let Some(cache) = (match cache_name {
@@ -340,7 +344,7 @@ impl TableFunctionImpl for LastCacheFunction {
         };
 
         Ok(Arc::new(LastCacheFunctionProvider {
-            db_id: self.db_id,
+            db_schema,
             table_def,
             cache_id: cache.id,
             schema,
