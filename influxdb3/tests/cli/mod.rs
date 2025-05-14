@@ -3074,7 +3074,7 @@ async fn test_delete_token() {
         .unwrap();
     assert_contains!(
         result,
-        "The operator token \"_admin\" is required cannot be deleted. To regenerate an operator token, use influxdb3 create token --admin --regenerate --token $TOKEN"
+        "The operator token \"_admin\" is required and cannot be deleted. To regenerate an operator token, use: influxdb3 create token --admin --regenerate --token [TOKEN]"
     );
 
     // you should be able to create the token again
