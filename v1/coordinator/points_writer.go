@@ -75,21 +75,91 @@ func NewPointsWriter(writeTimeout time.Duration, path string) *PointsWriter {
 	}
 }
 
+type BoundType int
+
+const (
+	WithinBounds BoundType = iota
+	RetentionPolicyBound
+	WriteWindowUpperBound
+	WriteWindowLowerBound
+	MaxBoundType // always the largest bound type, not for actual use
+)
+
+func (b BoundType) String() string {
+	switch b {
+	case RetentionPolicyBound:
+		return "Retention Policy Lower Bound"
+	case WriteWindowUpperBound:
+		return "Write Window Upper Bound"
+	case WriteWindowLowerBound:
+		return "Write Window Lower Bound"
+	case WithinBounds:
+		return "Within Bounds"
+	default:
+		return "Unknown"
+	}
+}
+
+type DroppedPoint struct {
+	Point         models.Point
+	ViolatedBound time.Time
+	Reason        BoundType
+}
+
+func (d *DroppedPoint) String() string {
+	return fmt.Sprintf("point %s at %s dropped because it violates a %s at %s", d.Point.Key(), d.Point.Time().UTC().Format(time.RFC3339Nano), d.Reason.String(), d.ViolatedBound.UTC().Format(time.RFC3339Nano))
+}
+
 // ShardMapping contains a mapping of shards to points.
 type ShardMapping struct {
-	n       int
-	Points  map[uint64][]models.Point  // The points associated with a shard ID
-	Shards  map[uint64]*meta.ShardInfo // The shards that have been mapped, keyed by shard ID
-	Dropped []models.Point             // Points that were dropped
+	n                  int
+	Points             map[uint64][]models.Point  // The points associated with a shard ID
+	Shards             map[uint64]*meta.ShardInfo // The shards that have been mapped, keyed by shard ID
+	MaxDropped         DroppedPoint
+	MinDropped         DroppedPoint
+	RetentionDropped   int
+	WriteWindowDropped int
+	rpi                *meta.RetentionPolicyInfo
 }
 
 // NewShardMapping creates an empty ShardMapping.
-func NewShardMapping(n int) *ShardMapping {
+func NewShardMapping(rpi *meta.RetentionPolicyInfo, n int) *ShardMapping {
 	return &ShardMapping{
 		n:      n,
 		Points: map[uint64][]models.Point{},
 		Shards: map[uint64]*meta.ShardInfo{},
+		rpi:    rpi,
 	}
+}
+
+func (s *ShardMapping) AddDropped(p models.Point, t time.Time, b BoundType) {
+	if s.MaxDropped.Point == nil || p.Time().After(s.MaxDropped.Point.Time()) {
+		s.MaxDropped = DroppedPoint{Point: p, ViolatedBound: t, Reason: b}
+	}
+	if s.MinDropped.Point == nil || p.Time().Before(s.MinDropped.Point.Time()) {
+		s.MinDropped = DroppedPoint{Point: p, ViolatedBound: t, Reason: b}
+	}
+	switch b {
+	case RetentionPolicyBound:
+		s.RetentionDropped++
+	case WriteWindowLowerBound, WriteWindowUpperBound:
+		s.WriteWindowDropped++
+	}
+}
+
+func (s *ShardMapping) Dropped() int {
+	return s.RetentionDropped + s.WriteWindowDropped
+}
+
+func (s *ShardMapping) SummariseDropped() string {
+	if s.Dropped() <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("dropped %d points outside retention policy of duration %s - oldest %s, newest %s",
+		s.RetentionDropped,
+		s.rpi.Duration.String(),
+		s.MinDropped.String(),
+		s.MaxDropped.String())
 }
 
 // MapPoint adds the point to the ShardMapping, associated with the given shardInfo.
@@ -247,14 +317,17 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 		list.Add(*sg)
 	}
 
-	mapping := NewShardMapping(len(wp.Points))
+	mapping := NewShardMapping(rp, len(wp.Points))
 	for _, p := range wp.Points {
 		sg := list.ShardGroupAt(p.Time())
 		if sg == nil {
 			// We didn't create a shard group because the point was outside the
-			// scope of the RP.
-			mapping.Dropped = append(mapping.Dropped, p)
+			// scope of the RP
+			mapping.AddDropped(p, min, RetentionPolicyBound)
 			continue
+		} else if len(sg.Shards) <= 0 {
+			// Shard groups should have at least one shard.
+			return nil, fmt.Errorf("shard group %d covering %s to %s has no shards", sg.ID, sg.StartTime, sg.EndTime)
 		}
 
 		sh := sg.ShardFor(p)
@@ -358,7 +431,7 @@ func (w *PointsWriter) WritePoints(
 	ctx context.Context,
 	database, retentionPolicy string,
 	consistencyLevel models.ConsistencyLevel,
-	user meta.User,
+	_ meta.User,
 	points []models.Point,
 ) error {
 	return w.WritePointsPrivileged(ctx, database, retentionPolicy, consistencyLevel, points)
@@ -403,12 +476,18 @@ func (w *PointsWriter) WritePointsPrivileged(
 		}(shardMappings.Shards[shardID], database, retentionPolicy, points)
 	}
 
-	if len(shardMappings.Dropped) > 0 {
-		w.stats.pointsWriteDropped.Observe(float64(len(shardMappings.Dropped)))
-		err = tsdb.PartialWriteError{Reason: "points beyond retention policy", Dropped: len(shardMappings.Dropped)}
-	}
 	timeout := time.NewTimer(w.WriteTimeout)
 	defer timeout.Stop()
+
+	if err == nil && shardMappings.Dropped() > 0 {
+		w.stats.pointsWriteDropped.Observe(float64(shardMappings.Dropped()))
+		err = tsdb.PartialWriteError{Reason: shardMappings.SummariseDropped(),
+			Dropped:         shardMappings.Dropped(),
+			Database:        database,
+			RetentionPolicy: retentionPolicy,
+		}
+	}
+
 	for range shardMappings.Points {
 		select {
 		case <-w.closing:

@@ -418,17 +418,19 @@ func (f *LogFile) TagValue(name, key, value []byte) TagValueElem {
 // TagValueIterator returns a value iterator for a tag key.
 func (f *LogFile) TagValueIterator(name, key []byte) TagValueIterator {
 	f.mu.RLock()
-	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
+		f.mu.RUnlock()
 		return nil
 	}
 
 	tk, ok := mm.tagSet[string(key)]
 	if !ok {
+		f.mu.RUnlock()
 		return nil
 	}
+	f.mu.RUnlock()
 	return tk.TagValueIterator()
 }
 

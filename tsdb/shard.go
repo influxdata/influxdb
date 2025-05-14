@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode"
 	"unsafe"
@@ -23,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
+	"github.com/influxdata/influxdb/v2/pkg/data/gensyncmap"
 	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 	"github.com/influxdata/influxdb/v2/pkg/estimator"
 	"github.com/influxdata/influxdb/v2/pkg/file"
@@ -102,15 +102,23 @@ func (e ShardError) Unwrap() error {
 // PartialWriteError indicates a write request could only write a portion of the
 // requested values.
 type PartialWriteError struct {
-	Reason  string
-	Dropped int
-
+	Reason          string
+	Dropped         int
+	Database        string
+	RetentionPolicy string
 	// A sorted slice of series keys that were dropped.
 	DroppedKeys [][]byte
 }
 
 func (e PartialWriteError) Error() string {
-	return fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
+	message := fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
+	if len(e.Database) > 0 {
+		message = fmt.Sprintf("%s for database: %s", message, e.Database)
+	}
+	if len(e.RetentionPolicy) > 0 {
+		message = fmt.Sprintf("%s for retention policy: %s", message, e.RetentionPolicy)
+	}
+	return message
 }
 
 // Shard represents a self-contained time series database. An inverted index of
@@ -704,16 +712,17 @@ func (s *Shard) WritePoints(ctx context.Context, points []models.Point) (rErr er
 		// to the caller, but continue on writing the remaining points.
 		writeError = err
 	}
-	s.stats.fieldsCreated.Add(float64(len(fieldsToCreate)))
 
 	// add any new fields and keep track of what needs to be saved
-	if err := s.createFieldsAndMeasurements(fieldsToCreate); err != nil {
+	if numFieldsCreated, err := s.saveFieldsAndMeasurements(fieldsToCreate); err != nil {
 		return err
+	} else {
+		s.stats.fieldsCreated.Add(float64(numFieldsCreated))
 	}
 
 	// Write to the engine.
 	if err := engine.WritePoints(ctx, points); err != nil {
-		return fmt.Errorf("engine: %s", err)
+		return fmt.Errorf("engine: %w", err)
 	}
 
 	return writeError
@@ -722,10 +731,10 @@ func (s *Shard) WritePoints(ctx context.Context, points []models.Point) (rErr er
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed.
 func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, []*FieldCreate, error) {
 	var (
-		fieldsToCreate []*FieldCreate
-		err            error
-		dropped        int
-		reason         string // only first error reason is set unless returned from CreateSeriesListIfNotExists
+		createdFieldsToSave []*FieldCreate
+		err                 error
+		dropped             int
+		reason              string // only first error reason is set unless returned from CreateSeriesListIfNotExists
 	)
 
 	// Create all series against the index in bulk.
@@ -815,66 +824,33 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			continue
 		}
 
-		// Skip any points whos keys have been dropped. Dropped has already been incremented for them.
+		// Skip any points whose keys have been dropped. Dropped has already been incremented for them.
 		if len(droppedKeys) > 0 && bytesutil.Contains(droppedKeys, keys[i]) {
 			continue
 		}
 
 		name := p.Name()
 		mf := engine.MeasurementFields(name)
-
 		// Check with the field validator.
-		if err := ValidateFields(mf, p, s.options.Config.SkipFieldSizeValidation); err != nil {
-			switch err := err.(type) {
-			case PartialWriteError:
-				if reason == "" {
-					reason = err.Reason
-				}
-				dropped += err.Dropped
-				s.stats.writesDropped.Add(float64(err.Dropped))
-			default:
-				return nil, nil, err
+		newFields, partialWriteError := ValidateAndCreateFields(mf, p, s.options.Config.SkipFieldSizeValidation)
+		createdFieldsToSave = append(createdFieldsToSave, newFields...)
+
+		if partialWriteError != nil {
+			if reason == "" {
+				reason = partialWriteError.Reason
 			}
+			dropped += partialWriteError.Dropped
+			s.stats.writesDropped.Add(float64(partialWriteError.Dropped))
 			continue
 		}
-
 		points[j] = points[i]
 		j++
-
-		// Create any fields that are missing.
-		iter.Reset()
-		for iter.Next() {
-			fieldKey := iter.FieldKey()
-
-			// Skip fields named "time". They are illegal.
-			if bytes.Equal(fieldKey, timeBytes) {
-				continue
-			}
-
-			if mf.FieldBytes(fieldKey) != nil {
-				continue
-			}
-
-			dataType := dataTypeFromModelsFieldType(iter.Type())
-			if dataType == influxql.Unknown {
-				continue
-			}
-
-			fieldsToCreate = append(fieldsToCreate, &FieldCreate{
-				Measurement: name,
-				Field: &Field{
-					Name: string(fieldKey),
-					Type: dataType,
-				},
-			})
-		}
 	}
-
 	if dropped > 0 {
 		err = PartialWriteError{Reason: reason, Dropped: dropped}
 	}
 
-	return points[:j], fieldsToCreate, err
+	return points[:j], createdFieldsToSave, err
 }
 
 const unPrintReplRune = '?'
@@ -899,30 +875,27 @@ func makePrintable(s string) string {
 	return b.String()
 }
 
-func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
-	if len(fieldsToCreate) == 0 {
-		return nil
+func (s *Shard) saveFieldsAndMeasurements(fieldsToSave []*FieldCreate) (int, error) {
+	if len(fieldsToSave) == 0 {
+		return 0, nil
 	}
 
 	engine, err := s.engineNoLock()
 	if err != nil {
-		return err
+		return 0, err
 	}
-
+	numCreated := 0
 	// add fields
-	changes := make([]*FieldChange, 0, len(fieldsToCreate))
-	for _, f := range fieldsToCreate {
-		mf := engine.MeasurementFields(f.Measurement)
-		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type); err != nil {
-			return err
-		}
+	changes := make([]*FieldChange, 0, len(fieldsToSave))
+	for _, f := range fieldsToSave {
+		numCreated++
 		changes = append(changes, &FieldChange{
 			FieldCreate: *f,
 			ChangeType:  AddMeasurementField,
 		})
 	}
 
-	return engine.MeasurementFieldSet().Save(changes)
+	return numCreated, engine.MeasurementFieldSet().Save(changes)
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
@@ -1837,25 +1810,21 @@ func (a Shards) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 
 // MeasurementFields holds the fields of a measurement and their codec.
 type MeasurementFields struct {
-	mu sync.Mutex
-
-	fields atomic.Value // map[string]*Field
+	fields gensyncmap.Map[string, *Field]
 }
 
 // NewMeasurementFields returns an initialised *MeasurementFields value.
 func NewMeasurementFields() *MeasurementFields {
-	fields := make(map[string]*Field)
-	mf := &MeasurementFields{}
-	mf.fields.Store(fields)
-	return mf
+	return &MeasurementFields{fields: gensyncmap.Map[string, *Field]{}}
 }
 
 func (m *MeasurementFields) FieldKeys() []string {
-	fields := m.fields.Load().(map[string]*Field)
-	a := make([]string, 0, len(fields))
-	for key := range fields {
-		a = append(a, key)
-	}
+	var a []string
+	m.fields.Range(func(k string, _ *Field) bool {
+		a = append(a, k)
+		return true
+	})
+
 	sort.Strings(a)
 	return a
 }
@@ -1863,66 +1832,38 @@ func (m *MeasurementFields) FieldKeys() []string {
 // bytes estimates the memory footprint of this MeasurementFields, in bytes.
 func (m *MeasurementFields) bytes() int {
 	var b int
-	b += 24 // mu RWMutex is 24 bytes
-	fields := m.fields.Load().(map[string]*Field)
-	b += int(unsafe.Sizeof(fields))
-	for k, v := range fields {
+	b += int(unsafe.Sizeof(m.fields))
+	m.fields.Range(func(k string, v *Field) bool {
 		b += int(unsafe.Sizeof(k)) + len(k)
 		b += int(unsafe.Sizeof(v)+unsafe.Sizeof(*v)) + len(v.Name)
-	}
+		return true
+	})
 	return b
 }
 
-// CreateFieldIfNotExists creates a new field with an autoincrementing ID.
-// Returns an error if 255 fields have already been created on the measurement or
-// the fields already exists with a different type.
-func (m *MeasurementFields) CreateFieldIfNotExists(name []byte, typ influxql.DataType) error {
-	fields := m.fields.Load().(map[string]*Field)
-
-	// Ignore if the field already exists.
-	if f := fields[string(name)]; f != nil {
-		if f.Type != typ {
-			return ErrFieldTypeConflict
-		}
-		return nil
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	fields = m.fields.Load().(map[string]*Field)
-	// Re-check field and type under write lock.
-	if f := fields[string(name)]; f != nil {
-		if f.Type != typ {
-			return ErrFieldTypeConflict
-		}
-		return nil
-	}
-
-	fieldsUpdate := make(map[string]*Field, len(fields)+1)
-	for k, v := range fields {
-		fieldsUpdate[k] = v
-	}
-	// Create and append a new field.
-	f := &Field{
-		ID:   uint8(len(fields) + 1),
-		Name: string(name),
+// CreateFieldIfNotExists creates a new field with the given name and type.
+// Returns an error if the field already exists with a different type.
+func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType) (f *Field, created bool, err error) {
+	newField := &Field{
+		Name: name,
 		Type: typ,
 	}
-	fieldsUpdate[string(name)] = f
-	m.fields.Store(fieldsUpdate)
-
-	return nil
+	var loaded bool
+	if f, loaded = m.fields.LoadOrStore(newField.Name, newField); f.Type != typ {
+		// This implies the field existed as a different type already.
+		return f, false, ErrFieldTypeConflict
+	} else {
+		return f, !loaded, nil
+	}
 }
 
 func (m *MeasurementFields) FieldN() int {
-	n := len(m.fields.Load().(map[string]*Field))
-	return n
+	return m.fields.Len()
 }
 
 // Field returns the field for name, or nil if there is no field for name.
 func (m *MeasurementFields) Field(name string) *Field {
-	f := m.fields.Load().(map[string]*Field)[name]
+	f, _ := m.fields.Load(name)
 	return f
 }
 
@@ -1930,36 +1871,24 @@ func (m *MeasurementFields) HasField(name string) bool {
 	if m == nil {
 		return false
 	}
-	f := m.fields.Load().(map[string]*Field)[name]
-	return f != nil
-}
-
-// FieldBytes returns the field for name, or nil if there is no field for name.
-// FieldBytes should be preferred to Field when the caller has a []byte, because
-// it avoids a string allocation, which can't be avoided if the caller converts
-// the []byte to a string and calls Field.
-func (m *MeasurementFields) FieldBytes(name []byte) *Field {
-	f := m.fields.Load().(map[string]*Field)[string(name)]
-	return f
+	_, ok := m.fields.Load(name)
+	return ok
 }
 
 // FieldSet returns the set of fields and their types for the measurement.
 func (m *MeasurementFields) FieldSet() map[string]influxql.DataType {
-	fields := m.fields.Load().(map[string]*Field)
 	fieldTypes := make(map[string]influxql.DataType)
-	for name, f := range fields {
-		fieldTypes[name] = f.Type
-	}
+	m.fields.Range(func(k string, v *Field) bool {
+		fieldTypes[k] = v.Type
+		return true
+	})
 	return fieldTypes
 }
 
 func (m *MeasurementFields) ForEachField(fn func(name string, typ influxql.DataType) bool) {
-	fields := m.fields.Load().(map[string]*Field)
-	for name, f := range fields {
-		if !fn(name, f.Type) {
-			return
-		}
-	}
+	m.fields.Range(func(k string, v *Field) bool {
+		return fn(k, v.Type)
+	})
 }
 
 type FieldChanges []*FieldChange
@@ -2438,12 +2367,11 @@ func (fs *MeasurementFieldSet) load() (rErr error) {
 		}
 		fs.fields = make(map[string]*MeasurementFields, len(pb.GetMeasurements()))
 		for _, measurement := range pb.GetMeasurements() {
-			fields := make(map[string]*Field, len(measurement.GetFields()))
+			set := NewMeasurementFields()
 			for _, field := range measurement.GetFields() {
-				fields[string(field.GetName())] = &Field{Name: string(field.GetName()), Type: influxql.DataType(field.GetType())}
+				name := string(field.GetName())
+				set.fields.Store(name, &Field{Name: name, Type: influxql.DataType(field.GetType())})
 			}
-			set := &MeasurementFields{}
-			set.fields.Store(fields)
 			fs.fields[string(measurement.GetName())] = set
 		}
 		return nil
@@ -2557,7 +2485,6 @@ func (fscm *measurementFieldSetChangeMgr) loadFieldChangeSet(r io.Reader) (Field
 			FieldCreate: FieldCreate{
 				Measurement: fc.Measurement,
 				Field: &Field{
-					ID:   0,
 					Name: string(fc.Field.Name),
 					Type: influxql.DataType(fc.Field.Type),
 				},
@@ -2585,7 +2512,7 @@ func (fs *MeasurementFieldSet) ApplyChanges() error {
 				fs.Delete(string(fc.Measurement))
 			} else {
 				mf := fs.CreateFieldsIfNotExists(fc.Measurement)
-				if err := mf.CreateFieldIfNotExists([]byte(fc.Field.Name), fc.Field.Type); err != nil {
+				if _, _, err := mf.CreateFieldIfNotExists(fc.Field.Name, fc.Field.Type); err != nil {
 					err = fmt.Errorf("failed creating %q.%q: %w", fc.Measurement, fc.Field.Name, err)
 					log.Error("field creation", zap.Error(err))
 					return err
@@ -2598,9 +2525,8 @@ func (fs *MeasurementFieldSet) ApplyChanges() error {
 
 // Field represents a series field. All of the fields must be hashable.
 type Field struct {
-	ID   uint8             `json:"id,omitempty"`
-	Name string            `json:"name,omitempty"`
-	Type influxql.DataType `json:"type,omitempty"`
+	Name string
+	Type influxql.DataType
 }
 
 type FieldChange struct {

@@ -1264,7 +1264,7 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 		keys[i], field = SeriesAndFieldFromCompositeKey(keys[i])
 		name := models.ParseName(keys[i])
 		mf := e.fieldset.CreateFieldsIfNotExists(name)
-		if err := mf.CreateFieldIfNotExists(field, fieldTypes[i]); err != nil {
+		if _, _, err := mf.CreateFieldIfNotExists(string(field), fieldTypes[i]); err != nil {
 			return err
 		}
 
@@ -2224,6 +2224,11 @@ func (s *compactionStrategy) compactGroup() {
 	}
 
 	if err != nil {
+		defer func(fs []string) {
+			if removeErr := s.compactor.RemoveTmpFiles(fs); removeErr != nil {
+				log.Warn("Unable to remove temporary file(s)", zap.Error(removeErr))
+			}
+		}(files)
 		_, inProgress := err.(errCompactionInProgress)
 		if err == errCompactionsDisabled || inProgress {
 			log.Info("Aborted compaction", zap.Error(err))
@@ -2236,24 +2241,15 @@ func (s *compactionStrategy) compactGroup() {
 
 		log.Warn("Error compacting TSM files", zap.Error(err))
 
-		// We hit a bad TSM file - rename so the next compaction can proceed.
-		if _, ok := err.(errBlockRead); ok {
-			path := err.(errBlockRead).file
-			log.Info("Renaming a corrupt TSM file due to compaction error", zap.Error(err))
-			if err := s.fileStore.ReplaceWithCallback([]string{path}, nil, nil); err != nil {
-				log.Info("Error removing bad TSM file", zap.Error(err))
-			} else if e := os.Rename(path, path+"."+BadTSMFileExtension); e != nil {
-				log.Info("Error renaming corrupt TSM file", zap.Error((err)))
-			}
-		}
+		MoveTsmOnReadErr(err, log, s.fileStore.Replace)
 
 		s.errorStat.Inc()
 		time.Sleep(time.Second)
 		return
 	}
 
-	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
-		log.Info("Error replacing new TSM files", zap.Error(err))
+	if err := s.fileStore.Replace(group, files); err != nil {
+		log.Error("Error replacing new TSM files", zap.Error(err))
 		s.errorStat.Inc()
 		time.Sleep(time.Second)
 
@@ -2271,6 +2267,20 @@ func (s *compactionStrategy) compactGroup() {
 	}
 	log.Info("Finished compacting files",
 		zap.Int("tsm1_files_n", len(files)))
+}
+
+func MoveTsmOnReadErr(err error, log *zap.Logger, replaceFn func([]string, []string) error) {
+	var blockReadErr errBlockRead
+	// We hit a bad TSM file - rename so the next compaction can proceed.
+	if ok := errors.As(err, &blockReadErr); ok {
+		path := blockReadErr.file
+		log.Info("Renaming a corrupt TSM file due to compaction error", zap.String("file", path), zap.Error(err))
+		if err := replaceFn([]string{path}, nil); err != nil {
+			log.Info("Error removing bad TSM file", zap.String("file", path), zap.Error(err))
+		} else if e := os.Rename(path, path+"."+BadTSMFileExtension); e != nil {
+			log.Info("Error renaming corrupt TSM file", zap.String("file", path), zap.Error(err))
+		}
+	}
 }
 
 // levelCompactionStrategy returns a compactionStrategy for the given level.
