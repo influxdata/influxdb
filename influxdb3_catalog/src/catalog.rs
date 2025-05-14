@@ -64,7 +64,7 @@ pub const TIME_COLUMN_NAME: &str = "time";
 
 pub const INTERNAL_DB_NAME: &str = "_internal";
 
-const DEFAULT_ADMIN_TOKEN_NAME: &str = "_admin";
+const DEFAULT_OPERATOR_TOKEN_NAME: &str = "_admin";
 
 /// Limit for the number of tag columns on a table
 pub(crate) const NUM_TAG_COLUMNS_LIMIT: usize = 250;
@@ -463,7 +463,7 @@ impl Catalog {
                     .read()
                     .tokens
                     .repo()
-                    .get_by_name(DEFAULT_ADMIN_TOKEN_NAME);
+                    .get_by_name(DEFAULT_OPERATOR_TOKEN_NAME);
 
                 if default_admin_token.is_none() {
                     return Err(CatalogError::MissingAdminTokenToUpdate);
@@ -487,10 +487,10 @@ impl Catalog {
                     .read()
                     .tokens
                     .repo()
-                    .contains_name(DEFAULT_ADMIN_TOKEN_NAME)
+                    .contains_name(DEFAULT_OPERATOR_TOKEN_NAME)
                 {
                     return Err(CatalogError::TokenNameAlreadyExists(
-                        DEFAULT_ADMIN_TOKEN_NAME.to_owned(),
+                        DEFAULT_OPERATOR_TOKEN_NAME.to_owned(),
                     ));
                 }
 
@@ -506,7 +506,7 @@ impl Catalog {
                     time_ns: created_at,
                     ops: vec![TokenCatalogOp::CreateAdminToken(CreateAdminTokenDetails {
                         token_id,
-                        name: Arc::from(DEFAULT_ADMIN_TOKEN_NAME),
+                        name: Arc::from(DEFAULT_OPERATOR_TOKEN_NAME),
                         hash: hash.clone(),
                         created_at,
                         updated_at: None,
@@ -522,7 +522,7 @@ impl Catalog {
                 .read()
                 .tokens
                 .repo()
-                .get_by_name(DEFAULT_ADMIN_TOKEN_NAME)
+                .get_by_name(DEFAULT_OPERATOR_TOKEN_NAME)
                 .expect("token info must be present after token creation by name")
         };
 

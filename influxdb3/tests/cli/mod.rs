@@ -2,7 +2,7 @@ mod api;
 
 use crate::server::{ConfigProvider, TestServer, parse_token};
 use assert_cmd::Command as AssertCmd;
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::fs::File;
@@ -3072,7 +3072,10 @@ async fn test_delete_token() {
             ],
         )
         .unwrap();
-    info!(result, "test: deleted token using token name");
+    assert_contains!(
+        result,
+        "Cannot delete operator token, to regenerate an operator token, use `influxdb3 create token --admin --regenerate --token $TOKEN`"
+    );
 
     // you should be able to create the token again
     let result = server
@@ -3087,7 +3090,10 @@ async fn test_delete_token() {
             args,
         )
         .unwrap();
-    assert_contains!(&result, "New token created successfully!");
+    assert_contains!(
+        &result,
+        "Failed to create token, error: ApiError { code: 500, message: \"token name already exists, _admin\" }"
+    );
 }
 
 #[test_log::test(tokio::test)]

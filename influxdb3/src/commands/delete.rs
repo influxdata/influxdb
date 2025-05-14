@@ -1,5 +1,6 @@
 use super::common::InfluxDb3Config;
 use influxdb3_client::Client;
+use reqwest::StatusCode;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
 use std::error::Error;
@@ -302,8 +303,26 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             if confirmation.trim() != "yes" {
                 println!("Cannot delete token without confirmation");
             } else {
-                client.api_v3_configure_token_delete(&token_name).await?;
-
+                let respone = client.api_v3_configure_token_delete(&token_name).await;
+                if let Err(e) = respone {
+                    match e {
+                        influxdb3_client::Error::ApiError { code, ref message } => {
+                            if code == StatusCode::METHOD_NOT_ALLOWED
+                                && message == "cannot delete operator token"
+                            {
+                                println!(
+                                    "Cannot delete operator token, to regenerate an operator token, use `influxdb3 create token --admin --regenerate --token $TOKEN`"
+                                );
+                                return Ok(());
+                            } else {
+                                return Err(Box::new(e));
+                            }
+                        }
+                        _ => {
+                            return Err(Box::new(e));
+                        }
+                    }
+                }
                 println!("Token {:?} deleted successfully", &token_name);
             }
         }
