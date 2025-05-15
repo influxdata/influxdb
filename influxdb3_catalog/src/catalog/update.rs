@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{
     CatalogError, Result,
-    catalog::NUM_TAG_COLUMNS_LIMIT,
+    catalog::{DEFAULT_OPERATOR_TOKEN_NAME, NUM_TAG_COLUMNS_LIMIT},
     log::{
         AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
         DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails, DeleteTriggerLog,
@@ -681,6 +681,11 @@ impl Catalog {
 
     pub async fn delete_token(&self, token_name: &str) -> Result<OrderedCatalogBatch> {
         info!(token_name, "delete token");
+
+        if token_name == DEFAULT_OPERATOR_TOKEN_NAME {
+            return Err(CatalogError::CannotDeleteOperatorToken);
+        }
+
         self.catalog_update_with_retry(|| {
             if !self.inner.read().tokens.repo().contains_name(token_name) {
                 // maybe deleted by another node or genuinely not present
