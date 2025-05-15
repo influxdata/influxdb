@@ -310,6 +310,14 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response<Body> {
         debug!(error = ?self, "API error");
         match self {
+            Self::Catalog(err @ CatalogError::CannotDeleteOperatorToken) => Response::builder()
+                .status(StatusCode::METHOD_NOT_ALLOWED)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
+            Self::Catalog(err @ CatalogError::TokenNameAlreadyExists { .. }) => Response::builder()
+                .status(StatusCode::CONFLICT)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::Catalog(err) | Self::WriteBuffer(WriteBufferError::CatalogUpdateError(err)) => {
                 err.into_response()
             }
