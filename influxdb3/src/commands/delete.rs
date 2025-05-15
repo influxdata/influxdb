@@ -293,6 +293,13 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             println!("Trigger {} deleted successfully", trigger_name);
         }
         SubCommand::Token(TokenConfig { token_name, .. }) => {
+            if token_name == "_admin" {
+                println!(
+                    "The operator token \"_admin\" is required and cannot be deleted. To regenerate an operator token, use: influxdb3 create token --admin --regenerate --token [TOKEN]"
+                );
+                return Ok(());
+            }
+
             println!(
                 "Are you sure you want to delete {:?}? Enter 'yes' to confirm",
                 token_name
@@ -303,7 +310,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 println!("Cannot delete token without confirmation");
             } else {
                 client.api_v3_configure_token_delete(&token_name).await?;
-
                 println!("Token {:?} deleted successfully", &token_name);
             }
         }

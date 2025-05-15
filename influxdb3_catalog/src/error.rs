@@ -175,6 +175,9 @@ pub enum CatalogError {
 
     #[error("tried to stop a node ({node_id}) that is already stopped")]
     NodeAlreadyStopped { node_id: Arc<str> },
+
+    #[error("cannot delete operator token")]
+    CannotDeleteOperatorToken,
 }
 
 impl CatalogError {
