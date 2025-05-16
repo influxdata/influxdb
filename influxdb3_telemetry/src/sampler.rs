@@ -109,24 +109,32 @@ fn sample_all_metrics(sampler: &mut CpuAndMemorySampler, store: &Arc<TelemetrySt
 #[cfg(test)]
 mod tests {
 
-    use crate::ParquetMetrics;
+    use crate::{ParquetMetrics, ProcessingEngineMetrics};
 
     use super::*;
 
     #[derive(Debug)]
-    struct MockParquetMetrics;
+    struct MockMetrics;
 
-    impl ParquetMetrics for MockParquetMetrics {
+    impl ParquetMetrics for MockMetrics {
         fn get_metrics(&self) -> (u64, f64, u64) {
             (10, 20.0, 30)
+        }
+    }
+
+    impl ProcessingEngineMetrics for MockMetrics {
+        fn num_triggers(&self) -> (u64, u64, u64, u64) {
+            (100, 110, 150, 200)
         }
     }
 
     #[test]
     fn test_sample_all_metrics() {
         let mut mock_sys_info_provider = MockSystemInfoProvider::new();
-        let store =
-            TelemetryStore::new_without_background_runners(Some(Arc::from(MockParquetMetrics)));
+        let store = TelemetryStore::new_without_background_runners(
+            Some(Arc::from(MockMetrics)),
+            Arc::from(MockMetrics) as Arc<dyn ProcessingEngineMetrics>,
+        );
 
         mock_sys_info_provider
             .expect_get_pid()
@@ -146,8 +154,10 @@ mod tests {
     #[test]
     fn test_sample_all_metrics_with_call_failure() {
         let mut mock_sys_info_provider = MockSystemInfoProvider::new();
-        let store =
-            TelemetryStore::new_without_background_runners(Some(Arc::from(MockParquetMetrics)));
+        let store = TelemetryStore::new_without_background_runners(
+            Some(Arc::from(MockMetrics)),
+            Arc::from(MockMetrics) as Arc<dyn ProcessingEngineMetrics>,
+        );
 
         mock_sys_info_provider
             .expect_get_pid()

@@ -7,7 +7,7 @@ use num::Float;
 use observability_deps::tracing::{debug, warn};
 
 use crate::{
-    ParquetMetrics,
+    ParquetMetrics, ProcessingEngineMetrics,
     bucket::EventsBucket,
     metrics::{Cpu, Memory, Queries, Writes},
     sampler::sample_metrics,
@@ -24,6 +24,7 @@ pub struct CreateTelemetryStoreArgs {
     pub persisted_files: Option<Arc<dyn ParquetMetrics>>,
     pub telemetry_endpoint: String,
     pub catalog_uuid: String,
+    pub processing_engine_metrics: Arc<dyn ProcessingEngineMetrics>,
 }
 
 /// This store is responsible for holding all the stats which will be sent in the background
@@ -41,6 +42,7 @@ pub struct CreateTelemetryStoreArgs {
 #[derive(Debug)]
 pub struct TelemetryStore {
     inner: parking_lot::Mutex<TelemetryStoreInner>,
+    processing_engine_metrics: Arc<dyn ProcessingEngineMetrics>,
     persisted_files: Option<Arc<dyn ParquetMetrics>>,
 }
 
@@ -58,6 +60,7 @@ impl TelemetryStore {
             persisted_files,
             telemetry_endpoint,
             catalog_uuid,
+            processing_engine_metrics,
         }: CreateTelemetryStoreArgs,
     ) -> Arc<Self> {
         debug!(
@@ -78,6 +81,7 @@ impl TelemetryStore {
         );
         let store = Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
+            processing_engine_metrics,
             persisted_files,
         });
 
@@ -99,6 +103,7 @@ impl TelemetryStore {
 
     pub fn new_without_background_runners(
         persisted_files: Option<Arc<dyn ParquetMetrics>>,
+        processing_engine_metrics: Arc<dyn ProcessingEngineMetrics>,
     ) -> Arc<Self> {
         let instance_id = Arc::from("sample-instance-id");
         let os = Arc::from("Linux");
@@ -117,6 +122,7 @@ impl TelemetryStore {
         Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
             persisted_files,
+            processing_engine_metrics,
         })
     }
 
@@ -163,6 +169,12 @@ impl TelemetryStore {
             payload.parquet_file_size_mb = size_mb;
             payload.parquet_row_count = row_count;
         }
+        let (wal_count, all_wal_count, schedule_count, request_count) =
+            self.processing_engine_metrics.num_triggers();
+        payload.wal_single_triggers_count = wal_count;
+        payload.wal_all_triggers_count = all_wal_count;
+        payload.schedule_triggers_count = schedule_count;
+        payload.request_triggers_count = request_count;
         payload
     }
 }
@@ -272,6 +284,11 @@ impl TelemetryStoreInner {
             write_lines_sum_1h: self.writes.total_lines,
             write_mb_sum_1h: to_mega_bytes(self.writes.total_size_bytes),
             query_requests_sum_1h: self.reads.total_num_queries,
+            // trigger counts
+            wal_single_triggers_count: 0,
+            wal_all_triggers_count: 0,
+            schedule_triggers_count: 0,
+            request_triggers_count: 0,
         }
     }
 
@@ -342,18 +359,24 @@ mod tests {
     use super::*;
 
     #[derive(Debug)]
-    struct SampleParquetMetrics;
+    struct SampleMetrics;
 
-    impl ParquetMetrics for SampleParquetMetrics {
+    impl ParquetMetrics for SampleMetrics {
         fn get_metrics(&self) -> (u64, f64, u64) {
             (200, 500.25, 100)
         }
     }
 
+    impl ProcessingEngineMetrics for SampleMetrics {
+        fn num_triggers(&self) -> (u64, u64, u64, u64) {
+            (150, 160, 200, 250)
+        }
+    }
+
     #[test_log::test(tokio::test)]
-    async fn test_telemetry_store_cpu_mem() {
+    async fn test_telemetry_store() {
         // create store
-        let parqet_file_metrics = Arc::new(SampleParquetMetrics);
+        let parqet_file_metrics = Arc::new(SampleMetrics);
         let store: Arc<TelemetryStore> = TelemetryStore::new(CreateTelemetryStoreArgs {
             instance_id: Arc::from("some-instance-id"),
             os: Arc::from("Linux"),
@@ -363,6 +386,7 @@ mod tests {
             persisted_files: Some(parqet_file_metrics),
             telemetry_endpoint: "http://localhost/telemetry".to_owned(),
             catalog_uuid: "catalog_but_cluster_uuid".to_owned(),
+            processing_engine_metrics: Arc::from(SampleMetrics) as Arc<dyn ProcessingEngineMetrics>,
         })
         .await;
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -399,6 +423,10 @@ mod tests {
         assert_eq!(200, snapshot.parquet_file_count);
         assert_eq!(500.25, snapshot.parquet_file_size_mb);
         assert_eq!(100, snapshot.parquet_row_count);
+        assert_eq!(150, snapshot.wal_single_triggers_count);
+        assert_eq!(160, snapshot.wal_all_triggers_count);
+        assert_eq!(200, snapshot.schedule_triggers_count);
+        assert_eq!(250, snapshot.request_triggers_count);
 
         // add some writes
         store.add_write_metrics(100, 100);
