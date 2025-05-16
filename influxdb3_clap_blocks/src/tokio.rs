@@ -169,7 +169,7 @@ macro_rules! tokio_rt_config {
                         TokioRuntimeType::MultiThreadAlt => {
                             #[cfg(tokio_unstable)]
                             {
-                                tokio::runtime::Builder::new_multi_thread_alt()
+                                tokio::runtime::Builder::new_multi_thread()
                             }
                             #[cfg(not(tokio_unstable))]
                             {

@@ -614,7 +614,7 @@ mod tests {
     use datafusion_util::config::register_iox_object_store;
     use executor::{DedicatedExecutor, register_current_runtime_for_io};
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
-    use iox_query::exec::ExecutorConfig;
+    use iox_query::exec::{ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time, TimeProvider};
     use object_store::ObjectStore;
     use object_store::memory::InMemory;
@@ -638,6 +638,8 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 // Default to 1gb
                 mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+                per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+                heap_memory_limit: None,
             },
             DedicatedExecutor::new_testing(),
         ));

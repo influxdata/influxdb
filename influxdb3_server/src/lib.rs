@@ -53,7 +53,8 @@ use trace_http::metrics::MetricFamily;
 use trace_http::metrics::RequestMetrics;
 use trace_http::tower::TraceLayer;
 
-const TRACE_SERVER_NAME: &str = "influxdb3_http";
+const TRACE_HTTP_SERVER_NAME: &str = "influxdb3_http";
+const TRACE_GRPC_SERVER_NAME: &str = "influxdb3_grpc";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -150,23 +151,35 @@ pub async fn serve(
     paths_without_authz: &'static Vec<&'static str>,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
-    let req_metrics = RequestMetrics::new(
+    let grpc_metrics = RequestMetrics::new(
+        Arc::clone(&server.common_state.metrics),
+        MetricFamily::GrpcServer,
+    );
+    let grpc_trace_layer = TraceLayer::new(
+        server.common_state.trace_header_parser.clone(),
+        Arc::new(grpc_metrics),
+        server.common_state.trace_collector().clone(),
+        TRACE_GRPC_SERVER_NAME,
+        trace_http::tower::ServiceProtocol::Grpc,
+    );
+    let grpc_service = grpc_trace_layer.layer(make_flight_server(
+        Arc::clone(&server.http.query_executor),
+        Some(server.authorizer()),
+    ));
+
+    let http_metrics = RequestMetrics::new(
         Arc::clone(&server.common_state.metrics),
         MetricFamily::HttpServer,
     );
-    let trace_layer = TraceLayer::new(
+    let http_trace_layer = TraceLayer::new(
         server.common_state.trace_header_parser.clone(),
-        Arc::new(req_metrics),
+        Arc::new(http_metrics),
         server.common_state.trace_collector().clone(),
-        TRACE_SERVER_NAME,
+        TRACE_HTTP_SERVER_NAME,
+        trace_http::tower::ServiceProtocol::Http,
     );
 
     if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
-        let grpc_service = trace_layer.clone().layer(make_flight_server(
-            Arc::clone(&server.http.query_executor),
-            Some(server.authorizer()),
-        ));
-
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
@@ -177,7 +190,7 @@ pub async fn serve(
                     paths_without_authz,
                 )
             });
-            let service = trace_layer.layer(service);
+            let service = http_trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
         });
 
@@ -227,7 +240,7 @@ pub async fn serve(
             .with_graceful_shutdown(shutdown.cancelled())
             .await?;
     } else {
-        let grpc_service = trace_layer.clone().layer(make_flight_server(
+        let grpc_service = grpc_trace_layer.layer(make_flight_server(
             Arc::clone(&server.http.query_executor),
             Some(server.authorizer()),
         ));
@@ -242,7 +255,7 @@ pub async fn serve(
                     paths_without_authz,
                 )
             });
-            let service = trace_layer.layer(service);
+            let service = http_trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
         });
 
@@ -289,7 +302,7 @@ mod tests {
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
-    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
+    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -829,6 +842,8 @@ mod tests {
                     .collect(),
                 metric_registry: Arc::clone(&metrics),
                 mem_pool_size: usize::MAX,
+                per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+                heap_memory_limit: None,
             },
             DedicatedExecutor::new_testing(),
         ));
@@ -904,6 +919,7 @@ mod tests {
             telemetry_store: Arc::clone(&sample_telem_store),
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth: false,
+            time_provider: Arc::clone(&time_provider) as _,
         }));
 
         // bind to port 0 will assign a random available port:
