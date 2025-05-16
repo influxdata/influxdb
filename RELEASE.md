@@ -16,6 +16,12 @@
   Take note of the commit immediately before it (`e4cfbf71f7` here), as the tagged commit (`d7c071e0c4` here)
   will not appear on the `main` branch.
 
+- Open a branch off of the `3.0` branch before proceeding, we will cherry pick the commits for this
+  release onto the new branch:
+  ```
+  git checkout -b 3.0/my-branch-name
+  ```
+
 - You need to cherry pick commits from the `main` branch that will go into the `3.0.2` point release,
   so you can list out the most recent commits on the `main` branch to determine those:
   ```
@@ -30,7 +36,7 @@
   * e4cfbf71f7 (origin/pd/three-dot-oh-one) chore: back-port catalog limit refactor from enterprise (#26278)
   ```
   For any commits newer than the one previously noted (`e4cfbf71f7`), you will want to cherry pick
-  them onto the `3.0` branch in the order they were originally applied:
+  them onto the `3.0/my-branch-name` branch in the order they were originally applied:
   ```
   git cherry-pick 2ceed952b8
   git cherry-pick b41a2d9bc3
@@ -42,8 +48,11 @@
   ```
   git push
   ```
+  Open a PR from `3.0/my-branch-name` into `3.0` (not `main`) so the changes can be reviewed by
+  another developer.
 
-- The version needs to be bumped on the `3.0` branch for the new release, so start a new branch
+- Once that PR is merged, the version needs to be bumped on the `3.0` branch for the new release, so
+  start a new branch:
   ```
   git checkout -b hiltontj/three-zero-two
   ```
@@ -64,7 +73,7 @@
   (replace `3.0.2` with your tag name without the leading `v`)
 
   ```
-  curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-3.0.2_linux_amd64.tar.gz
+  curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.0.2_linux_amd64.tar.gz
   ```
 
 - When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_VERSION`
