@@ -786,6 +786,8 @@ func (s *Store) ClearBadShardList() map[uint64]error {
 	badShards := s.GetBadShardList()
 
 	s.mu.Lock()
+	s.badShards.mu.Lock()
+	defer s.badShards.mu.Unlock()
 	defer s.mu.Unlock()
 	clear(s.badShards.shardErrors)
 
