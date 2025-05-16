@@ -2584,7 +2584,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 
 			e.CompactionPlan = cp
 			e.Compactor.FileStore = ffs
-			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions(tsm1.PT_Standard)
 			compareLevelGroups(t, furtherCompactedTests[i].level1Groups, level1Groups, "unexpected level 1 Group")
 			compareLevelGroups(t, furtherCompactedTests[i].level2Groups, level2Groups, "unexpected level 2 Group")
 			compareLevelGroups(t, furtherCompactedTests[i].level3Groups, level3Groups, "unexpected level 3 Group")
@@ -2715,7 +2715,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			e.CompactionPlan = cp
 			e.Compactor.FileStore = ffs
 
-			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions(tsm1.PT_Standard)
 			compareLevelGroups(t, areFullyCompactedTests[i].level1Groups, level1Groups, "unexpected level 1 Group")
 			compareLevelGroups(t, areFullyCompactedTests[i].level2Groups, level2Groups, "unexpected level 2 Group")
 			compareLevelGroups(t, areFullyCompactedTests[i].level3Groups, level3Groups, "unexpected level 3 Group")
@@ -2858,7 +2858,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			e.CompactionPlan = cp
 			e.Compactor.FileStore = ffs
 
-			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions(tsm1.PT_Standard)
 			compareLevelGroups(t, mixedPlanOptimizeTests[i].level1Groups, level1Groups, "unexpected level 1 Group")
 			compareLevelGroups(t, mixedPlanOptimizeTests[i].level2Groups, level2Groups, "unexpected level 2 Group")
 			compareLevelGroups(t, mixedPlanOptimizeTests[i].level3Groups, level3Groups, "unexpected level 3 Group")
@@ -3033,13 +3033,13 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{},
-			[]tsm1.PlannedCompactionGroup{},
 			[]tsm1.PlannedCompactionGroup{
 				{
 					tsm1.CompactionGroup{
 						"02-04.tsm1", "02-05.tsm1", "02-06.tsm1", "03-02.tsm1", "03-03.tsm1", "03-03.tsm1", "03-04.tsm1", "04-01.tsm1", "04-02.tsm1",
-					}, tsdb.DefaultAggressiveMaxPointsPerBlock},
+					}, tsdb.DefaultMaxPointsPerBlock},
 			},
+			[]tsm1.PlannedCompactionGroup{},
 		},
 		{
 			"1.12.0 RC0 Planner issue mock data from cluster",
@@ -3477,7 +3477,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			e.CompactionPlan = cp
 			e.Compactor.FileStore = ffs
 
-			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions(tsm1.PT_Standard)
 			compareLevelGroups(t, planBeforePlanOptimized[i].level1Groups, level1Groups, "unexpected level 1 Group")
 			compareLevelGroups(t, planBeforePlanOptimized[i].level2Groups, level2Groups, "unexpected level 2 Group")
 			compareLevelGroups(t, planBeforePlanOptimized[i].level3Groups, level3Groups, "unexpected level 3 Group")
@@ -4233,10 +4233,10 @@ func TestEnginePlanCompactions(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			level5Groups: []tsm1.PlannedCompactionGroup{
+			level4Groups: []tsm1.PlannedCompactionGroup{
 				{
 					tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
-					tsdb.DefaultAggressiveMaxPointsPerBlock,
+					tsdb.DefaultMaxPointsPerBlock,
 				},
 			},
 		},
@@ -4247,10 +4247,24 @@ func TestEnginePlanCompactions(t *testing.T) {
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 			},
-			level5Groups: []tsm1.PlannedCompactionGroup{
+			level4Groups: []tsm1.PlannedCompactionGroup{
 				{
 					tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-05.tsm"},
-					tsdb.DefaultAggressiveMaxPointsPerBlock,
+					tsdb.DefaultMaxPointsPerBlock,
+				},
+			},
+		},
+		{
+			blockCounts: []int{
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
+			level4Groups: []tsm1.PlannedCompactionGroup{
+				{
+					tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-05.tsm"},
+					tsdb.DefaultMaxPointsPerBlock,
 				},
 			},
 		},
@@ -4276,7 +4290,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 		e.CompactionPlan = cp
 		e.Compactor.FileStore = ffs
 
-		level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions()
+		level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions(tsm1.PT_Standard)
 		compareLevelGroups(t, testBlockCountsAndResults[i].level1Groups, level1Groups, "unexpected level 1 Group")
 		compareLevelGroups(t, testBlockCountsAndResults[i].level2Groups, level2Groups, "unexpected level 2 Group")
 		compareLevelGroups(t, testBlockCountsAndResults[i].level3Groups, Level3Groups, "unexpected level 3 Group")
