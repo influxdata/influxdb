@@ -36,7 +36,10 @@ use influxdb3_server::{
 };
 use influxdb3_shutdown::{ShutdownManager, wait_for_signal};
 use influxdb3_sys_events::SysEventStore;
-use influxdb3_telemetry::store::{CreateTelemetryStoreArgs, TelemetryStore};
+use influxdb3_telemetry::{
+    ProcessingEngineMetrics,
+    store::{CreateTelemetryStoreArgs, TelemetryStore},
+};
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     WriteBuffer,
@@ -694,15 +697,16 @@ pub async fn command(config: Config) -> Result<()> {
     .await;
 
     info!("setting up telemetry store");
-    let telemetry_store = setup_telemetry_store(
-        &config.object_store_config,
-        node_def.instance_id(),
+    let telemetry_store = setup_telemetry_store(TelemetryStoreSetupArgs {
+        object_store_config: &config.object_store_config,
+        instance_id: node_def.instance_id(),
         num_cpus,
-        Some(Arc::clone(&write_buffer_impl.persisted_files())),
-        config.telemetry_endpoint.as_str(),
-        config.disable_telemetry_upload,
-        catalog.catalog_uuid().to_string(),
-    )
+        persisted_files: Some(Arc::clone(&write_buffer_impl.persisted_files())),
+        telemetry_endpoint: &config.telemetry_endpoint,
+        disable_upload: config.disable_telemetry_upload,
+        catalog_uuid: catalog.catalog_uuid().to_string(),
+        processing_engine_metrics: Arc::clone(&catalog) as Arc<dyn ProcessingEngineMetrics>,
+    })
     .await;
 
     let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
@@ -916,14 +920,28 @@ fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
     Arc::new(DisabledManager)
 }
 
-async fn setup_telemetry_store(
-    object_store_config: &ObjectStoreConfig,
+struct TelemetryStoreSetupArgs<'a> {
+    object_store_config: &'a ObjectStoreConfig,
     instance_id: Arc<str>,
     num_cpus: usize,
     persisted_files: Option<Arc<PersistedFiles>>,
-    telemetry_endpoint: &str,
+    telemetry_endpoint: &'a str,
     disable_upload: bool,
     catalog_uuid: String,
+    processing_engine_metrics: Arc<dyn ProcessingEngineMetrics>,
+}
+
+async fn setup_telemetry_store(
+    TelemetryStoreSetupArgs {
+        object_store_config,
+        instance_id,
+        num_cpus,
+        persisted_files,
+        telemetry_endpoint,
+        disable_upload,
+        catalog_uuid,
+        processing_engine_metrics,
+    }: TelemetryStoreSetupArgs<'_>,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -937,7 +955,10 @@ async fn setup_telemetry_store(
 
     if disable_upload {
         debug!("Initializing TelemetryStore with upload disabled.");
-        TelemetryStore::new_without_background_runners(persisted_files.map(|p| p as _))
+        TelemetryStore::new_without_background_runners(
+            persisted_files.map(|p| p as _),
+            processing_engine_metrics,
+        )
     } else {
         debug!("Initializing TelemetryStore with upload enabled for {telemetry_endpoint}.");
         TelemetryStore::new(CreateTelemetryStoreArgs {
@@ -949,6 +970,7 @@ async fn setup_telemetry_store(
             persisted_files: persisted_files.map(|p| p as _),
             telemetry_endpoint: telemetry_endpoint.to_string(),
             catalog_uuid,
+            processing_engine_metrics,
         })
         .await
     }

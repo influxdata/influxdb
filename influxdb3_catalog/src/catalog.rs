@@ -14,6 +14,7 @@ use influxdb3_id::{
     TriggerId,
 };
 use influxdb3_shutdown::ShutdownToken;
+use influxdb3_telemetry::ProcessingEngineMetrics;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use metrics::CatalogMetrics;
@@ -615,6 +616,12 @@ impl TokenProvider for Catalog {
     }
 }
 
+impl ProcessingEngineMetrics for Catalog {
+    fn num_triggers(&self) -> u64 {
+        self.inner.read().num_triggers() as u64
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Repository<I: CatalogId, R: CatalogResource> {
     pub(crate) repo: SerdeVecMap<I, Arc<R>>,
@@ -954,6 +961,13 @@ impl InnerCatalog {
     pub fn db_exists(&self, db_id: DbId) -> bool {
         self.databases.get_by_id(&db_id).is_some()
     }
+
+    pub fn num_triggers(&self) -> usize {
+        self.databases
+            .iter()
+            .map(|(_, db)| db.trigger_count())
+            .sum()
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -1161,6 +1175,10 @@ impl DatabaseSchema {
             .flat_map(|t| t.last_caches.resource_iter())
             .cloned()
             .collect()
+    }
+
+    pub fn trigger_count(&self) -> usize {
+        self.processing_engine_triggers.len()
     }
 }
 

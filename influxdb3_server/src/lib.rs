@@ -286,9 +286,9 @@ mod tests {
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
-    use influxdb3_write::WriteBuffer;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
+    use influxdb3_write::{Bufferer, WriteBuffer};
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -880,8 +880,13 @@ mod tests {
         let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
         let parquet_metrics_provider: Arc<PersistedFiles> =
             Arc::clone(&write_buffer_impl.persisted_files());
-        let sample_telem_store =
-            TelemetryStore::new_without_background_runners(Some(parquet_metrics_provider));
+        let processing_engine_metrics_provider: Arc<Catalog> =
+            Arc::clone(&write_buffer_impl.catalog());
+
+        let sample_telem_store = TelemetryStore::new_without_background_runners(
+            Some(parquet_metrics_provider),
+            processing_engine_metrics_provider,
+        );
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let common_state = crate::CommonServerState::new(
             Arc::clone(&metrics),

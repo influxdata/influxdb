@@ -19,6 +19,7 @@ influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_process = { path = "../influxdb3_process" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_wal = { path = "../influxdb3_wal" }
+influxdb3_telemetry = { path = "../influxdb3_telemetry" }
 
 # crates.io dependencies
 anyhow.workspace = true

@@ -763,7 +763,7 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        WriteBuffer,
+        Bufferer, WriteBuffer,
         persister::Persister,
         write_buffer::{WriteBufferImpl, WriteBufferImplArgs, persisted_files::PersistedFiles},
     };
@@ -864,7 +864,12 @@ mod tests {
         .unwrap();
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
-        let telemetry_store = TelemetryStore::new_without_background_runners(Some(persisted_files));
+        let processing_engine_metrics_provider: Arc<Catalog> =
+            Arc::clone(&write_buffer_impl.catalog());
+        let telemetry_store = TelemetryStore::new_without_background_runners(
+            Some(persisted_files),
+            processing_engine_metrics_provider,
+        );
         let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
             &time_provider,
         )));
