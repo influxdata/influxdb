@@ -88,7 +88,10 @@ pub(crate) struct TelemetryPayload {
     pub parquet_file_size_mb: f64,
     pub parquet_row_count: u64,
     // triggers (processing engine)
-    pub triggers_count: u64,
+    pub wal_single_triggers_count: u64,
+    pub wal_all_triggers_count: u64,
+    pub schedule_triggers_count: u64,
+    pub request_triggers_count: u64,
 }
 
 /// This function runs in the background and if any call fails
@@ -199,7 +202,10 @@ mod tests {
             write_lines_sum_1h: 200,
             write_mb_sum_1h: 200,
             query_requests_sum_1h: 200,
-            triggers_count: 100,
+            wal_single_triggers_count: 100,
+            wal_all_triggers_count: 100,
+            schedule_triggers_count: 150,
+            request_triggers_count: 155,
         }
     }
 }

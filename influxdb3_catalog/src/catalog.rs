@@ -42,6 +42,7 @@ pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
 use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
 use crate::log::CreateAdminTokenDetails;
+use crate::log::TriggerSpecificationDefinition;
 use crate::log::{
     CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
     RegenerateAdminTokenDetails, RegisterNodeLog, StopNodeLog, TokenBatch, TokenCatalogOp,
@@ -617,8 +618,8 @@ impl TokenProvider for Catalog {
 }
 
 impl ProcessingEngineMetrics for Catalog {
-    fn num_triggers(&self) -> u64 {
-        self.inner.read().num_triggers() as u64
+    fn num_triggers(&self) -> (u64, u64, u64, u64) {
+        self.inner.read().num_triggers()
     }
 }
 
@@ -962,11 +963,31 @@ impl InnerCatalog {
         self.databases.get_by_id(&db_id).is_some()
     }
 
-    pub fn num_triggers(&self) -> usize {
+    pub fn num_triggers(&self) -> (u64, u64, u64, u64) {
         self.databases
             .iter()
-            .map(|(_, db)| db.trigger_count())
-            .sum()
+            .map(|(_, db)| db.trigger_count_by_type())
+            .fold(
+                (0, 0, 0, 0),
+                |(
+                    mut overall_wal_count,
+                    mut overall_all_wal_count,
+                    mut overall_schedule_count,
+                    mut overall_request_count,
+                ),
+                 (wal_count, all_wal_count, schedule_count, request_count)| {
+                    overall_wal_count += wal_count;
+                    overall_all_wal_count += all_wal_count;
+                    overall_schedule_count += schedule_count;
+                    overall_request_count += request_count;
+                    (
+                        overall_wal_count,
+                        overall_all_wal_count,
+                        overall_schedule_count,
+                        overall_request_count,
+                    )
+                },
+            )
     }
 }
 
@@ -1177,8 +1198,24 @@ impl DatabaseSchema {
             .collect()
     }
 
-    pub fn trigger_count(&self) -> usize {
-        self.processing_engine_triggers.len()
+    pub fn trigger_count_by_type(&self) -> (u64, u64, u64, u64) {
+        self.processing_engine_triggers.iter().fold(
+            (0, 0, 0, 0),
+            |(mut wal_count, mut all_wal_count, mut schedule_count, mut request_count),
+             (_, trigger)| {
+                match trigger.trigger {
+                    // wal
+                    TriggerSpecificationDefinition::SingleTableWalWrite { .. } => wal_count += 1,
+                    TriggerSpecificationDefinition::AllTablesWalWrite => all_wal_count += 1,
+                    // schedule
+                    TriggerSpecificationDefinition::Schedule { .. }
+                    | TriggerSpecificationDefinition::Every { .. } => schedule_count += 1,
+                    // request
+                    TriggerSpecificationDefinition::RequestPath { .. } => request_count += 1,
+                };
+                (wal_count, all_wal_count, schedule_count, request_count)
+            },
+        )
     }
 }
 

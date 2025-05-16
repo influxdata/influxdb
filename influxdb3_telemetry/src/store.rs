@@ -169,7 +169,12 @@ impl TelemetryStore {
             payload.parquet_file_size_mb = size_mb;
             payload.parquet_row_count = row_count;
         }
-        payload.triggers_count = self.processing_engine_metrics.num_triggers();
+        let (wal_count, all_wal_count, schedule_count, request_count) =
+            self.processing_engine_metrics.num_triggers();
+        payload.wal_single_triggers_count = wal_count;
+        payload.wal_all_triggers_count = all_wal_count;
+        payload.schedule_triggers_count = schedule_count;
+        payload.request_triggers_count = request_count;
         payload
     }
 }
@@ -279,7 +284,11 @@ impl TelemetryStoreInner {
             write_lines_sum_1h: self.writes.total_lines,
             write_mb_sum_1h: to_mega_bytes(self.writes.total_size_bytes),
             query_requests_sum_1h: self.reads.total_num_queries,
-            triggers_count: 0,
+            // trigger counts
+            wal_single_triggers_count: 0,
+            wal_all_triggers_count: 0,
+            schedule_triggers_count: 0,
+            request_triggers_count: 0,
         }
     }
 
@@ -359,8 +368,8 @@ mod tests {
     }
 
     impl ProcessingEngineMetrics for SampleMetrics {
-        fn num_triggers(&self) -> u64 {
-            150
+        fn num_triggers(&self) -> (u64, u64, u64, u64) {
+            (150, 160, 200, 250)
         }
     }
 
@@ -414,7 +423,10 @@ mod tests {
         assert_eq!(200, snapshot.parquet_file_count);
         assert_eq!(500.25, snapshot.parquet_file_size_mb);
         assert_eq!(100, snapshot.parquet_row_count);
-        assert_eq!(150, snapshot.triggers_count);
+        assert_eq!(150, snapshot.wal_single_triggers_count);
+        assert_eq!(160, snapshot.wal_all_triggers_count);
+        assert_eq!(200, snapshot.schedule_triggers_count);
+        assert_eq!(250, snapshot.request_triggers_count);
 
         // add some writes
         store.add_write_metrics(100, 100);

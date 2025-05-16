@@ -123,8 +123,8 @@ mod tests {
     }
 
     impl ProcessingEngineMetrics for MockMetrics {
-        fn num_triggers(&self) -> u64 {
-            100
+        fn num_triggers(&self) -> (u64, u64, u64, u64) {
+            (100, 110, 150, 200)
         }
     }
 

@@ -26,5 +26,5 @@ pub trait ParquetMetrics: Send + Sync + std::fmt::Debug + 'static {
 }
 
 pub trait ProcessingEngineMetrics: Send + Sync + std::fmt::Debug + 'static {
-    fn num_triggers(&self) -> u64;
+    fn num_triggers(&self) -> (u64, u64, u64, u64);
 }
