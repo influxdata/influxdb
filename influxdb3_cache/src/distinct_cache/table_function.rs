@@ -3,9 +3,9 @@ use std::{any::Any, sync::Arc};
 use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use async_trait::async_trait;
 use datafusion::{
-    catalog::{Session, TableProvider},
+    catalog::{Session, TableFunctionImpl, TableProvider},
     common::{DFSchema, Result, internal_err, plan_err},
-    datasource::{TableType, function::TableFunctionImpl},
+    datasource::TableType,
     execution::context::ExecutionProps,
     logical_expr::TableProviderFilterPushDown,
     physical_expr::{
