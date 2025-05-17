@@ -47,18 +47,18 @@ pub(crate) struct DistinctCache {
     /// The fixed Arrow schema used to produce record batches from the cache
     schema: SchemaRef,
     /// Holds current state of the cache
-    state: DistinctCacheState,
+    pub(crate) state: DistinctCacheState,
     /// The identifiers of the columns used in the cache
     column_ids: Vec<ColumnId>,
     /// The cache data, stored in a tree
-    data: Node,
+    pub(crate) data: Node,
 }
 
 /// Type for tracking the current state of a [`DistinctCache`]
 #[derive(Debug, Default)]
-struct DistinctCacheState {
+pub(crate) struct DistinctCacheState {
     /// The current number of unique value combinations in the cache
-    cardinality: usize,
+    pub(crate) cardinality: usize,
 }
 
 /// Arguments to create a new [`DistinctCache`]
@@ -294,7 +294,7 @@ impl DistinctCache {
 /// whose values hold the last seen time as an [`i64`] of each value, and an optional reference to
 /// the node in the next level of the tree.
 #[derive(Debug, Default)]
-struct Node(BTreeMap<Value, (i64, Option<Node>)>);
+pub(crate) struct Node(pub(crate) BTreeMap<Value, (i64, Option<Node>)>);
 
 impl Node {
     /// Remove all elements before the given nanosecond timestamp returning `true` if the resulting
