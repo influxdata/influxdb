@@ -43,7 +43,7 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
 use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
-use iox_http_util::{Request, Response, ResponseBuilder};
+use iox_http_util::{Request, Response, ResponseBuilder, empty_response_body};
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
@@ -597,7 +597,7 @@ impl HttpApi {
         if result.invalid_lines.is_empty() {
             ResponseBuilder::new()
                 .status(StatusCode::NO_CONTENT)
-                .body(Body::empty())
+                .body(empty_response_body())
                 .map_err(Into::into)
         } else {
             Err(Error::PartialLpWrite(result))
@@ -977,7 +977,7 @@ impl HttpApi {
 
         ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .map_err(Into::into)
     }
 
@@ -1031,7 +1031,7 @@ impl HttpApi {
 
         ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .map_err(Into::into)
     }
 
@@ -1069,7 +1069,7 @@ impl HttpApi {
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(empty_response_body())?)
     }
 
     async fn delete_processing_engine_trigger(&self, req: Request) -> Result<Response> {
@@ -1088,7 +1088,7 @@ impl HttpApi {
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(empty_response_body())?)
     }
 
     async fn disable_processing_engine_trigger(&self, req: Request) -> Result<Response> {
@@ -1103,7 +1103,7 @@ impl HttpApi {
         {
             Ok(_) | Err(CatalogError::TriggerAlreadyDisabled) => Ok(ResponseBuilder::new()
                 .status(StatusCode::OK)
-                .body(Body::empty())?),
+                .body(empty_response_body())?),
             Err(error) => Err(error.into()),
         }
     }
@@ -1120,7 +1120,7 @@ impl HttpApi {
         {
             Ok(_) | Err(CatalogError::TriggerAlreadyEnabled) => Ok(ResponseBuilder::new()
                 .status(StatusCode::OK)
-                .body(Body::empty())?),
+                .body(empty_response_body())?),
             Err(error) => Err(error.into()),
         }
     }
@@ -1139,7 +1139,7 @@ impl HttpApi {
 
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(empty_response_body())?)
     }
 
     async fn install_plugin_environment_requirements(&self, req: Request) -> Result<Response> {
@@ -1161,7 +1161,7 @@ impl HttpApi {
 
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(empty_response_body())?)
     }
 
     async fn show_databases(&self, req: Request) -> Result<Response> {
@@ -1183,7 +1183,7 @@ impl HttpApi {
         self.write_buffer.catalog().create_database(&db).await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
@@ -1271,7 +1271,7 @@ impl HttpApi {
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
@@ -1296,7 +1296,7 @@ impl HttpApi {
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
@@ -1309,7 +1309,7 @@ impl HttpApi {
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
@@ -1322,7 +1322,7 @@ impl HttpApi {
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
@@ -1531,7 +1531,7 @@ async fn record_batch_stream_to_body(
         QueryFormat::Parquet => {
             // Grab the first batch so that we can get the schema
             let Some(batch) = stream.next().await.transpose()? else {
-                return Ok(Body::empty());
+                return Ok(empty_response_body());
             };
             let schema = batch.schema();
 
@@ -1740,7 +1740,7 @@ pub(crate) async fn route_request(
             .header("Access-Control-Allow-Headers", "*")
             .header("Access-Control-Max-Age", "86400")
             .status(204)
-            .body(Body::empty())
+            .body(empty_response_body())
             .expect("Able to always create a valid response type for CORS"));
     }
 
@@ -1894,7 +1894,7 @@ async fn authenticate(
             AuthenticationError::Unauthenticated => {
                 return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::UNAUTHORIZED)
-                    .body(Body::empty())
+                    .body(empty_response_body())
                     .unwrap()));
             }
             AuthenticationError::MalformedRequest => {
@@ -1906,7 +1906,7 @@ async fn authenticate(
             AuthenticationError::Forbidden => {
                 return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::FORBIDDEN)
-                    .body(Body::empty())
+                    .body(empty_response_body())
                     .unwrap()));
             }
             // We don't expect this to happen, but if the header is messed up
@@ -1914,7 +1914,7 @@ async fn authenticate(
             AuthenticationError::ToStr(_) => {
                 return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Body::empty())
+                    .body(empty_response_body())
                     .unwrap()));
             }
         }
