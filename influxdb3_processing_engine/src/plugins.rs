@@ -193,8 +193,8 @@ mod python_plugin {
     use futures_util::StreamExt;
     use futures_util::stream::FuturesUnordered;
     use humantime::{format_duration, parse_duration};
+    use hyper::StatusCode;
     use hyper::http::HeaderValue;
-    use hyper::{Body, StatusCode};
     use influxdb3_catalog::catalog::DatabaseSchema;
     use influxdb3_catalog::log::ErrorBehavior;
     use influxdb3_py_api::logging::LogLevel;
@@ -204,7 +204,7 @@ mod python_plugin {
     };
     use influxdb3_wal::{WalContents, WalOp};
     use influxdb3_write::Precision;
-    use iox_http_util::ResponseBuilder;
+    use iox_http_util::{ResponseBuilder, bytes_to_response_body};
     use iox_time::Time;
     use observability_deps::tracing::{info, warn};
     use std::str::FromStr;
@@ -514,7 +514,7 @@ mod python_plugin {
                                 }
 
                                 response
-                                    .body(Body::from(response_body))
+                                    .body(bytes_to_response_body(response_body))
                                     .context("building response")?
                             }
                             Err(e) => {
@@ -527,7 +527,7 @@ mod python_plugin {
                                 let body = serde_json::json!({"error": e.to_string()}).to_string();
                                 ResponseBuilder::new()
                                     .status(StatusCode::INTERNAL_SERVER_ERROR)
-                                    .body(Body::from(body))
+                                    .body(bytes_to_response_body(body))
                                     .context("building response")?
                             }
                         };

@@ -41,7 +41,9 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
 use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
-use iox_http_util::{Request, Response, ResponseBuilder, empty_response_body};
+use iox_http_util::{
+    Request, Response, ResponseBody, ResponseBuilder, bytes_to_response_body, empty_response_body,
+};
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
@@ -267,18 +269,18 @@ impl IntoResponse for CatalogError {
         match self {
             Self::NotFound => ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::AlreadyExists | Self::AlreadyDeleted => ResponseBuilder::new()
                 .status(StatusCode::CONFLICT)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType
             | Self::InvalidColumnType { .. } => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::TooManyColumns(_)
             | Self::TooManyTables(_)
@@ -289,14 +291,14 @@ impl IntoResponse for CatalogError {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
+                let body = bytes_to_response_body(serialized);
                 ResponseBuilder::new()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(body)
                     .unwrap()
             }
             _ => {
-                let body = Body::from(self.to_string());
+                let body = bytes_to_response_body(self.to_string());
                 ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(body)
@@ -313,12 +315,12 @@ impl IntoResponse for Error {
         match self {
             Self::Catalog(err @ CatalogError::CannotDeleteOperatorToken) => ResponseBuilder::new()
                 .status(StatusCode::METHOD_NOT_ALLOWED)
-                .body(Body::from(err.to_string()))
+                .body(bytes_to_response_body(err.to_string()))
                 .unwrap(),
             Self::Catalog(err @ CatalogError::TokenNameAlreadyExists { .. }) => {
                 ResponseBuilder::new()
                     .status(StatusCode::CONFLICT)
-                    .body(Body::from(err.to_string()))
+                    .body(bytes_to_response_body(err.to_string()))
                     .unwrap()
             }
             Self::Catalog(err) | Self::WriteBuffer(WriteBufferError::CatalogUpdateError(err)) => {
@@ -327,13 +329,13 @@ impl IntoResponse for Error {
             Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => {
                 ResponseBuilder::new()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
-                    .body(Body::from(err.to_string()))
+                    .body(bytes_to_response_body(err.to_string()))
                     .unwrap()
             }
             Self::WriteBuffer(err @ WriteBufferError::DatabaseNotFound { db_name: _ }) => {
                 ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(err.to_string()))
+                    .body(bytes_to_response_body(err.to_string()))
                     .unwrap()
             }
             Self::WriteBuffer(
@@ -343,11 +345,11 @@ impl IntoResponse for Error {
                 },
             ) => ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::from(err.to_string()))
+                .body(bytes_to_response_body(err.to_string()))
                 .unwrap(),
             Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(err.to_string()))
+                .body(bytes_to_response_body(err.to_string()))
                 .unwrap(),
             Self::WriteBuffer(WriteBufferError::ParseError(err)) => {
                 let err = ErrorMessage {
@@ -355,7 +357,7 @@ impl IntoResponse for Error {
                     data: Some(err),
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
+                let body = bytes_to_response_body(serialized);
                 ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
@@ -363,7 +365,7 @@ impl IntoResponse for Error {
             }
             Self::WriteBuffer(err @ WriteBufferError::EmptyWrite) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(err.to_string()))
+                .body(bytes_to_response_body(err.to_string()))
                 .unwrap(),
             Self::WriteBuffer(err @ WriteBufferError::ColumnDoesNotExist(_)) => {
                 let err: ErrorMessage<()> = ErrorMessage {
@@ -371,7 +373,7 @@ impl IntoResponse for Error {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
+                let body = bytes_to_response_body(serialized);
                 ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
@@ -387,11 +389,11 @@ impl IntoResponse for Error {
                 | last_cache::Error::InvalidKeyColumn { .. }
                 | last_cache::Error::ValueColumnDoesNotExist { .. } => ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from(lc_err.to_string()))
+                    .body(bytes_to_response_body(lc_err.to_string()))
                     .unwrap(),
                 last_cache::Error::CacheDoesNotExist => ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(self.to_string()))
+                    .body(bytes_to_response_body(self.to_string()))
                     .unwrap(),
             },
             Self::WriteBuffer(WriteBufferError::DistinctCacheError(ref mc_err)) => match mc_err {
@@ -401,21 +403,21 @@ impl IntoResponse for Error {
                     | distinct_cache::CacheError::ConfigurationMismatch { .. } => {
                         ResponseBuilder::new()
                             .status(StatusCode::BAD_REQUEST)
-                            .body(Body::from(mc_err.to_string()))
+                            .body(bytes_to_response_body(mc_err.to_string()))
                             .unwrap()
                     }
                     distinct_cache::CacheError::Unexpected(_) => ResponseBuilder::new()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::from(mc_err.to_string()))
+                        .body(bytes_to_response_body(mc_err.to_string()))
                         .unwrap(),
                 },
                 distinct_cache::ProviderError::CacheNotFound => ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(mc_err.to_string()))
+                    .body(bytes_to_response_body(mc_err.to_string()))
                     .unwrap(),
                 distinct_cache::ProviderError::Unexpected(_) => ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Body::from(mc_err.to_string()))
+                    .body(bytes_to_response_body(mc_err.to_string()))
                     .unwrap(),
             },
             Self::DbName(e) => {
@@ -424,7 +426,7 @@ impl IntoResponse for Error {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
+                let body = bytes_to_response_body(serialized);
                 ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
@@ -443,7 +445,7 @@ impl IntoResponse for Error {
                     data: Some(data.invalid_lines),
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
+                let body = bytes_to_response_body(serialized);
                 ResponseBuilder::new()
                     .status(if limit_hit {
                         StatusCode::UNPROCESSABLE_ENTITY
@@ -459,7 +461,7 @@ impl IntoResponse for Error {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
+                let body = bytes_to_response_body(serialized);
                 ResponseBuilder::new()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
                     .body(body)
@@ -471,7 +473,7 @@ impl IntoResponse for Error {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
+                let body = bytes_to_response_body(serialized);
                 ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
                     .body(body)
@@ -479,29 +481,29 @@ impl IntoResponse for Error {
             }
             Self::SerdeJson(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::InvalidContentEncoding(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::InvalidContentType { .. } => ResponseBuilder::new()
                 .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::SerdeUrlDecoding(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::MissingQueryParams
             | Self::MissingQueryV1Params
             | Self::MissingWriteParams
             | Self::MissingDeleteDatabaseParams => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             _ => {
-                let body = Body::from(self.to_string());
+                let body = bytes_to_response_body(self.to_string());
                 ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(body)
@@ -611,7 +613,7 @@ impl HttpApi {
         let body = ResponseBuilder::new()
             .status(StatusCode::CREATED)
             .header(CONTENT_TYPE, "json")
-            .body(Body::from(body));
+            .body(bytes_to_response_body(body));
 
         Ok(body?)
     }
@@ -626,7 +628,7 @@ impl HttpApi {
         let body = ResponseBuilder::new()
             .status(StatusCode::CREATED)
             .header(CONTENT_TYPE, "json")
-            .body(Body::from(body));
+            .body(bytes_to_response_body(body));
 
         Ok(body?)
     }
@@ -679,7 +681,9 @@ impl HttpApi {
 
     fn health(&self) -> Result<Response> {
         let response_body = "OK";
-        Ok(Response::new(Body::from(response_body.to_string())))
+        Ok(Response::new(bytes_to_response_body(
+            response_body.to_string(),
+        )))
     }
 
     fn ping(&self) -> Result<Response> {
@@ -689,7 +693,7 @@ impl HttpApi {
             process_id: *PROCESS_UUID,
         })?;
 
-        Ok(Response::new(Body::from(body)))
+        Ok(Response::new(bytes_to_response_body(body)))
     }
 
     fn handle_metrics(&self) -> Result<Response> {
@@ -697,7 +701,7 @@ impl HttpApi {
         let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
         self.common_state.metrics.report(&mut reporter);
 
-        Ok(Response::new(Body::from(body)))
+        Ok(Response::new(bytes_to_response_body(body)))
     }
 
     /// Parse the request's body into raw bytes, applying the configured size
@@ -918,7 +922,7 @@ impl HttpApi {
         {
             Ok(batch) => ResponseBuilder::new()
                 .status(StatusCode::CREATED)
-                .body(Body::from(serde_json::to_vec(&batch)?))
+                .body(bytes_to_response_body(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
         }
@@ -972,7 +976,7 @@ impl HttpApi {
         {
             Ok(batch) => ResponseBuilder::new()
                 .status(StatusCode::CREATED)
-                .body(Body::from(serde_json::to_vec(&batch)?))
+                .body(bytes_to_response_body(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
         }
@@ -1164,7 +1168,7 @@ impl HttpApi {
 
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::from(body))?)
+            .body(bytes_to_response_body(body))?)
     }
 
     async fn test_processing_engine_schedule_plugin(&self, req: Request) -> Result<Response> {
@@ -1179,7 +1183,7 @@ impl HttpApi {
 
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::from(body))?)
+            .body(bytes_to_response_body(body))?)
     }
 
     async fn processing_engine_request_plugin(
@@ -1221,7 +1225,7 @@ impl HttpApi {
                 let body = "{error: \"not found\"}";
                 Ok(ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(body))?)
+                    .body(bytes_to_response_body(body))?)
             }
             Err(e) => Err(e.into()),
         }
@@ -1486,11 +1490,11 @@ pub enum ValidateDbNameError {
 async fn record_batch_stream_to_body(
     mut stream: Pin<Box<dyn RecordBatchStream + Send>>,
     format: QueryFormat,
-) -> Result<Body, Error> {
+) -> Result<ResponseBody, Error> {
     match format {
         QueryFormat::Pretty => {
             let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
-            Ok(Body::from(Bytes::from(format!(
+            Ok(bytes_to_response_body(Bytes::from(format!(
                 "{}",
                 pretty::pretty_format_batches(&batches)?
             ))))
@@ -1512,7 +1516,7 @@ async fn record_batch_stream_to_body(
                 writer.write(batch)?;
             }
             writer.close()?;
-            Ok(Body::from(Bytes::from(bytes)))
+            Ok(bytes_to_response_body(Bytes::from(bytes)))
         }
         QueryFormat::Csv => {
             struct CsvFuture {
@@ -1829,7 +1833,7 @@ pub(crate) async fn route_request(
                 .await
         }
         _ => {
-            let body = Body::from("not found");
+            let body = bytes_to_response_body("not found");
             Ok(ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
                 .body(body)
@@ -1868,7 +1872,7 @@ async fn authenticate(
             AuthenticationError::MalformedRequest => {
                 return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from(format!(r#"{{"error": "{e}"}}"#)))
+                    .body(bytes_to_response_body(format!(r#"{{"error": "{e}"}}"#)))
                     .unwrap()));
             }
             AuthenticationError::Forbidden => {
@@ -1896,7 +1900,7 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response {
         data: None,
     };
     let serialized = serde_json::to_string(&err).unwrap();
-    let body = Body::from(serialized);
+    let body = bytes_to_response_body(serialized);
     let status = match e {
         WriteParseError::NotImplemented => StatusCode::NOT_FOUND,
         WriteParseError::SingleTenantError(e) => StatusCode::from(&e),
