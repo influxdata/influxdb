@@ -34,6 +34,10 @@ pub fn build_malloc_conf() -> String {
 pub static INFLUXDB3_VERSION: LazyLock<&'static str> =
     LazyLock::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));
 
+/// Build information.
+pub static INFLUXDB3_BUILD: LazyLock<&'static str> =
+    LazyLock::new(|| option_env!("INFLUXDB3_BUILD_VERSION").unwrap_or("Core"));
+
 /// Build-time GIT revision hash.
 pub static INFLUXDB3_GIT_HASH: &str = env!(
     "GIT_HASH",

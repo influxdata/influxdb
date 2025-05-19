@@ -1,4 +1,5 @@
 use hyper::Method;
+use influxdb3_process::{INFLUXDB3_BUILD, INFLUXDB3_VERSION};
 use serde_json::Value;
 
 use crate::server::TestServer;
@@ -32,6 +33,27 @@ async fn test_ping() {
             .send()
             .await
             .unwrap();
+        // Verify we have a request id
+        assert!(resp.headers().contains_key("Request-Id"));
+        assert!(resp.headers().contains_key("X-Request-Id"));
+
+        assert_eq!(
+            resp.headers()
+                .get("X-Influxdb-Version")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            &INFLUXDB3_VERSION[..]
+        );
+        assert_eq!(
+            resp.headers()
+                .get("X-Influxdb-Build")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            &INFLUXDB3_BUILD[..]
+        );
+
         let json = resp.json::<Value>().await.unwrap();
         println!("Method: {}, URL: {}", t.method, t.url);
         println!("{json:#}");

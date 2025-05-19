@@ -29,7 +29,9 @@ use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::log::FieldDataType;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
-use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, PROCESS_UUID};
+use influxdb3_process::{
+    INFLUXDB3_BUILD, INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, PROCESS_UUID,
+};
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::manager::ProcessingEngineError;
 use influxdb3_types::http::*;
@@ -59,6 +61,7 @@ use std::task::Poll;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 use unicode_segmentation::UnicodeSegmentation;
+use uuid::Uuid;
 
 mod v1;
 
@@ -690,7 +693,18 @@ impl HttpApi {
             process_id: *PROCESS_UUID,
         })?;
 
-        Ok(Response::new(Body::from(body)))
+        // InfluxDB 1.x used time-based UUIDs.
+        let request_id = Uuid::now_v7().as_hyphenated().to_string();
+
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
+            .header("Request-Id", request_id.clone())
+            .header("X-Influxdb-Build", INFLUXDB3_BUILD.to_string())
+            .header("X-Influxdb-Version", INFLUXDB3_VERSION.to_string())
+            .header("X-Request-Id", request_id)
+            .body(Body::from(body))
+            .map_err(Into::into)
     }
 
     fn handle_metrics(&self) -> Result<Response<Body>> {
