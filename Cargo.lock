@@ -3134,6 +3134,7 @@ dependencies = [
  "influxdb3_write",
  "influxdb_influxql_parser",
  "iox_http",
+ "iox_http_util",
  "iox_query",
  "iox_query_influxql",
  "iox_query_influxql_rewrite",

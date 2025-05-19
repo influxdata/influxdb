@@ -16,6 +16,7 @@ datafusion_util.workspace = true
 influxdb-line-protocol.workspace = true
 influxdb_influxql_parser.workspace = true
 iox_http.workspace = true
+iox_http_util.workspace = true
 iox_query.workspace = true
 iox_query_params.workspace = true
 iox_query_influxql.workspace = true
