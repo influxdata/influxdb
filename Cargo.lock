@@ -3144,6 +3144,7 @@ dependencies = [
  "hashbrown 0.15.3",
  "hex",
  "http 0.2.12",
+ "http-body 0.4.6",
  "humantime",
  "hyper 0.14.32",
  "hyper-rustls 0.25.0",
