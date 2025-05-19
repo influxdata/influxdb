@@ -3076,6 +3076,7 @@ dependencies = [
  "influxdb3_types",
  "influxdb3_wal",
  "influxdb3_write",
+ "iox_http_util",
  "iox_query",
  "iox_time",
  "metric",

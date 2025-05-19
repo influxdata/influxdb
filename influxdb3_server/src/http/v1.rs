@@ -24,9 +24,9 @@ use chrono::{DateTime, format::SecondsFormat};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{Stream, StreamExt, ready, stream::Fuse};
 use hyper::http::HeaderValue;
-use hyper::{Body, Response, StatusCode, header::ACCEPT, header::CONTENT_TYPE};
+use hyper::{Body, StatusCode, header::ACCEPT, header::CONTENT_TYPE};
 use influxdb_influxql_parser::select::{Dimension, GroupByClause};
-use iox_http_util::Request;
+use iox_http_util::{Request, Response};
 use observability_deps::tracing::info;
 use regex::Regex;
 use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, InfluxColumnType, TIME_COLUMN_NAME};
@@ -45,7 +45,7 @@ impl HttpApi {
     /// response stream will be chunked into chunks of size `chunk_size`, if provided,
     /// or 10,000. For InfluxQL queries that select from multiple measurements, chunks
     /// will be split on the `chunk_size`, or series, whichever comes first.
-    pub(super) async fn v1_query(&self, req: Request) -> Result<Response<Body>> {
+    pub(super) async fn v1_query(&self, req: Request) -> Result<Response> {
         // extract params first from URI:
         let uri_params = QueryParams::from_request_uri(&req)?;
         // determine the format from the request headers now because we need to consume req to get
