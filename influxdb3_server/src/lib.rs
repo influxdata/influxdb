@@ -53,7 +53,8 @@ use trace_http::metrics::MetricFamily;
 use trace_http::metrics::RequestMetrics;
 use trace_http::tower::TraceLayer;
 
-const TRACE_SERVER_NAME: &str = "influxdb3_http";
+const TRACE_HTTP_SERVER_NAME: &str = "influxdb3_http";
+const TRACE_GRPC_SERVER_NAME: &str = "influxdb3_grpc";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -150,23 +151,35 @@ pub async fn serve(
     paths_without_authz: &'static Vec<&'static str>,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
-    let req_metrics = RequestMetrics::new(
+    let grpc_metrics = RequestMetrics::new(
+        Arc::clone(&server.common_state.metrics),
+        MetricFamily::GrpcServer,
+    );
+    let grpc_trace_layer = TraceLayer::new(
+        server.common_state.trace_header_parser.clone(),
+        Arc::new(grpc_metrics),
+        server.common_state.trace_collector().clone(),
+        TRACE_GRPC_SERVER_NAME,
+        trace_http::tower::ServiceProtocol::Grpc,
+    );
+    let grpc_service = grpc_trace_layer.layer(make_flight_server(
+        Arc::clone(&server.http.query_executor),
+        Some(server.authorizer()),
+    ));
+
+    let http_metrics = RequestMetrics::new(
         Arc::clone(&server.common_state.metrics),
         MetricFamily::HttpServer,
     );
-    let trace_layer = TraceLayer::new(
+    let http_trace_layer = TraceLayer::new(
         server.common_state.trace_header_parser.clone(),
-        Arc::new(req_metrics),
+        Arc::new(http_metrics),
         server.common_state.trace_collector().clone(),
-        TRACE_SERVER_NAME,
+        TRACE_HTTP_SERVER_NAME,
+        trace_http::tower::ServiceProtocol::Http,
     );
 
     if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
-        let grpc_service = trace_layer.clone().layer(make_flight_server(
-            Arc::clone(&server.http.query_executor),
-            Some(server.authorizer()),
-        ));
-
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
@@ -177,7 +190,7 @@ pub async fn serve(
                     paths_without_authz,
                 )
             });
-            let service = trace_layer.layer(service);
+            let service = http_trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
         });
 
@@ -227,7 +240,7 @@ pub async fn serve(
             .with_graceful_shutdown(shutdown.cancelled())
             .await?;
     } else {
-        let grpc_service = trace_layer.clone().layer(make_flight_server(
+        let grpc_service = grpc_trace_layer.layer(make_flight_server(
             Arc::clone(&server.http.query_executor),
             Some(server.authorizer()),
         ));
@@ -242,7 +255,7 @@ pub async fn serve(
                     paths_without_authz,
                 )
             });
-            let service = trace_layer.layer(service);
+            let service = http_trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
         });
 
@@ -273,7 +286,7 @@ mod tests {
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
-    use hyper::{Body, Client, Request, Response, StatusCode, body};
+    use hyper::{Client, StatusCode};
     use influxdb3_authz::NoAuthAuthenticator;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
@@ -289,7 +302,11 @@ mod tests {
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
-    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
+    use iox_http_util::{
+        RequestBuilder, Response, bytes_to_request_body, empty_request_body,
+        read_body_bytes_for_tests,
+    };
+    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -326,7 +343,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
         let expected = vec![
             "+------+-------------------------------+-----+",
@@ -350,7 +367,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = r#"[{"host":"a","time":"1970-01-01T00:00:00.000000123","val":1}]"#;
         assert_eq!(actual, expected);
@@ -363,7 +380,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = "host,time,val\na,1970-01-01T00:00:00.000000123,1\n";
         assert_eq!(actual, expected);
@@ -372,7 +389,7 @@ mod tests {
         use arrow::buffer::Buffer;
         use parquet::arrow::arrow_reader;
         let res = query(&server, "foo", "select * from cpu", "parquet", None).await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let batches = arrow_reader::ParquetRecordBatchReaderBuilder::try_new(body)
             .unwrap()
             .build()
@@ -426,7 +443,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -453,7 +470,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -478,7 +495,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = "host,time,val\n\
                         b,1970-01-01T00:00:00.000000155,2.0\n\
@@ -498,7 +515,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -521,7 +538,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -544,7 +561,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -652,7 +669,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         // Since a query can come back with data in any order we need to sort it
         // here before we do any assertions
         let mut unsorted = String::from_utf8(body.as_bytes().to_vec())
@@ -798,7 +815,7 @@ mod tests {
 
         for t in test_cases {
             let res = query(&url, db_name, t.query, "pretty", None).await;
-            let body = body::to_bytes(res.into_body()).await.unwrap();
+            let body = read_body_bytes_for_tests(res.into_body()).await;
             let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
             assert_eq!(t.expected, body, "query failed: {}", t.query);
         }
@@ -829,6 +846,8 @@ mod tests {
                     .collect(),
                 metric_registry: Arc::clone(&metrics),
                 mem_pool_size: usize::MAX,
+                per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+                heap_memory_limit: None,
             },
             DedicatedExecutor::new_testing(),
         ));
@@ -904,6 +923,7 @@ mod tests {
             telemetry_store: Arc::clone(&sample_telem_store),
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth: false,
+            time_provider: Arc::clone(&time_provider) as _,
         }));
 
         // bind to port 0 will assign a random available port:
@@ -967,7 +987,7 @@ mod tests {
         authorization: Option<&str>,
         accept_partial: bool,
         precision: impl Into<String> + Send,
-    ) -> Response<Body> {
+    ) -> Response {
         let server = server.into();
         let client = Client::new();
         let url = format!(
@@ -978,12 +998,12 @@ mod tests {
         );
         println!("{}", url);
 
-        let mut builder = Request::builder().uri(url).method("POST");
+        let mut builder = RequestBuilder::new().uri(url).method("POST");
         if let Some(authorization) = authorization {
             builder = builder.header(hyper::header::AUTHORIZATION, authorization);
         };
         let request = builder
-            .body(Body::from(lp.into()))
+            .body(bytes_to_request_body(lp.into()))
             .expect("failed to construct HTTP request");
 
         client
@@ -998,7 +1018,7 @@ mod tests {
         query: impl Into<String> + Send,
         format: impl Into<String> + Send,
         authorization: Option<&str>,
-    ) -> Response<Body> {
+    ) -> Response {
         let client = Client::new();
         // query escaped for uri
         let query = urlencoding::encode(&query.into());
@@ -1011,12 +1031,12 @@ mod tests {
         );
 
         println!("query url: {}", url);
-        let mut builder = Request::builder().uri(url).method("GET");
+        let mut builder = RequestBuilder::new().uri(url).method("GET");
         if let Some(authorization) = authorization {
             builder = builder.header(hyper::header::AUTHORIZATION, authorization);
         };
         let request = builder
-            .body(Body::empty())
+            .body(empty_request_body())
             .expect("failed to construct HTTP request");
 
         client

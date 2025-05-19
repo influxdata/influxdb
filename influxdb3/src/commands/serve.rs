@@ -49,7 +49,7 @@ use influxdb3_write::{
         persisted_files::PersistedFiles,
     },
 };
-use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
+use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
 use iox_time::SystemProvider;
 use object_store::ObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
@@ -561,6 +561,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&time_provider) as _,
         "main",
         &metrics,
+        config.object_store_config.bucket.as_ref(),
     ));
 
     // setup cached object store:
@@ -603,6 +604,9 @@ pub async fn command(config: Config) -> Result<()> {
                 .collect(),
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: config.exec_mem_pool_bytes.as_num_bytes(),
+            // TODO: need to make these configurable?
+            per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+            heap_memory_limit: None,
         },
         DedicatedExecutor::new(
             "datafusion",
@@ -735,6 +739,7 @@ pub async fn command(config: Config) -> Result<()> {
         sys_events_store: Arc::clone(&sys_events_store),
         // convert to positive here so that we can avoid double negatives downstream
         started_with_auth: !config.without_auth,
+        time_provider: Arc::clone(&time_provider) as _,
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)

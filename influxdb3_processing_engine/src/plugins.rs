@@ -193,8 +193,8 @@ mod python_plugin {
     use futures_util::StreamExt;
     use futures_util::stream::FuturesUnordered;
     use humantime::{format_duration, parse_duration};
+    use hyper::StatusCode;
     use hyper::http::HeaderValue;
-    use hyper::{Body, Response, StatusCode};
     use influxdb3_catalog::catalog::DatabaseSchema;
     use influxdb3_catalog::log::ErrorBehavior;
     use influxdb3_py_api::logging::LogLevel;
@@ -204,6 +204,7 @@ mod python_plugin {
     };
     use influxdb3_wal::{WalContents, WalOp};
     use influxdb3_write::Precision;
+    use iox_http_util::{ResponseBuilder, bytes_to_response_body};
     use iox_time::Time;
     use observability_deps::tracing::{info, warn};
     use std::str::FromStr;
@@ -502,7 +503,7 @@ mod python_plugin {
 
                                 let response_status = StatusCode::from_u16(response_code)
                                     .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-                                let mut response = Response::builder().status(response_status);
+                                let mut response = ResponseBuilder::new().status(response_status);
 
                                 for (key, value) in response_headers {
                                     response = response.header(
@@ -513,7 +514,7 @@ mod python_plugin {
                                 }
 
                                 response
-                                    .body(Body::from(response_body))
+                                    .body(bytes_to_response_body(response_body))
                                     .context("building response")?
                             }
                             Err(e) => {
@@ -524,9 +525,9 @@ mod python_plugin {
                                 );
                                 error!(?self.trigger_definition, "error running request plugin: {}", e);
                                 let body = serde_json::json!({"error": e.to_string()}).to_string();
-                                Response::builder()
+                                ResponseBuilder::new()
                                     .status(StatusCode::INTERNAL_SERVER_ERROR)
-                                    .body(Body::from(body))
+                                    .body(bytes_to_response_body(body))
                                     .context("building response")?
                             }
                         };

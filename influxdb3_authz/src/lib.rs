@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use authz::{Authorizer as IoxAuthorizer, Error as IoxError, Permission as IoxPermission};
+use authz::{
+    Authorization, Authorizer as IoxAuthorizer, Error as IoxError, Permission as IoxPermission,
+};
 use influxdb3_id::{DbId, TokenId};
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::{debug, trace};
@@ -168,20 +170,16 @@ impl AuthProvider for TokenAuthenticator {
 
 #[async_trait]
 impl IoxAuthorizer for TokenAuthenticator {
-    async fn permissions(
+    async fn authorize(
         &self,
         token: Option<Vec<u8>>,
         perms: &[IoxPermission],
-    ) -> Result<Vec<IoxPermission>, IoxError> {
-        match self.authenticate(token).await {
-            Ok(_) => {
-                return Ok(perms.to_vec());
-            }
-            Err(err) => {
-                let iox_err = err.into();
-                return Err(iox_err);
-            }
-        }
+    ) -> Result<Authorization, IoxError> {
+        let token_id = self.authenticate(token).await?;
+        Ok(Authorization::new(
+            Some(token_id.to_string()),
+            perms.to_vec(),
+        ))
     }
 }
 
@@ -190,12 +188,12 @@ pub struct NoAuthAuthenticator;
 
 #[async_trait]
 impl IoxAuthorizer for NoAuthAuthenticator {
-    async fn permissions(
+    async fn authorize(
         &self,
         _token: Option<Vec<u8>>,
         perms: &[IoxPermission],
-    ) -> Result<Vec<IoxPermission>, IoxError> {
-        Ok(perms.to_vec())
+    ) -> Result<Authorization, IoxError> {
+        Ok(Authorization::new(None, perms.to_vec()))
     }
 
     async fn probe(&self) -> Result<(), IoxError> {

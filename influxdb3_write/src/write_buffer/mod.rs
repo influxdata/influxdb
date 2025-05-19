@@ -674,7 +674,7 @@ mod tests {
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_types::http::LastCacheSize;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
-    use iox_query::exec::{Executor, ExecutorConfig, IOxSessionContext};
+    use iox_query::exec::{Executor, ExecutorConfig, IOxSessionContext, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use metric::{Attributes, Metric, U64Counter};
     use metrics::{
@@ -3278,6 +3278,8 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 // Default to 1gb
                 mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+                per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+                heap_memory_limit: None,
             },
             DedicatedExecutor::new_testing(),
         ))

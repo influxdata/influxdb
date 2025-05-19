@@ -93,18 +93,24 @@ impl SchemaExec {
         }
     }
 
-    /// This function creates the cache object that stores the plan properties such as equivalence properties, partitioning, ordering, etc.
+    /// This function creates the cache object that stores the plan properties such as equivalence
+    /// properties, partitioning, ordering, etc.
     fn compute_properties(input: &Arc<dyn ExecutionPlan>, schema: SchemaRef) -> PlanProperties {
         let eq_properties = match input.properties().output_ordering() {
             None => EquivalenceProperties::new(schema),
             Some(output_odering) => {
-                EquivalenceProperties::new_with_orderings(schema, &[output_odering.to_vec()])
+                EquivalenceProperties::new_with_orderings(schema, &[output_odering.clone()])
             }
         };
 
         let output_partitioning = input.output_partitioning().clone();
 
-        PlanProperties::new(eq_properties, output_partitioning, input.execution_mode())
+        PlanProperties::new(
+            eq_properties,
+            output_partitioning,
+            input.pipeline_behavior(),
+            input.boundedness(),
+        )
     }
 }
 
