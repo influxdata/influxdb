@@ -1,8 +1,12 @@
 use std::{error::Error, io, path::PathBuf};
 
-use clap::{Arg, Args, Command as ClapCommand, CommandFactory, FromArgMatches, Parser, ValueEnum};
+use clap::{
+    Arg, Args, Command as ClapCommand, CommandFactory, Error as ClapError, FromArgMatches, Parser,
+    ValueEnum, error::ErrorKind,
+};
 use influxdb3_client::Client;
 use influxdb3_types::http::CreateTokenWithPermissionsResponse;
+use owo_colors::OwoColorize;
 use secrecy::Secret;
 use url::Url;
 
@@ -11,7 +15,13 @@ pub(crate) async fn handle_token_creation_with_config(
     config: CreateTokenConfig,
 ) -> Result<CreateTokenWithPermissionsResponse, Box<dyn Error>> {
     match config.admin_config {
-        Some(admin_config) => handle_admin_token_creation(client, admin_config).await,
+        Some(admin_config) => {
+            if admin_config.name.is_some() {
+                handle_named_admin_token_creation(client, admin_config).await
+            } else {
+                handle_admin_token_creation(client, admin_config).await
+            }
+        }
         _ => Err(
             "cannot create token, error with parameters run `influxdb3 create token --help`".into(),
         ),
@@ -40,6 +50,20 @@ pub(crate) async fn handle_admin_token_creation(
             .await?
             .expect("token creation to return full token info")
     };
+    Ok(json_body)
+}
+
+pub(crate) async fn handle_named_admin_token_creation(
+    client: Client,
+    config: CreateAdminTokenConfig,
+) -> Result<CreateTokenWithPermissionsResponse, Box<dyn Error>> {
+    let json_body = client
+        .api_v3_configure_create_named_admin_token(
+            config.name.expect("token name to be present"),
+            config.expiry.map(|expiry| expiry.as_secs()),
+        )
+        .await?
+        .expect("token creation to return full token info");
     Ok(json_body)
 }
 
@@ -75,6 +99,17 @@ pub struct CreateAdminTokenConfig {
     /// Admin token will be regenerated when this is set
     #[clap(name = "regenerate", long = "regenerate")]
     pub regenerate: bool,
+
+    // for named admin and permission tokens this is mandatory but not for admin tokens
+    /// Name of the token
+    #[clap(long)]
+    pub name: Option<String>,
+
+    /// Expires in `duration`,
+    ///   e.g 10d for 10 days
+    ///       1y for 1 year
+    #[clap(long)]
+    pub expiry: Option<humantime::Duration>,
 
     #[clap(flatten)]
     pub host: InfluxDb3ServerConfig,
@@ -131,11 +166,26 @@ impl CreateTokenConfig {
 
 impl FromArgMatches for CreateTokenConfig {
     fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
-        let admin_matches = matches
+        let admin_subcmd_matches = matches
             .subcommand_matches("--admin")
             .expect("--admin must be present");
+        let name = admin_subcmd_matches.get_one::<String>("name");
+        let regenerate = admin_subcmd_matches
+            .get_one::<bool>("regenerate")
+            .cloned()
+            .unwrap_or_default();
+
+        if name.is_some() && regenerate {
+            return Err(ClapError::raw(
+                ErrorKind::ArgumentConflict,
+                "--regenerate cannot be used with --name, --regenerate only applies for operator token".yellow(),
+            ));
+        }
+
         Ok(Self {
-            admin_config: Some(CreateAdminTokenConfig::from_arg_matches(admin_matches)?),
+            admin_config: Some(CreateAdminTokenConfig::from_arg_matches(
+                admin_subcmd_matches,
+            )?),
         })
     }
 

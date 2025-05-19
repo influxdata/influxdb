@@ -392,3 +392,9 @@ impl CreateTokenWithPermissionsResponse {
 pub struct TokenDeleteRequest {
     pub token_name: String,
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CreateNamedAdminTokenRequest {
+    pub token_name: String,
+    pub expiry_secs: Option<u64>,
+}
