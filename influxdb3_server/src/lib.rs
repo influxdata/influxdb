@@ -286,7 +286,7 @@ mod tests {
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
-    use hyper::{Body, Client, Response, StatusCode, body};
+    use hyper::{Client, StatusCode, body};
     use influxdb3_authz::NoAuthAuthenticator;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
@@ -302,7 +302,7 @@ mod tests {
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
-    use iox_http_util::{RequestBuilder, bytes_to_request_body, empty_request_body};
+    use iox_http_util::{RequestBuilder, Response, bytes_to_request_body, empty_request_body};
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -984,7 +984,7 @@ mod tests {
         authorization: Option<&str>,
         accept_partial: bool,
         precision: impl Into<String> + Send,
-    ) -> Response<Body> {
+    ) -> Response {
         let server = server.into();
         let client = Client::new();
         let url = format!(
@@ -1015,7 +1015,7 @@ mod tests {
         query: impl Into<String> + Send,
         format: impl Into<String> + Send,
         authorization: Option<&str>,
-    ) -> Response<Body> {
+    ) -> Response {
         let client = Client::new();
         // query escaped for uri
         let query = urlencoding::encode(&query.into());

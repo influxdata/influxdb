@@ -20,7 +20,7 @@ use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
 use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
-use hyper::{Body, Method, Response, StatusCode};
+use hyper::{Body, Method, StatusCode};
 use influxdb_influxql_parser::select::GroupByClause;
 use influxdb_influxql_parser::statement::Statement;
 use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
@@ -41,7 +41,7 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
 use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
-use iox_http_util::Request;
+use iox_http_util::{Request, Response};
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
@@ -259,11 +259,11 @@ struct ErrorMessage<T: Serialize> {
 }
 
 trait IntoResponse {
-    fn into_response(self) -> Response<Body>;
+    fn into_response(self) -> Response;
 }
 
 impl IntoResponse for CatalogError {
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         match self {
             Self::NotFound => Response::builder()
                 .status(StatusCode::NOT_FOUND)
@@ -308,7 +308,7 @@ impl IntoResponse for CatalogError {
 
 impl IntoResponse for Error {
     /// Convert this error into an HTTP [`Response`]
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         debug!(error = ?self, "API error");
         match self {
             Self::Catalog(err @ CatalogError::CannotDeleteOperatorToken) => Response::builder()
@@ -549,7 +549,7 @@ impl HttpApi {
 }
 
 impl HttpApi {
-    async fn write_lp(&self, req: Request) -> Result<Response<Body>> {
+    async fn write_lp(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
         self.write_lp_inner(params, req, false).await
@@ -560,7 +560,7 @@ impl HttpApi {
         params: WriteParams,
         req: Request,
         accept_rp: bool,
-    ) -> Result<Response<Body>> {
+    ) -> Result<Response> {
         validate_db_name(&params.db, accept_rp)?;
         let body = self.read_body(req).await?;
         let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
@@ -597,7 +597,7 @@ impl HttpApi {
         }
     }
 
-    pub(crate) async fn create_admin_token(&self, _req: Request) -> Result<Response<Body>, Error> {
+    pub(crate) async fn create_admin_token(&self, _req: Request) -> Result<Response, Error> {
         let catalog = self.write_buffer.catalog();
         let (token_info, token) = catalog.create_admin_token(false).await?;
 
@@ -612,10 +612,7 @@ impl HttpApi {
         Ok(body?)
     }
 
-    pub(crate) async fn regenerate_admin_token(
-        &self,
-        _req: Request,
-    ) -> Result<Response<Body>, Error> {
+    pub(crate) async fn regenerate_admin_token(&self, _req: Request) -> Result<Response, Error> {
         let catalog = self.write_buffer.catalog();
         let (token_info, token) = catalog.create_admin_token(true).await?;
 
@@ -630,7 +627,7 @@ impl HttpApi {
         Ok(body?)
     }
 
-    async fn query_sql(&self, req: Request) -> Result<Response<Body>> {
+    async fn query_sql(&self, req: Request) -> Result<Response> {
         let QueryRequest {
             database,
             query_str,
@@ -656,7 +653,7 @@ impl HttpApi {
             .map_err(Into::into)
     }
 
-    async fn query_influxql(&self, req: Request) -> Result<Response<Body>> {
+    async fn query_influxql(&self, req: Request) -> Result<Response> {
         let QueryRequest {
             database,
             query_str,
@@ -676,12 +673,12 @@ impl HttpApi {
             .map_err(Into::into)
     }
 
-    fn health(&self) -> Result<Response<Body>> {
+    fn health(&self) -> Result<Response> {
         let response_body = "OK";
         Ok(Response::new(Body::from(response_body.to_string())))
     }
 
-    fn ping(&self) -> Result<Response<Body>> {
+    fn ping(&self) -> Result<Response> {
         let body = serde_json::to_string(&PingResponse {
             version: INFLUXDB3_VERSION.to_string(),
             revision: INFLUXDB3_GIT_HASH_SHORT.to_string(),
@@ -691,7 +688,7 @@ impl HttpApi {
         Ok(Response::new(Body::from(body)))
     }
 
-    fn handle_metrics(&self) -> Result<Response<Body>> {
+    fn handle_metrics(&self) -> Result<Response> {
         let mut body: Vec<u8> = Default::default();
         let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
         self.common_state.metrics.report(&mut reporter);
@@ -891,7 +888,7 @@ impl HttpApi {
     /// If the result is to create a cache that already exists, with the same configuration, this
     /// will respond with a 204 NOT CREATED. If an existing cache would be overwritten with a
     /// different configuration, that is a 400 BAD REQUEST
-    async fn configure_distinct_cache_create(&self, req: Request) -> Result<Response<Body>> {
+    async fn configure_distinct_cache_create(&self, req: Request) -> Result<Response> {
         let args = self.read_body_json(req).await?;
         info!(?args, "create distinct value cache request");
         let DistinctCacheCreateRequest {
@@ -926,7 +923,7 @@ impl HttpApi {
     /// Delete a distinct value cache entry with the given [`DistinctCacheDeleteRequest`] parameters
     ///
     /// The parameters must be passed in either the query string or the body of the request as JSON.
-    async fn configure_distinct_cache_delete(&self, req: Request) -> Result<Response<Body>> {
+    async fn configure_distinct_cache_delete(&self, req: Request) -> Result<Response> {
         let DistinctCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query()
         {
             serde_urlencoded::from_str(query)?
@@ -945,7 +942,7 @@ impl HttpApi {
             .map_err(Into::into)
     }
 
-    async fn configure_last_cache_create(&self, req: Request) -> Result<Response<Body>> {
+    async fn configure_last_cache_create(&self, req: Request) -> Result<Response> {
         let LastCacheCreateRequest {
             db,
             table,
@@ -981,7 +978,7 @@ impl HttpApi {
     ///
     /// This will first attempt to parse the parameters from the URI query string, if a query string
     /// is provided, but if not, will attempt to parse them from the request body as JSON.
-    async fn configure_last_cache_delete(&self, req: Request) -> Result<Response<Body>> {
+    async fn configure_last_cache_delete(&self, req: Request) -> Result<Response> {
         let LastCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
@@ -999,7 +996,7 @@ impl HttpApi {
             .map_err(Into::into)
     }
 
-    async fn configure_processing_engine_trigger(&self, req: Request) -> Result<Response<Body>> {
+    async fn configure_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let ProcessingEngineTriggerCreateRequest {
             db,
             plugin_filename,
@@ -1036,7 +1033,7 @@ impl HttpApi {
             .body(Body::empty())?)
     }
 
-    async fn delete_processing_engine_trigger(&self, req: Request) -> Result<Response<Body>> {
+    async fn delete_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let ProcessingEngineTriggerDeleteRequest {
             db,
             trigger_name,
@@ -1055,7 +1052,7 @@ impl HttpApi {
             .body(Body::empty())?)
     }
 
-    async fn disable_processing_engine_trigger(&self, req: Request) -> Result<Response<Body>> {
+    async fn disable_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let ProcessingEngineTriggerIdentifier { db, trigger_name } =
             serde_urlencoded::from_str(query)?;
@@ -1072,7 +1069,7 @@ impl HttpApi {
         }
     }
 
-    async fn enable_processing_engine_trigger(&self, req: Request) -> Result<Response<Body>> {
+    async fn enable_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let ProcessingEngineTriggerIdentifier { db, trigger_name } =
             serde_urlencoded::from_str(query)?;
@@ -1089,7 +1086,7 @@ impl HttpApi {
         }
     }
 
-    async fn install_plugin_environment_packages(&self, req: Request) -> Result<Response<Body>> {
+    async fn install_plugin_environment_packages(&self, req: Request) -> Result<Response> {
         let ProcessingEngineInstallPackagesRequest { packages } =
             if let Some(query) = req.uri().query() {
                 serde_urlencoded::from_str(query)?
@@ -1106,10 +1103,7 @@ impl HttpApi {
             .body(Body::empty())?)
     }
 
-    async fn install_plugin_environment_requirements(
-        &self,
-        req: Request,
-    ) -> Result<Response<Body>> {
+    async fn install_plugin_environment_requirements(&self, req: Request) -> Result<Response> {
         let ProcessingEngineInstallRequirementsRequest {
             requirements_location,
         } = if let Some(query) = req.uri().query() {
@@ -1131,7 +1125,7 @@ impl HttpApi {
             .body(Body::empty())?)
     }
 
-    async fn show_databases(&self, req: Request) -> Result<Response<Body>> {
+    async fn show_databases(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let ShowDatabasesRequest {
             format,
@@ -1145,7 +1139,7 @@ impl HttpApi {
             .map_err(Into::into)
     }
 
-    async fn create_database(&self, req: Request) -> Result<Response<Body>> {
+    async fn create_database(&self, req: Request) -> Result<Response> {
         let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
         self.write_buffer.catalog().create_database(&db).await?;
         Ok(Response::builder()
@@ -1155,7 +1149,7 @@ impl HttpApi {
     }
 
     /// Endpoint for testing a plugin that will be trigger on WAL writes.
-    async fn test_processing_engine_wal_plugin(&self, req: Request) -> Result<Response<Body>> {
+    async fn test_processing_engine_wal_plugin(&self, req: Request) -> Result<Response> {
         let request: influxdb3_types::http::WalPluginTestRequest = self.read_body_json(req).await?;
 
         let output = self
@@ -1169,7 +1163,7 @@ impl HttpApi {
             .body(Body::from(body))?)
     }
 
-    async fn test_processing_engine_schedule_plugin(&self, req: Request) -> Result<Response<Body>> {
+    async fn test_processing_engine_schedule_plugin(&self, req: Request) -> Result<Response> {
         let request: influxdb3_types::http::SchedulePluginTestRequest =
             self.read_body_json(req).await?;
 
@@ -1188,7 +1182,7 @@ impl HttpApi {
         &self,
         trigger_path: &str,
         req: Request,
-    ) -> Result<Response<Body>> {
+    ) -> Result<Response> {
         use hashbrown::HashMap;
 
         // pull out the query params into a hashmap
@@ -1229,7 +1223,7 @@ impl HttpApi {
         }
     }
 
-    async fn delete_database(&self, req: Request) -> Result<Response<Body>> {
+    async fn delete_database(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
         self.write_buffer
@@ -1242,7 +1236,7 @@ impl HttpApi {
             .unwrap())
     }
 
-    async fn create_table(&self, req: Request) -> Result<Response<Body>> {
+    async fn create_table(&self, req: Request) -> Result<Response> {
         let CreateTableRequest {
             db,
             table,
@@ -1267,7 +1261,7 @@ impl HttpApi {
             .unwrap())
     }
 
-    async fn delete_table(&self, req: Request) -> Result<Response<Body>> {
+    async fn delete_table(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteTableRequest>(query)?;
         self.write_buffer
@@ -1280,7 +1274,7 @@ impl HttpApi {
             .unwrap())
     }
 
-    async fn delete_token(&self, req: Request) -> Result<Response<Body>> {
+    async fn delete_token(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<TokenDeleteRequest>(query)?;
         self.write_buffer
@@ -1690,7 +1684,7 @@ pub(crate) async fn route_request(
     mut req: Request,
     started_without_auth: bool,
     paths_without_authz: &'static Vec<&'static str>,
-) -> Result<Response<Body>, Infallible> {
+) -> Result<Response, Infallible> {
     let method = req.method().clone();
     let uri = req.uri().clone();
 
@@ -1858,7 +1852,7 @@ pub(crate) async fn route_request(
 async fn authenticate(
     http_server: &Arc<HttpApi>,
     req: &mut Request,
-) -> Option<std::result::Result<Response<Body>, Infallible>> {
+) -> Option<std::result::Result<Response, Infallible>> {
     if let Err(e) = http_server.authenticate_request(req).await {
         match e {
             AuthenticationError::Unauthenticated => {
@@ -1892,7 +1886,7 @@ async fn authenticate(
     None
 }
 
-fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
+fn legacy_write_error_to_response(e: WriteParseError) -> Response {
     let err: ErrorMessage<()> = ErrorMessage {
         error: e.to_string(),
         data: None,
