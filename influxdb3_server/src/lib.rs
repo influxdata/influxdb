@@ -286,7 +286,7 @@ mod tests {
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
-    use hyper::{Client, StatusCode, body};
+    use hyper::{Client, StatusCode};
     use influxdb3_authz::NoAuthAuthenticator;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
@@ -302,7 +302,10 @@ mod tests {
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
-    use iox_http_util::{RequestBuilder, Response, bytes_to_request_body, empty_request_body};
+    use iox_http_util::{
+        RequestBuilder, Response, bytes_to_request_body, empty_request_body,
+        read_body_bytes_for_tests,
+    };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -340,7 +343,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
         let expected = vec![
             "+------+-------------------------------+-----+",
@@ -364,7 +367,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = r#"[{"host":"a","time":"1970-01-01T00:00:00.000000123","val":1}]"#;
         assert_eq!(actual, expected);
@@ -377,7 +380,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = "host,time,val\na,1970-01-01T00:00:00.000000123,1\n";
         assert_eq!(actual, expected);
@@ -386,7 +389,7 @@ mod tests {
         use arrow::buffer::Buffer;
         use parquet::arrow::arrow_reader;
         let res = query(&server, "foo", "select * from cpu", "parquet", None).await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let batches = arrow_reader::ParquetRecordBatchReaderBuilder::try_new(body)
             .unwrap()
             .build()
@@ -440,7 +443,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -467,7 +470,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -492,7 +495,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = "host,time,val\n\
                         b,1970-01-01T00:00:00.000000155,2.0\n\
@@ -512,7 +515,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -535,7 +538,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -558,7 +561,7 @@ mod tests {
 
         let status = resp.status();
         let body =
-            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+            String::from_utf8(read_body_bytes_for_tests(resp.into_body()).await.to_vec()).unwrap();
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -666,7 +669,7 @@ mod tests {
             None,
         )
         .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = read_body_bytes_for_tests(res.into_body()).await;
         // Since a query can come back with data in any order we need to sort it
         // here before we do any assertions
         let mut unsorted = String::from_utf8(body.as_bytes().to_vec())
@@ -812,7 +815,7 @@ mod tests {
 
         for t in test_cases {
             let res = query(&url, db_name, t.query, "pretty", None).await;
-            let body = body::to_bytes(res.into_body()).await.unwrap();
+            let body = read_body_bytes_for_tests(res.into_body()).await;
             let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
             assert_eq!(t.expected, body, "query failed: {}", t.query);
         }
