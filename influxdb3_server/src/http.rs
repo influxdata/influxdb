@@ -1924,7 +1924,7 @@ mod tests {
     use arrow_array::{Int32Array, RecordBatch, record_batch};
     use datafusion::execution::SendableRecordBatchStream;
     use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-    use hyper::body::to_bytes;
+    use iox_http_util::read_body_bytes_for_tests;
     use pretty_assertions::assert_eq;
     use std::str;
     use std::sync::Arc;
@@ -1973,13 +1973,12 @@ mod tests {
     async fn test_json_output_empty() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(None), QueryFormat::Json)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "[]");
     }
 
@@ -1987,19 +1986,18 @@ mod tests {
     async fn test_json_output_one_record() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(1)), QueryFormat::Json)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "[{\"a\":1}]");
     }
 
     #[tokio::test]
     async fn test_json_output_all_empties() {
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(
                 make_record_stream_with_sizes(vec![0, 0, 0]),
                 QueryFormat::Json,
@@ -2007,14 +2005,13 @@ mod tests {
             .await
             .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "[]");
     }
 
     #[tokio::test]
     async fn test_empty_present_mixture() {
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(
                 make_record_stream_with_sizes(vec![0, 0, 1, 1, 0, 1, 0]),
                 QueryFormat::Json,
@@ -2022,8 +2019,7 @@ mod tests {
             .await
             .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "[{\"a\":1},{\"a\":1},{\"a\":1}]"
@@ -2033,13 +2029,12 @@ mod tests {
     async fn test_json_output_three_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(3)), QueryFormat::Json)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "[{\"a\":1},{\"a\":1},{\"a\":1}]"
@@ -2049,13 +2044,12 @@ mod tests {
     async fn test_json_output_five_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(5)), QueryFormat::Json)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "[{\"a\":1},{\"a\":1},{\"a\":1},{\"a\":1},{\"a\":1}]"
@@ -2066,13 +2060,12 @@ mod tests {
     async fn test_jsonl_output_empty() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(None), QueryFormat::JsonLines)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "");
     }
 
@@ -2080,26 +2073,24 @@ mod tests {
     async fn test_jsonl_output_one_record() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(1)), QueryFormat::JsonLines)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "{\"a\":1}\n");
     }
     #[tokio::test]
     async fn test_jsonl_output_three_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(3)), QueryFormat::JsonLines)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "{\"a\":1}\n{\"a\":1}\n{\"a\":1}\n"
@@ -2109,13 +2100,12 @@ mod tests {
     async fn test_jsonl_output_five_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(5)), QueryFormat::JsonLines)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "{\"a\":1}\n{\"a\":1}\n{\"a\":1}\n{\"a\":1}\n{\"a\":1}\n"
@@ -2125,13 +2115,12 @@ mod tests {
     async fn test_csv_output_empty() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(None), QueryFormat::Csv)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "");
     }
 
@@ -2139,39 +2128,36 @@ mod tests {
     async fn test_csv_output_one_record() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(1)), QueryFormat::Csv)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "a\n1\n");
     }
     #[tokio::test]
     async fn test_csv_output_three_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(3)), QueryFormat::Csv)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "a\n1\n1\n1\n");
     }
     #[tokio::test]
     async fn test_csv_output_five_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(5)), QueryFormat::Csv)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "a\n1\n1\n1\n1\n1\n"
