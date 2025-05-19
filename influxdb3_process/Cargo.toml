@@ -21,7 +21,7 @@ tokio.workspace = true
 uuid.workspace = true
 
 [build-dependencies]
-cargo_metadata = "0.19.2"
+cargo_metadata.workspace = true
 
 # Optional Dependencies
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

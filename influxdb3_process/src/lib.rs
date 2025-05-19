@@ -36,7 +36,7 @@ pub static INFLUXDB3_VERSION: LazyLock<&'static str> =
 
 /// Build information.
 pub static INFLUXDB3_BUILD: LazyLock<&'static str> =
-    LazyLock::new(|| option_env!("INFLUXDB3_BUILD_VERSION").unwrap_or("Core"));
+    LazyLock::new(|| option_env!("INFLUXDB3_BUILD_VERSION").unwrap());
 
 /// Build-time GIT revision hash.
 pub static INFLUXDB3_GIT_HASH: &str = env!(
