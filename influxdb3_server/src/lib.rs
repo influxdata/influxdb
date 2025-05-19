@@ -286,7 +286,7 @@ mod tests {
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
-    use hyper::{Body, Client, Request, Response, StatusCode, body};
+    use hyper::{Body, Client, Response, StatusCode, body};
     use influxdb3_authz::NoAuthAuthenticator;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
@@ -302,6 +302,7 @@ mod tests {
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
+    use iox_http_util::RequestBuilder;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -994,7 +995,7 @@ mod tests {
         );
         println!("{}", url);
 
-        let mut builder = Request::builder().uri(url).method("POST");
+        let mut builder = RequestBuilder::new().uri(url).method("POST");
         if let Some(authorization) = authorization {
             builder = builder.header(hyper::header::AUTHORIZATION, authorization);
         };
@@ -1027,7 +1028,7 @@ mod tests {
         );
 
         println!("query url: {}", url);
-        let mut builder = Request::builder().uri(url).method("GET");
+        let mut builder = RequestBuilder::new().uri(url).method("GET");
         if let Some(authorization) = authorization {
             builder = builder.header(hyper::header::AUTHORIZATION, authorization);
         };
