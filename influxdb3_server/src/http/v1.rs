@@ -21,11 +21,11 @@ use arrow_schema::{Field, SchemaRef};
 use bytes::Bytes;
 use chrono::{DateTime, format::SecondsFormat};
 use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::{Stream, StreamExt, ready, stream::Fuse};
+use futures::{Stream, StreamExt, TryStreamExt, ready, stream::Fuse};
 use hyper::http::HeaderValue;
-use hyper::{Body, StatusCode, header::ACCEPT, header::CONTENT_TYPE};
+use hyper::{StatusCode, header::ACCEPT, header::CONTENT_TYPE};
 use influxdb_influxql_parser::select::{Dimension, GroupByClause};
-use iox_http_util::{Request, Response, ResponseBuilder};
+use iox_http_util::{Request, Response, ResponseBuilder, stream_results_to_response_body};
 use observability_deps::tracing::info;
 use regex::Regex;
 use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, InfluxColumnType, TIME_COLUMN_NAME};
@@ -76,7 +76,7 @@ impl HttpApi {
         let (stream, group_by) = self.query_influxql_inner(database, &query, None).await?;
         let stream = QueryResponseStream::new(0, stream, chunk_size, format, epoch, group_by)
             .map_err(QueryError)?;
-        let body = Body::wrap_stream(stream);
+        let body = stream_results_to_response_body(stream.map_err(QueryError));
 
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
@@ -263,7 +263,7 @@ struct QueryResponse {
     format: QueryFormat,
 }
 
-/// Convert `QueryResponse` to [`Bytes`] for `hyper`'s [`Body::wrap_stream`] method
+/// Convert `QueryResponse` to [`Bytes`] for the [`stream_results_to_response_body`] method
 impl From<QueryResponse> for Bytes {
     fn from(s: QueryResponse) -> Self {
         /// Convert a [`QueryResponse`] to a JSON byte vector.

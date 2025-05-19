@@ -20,7 +20,7 @@ use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
 use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
-use hyper::{Body, Method, StatusCode};
+use hyper::{Method, StatusCode};
 use influxdb_influxql_parser::select::GroupByClause;
 use influxdb_influxql_parser::statement::Statement;
 use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
@@ -45,6 +45,7 @@ use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
 use iox_http_util::{
     Request, Response, ResponseBody, ResponseBuilder, bytes_to_response_body, empty_response_body,
+    stream_results_to_response_body,
 };
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
@@ -1594,9 +1595,9 @@ async fn record_batch_stream_to_body(
                 first_poll: true,
                 stream,
             };
-            Ok(Body::wrap_stream(futures::stream::poll_fn(move |ctx| {
-                future.poll_unpin(ctx)
-            })))
+            Ok(stream_results_to_response_body(futures::stream::poll_fn(
+                move |ctx| future.poll_unpin(ctx),
+            )))
         }
         QueryFormat::Json => {
             struct JsonFuture {
@@ -1691,9 +1692,9 @@ async fn record_batch_stream_to_body(
                 state: State::FirstPoll,
                 stream,
             };
-            Ok(Body::wrap_stream(futures::stream::poll_fn(move |ctx| {
-                future.poll_unpin(ctx)
-            })))
+            Ok(stream_results_to_response_body(futures::stream::poll_fn(
+                move |ctx| future.poll_unpin(ctx),
+            )))
         }
         QueryFormat::JsonLines => {
             let stream = futures::stream::poll_fn(move |ctx| match stream.poll_next_unpin(ctx) {
@@ -1715,7 +1716,7 @@ async fn record_batch_stream_to_body(
                 Poll::Ready(None) => Poll::Ready(None),
                 Poll::Pending => Poll::Pending,
             });
-            Ok(Body::wrap_stream(stream))
+            Ok(stream_results_to_response_body(stream))
         }
     }
 }
