@@ -18,7 +18,8 @@ use std::task::{Context, Poll};
 
 use futures::Future;
 use hyper::HeaderMap;
-use hyper::{Body, Request, Response, body::HttpBody};
+use hyper::{Response, body::HttpBody};
+use iox_http_util::Request;
 use pin_project_lite::pin_project;
 use tower::Service;
 
@@ -99,10 +100,10 @@ pub(crate) struct HybridService<Rest, Grpc> {
     grpc: Grpc,
 }
 
-impl<Rest, Grpc, RestBody, GrpcBody> Service<Request<Body>> for HybridService<Rest, Grpc>
+impl<Rest, Grpc, RestBody, GrpcBody> Service<Request> for HybridService<Rest, Grpc>
 where
-    Rest: Service<Request<Body>, Response = Response<RestBody>>,
-    Grpc: Service<Request<Body>, Response = Response<GrpcBody>>,
+    Rest: Service<Request, Response = Response<RestBody>>,
+    Grpc: Service<Request, Response = Response<GrpcBody>>,
     Rest::Error: Into<BoxError>,
     Grpc::Error: Into<BoxError>,
 {
@@ -125,7 +126,7 @@ where
     /// When calling the service, gRPC is served if the HTTP request version is HTTP/2
     /// and if the Content-Type is "application/grpc"; otherwise, the request is served
     /// as a REST request
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         match (
             req.version(),
             req.headers().get(hyper::header::CONTENT_TYPE),
