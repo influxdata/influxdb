@@ -2376,7 +2376,7 @@ func (e *Engine) PlanCompactions(planType PlanType) (
 		level, runnable := e.scheduler.nextByQueueDepths([TotalCompactionLevels]int{int(len1), int(len2), int(len3), int(len4), 0})
 		if runnable && level <= 4 {
 			// We know that the compaction loop will pull a compaction group from levels 1-3, so no need to refine level 4 or plan level 5.
-			return level1Groups, level2Groups, level3Groups, nil, nil
+			return level1Groups, level2Groups, level3Groups, level4Groups, nil
 		}
 	}
 
