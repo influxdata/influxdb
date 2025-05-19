@@ -302,7 +302,7 @@ mod tests {
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
-    use iox_http_util::{RequestBuilder, empty_request_body};
+    use iox_http_util::{RequestBuilder, bytes_to_request_body, empty_request_body};
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -1000,7 +1000,7 @@ mod tests {
             builder = builder.header(hyper::header::AUTHORIZATION, authorization);
         };
         let request = builder
-            .body(Body::from(lp.into()))
+            .body(bytes_to_request_body(lp.into()))
             .expect("failed to construct HTTP request");
 
         client
