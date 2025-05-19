@@ -43,7 +43,7 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
 use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
-use iox_http_util::{Request, Response};
+use iox_http_util::{Request, Response, ResponseBuilder};
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
@@ -268,18 +268,18 @@ trait IntoResponse {
 impl IntoResponse for CatalogError {
     fn into_response(self) -> Response {
         match self {
-            Self::NotFound => Response::builder()
+            Self::NotFound => ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
-            Self::AlreadyExists | Self::AlreadyDeleted => Response::builder()
+            Self::AlreadyExists | Self::AlreadyDeleted => ResponseBuilder::new()
                 .status(StatusCode::CONFLICT)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType
-            | Self::InvalidColumnType { .. } => Response::builder()
+            | Self::InvalidColumnType { .. } => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
@@ -293,14 +293,14 @@ impl IntoResponse for CatalogError {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(body)
                     .unwrap()
             }
             _ => {
                 let body = Body::from(self.to_string());
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(body)
                     .unwrap()
@@ -314,23 +314,27 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         debug!(error = ?self, "API error");
         match self {
-            Self::Catalog(err @ CatalogError::CannotDeleteOperatorToken) => Response::builder()
+            Self::Catalog(err @ CatalogError::CannotDeleteOperatorToken) => ResponseBuilder::new()
                 .status(StatusCode::METHOD_NOT_ALLOWED)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
-            Self::Catalog(err @ CatalogError::TokenNameAlreadyExists { .. }) => Response::builder()
-                .status(StatusCode::CONFLICT)
-                .body(Body::from(err.to_string()))
-                .unwrap(),
+            Self::Catalog(err @ CatalogError::TokenNameAlreadyExists { .. }) => {
+                ResponseBuilder::new()
+                    .status(StatusCode::CONFLICT)
+                    .body(Body::from(err.to_string()))
+                    .unwrap()
+            }
             Self::Catalog(err) | Self::WriteBuffer(WriteBufferError::CatalogUpdateError(err)) => {
                 err.into_response()
             }
-            Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => Response::builder()
-                .status(StatusCode::METHOD_NOT_ALLOWED)
-                .body(Body::from(err.to_string()))
-                .unwrap(),
+            Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => {
+                ResponseBuilder::new()
+                    .status(StatusCode::METHOD_NOT_ALLOWED)
+                    .body(Body::from(err.to_string()))
+                    .unwrap()
+            }
             Self::WriteBuffer(err @ WriteBufferError::DatabaseNotFound { db_name: _ }) => {
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
                     .body(Body::from(err.to_string()))
                     .unwrap()
@@ -340,11 +344,11 @@ impl IntoResponse for Error {
                     db_name: _,
                     table_name: _,
                 },
-            ) => Response::builder()
+            ) => ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
-            Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => Response::builder()
+            Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
@@ -355,12 +359,12 @@ impl IntoResponse for Error {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
                     .unwrap()
             }
-            Self::WriteBuffer(err @ WriteBufferError::EmptyWrite) => Response::builder()
+            Self::WriteBuffer(err @ WriteBufferError::EmptyWrite) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
@@ -371,7 +375,7 @@ impl IntoResponse for Error {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
                     .unwrap()
@@ -384,11 +388,11 @@ impl IntoResponse for Error {
                 | last_cache::Error::KeyColumnDoesNotExist { .. }
                 | last_cache::Error::KeyColumnDoesNotExistByName { .. }
                 | last_cache::Error::InvalidKeyColumn { .. }
-                | last_cache::Error::ValueColumnDoesNotExist { .. } => Response::builder()
+                | last_cache::Error::ValueColumnDoesNotExist { .. } => ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from(lc_err.to_string()))
                     .unwrap(),
-                last_cache::Error::CacheDoesNotExist => Response::builder()
+                last_cache::Error::CacheDoesNotExist => ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
                     .body(Body::from(self.to_string()))
                     .unwrap(),
@@ -398,21 +402,21 @@ impl IntoResponse for Error {
                     distinct_cache::CacheError::EmptyColumnSet
                     | distinct_cache::CacheError::NonTagOrStringColumn { .. }
                     | distinct_cache::CacheError::ConfigurationMismatch { .. } => {
-                        Response::builder()
+                        ResponseBuilder::new()
                             .status(StatusCode::BAD_REQUEST)
                             .body(Body::from(mc_err.to_string()))
                             .unwrap()
                     }
-                    distinct_cache::CacheError::Unexpected(_) => Response::builder()
+                    distinct_cache::CacheError::Unexpected(_) => ResponseBuilder::new()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
                         .body(Body::from(mc_err.to_string()))
                         .unwrap(),
                 },
-                distinct_cache::ProviderError::CacheNotFound => Response::builder()
+                distinct_cache::ProviderError::CacheNotFound => ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
-                distinct_cache::ProviderError::Unexpected(_) => Response::builder()
+                distinct_cache::ProviderError::Unexpected(_) => ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
@@ -424,7 +428,7 @@ impl IntoResponse for Error {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
                     .unwrap()
@@ -443,7 +447,7 @@ impl IntoResponse for Error {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
-                Response::builder()
+                ResponseBuilder::new()
                     .status(if limit_hit {
                         StatusCode::UNPROCESSABLE_ENTITY
                     } else {
@@ -459,7 +463,7 @@ impl IntoResponse for Error {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
                     .body(body)
                     .unwrap()
@@ -471,37 +475,37 @@ impl IntoResponse for Error {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
                     .body(body)
                     .unwrap()
             }
-            Self::SerdeJson(_) => Response::builder()
+            Self::SerdeJson(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
-            Self::InvalidContentEncoding(_) => Response::builder()
+            Self::InvalidContentEncoding(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
-            Self::InvalidContentType { .. } => Response::builder()
+            Self::InvalidContentType { .. } => ResponseBuilder::new()
                 .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
-            Self::SerdeUrlDecoding(_) => Response::builder()
+            Self::SerdeUrlDecoding(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
             Self::MissingQueryParams
             | Self::MissingQueryV1Params
             | Self::MissingWriteParams
-            | Self::MissingDeleteDatabaseParams => Response::builder()
+            | Self::MissingDeleteDatabaseParams => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
             _ => {
                 let body = Body::from(self.to_string());
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(body)
                     .unwrap()
@@ -591,7 +595,7 @@ impl HttpApi {
             .add_write_metrics(num_lines, payload_size);
 
         if result.invalid_lines.is_empty() {
-            Response::builder()
+            ResponseBuilder::new()
                 .status(StatusCode::NO_CONTENT)
                 .body(Body::empty())
                 .map_err(Into::into)
@@ -607,7 +611,7 @@ impl HttpApi {
         let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
         let body = serde_json::to_vec(&response)?;
 
-        let body = Response::builder()
+        let body = ResponseBuilder::new()
             .status(StatusCode::CREATED)
             .header(CONTENT_TYPE, "json")
             .body(Body::from(body));
@@ -628,7 +632,7 @@ impl HttpApi {
         let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
         let body = serde_json::to_vec(&response)?;
 
-        let body = Response::builder()
+        let body = ResponseBuilder::new()
             .status(StatusCode::CREATED)
             .header(CONTENT_TYPE, "json")
             .body(Body::from(body));
@@ -643,7 +647,7 @@ impl HttpApi {
         let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
         let body = serde_json::to_vec(&response)?;
 
-        let body = Response::builder()
+        let body = ResponseBuilder::new()
             .status(StatusCode::CREATED)
             .header(CONTENT_TYPE, "json")
             .body(Body::from(body));
@@ -670,7 +674,7 @@ impl HttpApi {
             .query_sql(&database, &query_str, params, span_ctx, None)
             .await?;
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, format.as_content_type())
             .body(record_batch_stream_to_body(stream, format).await?)
@@ -690,7 +694,7 @@ impl HttpApi {
             .query_influxql_inner(database, &query_str, params)
             .await?;
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, format.as_content_type())
             .body(record_batch_stream_to_body(stream, format).await?)
@@ -712,7 +716,7 @@ impl HttpApi {
         // InfluxDB 1.x used time-based UUIDs.
         let request_id = Uuid::now_v7().as_hyphenated().to_string();
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, "application/json")
             .header("Request-Id", request_id.clone())
@@ -947,7 +951,7 @@ impl HttpApi {
             )
             .await
         {
-            Ok(batch) => Response::builder()
+            Ok(batch) => ResponseBuilder::new()
                 .status(StatusCode::CREATED)
                 .body(Body::from(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
@@ -971,7 +975,7 @@ impl HttpApi {
             .delete_distinct_cache(&db, &table, &name)
             .await?;
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())
             .map_err(Into::into)
@@ -1001,7 +1005,7 @@ impl HttpApi {
             )
             .await
         {
-            Ok(batch) => Response::builder()
+            Ok(batch) => ResponseBuilder::new()
                 .status(StatusCode::CREATED)
                 .body(Body::from(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
@@ -1025,7 +1029,7 @@ impl HttpApi {
             .delete_last_cache(&db, &table, &name)
             .await?;
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())
             .map_err(Into::into)
@@ -1063,7 +1067,7 @@ impl HttpApi {
                 disabled,
             )
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())?)
     }
@@ -1082,7 +1086,7 @@ impl HttpApi {
             .catalog()
             .delete_processing_engine_trigger(&db, &trigger_name, force)
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())?)
     }
@@ -1097,7 +1101,7 @@ impl HttpApi {
             .disable_processing_engine_trigger(&db, &trigger_name)
             .await
         {
-            Ok(_) | Err(CatalogError::TriggerAlreadyDisabled) => Ok(Response::builder()
+            Ok(_) | Err(CatalogError::TriggerAlreadyDisabled) => Ok(ResponseBuilder::new()
                 .status(StatusCode::OK)
                 .body(Body::empty())?),
             Err(error) => Err(error.into()),
@@ -1114,7 +1118,7 @@ impl HttpApi {
             .enable_processing_engine_trigger(&db, &trigger_name)
             .await
         {
-            Ok(_) | Err(CatalogError::TriggerAlreadyEnabled) => Ok(Response::builder()
+            Ok(_) | Err(CatalogError::TriggerAlreadyEnabled) => Ok(ResponseBuilder::new()
                 .status(StatusCode::OK)
                 .body(Body::empty())?),
             Err(error) => Err(error.into()),
@@ -1133,7 +1137,7 @@ impl HttpApi {
             .install_packages(packages)
             .map_err(ProcessingEngineError::from)?;
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())?)
     }
@@ -1155,7 +1159,7 @@ impl HttpApi {
             .install_requirements(requirements_location)
             .map_err(ProcessingEngineError::from)?;
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())?)
     }
@@ -1167,7 +1171,7 @@ impl HttpApi {
             show_deleted,
         } = serde_urlencoded::from_str(query)?;
         let stream = self.query_executor.show_databases(show_deleted)?;
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, format.as_content_type())
             .body(record_batch_stream_to_body(stream, format).await?)
@@ -1177,7 +1181,7 @@ impl HttpApi {
     async fn create_database(&self, req: Request) -> Result<Response> {
         let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
         self.write_buffer.catalog().create_database(&db).await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap())
@@ -1193,7 +1197,7 @@ impl HttpApi {
             .await?;
         let body = serde_json::to_string(&output)?;
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::from(body))?)
     }
@@ -1208,7 +1212,7 @@ impl HttpApi {
             .await?;
         let body = serde_json::to_string(&output)?;
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::from(body))?)
     }
@@ -1250,7 +1254,7 @@ impl HttpApi {
                 influxdb3_processing_engine::manager::ProcessingEngineError::RequestTriggerNotFound,
             ) => {
                 let body = "{error: \"not found\"}";
-                Ok(Response::builder()
+                Ok(ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
                     .body(Body::from(body))?)
             }
@@ -1265,7 +1269,7 @@ impl HttpApi {
             .catalog()
             .soft_delete_database(&delete_req.db)
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap())
@@ -1290,7 +1294,7 @@ impl HttpApi {
                     .collect::<Vec<(String, FieldDataType)>>(),
             )
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap())
@@ -1303,7 +1307,7 @@ impl HttpApi {
             .catalog()
             .soft_delete_table(&delete_req.db, &delete_req.table)
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap())
@@ -1316,7 +1320,7 @@ impl HttpApi {
             .catalog()
             .delete_token(&delete_req.token_name)
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap())
@@ -1730,7 +1734,7 @@ pub(crate) async fn route_request(
     // the browser will not send a request with an auth header for CORS.
     if let Method::OPTIONS = method {
         info!(?uri, "preflight request");
-        return Ok(Response::builder()
+        return Ok(ResponseBuilder::new()
             .header("Access-Control-Allow-Origin", "*")
             .header("Access-Control-Allow-Methods", "*")
             .header("Access-Control-Allow-Headers", "*")
@@ -1741,7 +1745,7 @@ pub(crate) async fn route_request(
     }
 
     if started_without_auth && uri.path().starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
-        return Ok(Response::builder()
+        return Ok(ResponseBuilder::new()
             .status(StatusCode::METHOD_NOT_ALLOWED)
             .body("endpoint disabled, started without auth".into())
             .unwrap());
@@ -1858,7 +1862,7 @@ pub(crate) async fn route_request(
         }
         _ => {
             let body = Body::from("not found");
-            Ok(Response::builder()
+            Ok(ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
                 .body(body)
                 .unwrap())
@@ -1888,19 +1892,19 @@ async fn authenticate(
     if let Err(e) = http_server.authenticate_request(req).await {
         match e {
             AuthenticationError::Unauthenticated => {
-                return Some(Ok(Response::builder()
+                return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::UNAUTHORIZED)
                     .body(Body::empty())
                     .unwrap()));
             }
             AuthenticationError::MalformedRequest => {
-                return Some(Ok(Response::builder()
+                return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from(format!(r#"{{"error": "{e}"}}"#)))
                     .unwrap()));
             }
             AuthenticationError::Forbidden => {
-                return Some(Ok(Response::builder()
+                return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::FORBIDDEN)
                     .body(Body::empty())
                     .unwrap()));
@@ -1908,7 +1912,7 @@ async fn authenticate(
             // We don't expect this to happen, but if the header is messed up
             // better to handle it then not at all
             AuthenticationError::ToStr(_) => {
-                return Some(Ok(Response::builder()
+                return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(Body::empty())
                     .unwrap()));
@@ -1930,7 +1934,7 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response {
         WriteParseError::SingleTenantError(e) => StatusCode::from(&e),
         WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
     };
-    Response::builder().status(status).body(body).unwrap()
+    ResponseBuilder::new().status(status).body(body).unwrap()
 }
 
 #[cfg(test)]

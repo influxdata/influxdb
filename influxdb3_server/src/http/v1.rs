@@ -17,7 +17,6 @@ use arrow::{
     },
     record_batch::RecordBatch,
 };
-
 use arrow_schema::{Field, SchemaRef};
 use bytes::Bytes;
 use chrono::{DateTime, format::SecondsFormat};
@@ -26,7 +25,7 @@ use futures::{Stream, StreamExt, ready, stream::Fuse};
 use hyper::http::HeaderValue;
 use hyper::{Body, StatusCode, header::ACCEPT, header::CONTENT_TYPE};
 use influxdb_influxql_parser::select::{Dimension, GroupByClause};
-use iox_http_util::{Request, Response};
+use iox_http_util::{Request, Response, ResponseBuilder};
 use observability_deps::tracing::info;
 use regex::Regex;
 use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, InfluxColumnType, TIME_COLUMN_NAME};
@@ -79,7 +78,7 @@ impl HttpApi {
             .map_err(QueryError)?;
         let body = Body::wrap_stream(stream);
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, format.as_content_type())
             .body(body)
