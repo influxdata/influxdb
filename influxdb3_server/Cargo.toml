@@ -93,6 +93,7 @@ tonic.workspace = true
 tower.workspace = true
 unicode-segmentation.workspace = true
 url.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 # Core Crates

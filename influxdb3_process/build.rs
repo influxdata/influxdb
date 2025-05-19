@@ -2,6 +2,7 @@
 // time, panic'ing if it can not be found
 //
 // https://stackoverflow.com/questions/43753491/include-git-commit-hash-as-string-into-rust-program
+use cargo_metadata::MetadataCommand;
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -10,6 +11,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rustc-env=GIT_HASH={}", get_git_hash());
     // Populate env!(GIT_HASH_SHORT) with the current git commit
     println!("cargo:rustc-env=GIT_HASH_SHORT={}", get_git_hash_short());
+
+    let path = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let meta = MetadataCommand::new()
+        .manifest_path("./Cargo.toml")
+        .current_dir(&path)
+        .exec()
+        .unwrap();
+
+    let root = meta.root_package().unwrap();
+    let build = root.metadata["influxdb3"]["build"]
+        .as_str()
+        .unwrap_or("Core");
+    println!("cargo:rerun-if-env-changed=INFLUXDB3_BUILD_VERSION");
+    println!("cargo:rustc-env=INFLUXDB3_BUILD_VERSION={}", build);
 
     Ok(())
 }
