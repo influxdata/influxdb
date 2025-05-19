@@ -70,6 +70,7 @@ futures.workspace = true
 hashbrown.workspace = true
 hex.workspace = true
 http.workspace = true
+http-body.workspace = true
 hyper.workspace = true
 hyper-rustls.workspace = true
 humantime.workspace = true

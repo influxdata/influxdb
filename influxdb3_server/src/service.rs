@@ -17,8 +17,9 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures::Future;
+use http::Response;
+use http_body::Body as HttpBody;
 use hyper::HeaderMap;
-use hyper::{Response, body::HttpBody};
 use iox_http_util::Request;
 use pin_project_lite::pin_project;
 use tower::Service;
