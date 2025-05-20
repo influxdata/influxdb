@@ -34,8 +34,9 @@ Usage: influx-tools command [arguments]
 The commands are:
 
     export               reshapes existing shards to a new shard duration
+    export-parquet       exports existing shards to parquet files
     compact-shard        fully compacts the specified shard
-    gen-init             creates database and retention policy metadata 
+    gen-init             creates database and retention policy metadata
     gen-exec             generates data
     help                 display this help message
 
