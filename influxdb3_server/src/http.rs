@@ -617,6 +617,30 @@ impl HttpApi {
         Ok(body?)
     }
 
+    pub(crate) async fn create_named_admin_token(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, Error> {
+        let token_request: CreateNamedAdminTokenRequest = self.read_body_json(req).await?;
+        let catalog = self.write_buffer.catalog();
+        let (token_info, token) = catalog
+            .create_named_admin_token_with_permission(
+                token_request.token_name,
+                token_request.expiry_secs,
+            )
+            .await?;
+
+        let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
+        let body = serde_json::to_vec(&response)?;
+
+        let body = Response::builder()
+            .status(StatusCode::CREATED)
+            .header(CONTENT_TYPE, "json")
+            .body(Body::from(body));
+
+        Ok(body?)
+    }
+
     pub(crate) async fn regenerate_admin_token(
         &self,
         _req: Request<Body>,
@@ -1783,6 +1807,9 @@ pub(crate) async fn route_request(
         }
         (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
             http_server.regenerate_admin_token(req).await
+        }
+        (Method::POST, all_paths::API_V3_CONFIGURE_NAMED_ADMIN_TOKEN) => {
+            http_server.create_named_admin_token(req).await
         }
         (Method::POST, all_paths::API_LEGACY_WRITE) => {
             let params = match http_server.legacy_write_param_unifier.parse_v1(&req).await {

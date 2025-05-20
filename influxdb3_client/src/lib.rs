@@ -680,6 +680,26 @@ impl Client {
         response_json
     }
 
+    /// Create "named" admin tokens
+    pub async fn api_v3_configure_create_named_admin_token(
+        &self,
+        token_name: impl Into<String> + Send,
+        expiry_secs: Option<u64>,
+    ) -> Result<Option<CreateTokenWithPermissionsResponse>> {
+        let response_json: Result<Option<CreateTokenWithPermissionsResponse>> = self
+            .send_create(
+                Method::POST,
+                "/api/v3/configure/token/named_admin",
+                Some(CreateNamedAdminTokenRequest {
+                    token_name: token_name.into(),
+                    expiry_secs,
+                }),
+                None::<()>,
+            )
+            .await;
+        response_json
+    }
+
     /// regenerate admin token
     pub async fn api_v3_configure_regenerate_admin_token(
         &self,
