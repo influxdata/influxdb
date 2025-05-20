@@ -5,6 +5,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[package.metadata.influxdb3]
+build = "Core"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -16,6 +19,9 @@ tokio_metrics_bridge.workspace = true
 # Crates.io dependencies
 tokio.workspace = true
 uuid.workspace = true
+
+[build-dependencies]
+cargo_metadata.workspace = true
 
 # Optional Dependencies
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

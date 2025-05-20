@@ -29,7 +29,9 @@ use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::log::FieldDataType;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
-use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, PROCESS_UUID};
+use influxdb3_process::{
+    INFLUXDB3_BUILD, INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, PROCESS_UUID,
+};
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::manager::ProcessingEngineError;
 use influxdb3_types::http::*;
@@ -59,6 +61,7 @@ use std::task::Poll;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 use unicode_segmentation::UnicodeSegmentation;
+use uuid::Uuid;
 
 mod v1;
 
@@ -614,6 +617,30 @@ impl HttpApi {
         Ok(body?)
     }
 
+    pub(crate) async fn create_named_admin_token(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, Error> {
+        let token_request: CreateNamedAdminTokenRequest = self.read_body_json(req).await?;
+        let catalog = self.write_buffer.catalog();
+        let (token_info, token) = catalog
+            .create_named_admin_token_with_permission(
+                token_request.token_name,
+                token_request.expiry_secs,
+            )
+            .await?;
+
+        let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
+        let body = serde_json::to_vec(&response)?;
+
+        let body = Response::builder()
+            .status(StatusCode::CREATED)
+            .header(CONTENT_TYPE, "json")
+            .body(Body::from(body));
+
+        Ok(body?)
+    }
+
     pub(crate) async fn regenerate_admin_token(
         &self,
         _req: Request<Body>,
@@ -690,7 +717,18 @@ impl HttpApi {
             process_id: *PROCESS_UUID,
         })?;
 
-        Ok(Response::new(Body::from(body)))
+        // InfluxDB 1.x used time-based UUIDs.
+        let request_id = Uuid::now_v7().as_hyphenated().to_string();
+
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
+            .header("Request-Id", request_id.clone())
+            .header("X-Influxdb-Build", INFLUXDB3_BUILD.to_string())
+            .header("X-Influxdb-Version", INFLUXDB3_VERSION.to_string())
+            .header("X-Request-Id", request_id)
+            .body(Body::from(body))
+            .map_err(Into::into)
     }
 
     fn handle_metrics(&self) -> Result<Response<Body>> {
@@ -1769,6 +1807,9 @@ pub(crate) async fn route_request(
         }
         (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
             http_server.regenerate_admin_token(req).await
+        }
+        (Method::POST, all_paths::API_V3_CONFIGURE_NAMED_ADMIN_TOKEN) => {
+            http_server.create_named_admin_token(req).await
         }
         (Method::POST, all_paths::API_LEGACY_WRITE) => {
             let params = match http_server.legacy_write_param_unifier.parse_v1(&req).await {

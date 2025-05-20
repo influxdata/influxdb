@@ -32,6 +32,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
@@ -533,6 +534,58 @@ impl Catalog {
                 .tokens
                 .repo()
                 .get_by_name(DEFAULT_OPERATOR_TOKEN_NAME)
+                .expect("token info must be present after token creation by name")
+        };
+
+        // we need to pass these details back, especially this token as this is what user should
+        // send in subsequent requests
+        Ok((token_info, token))
+    }
+
+    pub async fn create_named_admin_token_with_permission(
+        &self,
+        token_name: String,
+        expiry_secs: Option<u64>,
+    ) -> Result<(Arc<TokenInfo>, String)> {
+        let (token, hash) = create_token_and_hash();
+        self.catalog_update_with_retry(|| {
+            if self.inner.read().tokens.repo().contains_name(&token_name) {
+                return Err(CatalogError::TokenNameAlreadyExists(token_name.clone()));
+            }
+
+            let (token_id, created_at, expiry) = {
+                let mut inner = self.inner.write();
+                let token_id = inner.tokens.get_and_increment_next_id();
+                let created_at = self.time_provider.now();
+                let expiry = expiry_secs.map(|secs| {
+                    created_at
+                        .checked_add(Duration::from_secs(secs))
+                        .expect("duration not to overflow")
+                        .timestamp_millis()
+                });
+                (token_id, created_at.timestamp_millis(), expiry)
+            };
+
+            Ok(CatalogBatch::Token(TokenBatch {
+                time_ns: created_at,
+                ops: vec![TokenCatalogOp::CreateAdminToken(CreateAdminTokenDetails {
+                    token_id,
+                    name: Arc::from(token_name.as_str()),
+                    hash: hash.clone(),
+                    created_at,
+                    updated_at: None,
+                    expiry,
+                })],
+            }))
+        })
+        .await?;
+
+        let token_info = {
+            self.inner
+                .read()
+                .tokens
+                .repo()
+                .get_by_name(&token_name)
                 .expect("token info must be present after token creation by name")
         };
 

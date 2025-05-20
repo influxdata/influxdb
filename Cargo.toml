@@ -68,6 +68,7 @@ bimap = "0.6.3"
 bitcode = { version = "0.6.3", features = ["serde"] }
 byteorder = "1.3.4"
 bytes = "1.9"
+cargo_metadata = "0.19.2"
 chrono = "0.4"
 cron = "0.15"
 clap = { version = "4", features = ["derive", "env", "string"] }
@@ -147,7 +148,7 @@ twox-hash = "2.1.0"
 unicode-segmentation = "1.11.0"
 url = "2.5.0"
 urlencoding = "1.1"
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
 num = { version = "0.4.3" }
 
 # Core.git crates we depend on
