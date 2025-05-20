@@ -4080,34 +4080,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+				common := testLevelResults{
+					level4Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
 				switch planType {
 				case tsm1.PT_Standard:
-					return testLevelResults{
-						level4Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
-								tsdb.DefaultMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				case tsm1.PT_SmartOptimize:
-					return testLevelResults{
-						level4Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
-								tsdb.DefaultMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				case tsm1.PT_NoOptimize:
-					return testLevelResults{
-						level4Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
-								tsdb.DefaultMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				}
 				return testLevelResults{}
 			},
@@ -4170,25 +4157,20 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+				common := testLevelResults{
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"01-05.tsm1", "01-06.tsm1", "01-07.tsm1", "01-08.tsm1", "02-05.tsm1", "02-06.tsm1", "02-07.tsm1", "02-08.tsm1", "03-04.tsm1", "03-05.tsm1"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
+
 				switch planType {
 				case tsm1.PT_Standard:
-					return testLevelResults{
-						level5Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-05.tsm1", "01-06.tsm1", "01-07.tsm1", "01-08.tsm1", "02-05.tsm1", "02-06.tsm1", "02-07.tsm1", "02-08.tsm1", "03-04.tsm1", "03-05.tsm1"},
-								tsdb.DefaultMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				case tsm1.PT_SmartOptimize:
-					return testLevelResults{
-						level5Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-05.tsm1", "01-06.tsm1", "01-07.tsm1", "01-08.tsm1", "02-05.tsm1", "02-06.tsm1", "02-07.tsm1", "02-08.tsm1", "03-04.tsm1", "03-05.tsm1"},
-								tsdb.DefaultMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				case tsm1.PT_NoOptimize:
 					return testLevelResults{}
 				}
@@ -4218,33 +4200,24 @@ func TestEnginePlanCompactions(t *testing.T) {
 			blockCounts:   make([]int, 0),
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+				common := testLevelResults{
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"01-05.tsm1",
+								"01-06.tsm1",
+								"01-07.tsm1",
+								"01-08.tsm1",
+							},
+							tsdb.DefaultAggressiveMaxPointsPerBlock,
+						},
+					},
+				}
+
 				switch planType {
 				case tsm1.PT_Standard:
-					return testLevelResults{
-						level5Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-05.tsm1",
-									"01-06.tsm1",
-									"01-07.tsm1",
-									"01-08.tsm1",
-								},
-								tsdb.DefaultAggressiveMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				case tsm1.PT_SmartOptimize:
-					return testLevelResults{
-						level5Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-05.tsm1",
-									"01-06.tsm1",
-									"01-07.tsm1",
-									"01-08.tsm1",
-								},
-								tsdb.DefaultAggressiveMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				case tsm1.PT_NoOptimize:
 					return testLevelResults{}
 				}
@@ -4269,31 +4242,23 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+				common := testLevelResults{
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"01-02.tsm1",
+								"01-03.tsm1",
+								"01-04.tsm1",
+							},
+							tsdb.DefaultAggressiveMaxPointsPerBlock,
+						},
+					},
+				}
+
 				switch planType {
 				case tsm1.PT_Standard:
-					return testLevelResults{
-						level5Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-02.tsm1",
-									"01-03.tsm1",
-									"01-04.tsm1",
-								},
-								tsdb.DefaultAggressiveMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				case tsm1.PT_SmartOptimize:
-					return testLevelResults{
-						level5Groups: []tsm1.PlannedCompactionGroup{
-							{
-								tsm1.CompactionGroup{"01-02.tsm1",
-									"01-03.tsm1",
-									"01-04.tsm1",
-								},
-								tsdb.DefaultAggressiveMaxPointsPerBlock,
-							},
-						},
-					}
+					return common
 				case tsm1.PT_NoOptimize:
 					return testLevelResults{}
 				}
