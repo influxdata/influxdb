@@ -96,7 +96,7 @@ pub struct InfluxDb3ServerConfig {
 
 #[derive(Parser, Debug)]
 pub struct CreateAdminTokenConfig {
-    /// Admin token will be regenerated when this is set
+    /// Operator token will be regenerated when this is set
     #[clap(name = "regenerate", long = "regenerate")]
     pub regenerate: bool,
 
