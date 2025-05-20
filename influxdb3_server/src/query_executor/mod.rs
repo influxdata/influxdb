@@ -777,6 +777,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use metric::Registry;
     use object_store::{ObjectStore, local::LocalFileSystem};
+    use object_store_size_hinting::ObjectStoreStripSizeHinting;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
 
@@ -818,6 +819,9 @@ mod tests {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+        // This is a workaround until https://github.com/influxdata/influxdb_iox/issues/13771 is
+        // resolved upstream:
+        let object_store = Arc::new(ObjectStoreStripSizeHinting::new(object_store));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
             object_store,

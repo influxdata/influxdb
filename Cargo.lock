@@ -3145,6 +3145,7 @@ dependencies = [
  "metric_exporters",
  "mime",
  "object_store",
+ "object_store_size_hinting",
  "observability_deps",
  "parking_lot",
  "parquet",
