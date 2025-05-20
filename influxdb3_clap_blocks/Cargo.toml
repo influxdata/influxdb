@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 # core crate dependencies
 iox_query.workspace = true
+object_store_size_hinting.workspace = true
 observability_deps.workspace = true
 
 # crates.io dependencies

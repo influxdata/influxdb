@@ -12,6 +12,7 @@ use object_store::{
     path::Path,
     throttle::{ThrottleConfig, ThrottledStore},
 };
+use object_store_size_hinting::ObjectStoreStripSizeHinting;
 use observability_deps::tracing::{info, warn};
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -815,7 +816,7 @@ macro_rules! object_store_config_inner {
                         return Ok(None);
                     };
 
-                    let store = object_store::aws::AmazonS3Builder::from_env()
+                    let store = Arc::new(object_store::aws::AmazonS3Builder::from_env()
                         // bucket name is ignored by our cache server
                         .with_bucket_name(self.bucket.as_deref().unwrap_or("placeholder"))
                         .with_client_options(
@@ -833,9 +834,13 @@ macro_rules! object_store_config_inner {
                         })
                         .with_skip_signature(true)
                         .build()
-                        .context(InvalidS3ConfigSnafu)?;
+                        .context(InvalidS3ConfigSnafu)?);
 
-                    Ok(Some(Arc::new(store)))
+                    // This is a workaround until https://github.com/influxdata/influxdb_iox/issues/13771 is
+                    // resolved upstream.
+                    let store = Arc::new(ObjectStoreStripSizeHinting::new(store));
+
+                    Ok(Some(store))
                 }
 
                 /// Build cache store.
@@ -858,7 +863,7 @@ macro_rules! object_store_config_inner {
                         }
                     }
 
-                    let remote_store: Arc<DynObjectStore> = match &self.object_store {
+                    let object_store: Arc<DynObjectStore> = match &self.object_store {
                         None => return Err(ParseError::UnspecifiedObjectStore),
                         Some(ObjectStoreType::Memory) => {
                             info!(object_store_type = "Memory", "Object Store");
@@ -891,7 +896,11 @@ macro_rules! object_store_config_inner {
                         Some(ObjectStoreType::File) => self.new_local_file_system()?,
                     };
 
-                    Ok(remote_store)
+                    // This is a workaround until https://github.com/influxdata/influxdb_iox/issues/13771 is
+                    // resolved upstream.
+                    let object_store = Arc::new(ObjectStoreStripSizeHinting::new(object_store));
+
+                    Ok(object_store)
                 }
 
                 fn new_local_file_system(&self) -> Result<Arc<LocalFileSystemWithSortedListOp>, ParseError> {
@@ -1087,7 +1096,7 @@ mod tests {
         ];
         for config in configs {
             let object_store = config.make_object_store().unwrap();
-            assert_eq!(&object_store.to_string(), "InMemory")
+            assert_eq!(&object_store.to_string(), "strip_size_hinting(InMemory)")
         }
     }
 
@@ -1151,7 +1160,7 @@ mod tests {
             let object_store = config.make_object_store().unwrap();
             assert_eq!(
                 &object_store.to_string(),
-                "LimitStore(16, AmazonS3(mybucket))"
+                "strip_size_hinting(LimitStore(16, AmazonS3(mybucket)))"
             )
         }
     }
@@ -1298,7 +1307,7 @@ mod tests {
             let object_store = config.make_object_store().unwrap();
             assert_eq!(
                 &object_store.to_string(),
-                "LimitStore(16, GoogleCloudStorage(mybucket))"
+                "strip_size_hinting(LimitStore(16, GoogleCloudStorage(mybucket)))"
             )
         }
     }
@@ -1339,7 +1348,7 @@ mod tests {
         let object_store = config.make_object_store().unwrap();
         assert_eq!(
             &object_store.to_string(),
-            "LimitStore(16, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })"
+            "strip_size_hinting(LimitStore(16, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket }))"
         )
     }
 
@@ -1376,7 +1385,7 @@ mod tests {
 
         let object_store = config.make_object_store().unwrap().to_string();
         assert!(
-            object_store.starts_with("LocalFileSystem"),
+            object_store.starts_with("strip_size_hinting(LocalFileSystem"),
             "{}",
             object_store
         )

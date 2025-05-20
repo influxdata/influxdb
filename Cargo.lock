@@ -2921,6 +2921,7 @@ dependencies = [
  "metric",
  "non-empty-string",
  "object_store",
+ "object_store_size_hinting",
  "observability_deps",
  "paste",
  "snafu",
