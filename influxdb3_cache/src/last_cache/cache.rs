@@ -684,9 +684,7 @@ impl KeyValue {
 impl From<&FieldData> for KeyValue {
     fn from(field: &FieldData) -> Self {
         match field {
-            FieldData::Key(s) | FieldData::Tag(s) | FieldData::String(s) => {
-                Self::String(s.to_owned())
-            }
+            FieldData::Tag(s) | FieldData::String(s) => Self::String(s.to_owned()),
             FieldData::Integer(i) => Self::Int(*i),
             FieldData::UInteger(u) => Self::UInt(*u),
             FieldData::Boolean(b) => Self::Bool(*b),
@@ -1066,7 +1064,6 @@ impl CacheColumnData {
     fn push_front(&mut self, field_data: &FieldData) {
         match (field_data, self) {
             (FieldData::Timestamp(val), CacheColumnData::Time(buf)) => buf.push_front(*val),
-            (FieldData::Key(val), CacheColumnData::Key(buf)) => buf.push_front(val.to_owned()),
             (FieldData::Tag(val), CacheColumnData::Key(buf)) => buf.push_front(val.to_owned()),
             (FieldData::Tag(val), CacheColumnData::Tag(buf)) => {
                 buf.push_front(Some(val.to_owned()))
@@ -1186,7 +1183,7 @@ impl CacheColumnData {
 fn data_type_from_buffer_field(field: &Field) -> InfluxColumnType {
     match field.value {
         FieldData::Timestamp(_) => InfluxColumnType::Timestamp,
-        FieldData::Key(_) | FieldData::Tag(_) => InfluxColumnType::Tag,
+        FieldData::Tag(_) => InfluxColumnType::Tag,
         FieldData::String(_) => InfluxColumnType::Field(InfluxFieldType::String),
         FieldData::Integer(_) => InfluxColumnType::Field(InfluxFieldType::Integer),
         FieldData::UInteger(_) => InfluxColumnType::Field(InfluxFieldType::UInteger),

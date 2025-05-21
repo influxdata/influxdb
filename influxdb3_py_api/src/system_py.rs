@@ -560,11 +560,6 @@ pub fn execute_python_with_batch(
                                     .set_item(field_name.as_ref(), t.as_str())
                                     .context("failed to set tag field")?;
                             }
-                            FieldData::Key(k) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), k.as_str())
-                                    .context("failed to set key field")?;
-                            }
                             FieldData::Timestamp(t) => {
                                 py_row
                                     .set_item(field_name.as_ref(), t)
