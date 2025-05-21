@@ -360,8 +360,7 @@ impl MutableTableChunk {
                         Builder::U64(b) => b.append_null(),
                         Builder::String(b) => b.append_null(),
                         Builder::Tag(b) | Builder::Key(b) => {
-                            // NOTE: we use an empty string "" for tags that are omitted
-                            b.append_value("");
+                            b.append_null();
                         }
                         Builder::Time(b) => b.append_null(),
                     }
