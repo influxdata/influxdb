@@ -54,9 +54,6 @@ pub(crate) struct LastCache {
     pub(crate) value_columns: ValueColumnType,
     /// The Arrow Schema for the table that this cache is associated with
     pub(crate) schema: ArrowSchemaRef,
-    /// Stores the series key for tables for ensuring non-nullability in the column buffer for
-    /// series key columns
-    pub(crate) series_key: HashSet<ColumnId>,
     /// The internal state of the cache
     pub(crate) state: LastCacheState,
 }
@@ -227,7 +224,6 @@ impl LastCache {
                 },
             },
             schema: Arc::new(schema_builder.finish()),
-            series_key: table_def.series_key.iter().copied().collect(),
             state: LastCacheState::Init,
         })
     }
@@ -248,11 +244,6 @@ impl LastCache {
         if self.value_columns != other.value_columns {
             return Err(Error::cache_already_exists(
                 "provided value columns are not the same",
-            ));
-        }
-        if self.series_key != other.series_key {
-            return Err(Error::cache_already_exists(
-                "the series key is not the same",
             ));
         }
         Ok(())
@@ -317,7 +308,6 @@ impl LastCache {
                         self.ttl,
                         Arc::clone(&table_def),
                         Arc::clone(&self.key_column_ids),
-                        &self.series_key,
                         &self.value_columns,
                     ))
                 }
@@ -330,7 +320,6 @@ impl LastCache {
                 self.ttl,
                 Arc::clone(&table_def),
                 Arc::clone(&self.key_column_ids),
-                &self.series_key,
                 &self.value_columns,
             ));
         }
@@ -684,9 +673,7 @@ impl KeyValue {
 impl From<&FieldData> for KeyValue {
     fn from(field: &FieldData) -> Self {
         match field {
-            FieldData::Key(s) | FieldData::Tag(s) | FieldData::String(s) => {
-                Self::String(s.to_owned())
-            }
+            FieldData::Tag(s) | FieldData::String(s) => Self::String(s.to_owned()),
             FieldData::Integer(i) => Self::Int(*i),
             FieldData::UInteger(u) => Self::UInt(*u),
             FieldData::Boolean(b) => Self::Bool(*b),
@@ -733,7 +720,6 @@ impl LastCacheStore {
         ttl: Duration,
         table_def: Arc<TableDefinition>,
         key_column_ids: Arc<IndexSet<ColumnId>>,
-        series_keys: &HashSet<ColumnId>,
         value_columns: &ValueColumnType,
     ) -> Self {
         let (cache, value_column_ids) = match value_columns {
@@ -742,16 +728,7 @@ impl LastCacheStore {
                     .columns
                     .iter()
                     .filter(|&(col_id, _)| (!key_column_ids.contains(col_id)))
-                    .map(|(col_id, col_def)| {
-                        (
-                            *col_id,
-                            CacheColumn::new(
-                                col_def.data_type,
-                                count,
-                                series_keys.contains(col_id),
-                            ),
-                        )
-                    })
+                    .map(|(col_id, col_def)| (*col_id, CacheColumn::new(col_def.data_type, count)))
                     .collect();
                 (cache, None)
             }
@@ -763,16 +740,7 @@ impl LastCacheStore {
                             .column_definition_by_id(id)
                             .expect("valid column id")
                     })
-                    .map(|col_def| {
-                        (
-                            col_def.id,
-                            CacheColumn::new(
-                                col_def.data_type,
-                                count,
-                                series_keys.contains(&col_def.id),
-                            ),
-                        )
-                    })
+                    .map(|col_def| (col_def.id, CacheColumn::new(col_def.data_type, count)))
                     .collect();
                 (cache, Some(columns.clone()))
             }
@@ -832,7 +800,7 @@ impl LastCacheStore {
                         // In this case, there is not an entry for the field in the cache, so if the
                         // value is not one of the key columns, then it is a new field being added.
                         let col = self.cache.entry(field.id).or_insert_with(|| {
-                            CacheColumn::new(data_type_from_buffer_field(field), self.count, false)
+                            CacheColumn::new(data_type_from_buffer_field(field), self.count)
                         });
                         // Back-fill the new cache entry with nulls, then push the new value:
                         for _ in 0..starting_cache_size {
@@ -985,10 +953,10 @@ pub(crate) struct CacheColumn {
 
 impl CacheColumn {
     /// Create a new [`CacheColumn`] for the given arrow [`DataType`] and size
-    fn new(data_type: InfluxColumnType, size: usize, is_series_key: bool) -> Self {
+    fn new(data_type: InfluxColumnType, size: usize) -> Self {
         Self {
             size,
-            data: CacheColumnData::new(data_type, size, is_series_key),
+            data: CacheColumnData::new(data_type, size),
         }
     }
 
@@ -1022,21 +990,14 @@ enum CacheColumnData {
     String(VecDeque<Option<String>>),
     Bool(VecDeque<Option<bool>>),
     Tag(VecDeque<Option<String>>),
-    Key(VecDeque<String>),
     Time(VecDeque<i64>),
 }
 
 impl CacheColumnData {
     /// Create a new [`CacheColumnData`]
-    fn new(data_type: InfluxColumnType, size: usize, is_series_key: bool) -> Self {
+    fn new(data_type: InfluxColumnType, size: usize) -> Self {
         match data_type {
-            InfluxColumnType::Tag => {
-                if is_series_key {
-                    Self::Key(VecDeque::with_capacity(size))
-                } else {
-                    Self::Tag(VecDeque::with_capacity(size))
-                }
-            }
+            InfluxColumnType::Tag => Self::Tag(VecDeque::with_capacity(size)),
             InfluxColumnType::Field(field) => match field {
                 InfluxFieldType::Float => Self::F64(VecDeque::with_capacity(size)),
                 InfluxFieldType::Integer => Self::I64(VecDeque::with_capacity(size)),
@@ -1057,7 +1018,6 @@ impl CacheColumnData {
             CacheColumnData::String(buf) => buf.len(),
             CacheColumnData::Bool(buf) => buf.len(),
             CacheColumnData::Tag(buf) => buf.len(),
-            CacheColumnData::Key(buf) => buf.len(),
             CacheColumnData::Time(buf) => buf.len(),
         }
     }
@@ -1066,8 +1026,6 @@ impl CacheColumnData {
     fn push_front(&mut self, field_data: &FieldData) {
         match (field_data, self) {
             (FieldData::Timestamp(val), CacheColumnData::Time(buf)) => buf.push_front(*val),
-            (FieldData::Key(val), CacheColumnData::Key(buf)) => buf.push_front(val.to_owned()),
-            (FieldData::Tag(val), CacheColumnData::Key(buf)) => buf.push_front(val.to_owned()),
             (FieldData::Tag(val), CacheColumnData::Tag(buf)) => {
                 buf.push_front(Some(val.to_owned()))
             }
@@ -1090,7 +1048,6 @@ impl CacheColumnData {
             CacheColumnData::String(buf) => buf.push_front(None),
             CacheColumnData::Bool(buf) => buf.push_front(None),
             CacheColumnData::Tag(buf) => buf.push_front(None),
-            CacheColumnData::Key(_) => panic!("pushed null value to series key column in cache"),
             CacheColumnData::Time(_) => panic!("pushed null value to time column in cache"),
         }
     }
@@ -1151,14 +1108,6 @@ impl CacheColumnData {
                 });
                 Arc::new(b.finish())
             }
-            CacheColumnData::Key(buf) => {
-                let mut b: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
-                    StringDictionaryBuilder::new();
-                buf.iter().take(n_non_expired).for_each(|val| {
-                    b.append_value(val);
-                });
-                Arc::new(b.finish())
-            }
             CacheColumnData::Time(buf) => {
                 let mut b = TimestampNanosecondBuilder::new();
                 buf.iter()
@@ -1177,7 +1126,6 @@ impl CacheColumnData {
             CacheColumnData::String(buf) => buf.truncate(len),
             CacheColumnData::Bool(buf) => buf.truncate(len),
             CacheColumnData::Tag(buf) => buf.truncate(len),
-            CacheColumnData::Key(buf) => buf.truncate(len),
             CacheColumnData::Time(buf) => buf.truncate(len),
         }
     }
@@ -1186,7 +1134,7 @@ impl CacheColumnData {
 fn data_type_from_buffer_field(field: &Field) -> InfluxColumnType {
     match field.value {
         FieldData::Timestamp(_) => InfluxColumnType::Timestamp,
-        FieldData::Key(_) | FieldData::Tag(_) => InfluxColumnType::Tag,
+        FieldData::Tag(_) => InfluxColumnType::Tag,
         FieldData::String(_) => InfluxColumnType::Field(InfluxFieldType::String),
         FieldData::Integer(_) => InfluxColumnType::Field(InfluxFieldType::Integer),
         FieldData::UInteger(_) => InfluxColumnType::Field(InfluxFieldType::UInteger),

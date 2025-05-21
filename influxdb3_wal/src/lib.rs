@@ -13,7 +13,6 @@ use data_types::Timestamp;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb_line_protocol::FieldValue;
-use influxdb_line_protocol::v3::SeriesValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::Time;
@@ -388,7 +387,6 @@ pub struct Row {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FieldData {
     Timestamp(i64),
-    Key(String),
     Tag(String),
     String(String),
     Integer(i64),
@@ -402,7 +400,6 @@ impl PartialEq for FieldData {
         match (self, other) {
             (FieldData::Timestamp(a), FieldData::Timestamp(b)) => a == b,
             (FieldData::Tag(a), FieldData::Tag(b)) => a == b,
-            (FieldData::Key(a), FieldData::Key(b)) => a == b,
             (FieldData::String(a), FieldData::String(b)) => a == b,
             (FieldData::Integer(a), FieldData::Integer(b)) => a == b,
             (FieldData::UInteger(a), FieldData::UInteger(b)) => a == b,
@@ -414,14 +411,6 @@ impl PartialEq for FieldData {
 }
 
 impl Eq for FieldData {}
-
-impl<'a> From<&SeriesValue<'a>> for FieldData {
-    fn from(sk: &SeriesValue<'a>) -> Self {
-        match sk {
-            SeriesValue::String(s) => Self::Key(s.to_string()),
-        }
-    }
-}
 
 impl<'a> From<FieldValue<'a>> for FieldData {
     fn from(value: FieldValue<'a>) -> Self {
