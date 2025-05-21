@@ -560,6 +560,10 @@ jobs:
     steps:
       - attach_workspace:
           at: /tmp/workspace
+      - run:
+          name: Install AWS CLI
+          command: |
+            pip install awscli
       - aws-s3/sync:
           arguments:             --acl public-read
           aws-region:            RELEASE_AWS_REGION
