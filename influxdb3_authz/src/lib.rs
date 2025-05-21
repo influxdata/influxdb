@@ -175,11 +175,11 @@ impl IoxAuthorizer for TokenAuthenticator {
         token: Option<Vec<u8>>,
         perms: &[IoxPermission],
     ) -> Result<Authorization, IoxError> {
-        let token_id = self.authenticate(token).await?;
-        Ok(Authorization::new(
-            Some(token_id.to_string()),
-            perms.to_vec(),
-        ))
+        let _token_id = self.authenticate(token).await?;
+        // (trevor) The "subject" may just use the `token_id` as a string, but we withheld doing so
+        // in order to decided and ensure that we make use of the subject consistently throughout
+        // the system. See: https://github.com/influxdata/influxdb/issues/26440
+        Ok(Authorization::new(None, perms.to_vec()))
     }
 }
 
