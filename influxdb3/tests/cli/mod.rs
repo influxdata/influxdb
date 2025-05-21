@@ -2918,3 +2918,53 @@ async fn test_wal_overwritten() {
     );
     assert!(!p2.is_stopped(), "p2 should not be stopped");
 }
+
+#[test_log::test(tokio::test)]
+async fn test_query_with_null_tags() {
+    use influxdb3_client::Precision;
+    let server = TestServer::configure().spawn().await;
+    server
+        .write_lp_to_db(
+            "mydb",
+            "\
+        foo val=10 1234\n\
+        foo,tag=bar val=42 1235\n\
+        foo val=1337 1236\n\
+        ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    // query response is s JSON array:
+    let json = server
+        .query_sql("mydb")
+        .with_sql(
+            "\
+        SELECT \
+            tag as value, \
+            (tag IS NULL) AS is_null, \
+            (tag = '') AS is_empty \
+        FROM foo \
+        ORDER BY time",
+        )
+        .run()
+        .unwrap();
+
+    debug!("JSON output:\n\n{json:#}");
+
+    // first row has a NULL:
+    assert_eq!(json[0]["is_null"], true);
+    assert!(json[0]["is_empty"].is_null());
+    assert!(json[0]["value"].is_null());
+
+    // second row has a value:
+    assert_eq!(json[1]["is_null"], false);
+    assert_eq!(json[1]["is_empty"], false);
+    assert_eq!(json[1]["value"], "bar");
+
+    // third row has a NULL:
+    assert_eq!(json[2]["is_null"], true);
+    assert!(json[2]["is_empty"].is_null());
+    assert!(json[2]["value"].is_null());
+}

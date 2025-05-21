@@ -252,7 +252,7 @@ impl MutableTableChunk {
                             let mut tag_builder = StringDictionaryBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
-                                tag_builder.append_value("");
+                                tag_builder.append_null();
                             }
                             e.insert(Builder::Tag(tag_builder));
                         }
