@@ -337,15 +337,7 @@ impl MutableTableChunk {
             // add nulls for any columns not present
             for (column_id, builder) in &mut self.data {
                 if !value_added.contains(column_id) {
-                    match builder {
-                        Builder::Bool(b) => b.append_null(),
-                        Builder::F64(b) => b.append_null(),
-                        Builder::I64(b) => b.append_null(),
-                        Builder::U64(b) => b.append_null(),
-                        Builder::String(b) => b.append_null(),
-                        Builder::Tag(b) => b.append_null(),
-                        Builder::Time(b) => b.append_null(),
-                    }
+                    builder.append_null();
                 }
             }
         }
@@ -507,6 +499,18 @@ impl Builder {
             Self::String(b) => Arc::new(b.finish_cloned()),
             Self::Tag(b) => Arc::new(b.finish_cloned()),
             Self::Time(b) => Arc::new(b.finish_cloned()),
+        }
+    }
+
+    fn append_null(&mut self) {
+        match self {
+            Builder::Bool(b) => b.append_null(),
+            Builder::I64(b) => b.append_null(),
+            Builder::F64(b) => b.append_null(),
+            Builder::U64(b) => b.append_null(),
+            Builder::String(b) => b.append_null(),
+            Builder::Tag(b) => b.append_null(),
+            Builder::Time(b) => b.append_null(),
         }
     }
 
