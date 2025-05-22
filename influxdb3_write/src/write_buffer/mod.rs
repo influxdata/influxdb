@@ -660,6 +660,8 @@ mod tests {
     use crate::paths::SnapshotInfoFilePath;
     use crate::persister::Persister;
     use crate::test_helpers::WriteBufferTester;
+    use arrow::array::AsArray;
+    use arrow::datatypes::Int32Type;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
@@ -3005,6 +3007,126 @@ mod tests {
 
         // this should replay the wal and successfully initialize:
         let _buf = init().await;
+    }
+
+    /// Check for the case where tags that exist in a table, but have not been written to since
+    /// the most recent server start, are perstisted as NULL and not an empty string
+    #[test_log::test(tokio::test)]
+    async fn test_null_tags_persisted_as_null_not_empty_string() {
+        // Setup object store and write buffer for first time
+        let object_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: influxdb3_wal::Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (wb, _ctx, _tp) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&object_store) as _,
+            wal_config,
+        )
+        .await;
+
+        // Do enough writes to trigger a snapshot, so the row containing `tag` is flushed out
+        // of the write buffer, and will not be brought back when it is restarted:
+        do_writes(
+            "foo",
+            wb.as_ref(),
+            &[
+                // first write has `tag`, but all subsequent writes do not
+                TestWrite {
+                    lp: "bar,tag=a val=1",
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: "bar val=2",
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: "bar val=3",
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // Wait until there is a snapshot; this will ensure that the row with the tag value
+        // is flushed out of the write buffer, and will not be replayed from the WAL on the
+        // next startup:
+        verify_snapshot_count(1, &wb.persister).await;
+
+        // Drop the write buffer so we can re-initialize:
+        drop(wb);
+
+        // Re-initialize the write buffer:
+        let (wb, ctx, _tp) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&object_store) as _,
+            wal_config,
+        )
+        .await;
+
+        // Do enough writes again to trigger a snapshot; the `tag` column was never written here
+        // so the persistence step will be responsible for filling in that column with NULL:
+        do_writes(
+            "foo",
+            wb.as_ref(),
+            &[
+                TestWrite {
+                    lp: "bar val=4",
+                    time_seconds: 4,
+                },
+                TestWrite {
+                    lp: "bar val=5",
+                    time_seconds: 5,
+                },
+                TestWrite {
+                    lp: "bar val=6",
+                    time_seconds: 6,
+                },
+            ],
+        )
+        .await;
+
+        // Wait for snapshot again to make sure when we query below, we are drawing from parquet
+        // and not in-memory data:
+        verify_snapshot_count(2, &wb.persister).await;
+
+        // Get batches from the buffer, including what is still in the queryable buffer in
+        // memory as well as what has been persisted as parquet:
+        let batches = wb.get_record_batches_unchecked("foo", "bar", &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----+----------------------+-----+",
+                "| tag | time                 | val |",
+                "+-----+----------------------+-----+",
+                "|     | 1970-01-01T00:00:02Z | 2.0 |",
+                "|     | 1970-01-01T00:00:03Z | 3.0 |",
+                "|     | 1970-01-01T00:00:04Z | 4.0 |",
+                "|     | 1970-01-01T00:00:05Z | 5.0 |",
+                "|     | 1970-01-01T00:00:06Z | 6.0 |",
+                "| a   | 1970-01-01T00:00:01Z | 1.0 |",
+                "+-----+----------------------+-----+",
+            ],
+            &batches
+        );
+
+        debug!("record batches:\n\n{batches:#?}");
+
+        // Iterate over the `tag` column values and check that none of them are an empty string
+        for batch in batches {
+            let tag_col = batch
+                .column_by_name("tag")
+                .unwrap()
+                .as_dictionary::<Int32Type>();
+            let tag_vals = tag_col.values().as_string::<i32>();
+            for val in tag_vals {
+                if let Some(s) = val {
+                    assert!(!s.is_empty(), "there should not be any empty strings");
+                }
+            }
+        }
     }
 
     struct TestWrite<LP> {
