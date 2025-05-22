@@ -276,6 +276,10 @@ impl ObjectStore for SynchronizedObjectStore {
         location: &Path,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
+        if let Some((inbound, outbound)) = &self.get_notifies {
+            outbound.notify_one();
+            inbound.notified().await;
+        }
         self.inner.get_opts(location, options).await
     }
 
