@@ -507,6 +507,19 @@ func (s *Store) loadShards() error {
 
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
+	// Setup optimized limiter.
+	optLim := s.EngineOptions.Config.MaxConcurrentOptimizedCompactions
+	if optLim <= 0 {
+		optLim = 1
+	}
+
+	// Don't allow more optimized compactions to run than overall compactions.
+	if optLim > lim {
+		optLim = lim
+	}
+
+	s.EngineOptions.OptimizedCompactionLimiter = limiter.NewFixed(optLim)
+
 	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
 	throughput := int(s.EngineOptions.Config.CompactThroughput)
 	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
@@ -773,6 +786,8 @@ func (s *Store) ClearBadShardList() map[uint64]error {
 	badShards := s.GetBadShardList()
 
 	s.mu.Lock()
+	s.badShards.mu.Lock()
+	defer s.badShards.mu.Unlock()
 	defer s.mu.Unlock()
 	clear(s.badShards.shardErrors)
 
