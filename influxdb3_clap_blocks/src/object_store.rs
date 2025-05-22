@@ -12,7 +12,6 @@ use object_store::{
     path::Path,
     throttle::{ThrottleConfig, ThrottledStore},
 };
-use object_store_size_hinting::ObjectStoreStripSizeHinting;
 use observability_deps::tracing::{info, warn};
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -836,10 +835,6 @@ macro_rules! object_store_config_inner {
                         .build()
                         .context(InvalidS3ConfigSnafu)?);
 
-                    // This is a workaround until https://github.com/influxdata/influxdb_iox/issues/13771 is
-                    // resolved upstream.
-                    let store = Arc::new(ObjectStoreStripSizeHinting::new(store));
-
                     Ok(Some(store))
                 }
 
@@ -895,10 +890,6 @@ macro_rules! object_store_config_inner {
                         Some(ObjectStoreType::Azure) => self.new_azure()?,
                         Some(ObjectStoreType::File) => self.new_local_file_system()?,
                     };
-
-                    // This is a workaround until https://github.com/influxdata/influxdb_iox/issues/13771 is
-                    // resolved upstream.
-                    let object_store = Arc::new(ObjectStoreStripSizeHinting::new(object_store));
 
                     Ok(object_store)
                 }
@@ -1096,7 +1087,7 @@ mod tests {
         ];
         for config in configs {
             let object_store = config.make_object_store().unwrap();
-            assert_eq!(&object_store.to_string(), "strip_size_hinting(InMemory)")
+            assert_eq!(&object_store.to_string(), "InMemory")
         }
     }
 
@@ -1160,7 +1151,7 @@ mod tests {
             let object_store = config.make_object_store().unwrap();
             assert_eq!(
                 &object_store.to_string(),
-                "strip_size_hinting(LimitStore(16, AmazonS3(mybucket)))"
+                "LimitStore(16, AmazonS3(mybucket))"
             )
         }
     }
@@ -1307,7 +1298,7 @@ mod tests {
             let object_store = config.make_object_store().unwrap();
             assert_eq!(
                 &object_store.to_string(),
-                "strip_size_hinting(LimitStore(16, GoogleCloudStorage(mybucket)))"
+                "LimitStore(16, GoogleCloudStorage(mybucket))"
             )
         }
     }
@@ -1348,7 +1339,7 @@ mod tests {
         let object_store = config.make_object_store().unwrap();
         assert_eq!(
             &object_store.to_string(),
-            "strip_size_hinting(LimitStore(16, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket }))"
+            "LimitStore(16, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })"
         )
     }
 
@@ -1385,7 +1376,7 @@ mod tests {
 
         let object_store = config.make_object_store().unwrap().to_string();
         assert!(
-            object_store.starts_with("strip_size_hinting(LocalFileSystem"),
+            object_store.starts_with("LocalFileSystem"),
             "{}",
             object_store
         )

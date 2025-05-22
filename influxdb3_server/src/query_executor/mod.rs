@@ -751,7 +751,7 @@ impl TableProvider for QueryTable {
 
 #[cfg(test)]
 mod tests {
-    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+    use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
     use crate::query_executor::QueryExecutorImpl;
     use arrow::array::RecordBatch;
@@ -777,7 +777,6 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use metric::Registry;
     use object_store::{ObjectStore, local::LocalFileSystem};
-    use object_store_size_hinting::ObjectStoreStripSizeHinting;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
 
@@ -819,9 +818,6 @@ mod tests {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
-        // This is a workaround until https://github.com/influxdata/influxdb_iox/issues/13771 is
-        // resolved upstream:
-        let object_store = Arc::new(ObjectStoreStripSizeHinting::new(object_store));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
             object_store,
@@ -887,7 +883,15 @@ mod tests {
         )));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
-        let datafusion_config = Arc::new(Default::default());
+        let mut datafusion_config = HashMap::new();
+        // NB: need to prevent iox_query from injecting a size hint. It currently does so using a
+        // bit of a hack, and then strips it out with an additional object store layer. Instead of
+        // adding the additional layer, we just avoid using the size hint with this configuration.
+        datafusion_config.insert(
+            "iox.hint_known_object_size_to_object_store".to_string(),
+            false.to_string(),
+        );
+        let datafusion_config = Arc::new(datafusion_config);
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
             catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),

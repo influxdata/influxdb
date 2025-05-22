@@ -169,7 +169,6 @@ iox_time = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e47
 metric = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 metric_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 object_store_metrics = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
-object_store_size_hinting = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 observability_deps = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 panic_logging = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 parquet_file = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }

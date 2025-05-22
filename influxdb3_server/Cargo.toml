@@ -23,7 +23,6 @@ iox_system_tables.workspace = true
 iox_time.workspace = true
 metric.workspace = true
 metric_exporters.workspace = true
-object_store_size_hinting.workspace = true
 observability_deps.workspace = true
 schema.workspace = true
 service_common.workspace = true
