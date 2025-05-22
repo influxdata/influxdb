@@ -3121,10 +3121,8 @@ mod tests {
                 .unwrap()
                 .as_dictionary::<Int32Type>();
             let tag_vals = tag_col.values().as_string::<i32>();
-            for val in tag_vals {
-                if let Some(s) = val {
-                    assert!(!s.is_empty(), "there should not be any empty strings");
-                }
+            for s in tag_vals.iter().flatten() {
+                assert!(!s.is_empty(), "there should not be any empty strings");
             }
         }
     }
