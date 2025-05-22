@@ -386,24 +386,6 @@ impl MutableTableChunk {
             cols.push(col);
         }
 
-        // ensure that every series key column is present in the batch
-        for col_id in &table_def.series_key {
-            if !cols_in_batch.contains(col_id) {
-                let col_name = table_def
-                    .column_id_to_name(col_id)
-                    .expect("valid column id");
-                schema_builder.influx_column(col_name.as_ref(), InfluxColumnType::Tag);
-                let mut tag_builder: StringDictionaryBuilder<Int32Type> =
-                    StringDictionaryBuilder::new();
-                for _ in 0..self.row_count {
-                    tag_builder.append_value("");
-                }
-
-                cols.push(Arc::new(tag_builder.finish()));
-                cols_in_batch.insert(*col_id);
-            }
-        }
-
         // ensure that every field column is present in the batch
         for (col_id, col_def) in table_def.columns.iter() {
             if !cols_in_batch.contains(col_id) {
