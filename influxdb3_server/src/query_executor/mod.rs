@@ -35,6 +35,7 @@ use iox_query::query_log::StateReceived;
 use iox_query::query_log::{QueryCompletedToken, QueryLogEntries};
 use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_params::StatementParams;
+use iox_time::TimeProvider;
 use metric::Registry;
 use observability_deps::tracing::{debug, info};
 use std::any::Any;
@@ -70,6 +71,7 @@ pub struct CreateQueryExecutorArgs {
     pub write_buffer: Arc<dyn WriteBuffer>,
     pub exec: Arc<Executor>,
     pub metrics: Arc<Registry>,
+    pub time_provider: Arc<dyn TimeProvider>,
     pub datafusion_config: Arc<HashMap<String, String>>,
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
@@ -89,6 +91,7 @@ impl QueryExecutorImpl {
             telemetry_store,
             sys_events_store,
             started_with_auth,
+            time_provider,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -97,10 +100,7 @@ impl QueryExecutorImpl {
         ));
         let query_execution_semaphore =
             Arc::new(semaphore_metrics.new_semaphore(Semaphore::MAX_PERMITS));
-        let query_log = Arc::new(QueryLog::new(
-            query_log_size,
-            Arc::new(iox_time::SystemProvider::new()),
-        ));
+        let query_log = Arc::new(QueryLog::new(query_log_size, time_provider, &metrics));
         Self {
             catalog,
             write_buffer,
@@ -271,6 +271,8 @@ async fn query_database_sql(
         "sql",
         Box::new(query.to_string()),
         params.clone(),
+        // NB: do we need to provide an auth ID?
+        None,
     );
 
     // NOTE - we use the default query configuration on the IOxSessionContext here:
@@ -325,6 +327,8 @@ async fn query_database_influxql(
         "influxql",
         Box::new(query_str.to_string()),
         params.clone(),
+        // NB: do we need to provide an auth ID?
+        None,
     );
 
     let ctx = db.new_query_context(span_ctx, Default::default());
@@ -556,6 +560,7 @@ impl QueryNamespace for Database {
         query_type: &'static str,
         query_text: QueryText,
         query_params: StatementParams,
+        auth_id: Option<String>,
     ) -> QueryCompletedToken<StateReceived> {
         let trace_id = span_ctx.map(|ctx| ctx.trace_id);
         let namespace_name: Arc<str> = Arc::from("influxdb3 oss");
@@ -565,6 +570,7 @@ impl QueryNamespace for Database {
             query_type,
             query_text,
             query_params,
+            auth_id,
             trace_id,
         )
     }
@@ -745,7 +751,7 @@ impl TableProvider for QueryTable {
 
 #[cfg(test)]
 mod tests {
-    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+    use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
     use crate::query_executor::QueryExecutorImpl;
     use arrow::array::RecordBatch;
@@ -767,7 +773,7 @@ mod tests {
         persister::Persister,
         write_buffer::{WriteBufferImpl, WriteBufferImplArgs, persisted_files::PersistedFiles},
     };
-    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
+    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use metric::Registry;
     use object_store::{ObjectStore, local::LocalFileSystem};
@@ -793,6 +799,8 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 // Default to 1gb
                 mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+                per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+                heap_memory_limit: None,
             },
             DedicatedExecutor::new_testing(),
         ))
@@ -875,7 +883,15 @@ mod tests {
         )));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
-        let datafusion_config = Arc::new(Default::default());
+        let mut datafusion_config = HashMap::new();
+        // NB: need to prevent iox_query from injecting a size hint. It currently does so using a
+        // bit of a hack, and then strips it out with an additional object store layer. Instead of
+        // adding the additional layer, we just avoid using the size hint with this configuration.
+        datafusion_config.insert(
+            "iox.hint_known_object_size_to_object_store".to_string(),
+            false.to_string(),
+        );
+        let datafusion_config = Arc::new(datafusion_config);
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
             catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),
@@ -886,6 +902,7 @@ mod tests {
             telemetry_store,
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth,
+            time_provider: Arc::clone(&time_provider) as _,
         });
 
         (

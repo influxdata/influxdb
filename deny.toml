@@ -5,9 +5,6 @@
 version = 2
 yanked = "deny"
 ignore = [
-    # dependent on datafusion-common moving away from instant
-    # https://github.com/apache/datafusion/pull/13355
-    "RUSTSEC-2024-0384",
     # paste crate is no longer maintained, but it is past 1.0
     # Keep this here until our transisent dependencies no longer
     # need it
@@ -24,6 +21,7 @@ allow = [
     "BSD-2-Clause",
     "BSD-3-Clause",
     "CC0-1.0",
+    "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
     "Unicode-3.0",

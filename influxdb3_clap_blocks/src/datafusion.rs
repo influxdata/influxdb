@@ -85,6 +85,16 @@ impl IoxQueryDatafusionConfig {
             ),
             self.use_cached_parquet_loader.to_string(),
         );
+        // NB: need to prevent iox_query from injecting a size hint. It currently does so using a
+        // bit of a hack, and then strips it out with an additional object store layer. Instead of
+        // adding the additional layer, we just avoid using the size hint with this configuration.
+        self.datafusion_config.insert(
+            format!(
+                "{prefix}.hint_known_object_size_to_object_store",
+                prefix = IoxConfigExt::PREFIX
+            ),
+            false.to_string(),
+        );
         self.datafusion_config
     }
 }

@@ -815,7 +815,7 @@ macro_rules! object_store_config_inner {
                         return Ok(None);
                     };
 
-                    let store = object_store::aws::AmazonS3Builder::from_env()
+                    let store = Arc::new(object_store::aws::AmazonS3Builder::from_env()
                         // bucket name is ignored by our cache server
                         .with_bucket_name(self.bucket.as_deref().unwrap_or("placeholder"))
                         .with_client_options(
@@ -833,9 +833,9 @@ macro_rules! object_store_config_inner {
                         })
                         .with_skip_signature(true)
                         .build()
-                        .context(InvalidS3ConfigSnafu)?;
+                        .context(InvalidS3ConfigSnafu)?);
 
-                    Ok(Some(Arc::new(store)))
+                    Ok(Some(store))
                 }
 
                 /// Build cache store.
@@ -858,7 +858,7 @@ macro_rules! object_store_config_inner {
                         }
                     }
 
-                    let remote_store: Arc<DynObjectStore> = match &self.object_store {
+                    let object_store: Arc<DynObjectStore> = match &self.object_store {
                         None => return Err(ParseError::UnspecifiedObjectStore),
                         Some(ObjectStoreType::Memory) => {
                             info!(object_store_type = "Memory", "Object Store");
@@ -891,7 +891,7 @@ macro_rules! object_store_config_inner {
                         Some(ObjectStoreType::File) => self.new_local_file_system()?,
                     };
 
-                    Ok(remote_store)
+                    Ok(object_store)
                 }
 
                 fn new_local_file_system(&self) -> Result<Arc<LocalFileSystemWithSortedListOp>, ParseError> {

@@ -676,7 +676,7 @@ mod tests {
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_types::http::LastCacheSize;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
-    use iox_query::exec::{Executor, ExecutorConfig, IOxSessionContext};
+    use iox_query::exec::{Executor, ExecutorConfig, IOxSessionContext, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
     use metric::{Attributes, Metric, U64Counter};
     use metrics::{
@@ -3127,6 +3127,75 @@ mod tests {
         }
     }
 
+    #[test_log::test(tokio::test)]
+    async fn test_parquet_cache_hits() {
+        let object_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: influxdb3_wal::Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (wb, ctx, metrics) = setup_with_metrics_and_parquet_cache(
+            Time::from_timestamp_nanos(0),
+            object_store,
+            wal_config,
+        )
+        .await;
+
+        // Do enough writes to trigger a snapshot:
+        do_writes(
+            "foo",
+            wb.as_ref(),
+            &[
+                // first write has `tag`, but all subsequent writes do not
+                TestWrite {
+                    lp: "bar,tag=a val=1",
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: "bar,tag=b val=2",
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: "bar,tag=c val=3",
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        verify_snapshot_count(1, &wb.persister).await;
+
+        let instrument = metrics
+            .get_instrument::<Metric<U64Counter>>("influxdb3_parquet_cache_access")
+            .unwrap();
+
+        let cached_count = instrument.observer(&[("status", "cached")]).fetch();
+        // We haven't queried anything so nothing has hit the cache yet:
+        assert_eq!(0, cached_count);
+
+        let batches = wb.get_record_batches_unchecked("foo", "bar", &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----+----------------------+-----+",
+                "| tag | time                 | val |",
+                "+-----+----------------------+-----+",
+                "| a   | 1970-01-01T00:00:01Z | 1.0 |",
+                "| b   | 1970-01-01T00:00:02Z | 2.0 |",
+                "| c   | 1970-01-01T00:00:03Z | 3.0 |",
+                "+-----+----------------------+-----+",
+            ],
+            &batches
+        );
+
+        let cached_count = instrument.observer(&[("status", "cached")]).fetch();
+        // NB: although there should only be a single file in the store, datafusion may make more
+        // than one request to fetch the file in chunks, which is why there is more than a single
+        // cache hit:
+        assert_eq!(3, cached_count);
+    }
+
     struct TestWrite<LP> {
         lp: LP,
         time_seconds: i64,
@@ -3234,6 +3303,16 @@ mod tests {
         (buf, metrics)
     }
 
+    async fn setup_with_metrics_and_parquet_cache(
+        start: Time,
+        object_store: Arc<dyn ObjectStore>,
+        wal_config: WalConfig,
+    ) -> (Arc<WriteBufferImpl>, IOxSessionContext, Arc<Registry>) {
+        let (buf, ctx, _time_provider, metrics) =
+            setup_inner(start, object_store, wal_config, true).await;
+        (buf, ctx, metrics)
+    }
+
     async fn setup_inner(
         start: Time,
         object_store: Arc<dyn ObjectStore>,
@@ -3251,7 +3330,7 @@ mod tests {
             let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
                 object_store,
                 Arc::clone(&time_provider),
-                Default::default(),
+                Arc::clone(&metric_registry),
             );
             (object_store, Some(parquet_cache))
         } else {
@@ -3398,6 +3477,8 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 // Default to 1gb
                 mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+                per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+                heap_memory_limit: None,
             },
             DedicatedExecutor::new_testing(),
         ))

@@ -760,7 +760,9 @@ mod tests {
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
     use influxdb3_write::{Precision, WriteBuffer};
-    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, IOxSessionContext};
+    use iox_query::exec::{
+        DedicatedExecutor, Executor, ExecutorConfig, IOxSessionContext, PerQueryMemoryPoolConfig,
+    };
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
     use object_store::ObjectStore;
@@ -1065,6 +1067,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
                 metric_registry: Arc::clone(&metrics),
                 // Default to 1gb
                 mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+                heap_memory_limit: None,
+                per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
             },
             DedicatedExecutor::new_testing(),
         ))
