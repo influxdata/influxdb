@@ -628,7 +628,14 @@ impl QueryResponseStream {
                 let column_name = field.name();
 
                 let mut cell_value = if !column.is_valid(row_index) {
-                    continue;
+                    // NB(trevor): when doing a GROUP BY, the /query API will insert an empty
+                    // string instead of a JSON `null` for tags in the group by clause whose
+                    // value is `NULL`.
+                    if column_map.is_group_by_tag(column_name) {
+                        Value::String("".to_string())
+                    } else {
+                        continue;
+                    }
                 } else {
                     cast_column_value(column, row_index)?
                 };

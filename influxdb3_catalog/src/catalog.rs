@@ -676,10 +676,18 @@ impl ProcessingEngineMetrics for Catalog {
     }
 }
 
+/// General purpose type for storing a collection of things in the catalog
+///
+/// Each item in the repository has a unique identifier and name. The repository tracks the next
+/// identifier that will be used for a new resource added to the repository, with the assumption
+/// that identifiers are monotonically increasing unsigned integers.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Repository<I: CatalogId, R: CatalogResource> {
+    /// Store for items in the repository
     pub(crate) repo: SerdeVecMap<I, Arc<R>>,
+    /// Bi-directional map of identifiers to names in the repository
     pub(crate) id_name_map: BiHashMap<I, Arc<str>>,
+    /// The next identifier that will be used when a new resource is added to the repository
     pub(crate) next_id: I,
 }
 
@@ -821,16 +829,18 @@ impl<I: CatalogId, R: CatalogResource> Default for Repository<I, R> {
 
 #[derive(Debug, Clone)]
 pub struct InnerCatalog {
+    /// A unique monotonically increasing sequence to differentiate the catalog state as it changes
+    /// over time.
     pub(crate) sequence: CatalogSequenceNumber,
     /// The `catalog_id` is the user-provided value used to prefix catalog paths on the object store
     pub(crate) catalog_id: Arc<str>,
     /// The `catalog_uuid` is a unique identifier to distinguish catalog instantiations
     pub(crate) catalog_uuid: Uuid,
+    /// Collection of nodes in the catalog
     pub(crate) nodes: Repository<NodeId, NodeDefinition>,
-    /// The catalog is a map of databases with their table schemas
+    /// Collection of databases in the catalog
     pub(crate) databases: Repository<DbId, DatabaseSchema>,
-    /// This holds all the tokens created and saved in catalog
-    /// saved in catalog snapshot
+    /// Collection of tokens in the catalog
     pub(crate) tokens: TokenRepository,
 }
 
@@ -1044,13 +1054,27 @@ impl InnerCatalog {
     }
 }
 
+/// The definition of a node in the catalog
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct NodeDefinition {
+    /// User-provided, unique name for the node
+    ///
+    /// # Note
+    ///
+    /// The naming may be a bit confusing for this. This may be more aptly named `node_name`;
+    /// however, it is `node_id`, because this corresponds to the user-provided `--node-id` that is
+    /// used to identify the node on server start. The unique and automatically generated catalog
+    /// identifier for the node is stored in `node_catalog_id`.
     pub(crate) node_id: Arc<str>,
+    /// Unique identifier for the node in the catalog
     pub(crate) node_catalog_id: NodeId,
+    /// A UUID generated when the node is first registered into the catalog
     pub(crate) instance_id: Arc<str>,
+    /// The mode the node is operating in
     pub(crate) mode: Vec<NodeMode>,
+    /// The number of cores this node is using
     pub(crate) core_count: u64,
+    /// The state of the node
     pub(crate) state: NodeState,
 }
 
@@ -1087,18 +1111,27 @@ impl NodeDefinition {
     }
 }
 
+/// The state of a node in an InfluxDB 3 cluster
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum NodeState {
+    /// A node is set to `Running` when first started and registered into the catalog
     Running { registered_time_ns: i64 },
+    /// A node is set to `Stopped` during graceful shutdown
     Stopped { stopped_time_ns: i64 },
 }
 
+/// Definition of a database in the catalog
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
+    /// Unique identifier for the database
     pub id: DbId,
+    /// Unique user-provided name for the database
     pub name: Arc<str>,
+    /// Tables contained in the database
     pub tables: Repository<TableId, TableDefinition>,
+    /// Processing engine triggers configured on the database
     pub processing_engine_triggers: Repository<TriggerId, TriggerDefinition>,
+    /// Whether this database has been flagged as deleted
     pub deleted: bool,
 }
 
@@ -1525,16 +1558,32 @@ fn make_new_name_using_deleted_time(name: &str, deletion_time: Time) -> Arc<str>
     ))
 }
 
+/// Definition of a table in the catalog
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TableDefinition {
+    /// Unique identifier of the table in the catalog
     pub table_id: TableId,
+    /// User-provided unique name for the table
     pub table_name: Arc<str>,
+    /// The IOx/Arrow schema for the table
     pub schema: Schema,
+    /// Column definitions for the table
     pub columns: Repository<ColumnId, ColumnDefinition>,
+    /// List of column identifiers that form the series key for the table
+    ///
+    /// The series key along with the `time` column form the primary key for the table. The series
+    /// key is determined as the order of tags provided when the table is first created, either by
+    /// a write of line protocol, or by an explicit table creation.
+    ///
+    /// The series key is used as the sort order, i.e., sort key, for the table during persistence.
     pub series_key: Vec<ColumnId>,
+    /// The names of the columns in the table's series key
     pub series_key_names: Vec<Arc<str>>,
+    /// Last cache definitions for the table
     pub last_caches: Repository<LastCacheId, LastCacheDefinition>,
+    /// Distinct cache definitions for the table
     pub distinct_caches: Repository<DistinctCacheId, DistinctCacheDefinition>,
+    /// Whether this table has been set as deleted
     pub deleted: bool,
 }
 
@@ -1919,11 +1968,16 @@ impl TableUpdate for DeleteLastCacheLog {
     }
 }
 
+/// Definition of a column in the catalog
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ColumnDefinition {
+    /// Unique identifier of the column in the catalog
     pub id: ColumnId,
+    /// User-provided unique name for the column
     pub name: Arc<str>,
+    /// Influx type of the column
     pub data_type: InfluxColumnType,
+    /// Whether this column can hold `NULL` values
     pub nullable: bool,
 }
 
@@ -1943,9 +1997,13 @@ impl ColumnDefinition {
     }
 }
 
+/// Stores tokens in the catalog. Wraps a [`Repository`] while providing additional functionality
+/// needed for looking up tokens at runtime.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TokenRepository {
+    /// The collection of tokens
     repo: Repository<TokenId, TokenInfo>,
+    /// Bi-directional map for quick lookup of tokens by their hash
     hash_lookup_map: BiHashMap<TokenId, Vec<u8>>,
 }
 

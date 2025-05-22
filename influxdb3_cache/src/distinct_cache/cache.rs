@@ -462,7 +462,6 @@ pub(crate) struct Value(Arc<str>);
 impl From<&FieldData> for Value {
     fn from(field: &FieldData) -> Self {
         match field {
-            FieldData::Key(s) => Self(Arc::from(s.as_str())),
             FieldData::Tag(s) => Self(Arc::from(s.as_str())),
             FieldData::String(s) => Self(Arc::from(s.as_str())),
             FieldData::Timestamp(_)

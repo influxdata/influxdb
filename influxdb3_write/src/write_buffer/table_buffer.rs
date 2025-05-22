@@ -252,7 +252,7 @@ impl MutableTableChunk {
                             let mut tag_builder = StringDictionaryBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
-                                tag_builder.append_value("");
+                                tag_builder.append_null();
                             }
                             e.insert(Builder::Tag(tag_builder));
                         }
@@ -263,22 +263,6 @@ impl MutableTableChunk {
                         } else {
                             panic!("unexpected field type");
                         }
-                    }
-                    FieldData::Key(v) => {
-                        if let Entry::Vacant(e) = self.data.entry(f.id) {
-                            let key_builder = StringDictionaryBuilder::new();
-                            if self.row_count > 0 {
-                                panic!(
-                                    "series key columns must be passed in the very first write for a table"
-                                );
-                            }
-                            e.insert(Builder::Key(key_builder));
-                        }
-                        let b = self.data.get_mut(&f.id).expect("key builder should exist");
-                        let Builder::Key(b) = b else {
-                            panic!("unexpected field type");
-                        };
-                        b.append_value(v);
                     }
                     FieldData::String(v) => {
                         let b = self.data.entry(f.id).or_insert_with(|| {
@@ -353,18 +337,7 @@ impl MutableTableChunk {
             // add nulls for any columns not present
             for (column_id, builder) in &mut self.data {
                 if !value_added.contains(column_id) {
-                    match builder {
-                        Builder::Bool(b) => b.append_null(),
-                        Builder::F64(b) => b.append_null(),
-                        Builder::I64(b) => b.append_null(),
-                        Builder::U64(b) => b.append_null(),
-                        Builder::String(b) => b.append_null(),
-                        Builder::Tag(b) | Builder::Key(b) => {
-                            // NOTE: we use an empty string "" for tags that are omitted
-                            b.append_value("");
-                        }
-                        Builder::Time(b) => b.append_null(),
-                    }
+                    builder.append_null();
                 }
             }
         }
@@ -411,24 +384,6 @@ impl MutableTableChunk {
                 col_type,
             );
             cols.push(col);
-        }
-
-        // ensure that every series key column is present in the batch
-        for col_id in &table_def.series_key {
-            if !cols_in_batch.contains(col_id) {
-                let col_name = table_def
-                    .column_id_to_name(col_id)
-                    .expect("valid column id");
-                schema_builder.influx_column(col_name.as_ref(), InfluxColumnType::Tag);
-                let mut tag_builder: StringDictionaryBuilder<Int32Type> =
-                    StringDictionaryBuilder::new();
-                for _ in 0..self.row_count {
-                    tag_builder.append_value("");
-                }
-
-                cols.push(Arc::new(tag_builder.finish()));
-                cols_in_batch.insert(*col_id);
-            }
         }
 
         // ensure that every field column is present in the batch
@@ -513,9 +468,6 @@ pub(super) enum Builder {
     U64(UInt64Builder),
     String(StringBuilder),
     Tag(StringDictionaryBuilder<Int32Type>),
-    // For now we use a string dict to be consistent with tags, but in future
-    // keys, like fields may support different data types.
-    Key(StringDictionaryBuilder<Int32Type>),
     Time(TimestampNanosecondBuilder),
 }
 
@@ -528,8 +480,19 @@ impl Builder {
             Self::U64(b) => Arc::new(b.finish_cloned()),
             Self::String(b) => Arc::new(b.finish_cloned()),
             Self::Tag(b) => Arc::new(b.finish_cloned()),
-            Self::Key(b) => Arc::new(b.finish_cloned()),
             Self::Time(b) => Arc::new(b.finish_cloned()),
+        }
+    }
+
+    fn append_null(&mut self) {
+        match self {
+            Builder::Bool(b) => b.append_null(),
+            Builder::I64(b) => b.append_null(),
+            Builder::F64(b) => b.append_null(),
+            Builder::U64(b) => b.append_null(),
+            Builder::String(b) => b.append_null(),
+            Builder::Tag(b) => b.append_null(),
+            Builder::Time(b) => b.append_null(),
         }
     }
 
@@ -556,7 +519,6 @@ impl Builder {
                 Arc::new(b.finish()),
             ),
             Self::Tag(mut b) => (InfluxColumnType::Tag, Arc::new(b.finish())),
-            Self::Key(mut b) => (InfluxColumnType::Tag, Arc::new(b.finish())),
             Self::Time(mut b) => (InfluxColumnType::Timestamp, Arc::new(b.finish())),
         }
     }
@@ -578,7 +540,7 @@ impl Builder {
                     + b.offsets_slice().len()
                     + b.validity_slice().map(|s| s.len()).unwrap_or(0)
             }
-            Self::Tag(b) | Self::Key(b) => {
+            Self::Tag(b) => {
                 let b = b.finish_cloned();
                 b.keys().len() * size_of::<i32>() + b.values().get_array_memory_size()
             }
@@ -724,7 +686,7 @@ mod tests {
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 17763);
+        assert_eq!(size, 17739);
     }
 
     #[test]
