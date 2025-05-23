@@ -1581,6 +1581,7 @@ pub struct TableDefinition {
     pub series_key: Vec<ColumnId>,
     /// The names of the columns in the table's series key
     pub series_key_names: Vec<Arc<str>>,
+    /// The sort key for the table when persisted to storage.
     pub sort_key: SortKey,
     /// Last cache definitions for the table
     pub last_caches: Repository<LastCacheId, LastCacheDefinition>,
