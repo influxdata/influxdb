@@ -12,7 +12,6 @@ use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
-use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
@@ -33,19 +32,15 @@ pub enum Error {
 
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
+#[derive(Default)]
 pub struct TableBuffer {
     chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
     snapshotting_chunks: Vec<SnapshotChunk>,
-    pub(crate) sort_key: SortKey,
 }
 
 impl TableBuffer {
-    pub fn new(sort_key: SortKey) -> Self {
-        Self {
-            chunk_time_to_chunks: BTreeMap::default(),
-            snapshotting_chunks: vec![],
-            sort_key,
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
 
     pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[Row]) {
@@ -385,6 +380,7 @@ impl MutableTableChunk {
                 col_type,
             );
             cols.push(col);
+            schema_builder.with_series_key(&table_def.series_key_names);
         }
 
         // ensure that every field column is present in the batch
@@ -631,7 +627,7 @@ mod tests {
 
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
 
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new();
         for (rows, offset) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);
         }
@@ -683,16 +679,16 @@ mod tests {
             )
             .await;
 
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new();
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 17739);
+        assert_eq!(size, 17731);
     }
 
     #[test]
     fn timestamp_min_max_works_when_empty() {
-        let table_buffer = TableBuffer::new(SortKey::empty());
+        let table_buffer = TableBuffer::new();
         let timestamp_min_max = table_buffer.timestamp_min_max();
         assert_eq!(timestamp_min_max.min, 0);
         assert_eq!(timestamp_min_max.max, 0);
@@ -720,7 +716,7 @@ mod tests {
             row_batches.push((offset, rows));
         }
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new();
 
         for (offset, rows) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);

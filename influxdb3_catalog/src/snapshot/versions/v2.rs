@@ -423,6 +423,7 @@ impl Snapshot for TableDefinition {
             columns: table_def.columns,
             series_key: table_def.series_key,
             series_key_names: table_def.series_key_names,
+            sort_key: table_def.sort_key,
             last_caches: Repository::from_snapshot(snap.last_caches),
             distinct_caches: Repository::from_snapshot(snap.distinct_caches),
             deleted: snap.deleted,
