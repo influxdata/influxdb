@@ -387,6 +387,7 @@ pub struct Row {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FieldData {
     Timestamp(i64),
+    Key(String),
     Tag(String),
     String(String),
     Integer(i64),

@@ -565,6 +565,9 @@ pub fn execute_python_with_batch(
                                     .set_item(field_name.as_ref(), t)
                                     .context("failed to set timestamp")?;
                             }
+                            FieldData::Key(_) => {
+                                unreachable!("key type should never be constructed")
+                            }
                         };
                     }
 

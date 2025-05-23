@@ -469,6 +469,7 @@ impl From<&FieldData> for Value {
             | FieldData::UInteger(_)
             | FieldData::Float(_)
             | FieldData::Boolean(_) => panic!("unexpected field type for distinct value cache"),
+            FieldData::Key(_) => unreachable!("key type should never be constructed"),
         }
     }
 }
