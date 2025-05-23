@@ -40,10 +40,7 @@ pub struct TableBuffer {
 
 impl TableBuffer {
     pub fn new() -> Self {
-        Self {
-            chunk_time_to_chunks: BTreeMap::default(),
-            snapshotting_chunks: vec![],
-        }
+        Default::default()
     }
 
     pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[Row]) {
