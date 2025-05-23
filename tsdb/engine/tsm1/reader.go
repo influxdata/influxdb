@@ -3,6 +3,7 @@ package tsm1
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -20,9 +21,18 @@ import (
 // ErrFileInUse is returned when attempting to remove or close a TSM file that is still being used.
 var ErrFileInUse = fmt.Errorf("file still in use")
 
+// ErrBlockOutOfRange is returned when the requested block number is out of range.
+var ErrBlockOutOfRange = errors.New("block index is out of range")
+
 // nilOffset is the value written to the offsets to indicate that position is deleted.  The value is the max
 // uint32 which is an invalid position.  We don't use 0 as 0 is actually a valid position.
 var nilOffset = []byte{255, 255, 255, 255}
+
+type blockCountCache struct {
+	valid bool
+	count int
+	err   error
+}
 
 // TSMReader is a reader for a TSM file.
 type TSMReader struct {
@@ -50,6 +60,8 @@ type TSMReader struct {
 
 	// deleteMu limits concurrent deletes
 	deleteMu sync.Mutex
+
+	firstBlockCountCache blockCountCache
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -308,9 +320,8 @@ func (t *TSMReader) Free() error {
 // Path returns the path of the file the TSMReader was initialized with.
 func (t *TSMReader) Path() string {
 	t.mu.RLock()
-	p := t.accessor.path()
-	t.mu.RUnlock()
-	return p
+	defer t.mu.RUnlock()
+	return t.accessor.path()
 }
 
 // Key returns the key and the underlying entry at the numeric index.
@@ -560,6 +571,62 @@ func (t *TSMReader) TombstoneRange(key []byte) []TimeRange {
 	return tr
 }
 
+// BlockCount returns number of values stored in the block at location idx
+// in the file at path.  If path does not match any file in the store, 0 is
+// returned.  If idx is out of range for the number of blocks in the file,
+// 0 is returned.
+func (t *TSMReader) BlockCount(idx int) (int, error) {
+	if idx < 0 {
+		return 0, fmt.Errorf("%w: TSMReaderBlockCount: invalid index %d for %q", ErrBlockOutOfRange, idx, t.Path())
+	}
+
+	iter := t.BlockIterator()
+	for i := 0; i < idx; i++ {
+		if !iter.Next() {
+			return 0, fmt.Errorf("%w: TSMReader.BlockCount: error seeking to block %d for %q", ErrBlockOutOfRange, idx, t.Path())
+		}
+	}
+	_, _, _, _, _, block, err := iter.Read()
+	if err != nil {
+		return 0, fmt.Errorf("%w: TSMReaderBlockCount: error reading block %d in %q", err, idx, t.Path())
+	}
+	count, err := BlockCount(block)
+	if err != nil {
+		return 0, fmt.Errorf("%w: TSMReaderBlockCount: error finding block count for block %d in %q", err, idx, t.Path())
+	}
+	return count, nil
+}
+
+// firstBlockCount returns the number of points in the first block of the file.
+// firstBlockCount is determined on the first call and then a cached value is returned.
+// firstBlockCount should not be called with t.mu held.
+func (t *TSMReader) firstBlockCount() (int, error) {
+	cache := func() blockCountCache {
+		t.mu.RLock()
+		defer t.mu.RUnlock()
+		return t.firstBlockCountCache
+	}()
+
+	if !cache.valid {
+		count, err := t.BlockCount(1)
+		cache = func() blockCountCache {
+			t.mu.Lock()
+			defer t.mu.Unlock()
+			// Don't overwrite if value was written by someone else.
+			if !t.firstBlockCountCache.valid {
+				t.firstBlockCountCache = blockCountCache{
+					valid: true,
+					count: count,
+					err:   err,
+				}
+			}
+			return t.firstBlockCountCache
+		}()
+	}
+
+	return cache.count, cache.err
+}
+
 // Stats returns the FileStat for the TSMReader's underlying file.
 func (t *TSMReader) Stats() FileStat {
 	minTime, maxTime := t.index.TimeRange()
@@ -574,6 +641,22 @@ func (t *TSMReader) Stats() FileStat {
 		MaxKey:       maxKey,
 		HasTombstone: t.tombstoner.HasTombstones(),
 	}
+}
+
+// ExtStats returns the ExtFileStat for the TSMReader's underlying file.
+// In the event ExtStats returns an error, the embedded FileStat data will be
+// valid, but other fields in ExtStats may not be valid depending upon the error.
+func (t *TSMReader) ExtStats() (ExtFileStat, error) {
+	extStats := t.Stats().ToExtFileStat()
+
+	var errs []error
+	if firstBlockCount, err := t.firstBlockCount(); err == nil {
+		extStats.FirstBlockCount = firstBlockCount
+	} else {
+		errs = append(errs, err)
+	}
+
+	return extStats, errors.Join(errs...)
 }
 
 // BlockIterator returns a BlockIterator for the underlying TSM file.

@@ -3136,7 +3136,7 @@ func fatal(t *testing.T, msg string, err error) {
 	t.Fatalf("unexpected error %v: %v", msg, err)
 }
 
-var fsResult []tsm1.FileStat
+var fsResult []tsm1.ExtFileStat
 
 func BenchmarkFileStore_Stats(b *testing.B) {
 	dir := MustTempDir()

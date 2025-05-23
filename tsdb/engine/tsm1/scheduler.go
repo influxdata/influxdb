@@ -33,7 +33,7 @@ func (s *scheduler) setDepth(level, depth int) {
 	s.queues[level] = depth
 }
 
-func (s *scheduler) next() (int, bool) {
+func (s *scheduler) nextByQueueDepths(depths [TotalCompactionLevels]int) (int, bool) {
 	level1Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[0]))
 	level2Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[1]))
 	level3Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[2]))
@@ -51,19 +51,23 @@ func (s *scheduler) next() (int, bool) {
 
 	loLimit, _ := s.limits()
 
-	end := len(s.queues)
+	end := len(depths)
 	if level3Running+level4Running+level5Running >= loLimit && s.maxConcurrency-(level1Running+level2Running) == 0 {
 		end = 2
 	}
 
 	var weight float64
 	for i := 0; i < end; i++ {
-		if float64(s.queues[i])*s.weights[i] > weight {
+		if float64(depths[i])*s.weights[i] > weight {
 			level, runnable = i+1, true
-			weight = float64(s.queues[i]) * s.weights[i]
+			weight = float64(depths[i]) * s.weights[i]
 		}
 	}
 	return level, runnable
+}
+
+func (s *scheduler) next() (int, bool) {
+	return s.nextByQueueDepths(s.queues)
 }
 
 func (s *scheduler) limits() (int, int) {

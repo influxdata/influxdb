@@ -142,8 +142,8 @@ type TSMFile interface {
 	// Unref records that this file is no longer in use.
 	Unref()
 
-	// Stats returns summary information about the TSM file.
-	Stats() FileStat
+	// ExtStats returns extended summary information about the TSM file.
+	ExtStats() (ExtFileStat, error)
 
 	// BlockIterator returns an iterator pointing to the first block in the file and
 	// allows sequential iteration to each and every block.
@@ -178,7 +178,7 @@ type FileStore struct {
 	lastModified time.Time
 	// Most recently known file stats. If nil then stats will need to be
 	// recalculated
-	lastFileStats []FileStat
+	lastFileStats []ExtFileStat
 
 	currentGeneration int
 	dir               string
@@ -218,12 +218,39 @@ type FileStat struct {
 	MinKey, MaxKey   []byte
 }
 
+type FileStats []FileStat
+
+// ExtFileStat holds the same info as FileStat plus extended data that is more computationally expensive to
+// calculate.
+type ExtFileStat struct {
+	FileStat
+	FirstBlockCount int
+}
+
+type ExtFileStats []ExtFileStat
+
 // TombstoneStat holds information about a possible tombstone file on disk.
 type TombstoneStat struct {
 	TombstoneExists bool
 	Path            string
 	LastModified    int64
 	Size            uint32
+}
+
+// ToExtFileStat converts s to an ExtFileStat. The extended fields are left with default values.
+func (f FileStat) ToExtFileStat() ExtFileStat {
+	return ExtFileStat{
+		FileStat: f,
+	}
+}
+
+// ToExtFileStat converts s to an ExtFileStat. The extended fields are left with default values.
+func (fs FileStats) ToExtFileStats() []ExtFileStat {
+	exts := make([]ExtFileStat, 0, len(fs))
+	for _, f := range fs {
+		exts = append(exts, f.ToExtFileStat())
+	}
+	return exts
 }
 
 // OverlapsTimeRange returns true if the time range of the file intersect min and max.
@@ -794,7 +821,7 @@ func (f *FileStore) KeyCursor(ctx context.Context, key []byte, t int64, ascendin
 }
 
 // Stats returns the stats of the underlying files, preferring the cached version if it is still valid.
-func (f *FileStore) Stats() []FileStat {
+func (f *FileStore) Stats() []ExtFileStat {
 	f.mu.RLock()
 	if len(f.lastFileStats) > 0 {
 		defer f.mu.RUnlock()
@@ -814,11 +841,15 @@ func (f *FileStore) Stats() []FileStat {
 	// If lastFileStats's capacity is far away from the number of entries
 	// we need to add, then we'll reallocate.
 	if cap(f.lastFileStats) < len(f.files)/2 {
-		f.lastFileStats = make([]FileStat, 0, len(f.files))
+		f.lastFileStats = make([]ExtFileStat, 0, len(f.files))
 	}
 
 	for _, fd := range f.files {
-		f.lastFileStats = append(f.lastFileStats, fd.Stats())
+		stats, err := fd.ExtStats()
+		if err != nil {
+			f.logger.Warn("error during fd.Stats", zap.Error(err))
+		}
+		f.lastFileStats = append(f.lastFileStats, stats)
 	}
 	return f.lastFileStats
 }
@@ -1022,35 +1053,6 @@ func (f *FileStore) LastModified() time.Time {
 	defer f.mu.RUnlock()
 
 	return f.lastModified
-}
-
-// BlockCount returns number of values stored in the block at location idx
-// in the file at path.  If path does not match any file in the store, 0 is
-// returned.  If idx is out of range for the number of blocks in the file,
-// 0 is returned.
-func (f *FileStore) BlockCount(path string, idx int) int {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	if idx < 0 {
-		return 0
-	}
-
-	for _, fd := range f.files {
-		if fd.Path() == path {
-			iter := fd.BlockIterator()
-			for i := 0; i < idx; i++ {
-				if !iter.Next() {
-					return 0
-				}
-			}
-			_, _, _, _, _, block, _ := iter.Read()
-			// on Error, BlockCount(block) returns 0 for cnt
-			cnt, _ := BlockCount(block)
-			return cnt
-		}
-	}
-	return 0
 }
 
 // We need to determine the possible files that may be accessed by this query given
