@@ -1816,7 +1816,7 @@ func (fscm *measurementFieldSetChangeMgr) Close() {
 	if fscm != nil {
 		close(fscm.writeRequests)
 		wg_timeout.WaitGroupTimeout(&fscm.wg, 24*time.Hour, func() {
-			fscm.logger.Warn("timed out waiting for measurementFieldSetChangeMgr to close", zap.String("changeFilePath", fscm.changeFilePath))
+			fscm.logger.Debug("timed out waiting for measurementFieldSetChangeMgr to close", zap.String("changeFilePath", fscm.changeFilePath))
 		})
 	}
 }
