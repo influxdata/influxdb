@@ -2121,10 +2121,25 @@ func (e *Engine) ShouldCompactCache(t time.Time) bool {
 // isFileOptimized returns true if a TSM file appears to have already been previously optimized.
 // If file appears previously optimized, a description of the heuristic used to determine this is also returned.
 func (e *Engine) isFileOptimized(f string) (bool, string) {
-	if tsmPointsPerBlock := e.Compactor.FileStore.BlockCount(f, 1); tsmPointsPerBlock >= e.CompactionPlan.GetAggressiveCompactionPointsPerBlock() {
-		return true, fmt.Sprintf("first block of file contains aggressive points per block (%d >= %d)", tsmPointsPerBlock, e.CompactionPlan.GetAggressiveCompactionPointsPerBlock())
+	// Find stats for f
+	firstBlockCount := -1
+	stats := e.Compactor.FileStore.Stats()
+	for _, st := range stats {
+		if st.Path == f {
+			firstBlockCount = st.FirstBlockCount
+		}
+	}
+	if firstBlockCount < 0 {
+		e.logger.Warn("isFileOptimized: could not find stats for file", zap.String("path", f))
+		//return false, fmt.Sprintf("file not found: %q", f)
+		firstBlockCount = 0
+	}
+
+	aggroThresh := e.CompactionPlan.GetAggressiveCompactionPointsPerBlock()
+	if firstBlockCount >= aggroThresh {
+		return true, fmt.Sprintf("first block contains aggressive points per block (%d > %d)", firstBlockCount, aggroThresh)
 	} else {
-		return false, ""
+		return false, fmt.Sprintf("first block does not contain aggressive points per block (%d <= %d)", firstBlockCount, aggroThresh)
 	}
 }
 
@@ -2318,43 +2333,39 @@ const (
 	PT_NoOptimize
 )
 
-func (e *Engine) PlanCompactions(planType PlanType) (
-	level1Groups []PlannedCompactionGroup,
-	level2Groups []PlannedCompactionGroup,
-	level3Groups []PlannedCompactionGroup,
-	level4Groups []PlannedCompactionGroup,
-	level5Groups []PlannedCompactionGroup) {
+func makePlannedCompactionGroup(groups []CompactionGroup, pointsPerBlock int) []PlannedCompactionGroup {
+	planned := make([]PlannedCompactionGroup, 0, len(groups))
+	for _, g := range groups {
+		planned = append(planned, PlannedCompactionGroup{
+			Group:          g,
+			PointsPerBlock: pointsPerBlock,
+		})
+	}
+	return planned
+}
+
+func (e *Engine) planCompactionsLevel(level int) []PlannedCompactionGroup {
+	groups, _ := e.CompactionPlan.PlanLevel(level)
+	return makePlannedCompactionGroup(groups, tsdb.DefaultMaxPointsPerBlock)
+}
+
+func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
 	// Find our compaction plans
-	l1Groups, len1 := e.CompactionPlan.PlanLevel(1)
-	l2Groups, len2 := e.CompactionPlan.PlanLevel(2)
-	l3Groups, len3 := e.CompactionPlan.PlanLevel(3)
-	l4Groups, len4 := e.CompactionPlan.Plan(e.LastModified())
+	level1Groups := e.planCompactionsLevel(1)
+	level2Groups := e.planCompactionsLevel(2)
+	level3Groups := e.planCompactionsLevel(3)
+	l4Groups, _ := e.CompactionPlan.Plan(e.LastModified())
 
-	level1Groups = make([]PlannedCompactionGroup, 0, len(l1Groups))
-	for _, group := range l1Groups {
-		level1Groups = append(level1Groups, PlannedCompactionGroup{
-			Group:          group,
-			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
-		})
+	if planType == PT_SmartOptimize {
+		level, runnable := e.scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(l4Groups), 0})
+		// We don't stop if level 4 is runnable because we need to continue on and check for group 4 to group 5 promotions if
+		// group 4 is the runnable group.
+		if runnable && level <= 3 {
+			// We know that the compaction loop will pull a compaction group from levels 1-4, so no need to plan level 5.
+			return level1Groups, level2Groups, level3Groups, nil, nil
+		}
 	}
 
-	level2Groups = make([]PlannedCompactionGroup, 0, len(l2Groups))
-	for _, group := range l2Groups {
-		level2Groups = append(level2Groups, PlannedCompactionGroup{
-			Group:          group,
-			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
-		})
-	}
-
-	level3Groups = make([]PlannedCompactionGroup, 0, len(l3Groups))
-	for _, group := range l3Groups {
-		level3Groups = append(level3Groups, PlannedCompactionGroup{
-			Group:          group,
-			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
-		})
-	}
-
-	// TODO:
 	// Some groups in level 4 may contain already optimized files. In these cases, it is
 	// desireable to maintain optimization for the entire group to avoid "going backwards" on the
 	// optimization level. For instance, if an optimized cold shard had back-fill data
@@ -2364,56 +2375,75 @@ func (e *Engine) PlanCompactions(planType PlanType) (
 	// has been removed. Re-enabling the promotion logic efficiently probably requires some caching of whether a
 	// compaction group is already optimized so we don't have to determine that every time through the compaction loop.
 	// In an ideal world, CompactionPlan.Plan and CompactionPlan.PlanOptimize might handle this.
-	level4Groups = make([]PlannedCompactionGroup, 0, len(l4Groups))
+	level4Groups := make([]PlannedCompactionGroup, 0, len(l4Groups))
+	level5Groups := make([]PlannedCompactionGroup, 0, len(l4Groups)) // All level 4 groups could be promoted to level 5.
 	for _, group := range l4Groups {
-		level4Groups = append(level4Groups, PlannedCompactionGroup{
-			Group:          group,
-			PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
-		})
-	}
+		if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
+			// Info level logging would be too noisy.
+			e.logger.Debug("Promoting full compaction level 4 group to optimized level 5 compaction group because it contains an already optimized TSM file",
+				zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
 
-	if planType == PT_SmartOptimize {
-		level, runnable := e.scheduler.nextByQueueDepths([TotalCompactionLevels]int{int(len1), int(len2), int(len3), int(len4), 0})
-		if runnable && level <= 4 {
-			// We know that the compaction loop will pull a compaction group from levels 1-4, so no need to plan level 5.
-			return level1Groups, level2Groups, level3Groups, level4Groups, nil
+			// Should set this compaction group to aggressive. IsGroupOptimized will check the
+			// block count and return true if there is a file at aggressivePointsPerBlock.
+			// We will need to run aggressive compaction on this group if that's the case.
+			level5Groups = append(level5Groups, PlannedCompactionGroup{
+				Group:          group,
+				PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
+			})
+
+		} else {
+			level4Groups = append(level4Groups, PlannedCompactionGroup{
+				Group:          group,
+				PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+			})
 		}
 	}
 
-	// Plan level 5 compaction groups, but only if we are supposed to and we don't already have level 4 compaction groups.
-	if len(level4Groups) == 0 && planType != PT_NoOptimize {
-		// There is potential to limit the number of compaction groups returned by PlanOptimize when planType == PT_SmartOptimized, but
-		// the win is probably small compared to other optimizations that have already been added for PT_SmartOptimize.
-		plannedLevel5Groups, _, genCount := e.CompactionPlan.PlanOptimize(e.LastModified())
+	if planType == PT_NoOptimize {
+		// For PT_NoOptimize, throw away any promoted level 5 groups and return what we have for level 1 through 4.
+		// Our behavior changes depending what the plan type is.
+		return level1Groups, level2Groups, level3Groups, level4Groups, nil
+	} else if planType == PT_SmartOptimize {
+		level, runnable := e.scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(level4Groups), len(level5Groups)})
+		if runnable && level <= 5 {
+			// We know that the compaction loop will pull from something already planned, no need to go any further for smart optimize.
+			return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
+		}
+	}
 
-		for _, group := range plannedLevel5Groups {
-			// If a level5 optimized compaction group is a single generation. We will need to rewrite
-			// the files at a higher points per block count in order to fully compact them in to a single TSM file.
-			if genCount == 1 {
-				e.logger.Info("Planned optimized level 5 compactions belong to single generation. All groups will use aggressive points per block.")
+	// At this point, we are either planning PT_Standard or we are planning PT_SmartOptimize and haven't found anything to run yet. Look
+	// for level 5s using PlanOptimize.
+	// There is potential to limit the number of compaction groups returned by PlanOptimize when planType == PT_SmartOptimized, but
+	// the win is probably small compared to other optimizations that have already been added for PT_SmartOptimize.
+	plannedLevel5Groups, _, genCount := e.CompactionPlan.PlanOptimize(e.LastModified())
+
+	for _, group := range plannedLevel5Groups {
+		// If a level5 optimized compaction group is a single generation. We will need to rewrite
+		// the files at a higher points per block count in order to fully compact them in to a single TSM file.
+		if genCount == 1 {
+			e.logger.Debug("Planned optimized level 5 compactions belong to single generation. All groups will use aggressive points per block.")
+			level5Groups = append(level5Groups, PlannedCompactionGroup{
+				Group:          group,
+				PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
+			})
+		} else {
+			if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
+				e.logger.Debug("Planning optimized level 5 compaction Group at aggressive points per block.",
+					zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
+				// Should set this compaction group to aggressive. IsGroupOptimized will check the
+				// block count and return true if there is a file at aggressivePointsPerBlock.
+				// We will need to run aggressive compaction on this group if that's the case.
 				level5Groups = append(level5Groups, PlannedCompactionGroup{
 					Group:          group,
 					PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
 				})
 			} else {
-				if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
-					e.logger.Info("Planning optimized level 5 compaction Group at aggressive points per block.",
-						zap.String("optimized_file", filename), zap.String("heuristic", heur), zap.Strings("files", group))
-					// Should set this compaction group to aggressive. IsGroupOptimized will check the
-					// block count and return true if there is a file at aggressivePointsPerBlock.
-					// We will need to run aggressive compaction on this group if that's the case.
-					level5Groups = append(level5Groups, PlannedCompactionGroup{
-						Group:          group,
-						PointsPerBlock: e.CompactionPlan.GetAggressiveCompactionPointsPerBlock(),
-					})
-				} else {
-					e.logger.Info("Planning optimized level 5 compaction Group", zap.Strings("files", group))
-					level5Groups = append(level5Groups, PlannedCompactionGroup{
-						Group:          group,
-						PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
-					})
+				e.logger.Debug("Planning optimized level 5 compaction Group", zap.Strings("files", group))
+				level5Groups = append(level5Groups, PlannedCompactionGroup{
+					Group:          group,
+					PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+				})
 
-				}
 			}
 
 			if planType == PT_SmartOptimize && len(level5Groups) >= 1 {
@@ -2423,17 +2453,21 @@ func (e *Engine) PlanCompactions(planType PlanType) (
 		}
 	}
 
-	len5 := int64(len(level5Groups))
+	return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
+}
+
+func (e *Engine) PlanCompactions(planType PlanType) ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
+	l1, l2, l3, l4, l5 := e.planCompactionsInner(planType)
 
 	// Update the level plan queue stats
 	// For stats, use the length needed, even if the lock was
 	// not acquired
-	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], len1)
-	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], len2)
-	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], len3)
-	atomic.StoreInt64(&e.stats.TSMFullCompactionsQueue, len4)
-	atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, len5)
-	return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
+	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], int64(len(l1)))
+	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], int64(len(l2)))
+	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], int64(len(l3)))
+	atomic.StoreInt64(&e.stats.TSMFullCompactionsQueue, int64(len(l4)))
+	atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(l5)))
+	return l1, l2, l3, l4, l5
 }
 
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns

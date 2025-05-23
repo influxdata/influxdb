@@ -1570,26 +1570,61 @@ func TestCacheKeyIterator_Abort(t *testing.T) {
 	}
 }
 
+func normalizeExtFileStat(efs []tsm1.ExtFileStat, defaultBlockCount int) []tsm1.ExtFileStat {
+	efsNorm := make([]tsm1.ExtFileStat, 0, len(efs))
+	for _, f := range efs {
+		if f.FirstBlockCount == 0 {
+			f.FirstBlockCount = defaultBlockCount
+		}
+		efsNorm = append(efsNorm, f)
+	}
+
+	return efsNorm
+}
+
+type ffsOpt func(ffs *fakeFileStore)
+
+func withExtFileStats(efs []tsm1.ExtFileStat) ffsOpt {
+	return func(ffs *fakeFileStore) {
+		ffs.PathsFn = func() []tsm1.ExtFileStat { return normalizeExtFileStat(efs, ffs.defaultBlockCount) }
+	}
+}
+
+func withFileStats(fs []tsm1.FileStat) ffsOpt {
+	return withExtFileStats(tsm1.FileStats(fs).ToExtFileStats())
+}
+
+func withDefaultBlockCount(blockCount int) ffsOpt {
+	return func(ffs *fakeFileStore) {
+		ffs.defaultBlockCount = blockCount
+	}
+}
+
+func newFakeFileStore(opts ...ffsOpt) *fakeFileStore {
+	ffs := &fakeFileStore{}
+	for _, o := range opts {
+		o(ffs)
+	}
+	return ffs
+}
+
 func TestDefaultPlanner_Plan_Min(t *testing.T) {
+	fileStats := []tsm1.FileStat{
+		{
+			Path: "01-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		{
+			Path: "02-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		{
+			Path: "03-1.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+	}
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					{
-						Path: "01-01.tsm1",
-						Size: 1 * 1024 * 1024,
-					},
-					{
-						Path: "02-01.tsm1",
-						Size: 1 * 1024 * 1024,
-					},
-					{
-						Path: "03-1.tsm1",
-						Size: 251 * 1024 * 1024,
-					},
-				}
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(fileStats)), tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	tsm, pLen := cp.Plan(time.Now())
@@ -1635,11 +1670,8 @@ func TestDefaultPlanner_Plan_CombineSequence(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
@@ -1698,11 +1730,9 @@ func TestDefaultPlanner_Plan_MultipleGroups(t *testing.T) {
 		},
 	}
 
-	cp := tsm1.NewDefaultPlanner(&fakeFileStore{
-		PathsFn: func() []tsm1.FileStat {
-			return data
-		},
-	}, tsdb.DefaultCompactFullWriteColdDuration)
+	cp := tsm1.NewDefaultPlanner(
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3],
 		data[4], data[5], data[6], data[7]}
@@ -1789,11 +1819,8 @@ func TestDefaultPlanner_PlanLevel_SmallestCompactionStep(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11]}
@@ -1844,11 +1871,8 @@ func TestDefaultPlanner_PlanLevel_SplitFile(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4]}
@@ -1899,11 +1923,8 @@ func TestDefaultPlanner_PlanLevel_IsolatedHighLevel(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{}
@@ -1944,11 +1965,8 @@ func TestDefaultPlanner_PlanLevel3_MinFiles(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{}
@@ -1978,11 +1996,8 @@ func TestDefaultPlanner_PlanLevel2_MinFiles(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{}
@@ -2024,11 +2039,8 @@ func TestDefaultPlanner_PlanLevel_Tombstone(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1]}
@@ -2083,11 +2095,8 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]}
@@ -2175,11 +2184,8 @@ func TestDefaultPlanner_PlanLevel_InUse(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles1 := data[0:8]
@@ -2241,11 +2247,8 @@ func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{}
@@ -2277,11 +2280,8 @@ func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
@@ -2331,11 +2331,7 @@ func TestDefaultPlanner_Plan_FullOnCold(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		},
+		newFakeFileStore(withFileStats(data)),
 		time.Nanosecond,
 	)
 
@@ -2368,11 +2364,8 @@ func TestDefaultPlanner_Plan_SkipMaxSizeFiles(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	tsm, pLen := cp.Plan(time.Now())
@@ -2405,14 +2398,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		},
 	}
 
-	ffs := &fakeFileStore{
-		PathsFn: func() []tsm1.FileStat {
-			return testSet
-		},
-	}
-
-	err := ffs.SetBlockCounts([]int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock})
-	require.NoError(t, err, "SetBlockCounts")
+	ffs := newFakeFileStore(withFileStats(testSet), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
 
 	cp := tsm1.NewDefaultPlanner(ffs, time.Nanosecond)
 
@@ -2449,22 +2435,9 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		},
 	}
 
-	overFs := &fakeFileStore{
-		PathsFn: func() []tsm1.FileStat {
-			return over
-		},
-	}
-
-	err = overFs.SetBlockCounts([]int{
-		tsdb.DefaultMaxPointsPerBlock,
-		tsdb.DefaultMaxPointsPerBlock,
-		tsdb.DefaultMaxPointsPerBlock,
-		tsdb.DefaultMaxPointsPerBlock,
-		tsdb.DefaultMaxPointsPerBlock,
-	})
-	require.NoError(t, err, "SetBlockCounts")
-
+	overFs := newFakeFileStore(withFileStats(over), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
 	cp.FileStore = overFs
+
 	plan, pLen = cp.Plan(time.Now().Add(-time.Second))
 	if exp, got := 0, len(plan); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
@@ -2541,19 +2514,7 @@ func TestDefaultPlanner_Plan_TwoGenLevel3(t *testing.T) {
 		},
 	}
 
-	fs := &fakeFileStore{
-		PathsFn: func() []tsm1.FileStat {
-			return data
-		},
-	}
-
-	var bcs []int
-	for range data {
-		bcs = append(bcs, tsdb.DefaultMaxPointsPerBlock)
-	}
-
-	err := fs.SetBlockCounts(bcs)
-	require.NoError(t, err, "SetBlockCounts")
+	fs := newFakeFileStore(withFileStats(data), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
 
 	cp := tsm1.NewDefaultPlanner(fs, time.Hour)
 
@@ -2587,19 +2548,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 		},
 	}
 
-	ffs := &fakeFileStore{
-		PathsFn: func() []tsm1.FileStat {
-			return testSet
-		},
-	}
-
-	var bcs []int
-	for range testSet {
-		bcs = append(bcs, 100)
-	}
-
-	err := ffs.SetBlockCounts(bcs)
-	require.NoError(t, err, "SetBlockCounts")
+	ffs := newFakeFileStore(withFileStats(testSet), withDefaultBlockCount(100))
 
 	cp := tsm1.NewDefaultPlanner(
 		ffs,
@@ -2627,19 +2576,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 		},
 	}
 
-	overFs := &fakeFileStore{
-		PathsFn: func() []tsm1.FileStat {
-			return over
-		},
-	}
-
-	bcs = make([]int, 0)
-	for range over {
-		bcs = append(bcs, 100)
-	}
-
-	err = overFs.SetBlockCounts(bcs)
-	require.NoError(t, err, "SetBlockCounts")
+	overFs := newFakeFileStore(withFileStats(over), withDefaultBlockCount(100))
 
 	cp.FileStore = overFs
 	cGroups, pLen := cp.Plan(time.Now().Add(-time.Second))
@@ -2677,11 +2614,8 @@ func TestDefaultPlanner_Plan_CompactsMiddleSteps(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(data)),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
@@ -2701,32 +2635,30 @@ func TestDefaultPlanner_Plan_CompactsMiddleSteps(t *testing.T) {
 
 func TestDefaultPlanner_Plan_LargeGeneration(t *testing.T) {
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					{
-						Path: "000000278-000000006.tsm",
-						Size: 2148340232,
-					},
-					{
-						Path: "000000278-000000007.tsm",
-						Size: 2148356556,
-					},
-					{
-						Path: "000000278-000000008.tsm",
-						Size: 167780181,
-					},
-					{
-						Path: "000000278-000047040.tsm",
-						Size: 2148728539,
-					},
-					{
-						Path: "000000278-000047041.tsm",
-						Size: 701863692,
-					},
-				}
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(
+			[]tsm1.FileStat{
+				{
+					Path: "000000278-000000006.tsm",
+					Size: 2148340232,
+				},
+				{
+					Path: "000000278-000000007.tsm",
+					Size: 2148356556,
+				},
+				{
+					Path: "000000278-000000008.tsm",
+					Size: 167780181,
+				},
+				{
+					Path: "000000278-000047040.tsm",
+					Size: 2148728539,
+				},
+				{
+					Path: "000000278-000047041.tsm",
+					Size: 701863692,
+				},
+			})),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	tsm, pLen := cp.Plan(time.Now())
@@ -2739,64 +2671,62 @@ func TestDefaultPlanner_Plan_LargeGeneration(t *testing.T) {
 
 func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					{
-						Path: "000000001-000000001.tsm",
-						Size: 2148340232,
-					},
-					{
-						Path: "000000002-000000001.tsm",
-						Size: 2148356556,
-					},
-					{
-						Path: "000000003-000000001.tsm",
-						Size: 167780181,
-					},
-					{
-						Path: "000000004-000000001.tsm",
-						Size: 2148728539,
-					},
-					{
-						Path: "000000005-000000001.tsm",
-						Size: 2148340232,
-					},
-					{
-						Path: "000000006-000000001.tsm",
-						Size: 2148356556,
-					},
-					{
-						Path: "000000007-000000001.tsm",
-						Size: 167780181,
-					},
-					{
-						Path: "000000008-000000001.tsm",
-						Size: 2148728539,
-					},
-					{
-						Path: "000000009-000000002.tsm",
-						Size: 701863692,
-					},
-					{
-						Path: "000000010-000000002.tsm",
-						Size: 701863692,
-					},
-					{
-						Path: "000000011-000000002.tsm",
-						Size: 701863692,
-					},
-					{
-						Path: "000000012-000000002.tsm",
-						Size: 701863692,
-					},
-					{
-						Path: "000000013-000000002.tsm",
-						Size: 701863692,
-					},
-				}
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(
+			[]tsm1.FileStat{
+				{
+					Path: "000000001-000000001.tsm",
+					Size: 2148340232,
+				},
+				{
+					Path: "000000002-000000001.tsm",
+					Size: 2148356556,
+				},
+				{
+					Path: "000000003-000000001.tsm",
+					Size: 167780181,
+				},
+				{
+					Path: "000000004-000000001.tsm",
+					Size: 2148728539,
+				},
+				{
+					Path: "000000005-000000001.tsm",
+					Size: 2148340232,
+				},
+				{
+					Path: "000000006-000000001.tsm",
+					Size: 2148356556,
+				},
+				{
+					Path: "000000007-000000001.tsm",
+					Size: 167780181,
+				},
+				{
+					Path: "000000008-000000001.tsm",
+					Size: 2148728539,
+				},
+				{
+					Path: "000000009-000000002.tsm",
+					Size: 701863692,
+				},
+				{
+					Path: "000000010-000000002.tsm",
+					Size: 701863692,
+				},
+				{
+					Path: "000000011-000000002.tsm",
+					Size: 701863692,
+				},
+				{
+					Path: "000000012-000000002.tsm",
+					Size: 701863692,
+				},
+				{
+					Path: "000000013-000000002.tsm",
+					Size: 701863692,
+				},
+			})),
+		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	tsm, pLen := cp.PlanLevel(1)
@@ -2866,7 +2796,7 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 }
 
 func TestIsGroupOptimized(t *testing.T) {
-	testSet := []tsm1.FileStat{
+	testSetNoExt := []tsm1.FileStat{
 		{
 			Path: "01-05.tsm",
 			Size: 256 * 1024 * 1024,
@@ -2884,6 +2814,7 @@ func TestIsGroupOptimized(t *testing.T) {
 			Size: 256 * 1024 * 1024,
 		},
 	}
+	testSet := tsm1.FileStats(testSetNoExt).ToExtFileStats()
 	blockCounts := []struct {
 		blockCounts   []int
 		optimizedName string
@@ -2926,11 +2857,7 @@ func TestIsGroupOptimized(t *testing.T) {
 		},
 	}
 
-	ffs := &fakeFileStore{
-		PathsFn: func() []tsm1.FileStat {
-			return testSet
-		},
-	}
+	ffs := newFakeFileStore(withExtFileStats(testSet))
 	cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
 
 	e := MustOpenEngine(tsdb.InmemIndexName)
@@ -2943,11 +2870,14 @@ func TestIsGroupOptimized(t *testing.T) {
 		fileGroup = append(fileGroup, testSet[j].Path)
 	}
 
-	for i := 0; i < len(blockCounts); i++ {
-		require.NoError(t, ffs.SetBlockCounts(blockCounts[i].blockCounts), "failed setting block counts")
+	for testIdx := 0; testIdx < len(blockCounts); testIdx++ {
+		require.Lenf(t, blockCounts[testIdx].blockCounts, len(testSet), "incorrect block count for case %d", testIdx)
+		for statIdx := range testSet {
+			testSet[statIdx].FirstBlockCount = blockCounts[testIdx].blockCounts[statIdx]
+		}
 		ok, fName, _ := e.IsGroupOptimized(fileGroup)
-		require.Equal(t, blockCounts[i].optimizedName != "", ok, "unexpected result for optimization check")
-		require.Equal(t, blockCounts[i].optimizedName, fName, "unexpected file name in optimization check")
+		require.Equal(t, blockCounts[testIdx].optimizedName != "", ok, "unexpected result for optimization check")
+		require.Equal(t, blockCounts[testIdx].optimizedName, fName, "unexpected file name in optimization check")
 	}
 }
 
@@ -2961,9 +2891,9 @@ func TestEnginePlanCompactions(t *testing.T) {
 	}
 
 	type testEnginePlanCompactionsRunner struct {
-		name        string
-		files       []tsm1.FileStat
-		blockCounts []int
+		name              string
+		files             []tsm1.ExtFileStat
+		defaultBlockCount int // Default block count if member of files has FirstBlockCount of 0.
 		// This is specifically used to adjust the modification time
 		// so we can simulate the passage of time in tests
 		testShardTime time.Duration
@@ -2974,37 +2904,43 @@ func TestEnginePlanCompactions(t *testing.T) {
 	tests := []testEnginePlanCompactionsRunner{
 		{
 			name: "many generations under 2GB",
-			files: []tsm1.FileStat{
+			files: []tsm1.ExtFileStat{
 				{
-					Path: "01-05.tsm",
-					Size: 256 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "02-05.tsm",
-					Size: 256 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "02-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "03-05.tsm",
-					Size: 256 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "03-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "04-04.tsm",
-					Size: 256 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "04-04.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
-			},
-			blockCounts: []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
 			},
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				common := testLevelResults{
-					level4Groups: []tsm1.PlannedCompactionGroup{
+					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
-							tsdb.DefaultMaxPointsPerBlock,
+							tsdb.DefaultAggressiveMaxPointsPerBlock,
 						},
 					},
 				}
@@ -3014,66 +2950,84 @@ func TestEnginePlanCompactions(t *testing.T) {
 				case tsm1.PT_SmartOptimize:
 					return common
 				case tsm1.PT_NoOptimize:
-					return common
+					return testLevelResults{}
 				}
 				return testLevelResults{}
 			},
 		},
 		{
 			name: "Many generations with files over 2GB",
-			files: []tsm1.FileStat{
+			files: []tsm1.ExtFileStat{
 				{
-					Path: "01-05.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "01-06.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-06.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "01-07.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-07.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "01-08.tsm1",
-					Size: 1048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-08.tsm1",
+						Size: 1048 * 1024 * 1024,
+					},
+					FirstBlockCount: 100,
 				},
 				{
-					Path: "02-05.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "02-05.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "02-06.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "02-06.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "02-07.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "02-07.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "02-08.tsm1",
-					Size: 1048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "02-08.tsm1",
+						Size: 1048 * 1024 * 1024,
+					},
+					FirstBlockCount: 100,
 				},
 				{
-					Path: "03-04.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "03-04.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: 10,
 				},
 				{
-					Path: "03-05.tsm1",
-					Size: 512 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "03-05.tsm1",
+						Size: 512 * 1024 * 1024,
+					},
+					FirstBlockCount: 5,
 				},
-			},
-			blockCounts: []int{
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				100,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				100,
-				10,
-				5,
 			},
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
@@ -3099,25 +3053,33 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 		{
 			name: "Small group size with single generation",
-			files: []tsm1.FileStat{
+			/* These files are supposed to have 0 block counts */
+			files: []tsm1.ExtFileStat{
 				{
-					Path: "01-05.tsm1",
-					Size: 300 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm1",
+						Size: 300 * 1024 * 1024,
+					},
 				},
 				{
-					Path: "01-06.tsm1",
-					Size: 200 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-06.tsm1",
+						Size: 200 * 1024 * 1024,
+					},
 				},
 				{
-					Path: "01-07.tsm1",
-					Size: 100 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-07.tsm1",
+						Size: 100 * 1024 * 1024,
+					},
 				},
 				{
-					Path: "01-08.tsm1",
-					Size: 50 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-08.tsm1",
+						Size: 50 * 1024 * 1024,
+					},
 				},
 			},
-			blockCounts:   make([]int, 0),
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				common := testLevelResults{
@@ -3146,7 +3108,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 		{
 			name: "Small group size with single generation and levels under 4",
-			files: []tsm1.FileStat{
+			/* These files are supposed to have block counts of 0 */
+			files: tsm1.FileStats{
 				{
 					Path: "01-02.tsm1",
 					Size: 300 * 1024 * 1024,
@@ -3159,7 +3122,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 					Path: "01-04.tsm1",
 					Size: 100 * 1024 * 1024,
 				},
-			},
+			}.ToExtFileStats(),
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				common := testLevelResults{
@@ -3187,7 +3150,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 		{
 			name: "Small group size with single generation all at DefaultMaxPointsPerBlock",
-			files: []tsm1.FileStat{
+			files: tsm1.FileStats{
 				{
 					Path: "01-05.tsm1",
 					Size: 300 * 1024 * 1024,
@@ -3204,9 +3167,9 @@ func TestEnginePlanCompactions(t *testing.T) {
 					Path: "01-08.tsm1",
 					Size: 50 * 1024 * 1024,
 				},
-			},
-			blockCounts:   []int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock},
-			testShardTime: -1,
+			}.ToExtFileStats(),
+			defaultBlockCount: tsdb.DefaultMaxPointsPerBlock,
+			testShardTime:     -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				common := testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
@@ -3234,49 +3197,63 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 		{
 			name: "Small group size with single generation 50% at DefaultMaxPointsPerBlock and 50% at DefaultAggressiveMaxPointsPerBlock",
-			files: []tsm1.FileStat{
+			files: []tsm1.ExtFileStat{
 				{
-					Path: "01-05.tsm1",
-					Size: 700 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm1",
+						Size: 700 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "01-06.tsm1",
-					Size: 500 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-06.tsm1",
+						Size: 500 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "01-07.tsm1",
-					Size: 400 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-07.tsm1",
+						Size: 400 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "01-08.tsm1",
-					Size: 300 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-08.tsm1",
+						Size: 300 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "01-09.tsm1",
-					Size: 200 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-09.tsm1",
+						Size: 200 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "01-10.tsm1",
-					Size: 100 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-10.tsm1",
+						Size: 100 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "01-11.tsm1",
-					Size: 50 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-11.tsm1",
+						Size: 50 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "01-12.tsm1",
-					Size: 25 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-12.tsm1",
+						Size: 25 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
-			},
-			blockCounts: []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
 			},
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
@@ -3310,24 +3287,28 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 		{
 			name: "Group size over 2GB with single generation",
-			files: []tsm1.FileStat{
+			files: []tsm1.ExtFileStat{
 				{
-					Path: "01-13.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-13.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "01-14.tsm1",
-					Size: 650 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-14.tsm1",
+						Size: 650 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "01-15.tsm1",
-					Size: 450 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-15.tsm1",
+						Size: 450 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
-			},
-			blockCounts: []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
 			},
 
 			testShardTime: -1,
@@ -3360,13 +3341,13 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// TestDefaultPlanner_FullyCompacted_SmallSingleGeneration
 			// will need to ensure that once we have single TSM file under 2 GB we stop
 			name: "Single TSM file",
-			files: []tsm1.FileStat{
+			/* These files are supposed to have 0 blocks */
+			files: tsm1.FileStats{
 				{
 					Path: "01-09.tsm1",
 					Size: 650 * 1024 * 1024,
 				},
-			},
-			blockCounts:   []int{},
+			}.ToExtFileStats(),
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				return testLevelResults{}
@@ -3377,7 +3358,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
 			// It should not compact any further.
 			name: "TSM files at DefaultAggressiveMaxPointsPerBlock",
-			files: []tsm1.FileStat{
+			files: tsm1.FileStats{
 				{
 					Path: "01-13.tsm1",
 					Size: 2048 * 1024 * 1024,
@@ -3386,12 +3367,9 @@ func TestEnginePlanCompactions(t *testing.T) {
 					Path: "01-14.tsm1",
 					Size: 691 * 1024 * 1024,
 				},
-			},
-			blockCounts: []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			},
-			testShardTime: -1,
+			}.ToExtFileStats(),
+			defaultBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
+			testShardTime:     -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				return testLevelResults{}
 			},
@@ -3402,19 +3380,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// under 2 GB at default max points per block.
 			// It should not compact any further.
 			name: "TSM files cannot compact further, single file under 2G and at DefaultMaxPointsPerBlock",
-			files: []tsm1.FileStat{
+			files: []tsm1.ExtFileStat{
 				{
-					Path: "01-13.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-13.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "01-14.tsm1",
-					Size: 691 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-14.tsm1",
+						Size: 691 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
-			},
-			blockCounts: []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
 			},
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
@@ -3425,7 +3405,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// This test is added to account for a single generation that has a group size
 			// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
 			name: "Group size over 2 with multiple files under 2GB and at DefaultAggressiveMaxPointsPerBlock",
-			files: []tsm1.FileStat{
+			files: tsm1.FileStats{
 				{
 					Path: "01-13.tsm1",
 					Size: 2048 * 1024 * 1024,
@@ -3438,20 +3418,17 @@ func TestEnginePlanCompactions(t *testing.T) {
 					Path: "01-15.tsm1",
 					Size: 450 * 1024 * 1024,
 				},
-			},
-			blockCounts: []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			},
-			testShardTime: -1,
+			}.ToExtFileStats(),
+			defaultBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
+			testShardTime:     -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				return testLevelResults{}
 			},
 		},
 		{
 			name: "Generations with files under level 4",
-			files: []tsm1.FileStat{
+			// These files are supposed to have block counts of 0
+			files: tsm1.FileStats{
 				{
 					Path: "01-05.tsm1",
 					Size: 2048 * 1024 * 1024,
@@ -3500,8 +3477,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 					Path: "03-06.tsm1",
 					Size: 500 * 1024 * 1024,
 				},
-			},
-			blockCounts:   []int{},
+			}.ToExtFileStats(),
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				common := testLevelResults{
@@ -3541,73 +3517,91 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// compacted, but we have some new generations that are not. We need to ensure
 			// the optimize planner will pick these up and compact everything together.
 			name: "Backfill mock condition",
-			files: []tsm1.FileStat{
+			files: []tsm1.ExtFileStat{
 				{
-					Path: "01-05.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "01-06.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-06.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "01-07.tsm1",
-					Size: 2048 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "01-07.tsm1",
+						Size: 2048 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "02-04.tsm1",
-					Size: 700 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "02-04.tsm1",
+						Size: 700 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "02-05.tsm1",
-					Size: 500 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "02-05.tsm1",
+						Size: 500 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "02-06.tsm1",
-					Size: 400 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "02-06.tsm1",
+						Size: 400 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "03-02.tsm1",
-					Size: 700 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "03-02.tsm1",
+						Size: 700 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "03-03.tsm1",
-					Size: 500 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "03-03.tsm1",
+						Size: 500 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
-					Path: "03-04.tsm1",
-					Size: 400 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "03-04.tsm1",
+						Size: 400 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "04-01.tsm1",
-					Size: 700 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "04-01.tsm1",
+						Size: 700 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
-					Path: "04-02.tsm1",
-					Size: 500 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "04-02.tsm1",
+						Size: 500 * 1024 * 1024,
+					},
+					FirstBlockCount: 100,
 				},
 				{
-					Path: "03-03.tsm1",
-					Size: 400 * 1024 * 1024,
+					FileStat: tsm1.FileStat{
+						Path: "03-03.tsm1",
+						Size: 400 * 1024 * 1024,
+					},
+					FirstBlockCount: 10,
 				},
-			},
-			blockCounts: []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-
-				tsdb.DefaultMaxPointsPerBlock,
-				// Use some magic numbers but these are just small values for block counts
-				100,
-				10,
 			},
 			testShardTime: -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
@@ -3644,330 +3638,495 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 		{
 			name: "1.12.0 RC0 Planner issue mock data from cluster",
-			files: []tsm1.FileStat{
+			files: []tsm1.ExtFileStat{
 				{
-					Path: "000029202-000000004.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000004.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000005.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000005.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000006.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000006.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000007.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000007.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000008.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000008.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000009.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000009.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000010.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000010.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000011.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000011.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000012.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000012.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000013.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000013.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000014.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000014.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000015.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000015.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000016.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000016.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000017.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000017.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000018.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000018.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000019.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000019.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000020.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000020.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000021.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000021.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000022.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000022.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000023.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000023.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000024.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000024.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000025.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000025.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000026.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000026.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000027.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000027.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000028.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000028.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000029.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000029.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000030.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000030.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000031.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000031.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000032.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000032.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000033.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000033.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000034.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000034.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000035.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000035.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000036.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000036.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000037.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000037.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000038.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000038.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000039.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000039.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000040.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000040.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000041.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000041.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000042.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000042.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000043.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000043.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000044.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000044.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000045.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000045.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029202-000000046.tsm",
-					Size: 161480704,
+					FileStat: tsm1.FileStat{
+						Path: "000029202-000000046.tsm",
+						Size: 161480704,
+					},
 				},
 				{
-					Path: "000029235-000000003.tsm",
-					Size: 96468992,
+					FileStat: tsm1.FileStat{
+						Path: "000029235-000000003.tsm",
+						Size: 96468992,
+					},
 				},
 				{
-					Path: "000029267-000000003.tsm",
-					Size: 109051904,
+					FileStat: tsm1.FileStat{
+						Path: "000029267-000000003.tsm",
+						Size: 109051904,
+					},
+					FirstBlockCount: 224,
 				},
 				{
-					Path: "000029268-000000001.tsm",
-					Size: 3040870,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000001.tsm",
+						Size: 3040870,
+					},
+					FirstBlockCount: 413,
 				},
 				{
-					Path: "000029268-000000002.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000002.tsm",
+						Size: 2254857830,
+					},
+					FirstBlockCount: 561,
 				},
 				{
-					Path: "000029268-000000003.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000003.tsm",
+						Size: 2254857830,
+					},
+					FirstBlockCount: 402,
 				},
 				{
-					Path: "000029268-000000004.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000004.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000005.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000005.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000006.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000006.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000007.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000007.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000008.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000008.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000009.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000009.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000010.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000010.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000011.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000011.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000012.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000012.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000013.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000013.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000014.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000014.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000015.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000015.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000016.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000016.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000017.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000017.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000018.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000018.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000019.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000019.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000020.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000020.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000021.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000021.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000022.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000022.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000023.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000023.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000024.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000024.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000025.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000025.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000026.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000026.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000027.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000027.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000028.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000028.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000029.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000029.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000030.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000030.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000031.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000031.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000032.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000032.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000033.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000033.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000034.tsm",
-					Size: 2254857830,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000034.tsm",
+						Size: 2254857830,
+					},
 				},
 				{
-					Path: "000029268-000000035.tsm",
-					Size: 1717986918,
+					FileStat: tsm1.FileStat{
+						Path: "000029268-000000035.tsm",
+						Size: 1717986918,
+					},
+					FirstBlockCount: 368,
 				},
 			},
-			blockCounts:   []int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, 224, 413, 561, 402, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, 368},
-			testShardTime: -1,
+			defaultBlockCount: tsdb.DefaultMaxPointsPerBlock,
+			testShardTime:     -1,
 			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
 				common := testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
@@ -4093,16 +4252,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			}
 
 			t.Run(testName, func(t *testing.T) {
-				ffs := &fakeFileStore{
-					PathsFn: func() []tsm1.FileStat {
-						return test.files
-					},
-				}
+				ffs := newFakeFileStore(withExtFileStats(test.files), withDefaultBlockCount(test.defaultBlockCount))
 				cp := tsm1.NewDefaultPlanner(ffs, test.testShardTime)
-				if len(test.blockCounts) > 0 {
-					err := ffs.SetBlockCounts(test.blockCounts)
-					require.NoError(t, err, "failed setting block counts")
-				}
 
 				e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
 				e.CompactionPlan = cp
@@ -4211,7 +4362,9 @@ func MustOpenTSMReader(name string) *tsm1.TSMReader {
 }
 
 type fakeFileStore struct {
-	PathsFn      func() []tsm1.FileStat
+	PathsFn           func() []tsm1.ExtFileStat
+	defaultBlockCount int
+
 	lastModified time.Time
 	// fakeFileStore blockCount holds a map of file paths from
 	// PathsFn.FileStat to a mock block count as an integer.
@@ -4219,7 +4372,7 @@ type fakeFileStore struct {
 	readers    []*tsm1.TSMReader
 }
 
-func (w *fakeFileStore) Stats() []tsm1.FileStat {
+func (w *fakeFileStore) Stats() []tsm1.ExtFileStat {
 	return w.PathsFn()
 }
 
@@ -4229,32 +4382,6 @@ func (w *fakeFileStore) NextGeneration() int {
 
 func (w *fakeFileStore) LastModified() time.Time {
 	return w.lastModified
-}
-
-// Utility function to set mock block counts on a TSM file basis
-// If the number of inputs supplied is less then the amount of TSM
-// files in a given PathsFn it will error.
-func (w *fakeFileStore) SetBlockCounts(inputs []int) error {
-	if len(inputs) != len(w.PathsFn()) {
-		return errors.New("inputs []int length does not equal length of PathsFn()")
-	}
-
-	bc := make(map[string]int)
-	for i, f := range w.PathsFn() {
-		bc[f.Path] = inputs[i]
-	}
-
-	w.blockCount = bc
-	return nil
-}
-
-func (w *fakeFileStore) BlockCount(path string, idx int) int {
-	for _, f := range w.PathsFn() {
-		if f.Path == path {
-			return w.blockCount[path]
-		}
-	}
-	return 0
 }
 
 func (w *fakeFileStore) TSMReader(path string) (*tsm1.TSMReader, error) {
