@@ -1762,7 +1762,7 @@ impl TableDefinition {
             cols.insert(Arc::clone(&col_def.name), col_def);
         }
 
-        let mut series_key_changed = false;
+        let mut sort_key_changed = false;
 
         for (id, name, column_type) in columns {
             let nullable = name.as_ref() != TIME_COLUMN_NAME;
@@ -1783,11 +1783,11 @@ impl TableDefinition {
             if matches!(column_type, InfluxColumnType::Tag) && !self.series_key.contains(&id) {
                 self.series_key.push(id);
                 self.series_key_names.push(name);
-                series_key_changed = true;
+                sort_key_changed = true;
             } else if matches!(column_type, InfluxColumnType::Timestamp)
                 && !self.series_key.contains(&id)
             {
-                series_key_changed = true;
+                sort_key_changed = true;
             }
         }
 
@@ -1808,7 +1808,7 @@ impl TableDefinition {
         }
         self.columns = new_columns;
 
-        if series_key_changed {
+        if sort_key_changed {
             self.sort_key = Self::make_sort_key(
                 &self.series_key_names,
                 self.columns.contains_name(TIME_COLUMN_NAME),
