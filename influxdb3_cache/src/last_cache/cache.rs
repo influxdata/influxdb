@@ -679,6 +679,7 @@ impl From<&FieldData> for KeyValue {
             FieldData::Boolean(b) => Self::Bool(*b),
             FieldData::Timestamp(_) => panic!("unexpected time stamp as key value"),
             FieldData::Float(_) => panic!("unexpected float as key value"),
+            FieldData::Key(_) => unreachable!("key type should never be constructed"),
         }
     }
 }
@@ -1140,5 +1141,6 @@ fn data_type_from_buffer_field(field: &Field) -> InfluxColumnType {
         FieldData::UInteger(_) => InfluxColumnType::Field(InfluxFieldType::UInteger),
         FieldData::Float(_) => InfluxColumnType::Field(InfluxFieldType::Float),
         FieldData::Boolean(_) => InfluxColumnType::Field(InfluxFieldType::Boolean),
+        FieldData::Key(_) => unreachable!("key type should never be constructed"),
     }
 }

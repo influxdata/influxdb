@@ -331,6 +331,7 @@ impl MutableTableChunk {
                             panic!("unexpected field type");
                         }
                     }
+                    FieldData::Key(_) => unreachable!("key type should never be constructed"),
                 }
             }
 
