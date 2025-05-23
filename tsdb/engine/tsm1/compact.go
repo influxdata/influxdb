@@ -272,7 +272,7 @@ func (c *DefaultPlanner) generationsFullyCompacted(gens tsmGenerations) (bool, s
 				// We check for greater than the default points per block here because the admin may
 				// have increased aggressive points per block in the config and wants to
 				// recompact files at the new higher max.
-				if tsmFile.FirstBlockCount > c.tsdb.DefaultMaxPointsPerBlock {
+				if tsmFile.FirstBlockCount > tsdb.DefaultMaxPointsPerBlock {
 					aggressivePointsPerBlockCount++
 				}
 				if tsmFile.Size < tsdb.MaxTSMFileSize {
