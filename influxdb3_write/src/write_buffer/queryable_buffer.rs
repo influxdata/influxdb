@@ -183,6 +183,7 @@ impl QueryableBuffer {
                     let table_def = db_schema
                         .table_definition_by_id(table_id)
                         .expect("table exists");
+                    let sort_key = table_def.sort_key.clone();
                     let snapshot_chunks =
                         table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
 
@@ -206,7 +207,7 @@ impl QueryableBuffer {
                             batch: chunk.record_batch,
                             schema: chunk.schema,
                             timestamp_min_max: chunk.timestamp_min_max,
-                            sort_key: table_buffer.sort_key.clone(),
+                            sort_key: sort_key.clone(),
                         };
 
                         persisting_chunks.push(persist_job);
@@ -447,25 +448,10 @@ impl BufferState {
     }
 
     fn add_write_batch(&mut self, write_batch: &WriteBatch) {
-        let db_schema = self
-            .catalog
-            .db_schema_by_id(&write_batch.database_id)
-            .expect("database should exist");
-
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
         for (table_id, table_chunks) in &write_batch.table_chunks {
-            let table_buffer = database_buffer.entry(*table_id).or_insert_with(|| {
-                let table_def = db_schema
-                    .table_definition_by_id(table_id)
-                    .expect("table should exist");
-                let sort_key = table_def
-                    .series_key
-                    .iter()
-                    .map(|c| Arc::clone(&table_def.column_id_to_name_unchecked(c)));
-
-                TableBuffer::new(SortKey::from_columns(sort_key))
-            });
+            let table_buffer = database_buffer.entry(*table_id).or_default();
             for (chunk_time, chunk) in &table_chunks.chunk_time_to_chunk {
                 table_buffer.buffer_chunk(*chunk_time, &chunk.rows);
             }
@@ -618,6 +604,8 @@ mod tests {
     use iox_time::{MockProvider, Time, TimeProvider};
     use object_store::ObjectStore;
     use object_store::memory::InMemory;
+    use parquet::arrow::arrow_reader;
+    use parquet::arrow::arrow_reader::ArrowReaderOptions;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use std::num::NonZeroUsize;
 
@@ -687,7 +675,7 @@ mod tests {
         // create the initial write with two tags
         let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog)).unwrap();
         let lp = format!(
-            "foo,t1=a,t2=b f1=1i {}",
+            "foo,t2=a,t1=b f1=1i {}",
             time_provider.now().timestamp_nanos()
         );
 
@@ -766,6 +754,10 @@ mod tests {
         // validate we have a single persisted file
         let db = catalog.db_schema("testdb").unwrap();
         let table = db.table_definition("foo").unwrap();
+        assert_eq!(
+            table.sort_key,
+            SortKey::from_columns(vec!["t2", "t1", "time"])
+        );
         let files = queryable_buffer
             .persisted_files
             .get_files(db.id, table.table_id);
@@ -801,5 +793,22 @@ mod tests {
             .persisted_files
             .get_files(db.id, table.table_id);
         assert_eq!(files.len(), 2);
+
+        // Verify the `iox::series::key` metadata is present in the parquet file
+        {
+            let path = Path::from(files[0].path.as_str());
+            let res = object_store
+                .get(&path)
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap();
+            let metadata =
+                arrow_reader::ArrowReaderMetadata::load(&res, ArrowReaderOptions::new()).unwrap();
+            let schema: Schema = Schema::try_from(Arc::clone(metadata.schema())).unwrap();
+            let primary_key = schema.primary_key();
+            assert_eq!(primary_key, &["t2", "t1", "time"]);
+        }
     }
 }

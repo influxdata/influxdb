@@ -31,6 +31,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::hash::Hash;
+use std::iter;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, MutexGuard};
@@ -38,6 +39,7 @@ use uuid::Uuid;
 
 mod metrics;
 mod update;
+use schema::sort::SortKey;
 pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
@@ -1579,6 +1581,8 @@ pub struct TableDefinition {
     pub series_key: Vec<ColumnId>,
     /// The names of the columns in the table's series key
     pub series_key_names: Vec<Arc<str>>,
+    /// The sort key for the table when persisted to storage.
+    pub sort_key: SortKey,
     /// Last cache definitions for the table
     pub last_caches: Repository<LastCacheId, LastCacheDefinition>,
     /// Distinct cache definitions for the table
@@ -1642,6 +1646,9 @@ impl TableDefinition {
         schema_builder.with_series_key(&series_key_names);
         let schema = schema_builder.build().expect("schema should be valid");
 
+        let sort_key =
+            Self::make_sort_key(&series_key_names, columns.contains_name(TIME_COLUMN_NAME));
+
         Ok(Self {
             table_id,
             table_name,
@@ -1649,10 +1656,20 @@ impl TableDefinition {
             columns,
             series_key,
             series_key_names,
+            sort_key,
             last_caches: Repository::new(),
             distinct_caches: Repository::new(),
             deleted: false,
         })
+    }
+
+    fn make_sort_key(series_key_names: &[Arc<str>], add_time: bool) -> SortKey {
+        let iter = series_key_names.iter().cloned();
+        if add_time {
+            SortKey::from_columns(iter.chain(iter::once(TIME_COLUMN_NAME.into())))
+        } else {
+            SortKey::from_columns(iter)
+        }
     }
 
     /// Create a new table definition from a catalog op
@@ -1745,12 +1762,20 @@ impl TableDefinition {
         for col_def in self.columns.resource_iter().cloned() {
             cols.insert(Arc::clone(&col_def.name), col_def);
         }
+
+        let mut sort_key_changed = false;
+
         for (id, name, column_type) in columns {
             let nullable = name.as_ref() != TIME_COLUMN_NAME;
             assert!(
                 cols.insert(
                     Arc::clone(&name),
-                    Arc::new(ColumnDefinition::new(id, name, column_type, nullable))
+                    Arc::new(ColumnDefinition::new(
+                        id,
+                        Arc::clone(&name),
+                        column_type,
+                        nullable
+                    ))
                 )
                 .is_none(),
                 "attempted to add existing column"
@@ -1758,16 +1783,21 @@ impl TableDefinition {
             // add new tags to the series key in the order provided
             if matches!(column_type, InfluxColumnType::Tag) && !self.series_key.contains(&id) {
                 self.series_key.push(id);
+                self.series_key_names.push(name);
+                sort_key_changed = true;
+            } else if matches!(column_type, InfluxColumnType::Timestamp)
+                && !self.series_key.contains(&id)
+            {
+                sort_key_changed = true;
             }
         }
 
         let mut schema_builder = SchemaBuilder::with_capacity(cols.len());
-        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
-        // tests, so I am omitting this for now:
-        // schema_builder.measurement(&self.name);
+        schema_builder.measurement(self.table_name.as_ref());
         for (name, col_def) in &cols {
             schema_builder.influx_column(name.as_ref(), col_def.data_type);
         }
+        schema_builder.with_series_key(&self.series_key_names);
         let schema = schema_builder.build().expect("schema should be valid");
         self.schema = schema;
 
@@ -1778,6 +1808,13 @@ impl TableDefinition {
                 .expect("should be a new column");
         }
         self.columns = new_columns;
+
+        if sort_key_changed {
+            self.sort_key = Self::make_sort_key(
+                &self.series_key_names,
+                self.columns.contains_name(TIME_COLUMN_NAME),
+            );
+        }
 
         Ok(())
     }
@@ -2183,12 +2220,15 @@ mod tests {
                     TableDefinition::new(
                         TableId::from(0),
                         "test".into(),
-                        vec![(
-                            ColumnId::from(0),
-                            "test".into(),
-                            InfluxColumnType::Field(InfluxFieldType::String),
-                        )],
-                        vec![],
+                        vec![
+                            (
+                                ColumnId::from(0),
+                                "test".into(),
+                                InfluxColumnType::Field(InfluxFieldType::String),
+                            ),
+                            (ColumnId::from(1), "test999".into(), InfluxColumnType::Tag),
+                        ],
+                        vec![ColumnId::from(1)],
                     )
                     .unwrap(),
                 ),
@@ -2196,27 +2236,66 @@ mod tests {
             .unwrap();
 
         let mut table = database.tables.get_by_id(&TableId::from(0)).unwrap();
-        println!("table: {table:#?}");
-        assert_eq!(table.columns.len(), 1);
+        assert_eq!(table.columns.len(), 2);
         assert_eq!(table.column_id_to_name_unchecked(&0.into()), "test".into());
+        assert_eq!(
+            table.column_id_to_name_unchecked(&1.into()),
+            "test999".into()
+        );
+        assert_eq!(table.series_key.len(), 1);
+        assert_eq!(table.series_key_names.len(), 1);
+        assert_eq!(table.sort_key, SortKey::from_columns(vec!["test999"]));
+        assert_eq!(table.schema.primary_key(), &["test999"]);
+
+        // add time and verify key is updated
+        Arc::make_mut(&mut table)
+            .add_columns(vec![(
+                ColumnId::from(2),
+                TIME_COLUMN_NAME.into(),
+                InfluxColumnType::Timestamp,
+            )])
+            .unwrap();
+        assert_eq!(table.series_key.len(), 1);
+        assert_eq!(table.series_key_names.len(), 1);
+        assert_eq!(
+            table.sort_key,
+            SortKey::from_columns(vec!["test999", TIME_COLUMN_NAME])
+        );
+        assert_eq!(table.schema.primary_key(), &["test999", TIME_COLUMN_NAME]);
 
         Arc::make_mut(&mut table)
             .add_columns(vec![(
-                ColumnId::from(1),
+                ColumnId::from(3),
                 "test2".into(),
                 InfluxColumnType::Tag,
             )])
             .unwrap();
+
+        // Verify the series key, series key names and sort key are updated when a tag column is added,
+        // and that the "time" column is still at the end.
+        assert_eq!(table.series_key.len(), 2);
+        assert_eq!(table.series_key_names, &["test999".into(), "test2".into()]);
+        assert_eq!(
+            table.sort_key,
+            SortKey::from_columns(vec!["test999", "test2", TIME_COLUMN_NAME])
+        );
+
         let schema = table.influx_schema();
         assert_eq!(
             schema.field(0).0,
             InfluxColumnType::Field(InfluxFieldType::String)
         );
         assert_eq!(schema.field(1).0, InfluxColumnType::Tag);
+        assert_eq!(schema.field(2).0, InfluxColumnType::Tag);
 
-        println!("table: {table:#?}");
-        assert_eq!(table.columns.len(), 2);
-        assert_eq!(table.column_name_to_id_unchecked("test2"), 1.into());
+        assert_eq!(table.columns.len(), 4);
+        assert_eq!(table.column_name_to_id_unchecked("test2"), 3.into());
+
+        // Verify the schema is updated.
+        assert_eq!(table.schema.len(), 4);
+        assert_eq!(table.schema.measurement(), Some(&"test".to_owned()));
+        let pk = table.schema.primary_key();
+        assert_eq!(pk, &["test999", "test2", TIME_COLUMN_NAME]);
     }
 
     #[tokio::test]
