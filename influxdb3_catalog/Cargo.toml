@@ -49,6 +49,12 @@ thiserror.workspace = true
 tokio.workspace = true
 uuid.workspace = true
 
+[features]
+default = ["jemalloc_replacing_malloc"]
+
+# Use jemalloc as the default allocator.
+jemalloc_replacing_malloc = ["influxdb3_process/jemalloc_replacing_malloc"]
+
 [dev-dependencies]
 # local deps
 influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }

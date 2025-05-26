@@ -6,8 +6,11 @@ use metric::U64Gauge;
 /// The process name on the local OS running `influxdb3`
 pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
 
+#[cfg_attr(
+    all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")),
+    global_allocator
+)]
 #[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
-#[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
