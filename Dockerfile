@@ -9,8 +9,7 @@ RUN apt update \
     && apt install --yes binutils build-essential curl pkg-config libssl-dev clang lld git patchelf protobuf-compiler zstd libz-dev \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
-# Build influxdb3
-COPY . /influxdb3
+RUN mkdir /influxdb3
 WORKDIR /influxdb3
 
 ARG CARGO_INCREMENTAL=yes
@@ -31,12 +30,15 @@ ENV CARGO_INCREMENTAL=$CARGO_INCREMENTAL \
     PBS_VERSION=$PBS_VERSION
 
 # obtain python-build-standalone and configure PYO3_CONFIG_FILE
+COPY .circleci /influxdb3/.circleci
 RUN \
   sed -i "s/^readonly TARGETS=.*/readonly TARGETS=${PBS_TARGET}/" ./.circleci/scripts/fetch-python-standalone.bash && \
   ./.circleci/scripts/fetch-python-standalone.bash /influxdb3/python-artifacts "${PBS_DATE}" "${PBS_VERSION}" && \
   tar -C /influxdb3/python-artifacts -zxf /influxdb3/python-artifacts/all.tar.gz "./${PBS_TARGET}" && \
   sed -i 's#tmp/workspace#influxdb3#' "/influxdb3/python-artifacts/${PBS_TARGET}/pyo3_config_file.txt" && \
   cat "/influxdb3/python-artifacts/${PBS_TARGET}/pyo3_config_file.txt"
+
+COPY . /influxdb3
 
 RUN \
   --mount=type=cache,id=influxdb3_rustup,sharing=locked,target=/usr/local/rustup \
