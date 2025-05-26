@@ -247,14 +247,13 @@ impl PersistedSnapshot {
     }
 
     pub fn overall_db_table_file_counts(host_snapshots: &[PersistedSnapshot]) -> (u64, u64, u64) {
-        let overall_counts = host_snapshots.iter().fold((0, 0, 0), |mut acc, item| {
+        host_snapshots.iter().fold((0, 0, 0), |mut acc, item| {
             let (db_count, table_count, file_count) = item.db_table_and_file_count();
             acc.0 += db_count;
             acc.1 += table_count;
             acc.2 += file_count;
             acc
-        });
-        overall_counts
+        })
     }
 }
 

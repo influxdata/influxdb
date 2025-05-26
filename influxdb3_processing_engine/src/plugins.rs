@@ -718,7 +718,7 @@ mod python_plugin {
     }
 
     enum Schedule {
-        Cron(OwnedScheduleIterator<Utc>),
+        Cron(Box<OwnedScheduleIterator<Utc>>),
         Every(Duration),
     }
 
@@ -767,7 +767,7 @@ mod python_plugin {
             }
         }
         fn new_cron(cron_schedule: CronSchedule, time_provider: Arc<dyn TimeProvider>) -> Self {
-            let mut schedule = cron_schedule.after_owned(time_provider.now().date_time());
+            let mut schedule = Box::new(cron_schedule.after_owned(time_provider.now().date_time()));
             let next_trigger_time = schedule.next();
             Self {
                 schedule: Schedule::Cron(schedule),

@@ -1385,10 +1385,8 @@ fn json_content_type(headers: &HeaderMap) -> bool {
         return false;
     };
 
-    let is_json_content_type = mime.type_() == "application"
-        && (mime.subtype() == "json" || mime.suffix().is_some_and(|name| name == "json"));
-
-    is_json_content_type
+    mime.type_() == "application"
+        && (mime.subtype() == "json" || mime.suffix().is_some_and(|name| name == "json"))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1784,11 +1782,7 @@ pub(crate) async fn route_request(
     let path = uri.path();
     // admin token creation should be allowed without authentication
     // and any endpoints that are disabled
-    if path == all_paths::API_V3_CONFIGURE_ADMIN_TOKEN
-        || paths_without_authz
-            .iter()
-            .any(|disabled_authz_path| *disabled_authz_path == path)
-    {
+    if path == all_paths::API_V3_CONFIGURE_ADMIN_TOKEN || paths_without_authz.contains(&path) {
         trace!(?uri, "not authenticating request");
     } else {
         trace!(?uri, "authenticating request");
