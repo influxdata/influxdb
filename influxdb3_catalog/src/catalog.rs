@@ -437,7 +437,7 @@ impl Catalog {
     // NOTE: this could be id-based in future
     pub fn active_triggers(&self) -> Vec<(Arc<str>, Arc<str>)> {
         let inner = self.inner.read();
-        let result = inner
+        inner
             .databases
             .resource_iter()
             .flat_map(|db| {
@@ -451,8 +451,7 @@ impl Catalog {
                         }
                     })
             })
-            .collect();
-        result
+            .collect()
     }
 
     pub fn get_tokens(&self) -> Vec<Arc<TokenInfo>> {

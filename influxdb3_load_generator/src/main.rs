@@ -120,7 +120,6 @@ fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
     // requires a running tokio runtime and is initialised after this function.
 
     use tokio::runtime::Builder;
-    let kind = std::io::ErrorKind::Other;
     match num_threads {
         None => Runtime::new(),
         Some(num_threads) => {
@@ -131,7 +130,7 @@ fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
                 0 => {
                     let msg =
                         format!("Invalid num-threads: '{num_threads}' must be greater than zero");
-                    Err(std::io::Error::new(kind, msg))
+                    Err(std::io::Error::other(msg))
                 }
                 1 => Builder::new_current_thread().enable_all().build(),
                 _ => Builder::new_multi_thread()
