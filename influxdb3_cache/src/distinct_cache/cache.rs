@@ -98,8 +98,12 @@ impl DistinctCache {
                 }
                 attempted => return Err(CacheError::NonTagOrStringColumn { attempted }),
             };
-
-            builder.push(Arc::new(Field::new(col.name.as_ref(), data_type, false)));
+            let is_nullable = col.nullable;
+            builder.push(Arc::new(Field::new(
+                col.name.as_ref(),
+                data_type,
+                is_nullable,
+            )));
         }
         Ok(Self {
             time_provider,
@@ -114,19 +118,15 @@ impl DistinctCache {
 
     /// Push a [`Row`] from the WAL into the cache, if the row contains all of the cached columns.
     pub(crate) fn push(&mut self, row: &Row) {
-        let mut values = Vec::with_capacity(self.column_ids.len());
-        for id in &self.column_ids {
-            let Some(value) = row
-                .fields
-                .iter()
-                .find(|f| &f.id == id)
-                .map(|f| Value::from(&f.value))
-            else {
-                // ignore the row if it does not contain all columns in the cache:
-                return;
-            };
-            values.push(value);
-        }
+        let values = self
+            .column_ids
+            .iter()
+            .map(|id| {
+                row.fields
+                    .iter()
+                    .find_map(|f| (f.id == *id).then(|| Value::from(&f.value)))
+            })
+            .collect::<Vec<_>>();
         let mut target = &mut self.data;
         let mut val_iter = values.into_iter().peekable();
         let mut is_new = false;
@@ -294,7 +294,7 @@ impl DistinctCache {
 /// whose values hold the last seen time as an [`i64`] of each value, and an optional reference to
 /// the node in the next level of the tree.
 #[derive(Debug, Default)]
-pub(crate) struct Node(pub(crate) BTreeMap<Value, (i64, Option<Node>)>);
+pub(crate) struct Node(pub(crate) BTreeMap<Option<Value>, (i64, Option<Node>)>);
 
 impl Node {
     /// Remove all elements before the given nanosecond timestamp returning `true` if the resulting
@@ -396,20 +396,30 @@ impl Node {
                 );
                 if count > 0 {
                     if let Some(builder) = builder {
-                        // we are not on a terminal node in the cache, so create a block, as this value
-                        // repeated `count` times, i.e., depending on how many values come out of
-                        // subsequent nodes:
-                        let block = builder.append_block(value.0.as_bytes().into());
-                        for _ in 0..count {
-                            builder
-                                .try_append_view(block, 0u32, value.0.len() as u32)
-                                .expect("append view for known valid block, offset and length");
+                        if let Some(value) = &value {
+                            // we are not on a terminal node in the cache, so create a block, as this value
+                            // repeated `count` times, i.e., depending on how many values come out of
+                            // subsequent nodes:
+                            let block = builder.append_block(value.0.as_bytes().into());
+                            for _ in 0..count {
+                                builder
+                                    .try_append_view(block, 0u32, value.0.len() as u32)
+                                    .expect("append view for known valid block, offset and length");
+                            }
+                        } else {
+                            for _ in 0..count {
+                                builder.append_null();
+                            }
                         }
                     }
                     total_count += count;
                 } else if next_predicates.is_empty() && next_builders.is_empty() {
                     if let Some(builder) = builder {
-                        builder.append_value(value.0);
+                        if let Some(value) = value {
+                            builder.append_value(value.0);
+                        } else {
+                            builder.append_null();
+                        }
                         total_count += 1;
                     }
                 }
@@ -419,7 +429,12 @@ impl Node {
                     break;
                 }
             } else if let Some(builder) = builder {
-                builder.append_value(value.0);
+                if let Some(value) = value {
+                    // if we are at a terminal node in the cache, just append the value:
+                    builder.append_value(value.0);
+                } else {
+                    builder.append_null();
+                }
                 total_count += 1;
             }
         }
@@ -433,21 +448,27 @@ impl Node {
         expired_time_ns: i64,
         predicate: &Predicate,
         limit: usize,
-    ) -> Vec<(Value, Option<&Node>)> {
+    ) -> Vec<(Option<Value>, Option<&Node>)> {
         match &predicate {
             Predicate::In(in_list) => in_list
                 .iter()
                 .filter_map(|v| {
-                    self.0.get_key_value(v).and_then(|(v, (t, n))| {
-                        (t > &expired_time_ns).then(|| (v.clone(), n.as_ref()))
-                    })
+                    self.0
+                        .get_key_value(&Some(v.clone()))
+                        .and_then(|(v, (t, n))| {
+                            (t > &expired_time_ns).then(|| (v.clone(), n.as_ref()))
+                        })
                 })
                 .take(limit)
                 .collect(),
             Predicate::NotIn(not_in_set) => self
                 .0
                 .iter()
-                .filter(|(v, (t, _))| t > &expired_time_ns && !not_in_set.contains(v))
+                .filter(|(v, (t, _))| {
+                    t > &expired_time_ns
+                        // If the value is None or the value is not in the set, include it
+                        && (v.is_none() || !not_in_set.contains(v.as_ref().unwrap()))
+                })
                 .map(|(v, (_, n))| (v.clone(), n.as_ref()))
                 .take(limit)
                 .collect(),

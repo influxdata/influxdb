@@ -34,20 +34,25 @@ mod tests {
         // write some data to get a set of rows destined for the WAL, and an updated catalog:
         let rows = writer
             .write_lp_to_rows(
-                "\
-            cpu,region=us-east,host=a usage=100\n\
-            cpu,region=us-east,host=b usage=100\n\
-            cpu,region=us-west,host=c usage=100\n\
-            cpu,region=us-west,host=d usage=100\n\
-            cpu,region=ca-east,host=e usage=100\n\
-            cpu,region=ca-east,host=f usage=100\n\
-            cpu,region=ca-cent,host=g usage=100\n\
-            cpu,region=ca-cent,host=h usage=100\n\
-            cpu,region=eu-east,host=i usage=100\n\
-            cpu,region=eu-east,host=j usage=100\n\
-            cpu,region=eu-cent,host=k usage=100\n\
-            cpu,region=eu-cent,host=l usage=100\n\
-            ",
+                r#"\
+cpu,region=us-east,host=a usage=100
+cpu,region=us-east,host=b usage=100
+cpu,region=us-west,host=c usage=100
+cpu,region=us-west,host=d usage=100
+cpu,region=ca-east,host=e usage=100
+cpu,region=ca-east,host=f usage=100
+cpu,region=ca-cent,host=g usage=100
+cpu,region=ca-cent,host=h usage=100
+cpu,region=eu-east,host=i usage=100
+cpu,region=eu-east,host=j usage=100
+cpu,region=eu-cent,host=k usage=100
+cpu,region=eu-cent,host=l usage=100
+cpu,region=us-east usage=200
+cpu,region=us-west usage=200
+cpu,region=ca-cent usage=200
+cpu,host=m usage=300
+cpu,host=n usage=300
+"#,
                 0,
             )
             .await;
@@ -97,6 +102,9 @@ mod tests {
                     "+---------+------+",
                     "| region  | host |",
                     "+---------+------+",
+                    "|         | m    |",
+                    "|         | n    |",
+                    "| ca-cent |      |",
                     "| ca-cent | g    |",
                     "| ca-cent | h    |",
                     "| ca-east | e    |",
@@ -105,8 +113,10 @@ mod tests {
                     "| eu-cent | l    |",
                     "| eu-east | i    |",
                     "| eu-east | j    |",
+                    "| us-east |      |",
                     "| us-east | a    |",
                     "| us-east | b    |",
+                    "| us-west |      |",
                     "| us-west | c    |",
                     "| us-west | d    |",
                     "+---------+------+",
@@ -122,6 +132,7 @@ mod tests {
                     "+---------+------+",
                     "| region  | host |",
                     "+---------+------+",
+                    "| ca-cent |      |",
                     "| ca-cent | g    |",
                     "| ca-cent | h    |",
                     "| ca-east | e    |",
@@ -145,6 +156,21 @@ mod tests {
                 ],
             },
             TestCase {
+                desc: "in predicate on region and not in host",
+                predicates: create_predicate_map(&[
+                    (region_col_id, Predicate::new_in(["ca-cent", "ca-east"])),
+                    (host_col_id, Predicate::new_not_in(["g", "e", "h"])),
+                ]),
+                expected: &[
+                    "+---------+------+",
+                    "| region  | host |",
+                    "+---------+------+",
+                    "| ca-cent |      |",
+                    "| ca-east | f    |",
+                    "+---------+------+",
+                ],
+            },
+            TestCase {
                 desc: "not in predicate on region",
                 predicates: create_predicate_map(&[(
                     region_col_id,
@@ -154,12 +180,16 @@ mod tests {
                     "+---------+------+",
                     "| region  | host |",
                     "+---------+------+",
+                    "|         | m    |",
+                    "|         | n    |",
                     "| eu-cent | k    |",
                     "| eu-cent | l    |",
                     "| eu-east | i    |",
                     "| eu-east | j    |",
+                    "| us-east |      |",
                     "| us-east | a    |",
                     "| us-east | b    |",
+                    "| us-west |      |",
                     "| us-west | c    |",
                     "| us-west | d    |",
                     "+---------+------+",
@@ -169,16 +199,19 @@ mod tests {
                 desc: "not in predicate on region and host",
                 predicates: create_predicate_map(&[
                     (region_col_id, Predicate::new_not_in(["ca-cent", "ca-east"])),
-                    (host_col_id, Predicate::new_not_in(["j", "k"])),
+                    (host_col_id, Predicate::new_not_in(["j", "k", "m"])),
                 ]),
                 expected: &[
                     "+---------+------+",
                     "| region  | host |",
                     "+---------+------+",
+                    "|         | n    |",
                     "| eu-cent | l    |",
                     "| eu-east | i    |",
+                    "| us-east |      |",
                     "| us-east | a    |",
                     "| us-east | b    |",
+                    "| us-west |      |",
                     "| us-west | c    |",
                     "| us-west | d    |",
                     "+---------+------+",
@@ -936,10 +969,8 @@ mod tests {
         );
     }
 
-    // NB: This test was added as part of https://github.com/influxdata/influxdb/issues/25564
-    // If we choose to support nulls in the distinct cache then this test will fail
     #[test_log::test(tokio::test)]
-    async fn test_row_with_nulls_ignored() {
+    async fn test_row_with_nulls_not_ignored() {
         let writer = TestWriter::new().await;
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let cat = writer.catalog();
@@ -994,26 +1025,32 @@ mod tests {
             DistinctCacheFunction::new(writer.db_schema().id, Arc::clone(&distinct_cache_provider));
         ctx.register_udtf(DISTINCT_CACHE_UDTF_NAME, Arc::new(distinct_func));
 
-        let results = ctx
-            .sql("select * from distinct_cache('bar')")
-            .await
-            .unwrap()
-            .collect()
-            .await
-            .unwrap();
+        // Verify all values are returned with no predicate
+        {
+            let results = ctx
+                .sql("select * from distinct_cache('bar')")
+                .await
+                .unwrap()
+                .collect()
+                .await
+                .unwrap();
 
-        assert_batches_eq!(
-            [
-                "+----+----+----+",
-                "| t1 | t2 | t3 |",
-                "+----+----+----+",
-                "| A  | A  | A  |",
-                "| A  | A  | B  |",
-                "| A  | B  | B  |",
-                "+----+----+----+",
-            ],
-            &results
-        );
+            assert_batches_eq!(
+                [
+                    "+----+----+----+",
+                    "| t1 | t2 | t3 |",
+                    "+----+----+----+",
+                    "|    | B  | B  |",
+                    "| A  | A  | A  |",
+                    "| A  | A  | B  |",
+                    "| A  | B  | B  |",
+                    "| B  |    | B  |",
+                    "| B  | A  |    |",
+                    "+----+----+----+",
+                ],
+                &results
+            );
+        }
     }
 
     #[test_log::test(tokio::test)]
