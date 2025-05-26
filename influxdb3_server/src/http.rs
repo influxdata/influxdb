@@ -1468,7 +1468,7 @@ fn token_part_as_bytes(token: &str) -> Result<Vec<u8>, AuthenticationError> {
 impl From<authz::Error> for AuthenticationError {
     fn from(auth_error: authz::Error) -> Self {
         match auth_error {
-            authz::Error::Forbidden => Self::Forbidden,
+            authz::Error::Forbidden { .. } => Self::Forbidden,
             _ => Self::Unauthenticated,
         }
     }

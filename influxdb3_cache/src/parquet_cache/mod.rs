@@ -25,8 +25,8 @@ use iox_time::TimeProvider;
 use metric::Registry;
 use metrics::{AccessMetrics, SizeMetrics};
 use object_store::{
-    Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload, ObjectMeta,
-    ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult, path::Path,
+    Error, GetOptions, GetRange, GetResult, GetResultPayload, ListResult, MultipartUpload,
+    ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult, path::Path,
 };
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use tokio::sync::{
@@ -665,6 +665,32 @@ impl std::fmt::Display for MemCachedObjectStore {
     }
 }
 
+/// Check that the given [`Range`] is valid with respect to a given `object_size`.
+fn check_range(range: Range<usize>, object_size: usize) -> object_store::Result<Range<usize>> {
+    let Range { start, end } = range;
+    if end > object_size {
+        return Err(Error::Generic {
+            store: STORE_NAME,
+            source: format!("Range end ({end}) out of bounds, object size is {object_size}",)
+                .into(),
+        });
+    }
+    if start >= object_size {
+        return Err(Error::Generic {
+            store: STORE_NAME,
+            source: format!("Range start ({start}) out of bounds, object size is {object_size}",)
+                .into(),
+        });
+    }
+    if start > end {
+        return Err(Error::Generic {
+            store: STORE_NAME,
+            source: format!("Range end ({end}) is before range start ({start})",).into(),
+        });
+    }
+    Ok(range)
+}
+
 /// [`MemCachedObjectStore`] implements most [`ObjectStore`] methods as a pass-through, since
 /// caching is decided externally. The exception is `delete`, which will have the entry removed
 /// from the cache if the delete to the object store was successful.
@@ -705,29 +731,37 @@ impl ObjectStore for MemCachedObjectStore {
     /// Get an object from the object store. If this object is cached, then it will not make a request
     /// to the inner object store.
     async fn get(&self, location: &Path) -> object_store::Result<GetResult> {
-        if let Some(state) = self.cache.get(location) {
-            let v = state.value().await?;
-            Ok(GetResult {
-                payload: GetResultPayload::Stream(
-                    futures::stream::iter([Ok(v.data.clone())]).boxed(),
-                ),
-                meta: v.meta.clone(),
-                range: 0..v.data.len(),
-                attributes: Default::default(),
-            })
-        } else {
-            self.inner.get(location).await
-        }
+        self.get_opts(location, Default::default()).await
     }
 
+    /// Get an object from the object store. If this object is cached, then it will not make a request
+    /// to the inner object store.
     async fn get_opts(
         &self,
         location: &Path,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
-        // NOTE(trevor): this could probably be supported through the cache if we need it via the
-        // ObjectMeta stored in the cache. For now this is conservative:
-        self.inner.get_opts(location, options).await
+        if let Some(state) = self.cache.get(location) {
+            let GetOptions { range, .. } = options;
+            let v = state.value().await?;
+            let bytes = range
+                .map(|r| match r {
+                    GetRange::Bounded(range) => range,
+                    GetRange::Offset(start) => start..v.data.len(),
+                    GetRange::Suffix(end) => 0..end,
+                })
+                .map(|r| check_range(r, v.data.len()))
+                .transpose()?
+                .map_or_else(|| v.data.clone(), |r| v.data.slice(r));
+            Ok(GetResult {
+                payload: GetResultPayload::Stream(futures::stream::iter([Ok(bytes)]).boxed()),
+                meta: v.meta.clone(),
+                range: 0..v.data.len(),
+                attributes: Default::default(),
+            })
+        } else {
+            self.inner.get_opts(location, options).await
+        }
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> object_store::Result<Bytes> {
@@ -751,28 +785,8 @@ impl ObjectStore for MemCachedObjectStore {
             ranges
                 .iter()
                 .map(|range| {
-                    if range.end > v.data.len() {
-                        return Err(Error::Generic {
-                            store: STORE_NAME,
-                            source: format!(
-                                "Range end ({}) out of bounds, object size is {}",
-                                range.end,
-                                v.data.len()
-                            )
-                            .into(),
-                        });
-                    }
-                    if range.start > range.end {
-                        return Err(Error::Generic {
-                            store: STORE_NAME,
-                            source: format!(
-                                "Range end ({}) is before range start ({})",
-                                range.end, range.start
-                            )
-                            .into(),
-                        });
-                    }
-                    Ok(v.data.slice(range.clone()))
+                    Ok(v.data
+                        .slice(check_range(range.clone(), v.data.len())?.clone()))
                 })
                 .collect()
         } else {

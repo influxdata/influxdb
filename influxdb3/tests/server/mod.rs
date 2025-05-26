@@ -276,7 +276,7 @@ impl TestServer {
         //
         // The file is deleted when it goes out of scope (the end of this method) by the TempDir type.
         let tmp_dir = TempDir::new().unwrap();
-        let tmp_dir_path = tmp_dir.into_path();
+        let tmp_dir_path = tmp_dir.keep();
         let tcp_addr_file = tmp_dir_path.join("tcp-listener");
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
