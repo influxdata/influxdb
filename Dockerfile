@@ -90,9 +90,9 @@ COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 
 EXPOSE 8181
 
-# TODO: Make this and other env vars not specific to IOx
-ENV INFLUXDB_IOX_OBJECT_STORE=file
-ENV INFLUXDB_IOX_DB_DIR=/var/lib/influxdb3
+# By default, uses a file-based object store:
+ENV INFLUXDB3_OBJECT_STORE=file
+ENV INFLUXDB3_DB_DIR=/var/lib/influxdb3
 ENV LOG_FILTER=info
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]
