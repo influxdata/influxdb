@@ -11,7 +11,8 @@ use uuid::Uuid;
 
 use crate::catalog::InnerCatalog;
 use crate::serialize::verify_and_deserialize_catalog_checkpoint_file;
-use crate::snapshot::{CatalogSnapshot, Snapshot};
+use crate::snapshot::CatalogSnapshot;
+use crate::snapshot::versions::Snapshot;
 use crate::{
     catalog::CatalogSequenceNumber,
     log::OrderedCatalogBatch,

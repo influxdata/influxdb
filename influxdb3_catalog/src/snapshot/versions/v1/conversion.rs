@@ -1,19 +1,6 @@
 use influxdb3_id::CatalogId;
 
-use crate::{catalog::NodeState, snapshot::versions::v2};
-
-impl From<super::CatalogSnapshot> for v2::CatalogSnapshot {
-    fn from(value: super::CatalogSnapshot) -> Self {
-        Self {
-            nodes: value.nodes.into(),
-            databases: value.databases.into(),
-            sequence: value.sequence,
-            catalog_id: value.catalog_id,
-            catalog_uuid: value.catalog_uuid,
-            tokens: v2::RepositorySnapshot::default(),
-        }
-    }
-}
+use crate::snapshot::versions::v2;
 
 impl<I, RS, RL> From<super::RepositorySnapshot<I, RS>> for v2::RepositorySnapshot<I, RL>
 where
@@ -24,6 +11,19 @@ where
         Self {
             repo: value.repo.into_iter().map(|(i, r)| (i, r.into())).collect(),
             next_id: value.next_id,
+        }
+    }
+}
+
+impl From<super::CatalogSnapshot> for v2::CatalogSnapshot {
+    fn from(value: super::CatalogSnapshot) -> Self {
+        Self {
+            nodes: value.nodes.into(),
+            databases: value.databases.into(),
+            sequence: value.sequence,
+            catalog_id: value.catalog_id,
+            catalog_uuid: value.catalog_uuid,
+            tokens: v2::RepositorySnapshot::default(),
         }
     }
 }
@@ -41,13 +41,15 @@ impl From<super::NodeSnapshot> for v2::NodeSnapshot {
     }
 }
 
-impl From<super::NodeState> for NodeState {
+impl From<super::NodeState> for v2::NodeState {
     fn from(value: super::NodeState) -> Self {
         match value {
             super::NodeState::Running { registered_time_ns } => {
-                NodeState::Running { registered_time_ns }
+                v2::NodeState::Running { registered_time_ns }
             }
-            super::NodeState::Stopped { stopped_time_ns } => NodeState::Stopped { stopped_time_ns },
+            super::NodeState::Stopped { stopped_time_ns } => {
+                v2::NodeState::Stopped { stopped_time_ns }
+            }
         }
     }
 }

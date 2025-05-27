@@ -12,7 +12,9 @@ use crate::{
 
 const CHECKSUM_LEN: usize = size_of::<u32>();
 
-pub fn verify_and_deserialize_catalog_file(bytes: Bytes) -> Result<OrderedCatalogBatch> {
+pub fn verify_and_deserialize_catalog_file(
+    bytes: Bytes,
+) -> Result<log::versions::v3::OrderedCatalogBatch> {
     if bytes.starts_with(LOG_FILE_TYPE_IDENTIFIER_V1) {
         // V1 Deserialization:
         let id_len = LOG_FILE_TYPE_IDENTIFIER_V1.len();
@@ -21,15 +23,30 @@ pub fn verify_and_deserialize_catalog_file(bytes: Bytes) -> Result<OrderedCatalo
         verify_checksum(&checksum, &data)?;
         let log = bitcode::deserialize::<log::versions::v1::OrderedCatalogBatch>(&data)
             .context("failed to deserialize v1 catalog log file contents")?;
-        Ok(log.into())
+
+        // explicit type annotations are needed once you start chaining `.into` (something to check
+        // later to see if that could be avoided, then this can just be a loop with starting and
+        // end point based on current log file's version)
+        let log_v2: log::versions::v2::OrderedCatalogBatch = log.into();
+        let log_v3: log::versions::v3::OrderedCatalogBatch = log_v2.into();
+        Ok(log_v3)
     } else if bytes.starts_with(LOG_FILE_TYPE_IDENTIFIER_V2) {
         // V2 Deserialization:
         let id_len = LOG_FILE_TYPE_IDENTIFIER_V2.len();
         let checksum = bytes.slice(id_len..id_len + CHECKSUM_LEN);
         let data = bytes.slice(id_len + CHECKSUM_LEN..);
         verify_checksum(&checksum, &data)?;
-        let log = serde_json::from_slice::<OrderedCatalogBatch>(&data)
-            .context("failed to deserialize v1 catalog log file contents")?;
+        let log = serde_json::from_slice::<log::versions::v2::OrderedCatalogBatch>(&data)
+            .context("failed to deserialize v2 catalog log file contents")?;
+        Ok(log.into())
+    } else if bytes.starts_with(LOG_FILE_TYPE_IDENTIFIER_V3) {
+        // V3 Deserialization:
+        let id_len = LOG_FILE_TYPE_IDENTIFIER_V3.len();
+        let checksum = bytes.slice(id_len..id_len + CHECKSUM_LEN);
+        let data = bytes.slice(id_len + CHECKSUM_LEN..);
+        verify_checksum(&checksum, &data)?;
+        let log = serde_json::from_slice::<log::versions::v3::OrderedCatalogBatch>(&data)
+            .context("failed to deserialize v3 catalog log file contents")?;
         Ok(log)
     } else {
         Err(CatalogError::unexpected("unrecognized catalog file format"))
@@ -44,13 +61,23 @@ pub fn verify_and_deserialize_catalog_checkpoint_file(bytes: Bytes) -> Result<Ca
         verify_checksum(&checksum, &data)?;
         let snapshot = bitcode::deserialize::<snapshot::versions::v1::CatalogSnapshot>(&data)
             .context("failed to deserialize catalog snapshot file contents")?;
-        Ok(snapshot.into())
+        let snapshot_v2: snapshot::versions::v2::CatalogSnapshot = snapshot.into();
+        let snapshot_v3: snapshot::versions::v3::CatalogSnapshot = snapshot_v2.into();
+        Ok(snapshot_v3)
     } else if bytes.starts_with(SNAPSHOT_FILE_TYPE_IDENTIFIER_V2) {
         let id_len = SNAPSHOT_FILE_TYPE_IDENTIFIER_V2.len();
         let checksum = bytes.slice(id_len..id_len + CHECKSUM_LEN);
         let data = bytes.slice(id_len + CHECKSUM_LEN..);
         verify_checksum(&checksum, &data)?;
-        let snapshot = serde_json::from_slice(&data)
+        let snapshot: snapshot::versions::v2::CatalogSnapshot = serde_json::from_slice(&data)
+            .context("failed to deserialize catalog snapshot file contents")?;
+        Ok(snapshot.into())
+    } else if bytes.starts_with(SNAPSHOT_FILE_TYPE_IDENTIFIER_V3) {
+        let id_len = SNAPSHOT_FILE_TYPE_IDENTIFIER_V3.len();
+        let checksum = bytes.slice(id_len..id_len + CHECKSUM_LEN);
+        let data = bytes.slice(id_len + CHECKSUM_LEN..);
+        verify_checksum(&checksum, &data)?;
+        let snapshot: snapshot::versions::v3::CatalogSnapshot = serde_json::from_slice(&data)
             .context("failed to deserialize catalog snapshot file contents")?;
         Ok(snapshot)
     } else {
@@ -80,6 +107,8 @@ fn verify_checksum(checksum: &[u8], data: &[u8]) -> Result<()> {
 const LOG_FILE_TYPE_IDENTIFIER_V1: &[u8] = b"idb3.001.l";
 /// Version 2 uses the `serde_json` crate for serialization/deserialization
 const LOG_FILE_TYPE_IDENTIFIER_V2: &[u8] = b"idb3.002.l";
+/// Version 3 introduced to migration db write permission in pro
+const LOG_FILE_TYPE_IDENTIFIER_V3: &[u8] = b"idb3.003.l";
 
 pub fn serialize_catalog_log(log: &OrderedCatalogBatch) -> Result<Bytes> {
     let mut buf = BytesMut::new();
@@ -94,6 +123,8 @@ pub fn serialize_catalog_log(log: &OrderedCatalogBatch) -> Result<Bytes> {
 const SNAPSHOT_FILE_TYPE_IDENTIFIER_V1: &[u8] = b"idb3.001.s";
 /// Version 2 uses the `serde_json` crate for serialization/deserialization
 const SNAPSHOT_FILE_TYPE_IDENTIFIER_V2: &[u8] = b"idb3.002.s";
+/// Version 3 introduced to migration db write permission in pro
+const SNAPSHOT_FILE_TYPE_IDENTIFIER_V3: &[u8] = b"idb3.003.s";
 
 pub fn serialize_catalog_snapshot(snapshot: &CatalogSnapshot) -> Result<Bytes> {
     let mut buf = BytesMut::new();

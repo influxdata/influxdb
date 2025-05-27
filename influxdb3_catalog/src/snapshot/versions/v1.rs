@@ -50,7 +50,7 @@ pub(crate) struct NodeSnapshot {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]
-pub enum NodeState {
+pub(crate) enum NodeState {
     Running { registered_time_ns: i64 },
     Stopped { stopped_time_ns: i64 },
 }

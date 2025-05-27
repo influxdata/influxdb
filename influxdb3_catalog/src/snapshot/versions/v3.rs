@@ -1,7 +1,8 @@
-mod conversion;
-
+/// The v3 changes are _only_ done for token permission mapping `v2`s `db:*:write[,read]` is mapped
+/// to `v3`s `db:*:write,create[,read]` permission. There are no structural changes in the catalog
+/// log files.
 use crate::catalog::CatalogSequenceNumber;
-use crate::log::versions::v2::{
+use crate::log::{
     MaxAge, MaxCardinality, NodeMode, TriggerSettings, TriggerSpecificationDefinition,
 };
 use arrow::datatypes::DataType as ArrowDataType;
@@ -26,25 +27,31 @@ pub struct CatalogSnapshot {
     pub(crate) catalog_uuid: Uuid,
 }
 
+impl CatalogSnapshot {
+    pub(crate) fn sequence_number(&self) -> CatalogSequenceNumber {
+        self.sequence
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub(crate) struct TokenInfoSnapshot {
-    id: TokenId,
-    name: Arc<str>,
-    hash: Vec<u8>,
-    created_at: i64,
-    description: Option<String>,
-    created_by: Option<TokenId>,
-    expiry: i64,
-    updated_by: Option<TokenId>,
-    updated_at: Option<i64>,
-    permissions: Vec<PermissionSnapshot>,
+    pub id: TokenId,
+    pub name: Arc<str>,
+    pub hash: Vec<u8>,
+    pub created_at: i64,
+    pub description: Option<String>,
+    pub created_by: Option<TokenId>,
+    pub expiry: i64,
+    pub updated_by: Option<TokenId>,
+    pub updated_at: Option<i64>,
+    pub permissions: Vec<PermissionSnapshot>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PermissionSnapshot {
-    resource_type: ResourceTypeSnapshot,
-    resource_identifier: ResourceIdentifierSnapshot,
-    actions: ActionsSnapshot,
+    pub resource_type: ResourceTypeSnapshot,
+    pub resource_identifier: ResourceIdentifierSnapshot,
+    pub actions: ActionsSnapshot,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -69,10 +76,13 @@ pub(crate) enum ActionsSnapshot {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct DatabaseActionsSnapshot(u16);
+pub(crate) struct DatabaseActionsSnapshot(pub u16);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct CrudActionsSnapshot(u16);
+pub(crate) struct CrudActionsSnapshot(pub u16);
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct SystemActionsSnapshot(pub u16);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct NodeSnapshot {
@@ -80,7 +90,7 @@ pub(crate) struct NodeSnapshot {
     pub(crate) node_catalog_id: NodeId,
     pub(crate) instance_id: Arc<str>,
     pub(crate) mode: Vec<NodeMode>,
-    pub(crate) state: NodeState,
+    pub(crate) state: NodeStateSnapshot,
     pub(crate) core_count: u64,
 }
 
@@ -335,8 +345,8 @@ impl From<&DataType> for InfluxFieldType {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]
-pub(crate) enum NodeState {
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) enum NodeStateSnapshot {
     Running { registered_time_ns: i64 },
     Stopped { stopped_time_ns: i64 },
 }
