@@ -67,7 +67,7 @@ pub(crate) async fn handle_named_admin_token_creation(
     Ok(json_body)
 }
 
-#[derive(Debug, ValueEnum, Clone)]
+#[derive(Debug, ValueEnum, Clone, Copy)]
 pub enum TokenOutputFormat {
     Json,
     Text,

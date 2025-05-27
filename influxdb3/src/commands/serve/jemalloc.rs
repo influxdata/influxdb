@@ -8,7 +8,7 @@ use metric::{Attributes, MetricKind, Observation, Reporter};
 ///
 /// - a u64 gauge called "jemalloc_memstats_bytes"
 #[derive(Debug, Clone)]
-pub struct JemallocMetrics {
+pub(super) struct JemallocMetrics {
     active: Attributes,
     alloc: Attributes,
     metadata: Attributes,
@@ -18,7 +18,7 @@ pub struct JemallocMetrics {
 }
 
 impl JemallocMetrics {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             active: Attributes::from(&[("stat", "active")]),
             alloc: Attributes::from(&[("stat", "alloc")]),
