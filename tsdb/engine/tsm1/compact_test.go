@@ -4347,6 +4347,281 @@ func TestEnginePlanCompactions(t *testing.T) {
 				return testLevelResults{}
 			},
 		},
+		{
+			name: "Mock another planned level inside scheduler aggress blocks middle",
+			files: []tsm1.ExtFileStat{
+				{
+					FileStat: tsm1.FileStat{
+						Path: "05-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 100,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "06-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "07-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "08-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "09-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "10-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "11-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "02-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "03-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "04-04.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "12-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "13-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "14-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+			},
+			testShardTime: -1,
+			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+				standard := testLevelResults{
+					level1Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
+							tsdb.DefaultAggressiveMaxPointsPerBlock,
+						},
+					},
+				}
+
+				common := testLevelResults{
+					level1Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
+
+				switch planType {
+				case tsm1.PT_Standard:
+					return standard
+				case tsm1.PT_SmartOptimize, tsm1.PT_NoOptimize:
+					return common
+				}
+				return testLevelResults{}
+			},
+		},
+		{
+			name: "Mock another planned level inside scheduler aggress blocks end",
+			files: []tsm1.ExtFileStat{
+				{
+					FileStat: tsm1.FileStat{
+						Path: "05-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 100,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "06-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "07-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "08-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "09-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "10-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "11-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+
+				{
+					FileStat: tsm1.FileStat{
+						Path: "12-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "13-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "14-01.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: 50,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "02-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "03-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "04-04.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+			},
+			testShardTime: -1,
+			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+				standard := testLevelResults{
+					level1Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
+							tsdb.DefaultAggressiveMaxPointsPerBlock,
+						},
+					},
+				}
+
+				common := testLevelResults{
+					level1Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
+
+				switch planType {
+				case tsm1.PT_Standard:
+					return standard
+				case tsm1.PT_SmartOptimize, tsm1.PT_NoOptimize:
+					return common
+				}
+				return testLevelResults{}
+			},
+		},
 	}
 
 	e, err := NewEngine(tsdb.InmemIndexName)
