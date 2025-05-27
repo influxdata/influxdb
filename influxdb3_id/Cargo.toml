@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 indexmap.workspace = true
 serde.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
