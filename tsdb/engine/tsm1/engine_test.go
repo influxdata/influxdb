@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -2701,6 +2702,8 @@ func NewEngine(index string) (*Engine, error) {
 	// store level.
 	seriesIDs := tsdb.NewSeriesIDSet()
 	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
+	// For testing purposes lets set a compaction limiter to 20
+	opt.CompactionLimiter = limiter.NewFixed(20)
 
 	idxPath := filepath.Join(dbPath, "index")
 	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
