@@ -2702,7 +2702,8 @@ func NewEngine(index string) (*Engine, error) {
 	// store level.
 	seriesIDs := tsdb.NewSeriesIDSet()
 	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
-	opt.CompactionLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
+	// For testing purposes lets set a compaction limiter to 20
+	opt.CompactionLimiter = limiter.NewFixed(20)
 
 	idxPath := filepath.Join(dbPath, "index")
 	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
