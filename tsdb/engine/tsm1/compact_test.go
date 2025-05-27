@@ -4210,49 +4210,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 				return testLevelResults{}
 			},
 		},
-	}
-
-	e, err := NewEngine(tsdb.InmemIndexName)
-	require.NoError(t, err, "create engine")
-	e.SetEnabled(false)
-	require.NoError(t, e.Open(), "open engine")
-	defer func() { require.NoError(t, e.Close(), "close engine") }()
-	e.Compactor = tsm1.NewCompactor()
-	defer e.Compactor.Close()
-
-	for i := 0; i < 3; i++ {
-		for _, test := range tests {
-			var testName string
-			switch i {
-			case 0:
-				testName = test.name + "_PT_Standard"
-			case 1:
-				testName = test.name + "_PT_SmartOptimize"
-			case 2:
-				testName = test.name + "_PT_NoOptimize"
-			}
-
-			t.Run(testName, func(t *testing.T) {
-				ffs := newFakeFileStore(withExtFileStats(test.files), withDefaultBlockCount(test.defaultBlockCount))
-				cp := tsm1.NewDefaultPlanner(ffs, test.testShardTime)
-
-				e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
-				e.CompactionPlan = cp
-				e.Compactor.FileStore = ffs
-
-				// Should use PlanType 0 (PT_Standard), 1(PT_SmartOptimize), 2(PT_NoOptimize)
-				planType := tsm1.PlanType(i)
-				level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions(planType)
-				compareLevelGroups(t, test.getResultByPlanType(planType).level1Groups, level1Groups, "unexpected level 1 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level2Groups, level2Groups, "unexpected level 2 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level3Groups, Level3Groups, "unexpected level 3 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level4Groups, Level4Groups, "unexpected level 4 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level5Groups, Level5Groups, "unexpected level 5 Group")
-			})
-		}
-	}
-
-	testsScheduler := []testEnginePlanCompactionsRunner{
 		{
 			name: "Mock another planned level inside scheduler",
 			files: []tsm1.ExtFileStat{
@@ -4392,9 +4349,16 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 	}
 
-	// Run the scheduler to simulation SmartOptimize vs Standard
+	e, err := NewEngine(tsdb.InmemIndexName)
+	require.NoError(t, err, "create engine")
+	e.SetEnabled(false)
+	require.NoError(t, e.Open(), "open engine")
+	defer func() { require.NoError(t, e.Close(), "close engine") }()
+	e.Compactor = tsm1.NewCompactor()
+	defer e.Compactor.Close()
+
 	for i := 0; i < 3; i++ {
-		for _, test := range testsScheduler {
+		for _, test := range tests {
 			var testName string
 			switch i {
 			case 0:
@@ -4406,17 +4370,15 @@ func TestEnginePlanCompactions(t *testing.T) {
 			}
 
 			t.Run(testName, func(t *testing.T) {
-				// Arbitrary group length to use in Scheduler.SetDepth
-				mockGroupLen := 5
 				ffs := newFakeFileStore(withExtFileStats(test.files), withDefaultBlockCount(test.defaultBlockCount))
 				cp := tsm1.NewDefaultPlanner(ffs, test.testShardTime)
 
 				e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
 				e.CompactionPlan = cp
 				e.Compactor.FileStore = ffs
-				// Should use PlanType 0 (PT_Standard), 1(PT_SmartOptimize), 2(PT_NoOptimize)
-				planType := tsm1.PlanType(i)
 
+				// Arbitrary group length to use in Scheduler.SetDepth
+				mockGroupLen := 5
 				// Set the scheduler depth for our lower level groups.
 				// During PT_Standard this should still plan a level5 compaction group
 				// but during PT_SmartOptimize this should not.
@@ -4428,8 +4390,9 @@ func TestEnginePlanCompactions(t *testing.T) {
 				atomic.StoreInt64(&e.Stats.TSMCompactionsActive[0], int64(mockGroupLen))
 				atomic.StoreInt64(&e.Stats.TSMCompactionsActive[1], int64(mockGroupLen))
 
+				// Should use PlanType 0 (PT_Standard), 1(PT_SmartOptimize), 2(PT_NoOptimize)
+				planType := tsm1.PlanType(i)
 				level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions(planType)
-
 				compareLevelGroups(t, test.getResultByPlanType(planType).level1Groups, level1Groups, "unexpected level 1 Group")
 				compareLevelGroups(t, test.getResultByPlanType(planType).level2Groups, level2Groups, "unexpected level 2 Group")
 				compareLevelGroups(t, test.getResultByPlanType(planType).level3Groups, Level3Groups, "unexpected level 3 Group")
