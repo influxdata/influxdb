@@ -136,7 +136,7 @@ type shardCompactor struct {
 
 // These methods are not used in production, need to implement in
 // order to satisfy the FileStore interface, see: https://github.com/influxdata/influxdb/pull/26211
-func (sc *shardCompactor) Stats() []tsm1.FileStat {
+func (sc *shardCompactor) Stats() []tsm1.ExtFileStat {
 	return nil
 }
 
