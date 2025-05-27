@@ -66,7 +66,7 @@ func (s *Scheduler) nextByQueueDepths(depths [TotalCompactionLevels]int) (int, b
 	return level, runnable
 }
 
-func (s *Scheduler) Next() (int, bool) {
+func (s *Scheduler) next() (int, bool) {
 	return s.nextByQueueDepths(s.queues)
 }
 

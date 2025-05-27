@@ -7,7 +7,7 @@ func TestScheduler_Runnable_Empty(t *testing.T) {
 
 	for i := 1; i < 5; i++ {
 		s.SetDepth(i, 1)
-		level, runnable := s.Next()
+		level, runnable := s.next()
 		if exp, got := true, runnable; exp != got {
 			t.Fatalf("runnable(%d) mismatch: exp %v, got %v ", i, exp, got)
 		}
@@ -26,7 +26,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	s.stats = &EngineStatistics{}
 	s.stats.TSMCompactionsActive[0] = 1
 	for i := 0; i <= 4; i++ {
-		_, runnable := s.Next()
+		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
 			t.Fatalf("runnable mismatch: exp %v, got %v ", exp, got)
 		}
@@ -36,7 +36,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	s.stats = &EngineStatistics{}
 	s.stats.TSMCompactionsActive[1] = 1
 	for i := 0; i <= 4; i++ {
-		_, runnable := s.Next()
+		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
 			t.Fatalf("runnable mismatch: exp %v, got %v ", exp, got)
 		}
@@ -46,7 +46,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	s.stats = &EngineStatistics{}
 	s.stats.TSMCompactionsActive[2] = 1
 	for i := 0; i <= 4; i++ {
-		_, runnable := s.Next()
+		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
 			t.Fatalf("runnable mismatch: exp %v, got %v ", exp, got)
 		}
@@ -56,7 +56,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	s.stats = &EngineStatistics{}
 	s.stats.TSMOptimizeCompactionsActive++
 	for i := 0; i <= 4; i++ {
-		_, runnable := s.Next()
+		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
 			t.Fatalf("runnable mismatch: exp %v, got %v ", exp, got)
 		}
@@ -66,7 +66,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	s.stats = &EngineStatistics{}
 	s.stats.TSMFullCompactionsActive++
 	for i := 0; i <= 4; i++ {
-		_, runnable := s.Next()
+		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
 			t.Fatalf("runnable mismatch: exp %v, got %v ", exp, got)
 		}

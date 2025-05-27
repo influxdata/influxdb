@@ -2226,7 +2226,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			e.Scheduler.SetDepth(5, len(level5Groups))
 
 			// Find the next compaction that can run and try to kick it off
-			if level, runnable := e.Scheduler.Next(); runnable {
+			if level, runnable := e.Scheduler.next(); runnable {
 				switch level {
 				case 1:
 					if e.compactHiPriorityLevel(level1Groups[0].Group, 1, false, wg) {
