@@ -92,6 +92,7 @@ hex = "0.4.3"
 http = "0.2.9"
 http-body = "0.4.6"
 humantime = "2.1.0"
+humantime-serde = "1.1.1"
 hyper = "0.14"
 hyper-rustls = { version = "0.25", features = ["http1", "http2", "ring", "rustls-native-certs"] }
 insta = { version = "1.39", features = ["json", "redactions", "yaml"] }
