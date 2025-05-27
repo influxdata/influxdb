@@ -1,5 +1,6 @@
-mod conversion;
-
+/// The v3 changes are _only_ done for token permission mapping `v2`s `db:*:write[,read]` is mapped
+/// to `v3`s `db:*:write,create[,read]` permission. There are no structural changes in the catalog
+/// log files.
 use std::{
     cmp::{Ord, PartialOrd},
     num::NonZeroUsize,
@@ -75,7 +76,7 @@ impl CatalogBatch {
         }
     }
 
-    pub fn into_database(self) -> Option<DatabaseBatch> {
+    pub fn to_database(self) -> Option<DatabaseBatch> {
         match self {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
@@ -177,7 +178,7 @@ pub enum DatabaseCatalogOp {
 }
 
 impl DatabaseCatalogOp {
-    pub fn into_create_last_cache(self) -> Option<LastCacheDefinition> {
+    pub fn to_create_last_cache(self) -> Option<LastCacheDefinition> {
         match self {
             DatabaseCatalogOp::CreateLastCache(create_last_cache_log) => {
                 Some(create_last_cache_log)
@@ -194,15 +195,6 @@ pub struct RegisterNodeLog {
     pub registered_time_ns: i64,
     pub core_count: u64,
     pub mode: Vec<NodeMode>,
-    /// `Uuid` that is unique to the process that registered the node
-    ///
-    /// # Implementation note
-    ///
-    /// This uses a default since the field was not included in the original v2 `RegisterNodeLog`
-    /// type. By initializing it to a new random v4 UUID, we acheive the same effect, from the
-    /// perspective of any node that deserializes this, i.e., the UUID will be different from the
-    /// one that its process generates.
-    #[serde(default = "Uuid::new_v4")]
     pub process_uuid: Uuid,
 }
 
@@ -210,15 +202,6 @@ pub struct RegisterNodeLog {
 pub struct StopNodeLog {
     pub node_id: Arc<str>,
     pub stopped_time_ns: i64,
-    /// `Uuid` that is unique to the process that registered the node
-    ///
-    /// # Implementation note
-    ///
-    /// This uses a default since the field was not included in the original v2 `RegisterNodeLog`
-    /// type. By initializing it to a new random v4 UUID, we acheive the same effect, from the
-    /// perspective of any node that deserializes this, i.e., the UUID will be different from the
-    /// one that its process generates.
-    #[serde(default = "Uuid::new_v4")]
     pub process_uuid: Uuid,
 }
 
@@ -460,7 +443,7 @@ impl PartialEq<LastCacheSize> for usize {
 }
 
 /// The default cache time-to-live (TTL) is 4 hours
-pub(crate) const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
+pub const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
 
 /// The time to live (TTL) for entries in the cache
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -556,7 +539,7 @@ impl MaxCardinality {
         Self::try_from(value).unwrap()
     }
 
-    pub fn as_u64(&self) -> u64 {
+    pub fn to_u64(&self) -> u64 {
         usize::from(self.0)
             .try_into()
             .expect("usize not to overflow u64")
@@ -668,7 +651,13 @@ impl std::fmt::Display for PluginType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub(crate) struct ValidPluginFilename<'a>(&'a str);
+pub struct ValidPluginFilename<'a>(&'a str);
+
+impl<'a> ValidPluginFilename<'a> {
+    pub fn from_validated_name(name: &'a str) -> Self {
+        Self(name)
+    }
+}
 
 impl Deref for ValidPluginFilename<'_> {
     type Target = str;

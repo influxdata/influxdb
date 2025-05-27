@@ -52,7 +52,8 @@ use crate::log::{
 };
 use crate::object_store::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
-use crate::snapshot::{CatalogSnapshot, Snapshot};
+use crate::snapshot::CatalogSnapshot;
+use crate::snapshot::versions::Snapshot;
 use crate::{
     CatalogError, Result,
     log::{
@@ -1113,7 +1114,7 @@ impl NodeDefinition {
 }
 
 /// The state of a node in an InfluxDB 3 cluster
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum NodeState {
     /// A node is set to `Running` when first started and registered into the catalog
     Running { registered_time_ns: i64 },
