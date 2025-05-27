@@ -2821,6 +2821,8 @@ dependencies = [
  "test-log",
  "test_helpers",
  "thiserror 1.0.69",
+ "tikv-jemalloc-ctl",
+ "tikv-jemallocator",
  "tokio",
  "tokio-util",
  "tokio_metrics_bridge",
@@ -3045,11 +3047,6 @@ version = "3.1.0-nightly"
 dependencies = [
  "cargo_metadata",
  "iox_time",
- "metric",
- "tikv-jemalloc-ctl",
- "tikv-jemallocator",
- "tokio",
- "tokio_metrics_bridge",
  "uuid",
 ]
 
