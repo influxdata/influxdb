@@ -4393,9 +4393,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 	}
 
 	// Run the scheduler to simulation SmartOptimize vs Standard
-	// The first test case which should plan lower than level5 will be
-	// placed in the scheduler. The next test case should not be planned at
-	// all since there is a <level5 plan already scheduled.
 	for i := 0; i < 3; i++ {
 		for _, test := range testsScheduler {
 			var testName string
