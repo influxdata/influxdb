@@ -6,7 +6,7 @@ func TestScheduler_Runnable_Empty(t *testing.T) {
 	s := newScheduler(&EngineStatistics{}, 1)
 
 	for i := 1; i < 5; i++ {
-		s.setDepth(i, 1)
+		s.SetDepth(i, 1)
 		level, runnable := s.next()
 		if exp, got := true, runnable; exp != got {
 			t.Fatalf("runnable(%d) mismatch: exp %v, got %v ", i, exp, got)
@@ -15,7 +15,7 @@ func TestScheduler_Runnable_Empty(t *testing.T) {
 		if exp, got := i, level; exp != got {
 			t.Fatalf("runnable(%d) mismatch: exp %v, got %v ", i, exp, got)
 		}
-		s.setDepth(i, 0)
+		s.SetDepth(i, 0)
 	}
 }
 
