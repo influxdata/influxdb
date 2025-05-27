@@ -19,7 +19,7 @@ pub(crate) enum Error {
     SystemTableNotFound(String, SystemTableNotFound),
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub(super) type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "s", trailing_var_arg = true)]
@@ -33,7 +33,7 @@ pub struct SystemConfig {
 }
 
 #[derive(Debug, clap::Subcommand)]
-pub enum SubCommand {
+pub(super) enum SubCommand {
     /// List available system tables for the connected host.
     TableList(TableListConfig),
     /// Retrieve entries from a specific system table.
@@ -42,7 +42,7 @@ pub enum SubCommand {
     Summary(SummaryConfig),
 }
 
-pub async fn command(config: SystemConfig) -> Result<()> {
+pub(super) async fn command(config: SystemConfig) -> Result<()> {
     let mut client = Client::new(
         config.core_config.host_url.clone(),
         match config.subcommand {
@@ -83,7 +83,7 @@ struct ShowTablesRow {
 }
 
 #[derive(Debug, Parser)]
-pub struct TableListConfig {
+pub(super) struct TableListConfig {
     /// The format in which to output the query
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
@@ -96,7 +96,7 @@ pub struct TableListConfig {
 const SYS_TABLES_QUERY: &str = "WITH cols (table_name, column_name) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'system' ORDER BY (table_name, column_name)) SELECT table_name, array_agg(column_name) AS column_names FROM cols GROUP BY table_name ORDER BY table_name";
 
 #[derive(Debug)]
-pub struct SystemTableNotFound {
+pub(super) struct SystemTableNotFound {
     system_tables: Vec<ShowTablesRow>,
 }
 
@@ -128,7 +128,7 @@ impl SystemCommandRunner {
 }
 
 #[derive(Debug, Parser)]
-pub struct TableConfig {
+pub(super) struct TableConfig {
     /// The system table to query.
     system_table: String,
 
@@ -176,7 +176,7 @@ impl SystemCommandRunner {
             order_by,
             output_format,
             ..
-        } = &config;
+        } = config;
 
         let select_expr = if !select.is_empty() {
             select.join(",")
@@ -188,17 +188,17 @@ impl SystemCommandRunner {
             "SELECT {select_expr} FROM system.{system_table_name}"
         )];
 
-        if let Some(default_filter) = default_filter(system_table_name) {
+        if let Some(default_filter) = default_filter(&system_table_name) {
             clauses.push(format!("WHERE {default_filter}"));
         }
 
         if !order_by.is_empty() {
             clauses.push(format!("ORDER BY {}", order_by.join(",")));
-        } else if let Some(default_ordering) = default_ordering(system_table_name) {
+        } else if let Some(default_ordering) = default_ordering(&system_table_name) {
             clauses.push(format!("ORDER BY {default_ordering}"));
         }
 
-        if *limit > 0 {
+        if limit > 0 {
             clauses.push(format!("LIMIT {limit}"));
         }
 
@@ -206,7 +206,7 @@ impl SystemCommandRunner {
 
         let bs = match client
             .api_v3_query_sql(db, query)
-            .format(output_format.clone().into())
+            .format(output_format.into())
             .send()
             .await
         {
@@ -231,7 +231,7 @@ impl SystemCommandRunner {
 }
 
 #[derive(Debug, Parser)]
-pub struct SummaryConfig {
+pub(super) struct SummaryConfig {
     /// The maximum number of entries from each table to display in the output. Default is 10 and 0
     /// can be passed to indicate no limit.
     #[clap(long = "limit", short = 'l', default_value_t = 10)]
@@ -248,12 +248,12 @@ pub struct SummaryConfig {
 
 impl SystemCommandRunner {
     async fn summary(&self, config: SummaryConfig) -> Result<()> {
-        self.summarize_all_tables(config.limit, &config.output_format)
+        self.summarize_all_tables(config.limit, config.output_format)
             .await?;
         Ok(())
     }
 
-    async fn summarize_all_tables(&self, limit: u16, format: &Format) -> Result<()> {
+    async fn summarize_all_tables(&self, limit: u16, format: Format) -> Result<()> {
         let system_tables = self.get_system_tables().await?;
         for table in system_tables {
             self.summarize_table(table.table_name.as_str(), limit, format)
@@ -262,7 +262,7 @@ impl SystemCommandRunner {
         Ok(())
     }
 
-    async fn summarize_table(&self, table_name: &str, limit: u16, format: &Format) -> Result<()> {
+    async fn summarize_table(&self, table_name: &str, limit: u16, format: Format) -> Result<()> {
         let Self { db, client } = self;
         let mut clauses = vec![format!("SELECT * FROM system.{table_name}")];
 
@@ -282,7 +282,7 @@ impl SystemCommandRunner {
 
         let bs = client
             .api_v3_query_sql(db, query)
-            .format(format.clone().into())
+            .format(format.into())
             .send()
             .await?;
 

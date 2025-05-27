@@ -2,6 +2,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Display;
 use std::hash::Hash;
+use std::num::ParseIntError;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 mod serialize;
@@ -12,6 +14,10 @@ pub trait CatalogId: Default + Hash + Eq + Copy + Ord + Serialize {
 
     fn next(&self) -> Self;
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed to parse as integer: {0}")]
+pub struct IdParseError(#[from] ParseIntError);
 
 macro_rules! catalog_identifier_type {
     ($name:ident, $ty:ty) => {
@@ -54,6 +60,14 @@ macro_rules! catalog_identifier_type {
         impl Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{}", self.0)
+            }
+        }
+
+        impl FromStr for $name {
+            type Err = IdParseError;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                s.parse().map(Self).map_err(Into::into)
             }
         }
     };

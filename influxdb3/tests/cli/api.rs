@@ -8,13 +8,14 @@ use std::process::{Command, Stdio};
 use std::thread;
 
 // Builder for the 'create database' command
+#[derive(Debug)]
 pub struct CreateDatabaseQuery<'a> {
     server: &'a TestServer,
     name: String,
 }
 
 impl TestServer {
-    pub fn create_database(&self, name: impl Into<String>) -> CreateDatabaseQuery {
+    pub fn create_database(&self, name: impl Into<String>) -> CreateDatabaseQuery<'_> {
         CreateDatabaseQuery {
             server: self,
             name: name.into(),
@@ -86,6 +87,7 @@ impl CreateDatabaseQuery<'_> {
     }
 }
 // Builder for the 'create table' command
+#[derive(Debug)]
 pub struct CreateTableQuery<'a> {
     server: &'a TestServer,
     table_name: String,
@@ -99,7 +101,7 @@ impl TestServer {
         &self,
         db_name: impl Into<String>,
         table_name: impl Into<String>,
-    ) -> CreateTableQuery {
+    ) -> CreateTableQuery<'_> {
         CreateTableQuery {
             server: self,
             db_name: db_name.into(),
@@ -201,6 +203,7 @@ impl CreateTableQuery<'_> {
 }
 
 // Builder for the 'show databases' command
+#[derive(Debug)]
 pub struct ShowDatabasesQuery<'a> {
     server: &'a TestServer,
     format: Option<String>,
@@ -208,7 +211,7 @@ pub struct ShowDatabasesQuery<'a> {
 }
 
 impl TestServer {
-    pub fn show_databases(&self) -> ShowDatabasesQuery {
+    pub fn show_databases(&self) -> ShowDatabasesQuery<'_> {
         ShowDatabasesQuery {
             server: self,
             format: None,
@@ -248,13 +251,14 @@ impl ShowDatabasesQuery<'_> {
 }
 
 // Builder for the 'delete database' command
+#[derive(Debug)]
 pub struct DeleteDatabaseQuery<'a> {
     server: &'a TestServer,
     name: String,
 }
 
 impl TestServer {
-    pub fn delete_database(&self, name: impl Into<String>) -> DeleteDatabaseQuery {
+    pub fn delete_database(&self, name: impl Into<String>) -> DeleteDatabaseQuery<'_> {
         DeleteDatabaseQuery {
             server: self,
             name: name.into(),
@@ -277,6 +281,7 @@ impl DeleteDatabaseQuery<'_> {
 }
 
 // Builder for SQL query commands
+#[derive(Debug)]
 pub struct QuerySqlQuery<'a> {
     server: &'a TestServer,
     database: String,
@@ -287,7 +292,7 @@ pub struct QuerySqlQuery<'a> {
 }
 
 impl TestServer {
-    pub fn query_sql(&self, database: impl Into<String>) -> QuerySqlQuery {
+    pub fn query_sql(&self, database: impl Into<String>) -> QuerySqlQuery<'_> {
         QuerySqlQuery {
             server: self,
             database: database.into(),
@@ -354,6 +359,7 @@ impl QuerySqlQuery<'_> {
     }
 }
 // Builder for the 'delete table' command
+#[derive(Debug)]
 pub struct DeleteTableQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -365,7 +371,7 @@ impl TestServer {
         &self,
         db_name: impl Into<String>,
         table_name: impl Into<String>,
-    ) -> DeleteTableQuery {
+    ) -> DeleteTableQuery<'_> {
         DeleteTableQuery {
             server: self,
             db_name: db_name.into(),
@@ -390,6 +396,7 @@ impl DeleteTableQuery<'_> {
 }
 
 // Builder for the 'create distinct_cache' command
+#[derive(Debug)]
 pub struct CreateDistinctCacheQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -406,7 +413,7 @@ impl TestServer {
         db_name: impl Into<String>,
         table_name: impl Into<String>,
         cache_name: impl Into<String>,
-    ) -> CreateDistinctCacheQuery {
+    ) -> CreateDistinctCacheQuery<'_> {
         CreateDistinctCacheQuery {
             server: self,
             db_name: db_name.into(),
@@ -477,6 +484,7 @@ impl CreateDistinctCacheQuery<'_> {
 }
 
 // Builder for the 'delete distinct_cache' command
+#[derive(Debug)]
 pub struct DeleteDistinctCacheQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -490,7 +498,7 @@ impl TestServer {
         db_name: impl Into<String>,
         table_name: impl Into<String>,
         cache_name: impl Into<String>,
-    ) -> DeleteDistinctCacheQuery {
+    ) -> DeleteDistinctCacheQuery<'_> {
         DeleteDistinctCacheQuery {
             server: self,
             db_name: db_name.into(),
@@ -517,6 +525,7 @@ impl DeleteDistinctCacheQuery<'_> {
     }
 }
 // Builder for the 'create trigger' command
+#[derive(Debug)]
 pub struct CreateTriggerQuery<'a> {
     server: &'a TestServer,
     trigger_name: String,
@@ -536,7 +545,7 @@ impl TestServer {
         trigger_name: impl Into<String>,
         plugin_filename: impl Into<String>,
         trigger_spec: impl Into<String>,
-    ) -> CreateTriggerQuery {
+    ) -> CreateTriggerQuery<'_> {
         CreateTriggerQuery {
             server: self,
             db_name: db_name.into(),
@@ -617,6 +626,7 @@ impl CreateTriggerQuery<'_> {
     }
 }
 // Builder for the 'enable trigger' command
+#[derive(Debug)]
 pub struct EnableTriggerQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -628,7 +638,7 @@ impl TestServer {
         &self,
         db_name: impl Into<String>,
         trigger_name: impl Into<String>,
-    ) -> EnableTriggerQuery {
+    ) -> EnableTriggerQuery<'_> {
         EnableTriggerQuery {
             server: self,
             db_name: db_name.into(),
@@ -652,6 +662,7 @@ impl EnableTriggerQuery<'_> {
 }
 
 // Builder for the 'disable trigger' command
+#[derive(Debug)]
 pub struct DisableTriggerQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -663,7 +674,7 @@ impl TestServer {
         &self,
         db_name: impl Into<String>,
         trigger_name: impl Into<String>,
-    ) -> DisableTriggerQuery {
+    ) -> DisableTriggerQuery<'_> {
         DisableTriggerQuery {
             server: self,
             db_name: db_name.into(),
@@ -686,6 +697,7 @@ impl DisableTriggerQuery<'_> {
     }
 }
 // Builder for the 'delete trigger' command
+#[derive(Debug)]
 pub struct DeleteTriggerQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -698,7 +710,7 @@ impl TestServer {
         &self,
         db_name: impl Into<String>,
         trigger_name: impl Into<String>,
-    ) -> DeleteTriggerQuery {
+    ) -> DeleteTriggerQuery<'_> {
         DeleteTriggerQuery {
             server: self,
             db_name: db_name.into(),
@@ -731,6 +743,7 @@ impl DeleteTriggerQuery<'_> {
     }
 }
 // Builder for the 'test wal_plugin' command
+#[derive(Debug)]
 pub struct TestWalPluginQuery<'a> {
     server: &'a TestServer,
     database: String,
@@ -745,7 +758,7 @@ impl TestServer {
         &self,
         database: impl Into<String>,
         plugin_filename: impl Into<String>,
-    ) -> TestWalPluginQuery {
+    ) -> TestWalPluginQuery<'_> {
         TestWalPluginQuery {
             server: self,
             database: database.into(),
@@ -819,6 +832,7 @@ impl TestWalPluginQuery<'_> {
     }
 }
 // Builder for the 'test schedule_plugin' command
+#[derive(Debug)]
 pub struct TestSchedulePluginQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -834,7 +848,7 @@ impl TestServer {
         db_name: impl Into<String>,
         plugin_name: impl Into<String>,
         schedule: impl Into<String>,
-    ) -> TestSchedulePluginQuery {
+    ) -> TestSchedulePluginQuery<'_> {
         TestSchedulePluginQuery {
             server: self,
             db_name: db_name.into(),
@@ -891,6 +905,7 @@ impl TestSchedulePluginQuery<'_> {
     }
 }
 // Builder for the 'package install' command
+#[derive(Debug)]
 pub struct InstallPackageQuery<'a> {
     server: &'a TestServer,
     packages: Vec<String>,
@@ -900,7 +915,7 @@ pub struct InstallPackageQuery<'a> {
 }
 
 impl TestServer {
-    pub fn install_package(&self) -> InstallPackageQuery {
+    pub fn install_package(&self) -> InstallPackageQuery<'_> {
         InstallPackageQuery {
             server: self,
             packages: Vec::new(),
@@ -968,6 +983,7 @@ impl InstallPackageQuery<'_> {
     }
 }
 // Builder for the 'write' command
+#[derive(Debug)]
 pub struct WriteQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -977,7 +993,7 @@ pub struct WriteQuery<'a> {
 }
 
 impl TestServer {
-    pub fn write(&self, db_name: impl Into<String>) -> WriteQuery {
+    pub fn write(&self, db_name: impl Into<String>) -> WriteQuery<'_> {
         WriteQuery {
             server: self,
             db_name: db_name.into(),
@@ -1053,6 +1069,7 @@ impl WriteQuery<'_> {
 }
 
 // Base struct for all "show system" subcommands
+#[derive(Debug)]
 pub struct ShowSystemQuery<'a> {
     server: &'a TestServer,
     db_name: String,
@@ -1060,11 +1077,13 @@ pub struct ShowSystemQuery<'a> {
 }
 
 // Specific struct for "table-list" subcommand
+#[derive(Debug)]
 pub struct ShowSystemTableListQuery<'a> {
     base: ShowSystemQuery<'a>,
 }
 
 // Specific struct for "table" subcommand
+#[derive(Debug)]
 pub struct ShowSystemTableQuery<'a> {
     base: ShowSystemQuery<'a>,
     system_table: String,
@@ -1074,6 +1093,7 @@ pub struct ShowSystemTableQuery<'a> {
 }
 
 // Specific struct for "summary" subcommand
+#[derive(Debug)]
 pub struct ShowSystemSummaryQuery<'a> {
     base: ShowSystemQuery<'a>,
     limit: Option<usize>,
@@ -1081,7 +1101,7 @@ pub struct ShowSystemSummaryQuery<'a> {
 
 impl TestServer {
     // Entry point for show system commands
-    pub fn show_system(&self, db_name: impl Into<String>) -> ShowSystemQuery {
+    pub fn show_system(&self, db_name: impl Into<String>) -> ShowSystemQuery<'_> {
         ShowSystemQuery {
             server: self,
             db_name: db_name.into(),

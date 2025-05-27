@@ -5,6 +5,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 # Core Crates
 authz.workspace = true
@@ -71,6 +74,10 @@ uuid.workspace = true
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
 tempfile = "3.15.0"
 
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
+tikv-jemallocator = { version = "0.5", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
+
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
 
@@ -84,7 +91,7 @@ aws = ["influxdb3_clap_blocks/aws"] # Optional AWS / S3 object store support
 tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/release_max_level_trace"]
 
 # Use jemalloc as the default allocator.
-jemalloc_replacing_malloc = ["influxdb3_process/jemalloc_replacing_malloc"]
+jemalloc_replacing_malloc = ["tikv-jemallocator", "tikv-jemalloc-ctl"]
 
 [dev-dependencies]
 # Core Crates

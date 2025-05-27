@@ -116,14 +116,14 @@ pub(crate) async fn command(config: Config) -> Result<()> {
         QueryLanguage::Sql => {
             client
                 .api_v3_query_sql(database_name, query)
-                .format(config.output_format.clone().into())
+                .format(config.output_format.into())
                 .send()
                 .await?
         }
         QueryLanguage::Influxql => {
             client
                 .api_v3_query_influxql(database_name, query)
-                .format(config.output_format.clone().into())
+                .format(config.output_format.into())
                 .send()
                 .await?
         }

@@ -30,7 +30,7 @@ mod query;
 mod system_tables;
 mod write;
 
-pub trait ConfigProvider {
+pub trait ConfigProvider: Send + Sync + 'static {
     /// Convert this to a set of command line arguments for `influxdb3 serve`
     fn as_args(&self) -> Vec<String>;
 
@@ -239,6 +239,15 @@ pub struct TestServer {
     bind_addr: String,
     server_process: Child,
     http_client: reqwest::Client,
+}
+
+impl std::fmt::Debug for TestServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TestServer")
+            .field("auth_token", &self.auth_token)
+            .field("bind_addr", &self.bind_addr)
+            .finish()
+    }
 }
 
 impl TestServer {

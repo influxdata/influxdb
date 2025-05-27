@@ -16,7 +16,7 @@ static AUTHZ_DISABLED_RESOURCES: OnceLock<Vec<&'static str>> = OnceLock::new();
 // Even if it's possible with a bit of clap-fu, still requires mapping those resource names to
 // endpoints. This custom type pulls both parsing and mapping logic together, easier to setup
 // and test
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct DisableAuthzList;
 
 impl Default for DisableAuthzList {

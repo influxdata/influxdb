@@ -27,7 +27,7 @@ pub struct InfluxDb3Config {
     pub auth_token: Option<Secret<String>>,
 }
 
-#[derive(Debug, ValueEnum, Clone)]
+#[derive(Debug, ValueEnum, Clone, Copy)]
 #[clap(rename_all = "snake_case")]
 pub enum Format {
     Pretty,

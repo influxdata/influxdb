@@ -19,8 +19,7 @@ use influxdb3_clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use influxdb3_process::{
-    INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID_STR, build_malloc_conf,
-    setup_metric_registry,
+    INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_START_TIME, PROCESS_UUID_STR,
 };
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::{
@@ -51,6 +50,7 @@ use influxdb3_write::{
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
 use iox_time::SystemProvider;
+use metric::U64Gauge;
 use object_store::ObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
@@ -74,6 +74,9 @@ use trogging::cli::LoggingConfig;
 use crate::commands::common::warn_use_of_deprecated_env_vars;
 
 use super::helpers::DisableAuthzList;
+
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
+mod jemalloc;
 
 /// The default name of the influxdb data directory
 #[allow(dead_code)]
@@ -992,4 +995,56 @@ async fn background_buffer_checker(
         Duration::from_secs(10),
     )
     .await;
+}
+
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[cfg(tokio_unstable)]
+use tokio_metrics_bridge::setup_tokio_metrics;
+
+#[cfg(any(not(feature = "jemalloc_replacing_malloc"), target_env = "msvc"))]
+pub fn build_malloc_conf() -> String {
+    "system".to_string()
+}
+
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
+pub fn build_malloc_conf() -> String {
+    tikv_jemalloc_ctl::config::malloc_conf::mib()
+        .unwrap()
+        .read()
+        .unwrap()
+        .to_string()
+}
+
+pub fn setup_metric_registry() -> Arc<metric::Registry> {
+    let registry = Arc::new(metric::Registry::default());
+
+    // See https://prometheus.io/docs/instrumenting/writing_clientlibs/#process-metrics
+    registry
+        .register_metric::<U64Gauge>(
+            "process_start_time_seconds",
+            "Start time of the process since unix epoch in seconds.",
+        )
+        .recorder(&[
+            ("version", INFLUXDB3_VERSION.as_ref()),
+            ("git_hash", INFLUXDB3_GIT_HASH),
+            ("uuid", PROCESS_UUID_STR.as_ref()),
+        ])
+        .set(PROCESS_START_TIME.timestamp() as u64);
+
+    // Register jemalloc metrics
+    #[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
+    registry.register_instrument("jemalloc_metrics", jemalloc::JemallocMetrics::new);
+
+    // Register tokio metric for main runtime
+    #[cfg(tokio_unstable)]
+    setup_tokio_metrics(
+        tokio::runtime::Handle::current().metrics(),
+        "main",
+        Arc::clone(&registry),
+    );
+
+    registry
 }
