@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"io"
 	"math"
 	"math/rand"
@@ -2701,6 +2702,7 @@ func NewEngine(index string) (*Engine, error) {
 	// store level.
 	seriesIDs := tsdb.NewSeriesIDSet()
 	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
+	opt.CompactionLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
 
 	idxPath := filepath.Join(dbPath, "index")
 	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)

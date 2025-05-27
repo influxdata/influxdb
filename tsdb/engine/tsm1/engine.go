@@ -209,7 +209,7 @@ type Engine struct {
 	// Controls whether to enabled compactions when the engine is open
 	enableCompactionsOnOpen bool
 
-	stats *EngineStatistics
+	Stats *EngineStatistics
 
 	// Limiter for concurrent compactions.
 	compactionLimiter limiter.Fixed
@@ -217,7 +217,7 @@ type Engine struct {
 	// Limiter for concurrent optimized compactions.
 	optimizedCompactionLimiter limiter.Fixed
 
-	scheduler *scheduler
+	Scheduler *Scheduler
 
 	// provides access to the total set of series IDs
 	seriesIDSets tsdb.SeriesIDSets
@@ -281,10 +281,10 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		enableCompactionsOnOpen:       true,
 		WALEnabled:                    opt.WALEnabled,
 		formatFileName:                DefaultFormatFileName,
-		stats:                         stats,
+		Stats:                         stats,
 		compactionLimiter:             opt.CompactionLimiter,
 		optimizedCompactionLimiter:    opt.OptimizedCompactionLimiter,
-		scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
+		Scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
 		seriesIDSets:                  opt.SeriesIDSets,
 	}
 
@@ -710,40 +710,40 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 		Name: "tsm1_engine",
 		Tags: tags,
 		Values: map[string]interface{}{
-			statCacheCompactions:        atomic.LoadInt64(&e.stats.CacheCompactions),
-			statCacheCompactionsActive:  atomic.LoadInt64(&e.stats.CacheCompactionsActive),
-			statCacheCompactionError:    atomic.LoadInt64(&e.stats.CacheCompactionErrors),
-			statCacheCompactionDuration: atomic.LoadInt64(&e.stats.CacheCompactionDuration),
+			statCacheCompactions:        atomic.LoadInt64(&e.Stats.CacheCompactions),
+			statCacheCompactionsActive:  atomic.LoadInt64(&e.Stats.CacheCompactionsActive),
+			statCacheCompactionError:    atomic.LoadInt64(&e.Stats.CacheCompactionErrors),
+			statCacheCompactionDuration: atomic.LoadInt64(&e.Stats.CacheCompactionDuration),
 
-			statTSMLevel1Compactions:        atomic.LoadInt64(&e.stats.TSMCompactions[0]),
-			statTSMLevel1CompactionsActive:  atomic.LoadInt64(&e.stats.TSMCompactionsActive[0]),
-			statTSMLevel1CompactionError:    atomic.LoadInt64(&e.stats.TSMCompactionErrors[0]),
-			statTSMLevel1CompactionDuration: atomic.LoadInt64(&e.stats.TSMCompactionDuration[0]),
-			statTSMLevel1CompactionQueue:    atomic.LoadInt64(&e.stats.TSMCompactionsQueue[0]),
+			statTSMLevel1Compactions:        atomic.LoadInt64(&e.Stats.TSMCompactions[0]),
+			statTSMLevel1CompactionsActive:  atomic.LoadInt64(&e.Stats.TSMCompactionsActive[0]),
+			statTSMLevel1CompactionError:    atomic.LoadInt64(&e.Stats.TSMCompactionErrors[0]),
+			statTSMLevel1CompactionDuration: atomic.LoadInt64(&e.Stats.TSMCompactionDuration[0]),
+			statTSMLevel1CompactionQueue:    atomic.LoadInt64(&e.Stats.TSMCompactionsQueue[0]),
 
-			statTSMLevel2Compactions:        atomic.LoadInt64(&e.stats.TSMCompactions[1]),
-			statTSMLevel2CompactionsActive:  atomic.LoadInt64(&e.stats.TSMCompactionsActive[1]),
-			statTSMLevel2CompactionError:    atomic.LoadInt64(&e.stats.TSMCompactionErrors[1]),
-			statTSMLevel2CompactionDuration: atomic.LoadInt64(&e.stats.TSMCompactionDuration[1]),
-			statTSMLevel2CompactionQueue:    atomic.LoadInt64(&e.stats.TSMCompactionsQueue[1]),
+			statTSMLevel2Compactions:        atomic.LoadInt64(&e.Stats.TSMCompactions[1]),
+			statTSMLevel2CompactionsActive:  atomic.LoadInt64(&e.Stats.TSMCompactionsActive[1]),
+			statTSMLevel2CompactionError:    atomic.LoadInt64(&e.Stats.TSMCompactionErrors[1]),
+			statTSMLevel2CompactionDuration: atomic.LoadInt64(&e.Stats.TSMCompactionDuration[1]),
+			statTSMLevel2CompactionQueue:    atomic.LoadInt64(&e.Stats.TSMCompactionsQueue[1]),
 
-			statTSMLevel3Compactions:        atomic.LoadInt64(&e.stats.TSMCompactions[2]),
-			statTSMLevel3CompactionsActive:  atomic.LoadInt64(&e.stats.TSMCompactionsActive[2]),
-			statTSMLevel3CompactionError:    atomic.LoadInt64(&e.stats.TSMCompactionErrors[2]),
-			statTSMLevel3CompactionDuration: atomic.LoadInt64(&e.stats.TSMCompactionDuration[2]),
-			statTSMLevel3CompactionQueue:    atomic.LoadInt64(&e.stats.TSMCompactionsQueue[2]),
+			statTSMLevel3Compactions:        atomic.LoadInt64(&e.Stats.TSMCompactions[2]),
+			statTSMLevel3CompactionsActive:  atomic.LoadInt64(&e.Stats.TSMCompactionsActive[2]),
+			statTSMLevel3CompactionError:    atomic.LoadInt64(&e.Stats.TSMCompactionErrors[2]),
+			statTSMLevel3CompactionDuration: atomic.LoadInt64(&e.Stats.TSMCompactionDuration[2]),
+			statTSMLevel3CompactionQueue:    atomic.LoadInt64(&e.Stats.TSMCompactionsQueue[2]),
 
-			statTSMOptimizeCompactions:        atomic.LoadInt64(&e.stats.TSMOptimizeCompactions),
-			statTSMOptimizeCompactionsActive:  atomic.LoadInt64(&e.stats.TSMOptimizeCompactionsActive),
-			statTSMOptimizeCompactionError:    atomic.LoadInt64(&e.stats.TSMOptimizeCompactionErrors),
-			statTSMOptimizeCompactionDuration: atomic.LoadInt64(&e.stats.TSMOptimizeCompactionDuration),
-			statTSMOptimizeCompactionQueue:    atomic.LoadInt64(&e.stats.TSMOptimizeCompactionsQueue),
+			statTSMOptimizeCompactions:        atomic.LoadInt64(&e.Stats.TSMOptimizeCompactions),
+			statTSMOptimizeCompactionsActive:  atomic.LoadInt64(&e.Stats.TSMOptimizeCompactionsActive),
+			statTSMOptimizeCompactionError:    atomic.LoadInt64(&e.Stats.TSMOptimizeCompactionErrors),
+			statTSMOptimizeCompactionDuration: atomic.LoadInt64(&e.Stats.TSMOptimizeCompactionDuration),
+			statTSMOptimizeCompactionQueue:    atomic.LoadInt64(&e.Stats.TSMOptimizeCompactionsQueue),
 
-			statTSMFullCompactions:        atomic.LoadInt64(&e.stats.TSMFullCompactions),
-			statTSMFullCompactionsActive:  atomic.LoadInt64(&e.stats.TSMFullCompactionsActive),
-			statTSMFullCompactionError:    atomic.LoadInt64(&e.stats.TSMFullCompactionErrors),
-			statTSMFullCompactionDuration: atomic.LoadInt64(&e.stats.TSMFullCompactionDuration),
-			statTSMFullCompactionQueue:    atomic.LoadInt64(&e.stats.TSMFullCompactionsQueue),
+			statTSMFullCompactions:        atomic.LoadInt64(&e.Stats.TSMFullCompactions),
+			statTSMFullCompactionsActive:  atomic.LoadInt64(&e.Stats.TSMFullCompactionsActive),
+			statTSMFullCompactionError:    atomic.LoadInt64(&e.Stats.TSMFullCompactionErrors),
+			statTSMFullCompactionDuration: atomic.LoadInt64(&e.Stats.TSMFullCompactionDuration),
+			statTSMFullCompactionQueue:    atomic.LoadInt64(&e.Stats.TSMFullCompactionsQueue),
 		},
 	})
 
@@ -943,12 +943,12 @@ func (e *Engine) IsIdle() (state bool, reason string) {
 		ActiveCompactions *int64
 		LogMessage        string
 	}{
-		{&e.stats.CacheCompactionsActive, "not idle because of active Cache compactions"},
-		{&e.stats.TSMCompactionsActive[0], "not idle because of active Level Zero compactions"},
-		{&e.stats.TSMCompactionsActive[1], "not idle because of active Level One compactions"},
-		{&e.stats.TSMCompactionsActive[2], "not idle because of active Level Two compactions"},
-		{&e.stats.TSMFullCompactionsActive, "not idle because of active Full compactions"},
-		{&e.stats.TSMOptimizeCompactionsActive, "not idle because of active TSM Optimization compactions"},
+		{&e.Stats.CacheCompactionsActive, "not idle because of active Cache compactions"},
+		{&e.Stats.TSMCompactionsActive[0], "not idle because of active Level Zero compactions"},
+		{&e.Stats.TSMCompactionsActive[1], "not idle because of active Level One compactions"},
+		{&e.Stats.TSMCompactionsActive[2], "not idle because of active Level Two compactions"},
+		{&e.Stats.TSMFullCompactionsActive, "not idle because of active Full compactions"},
+		{&e.Stats.TSMOptimizeCompactionsActive, "not idle because of active TSM Optimization compactions"},
 	}
 
 	for _, compactionState := range c {
@@ -2092,11 +2092,11 @@ func (e *Engine) compactCache() {
 				err := e.WriteSnapshot()
 				if err != nil && err != errCompactionsDisabled {
 					e.logger.Info("Error writing snapshot", zap.Error(err))
-					atomic.AddInt64(&e.stats.CacheCompactionErrors, 1)
+					atomic.AddInt64(&e.Stats.CacheCompactionErrors, 1)
 				} else {
-					atomic.AddInt64(&e.stats.CacheCompactions, 1)
+					atomic.AddInt64(&e.Stats.CacheCompactions, 1)
 				}
-				atomic.AddInt64(&e.stats.CacheCompactionDuration, time.Since(start).Nanoseconds())
+				atomic.AddInt64(&e.Stats.CacheCompactionDuration, time.Since(start).Nanoseconds())
 			}
 		}
 	}
@@ -2163,18 +2163,30 @@ const optimizationHoldoff = 5 * time.Minute
 // tickPeriod is the interval between successive compaction loops.
 const tickPeriod = time.Second
 
-func (e *Engine) compact(wg *sync.WaitGroup) {
-	t := time.NewTicker(tickPeriod)
-	defer t.Stop()
-
-	var optHoldoffStart time.Time
-	var optHoldoffDuration time.Duration
+// StartOptHoldOff will create a hold off timer for OptimizedCompaction
+func (e *Engine) StartOptHoldOff(holdOffDurationCheck time.Duration, optHoldoffStart time.Time, optHoldoffDuration time.Duration) {
 	startOptHoldoff := func(dur time.Duration) {
 		optHoldoffStart = time.Now()
 		optHoldoffDuration = dur
 		e.logger.Info("optimize compaction holdoff timer started", logger.Shard(e.id), zap.Duration("duration", optHoldoffDuration), zap.Time("endTime", optHoldoffStart.Add(optHoldoffDuration)))
 	}
-	startOptHoldoff(initialOptimizationHoldoff)
+	startOptHoldoff(holdOffDurationCheck)
+}
+
+func (e *Engine) GetPlanTypeBasedOnHoldOff(start time.Time, dur time.Duration) PlanType {
+	planType := PT_SmartOptimize
+	if time.Since(start) < dur {
+		planType = PT_NoOptimize
+	}
+	return planType
+}
+
+func (e *Engine) compact(wg *sync.WaitGroup) {
+	t := time.NewTicker(tickPeriod)
+	defer t.Stop()
+	var optHoldoffStart time.Time
+	var optHoldoffDuration time.Duration
+	e.StartOptHoldOff(initialOptimizationHoldoff, optHoldoffStart, optHoldoffDuration)
 
 	var nextDisabledMsg time.Time
 
@@ -2201,23 +2213,20 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			}
 
 			// Determine if we should do a smart optimized plan or skip optimizations in the plan.
-			planType := PT_SmartOptimize
-			if time.Since(optHoldoffStart) < optHoldoffDuration {
-				planType = PT_NoOptimize
-			}
+			planType := e.GetPlanTypeBasedOnHoldOff(optHoldoffStart, optHoldoffDuration)
 
 			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions(planType)
 			// Set the queue depths on the scheduler
 			// Use the real queue depth, dependent on acquiring
 			// the file locks.
-			e.scheduler.setDepth(1, len(level1Groups))
-			e.scheduler.setDepth(2, len(level2Groups))
-			e.scheduler.setDepth(3, len(level3Groups))
-			e.scheduler.setDepth(4, len(level4Groups))
-			e.scheduler.setDepth(5, len(level5Groups))
+			e.Scheduler.SetDepth(1, len(level1Groups))
+			e.Scheduler.SetDepth(2, len(level2Groups))
+			e.Scheduler.SetDepth(3, len(level3Groups))
+			e.Scheduler.SetDepth(4, len(level4Groups))
+			e.Scheduler.SetDepth(5, len(level5Groups))
 
 			// Find the next compaction that can run and try to kick it off
-			if level, runnable := e.scheduler.next(); runnable {
+			if level, runnable := e.Scheduler.Next(); runnable {
 				switch level {
 				case 1:
 					if e.compactHiPriorityLevel(level1Groups[0].Group, 1, false, wg) {
@@ -2260,7 +2269,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 					} else {
 						level5Groups = level5Groups[1:]
 					}
-					startOptHoldoff(optimizationHoldoff)
+					e.StartOptHoldOff(optimizationHoldoff, optHoldoffStart, optHoldoffDuration)
 				}
 			}
 
@@ -2357,7 +2366,7 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 	l4Groups, _ := e.CompactionPlan.Plan(e.LastModified())
 
 	if planType == PT_SmartOptimize {
-		level, runnable := e.scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(l4Groups), 0})
+		level, runnable := e.Scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(l4Groups), 0})
 		// We don't stop if level 4 is runnable because we need to continue on and check for group 4 to group 5 promotions if
 		// group 4 is the runnable group.
 		if runnable && level <= 3 {
@@ -2404,7 +2413,7 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 		// Our behavior changes depending what the plan type is.
 		return level1Groups, level2Groups, level3Groups, level4Groups, nil
 	} else if planType == PT_SmartOptimize {
-		level, runnable := e.scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(level4Groups), len(level5Groups)})
+		level, runnable := e.Scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(level4Groups), len(level5Groups)})
 		if runnable && level <= 5 {
 			// We know that the compaction loop will pull from something already planned, no need to go any further for smart optimize.
 			return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
@@ -2462,11 +2471,11 @@ func (e *Engine) PlanCompactions(planType PlanType) ([]PlannedCompactionGroup, [
 	// Update the level plan queue stats
 	// For stats, use the length needed, even if the lock was
 	// not acquired
-	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], int64(len(l1)))
-	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], int64(len(l2)))
-	atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], int64(len(l3)))
-	atomic.StoreInt64(&e.stats.TSMFullCompactionsQueue, int64(len(l4)))
-	atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(l5)))
+	atomic.StoreInt64(&e.Stats.TSMCompactionsQueue[0], int64(len(l1)))
+	atomic.StoreInt64(&e.Stats.TSMCompactionsQueue[1], int64(len(l2)))
+	atomic.StoreInt64(&e.Stats.TSMCompactionsQueue[2], int64(len(l3)))
+	atomic.StoreInt64(&e.Stats.TSMFullCompactionsQueue, int64(len(l4)))
+	atomic.StoreInt64(&e.Stats.TSMOptimizeCompactionsQueue, int64(len(l5)))
 	return l1, l2, l3, l4, l5
 }
 
@@ -2480,12 +2489,12 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast boo
 
 	// Try hi priority limiter, otherwise steal a little from the low priority if we can.
 	if e.compactionLimiter.TryTake() {
-		atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], 1)
+		atomic.AddInt64(&e.Stats.TSMCompactionsActive[level-1], 1)
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], -1)
+			defer atomic.AddInt64(&e.Stats.TSMCompactionsActive[level-1], -1)
 
 			defer e.compactionLimiter.Release()
 			s.Apply()
@@ -2509,11 +2518,11 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast boo
 
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
-		atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], 1)
+		atomic.AddInt64(&e.Stats.TSMCompactionsActive[level-1], 1)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], -1)
+			defer atomic.AddInt64(&e.Stats.TSMCompactionsActive[level-1], -1)
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
@@ -2534,11 +2543,11 @@ func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
 
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
-		atomic.AddInt64(&e.stats.TSMFullCompactionsActive, 1)
+		atomic.AddInt64(&e.Stats.TSMFullCompactionsActive, 1)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer atomic.AddInt64(&e.stats.TSMFullCompactionsActive, -1)
+			defer atomic.AddInt64(&e.Stats.TSMFullCompactionsActive, -1)
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
@@ -2569,11 +2578,11 @@ func (e *Engine) compactOptimize(grp CompactionGroup, pointsPerBlock int, wg *sy
 			e.compactionLimiter.Release()
 			return ErrOptimizeCompactionLimited
 		}
-		atomic.AddInt64(&e.stats.TSMOptimizeCompactionsActive, 1)
+		atomic.AddInt64(&e.Stats.TSMOptimizeCompactionsActive, 1)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer atomic.AddInt64(&e.stats.TSMOptimizeCompactionsActive, -1)
+			defer atomic.AddInt64(&e.Stats.TSMOptimizeCompactionsActive, -1)
 			defer e.compactionLimiter.Release()          // Happens second
 			defer e.optimizedCompactionLimiter.Release() // Happens first
 			s.Apply()
@@ -2712,10 +2721,10 @@ func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level
 		engine:         e,
 		level:          level,
 
-		activeStat:   &e.stats.TSMCompactionsActive[level-1],
-		successStat:  &e.stats.TSMCompactions[level-1],
-		errorStat:    &e.stats.TSMCompactionErrors[level-1],
-		durationStat: &e.stats.TSMCompactionDuration[level-1],
+		activeStat:   &e.Stats.TSMCompactionsActive[level-1],
+		successStat:  &e.Stats.TSMCompactions[level-1],
+		errorStat:    &e.Stats.TSMCompactionErrors[level-1],
+		durationStat: &e.Stats.TSMCompactionDuration[level-1],
 	}
 }
 
@@ -2733,10 +2742,10 @@ func (e *Engine) fullCompactionStrategy(group CompactionGroup) *compactionStrate
 		level:          FullCompactionLevel,
 	}
 
-	s.activeStat = &e.stats.TSMFullCompactionsActive
-	s.successStat = &e.stats.TSMFullCompactions
-	s.errorStat = &e.stats.TSMFullCompactionErrors
-	s.durationStat = &e.stats.TSMFullCompactionDuration
+	s.activeStat = &e.Stats.TSMFullCompactionsActive
+	s.successStat = &e.Stats.TSMFullCompactions
+	s.errorStat = &e.Stats.TSMFullCompactionErrors
+	s.durationStat = &e.Stats.TSMFullCompactionDuration
 
 	return s
 }
@@ -2754,10 +2763,10 @@ func (e *Engine) optimizeCompactionStrategy(group CompactionGroup, pointsPerBloc
 		level:          OptimizeCompactionLevel,
 	}
 
-	s.activeStat = &e.stats.TSMOptimizeCompactionsActive
-	s.successStat = &e.stats.TSMOptimizeCompactions
-	s.errorStat = &e.stats.TSMOptimizeCompactionErrors
-	s.durationStat = &e.stats.TSMOptimizeCompactionDuration
+	s.activeStat = &e.Stats.TSMOptimizeCompactionsActive
+	s.successStat = &e.Stats.TSMOptimizeCompactions
+	s.errorStat = &e.Stats.TSMOptimizeCompactionErrors
+	s.durationStat = &e.Stats.TSMOptimizeCompactionDuration
 
 	return s
 }

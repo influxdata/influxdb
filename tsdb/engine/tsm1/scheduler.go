@@ -7,7 +7,7 @@ import (
 // Level 5 (optimize) is set so much lower because level 5 compactions take so much longer.
 var defaultWeights = [TotalCompactionLevels]float64{0.4, 0.3, 0.2, 0.1, 0.01}
 
-type scheduler struct {
+type Scheduler struct {
 	maxConcurrency int
 	stats          *EngineStatistics
 
@@ -16,15 +16,15 @@ type scheduler struct {
 	weights [TotalCompactionLevels]float64
 }
 
-func newScheduler(stats *EngineStatistics, maxConcurrency int) *scheduler {
-	return &scheduler{
+func newScheduler(stats *EngineStatistics, maxConcurrency int) *Scheduler {
+	return &Scheduler{
 		stats:          stats,
 		maxConcurrency: maxConcurrency,
 		weights:        defaultWeights,
 	}
 }
 
-func (s *scheduler) setDepth(level, depth int) {
+func (s *Scheduler) SetDepth(level, depth int) {
 	level = level - 1
 	if level < 0 || level > len(s.queues) {
 		return
@@ -33,7 +33,7 @@ func (s *scheduler) setDepth(level, depth int) {
 	s.queues[level] = depth
 }
 
-func (s *scheduler) nextByQueueDepths(depths [TotalCompactionLevels]int) (int, bool) {
+func (s *Scheduler) nextByQueueDepths(depths [TotalCompactionLevels]int) (int, bool) {
 	level1Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[0]))
 	level2Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[1]))
 	level3Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[2]))
@@ -66,11 +66,11 @@ func (s *scheduler) nextByQueueDepths(depths [TotalCompactionLevels]int) (int, b
 	return level, runnable
 }
 
-func (s *scheduler) next() (int, bool) {
+func (s *Scheduler) Next() (int, bool) {
 	return s.nextByQueueDepths(s.queues)
 }
 
-func (s *scheduler) limits() (int, int) {
+func (s *Scheduler) limits() (int, int) {
 	hiLimit := s.maxConcurrency * 4 / 5
 	loLimit := (s.maxConcurrency / 5) + 1
 	if hiLimit == 0 {
