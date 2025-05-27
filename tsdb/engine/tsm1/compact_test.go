@@ -4563,14 +4563,14 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "01-05.tsm",
 						Size: 256 * 1024 * 1024,
 					},
-					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
+					FirstBlockCount: 200,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "02-05.tsm",
 						Size: 256 * 1024 * 1024,
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
 					FileStat: tsm1.FileStat{
