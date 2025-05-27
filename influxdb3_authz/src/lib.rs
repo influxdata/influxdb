@@ -10,7 +10,6 @@ use observability_deps::tracing::{debug, trace};
 use serde::Serialize;
 use sha2::{Digest, Sha512};
 use std::fmt::Debug;
-use thiserror::Error;
 
 #[derive(Debug, Copy, Clone, Serialize)]
 pub struct DatabaseActions(u16);
@@ -30,19 +29,20 @@ impl From<u16> for CrudActions {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum AccessRequest {
     Database(DbId, DatabaseActions),
     Token(TokenId, CrudActions),
     Admin,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Copy, thiserror::Error)]
 pub enum ResourceAuthorizationError {
     #[error("unauthorized to perform requested action with the token")]
     Unauthorized,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum AuthenticatorError {
     /// Error for token that is present in the request but missing in the catalog
     #[error("token provided is not present in catalog")]
@@ -341,7 +341,7 @@ mod tests {
     }
 
     impl MockTokenProvider {
-        pub fn new(token: &str, expired: bool) -> Self {
+        fn new(token: &str, expired: bool) -> Self {
             let hash = sha2::Sha512::digest(token);
             Self {
                 hashed_token: hash.to_vec(),
