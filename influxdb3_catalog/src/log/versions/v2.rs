@@ -21,7 +21,7 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{CatalogError, Result, catalog::CatalogSequenceNumber};
+use crate::{CatalogError, Result, catalog::CatalogSequenceNumber, serialize::VersionedFileType};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum CatalogBatch {
@@ -113,6 +113,10 @@ pub struct DatabaseBatch {
 pub struct OrderedCatalogBatch {
     pub(crate) catalog_batch: CatalogBatch,
     pub(crate) sequence_number: CatalogSequenceNumber,
+}
+
+impl VersionedFileType for OrderedCatalogBatch {
+    const VERSION_ID: [u8; 10] = *b"idb3.002.l";
 }
 
 impl OrderedCatalogBatch {
