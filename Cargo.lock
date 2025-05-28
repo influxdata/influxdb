@@ -3164,6 +3164,7 @@ dependencies = [
  "influxdb3_wal",
  "influxdb3_write",
  "influxdb_influxql_parser",
+ "insta",
  "iox_http",
  "iox_query",
  "iox_query_influxql",
