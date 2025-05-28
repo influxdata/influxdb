@@ -2137,7 +2137,7 @@ mod tests {
     use crate::{
         log::{FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, create},
         object_store::CatalogFilePath,
-        serialize::{serialize_catalog_snapshot, verify_and_deserialize_catalog_checkpoint_file},
+        serialize::{serialize_catalog_file, verify_and_deserialize_catalog_checkpoint_file},
     };
 
     use super::*;
@@ -2192,7 +2192,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 // Serialize/deserialize to ensure roundtrip
-                let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
+                let serialized = serialize_catalog_file(&snapshot).unwrap();
                 let snapshot = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap() ;
                 insta::assert_json_snapshot!(snapshot, {
                     ".catalog_uuid" => "[uuid]"
@@ -2322,7 +2322,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 // Serialize/deserialize to ensure roundtrip
-                let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
+                let serialized = serialize_catalog_file(&snapshot).unwrap();
                 let snapshot = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap() ;
                 insta::assert_json_snapshot!(snapshot, {
                     ".catalog_uuid" => "[uuid]"
@@ -2369,7 +2369,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 // Serialize/deserialize to ensure roundtrip
-                let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
+                let serialized = serialize_catalog_file(&snapshot).unwrap();
                 let snapshot = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap() ;
                 insta::assert_json_snapshot!(snapshot, {
                     ".catalog_uuid" => "[uuid]"
@@ -2415,7 +2415,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 // Serialize/deserialize to ensure roundtrip
-                let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
+                let serialized = serialize_catalog_file(&snapshot).unwrap();
                 let snapshot = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap() ;
                 insta::assert_json_snapshot!(snapshot, {
                     ".catalog_uuid" => "[uuid]"

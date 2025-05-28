@@ -5,6 +5,7 @@ use crate::catalog::CatalogSequenceNumber;
 use crate::log::{
     MaxAge, MaxCardinality, NodeMode, TriggerSettings, TriggerSpecificationDefinition,
 };
+use crate::serialize::VersionedFileType;
 use arrow::datatypes::DataType as ArrowDataType;
 use hashbrown::HashMap;
 use influxdb3_id::{
@@ -25,6 +26,10 @@ pub struct CatalogSnapshot {
     pub(crate) tokens: RepositorySnapshot<TokenId, TokenInfoSnapshot>,
     pub(crate) catalog_id: Arc<str>,
     pub(crate) catalog_uuid: Uuid,
+}
+
+impl VersionedFileType for CatalogSnapshot {
+    const VERSION_ID: [u8; 10] = *b"idb3.003.s";
 }
 
 impl CatalogSnapshot {

@@ -25,7 +25,7 @@ use hashbrown::HashMap;
 use influxdb3_id::{ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId, TriggerId};
 use serde::{Deserialize, Serialize};
 
-use crate::{CatalogError, Result, catalog::CatalogSequenceNumber};
+use crate::{CatalogError, Result, catalog::CatalogSequenceNumber, serialize::VersionedFileType};
 
 mod conversion;
 
@@ -56,6 +56,10 @@ pub(crate) struct DatabaseBatch {
 pub(crate) struct OrderedCatalogBatch {
     pub(crate) catalog_batch: CatalogBatch,
     pub(crate) sequence_number: CatalogSequenceNumber,
+}
+
+impl VersionedFileType for OrderedCatalogBatch {
+    const VERSION_ID: [u8; 10] = *b"idb3.001.l";
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
