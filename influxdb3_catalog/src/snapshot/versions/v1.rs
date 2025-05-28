@@ -16,6 +16,7 @@ use crate::{
     log::versions::v1::{
         MaxAge, MaxCardinality, NodeMode, TriggerSettings, TriggerSpecificationDefinition,
     },
+    serialize::VersionedFileType,
 };
 use arrow::datatypes::DataType as ArrowDataType;
 use hashbrown::HashMap;
@@ -37,6 +38,10 @@ pub(crate) struct CatalogSnapshot {
     sequence: CatalogSequenceNumber,
     catalog_id: Arc<str>,
     catalog_uuid: Uuid,
+}
+
+impl VersionedFileType for CatalogSnapshot {
+    const VERSION_ID: [u8; 10] = *b"idb3.001.s";
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -16,9 +16,7 @@ use crate::snapshot::versions::Snapshot;
 use crate::{
     catalog::CatalogSequenceNumber,
     log::OrderedCatalogBatch,
-    serialize::{
-        serialize_catalog_log, serialize_catalog_snapshot, verify_and_deserialize_catalog_file,
-    },
+    serialize::{serialize_catalog_file, verify_and_deserialize_catalog_file},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -211,7 +209,7 @@ impl ObjectStoreCatalog {
     ) -> Result<PersistCatalogResult> {
         let catalog_path = CatalogFilePath::log(&self.prefix, batch.sequence_number());
 
-        let content = serialize_catalog_log(batch).context("failed to serialize catalog batch")?;
+        let content = serialize_catalog_file(batch).context("failed to serialize catalog batch")?;
 
         self.catalog_update_if_not_exists(catalog_path, content)
             .await
@@ -228,7 +226,7 @@ impl ObjectStoreCatalog {
         let catalog_path = CatalogFilePath::checkpoint(&self.prefix);
 
         let content =
-            serialize_catalog_snapshot(snapshot).context("failed to serialize catalog snapshot")?;
+            serialize_catalog_file(snapshot).context("failed to serialize catalog snapshot")?;
 
         // NOTE: not sure if this should be done in a loop, i.e., what error variants from
         // the object store would warrant a retry.
@@ -270,7 +268,7 @@ impl ObjectStoreCatalog {
         let catalog_path = CatalogFilePath::checkpoint(&self.prefix);
 
         let content =
-            serialize_catalog_snapshot(snapshot).context("failed to serialize catalog snapshot")?;
+            serialize_catalog_file(snapshot).context("failed to serialize catalog snapshot")?;
 
         let store = Arc::clone(&self.store);
 
