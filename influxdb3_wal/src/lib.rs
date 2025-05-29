@@ -16,10 +16,12 @@ use influxdb_line_protocol::FieldValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::Time;
+use observability_deps::tracing::error;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::process;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -556,12 +558,26 @@ pub fn background_wal_flush<W: Wal>(
                     {
                         let snapshot_wal = Arc::clone(&wal);
                         tokio::spawn(async move {
-                            let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                            assert_eq!(snapshot_info, snapshot_details);
+                            let snapshot_details = snapshot_complete.await;
+                            match snapshot_details {
+                                Ok(snapshot_details) => {
+                                    if snapshot_info != snapshot_details {
+                                        drop(snapshot_permit);
+                                        panic!("snapshot details are different");
+                                    }
+                                    snapshot_wal
+                                        .cleanup_snapshot(snapshot_info, snapshot_permit)
+                                        .await;
 
-                            snapshot_wal
-                                .cleanup_snapshot(snapshot_info, snapshot_permit)
-                                .await;
+                                },
+                                Err(e) => {
+                                    drop(snapshot_permit);
+                                    error!(error = ?e, "snapshotting failed with error");
+                                    // shutdown the whole process if snapshot fails (defaulting to
+                                    // 137 as OOMs are the most common reason to fail at this point)
+                                    process::exit(137);
+                                }
+                            }
                         });
                     }
                 }
