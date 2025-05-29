@@ -89,6 +89,50 @@ _At some point this should be scripted so that versions etc are in sync between 
 
 [repos-commit]: https://github.com/influxdata/repos/pull/179/commits/fa0f8374e52ee86359efd00ce7dcb011d5ebb37a
 
+## Minor Releases
+
+- Create a new branch for the minor release version. So, if releasing `3.1.0`, create the `3.1`
+  branch. This can be done manually in Github from the [branches][gh-branches] page, or from the
+  command line:
+  ```sh
+  git checkout main   # new minor release branch should be off of main
+  git pull            # make sure `main` is up-to-date
+  git checkout -b 3.1 # create the new branch
+  git push            # push the new branch up to the remote
+  ```
+
+  [gh-branches]: https://github.com/influxdata/influxdb/branches
+
+- Create a new branch that will be used to update the version in `Cargo.toml`:
+  ```sh
+  git checkout -b 3.1/three-one-zero
+  ```
+
+- Update the `version` in `Cargo.toml` by removing the `-nightly`, to change it from `3.1.0-nightly`
+  to `3.1.0`.
+
+- Commit those changes, push, and open a PR from `3.1/three-one-zero` into `3.1`
+
+- Once that PR is merged, and CI is green on the `3.1` branch, then you can follow the same steps
+  in the [Point Releases](#point-releases) including and following tagging the release. Some special
+  consideration is needed when updating the official docker image. See the
+  [following section](#note-on-updating-Docker-Image-Repository-for-Minor-releases) for more detail
+  on that.
+
+- After completing the release of `3.1.0`, the version in `Cargo.toml` needs to be updated on the
+  `main` branch. Open a branch/PR into the `main` branch that updates the `version` in the
+  `Cargo.toml` file from `3.1.0-nightly` to `3.2.0-nightly` (or whatever the subsequent minor
+  version is).
+
+### Note on updating Docker Image Repository for Minor releases
+
+For the time being, we are only supporting the most recent released version of InfluxDB 3 Core.
+Therefore, when updating the official docker images repository, you do not need to preserve the tags
+for the previous version. You can see an example of the [commit][3-1-docker-commit] used when
+releasing `3.1`.
+
+[3-1-docker-commit]: https://github.com/docker-library/official-images/pull/19123/commits/0bcd57c914f0639c7c07b2dc018469794ac5d367
+
 ## Commit Tagging
 
 Annotated tags can be created with `git tag -a <tag_name> -m <description>`, e.g.,
