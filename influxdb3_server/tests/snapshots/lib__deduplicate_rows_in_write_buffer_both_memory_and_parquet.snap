@@ -1,0 +1,18 @@
+---
+source: influxdb3_server/tests/lib.rs
+expression: plan
+---
++---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                                            |
++---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | TableScan: bar projection=[time, value]                                                                                                                                                         |
+| physical_plan | ProjectionExec: expr=[time@0 as time, value@1 as value]                                                                                                                                         |
+|               |   DeduplicateExec: [time@0 ASC]                                                                                                                                                                 |
+|               |     SortPreservingMergeExec: [time@0 ASC, __chunk_order@2 ASC]                                                                                                                                  |
+|               |       UnionExec                                                                                                                                                                                 |
+|               |         SortExec: expr=[time@0 ASC, __chunk_order@2 ASC], preserve_partitioning=[false]                                                                                                         |
+|               |           RecordBatchesExec: chunks=1, projection=[time, value, __chunk_order]                                                                                                                  |
+|               |         SortExec: expr=[time@0 ASC, __chunk_order@2 ASC], preserve_partitioning=[false]                                                                                                         |
+|               |           ParquetExec: file_groups={1 group: [[test-node/dbs/foo-1/bar-0/1970-01-01/00-00/0000000003.parquet]]}, projection=[time, value, __chunk_order], output_ordering=[__chunk_order@2 ASC] |
+|               |                                                                                                                                                                                                 |
++---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
