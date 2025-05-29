@@ -1,0 +1,14 @@
+---
+source: influxdb3_server/tests/lib.rs
+expression: plan
+---
++---------------+-------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                |
++---------------+-------------------------------------------------------------------------------------+
+| logical_plan  | TableScan: bar projection=[time, val]                                               |
+| physical_plan | ProjectionExec: expr=[time@0 as time, val@1 as val]                                 |
+|               |   DeduplicateExec: [time@0 ASC]                                                     |
+|               |     SortExec: expr=[time@0 ASC, __chunk_order@2 ASC], preserve_partitioning=[false] |
+|               |       RecordBatchesExec: chunks=1, projection=[time, val, __chunk_order]            |
+|               |                                                                                     |
++---------------+-------------------------------------------------------------------------------------+
