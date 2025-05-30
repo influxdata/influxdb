@@ -57,7 +57,7 @@
   # The type of shard index to use for new shards.  The default is an in-memory index that is
   # recreated at startup.  A value of "tsi1" will use a disk based index that supports higher
   # cardinality datasets.
-  # index-version = "inmem"
+  index-version = "tsi1"
 
   # Trace logging provides more verbose output around the tsm engine. Turning
   # this on can provide more useful output for debugging tsm engine issues.

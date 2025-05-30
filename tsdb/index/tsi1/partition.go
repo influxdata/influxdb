@@ -1020,6 +1020,9 @@ func (p *Partition) compact() {
 
 	fs := p.retainFileSet()
 	defer fs.Release()
+	if len(fs.files) > 10 {
+		fmt.Printf("There are %d files in the fileset\n", len(fs.files))
+	}
 
 	// check if the current active log file should be rolled
 	if p.needsLogCompaction() {

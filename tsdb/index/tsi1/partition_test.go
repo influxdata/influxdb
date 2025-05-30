@@ -3,13 +3,14 @@ package tsi1_test
 import (
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
+	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"syscall"
 	"testing"
-
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
 func TestPartition_Open(t *testing.T) {
@@ -161,6 +162,199 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		if fileN != p.FileN() {
 			t.Fatalf("manifest write should have failed the compaction, but number of files changed: expected %d files, got %d files", fileN, p.FileN())
 		}
+	})
+}
+
+// Test case for https://github.com/influxdata/plutonium/issues/4217
+func TestPartition_Compact_Deadlock(t *testing.T) {
+	// TODO: Generate some log files (level0) and some index files
+	// I'll need to try and compact these files to the extent where it
+	// causes a deadlock as shown by the following better go playground
+	// https://goplay.tools/snippet/QKHQQPTBJUZ
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	// Opening a fresh index should set the MANIFEST version to current version.
+	p := NewPartition(sfile.SeriesFile)
+	t.Run("open new index", func(t *testing.T) {
+		if err := p.Open(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Check version set appropriately.
+		if got, exp := p.Manifest().Version, 1; got != exp {
+			t.Fatalf("got index version %d, expected %d", got, exp)
+		}
+	})
+
+	// Reopening an open index should return an error.
+	t.Run("reopen open index", func(t *testing.T) {
+		err := p.Open()
+		if err == nil {
+			p.Close()
+			t.Fatal("didn't get an error on reopen, but expected one")
+		}
+		p.Close()
+	})
+
+	t.Run("check for deadlocks while compacting tsl and tsi files", func(t *testing.T) {
+		p = NewPartition(sfile.SeriesFile)
+		err := p.Open()
+		require.NoError(t, err, "open new index")
+
+		var allFiles []string
+
+		fmt.Println("Creating 100 TSL files...")
+		for fileNum := 0; fileNum < 100; fileNum++ {
+			tempPath := filepath.Join(p.Path(), fmt.Sprintf(".temp_tsl_%d", fileNum))
+
+			tsiIndex := tsi1.NewIndex(sfile.SeriesFile, "",
+				tsi1.WithPath(tempPath),
+				tsi1.WithMaximumLogFileSize(1024*1024*1024), // Very large - prevent compaction
+				tsi1.WithLogFileBufferSize(4*1024),
+				tsi1.DisableFsync(),
+			)
+
+			if err := tsiIndex.Open(); err != nil {
+				t.Fatal(err)
+			}
+
+			seriesPerFile := 300
+			startIdx := fileNum * seriesPerFile
+			for i := startIdx; i < startIdx+seriesPerFile; i++ {
+				measurement := fmt.Sprintf("tsl_measurement_%d", i)
+				seriesKey := fmt.Sprintf("%s,host=server%d,tslfile=%d", measurement, i%20, fileNum)
+				tags := models.ParseTags([]byte(fmt.Sprintf("host=server%d,tslfile=%d", i%20, fileNum)))
+
+				if err := tsiIndex.CreateSeriesIfNotExists([]byte(seriesKey), []byte(measurement), tags, tsdb.NoopStatsTracker()); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			tsiIndex.Close()
+
+			tempFiles, _ := filepath.Glob(filepath.Join(tempPath, "*", "*.tsl"))
+			if len(tempFiles) > 0 {
+				newName := fmt.Sprintf("L0-%08d.tsl", fileNum)
+				dstPath := filepath.Join(p.Path(), newName)
+				os.Rename(tempFiles[0], dstPath)
+				allFiles = append(allFiles, newName)
+			}
+
+			os.RemoveAll(tempPath)
+
+			if fileNum%10 == 0 {
+				fmt.Printf("Created %d TSL files...\n", fileNum+1)
+			}
+		}
+
+		fmt.Println("Creating 200+ TSI files...")
+		tsiFileNum := 0
+
+		for batch := 0; batch < 100; batch++ { // 100 separate index instances
+			tempPath := filepath.Join(p.Path(), fmt.Sprintf(".temp_tsi_batch_%d", batch))
+
+			tsiIndex := tsi1.NewIndex(sfile.SeriesFile, "",
+				tsi1.WithPath(tempPath),
+				tsi1.WithMaximumLogFileSize(2*1024),
+				tsi1.WithLogFileBufferSize(1*1024),
+				tsi1.DisableFsync(),
+			)
+
+			if err := tsiIndex.Open(); err != nil {
+				t.Fatal(err)
+			}
+
+			for round := 0; round < 3; round++ {
+				batchSize := 200
+				keysBatch := make([][]byte, 0, batchSize)
+				namesBatch := make([][]byte, 0, batchSize)
+				tagsBatch := make([]models.Tags, 0, batchSize)
+
+				seriesPerRound := 2000
+				baseIdx := (batch*1000 + round*seriesPerRound) + 100000
+
+				for i := baseIdx; i < baseIdx+seriesPerRound; i++ {
+					measurement := fmt.Sprintf("tsi_measurement_%d", i)
+					seriesKey := fmt.Sprintf("%s,host=server%d,batch=%d,round=%d,region=r%d,dc=dc%d",
+						measurement, i%50, batch, round, i%20, i%15)
+					tags := models.ParseTags([]byte(fmt.Sprintf("host=server%d,batch=%d,round=%d,region=r%d,dc=dc%d",
+						i%50, batch, round, i%20, i%15)))
+
+					keysBatch = append(keysBatch, []byte(seriesKey))
+					namesBatch = append(namesBatch, []byte(measurement))
+					tagsBatch = append(tagsBatch, tags)
+
+					if len(keysBatch) == batchSize {
+						if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch, tsdb.NoopStatsTracker()); err != nil {
+							t.Fatal(err)
+						}
+						keysBatch = keysBatch[:0]
+						namesBatch = namesBatch[:0]
+						tagsBatch = tagsBatch[:0]
+					}
+				}
+
+				if len(keysBatch) > 0 {
+					if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch, tsdb.NoopStatsTracker()); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				tsiIndex.Compact()
+				tsiIndex.Wait()
+			}
+
+			tsiIndex.Close()
+
+			tempTSIFiles, _ := filepath.Glob(filepath.Join(tempPath, "*", "*.tsi"))
+
+			for _, srcPath := range tempTSIFiles {
+				level := "L1"
+				if tsiFileNum%4 == 1 {
+					level = "L2"
+				} else if tsiFileNum%4 == 2 {
+					level = "L3"
+				} else if tsiFileNum%4 == 3 {
+					level = "L4"
+				}
+
+				newName := fmt.Sprintf("%s-%08d.tsi", level, tsiFileNum)
+				dstPath := filepath.Join(p.Path(), newName)
+
+				if err := os.Rename(srcPath, dstPath); err != nil {
+					fmt.Printf("Error renaming %s to %s: %v\n", srcPath, dstPath, err)
+				} else {
+					allFiles = append(allFiles, newName)
+					tsiFileNum++
+				}
+			}
+
+			os.RemoveAll(tempPath)
+
+			if batch%10 == 0 {
+				fmt.Printf("Completed batch %d, total TSI files so far: %d\n", batch, tsiFileNum)
+			}
+		}
+
+		mpath := filepath.Join(p.Path(), tsi1.ManifestFileName)
+		m := tsi1.NewManifest(mpath)
+		m.Levels = nil
+		m.Version = 1
+		m.Files = allFiles
+
+		if _, err := m.Write(); err != nil {
+			t.Fatal(err)
+		}
+
+		fmt.Printf("FINAL RESULT: Created %d TSL files + %d TSI files = %d total files\n",
+			100, len(allFiles)-100, len(allFiles))
+
+		fmt.Println("Starting compaction!!!")
+		p.Compact()
+		fmt.Println("Finished compaction!!!")
+
+		p.Close()
 	})
 }
 

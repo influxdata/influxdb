@@ -128,7 +128,9 @@ func (f *IndexFile) Open() error {
 // Close unmaps the data file.
 func (f *IndexFile) Close() error {
 	// Wait until all references are released.
+	fmt.Println("waiting to close index file")
 	f.wg.Wait()
+	fmt.Println("closing index file")
 
 	f.sfile = nil
 	f.tblks = nil
