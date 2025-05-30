@@ -23,6 +23,7 @@ bitcode.workspace = true
 bytes.workspace = true
 byteorder.workspace = true
 crc32fast.workspace  = true
+futures.workspace = true
 futures-util.workspace = true
 hashbrown.workspace = true
 humantime.workspace = true
