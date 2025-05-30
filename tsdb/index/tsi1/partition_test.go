@@ -347,6 +347,10 @@ func TestPartition_Compact_Deadlock(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// TODO: I need to probably close the partition and re-open it so
+		// all the files are accounted for.
+		p.Close()
+		p.Open()
 		fmt.Printf("FINAL RESULT: Created %d TSL files + %d TSI files = %d total files\n",
 			100, len(allFiles)-100, len(allFiles))
 
