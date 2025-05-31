@@ -174,27 +174,26 @@ func TestPartition_Compact_Deadlock(t *testing.T) {
 	sfile := MustOpenSeriesFile()
 	defer sfile.Close()
 
-	// Opening a fresh index should set the MANIFEST version to current version.
 	p := NewPartition(sfile.SeriesFile)
 	t.Run("open new index", func(t *testing.T) {
 		if err := p.Open(); err != nil {
 			t.Fatal(err)
 		}
 
-		// Check version set appropriately.
 		if got, exp := p.Manifest().Version, 1; got != exp {
 			t.Fatalf("got index version %d, expected %d", got, exp)
 		}
 	})
 
-	// Reopening an open index should return an error.
 	t.Run("reopen open index", func(t *testing.T) {
 		err := p.Open()
 		if err == nil {
-			p.Close()
+			err := p.Close()
+			require.NoError(t, err, "error closing partition")
 			t.Fatal("didn't get an error on reopen, but expected one")
 		}
-		p.Close()
+		err = p.Close()
+		require.NoError(t, err, "error closing partition")
 	})
 
 	t.Run("check for deadlocks while compacting tsl and tsi files", func(t *testing.T) {
@@ -231,7 +230,8 @@ func TestPartition_Compact_Deadlock(t *testing.T) {
 				}
 			}
 
-			tsiIndex.Close()
+			err = tsiIndex.Close()
+			require.NoError(t, err, "error closing index")
 
 			tempFiles, _ := filepath.Glob(filepath.Join(tempPath, "*", "*.tsl"))
 			if len(tempFiles) > 0 {
@@ -349,16 +349,17 @@ func TestPartition_Compact_Deadlock(t *testing.T) {
 
 		// TODO: I need to probably close the partition and re-open it so
 		// all the files are accounted for.
-		p.Close()
-		p.Open()
 		fmt.Printf("FINAL RESULT: Created %d TSL files + %d TSI files = %d total files\n",
 			100, len(allFiles)-100, len(allFiles))
 
 		fmt.Println("Starting compaction!!!")
+		err = p.Reopen()
+		require.NoError(t, err, "Reopen failed")
 		p.Compact()
 		fmt.Println("Finished compaction!!!")
 
-		p.Close()
+		err = p.Close()
+		require.NoError(t, err, "partition close")
 	})
 }
 
