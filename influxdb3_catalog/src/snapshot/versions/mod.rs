@@ -11,13 +11,13 @@ use v3::{
     DatabaseActionsSnapshot, DatabaseSnapshot, DistinctCacheSnapshot, InfluxType,
     LastCacheSnapshot, NodeSnapshot, NodeStateSnapshot, PermissionSnapshot,
     ProcessingEngineTriggerSnapshot, RepositorySnapshot, ResourceIdentifierSnapshot,
-    ResourceTypeSnapshot, TableSnapshot, TokenInfoSnapshot,
+    ResourceTypeSnapshot, RetentionPeriodSnapshot, TableSnapshot, TokenInfoSnapshot,
 };
 
 use crate::{
     catalog::{
         ColumnDefinition, DatabaseSchema, InnerCatalog, NodeDefinition, NodeState, Repository,
-        TableDefinition, TokenRepository,
+        RetentionPeriod, TableDefinition, TokenRepository,
     },
     log::{
         DistinctCacheDefinition, LastCacheDefinition, LastCacheTtl, LastCacheValueColumnsDef,
@@ -288,13 +288,30 @@ impl Snapshot for NodeState {
             },
         }
     }
-
     fn from_snapshot(snap: Self::Serialized) -> Self {
         match snap {
             NodeStateSnapshot::Running { registered_time_ns } => {
                 Self::Running { registered_time_ns }
             }
             NodeStateSnapshot::Stopped { stopped_time_ns } => Self::Stopped { stopped_time_ns },
+        }
+    }
+}
+
+impl Snapshot for RetentionPeriod {
+    type Serialized = RetentionPeriodSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        match self {
+            Self::Indefinite => RetentionPeriodSnapshot::Indefinite,
+            Self::Duration(d) => RetentionPeriodSnapshot::Duration(*d),
+        }
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        match snap {
+            RetentionPeriodSnapshot::Indefinite => Self::Indefinite,
+            RetentionPeriodSnapshot::Duration(d) => Self::Duration(d),
         }
     }
 }
@@ -307,6 +324,7 @@ impl Snapshot for DatabaseSchema {
             id: self.id,
             name: Arc::clone(&self.name),
             tables: self.tables.snapshot(),
+            retention_period: Some(self.retention_period.snapshot()),
             processing_engine_triggers: self.processing_engine_triggers.snapshot(),
             deleted: self.deleted,
         }
@@ -317,6 +335,10 @@ impl Snapshot for DatabaseSchema {
             id: snap.id,
             name: snap.name,
             tables: Repository::from_snapshot(snap.tables),
+            retention_period: snap
+                .retention_period
+                .map(Snapshot::from_snapshot)
+                .unwrap_or(RetentionPeriod::Indefinite),
             processing_engine_triggers: Repository::from_snapshot(snap.processing_engine_triggers),
             deleted: snap.deleted,
         }

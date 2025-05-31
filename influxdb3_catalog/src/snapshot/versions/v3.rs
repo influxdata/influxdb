@@ -15,6 +15,7 @@ use influxdb3_id::{
 use schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TIMEZONE};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -100,10 +101,17 @@ pub(crate) struct NodeSnapshot {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub(crate) enum RetentionPeriodSnapshot {
+    Indefinite,
+    Duration(Duration),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct DatabaseSnapshot {
     pub(crate) id: DbId,
     pub(crate) name: Arc<str>,
     pub(crate) tables: RepositorySnapshot<TableId, TableSnapshot>,
+    pub(crate) retention_period: Option<RetentionPeriodSnapshot>,
     pub(crate) processing_engine_triggers:
         RepositorySnapshot<TriggerId, ProcessingEngineTriggerSnapshot>,
     pub(crate) deleted: bool,

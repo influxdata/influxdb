@@ -22,7 +22,11 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{CatalogError, Result, catalog::CatalogSequenceNumber, serialize::VersionedFileType};
+use crate::{
+    CatalogError, Result,
+    catalog::{CatalogSequenceNumber, RetentionPeriod},
+    serialize::VersionedFileType,
+};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum CatalogBatch {
@@ -179,6 +183,9 @@ pub enum DatabaseCatalogOp {
     DeleteTrigger(DeleteTriggerLog),
     EnableTrigger(TriggerIdentifier),
     DisableTrigger(TriggerIdentifier),
+    // Retention period ops:
+    SetRetentionPeriod(SetRetentionPeriodLog),
+    ClearRetentionPeriod(ClearRetentionPeriodLog),
 }
 
 impl DatabaseCatalogOp {
@@ -252,6 +259,19 @@ pub struct CreateTableLog {
     pub table_id: TableId,
     pub field_definitions: Vec<FieldDefinition>,
     pub key: Vec<ColumnId>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SetRetentionPeriodLog {
+    pub database_name: Arc<str>,
+    pub database_id: DbId,
+    pub retention_period: RetentionPeriod,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ClearRetentionPeriodLog {
+    pub database_name: Arc<str>,
+    pub database_id: DbId,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

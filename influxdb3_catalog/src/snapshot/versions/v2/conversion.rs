@@ -137,6 +137,7 @@ impl From<super::DatabaseSnapshot> for v3::DatabaseSnapshot {
             id: value.id,
             name: value.name,
             tables: value.tables.into(),
+            retention_period: None,
             processing_engine_triggers: value.processing_engine_triggers.into(),
             deleted: value.deleted,
         }

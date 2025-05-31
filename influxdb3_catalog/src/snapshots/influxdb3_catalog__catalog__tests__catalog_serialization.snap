@@ -2,6 +2,7 @@
 source: influxdb3_catalog/src/catalog.rs
 description: catalog serialization to help catch breaking changes
 expression: snapshot
+snapshot_kind: text
 ---
 {
   "nodes": {
@@ -19,6 +20,7 @@ expression: snapshot
             "repo": [],
             "next_id": 0
           },
+          "retention_period": "Indefinite",
           "processing_engine_triggers": {
             "repo": [],
             "next_id": 0
@@ -308,6 +310,7 @@ expression: snapshot
             ],
             "next_id": 2
           },
+          "retention_period": "Indefinite",
           "processing_engine_triggers": {
             "repo": [],
             "next_id": 0
