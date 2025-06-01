@@ -117,11 +117,14 @@ impl std::fmt::Display for LocalFileSystemWithSortedListOp {
 impl LocalFileSystemWithSortedListOp {
     fn new_with_prefix(prefix: impl AsRef<std::path::Path>) -> Result<Self, ParseError> {
         Ok(Self {
-            inner: Arc::new(LocalFileSystem::new_with_prefix(prefix.as_ref()).context(
-                CreateLocalFileSystemSnafu {
-                    path: prefix.as_ref().to_path_buf(),
-                },
-            )?),
+            inner: Arc::new(
+                LocalFileSystem::new_with_prefix(prefix.as_ref())
+                    .context(CreateLocalFileSystemSnafu {
+                        path: prefix.as_ref().to_path_buf(),
+                    })?
+                    // Clean up intermediate directories automatically.
+                    .with_automatic_cleanup(true),
+            ),
         })
     }
 }
