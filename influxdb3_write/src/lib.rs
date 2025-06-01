@@ -4,7 +4,9 @@
 //! data into parquet files that are persisted to object storage. A snapshot file is written that contains the
 //! metadata of the parquet files that were written in that snapshot.
 
+pub(crate) mod async_collections;
 pub mod chunk;
+pub mod deleter;
 pub mod paths;
 pub mod persister;
 pub mod write_buffer;

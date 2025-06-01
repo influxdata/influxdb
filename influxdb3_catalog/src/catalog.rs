@@ -41,6 +41,7 @@ mod metrics;
 mod update;
 use schema::sort::SortKey;
 pub use schema::{InfluxColumnType, InfluxFieldType};
+pub use update::HardDeletionTime;
 pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
 use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
@@ -123,6 +124,7 @@ pub struct Catalog {
     /// In-memory representation of the catalog
     pub(crate) inner: RwLock<InnerCatalog>,
     limits: CatalogLimits,
+    args: CatalogArgs,
 }
 
 /// Custom implementation of `Debug` for the `Catalog` type to avoid serializing the object store
@@ -148,6 +150,27 @@ impl CatalogState {
 
 const CATALOG_CHECKPOINT_INTERVAL: u64 = 100;
 
+#[derive(Clone, Copy, Debug)]
+pub struct CatalogArgs {
+    pub default_hard_delete_duration: Duration,
+}
+
+impl CatalogArgs {
+    pub fn new(default_hard_delete_duration: Duration) -> Self {
+        Self {
+            default_hard_delete_duration,
+        }
+    }
+}
+
+impl Default for CatalogArgs {
+    fn default() -> Self {
+        Self {
+            default_hard_delete_duration: Catalog::DEFAULT_HARD_DELETE_DURATION,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct CatalogLimits {
     num_dbs: usize,
@@ -172,12 +195,31 @@ impl Catalog {
     pub const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
     /// Limit for the number of tables across all DBs that InfluxDB 3 Core can have
     pub const NUM_TABLES_LIMIT: usize = 2000;
+    /// Default duration for hard deletion of soft-deleted databases and tables
+    pub const DEFAULT_HARD_DELETE_DURATION: Duration = Duration::from_secs(60 * 60 * 72); // 72 hours
 
     pub async fn new(
         node_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<Registry>,
+    ) -> Result<Self> {
+        Self::new_with_args(
+            node_id,
+            store,
+            time_provider,
+            metric_registry,
+            CatalogArgs::default(),
+        )
+        .await
+    }
+
+    pub async fn new_with_args(
+        node_id: impl Into<Arc<str>>,
+        store: Arc<dyn ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
+        args: CatalogArgs,
     ) -> Result<Self> {
         let node_id = node_id.into();
         let store =
@@ -197,6 +239,7 @@ impl Catalog {
                 metrics,
                 inner,
                 limits: Default::default(),
+                args,
             })?;
 
         create_internal_db(&catalog).await;
@@ -261,6 +304,10 @@ impl Catalog {
 
     fn num_columns_per_table_limit(&self) -> usize {
         self.limits.num_columns_per_table
+    }
+
+    fn default_hard_delete_duration(&self) -> Duration {
+        self.args.default_hard_delete_duration
     }
 
     pub fn object_store_prefix(&self) -> Arc<str> {
@@ -648,6 +695,31 @@ impl Catalog {
         Self::new(catalog_id.into(), store, time_provider, metric_registry).await
     }
 
+    /// Create new `Catalog` that uses an in-memory object store with additional configuration
+    /// arguments.
+    ///
+    /// # Note
+    ///
+    /// This is intended as a convenience constructor for testing
+    pub async fn new_in_memory_with_args(
+        catalog_id: impl Into<Arc<str>>,
+        time_provider: Arc<dyn TimeProvider>,
+        args: CatalogArgs,
+    ) -> Result<Self> {
+        use object_store::memory::InMemory;
+
+        let store = Arc::new(InMemory::new());
+        let metric_registry = Default::default();
+        Self::new_with_args(
+            catalog_id.into(),
+            store,
+            time_provider,
+            metric_registry,
+            args,
+        )
+        .await
+    }
+
     /// Create a new `Catalog` with the specified checkpoint interval
     ///
     /// # Note
@@ -673,6 +745,7 @@ impl Catalog {
             metric_registry,
             inner: RwLock::new(inner),
             limits: Default::default(),
+            args: Default::default(),
         };
 
         create_internal_db(&catalog).await;
@@ -1446,6 +1519,8 @@ impl UpdateDatabaseSchema for SoftDeleteTableLog {
             let table_name = make_new_name_using_deleted_time(&self.table_name, deletion_time);
             let new_table_def = Arc::make_mut(&mut deleted_table);
             new_table_def.deleted = true;
+            new_table_def.hard_delete_time =
+                self.hard_deletion_time.map(Time::from_timestamp_nanos);
             new_table_def.table_name = table_name;
             mut_schema
                 .tables
@@ -1636,6 +1711,8 @@ pub struct TableDefinition {
     pub distinct_caches: Repository<DistinctCacheId, DistinctCacheDefinition>,
     /// Whether this table has been set as deleted
     pub deleted: bool,
+    /// The time when the table is scheduled to be hard deleted.
+    pub hard_delete_time: Option<Time>,
 }
 
 impl TableDefinition {
@@ -1707,6 +1784,7 @@ impl TableDefinition {
             last_caches: Repository::new(),
             distinct_caches: Repository::new(),
             deleted: false,
+            hard_delete_time: None,
         })
     }
 
@@ -2534,7 +2612,10 @@ mod tests {
                 .deleted
         );
 
-        catalog.soft_delete_table("test", "boo").await.unwrap();
+        catalog
+            .soft_delete_table("test", "boo", HardDeletionTime::Never)
+            .await
+            .unwrap();
 
         assert!(
             catalog
@@ -2717,6 +2798,7 @@ mod tests {
             .soft_delete_table(
                 "test-db",
                 format!("test-table-{}", Catalog::NUM_TABLES_LIMIT - 1).as_str(),
+                HardDeletionTime::Never,
             )
             .await
             .unwrap();

@@ -249,6 +249,8 @@ pub struct SoftDeleteTableLog {
     pub table_id: TableId,
     pub table_name: Arc<str>,
     pub deletion_time: i64,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub hard_deletion_time: Option<i64>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

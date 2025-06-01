@@ -5,6 +5,7 @@ use influxdb3_authz::{
     Actions, CrudActions, DatabaseActions, Permission, ResourceIdentifier, ResourceType, TokenInfo,
 };
 use influxdb3_id::{CatalogId, TokenId};
+use iox_time::Time;
 use schema::{InfluxColumnType, InfluxFieldType};
 use v3::{
     ActionsSnapshot, CatalogSnapshot, ColumnDefinitionSnapshot, CrudActionsSnapshot,
@@ -363,6 +364,7 @@ impl Snapshot for TableDefinition {
             last_caches: self.last_caches.snapshot(),
             distinct_caches: self.distinct_caches.snapshot(),
             deleted: self.deleted,
+            hard_delete_time: self.hard_delete_time.as_ref().map(Time::timestamp_nanos),
         }
     }
 
@@ -407,6 +409,7 @@ impl Snapshot for TableDefinition {
             last_caches: Repository::from_snapshot(snap.last_caches),
             distinct_caches: Repository::from_snapshot(snap.distinct_caches),
             deleted: snap.deleted,
+            hard_delete_time: snap.hard_delete_time.map(Time::from_timestamp_nanos),
         }
     }
 }

@@ -675,7 +675,7 @@ mod tests {
     use executor::DedicatedExecutor;
     use futures_util::StreamExt;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
-    use influxdb3_catalog::catalog::CatalogSequenceNumber;
+    use influxdb3_catalog::catalog::{CatalogSequenceNumber, HardDeletionTime};
     use influxdb3_catalog::log::FieldDataType;
     use influxdb3_id::{ColumnId, DbId, ParquetFileId};
     use influxdb3_shutdown::ShutdownManager;
@@ -2218,7 +2218,10 @@ mod tests {
             .await
             .unwrap();
 
-        let result = write_buffer.catalog().soft_delete_table("foo", "cpu").await;
+        let result = write_buffer
+            .catalog()
+            .soft_delete_table("foo", "cpu", HardDeletionTime::Never)
+            .await;
 
         assert!(result.is_ok());
     }

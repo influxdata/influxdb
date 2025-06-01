@@ -901,6 +901,7 @@ mod v1_tests {
                             table_id: TableId::new(0),
                             table_name: "test-table".into(),
                             deletion_time: 10,
+                            hard_deletion_time: None,
                         },
                     ),
                     crate::log::DatabaseCatalogOp::AddFields(crate::log::AddFieldsLog {

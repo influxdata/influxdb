@@ -27,6 +27,7 @@ use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
 use influxdb3_cache::distinct_cache;
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
+use influxdb3_catalog::catalog::HardDeletionTime;
 use influxdb3_catalog::log::FieldDataType;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_process::{
@@ -1323,7 +1324,8 @@ impl HttpApi {
         let delete_req = serde_urlencoded::from_str::<DeleteTableRequest>(query)?;
         self.write_buffer
             .catalog()
-            .soft_delete_table(&delete_req.db, &delete_req.table)
+            // NOTE(sgc): Until delete is implemented, default to no hard delete time.
+            .soft_delete_table(&delete_req.db, &delete_req.table, HardDeletionTime::Never)
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
