@@ -6,7 +6,6 @@ use crate::plugins::{PluginError, ProcessingEngineEnvironmentManager};
 use anyhow::Context;
 use bytes::Bytes;
 use hashbrown::HashMap;
-use hyper::{Body, Response};
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::channel::CatalogUpdateReceiver;
@@ -23,6 +22,7 @@ use influxdb3_types::http::{
 };
 use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier};
 use influxdb3_write::WriteBuffer;
+use iox_http_util::Response;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, warn};
 use parking_lot::Mutex;
@@ -587,7 +587,7 @@ impl ProcessingEngineManagerImpl {
         query_params: HashMap<String, String>,
         request_headers: HashMap<String, String>,
         request_body: Bytes,
-    ) -> Result<Response<Body>, ProcessingEngineError> {
+    ) -> Result<Response, ProcessingEngineError> {
         // oneshot channel for the response
         let (tx, rx) = oneshot::channel();
         let request = Request {
@@ -663,7 +663,7 @@ pub(crate) struct Request {
     pub query_params: HashMap<String, String>,
     pub headers: HashMap<String, String>,
     pub body: Bytes,
-    pub response_tx: oneshot::Sender<Response<Body>>,
+    pub response_tx: oneshot::Sender<Response>,
 }
 
 fn background_catalog_update(

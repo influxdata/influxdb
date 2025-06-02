@@ -16,6 +16,7 @@ futures-util.workspace = true
 humantime.workspace = true
 hashbrown.workspace = true
 hyper.workspace = true
+iox_http_util.workspace = true
 iox_time.workspace = true
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_client = { path = "../influxdb3_client" }

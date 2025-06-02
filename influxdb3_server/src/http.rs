@@ -20,7 +20,7 @@ use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
 use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
-use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::{Method, StatusCode};
 use influxdb_influxql_parser::select::GroupByClause;
 use influxdb_influxql_parser::statement::Statement;
 use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
@@ -43,6 +43,10 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
 use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
+use iox_http_util::{
+    Request, Response, ResponseBody, ResponseBuilder, bytes_to_response_body, empty_response_body,
+    stream_results_to_response_body,
+};
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
@@ -261,26 +265,26 @@ struct ErrorMessage<T: Serialize> {
 }
 
 trait IntoResponse {
-    fn into_response(self) -> Response<Body>;
+    fn into_response(self) -> Response;
 }
 
 impl IntoResponse for CatalogError {
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         match self {
-            Self::NotFound => Response::builder()
+            Self::NotFound => ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            Self::AlreadyExists | Self::AlreadyDeleted => Response::builder()
+            Self::AlreadyExists | Self::AlreadyDeleted => ResponseBuilder::new()
                 .status(StatusCode::CONFLICT)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType
-            | Self::InvalidColumnType { .. } => Response::builder()
+            | Self::InvalidColumnType { .. } => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::TooManyColumns(_)
             | Self::TooManyTables(_)
@@ -291,15 +295,15 @@ impl IntoResponse for CatalogError {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
-                Response::builder()
+                let body = bytes_to_response_body(serialized);
+                ResponseBuilder::new()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(body)
                     .unwrap()
             }
             _ => {
-                let body = Body::from(self.to_string());
-                Response::builder()
+                let body = bytes_to_response_body(self.to_string());
+                ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(body)
                     .unwrap()
@@ -310,28 +314,32 @@ impl IntoResponse for CatalogError {
 
 impl IntoResponse for Error {
     /// Convert this error into an HTTP [`Response`]
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         debug!(error = ?self, "API error");
         match self {
-            Self::Catalog(err @ CatalogError::CannotDeleteOperatorToken) => Response::builder()
+            Self::Catalog(err @ CatalogError::CannotDeleteOperatorToken) => ResponseBuilder::new()
                 .status(StatusCode::METHOD_NOT_ALLOWED)
-                .body(Body::from(err.to_string()))
+                .body(bytes_to_response_body(err.to_string()))
                 .unwrap(),
-            Self::Catalog(err @ CatalogError::TokenNameAlreadyExists { .. }) => Response::builder()
-                .status(StatusCode::CONFLICT)
-                .body(Body::from(err.to_string()))
-                .unwrap(),
+            Self::Catalog(err @ CatalogError::TokenNameAlreadyExists { .. }) => {
+                ResponseBuilder::new()
+                    .status(StatusCode::CONFLICT)
+                    .body(bytes_to_response_body(err.to_string()))
+                    .unwrap()
+            }
             Self::Catalog(err) | Self::WriteBuffer(WriteBufferError::CatalogUpdateError(err)) => {
                 err.into_response()
             }
-            Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => Response::builder()
-                .status(StatusCode::METHOD_NOT_ALLOWED)
-                .body(Body::from(err.to_string()))
-                .unwrap(),
+            Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => {
+                ResponseBuilder::new()
+                    .status(StatusCode::METHOD_NOT_ALLOWED)
+                    .body(bytes_to_response_body(err.to_string()))
+                    .unwrap()
+            }
             Self::WriteBuffer(err @ WriteBufferError::DatabaseNotFound { db_name: _ }) => {
-                Response::builder()
+                ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(err.to_string()))
+                    .body(bytes_to_response_body(err.to_string()))
                     .unwrap()
             }
             Self::WriteBuffer(
@@ -339,13 +347,13 @@ impl IntoResponse for Error {
                     db_name: _,
                     table_name: _,
                 },
-            ) => Response::builder()
+            ) => ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::from(err.to_string()))
+                .body(bytes_to_response_body(err.to_string()))
                 .unwrap(),
-            Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => Response::builder()
+            Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(err.to_string()))
+                .body(bytes_to_response_body(err.to_string()))
                 .unwrap(),
             Self::WriteBuffer(WriteBufferError::ParseError(err)) => {
                 let err = ErrorMessage {
@@ -353,15 +361,15 @@ impl IntoResponse for Error {
                     data: Some(err),
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
-                Response::builder()
+                let body = bytes_to_response_body(serialized);
+                ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
                     .unwrap()
             }
-            Self::WriteBuffer(err @ WriteBufferError::EmptyWrite) => Response::builder()
+            Self::WriteBuffer(err @ WriteBufferError::EmptyWrite) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(err.to_string()))
+                .body(bytes_to_response_body(err.to_string()))
                 .unwrap(),
             Self::WriteBuffer(err @ WriteBufferError::ColumnDoesNotExist(_)) => {
                 let err: ErrorMessage<()> = ErrorMessage {
@@ -369,8 +377,8 @@ impl IntoResponse for Error {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
-                Response::builder()
+                let body = bytes_to_response_body(serialized);
+                ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
                     .unwrap()
@@ -383,13 +391,13 @@ impl IntoResponse for Error {
                 | last_cache::Error::KeyColumnDoesNotExist { .. }
                 | last_cache::Error::KeyColumnDoesNotExistByName { .. }
                 | last_cache::Error::InvalidKeyColumn { .. }
-                | last_cache::Error::ValueColumnDoesNotExist { .. } => Response::builder()
+                | last_cache::Error::ValueColumnDoesNotExist { .. } => ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from(lc_err.to_string()))
+                    .body(bytes_to_response_body(lc_err.to_string()))
                     .unwrap(),
-                last_cache::Error::CacheDoesNotExist => Response::builder()
+                last_cache::Error::CacheDoesNotExist => ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(self.to_string()))
+                    .body(bytes_to_response_body(self.to_string()))
                     .unwrap(),
             },
             Self::WriteBuffer(WriteBufferError::DistinctCacheError(ref mc_err)) => match mc_err {
@@ -397,23 +405,23 @@ impl IntoResponse for Error {
                     distinct_cache::CacheError::EmptyColumnSet
                     | distinct_cache::CacheError::NonTagOrStringColumn { .. }
                     | distinct_cache::CacheError::ConfigurationMismatch { .. } => {
-                        Response::builder()
+                        ResponseBuilder::new()
                             .status(StatusCode::BAD_REQUEST)
-                            .body(Body::from(mc_err.to_string()))
+                            .body(bytes_to_response_body(mc_err.to_string()))
                             .unwrap()
                     }
-                    distinct_cache::CacheError::Unexpected(_) => Response::builder()
+                    distinct_cache::CacheError::Unexpected(_) => ResponseBuilder::new()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::from(mc_err.to_string()))
+                        .body(bytes_to_response_body(mc_err.to_string()))
                         .unwrap(),
                 },
-                distinct_cache::ProviderError::CacheNotFound => Response::builder()
+                distinct_cache::ProviderError::CacheNotFound => ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(mc_err.to_string()))
+                    .body(bytes_to_response_body(mc_err.to_string()))
                     .unwrap(),
-                distinct_cache::ProviderError::Unexpected(_) => Response::builder()
+                distinct_cache::ProviderError::Unexpected(_) => ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Body::from(mc_err.to_string()))
+                    .body(bytes_to_response_body(mc_err.to_string()))
                     .unwrap(),
             },
             Self::DbName(e) => {
@@ -422,8 +430,8 @@ impl IntoResponse for Error {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
-                Response::builder()
+                let body = bytes_to_response_body(serialized);
+                ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
                     .body(body)
                     .unwrap()
@@ -441,8 +449,8 @@ impl IntoResponse for Error {
                     data: Some(data.invalid_lines),
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
-                Response::builder()
+                let body = bytes_to_response_body(serialized);
+                ResponseBuilder::new()
                     .status(if limit_hit {
                         StatusCode::UNPROCESSABLE_ENTITY
                     } else {
@@ -457,8 +465,8 @@ impl IntoResponse for Error {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
-                Response::builder()
+                let body = bytes_to_response_body(serialized);
+                ResponseBuilder::new()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
                     .body(body)
                     .unwrap()
@@ -469,38 +477,38 @@ impl IntoResponse for Error {
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
-                Response::builder()
+                let body = bytes_to_response_body(serialized);
+                ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
                     .body(body)
                     .unwrap()
             }
-            Self::SerdeJson(_) => Response::builder()
+            Self::SerdeJson(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            Self::InvalidContentEncoding(_) => Response::builder()
+            Self::InvalidContentEncoding(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            Self::InvalidContentType { .. } => Response::builder()
+            Self::InvalidContentType { .. } => ResponseBuilder::new()
                 .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            Self::SerdeUrlDecoding(_) => Response::builder()
+            Self::SerdeUrlDecoding(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::MissingQueryParams
             | Self::MissingQueryV1Params
             | Self::MissingWriteParams
-            | Self::MissingDeleteDatabaseParams => Response::builder()
+            | Self::MissingDeleteDatabaseParams => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(self.to_string()))
+                .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             _ => {
-                let body = Body::from(self.to_string());
-                Response::builder()
+                let body = bytes_to_response_body(self.to_string());
+                ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(body)
                     .unwrap()
@@ -551,7 +559,7 @@ impl HttpApi {
 }
 
 impl HttpApi {
-    async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn write_lp(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
         self.write_lp_inner(params, req, false).await
@@ -560,9 +568,9 @@ impl HttpApi {
     async fn write_lp_inner(
         &self,
         params: WriteParams,
-        req: Request<Body>,
+        req: Request,
         accept_rp: bool,
-    ) -> Result<Response<Body>> {
+    ) -> Result<Response> {
         validate_db_name(&params.db, accept_rp)?;
         let body = self.read_body(req).await?;
         let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
@@ -590,37 +598,31 @@ impl HttpApi {
             .add_write_metrics(num_lines, payload_size);
 
         if result.invalid_lines.is_empty() {
-            Response::builder()
+            ResponseBuilder::new()
                 .status(StatusCode::NO_CONTENT)
-                .body(Body::empty())
+                .body(empty_response_body())
                 .map_err(Into::into)
         } else {
             Err(Error::PartialLpWrite(result))
         }
     }
 
-    pub(crate) async fn create_admin_token(
-        &self,
-        _req: Request<Body>,
-    ) -> Result<Response<Body>, Error> {
+    pub(crate) async fn create_admin_token(&self, _req: Request) -> Result<Response, Error> {
         let catalog = self.write_buffer.catalog();
         let (token_info, token) = catalog.create_admin_token(false).await?;
 
         let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
         let body = serde_json::to_vec(&response)?;
 
-        let body = Response::builder()
+        let body = ResponseBuilder::new()
             .status(StatusCode::CREATED)
             .header(CONTENT_TYPE, "json")
-            .body(Body::from(body));
+            .body(bytes_to_response_body(body));
 
         Ok(body?)
     }
 
-    pub(crate) async fn create_named_admin_token(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>, Error> {
+    pub(crate) async fn create_named_admin_token(&self, req: Request) -> Result<Response, Error> {
         let token_request: CreateNamedAdminTokenRequest = self.read_body_json(req).await?;
         let catalog = self.write_buffer.catalog();
         let (token_info, token) = catalog
@@ -633,33 +635,30 @@ impl HttpApi {
         let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
         let body = serde_json::to_vec(&response)?;
 
-        let body = Response::builder()
+        let body = ResponseBuilder::new()
             .status(StatusCode::CREATED)
             .header(CONTENT_TYPE, "json")
-            .body(Body::from(body));
+            .body(bytes_to_response_body(body));
 
         Ok(body?)
     }
 
-    pub(crate) async fn regenerate_admin_token(
-        &self,
-        _req: Request<Body>,
-    ) -> Result<Response<Body>, Error> {
+    pub(crate) async fn regenerate_admin_token(&self, _req: Request) -> Result<Response, Error> {
         let catalog = self.write_buffer.catalog();
         let (token_info, token) = catalog.create_admin_token(true).await?;
 
         let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
         let body = serde_json::to_vec(&response)?;
 
-        let body = Response::builder()
+        let body = ResponseBuilder::new()
             .status(StatusCode::CREATED)
             .header(CONTENT_TYPE, "json")
-            .body(Body::from(body));
+            .body(bytes_to_response_body(body));
 
         Ok(body?)
     }
 
-    async fn query_sql(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn query_sql(&self, req: Request) -> Result<Response> {
         let QueryRequest {
             database,
             query_str,
@@ -678,14 +677,14 @@ impl HttpApi {
             .query_sql(&database, &query_str, params, span_ctx, None)
             .await?;
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, format.as_content_type())
             .body(record_batch_stream_to_body(stream, format).await?)
             .map_err(Into::into)
     }
 
-    async fn query_influxql(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn query_influxql(&self, req: Request) -> Result<Response> {
         let QueryRequest {
             database,
             query_str,
@@ -698,19 +697,21 @@ impl HttpApi {
             .query_influxql_inner(database, &query_str, params)
             .await?;
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, format.as_content_type())
             .body(record_batch_stream_to_body(stream, format).await?)
             .map_err(Into::into)
     }
 
-    fn health(&self) -> Result<Response<Body>> {
+    fn health(&self) -> Result<Response> {
         let response_body = "OK";
-        Ok(Response::new(Body::from(response_body.to_string())))
+        Ok(Response::new(bytes_to_response_body(
+            response_body.to_string(),
+        )))
     }
 
-    fn ping(&self) -> Result<Response<Body>> {
+    fn ping(&self) -> Result<Response> {
         let body = serde_json::to_string(&PingResponse {
             version: INFLUXDB3_VERSION.to_string(),
             revision: INFLUXDB3_GIT_HASH_SHORT.to_string(),
@@ -720,28 +721,28 @@ impl HttpApi {
         // InfluxDB 1.x used time-based UUIDs.
         let request_id = Uuid::now_v7().as_hyphenated().to_string();
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, "application/json")
             .header("Request-Id", request_id.clone())
             .header("X-Influxdb-Build", INFLUXDB3_BUILD.to_string())
             .header("X-Influxdb-Version", INFLUXDB3_VERSION.to_string())
             .header("X-Request-Id", request_id)
-            .body(Body::from(body))
+            .body(bytes_to_response_body(body))
             .map_err(Into::into)
     }
 
-    fn handle_metrics(&self) -> Result<Response<Body>> {
+    fn handle_metrics(&self) -> Result<Response> {
         let mut body: Vec<u8> = Default::default();
         let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
         self.common_state.metrics.report(&mut reporter);
 
-        Ok(Response::new(Body::from(body)))
+        Ok(Response::new(bytes_to_response_body(body)))
     }
 
     /// Parse the request's body into raw bytes, applying the configured size
     /// limits and decoding any content encoding.
-    async fn read_body(&self, req: hyper::Request<Body>) -> Result<Bytes> {
+    async fn read_body(&self, req: Request) -> Result<Bytes> {
         let encoding = req
             .headers()
             .get(&CONTENT_ENCODING)
@@ -796,10 +797,7 @@ impl HttpApi {
         Ok(decoded_data.into())
     }
 
-    async fn authenticate_request(
-        &self,
-        req: &mut Request<Body>,
-    ) -> Result<(), AuthenticationError> {
+    async fn authenticate_request(&self, req: &mut Request) -> Result<(), AuthenticationError> {
         // Extend the request with the authorization token; this is used downstream in some
         // APIs, such as write, that need the full header value to authorize a request.
         let auth_header = req.headers().get(AUTHORIZATION).cloned();
@@ -836,7 +834,7 @@ impl HttpApi {
 
     async fn extract_query_request<D: DeserializeOwned>(
         &self,
-        req: Request<Body>,
+        req: Request,
     ) -> Result<QueryRequest<D, QueryFormat, StatementParams>> {
         let header_format = QueryFormat::try_from_headers(req.headers())?;
         let request = match *req.method() {
@@ -934,7 +932,7 @@ impl HttpApi {
     /// If the result is to create a cache that already exists, with the same configuration, this
     /// will respond with a 204 NOT CREATED. If an existing cache would be overwritten with a
     /// different configuration, that is a 400 BAD REQUEST
-    async fn configure_distinct_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn configure_distinct_cache_create(&self, req: Request) -> Result<Response> {
         let args = self.read_body_json(req).await?;
         info!(?args, "create distinct value cache request");
         let DistinctCacheCreateRequest {
@@ -958,9 +956,9 @@ impl HttpApi {
             )
             .await
         {
-            Ok(batch) => Response::builder()
+            Ok(batch) => ResponseBuilder::new()
                 .status(StatusCode::CREATED)
-                .body(Body::from(serde_json::to_vec(&batch)?))
+                .body(bytes_to_response_body(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
         }
@@ -969,7 +967,7 @@ impl HttpApi {
     /// Delete a distinct value cache entry with the given [`DistinctCacheDeleteRequest`] parameters
     ///
     /// The parameters must be passed in either the query string or the body of the request as JSON.
-    async fn configure_distinct_cache_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn configure_distinct_cache_delete(&self, req: Request) -> Result<Response> {
         let DistinctCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query()
         {
             serde_urlencoded::from_str(query)?
@@ -982,13 +980,13 @@ impl HttpApi {
             .delete_distinct_cache(&db, &table, &name)
             .await?;
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .map_err(Into::into)
     }
 
-    async fn configure_last_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn configure_last_cache_create(&self, req: Request) -> Result<Response> {
         let LastCacheCreateRequest {
             db,
             table,
@@ -1012,9 +1010,9 @@ impl HttpApi {
             )
             .await
         {
-            Ok(batch) => Response::builder()
+            Ok(batch) => ResponseBuilder::new()
                 .status(StatusCode::CREATED)
-                .body(Body::from(serde_json::to_vec(&batch)?))
+                .body(bytes_to_response_body(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
         }
@@ -1024,7 +1022,7 @@ impl HttpApi {
     ///
     /// This will first attempt to parse the parameters from the URI query string, if a query string
     /// is provided, but if not, will attempt to parse them from the request body as JSON.
-    async fn configure_last_cache_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn configure_last_cache_delete(&self, req: Request) -> Result<Response> {
         let LastCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
@@ -1036,16 +1034,13 @@ impl HttpApi {
             .delete_last_cache(&db, &table, &name)
             .await?;
 
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .map_err(Into::into)
     }
 
-    async fn configure_processing_engine_trigger(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
+    async fn configure_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let ProcessingEngineTriggerCreateRequest {
             db,
             plugin_filename,
@@ -1077,12 +1072,12 @@ impl HttpApi {
                 disabled,
             )
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(empty_response_body())?)
     }
 
-    async fn delete_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn delete_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let ProcessingEngineTriggerDeleteRequest {
             db,
             trigger_name,
@@ -1096,15 +1091,12 @@ impl HttpApi {
             .catalog()
             .delete_processing_engine_trigger(&db, &trigger_name, force)
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(empty_response_body())?)
     }
 
-    async fn disable_processing_engine_trigger(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
+    async fn disable_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let ProcessingEngineTriggerIdentifier { db, trigger_name } =
             serde_urlencoded::from_str(query)?;
@@ -1114,14 +1106,14 @@ impl HttpApi {
             .disable_processing_engine_trigger(&db, &trigger_name)
             .await
         {
-            Ok(_) | Err(CatalogError::TriggerAlreadyDisabled) => Ok(Response::builder()
+            Ok(_) | Err(CatalogError::TriggerAlreadyDisabled) => Ok(ResponseBuilder::new()
                 .status(StatusCode::OK)
-                .body(Body::empty())?),
+                .body(empty_response_body())?),
             Err(error) => Err(error.into()),
         }
     }
 
-    async fn enable_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn enable_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let ProcessingEngineTriggerIdentifier { db, trigger_name } =
             serde_urlencoded::from_str(query)?;
@@ -1131,17 +1123,14 @@ impl HttpApi {
             .enable_processing_engine_trigger(&db, &trigger_name)
             .await
         {
-            Ok(_) | Err(CatalogError::TriggerAlreadyEnabled) => Ok(Response::builder()
+            Ok(_) | Err(CatalogError::TriggerAlreadyEnabled) => Ok(ResponseBuilder::new()
                 .status(StatusCode::OK)
-                .body(Body::empty())?),
+                .body(empty_response_body())?),
             Err(error) => Err(error.into()),
         }
     }
 
-    async fn install_plugin_environment_packages(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
+    async fn install_plugin_environment_packages(&self, req: Request) -> Result<Response> {
         let ProcessingEngineInstallPackagesRequest { packages } =
             if let Some(query) = req.uri().query() {
                 serde_urlencoded::from_str(query)?
@@ -1153,15 +1142,12 @@ impl HttpApi {
             .install_packages(packages)
             .map_err(ProcessingEngineError::from)?;
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(empty_response_body())?)
     }
 
-    async fn install_plugin_environment_requirements(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
+    async fn install_plugin_environment_requirements(&self, req: Request) -> Result<Response> {
         let ProcessingEngineInstallRequirementsRequest {
             requirements_location,
         } = if let Some(query) = req.uri().query() {
@@ -1178,39 +1164,36 @@ impl HttpApi {
             .install_requirements(requirements_location)
             .map_err(ProcessingEngineError::from)?;
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(empty_response_body())?)
     }
 
-    async fn show_databases(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn show_databases(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let ShowDatabasesRequest {
             format,
             show_deleted,
         } = serde_urlencoded::from_str(query)?;
         let stream = self.query_executor.show_databases(show_deleted)?;
-        Response::builder()
+        ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, format.as_content_type())
             .body(record_batch_stream_to_body(stream, format).await?)
             .map_err(Into::into)
     }
 
-    async fn create_database(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn create_database(&self, req: Request) -> Result<Response> {
         let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
         self.write_buffer.catalog().create_database(&db).await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
     /// Endpoint for testing a plugin that will be trigger on WAL writes.
-    async fn test_processing_engine_wal_plugin(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
+    async fn test_processing_engine_wal_plugin(&self, req: Request) -> Result<Response> {
         let request: influxdb3_types::http::WalPluginTestRequest = self.read_body_json(req).await?;
 
         let output = self
@@ -1219,15 +1202,12 @@ impl HttpApi {
             .await?;
         let body = serde_json::to_string(&output)?;
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::from(body))?)
+            .body(bytes_to_response_body(body))?)
     }
 
-    async fn test_processing_engine_schedule_plugin(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
+    async fn test_processing_engine_schedule_plugin(&self, req: Request) -> Result<Response> {
         let request: influxdb3_types::http::SchedulePluginTestRequest =
             self.read_body_json(req).await?;
 
@@ -1237,16 +1217,16 @@ impl HttpApi {
             .await?;
         let body = serde_json::to_string(&output)?;
 
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::from(body))?)
+            .body(bytes_to_response_body(body))?)
     }
 
     async fn processing_engine_request_plugin(
         &self,
         trigger_path: &str,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
+        req: Request,
+    ) -> Result<Response> {
         use hashbrown::HashMap;
 
         // pull out the query params into a hashmap
@@ -1279,28 +1259,28 @@ impl HttpApi {
                 influxdb3_processing_engine::manager::ProcessingEngineError::RequestTriggerNotFound,
             ) => {
                 let body = "{error: \"not found\"}";
-                Ok(Response::builder()
+                Ok(ResponseBuilder::new()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(body))?)
+                    .body(bytes_to_response_body(body))?)
             }
             Err(e) => Err(e.into()),
         }
     }
 
-    async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn delete_database(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
         self.write_buffer
             .catalog()
             .soft_delete_database(&delete_req.db)
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
-    async fn create_table(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn create_table(&self, req: Request) -> Result<Response> {
         let CreateTableRequest {
             db,
             table,
@@ -1319,42 +1299,39 @@ impl HttpApi {
                     .collect::<Vec<(String, FieldDataType)>>(),
             )
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
-    async fn delete_table(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn delete_table(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteTableRequest>(query)?;
         self.write_buffer
             .catalog()
             .soft_delete_table(&delete_req.db, &delete_req.table)
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
-    async fn delete_token(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn delete_token(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<TokenDeleteRequest>(query)?;
         self.write_buffer
             .catalog()
             .delete_token(&delete_req.token_name)
             .await?;
-        Ok(Response::builder()
+        Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(Body::empty())
+            .body(empty_response_body())
             .unwrap())
     }
 
-    async fn read_body_json<ReqBody: DeserializeOwned>(
-        &self,
-        req: hyper::Request<Body>,
-    ) -> Result<ReqBody> {
+    async fn read_body_json<ReqBody: DeserializeOwned>(&self, req: Request) -> Result<ReqBody> {
         if !json_content_type(req.headers()) {
             return Err(Error::InvalidContentType {
                 expected: mime::APPLICATION_JSON,
@@ -1397,7 +1374,7 @@ struct V1AuthParameters {
 
 /// Extract the authentication token for v1 API requests, which may use the `p` query
 /// parameter to pass the authentication token.
-fn extract_v1_auth_token(req: &mut Request<Body>) -> Option<Vec<u8>> {
+fn extract_v1_auth_token(req: &mut Request) -> Option<Vec<u8>> {
     req.uri()
         .path_and_query()
         .and_then(|pq| match pq.path() {
@@ -1547,11 +1524,11 @@ pub enum ValidateDbNameError {
 async fn record_batch_stream_to_body(
     mut stream: Pin<Box<dyn RecordBatchStream + Send>>,
     format: QueryFormat,
-) -> Result<Body, Error> {
+) -> Result<ResponseBody, Error> {
     match format {
         QueryFormat::Pretty => {
             let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
-            Ok(Body::from(Bytes::from(format!(
+            Ok(bytes_to_response_body(Bytes::from(format!(
                 "{}",
                 pretty::pretty_format_batches(&batches)?
             ))))
@@ -1559,7 +1536,7 @@ async fn record_batch_stream_to_body(
         QueryFormat::Parquet => {
             // Grab the first batch so that we can get the schema
             let Some(batch) = stream.next().await.transpose()? else {
-                return Ok(Body::empty());
+                return Ok(empty_response_body());
             };
             let schema = batch.schema();
 
@@ -1573,7 +1550,7 @@ async fn record_batch_stream_to_body(
                 writer.write(batch)?;
             }
             writer.close()?;
-            Ok(Body::from(Bytes::from(bytes)))
+            Ok(bytes_to_response_body(Bytes::from(bytes)))
         }
         QueryFormat::Csv => {
             struct CsvFuture {
@@ -1618,9 +1595,9 @@ async fn record_batch_stream_to_body(
                 first_poll: true,
                 stream,
             };
-            Ok(Body::wrap_stream(futures::stream::poll_fn(move |ctx| {
-                future.poll_unpin(ctx)
-            })))
+            Ok(stream_results_to_response_body(futures::stream::poll_fn(
+                move |ctx| future.poll_unpin(ctx),
+            )))
         }
         QueryFormat::Json => {
             struct JsonFuture {
@@ -1715,9 +1692,9 @@ async fn record_batch_stream_to_body(
                 state: State::FirstPoll,
                 stream,
             };
-            Ok(Body::wrap_stream(futures::stream::poll_fn(move |ctx| {
-                future.poll_unpin(ctx)
-            })))
+            Ok(stream_results_to_response_body(futures::stream::poll_fn(
+                move |ctx| future.poll_unpin(ctx),
+            )))
         }
         QueryFormat::JsonLines => {
             let stream = futures::stream::poll_fn(move |ctx| match stream.poll_next_unpin(ctx) {
@@ -1739,17 +1716,17 @@ async fn record_batch_stream_to_body(
                 Poll::Ready(None) => Poll::Ready(None),
                 Poll::Pending => Poll::Pending,
             });
-            Ok(Body::wrap_stream(stream))
+            Ok(stream_results_to_response_body(stream))
         }
     }
 }
 
 pub(crate) async fn route_request(
     http_server: Arc<HttpApi>,
-    mut req: Request<Body>,
+    mut req: Request,
     started_without_auth: bool,
     paths_without_authz: &'static Vec<&'static str>,
-) -> Result<Response<Body>, Infallible> {
+) -> Result<Response, Infallible> {
     let method = req.method().clone();
     let uri = req.uri().clone();
 
@@ -1762,18 +1739,18 @@ pub(crate) async fn route_request(
     // the browser will not send a request with an auth header for CORS.
     if let Method::OPTIONS = method {
         info!(?uri, "preflight request");
-        return Ok(Response::builder()
+        return Ok(ResponseBuilder::new()
             .header("Access-Control-Allow-Origin", "*")
             .header("Access-Control-Allow-Methods", "*")
             .header("Access-Control-Allow-Headers", "*")
             .header("Access-Control-Max-Age", "86400")
             .status(204)
-            .body(Body::empty())
+            .body(empty_response_body())
             .expect("Able to always create a valid response type for CORS"));
     }
 
     if started_without_auth && uri.path().starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
-        return Ok(Response::builder()
+        return Ok(ResponseBuilder::new()
             .status(StatusCode::METHOD_NOT_ALLOWED)
             .body("endpoint disabled, started without auth".into())
             .unwrap());
@@ -1889,8 +1866,8 @@ pub(crate) async fn route_request(
                 .await
         }
         _ => {
-            let body = Body::from("not found");
-            Ok(Response::builder()
+            let body = bytes_to_response_body("not found");
+            Ok(ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
                 .body(body)
                 .unwrap())
@@ -1915,34 +1892,34 @@ pub(crate) async fn route_request(
 
 async fn authenticate(
     http_server: &Arc<HttpApi>,
-    req: &mut Request<Body>,
-) -> Option<std::result::Result<Response<Body>, Infallible>> {
+    req: &mut Request,
+) -> Option<std::result::Result<Response, Infallible>> {
     if let Err(e) = http_server.authenticate_request(req).await {
         match e {
             AuthenticationError::Unauthenticated => {
-                return Some(Ok(Response::builder()
+                return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::UNAUTHORIZED)
-                    .body(Body::empty())
+                    .body(empty_response_body())
                     .unwrap()));
             }
             AuthenticationError::MalformedRequest => {
-                return Some(Ok(Response::builder()
+                return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from(format!(r#"{{"error": "{e}"}}"#)))
+                    .body(bytes_to_response_body(format!(r#"{{"error": "{e}"}}"#)))
                     .unwrap()));
             }
             AuthenticationError::Forbidden => {
-                return Some(Ok(Response::builder()
+                return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::FORBIDDEN)
-                    .body(Body::empty())
+                    .body(empty_response_body())
                     .unwrap()));
             }
             // We don't expect this to happen, but if the header is messed up
             // better to handle it then not at all
             AuthenticationError::ToStr(_) => {
-                return Some(Ok(Response::builder()
+                return Some(Ok(ResponseBuilder::new()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Body::empty())
+                    .body(empty_response_body())
                     .unwrap()));
             }
         }
@@ -1950,19 +1927,19 @@ async fn authenticate(
     None
 }
 
-fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
+fn legacy_write_error_to_response(e: WriteParseError) -> Response {
     let err: ErrorMessage<()> = ErrorMessage {
         error: e.to_string(),
         data: None,
     };
     let serialized = serde_json::to_string(&err).unwrap();
-    let body = Body::from(serialized);
+    let body = bytes_to_response_body(serialized);
     let status = match e {
         WriteParseError::NotImplemented => StatusCode::NOT_FOUND,
         WriteParseError::SingleTenantError(e) => StatusCode::from(&e),
         WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
     };
-    Response::builder().status(status).body(body).unwrap()
+    ResponseBuilder::new().status(status).body(body).unwrap()
 }
 
 #[cfg(test)]
@@ -1979,7 +1956,7 @@ mod tests {
     use arrow_array::{Int32Array, RecordBatch, record_batch};
     use datafusion::execution::SendableRecordBatchStream;
     use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-    use hyper::body::to_bytes;
+    use iox_http_util::read_body_bytes_for_tests;
     use pretty_assertions::assert_eq;
     use std::str;
     use std::sync::Arc;
@@ -2028,13 +2005,12 @@ mod tests {
     async fn test_json_output_empty() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(None), QueryFormat::Json)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "[]");
     }
 
@@ -2042,19 +2018,18 @@ mod tests {
     async fn test_json_output_one_record() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(1)), QueryFormat::Json)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "[{\"a\":1}]");
     }
 
     #[tokio::test]
     async fn test_json_output_all_empties() {
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(
                 make_record_stream_with_sizes(vec![0, 0, 0]),
                 QueryFormat::Json,
@@ -2062,14 +2037,13 @@ mod tests {
             .await
             .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "[]");
     }
 
     #[tokio::test]
     async fn test_empty_present_mixture() {
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(
                 make_record_stream_with_sizes(vec![0, 0, 1, 1, 0, 1, 0]),
                 QueryFormat::Json,
@@ -2077,8 +2051,7 @@ mod tests {
             .await
             .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "[{\"a\":1},{\"a\":1},{\"a\":1}]"
@@ -2088,13 +2061,12 @@ mod tests {
     async fn test_json_output_three_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(3)), QueryFormat::Json)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "[{\"a\":1},{\"a\":1},{\"a\":1}]"
@@ -2104,13 +2076,12 @@ mod tests {
     async fn test_json_output_five_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(5)), QueryFormat::Json)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "[{\"a\":1},{\"a\":1},{\"a\":1},{\"a\":1},{\"a\":1}]"
@@ -2121,13 +2092,12 @@ mod tests {
     async fn test_jsonl_output_empty() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(None), QueryFormat::JsonLines)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "");
     }
 
@@ -2135,26 +2105,24 @@ mod tests {
     async fn test_jsonl_output_one_record() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(1)), QueryFormat::JsonLines)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "{\"a\":1}\n");
     }
     #[tokio::test]
     async fn test_jsonl_output_three_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(3)), QueryFormat::JsonLines)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "{\"a\":1}\n{\"a\":1}\n{\"a\":1}\n"
@@ -2164,13 +2132,12 @@ mod tests {
     async fn test_jsonl_output_five_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(5)), QueryFormat::JsonLines)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "{\"a\":1}\n{\"a\":1}\n{\"a\":1}\n{\"a\":1}\n{\"a\":1}\n"
@@ -2180,13 +2147,12 @@ mod tests {
     async fn test_csv_output_empty() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(None), QueryFormat::Csv)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "");
     }
 
@@ -2194,39 +2160,36 @@ mod tests {
     async fn test_csv_output_one_record() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(1)), QueryFormat::Csv)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "a\n1\n");
     }
     #[tokio::test]
     async fn test_csv_output_three_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(3)), QueryFormat::Csv)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "a\n1\n1\n1\n");
     }
     #[tokio::test]
     async fn test_csv_output_five_records() {
         // Turn RecordBatches into a Body and then collect into Bytes to assert
         // their validity
-        let bytes = to_bytes(
+        let bytes = read_body_bytes_for_tests(
             record_batch_stream_to_body(make_record_stream(Some(5)), QueryFormat::Csv)
                 .await
                 .unwrap(),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(
             str::from_utf8(bytes.as_ref()).unwrap(),
             "a\n1\n1\n1\n1\n1\n"

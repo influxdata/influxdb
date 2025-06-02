@@ -90,6 +90,7 @@ futures-util = "0.3.31"
 hashbrown = { version = "0.15.1", features = ["serde"] }
 hex = "0.4.3"
 http = "0.2.9"
+http-body = "0.4.6"
 humantime = "2.1.0"
 hyper = "0.14"
 hyper-rustls = { version = "0.25", features = ["http1", "http2", "ring", "rustls-native-certs"] }
@@ -161,6 +162,7 @@ influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core",
 influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 iox_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
+iox_http_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 iox_query = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 iox_query_params = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
 iox_query_influxql = { git = "https://github.com/influxdata/influxdb3_core", rev = "fd0e474a6c0af5ba867399d753f5df18f59907cb" }
