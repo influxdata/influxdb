@@ -1,7 +1,8 @@
 use iox_time::{Time, TimeProvider};
+use parking_lot::Mutex;
 use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::Notify;
 use tokio::time::sleep;
 
@@ -34,7 +35,7 @@ where
 
     /// Push an item into the queue with a specific time.
     pub(crate) fn push(&self, time: Time, item: T) {
-        let mut heap = self.heap.lock().unwrap();
+        let mut heap = self.heap.lock();
         heap.push(Reverse(Item::new(time, item)));
         self.notify.notify_one(); // Wake up the waiting task
     }
@@ -44,7 +45,7 @@ where
         loop {
             let notify = Arc::clone(&self.notify);
             let next_time = {
-                let mut heap = self.heap.lock().unwrap();
+                let mut heap = self.heap.lock();
                 if let Some(Reverse(Item { time, .. })) = heap.peek() {
                     if *time <= self.time_provider.now() {
                         return heap
