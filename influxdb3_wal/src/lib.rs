@@ -16,6 +16,7 @@ use influxdb_line_protocol::FieldValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::Time;
+use observability_deps::tracing::error;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::cmp::Ordering;
@@ -556,6 +557,9 @@ pub fn background_wal_flush<W: Wal>(
                     {
                         let snapshot_wal = Arc::clone(&wal);
                         tokio::spawn(async move {
+                            // since we're using separate executor with unlimited memory,
+                            // the errors here will never be due to lack of resources. Only OS
+                            // (operating system) can OOM kill the whole process
                             let snapshot_details = snapshot_complete.await.expect("snapshot failed");
                             assert_eq!(snapshot_info, snapshot_details);
 

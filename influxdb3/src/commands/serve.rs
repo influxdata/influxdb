@@ -1,7 +1,6 @@
 //! Entrypoint for InfluxDB 3 Core Server
 
 use anyhow::{Context, bail};
-use datafusion_util::config::register_iox_object_store;
 use futures::{FutureExt, future::FusedFuture, pin_mut};
 use influxdb3_authz::TokenAuthenticator;
 use influxdb3_cache::{
@@ -546,6 +545,20 @@ pub async fn command(config: Config) -> Result<()> {
     let f = SendPanicsToTracing::new_with_metrics(&metrics);
     std::mem::forget(f);
 
+    // When you have extra executor, you need separate metrics registry! It is not clear what
+    // the impact would be
+    // TODO: confirm this is not going to mess up downstream metrics consumers
+    let write_path_metrics = setup_metric_registry();
+
+    // Install custom panic handler and forget about it.
+    //
+    // This leaks the handler and prevents it from ever being dropped during the
+    // lifetime of the program - this is actually a good thing, as it prevents
+    // the panic handler from being removed while unwinding a panic (which in
+    // turn, causes a panic - see #548)
+    let write_path_panic_handler_fn = SendPanicsToTracing::new_with_metrics(&write_path_metrics);
+    std::mem::forget(write_path_panic_handler_fn);
+
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
     let shutdown_manager = ShutdownManager::new(frontend_shutdown.clone());
@@ -619,8 +632,36 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::clone(&metrics),
         ),
     ));
-    let runtime_env = exec.new_context().inner().runtime_env();
-    register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
+
+    // Note: using same metrics registry causes runtime panic.
+    let write_path_executor = Arc::new(Executor::new_with_config_and_executor(
+        ExecutorConfig {
+            // should this be divided? or should this contend for threads with executor that's
+            // setup for querying only
+            target_query_partitions: tokio_datafusion_config.num_threads.unwrap(),
+            object_stores: [&parquet_store]
+                .into_iter()
+                .map(|store| (store.id(), Arc::clone(store.object_store())))
+                .collect(),
+            metric_registry: Arc::clone(&write_path_metrics),
+            // use as much memory for persistence, can this be UnboundedMemoryPool?
+            mem_pool_size: usize::MAX,
+            // These are new additions, just skimming through the code it does not look like we can
+            // achieve the same effect as having a separate executor. It looks like it's for "all"
+            // queries, it'd be nice to have a filter to say when the query matches this pattern
+            // apply these limits. If that's possible maybe we could avoid creating a separate
+            // executor.
+            per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+            heap_memory_limit: None,
+        },
+        DedicatedExecutor::new(
+            "datafusion_write_path",
+            tokio_datafusion_config
+                .builder()
+                .map_err(Error::TokioRuntime)?,
+            Arc::clone(&write_path_metrics),
+        ),
+    ));
 
     let trace_header_parser = TraceHeaderParser::new()
         .with_jaeger_trace_context_header_name(
@@ -685,7 +726,7 @@ pub async fn command(config: Config) -> Result<()> {
         last_cache,
         distinct_cache,
         time_provider: Arc::<SystemProvider>::clone(&time_provider),
-        executor: Arc::clone(&exec),
+        executor: Arc::clone(&write_path_executor),
         wal_config,
         parquet_cache,
         metric_registry: Arc::clone(&metrics),
