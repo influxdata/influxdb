@@ -1356,8 +1356,8 @@ impl HttpApi {
 
     pub(crate) async fn set_retention_period_for_database(
         &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>, Error> {
+        req: Request,
+    ) -> Result<Response, Error> {
         #[derive(Deserialize)]
         struct SetRetentionPeriod {
             db: String,
@@ -1378,17 +1378,17 @@ impl HttpApi {
             .set_retention_period_for_database(create_req.db.as_str(), duration)
             .await?;
 
-        let body = Response::builder()
+        let body = ResponseBuilder::new()
             .status(StatusCode::NO_CONTENT)
-            .body(Body::empty());
+            .body(empty_response_body());
 
         Ok(body?)
     }
 
     pub(crate) async fn clear_retention_period_for_database(
         &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>, Error> {
+        req: Request,
+    ) -> Result<Response, Error> {
         #[derive(Deserialize)]
         struct ClearRetentionPeriod {
             db: String,
@@ -1402,9 +1402,9 @@ impl HttpApi {
             .clear_retention_period_for_database(delete_req.db.as_str())
             .await?;
 
-        let body = Response::builder()
+        let body = ResponseBuilder::new()
             .status(StatusCode::NO_CONTENT)
-            .body(Body::empty());
+            .body(empty_response_body());
 
         Ok(body?)
     }
