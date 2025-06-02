@@ -2163,16 +2163,6 @@ const optimizationHoldoff = 5 * time.Minute
 // tickPeriod is the interval between successive compaction loops.
 const tickPeriod = time.Second
 
-// StartOptHoldOff will create a hold off timer for OptimizedCompaction
-func (e *Engine) StartOptHoldOff(holdOffDurationCheck time.Duration, optHoldoffStart time.Time, optHoldoffDuration time.Duration) {
-	startOptHoldoff := func(dur time.Duration) {
-		optHoldoffStart = time.Now()
-		optHoldoffDuration = dur
-		e.logger.Info("optimize compaction holdoff timer started", logger.Shard(e.id), zap.Duration("duration", optHoldoffDuration), zap.Time("endTime", optHoldoffStart.Add(optHoldoffDuration)))
-	}
-	startOptHoldoff(holdOffDurationCheck)
-}
-
 func (e *Engine) GetPlanTypeBasedOnHoldOff(start time.Time, dur time.Duration) PlanType {
 	planType := PT_SmartOptimize
 	if time.Since(start) < dur {
@@ -2186,7 +2176,12 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 	defer t.Stop()
 	var optHoldoffStart time.Time
 	var optHoldoffDuration time.Duration
-	e.StartOptHoldOff(initialOptimizationHoldoff, optHoldoffStart, optHoldoffDuration)
+	startOptHoldoff := func(dur time.Duration) {
+		optHoldoffStart = time.Now()
+		optHoldoffDuration = dur
+		e.logger.Info("optimize compaction holdoff timer started", logger.Shard(e.id), zap.Duration("duration", optHoldoffDuration), zap.Time("endTime", optHoldoffStart.Add(optHoldoffDuration)))
+	}
+	startOptHoldoff(initialOptimizationHoldoff)
 
 	var nextDisabledMsg time.Time
 
@@ -2253,7 +2248,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 					}
 					log := e.logger.With(zap.Strings("files", theGroup), zap.Bool("aggressive", isAggressive))
 
-					log.Info("Running optimized compaction for level 5 group")
+					log.Debug("Checking optimized level 5 group is compactable")
 					if err := e.compactOptimize(theGroup, pointsPerBlock, wg); err != nil {
 						if errors.Is(err, ErrOptimizeCompactionLimited) {
 							// We've reached the limit of optimized compactions. Let's not schedule anything else this schedule cycle
@@ -2267,9 +2262,10 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 							log.Error("Error during compactOptimize", zap.Error(err))
 						}
 					} else {
+						log.Info("Optimized level 5 group compacted")
 						level5Groups = level5Groups[1:]
 					}
-					e.StartOptHoldOff(optimizationHoldoff, optHoldoffStart, optHoldoffDuration)
+					startOptHoldoff(optimizationHoldoff)
 				}
 			}
 
