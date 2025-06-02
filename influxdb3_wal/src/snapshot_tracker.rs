@@ -6,7 +6,7 @@
 
 use crate::{Gen1Duration, SnapshotDetails, SnapshotSequenceNumber, WalFileSequenceNumber};
 use data_types::Timestamp;
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::{debug, info, trace};
 
 /// A struct that tracks the WAL periods (files if using object store) and decides when to snapshot the WAL.
 #[derive(Debug)]
@@ -207,7 +207,7 @@ impl WalPeriod {
         min_time: Timestamp,
         max_time: Timestamp,
     ) -> Self {
-        info!(
+        trace!(
             ?min_time,
             ?max_time,
             ?wal_file_number,

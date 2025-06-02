@@ -413,6 +413,12 @@ pub struct Config {
         hide = true
     )]
     pub tcp_listener_file_path: Option<PathBuf>,
+
+    #[clap(
+        long = "wal-replay-concurrency-limit",
+        env = "INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT"
+    )]
+    pub wal_replay_concurrency_limit: Option<usize>,
 }
 
 /// The minimum version of TLS to use for InfluxDB
@@ -692,6 +698,7 @@ pub async fn command(config: Config) -> Result<()> {
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
         query_file_limit: config.query_file_limit,
         shutdown: shutdown_manager.register(),
+        wal_replay_concurrency_limit: config.wal_replay_concurrency_limit,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
