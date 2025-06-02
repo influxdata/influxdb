@@ -248,6 +248,9 @@ pub enum Error {
 
     #[error("The following Database Table does not exist: {0}")]
     MissingTable(String),
+
+    #[error("Cannot parse the given human time: {0}")]
+    ParsingHumanTime(#[source] humantime::DurationError),
 }
 
 #[derive(Debug, Error)]
@@ -502,6 +505,10 @@ impl IntoResponse for Error {
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
             Self::SerdeUrlDecoding(_) => ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
+            Self::ParsingHumanTime(_) => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
@@ -1364,7 +1371,7 @@ impl HttpApi {
         let duration: Duration = create_req
             .duration
             .parse::<humantime::Duration>()
-            .unwrap()
+            .map_err(Error::ParsingHumanTime)?
             .into();
 
         catalog
