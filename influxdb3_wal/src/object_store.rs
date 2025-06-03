@@ -144,18 +144,22 @@ impl WalObjectStore {
             object_store: Arc<dyn ObjectStore>,
             path: Path,
         ) -> Result<WalContents, crate::Error> {
+            info!(?path, "loading path");
             let file_bytes = object_store.get(&path).await?.bytes().await?;
             Ok(verify_file_type_and_deserialize(file_bytes)?)
         }
 
-        let mut replay_tasks = Vec::new();
-        for path in paths {
-            let object_store = Arc::clone(&self.object_store);
-            replay_tasks.push(tokio::spawn(get_contents(object_store, path)));
-        }
+        let stream = futures::stream::iter(paths);
+        let mut replay_tasks = stream
+            .map(|path| {
+                let object_store = Arc::clone(&self.object_store);
+                async move { get_contents(object_store, path).await }
+            })
+            // limit concurrency when loading
+            .buffered(20);
 
-        for wal_contents in replay_tasks {
-            let wal_contents = wal_contents.await??;
+        while let Some(wal_contents) = replay_tasks.next().await {
+            let wal_contents = wal_contents?;
 
             // add this to the snapshot tracker, so we know what to clear out later if the replay
             // was a wal file that had a snapshot

@@ -34,6 +34,7 @@ use schema::sort::SortKey;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Semaphore;
 use tokio::sync::oneshot::{self, Receiver};
 use tokio::task::JoinSet;
 
@@ -245,6 +246,8 @@ impl QueryableBuffer {
 
             let persist_jobs_empty = persist_jobs.is_empty();
             let mut set = JoinSet::new();
+            // don't allow more than 5 persist jobs to run concurrently
+            let sempahore = Arc::new(Semaphore::new(5));
             for persist_job in persist_jobs {
                 let persister = Arc::clone(&persister);
                 let executor = Arc::clone(&executor);
@@ -252,8 +255,13 @@ impl QueryableBuffer {
                 let parquet_cache = parquet_cache.clone();
                 let buffer = Arc::clone(&buffer);
                 let persisted_files = Arc::clone(&persisted_files);
+                let semaphore = Arc::clone(&sempahore);
 
                 set.spawn(async move {
+                    let permit = semaphore
+                        .acquire_owned()
+                        .await
+                        .expect("to get permit to run sort/dedupe in parallel");
                     let path = persist_job.path.to_string();
                     let database_id = persist_job.database_id;
                     let table_id = persist_job.table_id;
@@ -308,11 +316,16 @@ impl QueryableBuffer {
 
                     persisted_snapshot
                         .lock()
-                        .add_parquet_file(database_id, table_id, parquet_file)
+                        .add_parquet_file(database_id, table_id, parquet_file);
+                    drop(permit);
                 });
             }
 
+            // set.join_all().await;
             set.join_all().await;
+            // while let Some(res) = set.join_next().await {
+            //     res.expect("sort/dedupe to succeed");
+            // }
 
             // persist the snapshot file - only if persist jobs are present
             // if persist_jobs is empty, then parquet file wouldn't have been
