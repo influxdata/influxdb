@@ -709,7 +709,11 @@ impl Catalog {
         db_name: &str,
         duration: Duration,
     ) -> Result<OrderedCatalogBatch> {
-        info!("create new retention policy");
+        info!(
+            db_name,
+            duration_ns = duration.as_nanos(),
+            "create new retention policy"
+        );
         let Some(db) = self.db_schema(db_name) else {
             return Err(CatalogError::NotFound);
         };
@@ -734,7 +738,7 @@ impl Catalog {
         &self,
         db_name: &str,
     ) -> Result<OrderedCatalogBatch> {
-        info!("delete retention policy");
+        info!(db_name, "delete retention policy");
         let Some(db) = self.db_schema(db_name) else {
             return Err(CatalogError::NotFound);
         };
