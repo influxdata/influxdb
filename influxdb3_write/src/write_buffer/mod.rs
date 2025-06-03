@@ -409,12 +409,12 @@ impl WriteBufferImpl {
             );
             debug!(
                 num_chunks_from_buffer,
-                num_parquet_files_needed, num_files_already_in_cache, ">>> query chunks breakdown"
+                num_parquet_files_needed, num_files_already_in_cache, "query chunks breakdown"
             );
         } else {
             debug!(
                 num_chunks_from_buffer,
-                num_parquet_files_needed, ">>> query chunks breakdown (cache disabled)"
+                num_parquet_files_needed, "query chunks breakdown (cache disabled)"
             );
         }
 
@@ -481,7 +481,7 @@ pub fn cache_parquet_files<T: AsRef<ParquetFile>>(
             .collect();
         // there's no explicit await on these receivers - we're only letting parquet cache know
         // this file can be cached if it meets cache's policy.
-        debug!(len = ?all_cache_notifiers.len(), ">>> num parquet file cache requests created");
+        debug!(len = ?all_cache_notifiers.len(), "num parquet file cache requests created");
     }
 }
 
@@ -998,7 +998,7 @@ mod tests {
         let wbuf = reload().await;
 
         let catalog_json = wbuf.catalog.snapshot();
-        debug!(?catalog_json, ">>> reloaded catalog");
+        debug!(?catalog_json, "reloaded catalog");
         insta::assert_json_snapshot!("catalog-immediately-after-last-cache-create",
             catalog_json,
             { ".catalog_uuid" => "[uuid]" }
@@ -2371,7 +2371,7 @@ mod tests {
         let tmp_dir = test_helpers::tmp_dir().unwrap();
         debug!(
             ?tmp_dir,
-            ">>> using tmp dir for test_check_mem_and_force_snapshot"
+            "using tmp dir for test_check_mem_and_force_snapshot"
         );
         let obj_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(tmp_dir).unwrap());
@@ -2416,19 +2416,19 @@ mod tests {
             .await;
         }
         let total_buffer_size_bytes_before = write_buffer.buffer.get_total_size_bytes();
-        debug!(?total_buffer_size_bytes_before, ">>> total buffer size");
+        debug!(?total_buffer_size_bytes_before, "total buffer size");
 
-        debug!(">>> 1st snapshot..");
+        debug!("1st snapshot..");
         check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50).await;
 
         // check memory has gone down after forcing first snapshot
         let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
-        debug!(?total_buffer_size_bytes_after, ">>> total buffer size");
+        debug!(?total_buffer_size_bytes_after, "total buffer size");
         assert!(total_buffer_size_bytes_before > total_buffer_size_bytes_after);
         assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
 
         let total_buffer_size_bytes_before = total_buffer_size_bytes_after;
-        debug!(">>> 2nd snapshot..");
+        debug!("2nd snapshot..");
         //   PersistedSnapshot{
         //     node_id: "test_host",
         //     next_file_id: ParquetFileId(1),
@@ -2462,8 +2462,9 @@ mod tests {
         drop(write_buffer);
         assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
 
+        tokio::time::sleep(Duration::from_millis(10)).await;
         // restart
-        debug!(">>> Restarting..");
+        debug!("Restarting..");
         let (write_buffer_after_restart, _, _) = setup(
             Time::from_timestamp_nanos(300),
             Arc::clone(&obj_store),
@@ -2479,8 +2480,9 @@ mod tests {
         assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
         drop(write_buffer_after_restart);
 
+        tokio::time::sleep(Duration::from_millis(10)).await;
         // restart
-        debug!(">>> Restarting again..");
+        debug!("Restarting again..");
         let (_, _, _) = setup(
             Time::from_timestamp_nanos(400),
             Arc::clone(&obj_store),
@@ -2500,7 +2502,7 @@ mod tests {
         let tmp_dir = test_helpers::tmp_dir().unwrap();
         debug!(
             ?tmp_dir,
-            ">>> using tmp dir for test_check_mem_and_force_snapshot"
+            "using tmp dir for test_check_mem_and_force_snapshot"
         );
         let obj_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(tmp_dir).unwrap());
@@ -2591,7 +2593,7 @@ mod tests {
             ],
             &actual
         );
-        debug!(num_items = ?actual.len(), ">>> actual");
+        debug!(num_items = ?actual.len(), "actual");
 
         // so all the recent data which were in buffer have been snapshotted
         // only the data that came in later to backfill is in buffer -
@@ -2623,7 +2625,7 @@ mod tests {
         let tmp_dir = test_helpers::tmp_dir().unwrap();
         debug!(
             ?tmp_dir,
-            ">>> using tmp dir for test_check_mem_and_force_snapshot"
+            "using tmp dir for test_check_mem_and_force_snapshot"
         );
         let obj_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(tmp_dir).unwrap());
@@ -2838,7 +2840,7 @@ mod tests {
             true,
         )
         .await;
-        debug!(">>> test: restarted");
+        debug!("test: restarted");
 
         // nothing in query buffer
         let batches =
@@ -3423,7 +3425,7 @@ mod tests {
     async fn assert_dbs_not_empty_in_snapshot_file(obj_store: &Arc<dyn ObjectStore>, host: &str) {
         let from = Path::from(format!("{host}/snapshots/"));
         let file_paths = load_files_from_obj_store(obj_store, &from).await;
-        debug!(?file_paths, ">>> obj store snapshots");
+        debug!(?file_paths, "obj store snapshots");
         for file_path in file_paths {
             let bytes = obj_store
                 .get(&file_path)
