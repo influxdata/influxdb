@@ -5,6 +5,7 @@ use influxdb3_id::ColumnId;
 use influxdb3_process::PROCESS_UUID;
 use observability_deps::tracing::{debug, error, info, trace};
 use schema::{InfluxColumnType, InfluxFieldType};
+use std::time::Duration;
 use uuid::Uuid;
 
 use super::{
@@ -13,15 +14,16 @@ use super::{
 };
 use crate::{
     CatalogError, Result,
-    catalog::{DEFAULT_OPERATOR_TOKEN_NAME, NUM_TAG_COLUMNS_LIMIT},
+    catalog::{DEFAULT_OPERATOR_TOKEN_NAME, NUM_TAG_COLUMNS_LIMIT, RetentionPeriod},
     log::{
-        AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
-        DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails, DeleteTriggerLog,
-        DistinctCacheDefinition, FieldDataType, FieldDefinition, LastCacheDefinition,
-        LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge, MaxCardinality,
-        NodeCatalogOp, NodeMode, OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog,
-        SoftDeleteTableLog, StopNodeLog, TokenBatch, TokenCatalogOp, TriggerDefinition,
-        TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
+        AddFieldsLog, CatalogBatch, ClearRetentionPeriodLog, CreateDatabaseLog, CreateTableLog,
+        DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails,
+        DeleteTriggerLog, DistinctCacheDefinition, FieldDataType, FieldDefinition,
+        LastCacheDefinition, LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge,
+        MaxCardinality, NodeCatalogOp, NodeMode, OrderedCatalogBatch, RegisterNodeLog,
+        SetRetentionPeriodLog, SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog, TokenBatch,
+        TokenCatalogOp, TriggerDefinition, TriggerIdentifier, TriggerSettings,
+        TriggerSpecificationDefinition, ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
 };
@@ -698,6 +700,56 @@ impl Catalog {
                     token_name: token_name.to_owned(),
                 })],
             }))
+        })
+        .await
+    }
+
+    pub async fn set_retention_period_for_database(
+        &self,
+        db_name: &str,
+        duration: Duration,
+    ) -> Result<OrderedCatalogBatch> {
+        info!("create new retention policy");
+        let Some(db) = self.db_schema(db_name) else {
+            return Err(CatalogError::NotFound);
+        };
+        self.catalog_update_with_retry(|| {
+            Ok(CatalogBatch::database(
+                self.time_provider.now().timestamp_nanos(),
+                db.id,
+                db.name(),
+                vec![DatabaseCatalogOp::SetRetentionPeriod(
+                    SetRetentionPeriodLog {
+                        database_name: db.name(),
+                        database_id: db.id,
+                        retention_period: RetentionPeriod::Duration(duration),
+                    },
+                )],
+            ))
+        })
+        .await
+    }
+
+    pub async fn clear_retention_period_for_database(
+        &self,
+        db_name: &str,
+    ) -> Result<OrderedCatalogBatch> {
+        info!("delete retention policy");
+        let Some(db) = self.db_schema(db_name) else {
+            return Err(CatalogError::NotFound);
+        };
+        self.catalog_update_with_retry(|| {
+            Ok(CatalogBatch::database(
+                self.time_provider.now().timestamp_nanos(),
+                db.id,
+                db.name(),
+                vec![DatabaseCatalogOp::ClearRetentionPeriod(
+                    ClearRetentionPeriodLog {
+                        database_name: db.name(),
+                        database_id: db.id,
+                    },
+                )],
+            ))
         })
         .await
     }

@@ -44,11 +44,11 @@ pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
 use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
-use crate::log::CreateAdminTokenDetails;
-use crate::log::TriggerSpecificationDefinition;
 use crate::log::{
-    CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
-    RegenerateAdminTokenDetails, RegisterNodeLog, StopNodeLog, TokenBatch, TokenCatalogOp,
+    ClearRetentionPeriodLog, CreateAdminTokenDetails, CreateDatabaseLog, DatabaseBatch,
+    DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode, RegenerateAdminTokenDetails,
+    RegisterNodeLog, SetRetentionPeriodLog, StopNodeLog, TokenBatch, TokenCatalogOp,
+    TriggerSpecificationDefinition,
 };
 use crate::object_store::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
@@ -595,6 +595,20 @@ impl Catalog {
         // send in subsequent requests
         Ok((token_info, token))
     }
+
+    // Return the oldest allowable timestamp for the given table according to the
+    // currently-available set of retention policies. This is returned as a number of nanoseconds
+    // since the Unix Epoch.
+    pub fn get_retention_period_cutoff_ts_nanos(&self, db_id: &DbId, _: &TableId) -> Option<i64> {
+        let db = self.db_schema_by_id(db_id)?;
+        let retention_period = match db.retention_period {
+            RetentionPeriod::Duration(d) => Some(d.as_nanos() as u64),
+            RetentionPeriod::Indefinite => None,
+        }?;
+
+        let now = self.time_provider.now().timestamp_nanos();
+        Some(now - retention_period as i64)
+    }
 }
 
 async fn create_internal_db(catalog: &Catalog) {
@@ -827,6 +841,12 @@ impl<I: CatalogId, R: CatalogResource> Default for Repository<I, R> {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum RetentionPeriod {
+    Indefinite,
+    Duration(Duration),
 }
 
 #[derive(Debug, Clone)]
@@ -1131,6 +1151,8 @@ pub struct DatabaseSchema {
     pub name: Arc<str>,
     /// Tables contained in the database
     pub tables: Repository<TableId, TableDefinition>,
+    /// Retention period for the database
+    pub retention_period: RetentionPeriod,
     /// Processing engine triggers configured on the database
     pub processing_engine_triggers: Repository<TriggerId, TriggerDefinition>,
     /// Whether this database has been flagged as deleted
@@ -1143,6 +1165,7 @@ impl DatabaseSchema {
             id,
             name,
             tables: Repository::new(),
+            retention_period: RetentionPeriod::Indefinite,
             processing_engine_triggers: Repository::new(),
             deleted: false,
         }
@@ -1361,6 +1384,8 @@ impl UpdateDatabaseSchema for DatabaseCatalogOp {
             DatabaseCatalogOp::DisableTrigger(trigger_identifier) => {
                 DisableTrigger(trigger_identifier.clone()).update_schema(schema)
             }
+            DatabaseCatalogOp::SetRetentionPeriod(update) => update.update_schema(schema),
+            DatabaseCatalogOp::ClearRetentionPeriod(update) => update.update_schema(schema),
         }
     }
 }
@@ -1427,6 +1452,28 @@ impl UpdateDatabaseSchema for SoftDeleteTableLog {
                 .update(new_table_def.table_id, deleted_table)
                 .expect("the table should exist");
         }
+        Ok(schema)
+    }
+}
+
+impl UpdateDatabaseSchema for SetRetentionPeriodLog {
+    fn update_schema<'a>(
+        &self,
+        mut schema: Cow<'a, DatabaseSchema>,
+    ) -> Result<Cow<'a, DatabaseSchema>> {
+        let mut_schema = schema.to_mut();
+        mut_schema.retention_period = self.retention_period;
+        Ok(schema)
+    }
+}
+
+impl UpdateDatabaseSchema for ClearRetentionPeriodLog {
+    fn update_schema<'a>(
+        &self,
+        mut schema: Cow<'a, DatabaseSchema>,
+    ) -> Result<Cow<'a, DatabaseSchema>> {
+        let mut_schema = schema.to_mut();
+        mut_schema.retention_period = RetentionPeriod::Indefinite;
         Ok(schema)
     }
 }
@@ -2209,6 +2256,7 @@ mod tests {
             id: DbId::from(0),
             name: "test".into(),
             tables: Repository::new(),
+            retention_period: RetentionPeriod::Indefinite,
             processing_engine_triggers: Default::default(),
             deleted: false,
         };
