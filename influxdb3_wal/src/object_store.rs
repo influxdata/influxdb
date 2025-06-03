@@ -13,10 +13,24 @@ use iox_time::TimeProvider;
 use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutMode, PutOptions, PutPayload};
 use observability_deps::tracing::{debug, error, info};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, oneshot};
+
+#[derive(Debug)]
+pub struct CreateWalObjectStoreArgs<'a> {
+    pub time_provider: Arc<dyn TimeProvider>,
+    pub object_store: Arc<dyn ObjectStore>,
+    pub node_identifier_prefix: &'a str,
+    pub file_notifier: Arc<dyn WalFileNotifier>,
+    pub config: WalConfig,
+    pub last_wal_sequence_number: Option<WalFileSequenceNumber>,
+    pub last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
+    pub snapshotted_wal_files_to_keep: u64,
+    pub shutdown: ShutdownToken,
+    pub wal_replay_concurrency_limit: Option<usize>,
+}
 
 #[derive(Debug)]
 pub struct WalObjectStore {
@@ -35,19 +49,21 @@ pub struct WalObjectStore {
 impl WalObjectStore {
     /// Creates a new WAL. This will replay files into the notifier and trigger any snapshots that
     /// exist in the WAL files that haven't been cleaned up yet.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new(
-        time_provider: Arc<dyn TimeProvider>,
-        object_store: Arc<dyn ObjectStore>,
-        node_identifier_prefix: impl Into<String> + Send,
-        file_notifier: Arc<dyn WalFileNotifier>,
-        config: WalConfig,
-        last_wal_sequence_number: Option<WalFileSequenceNumber>,
-        last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
-        snapshotted_wal_files_to_keep: u64,
-        shutdown: ShutdownToken,
+    pub async fn new<'a>(
+        CreateWalObjectStoreArgs {
+            time_provider,
+            object_store,
+            node_identifier_prefix,
+            file_notifier,
+            config,
+            last_wal_sequence_number,
+            last_snapshot_sequence_number,
+            snapshotted_wal_files_to_keep,
+            shutdown,
+            wal_replay_concurrency_limit,
+        }: CreateWalObjectStoreArgs<'a>,
     ) -> Result<Arc<Self>, crate::Error> {
-        let node_identifier = node_identifier_prefix.into();
+        let node_identifier = node_identifier_prefix.to_string();
         let all_wal_file_paths =
             load_all_wal_file_paths(Arc::clone(&object_store), node_identifier.clone()).await?;
         let flush_interval = config.flush_interval;
@@ -64,8 +80,12 @@ impl WalObjectStore {
             shutdown.clone_cancellation_token(),
         );
 
-        wal.replay(last_wal_sequence_number, &all_wal_file_paths)
-            .await?;
+        wal.replay(
+            last_wal_sequence_number,
+            &all_wal_file_paths,
+            wal_replay_concurrency_limit,
+        )
+        .await?;
         let wal = Arc::new(wal);
         background_wal_flush(Arc::clone(&wal), flush_interval, shutdown);
 
@@ -128,8 +148,10 @@ impl WalObjectStore {
         &self,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         all_wal_file_paths: &[Path],
+        concurrency_limit: Option<usize>,
     ) -> crate::Result<()> {
-        debug!("replaying");
+        let replay_start = Instant::now();
+        info!("replaying WAL files");
         let paths = self.load_existing_wal_file_paths(last_wal_sequence_number, all_wal_file_paths);
 
         let last_snapshot_sequence_number = {
@@ -148,72 +170,84 @@ impl WalObjectStore {
             Ok(verify_file_type_and_deserialize(file_bytes)?)
         }
 
-        let mut replay_tasks = Vec::new();
-        for path in paths {
-            let object_store = Arc::clone(&self.object_store);
-            replay_tasks.push(tokio::spawn(get_contents(object_store, path)));
-        }
+        // Load N files concurrently and then replay them immediately before loading the next batch
+        // of N files. Since replaying has to happen _in order_ only loading the files part is
+        // concurrent, replaying the WAL file itself is done sequentially based on the original
+        // order (i.e paths, which is already sorted)
+        for batched in paths.chunks(concurrency_limit.unwrap_or(usize::MAX)) {
+            let batched_start = Instant::now();
+            let mut results = Vec::with_capacity(batched.len());
+            for path in batched {
+                let object_store = Arc::clone(&self.object_store);
+                results.push(tokio::spawn(get_contents(object_store, path.clone())));
+            }
 
-        for wal_contents in replay_tasks {
-            let wal_contents = wal_contents.await??;
+            for wal_contents in results {
+                let wal_contents = wal_contents.await??;
+                info!(
+                    n_ops = %wal_contents.ops.len(),
+                    min_timestamp_ns = %wal_contents.min_timestamp_ns,
+                    max_timestamp_ns = %wal_contents.max_timestamp_ns,
+                    wal_file_number = %wal_contents.wal_file_number,
+                    snapshot_details = ?wal_contents.snapshot,
+                    "replaying WAL file with details"
+                );
 
-            // add this to the snapshot tracker, so we know what to clear out later if the replay
-            // was a wal file that had a snapshot
-            self.flush_buffer
-                .lock()
-                .await
-                .replay_wal_period(WalPeriod::new(
-                    wal_contents.wal_file_number,
-                    Timestamp::new(wal_contents.min_timestamp_ns),
-                    Timestamp::new(wal_contents.max_timestamp_ns),
-                ));
+                // add this to the snapshot tracker, so we know what to clear out later if the replay
+                // was a wal file that had a snapshot
+                self.flush_buffer
+                    .lock()
+                    .await
+                    .replay_wal_period(WalPeriod::new(
+                        wal_contents.wal_file_number,
+                        Timestamp::new(wal_contents.min_timestamp_ns),
+                        Timestamp::new(wal_contents.max_timestamp_ns),
+                    ));
 
-            info!(
-                n_ops = %wal_contents.ops.len(),
-                min_timestamp_ns = %wal_contents.min_timestamp_ns,
-                max_timestamp_ns = %wal_contents.max_timestamp_ns,
-                wal_file_number = %wal_contents.wal_file_number,
-                snapshot_details = ?wal_contents.snapshot,
-                "replaying WAL file"
-            );
+                match wal_contents.snapshot {
+                    // This branch uses so much time
+                    None => self.file_notifier.notify(Arc::new(wal_contents)).await,
+                    Some(snapshot_details) => {
+                        let snapshot_info = {
+                            let mut buffer = self.flush_buffer.lock().await;
 
-            match wal_contents.snapshot {
-                // This branch uses so much time
-                None => self.file_notifier.notify(Arc::new(wal_contents)).await,
-                Some(snapshot_details) => {
-                    let snapshot_info = {
-                        let mut buffer = self.flush_buffer.lock().await;
-
-                        match buffer.snapshot_tracker.snapshot(snapshot_details.forced) {
-                            None => None,
-                            Some(info) => {
-                                let semaphore = Arc::clone(&buffer.snapshot_semaphore);
-                                let permit = semaphore.acquire_owned().await.unwrap();
-                                Some((info, permit))
+                            match buffer.snapshot_tracker.snapshot(snapshot_details.forced) {
+                                None => None,
+                                Some(info) => {
+                                    let semaphore = Arc::clone(&buffer.snapshot_semaphore);
+                                    let permit = semaphore.acquire_owned().await.unwrap();
+                                    Some((info, permit))
+                                }
                             }
+                        };
+                        if snapshot_details.snapshot_sequence_number
+                            <= last_snapshot_sequence_number
+                        {
+                            // Instead just notify about the WAL, as this snapshot has already been taken
+                            // and WAL files may have been cleared.
+                            self.file_notifier.notify(Arc::new(wal_contents)).await;
+                        } else {
+                            let snapshot_done = self
+                                .file_notifier
+                                .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
+                                .await;
+                            let details = snapshot_done.await.unwrap();
+                            assert_eq!(snapshot_details, details);
                         }
-                    };
-                    if snapshot_details.snapshot_sequence_number <= last_snapshot_sequence_number {
-                        // Instead just notify about the WAL, as this snapshot has already been taken
-                        // and WAL files may have been cleared.
-                        self.file_notifier.notify(Arc::new(wal_contents)).await;
-                    } else {
-                        let snapshot_done = self
-                            .file_notifier
-                            .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
-                            .await;
-                        let details = snapshot_done.await.unwrap();
-                        assert_eq!(snapshot_details, details);
-                    }
 
-                    // if the info is there, we have wal files to delete
-                    if let Some((snapshot_info, snapshot_permit)) = snapshot_info {
-                        self.cleanup_snapshot(snapshot_info, snapshot_permit).await;
+                        // if the info is there, we have wal files to delete
+                        if let Some((snapshot_info, snapshot_permit)) = snapshot_info {
+                            self.cleanup_snapshot(snapshot_info, snapshot_permit).await;
+                        }
                     }
                 }
             }
+            let batched_end = batched_start.elapsed();
+            debug!(time_taken = ?batched_end, batch_len = ?batched.len(), "replaying batch completed");
         }
 
+        // this is useful to know at the info level
+        info!(time_taken = ?replay_start.elapsed(), "completed replaying wal files");
         Ok(())
     }
 
@@ -1216,6 +1250,7 @@ mod tests {
                     Path::from("my_host/wal/00000000001.wal"),
                     Path::from("my_host/wal/00000000002.wal"),
                 ],
+                None,
             )
             .await
             .unwrap();
@@ -1364,7 +1399,7 @@ mod tests {
             vec![Path::from("my_host/wal/00000000003.wal")]
         );
         replay_wal
-            .replay(None, &[Path::from("my_host/wal/00000000003.wal")])
+            .replay(None, &[Path::from("my_host/wal/00000000003.wal")], None)
             .await
             .unwrap();
         let replay_notifier = replay_notifier

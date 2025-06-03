@@ -41,7 +41,10 @@ use influxdb3_catalog::{
     catalog::{Catalog, DatabaseSchema, Prompt, TableDefinition},
 };
 use influxdb3_id::{DbId, TableId};
-use influxdb3_wal::{Wal, WalConfig, WalFileNotifier, WalOp, object_store::WalObjectStore};
+use influxdb3_wal::{
+    Wal, WalConfig, WalFileNotifier, WalOp,
+    object_store::{CreateWalObjectStoreArgs, WalObjectStore},
+};
 use iox_query::{
     QueryChunk,
     chunk_statistics::{NoColumnRanges, create_chunk_statistics},
@@ -182,6 +185,7 @@ pub struct WriteBufferImplArgs {
     pub snapshotted_wal_files_to_keep: u64,
     pub query_file_limit: Option<usize>,
     pub shutdown: ShutdownToken,
+    pub wal_replay_concurrency_limit: Option<usize>,
 }
 
 impl WriteBufferImpl {
@@ -199,6 +203,7 @@ impl WriteBufferImpl {
             snapshotted_wal_files_to_keep,
             query_file_limit,
             shutdown,
+            wal_replay_concurrency_limit,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -237,17 +242,18 @@ impl WriteBufferImpl {
 
         // create the wal instance, which will replay into the queryable buffer and start
         // the background flush task.
-        let wal = WalObjectStore::new(
-            Arc::clone(&time_provider),
-            persister.object_store(),
-            persister.node_identifier_prefix(),
-            Arc::clone(&queryable_buffer) as Arc<dyn WalFileNotifier>,
-            wal_config,
+        let wal = WalObjectStore::new(CreateWalObjectStoreArgs {
+            time_provider: Arc::clone(&time_provider),
+            object_store: persister.object_store(),
+            node_identifier_prefix: persister.node_identifier_prefix(),
+            file_notifier: Arc::clone(&queryable_buffer) as Arc<dyn WalFileNotifier>,
+            config: wal_config,
             last_wal_sequence_number,
             last_snapshot_sequence_number,
             snapshotted_wal_files_to_keep,
             shutdown,
-        )
+            wal_replay_concurrency_limit,
+        })
         .await?;
 
         let result = Arc::new(Self {
@@ -780,6 +786,7 @@ mod tests {
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
             shutdown: ShutdownManager::new_testing().register(),
+            wal_replay_concurrency_limit: Some(1),
         })
         .await
         .unwrap();
@@ -888,6 +895,7 @@ mod tests {
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
             shutdown: ShutdownManager::new_testing().register(),
+            wal_replay_concurrency_limit: Some(1),
         })
         .await
         .unwrap();
@@ -980,6 +988,7 @@ mod tests {
                 snapshotted_wal_files_to_keep: 10,
                 query_file_limit: None,
                 shutdown: ShutdownManager::new_testing().register(),
+                wal_replay_concurrency_limit: Some(1),
             })
             .await
             .unwrap()
@@ -1239,6 +1248,7 @@ mod tests {
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
             shutdown: ShutdownManager::new_testing().register(),
+            wal_replay_concurrency_limit: Some(1),
         })
         .await
         .unwrap();
@@ -3373,6 +3383,7 @@ mod tests {
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
             shutdown: ShutdownManager::new_testing().register(),
+            wal_replay_concurrency_limit: None,
         })
         .await
         .unwrap();

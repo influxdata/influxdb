@@ -3309,6 +3309,7 @@ dependencies = [
  "clap",
  "crc32fast",
  "data_types",
+ "futures",
  "futures-util",
  "hashbrown 0.15.3",
  "humantime",

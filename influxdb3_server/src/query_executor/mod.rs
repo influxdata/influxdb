@@ -867,6 +867,7 @@ mod tests {
             snapshotted_wal_files_to_keep: 1,
             query_file_limit,
             shutdown: shutdown.register(),
+            wal_replay_concurrency_limit: Some(1),
         })
         .await
         .unwrap();

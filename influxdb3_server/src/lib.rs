@@ -891,6 +891,7 @@ mod tests {
                 snapshotted_wal_files_to_keep: 100,
                 query_file_limit: None,
                 shutdown: shutdown_manager.register(),
+                wal_replay_concurrency_limit: Some(1),
             },
         )
         .await
