@@ -71,6 +71,9 @@ enum Command {
     /// Perform a set of writes to a running InfluxDB 3 Core server
     Write(commands::write::Config),
 
+    /// Perform a set of writes to a running InfluxDB 3 Enterprise server at a constrained rate
+    WriteFixed(commands::write_fixed::WriteFixedConfig),
+
     /// Perform both writes and queries against a running InfluxDB 3 Core server
     Full(commands::full::Config),
 }
@@ -93,6 +96,12 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Write(config)) => {
                 if let Err(e) = commands::write::command(config).await {
+                    eprintln!("Write command exited: {e:?}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::WriteFixed(config)) => {
+                if let Err(e) = commands::write_fixed::command(config).await {
                     eprintln!("Write command exited: {e:?}");
                     std::process::exit(ReturnCode::Failure as _)
                 }

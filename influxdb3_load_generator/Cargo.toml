@@ -25,6 +25,7 @@ dotenvy.workspace = true
 humantime.workspace = true
 parking_lot.workspace = true
 rand.workspace = true
+reqwest.workspace = true
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true

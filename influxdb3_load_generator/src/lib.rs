@@ -9,4 +9,5 @@ pub mod commands {
     pub mod full;
     pub mod query;
     pub mod write;
+    pub mod write_fixed;
 }
