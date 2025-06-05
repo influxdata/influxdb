@@ -257,6 +257,7 @@ impl From<v2::SoftDeleteTableLog> for v3::SoftDeleteTableLog {
             table_id: value.table_id,
             table_name: value.table_name,
             deletion_time: value.deletion_time,
+            hard_deletion_time: None,
         }
     }
 }

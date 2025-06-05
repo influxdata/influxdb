@@ -126,6 +126,9 @@ pub(crate) struct TableSnapshot {
     pub(crate) last_caches: RepositorySnapshot<LastCacheId, LastCacheSnapshot>,
     pub(crate) distinct_caches: RepositorySnapshot<DistinctCacheId, DistinctCacheSnapshot>,
     pub(crate) deleted: bool,
+    // TODO(sgc): Remove `skip_serializing_if` when implementation is complete
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub(crate) hard_delete_time: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

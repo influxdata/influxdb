@@ -1,8 +1,10 @@
+use std::ops::Add;
 use std::sync::Arc;
 
 use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
 use influxdb3_process::PROCESS_UUID;
+use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, info, trace};
 use schema::{InfluxColumnType, InfluxFieldType};
 use std::time::Duration;
@@ -27,6 +29,31 @@ use crate::{
     },
     object_store::PersistCatalogResult,
 };
+
+#[derive(Clone, Copy, Debug)]
+pub enum HardDeletionTime {
+    /// The object will never be hard deleted.
+    Never,
+    /// The object will be hard deleted after the default duration.
+    Default,
+    /// The object will be hard deleted after a specific duration.
+    After(Duration),
+    /// The object will be hard deleted as soon as possible.
+    Now,
+}
+
+impl HardDeletionTime {
+    fn value(self, time_provider: &dyn TimeProvider, default: Duration) -> Option<i64> {
+        match self {
+            HardDeletionTime::Never => None,
+            HardDeletionTime::Default => Some(time_provider.now().add(default).timestamp_nanos()),
+            HardDeletionTime::After(duration) => {
+                Some(time_provider.now().add(duration).timestamp_nanos())
+            }
+            HardDeletionTime::Now => Some(time_provider.now().timestamp_nanos()),
+        }
+    }
+}
 
 impl Catalog {
     pub fn begin(&self, db_name: &str) -> Result<DatabaseCatalogTransaction> {
@@ -247,6 +274,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
+        hard_delete_time: HardDeletionTime,
     ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, "soft delete database");
         self.catalog_update_with_retry(|| {
@@ -267,6 +295,8 @@ impl Catalog {
                     table_id: tbl_def.table_id,
                     table_name: Arc::clone(&tbl_def.table_name),
                     deletion_time,
+                    hard_deletion_time: hard_delete_time
+                        .value(&self.time_provider, self.default_hard_delete_duration()),
                 })],
             ))
         })

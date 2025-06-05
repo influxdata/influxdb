@@ -154,6 +154,7 @@ impl From<super::TableSnapshot> for v3::TableSnapshot {
             last_caches: value.last_caches.into(),
             distinct_caches: value.distinct_caches.into(),
             deleted: value.deleted,
+            hard_delete_time: None,
         }
     }
 }

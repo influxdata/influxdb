@@ -418,6 +418,15 @@ pub struct Config {
         env = "INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT"
     )]
     pub wal_replay_concurrency_limit: Option<usize>,
+
+    /// The duration from when a database or table is soft-deleted until the data is scheduled to
+    /// be hard deleted.
+    #[clap(
+        long = "hard-delete-default-duration",
+        env = "INFLUXDB3_HARD_DELETE_DEFAULT_DURATION",
+        default_value_t = Catalog::DEFAULT_HARD_DELETE_DURATION.into(),
+    )]
+    pub hard_delete_default_duration: humantime::Duration,
 }
 
 /// The minimum version of TLS to use for InfluxDB
