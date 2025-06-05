@@ -188,6 +188,10 @@ pub struct PersistedSnapshot {
     /// The collection of databases that had tables persisted in this snapshot. The tables will then have their
     /// name and the parquet file.
     pub databases: SerdeVecMap<DbId, DatabaseTables>,
+    /// The collection of databases that had files removed in this snapshot.
+    /// The tables will then have their name and the parquet file that was removed.
+    #[serde(default)]
+    pub removed_files: SerdeVecMap<DbId, DatabaseTables>,
 }
 
 impl PersistedSnapshot {
@@ -208,6 +212,7 @@ impl PersistedSnapshot {
             min_time: i64::MAX,
             max_time: i64::MIN,
             databases: SerdeVecMap::new(),
+            removed_files: SerdeVecMap::new(),
         }
     }
 
@@ -273,9 +278,9 @@ pub struct ParquetFile {
     pub row_count: u64,
     /// chunk time nanos
     pub chunk_time: i64,
-    /// min time nanos
+    /// min time nanos; aka the time of the oldest record in the file
     pub min_time: i64,
-    /// max time nanos
+    /// max time nanos; aka the time of the newest record in the file
     pub max_time: i64,
 }
 
@@ -343,17 +348,18 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 /// A derived set of filters that are used to prune data in the buffer when serving queries
 #[derive(Debug, Default)]
 pub struct ChunkFilter<'a> {
-    time_lower_bound_ns: Option<i64>,
-    time_upper_bound_ns: Option<i64>,
+    pub time_lower_bound_ns: Option<i64>,
+    pub time_upper_bound_ns: Option<i64>,
     filters: &'a [Expr],
 }
 
 impl<'a> ChunkFilter<'a> {
-    /// Create a new `ChunkFilter` given a [`TableDefinition`] and set of filter [`Expr`]s from
-    /// a logical query plan.
+    /// Create a new `ChunkFilter` given a [`TableDefinition`] and set of filter
+    /// [`Expr`]s from a logical query plan.
     ///
-    /// This method analyzes the incoming `exprs` to determine if there are any filters on the
-    /// `time` column and attempt to derive the boundaries on `time` from the query.
+    /// This method analyzes the incoming `exprs` to determine if there are any
+    /// filters on the `time` column and attempts to derive the boundaries on
+    /// `time` from the query.
     pub fn new(table_def: &Arc<TableDefinition>, exprs: &'a [Expr]) -> Result<Self> {
         debug!(input = ?exprs, "creating chunk filter");
         let mut time_interval: Option<Interval> = None;
@@ -370,8 +376,8 @@ impl<'a> ChunkFilter<'a> {
         let props = ExecutionProps::new();
 
         for expr in exprs.iter().filter(|e| {
-            // NOTE: filter out most expression types, as they are not relevant to time bound
-            // analysis:
+            // NOTE: filter out most expression types, as they are not relevant to
+            // time bound analysis:
             matches!(e, Expr::BinaryExpr(_) | Expr::Not(_) | Expr::Between(_))
             // Check if the expression refers to the `time` column:
                 && e.column_refs()
@@ -390,12 +396,14 @@ impl<'a> ChunkFilter<'a> {
             )
             .context("unable to analyze provided filters for a boundary on the time column")?;
 
-            // Set the boundaries on the time column using the evaluated interval, if it exisxts
-            // If an interval was already derived from a previous expression, we take their
-            // intersection, or produce an error if:
+            // Set the boundaries on the time column using the evaluated
+            // interval, if it exists.
+            // If an interval was already derived from a previous expression, we
+            // take their intersection, or produce an error if:
             // - the derived intervals are not compatible (different types)
-            // - the derived intervals do not intersect, this should be a user error, i.e., a
-            //   poorly formed query
+            // - the derived intervals do not intersect, this should be a user
+            //   error, i.e., a poorly formed query or querying outside of a
+            //   retention policy for the table
             if let Some(ExprBoundaries { interval, .. }) = (time_col_index
                 < analysis.boundaries.len())
             .then_some(analysis.boundaries.remove(time_col_index))
@@ -581,6 +589,7 @@ mod tests {
             max_time: 1,
             row_count: 0,
             parquet_size_bytes: 0,
+            removed_files: SerdeVecMap::new(),
         };
 
         // db 2 setup
@@ -623,6 +632,7 @@ mod tests {
             max_time: 1,
             row_count: 0,
             parquet_size_bytes: 0,
+            removed_files: SerdeVecMap::new(),
         };
 
         let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&[

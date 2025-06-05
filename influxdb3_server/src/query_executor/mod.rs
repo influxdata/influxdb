@@ -682,8 +682,30 @@ impl QueryTable {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let buffer_filter = ChunkFilter::new(&self.table_def, filters)
+        let mut buffer_filter = ChunkFilter::new(&self.table_def, filters)
             .map_err(|error| DataFusionError::External(Box::new(error)))?;
+
+        let catalog = self.write_buffer.catalog();
+        let retention_period_cutoff = match self
+            .db_schema
+            .get_retention_period_cutoff_ts_nanos(catalog.time_provider())
+        {
+            Some(time) => time,
+            None => {
+                return self.write_buffer.get_table_chunks(
+                    Arc::clone(&self.db_schema),
+                    Arc::clone(&self.table_def),
+                    &buffer_filter,
+                    projection,
+                    ctx,
+                );
+            }
+        };
+
+        buffer_filter.time_lower_bound_ns = buffer_filter
+            .time_lower_bound_ns
+            .map(|lb| lb.max(retention_period_cutoff))
+            .or(Some(retention_period_cutoff));
 
         self.write_buffer.get_table_chunks(
             Arc::clone(&self.db_schema),

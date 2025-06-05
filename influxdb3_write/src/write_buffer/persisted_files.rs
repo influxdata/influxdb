@@ -2,11 +2,14 @@
 //! When queries come in they will combine whatever chunks exist from `QueryableBuffer` with
 //! the persisted files to get the full set of data to query.
 
-use crate::ChunkFilter;
+use std::sync::Arc;
+
+use crate::{ChunkFilter, DatabaseTables};
 use crate::{ParquetFile, PersistedSnapshot};
-use hashbrown::HashMap;
-use influxdb3_id::DbId;
+use hashbrown::{HashMap, HashSet};
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::TableId;
+use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_telemetry::ParquetMetrics;
 use parking_lot::RwLock;
 
@@ -71,6 +74,68 @@ impl PersistedFiles {
 
         files
     }
+
+    pub fn remove_files_by_retention_period(
+        &self,
+        catalog: Arc<Catalog>,
+    ) -> SerdeVecMap<DbId, DatabaseTables> {
+        let mut removed: SerdeVecMap<DbId, DatabaseTables> = SerdeVecMap::new();
+        let mut removed_paths: HashSet<String> = HashSet::new();
+        let mut size = 0;
+        let mut row_count = 0;
+
+        let retention_periods = catalog.get_retention_period_cutoff_map();
+
+        // nothing to do if there are no retention periods, return empty result
+        if retention_periods.is_empty() {
+            return removed;
+        }
+
+        // do all retention period checking of persisted files under a read lock to prevent
+        // blocking unnecessarily blocking concurrently-running queries
+        {
+            let guard = self.inner.read();
+            for ((db_id, table_id), cutoff) in catalog.get_retention_period_cutoff_map() {
+                let Some(files) = guard.files.get(&db_id).and_then(|hm| hm.get(&table_id)) else {
+                    continue;
+                };
+                for file in files {
+                    // remove files if their max time (aka newest timestamp) is less than (aka older
+                    // than) the cutoff timestamp for the retention period
+                    if file.max_time < cutoff {
+                        size += file.size_bytes;
+                        row_count += file.row_count;
+                        removed
+                            .entry(db_id)
+                            .or_default()
+                            .tables
+                            .entry(table_id)
+                            .or_default()
+                            .push(file.clone());
+                        removed_paths.insert(file.path.clone());
+                    }
+                }
+            }
+        }
+
+        // if no persisted files are found to be in violation of their retention period, then
+        // return an empty result to avoid unnecessarily acquiring a write lock
+        if removed.is_empty() {
+            return removed;
+        }
+
+        let mut guard = self.inner.write();
+        for (_, tables) in guard.files.iter_mut() {
+            for (_, files) in tables.iter_mut() {
+                files.retain(|file| !removed_paths.contains(&file.path))
+            }
+        }
+
+        guard.parquet_files_count -= removed.len() as u64;
+        guard.parquet_files_size_mb -= as_mb(size);
+        guard.parquet_files_row_count -= row_count;
+        removed
+    }
 }
 
 impl ParquetMetrics for PersistedFiles {
@@ -110,9 +175,11 @@ impl Inner {
             |mut files, persisted_snapshot| {
                 size_in_mb += as_mb(persisted_snapshot.parquet_size_bytes);
                 row_count += persisted_snapshot.row_count;
-                let parquet_files_added =
+                let (parquet_files_added, removed_size, removed_row_count) =
                     update_persisted_files_with_snapshot(true, persisted_snapshot, &mut files);
                 file_count += parquet_files_added;
+                size_in_mb -= as_mb(removed_size);
+                row_count -= removed_row_count;
                 files
             },
         );
@@ -128,8 +195,10 @@ impl Inner {
     pub(crate) fn add_persisted_snapshot(&mut self, persisted_snapshot: PersistedSnapshot) {
         self.parquet_files_row_count += persisted_snapshot.row_count;
         self.parquet_files_size_mb += as_mb(persisted_snapshot.parquet_size_bytes);
-        let file_count =
+        let (file_count, removed_file_size, removed_row_count) =
             update_persisted_files_with_snapshot(false, persisted_snapshot, &mut self.files);
+        self.parquet_files_row_count -= removed_row_count;
+        self.parquet_files_size_mb -= as_mb(removed_file_size);
         self.parquet_files_count += file_count;
     }
 
@@ -163,8 +232,8 @@ fn update_persisted_files_with_snapshot(
     initial_load: bool,
     persisted_snapshot: PersistedSnapshot,
     db_to_tables: &mut HashMap<DbId, HashMap<TableId, Vec<ParquetFile>>>,
-) -> u64 {
-    let mut file_count = 0;
+) -> (u64, u64, u64) {
+    let (mut file_count, mut removed_size, mut removed_row_count) = (0, 0, 0);
     persisted_snapshot
         .databases
         .into_iter()
@@ -190,7 +259,32 @@ fn update_persisted_files_with_snapshot(
                     }
                 });
         });
-    file_count
+
+    // We now remove any files as we load the snapshots if they exist.
+    persisted_snapshot
+        .removed_files
+        .into_iter()
+        .for_each(|(db_id, tables)| {
+            let db_tables: &mut HashMap<TableId, Vec<ParquetFile>> =
+                db_to_tables.entry(db_id).or_default();
+
+            tables
+                .tables
+                .into_iter()
+                .for_each(|(table_id, remove_parquet_files)| {
+                    let table_files = db_tables.entry(table_id).or_default();
+                    for file in remove_parquet_files {
+                        if let Some(idx) = table_files.iter().position(|f| f.id == file.id) {
+                            let file = table_files.remove(idx);
+                            file_count -= 1;
+                            removed_size -= file.size_bytes;
+                            removed_row_count -= file.row_count;
+                        }
+                    }
+                });
+        });
+
+    (file_count, removed_size, removed_row_count)
 }
 
 #[cfg(test)]
