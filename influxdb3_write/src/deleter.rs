@@ -23,10 +23,9 @@ pub trait ObjectDeleter: std::fmt::Debug + Send + Sync {
 
 #[derive(Debug)]
 pub struct DeleteManagerArgs {
-    catalog: Arc<Catalog>,
-    time_provider: Arc<dyn TimeProvider>,
-    object_deleter: Arc<dyn ObjectDeleter>,
-    shutdown: ShutdownToken,
+    pub catalog: Arc<Catalog>,
+    pub time_provider: Arc<dyn TimeProvider>,
+    pub shutdown: ShutdownToken,
 }
 
 /// Starts the delete manager, which processes hard deletion tasks for database objects.
@@ -96,7 +95,6 @@ enum DeleteTask {
     },
 }
 
-#[allow(missing_debug_implementations)]
 #[derive(Clone)]
 pub struct DeleteManager {
     tasks: async_collections::PriorityQueue<DeleteTask>,
@@ -105,12 +103,17 @@ pub struct DeleteManager {
     shutdown: Arc<ShutdownToken>,
 }
 
+impl std::fmt::Debug for DeleteManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeleteManager").finish()
+    }
+}
+
 impl DeleteManager {
     pub fn new(
         DeleteManagerArgs {
             catalog,
             time_provider,
-            object_deleter,
             shutdown,
         }: DeleteManagerArgs,
     ) -> Self {
@@ -118,7 +121,7 @@ impl DeleteManager {
         let s = Self {
             tasks,
             catalog,
-            object_deleter,
+            object_deleter: Arc::new(ObjectStoreDeleter {}),
             shutdown: Arc::new(shutdown),
         };
         s.spawn_background_catalog_update();
@@ -132,6 +135,12 @@ impl DeleteManager {
 
     pub fn queue_hard_deletes(&self) {
         queue_hard_deletes(self);
+    }
+
+    pub fn get_queuer(&self) -> DeleteTaskQueuer {
+        DeleteTaskQueuer {
+            tasks: self.tasks.clone(),
+        }
     }
 }
 
@@ -177,11 +186,41 @@ async fn background_catalog_update(
     })
 }
 
+pub struct DeleteTaskQueuer {
+    tasks: async_collections::PriorityQueue<DeleteTask>,
+}
+
+impl std::fmt::Debug for DeleteTaskQueuer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeleteTaskQueuer").finish()
+    }
+}
+
+#[derive(Debug)]
+struct ObjectStoreDeleter {}
+
+#[async_trait::async_trait]
+impl ObjectDeleter for ObjectStoreDeleter {
+    /// Deletes a database from object storage.
+    async fn delete_database(&self, _db_id: DbId) {
+        unimplemented!()
+    }
+    /// Deletes a table from object storage.
+    async fn delete_table(&self, _db_id: DbId, _table_id: TableId) {
+        unimplemented!()
+    }
+    /// Deletes a parquet file from object storage.
+    async fn delete_parquet_file(&self, _parquet_file_id: ParquetFileId, _path: String) {
+        unimplemented!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::async_collections;
     use crate::deleter::DeleteManager;
 
-    use super::{DeleteManagerArgs, ObjectDeleter};
+    use super::{DeleteManagerArgs, DeleteTask, ObjectDeleter};
     use influxdb3_catalog::catalog::{Catalog, HardDeletionTime};
     use influxdb3_catalog::log::FieldDataType;
     use influxdb3_catalog::resource::CatalogResource;
@@ -234,6 +273,29 @@ mod tests {
         }
         async fn wait_delete_table(&mut self) -> Option<(DbId, TableId)> {
             self.table_receiver.recv().await
+        }
+    }
+
+    impl DeleteManager {
+        fn new_testing(
+            DeleteManagerArgs {
+                catalog,
+                time_provider,
+                shutdown,
+            }: DeleteManagerArgs,
+            object_deleter: Arc<dyn ObjectDeleter>,
+        ) -> Self {
+            let tasks =
+                async_collections::PriorityQueue::<DeleteTask>::new(Arc::clone(&time_provider));
+            let s = Self {
+                tasks,
+                catalog,
+                object_deleter,
+                shutdown: Arc::new(shutdown),
+            };
+            s.spawn_background_catalog_update();
+
+            s
         }
     }
 
@@ -290,12 +352,14 @@ mod tests {
         let (object_deleter, mut waiter) = MockObjectDeleter::new();
         let shutdown_manager = ShutdownManager::new_testing();
 
-        let manager = DeleteManager::new(DeleteManagerArgs {
-            catalog: Arc::clone(&catalog),
-            time_provider: Arc::clone(&time_provider) as _,
-            object_deleter: Arc::new(object_deleter),
-            shutdown: shutdown_manager.register(),
-        });
+        let manager = DeleteManager::new_testing(
+            DeleteManagerArgs {
+                catalog: Arc::clone(&catalog),
+                time_provider: Arc::clone(&time_provider) as _,
+                shutdown: shutdown_manager.register(),
+            },
+            Arc::new(object_deleter),
+        );
 
         manager.queue_hard_deletes();
 
