@@ -24,20 +24,13 @@ pub struct DeleteManagerArgs {
     catalog: Arc<Catalog>,
     time_provider: Arc<dyn TimeProvider>,
     object_deleter: Arc<dyn ObjectDeleter>,
+    shutdown: ShutdownToken,
 }
 
 /// Starts the delete manager, which processes hard deletion tasks for database objects.
-pub fn run(
-    DeleteManagerArgs {
-        catalog,
-        time_provider,
-        object_deleter,
-    }: DeleteManagerArgs,
-    shutdown: ShutdownToken,
-) {
-    let tasks = async_collections::PriorityQueue::<DeleteTask>::new(Arc::clone(&time_provider));
+pub fn queue_hard_deletes(manager: &DeleteManager) {
     // Find all tables in catalog that are marked as deleted with a hard delete time.
-    for db_schema in catalog.list_db_schema() {
+    for db_schema in manager.catalog.list_db_schema() {
         // TODO(sgc): handle db_schema.deleted in the future.
 
         for (time, table_def) in db_schema.tables().filter_map(|td| {
@@ -47,7 +40,7 @@ pub fn run(
                 .then(|| td.hard_delete_time.map(|t| (t, td)))
                 .flatten()
         }) {
-            tasks.push(
+            manager.tasks.push(
                 time,
                 DeleteTask::Table {
                     db_id: db_schema.id(),
@@ -56,28 +49,24 @@ pub fn run(
             );
         }
     }
+}
 
+fn spawn_background_catalog_update(manager: DeleteManager) {
     tokio::spawn(async move {
-        let delete_manager = DeleteManager {
-            tasks: tasks.clone(),
-        };
-
-        background_catalog_update(
-            delete_manager,
-            catalog.subscribe_to_updates("object_deleter").await,
-        );
+        let subscription = manager.catalog.subscribe_to_updates("object_deleter").await;
+        background_catalog_update(manager.clone(), subscription).await;
 
         loop {
             tokio::select! {
-                task = tasks.pop() => {
+                task = manager.tasks.pop() => {
                     match task {
                         DeleteTask::Table { db_id, table_id } => {
                             info!(?db_id, ?table_id, "Processing delete task for table.");
-                            object_deleter.delete_table(db_id, table_id).await;
+                            manager.object_deleter.delete_table(db_id, table_id).await;
                         }
                     }
                 }
-                _ = shutdown.wait_for_shutdown() => {
+                _ = manager.shutdown.wait_for_shutdown() => {
                     info!("Shutdown signal received, exiting object deleter loop.");
                     break;
                 }
@@ -92,11 +81,46 @@ enum DeleteTask {
     Table { db_id: DbId, table_id: TableId },
 }
 
-struct DeleteManager {
+#[allow(missing_debug_implementations)]
+#[derive(Clone)]
+pub struct DeleteManager {
     tasks: async_collections::PriorityQueue<DeleteTask>,
+    catalog: Arc<Catalog>,
+    object_deleter: Arc<dyn ObjectDeleter>,
+    shutdown: Arc<ShutdownToken>,
 }
 
-fn background_catalog_update(
+impl DeleteManager {
+    pub fn new(
+        DeleteManagerArgs {
+            catalog,
+            time_provider,
+            object_deleter,
+            shutdown,
+        }: DeleteManagerArgs,
+    ) -> Self {
+        let tasks = async_collections::PriorityQueue::<DeleteTask>::new(Arc::clone(&time_provider));
+        let s = Self {
+            tasks,
+            catalog,
+            object_deleter,
+            shutdown: Arc::new(shutdown),
+        };
+        s.spawn_background_catalog_update();
+
+        s
+    }
+
+    fn spawn_background_catalog_update(&self) {
+        spawn_background_catalog_update(self.clone());
+    }
+
+    pub fn queue_hard_deletes(&self) {
+        queue_hard_deletes(self);
+    }
+}
+
+async fn background_catalog_update(
     manager: DeleteManager,
     mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {
@@ -140,7 +164,9 @@ fn background_catalog_update(
 
 #[cfg(test)]
 mod tests {
-    use super::{DeleteManagerArgs, ObjectDeleter, run};
+    use crate::deleter::DeleteManager;
+
+    use super::{DeleteManagerArgs, ObjectDeleter};
     use influxdb3_catalog::catalog::{Catalog, HardDeletionTime};
     use influxdb3_catalog::log::FieldDataType;
     use influxdb3_catalog::resource::CatalogResource;
@@ -241,14 +267,14 @@ mod tests {
         let (object_deleter, mut waiter) = MockObjectDeleter::new();
         let shutdown_manager = ShutdownManager::new_testing();
 
-        run(
-            DeleteManagerArgs {
-                catalog: Arc::clone(&catalog),
-                time_provider: Arc::clone(&time_provider) as _,
-                object_deleter: Arc::new(object_deleter),
-            },
-            shutdown_manager.register(),
-        );
+        let manager = DeleteManager::new(DeleteManagerArgs {
+            catalog: Arc::clone(&catalog),
+            time_provider: Arc::clone(&time_provider) as _,
+            object_deleter: Arc::new(object_deleter),
+            shutdown: shutdown_manager.register(),
+        });
+
+        manager.queue_hard_deletes();
 
         // First check that the object deleter was not called before the hard delete time
         waiter
