@@ -4,7 +4,7 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::channel::CatalogUpdateReceiver;
 use influxdb3_catalog::log::{CatalogBatch, DatabaseCatalogOp, SoftDeleteTableLog};
 use influxdb3_catalog::resource::CatalogResource;
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::info;
@@ -17,6 +17,8 @@ pub trait ObjectDeleter: std::fmt::Debug + Send + Sync {
     async fn delete_database(&self, db_id: DbId);
     /// Deletes a table from object storage.
     async fn delete_table(&self, db_id: DbId, table_id: TableId);
+    /// Deletes a parquet file from object storage.
+    async fn delete_parquet_file(&self, parquet_file_id: ParquetFileId, path: String);
 }
 
 #[derive(Debug)]
@@ -64,6 +66,12 @@ fn spawn_background_catalog_update(manager: DeleteManager) {
                             info!(?db_id, ?table_id, "Processing delete task for table.");
                             manager.object_deleter.delete_table(db_id, table_id).await;
                         }
+                        DeleteTask::ParquetFile {
+                            parquet_file_id, path,
+                        } => {
+                            info!(?parquet_file_id, ?path, "Processing delete task for table.");
+                            manager.object_deleter.delete_parquet_file(parquet_file_id, path).await;
+                        }
                     }
                 }
                 _ = manager.shutdown.wait_for_shutdown() => {
@@ -78,7 +86,14 @@ fn spawn_background_catalog_update(manager: DeleteManager) {
 /// Represents a task to delete a database object's data.
 #[derive(Clone)]
 enum DeleteTask {
-    Table { db_id: DbId, table_id: TableId },
+    Table {
+        db_id: DbId,
+        table_id: TableId,
+    },
+    ParquetFile {
+        parquet_file_id: ParquetFileId,
+        path: String,
+    },
 }
 
 #[allow(missing_debug_implementations)]
@@ -170,7 +185,7 @@ mod tests {
     use influxdb3_catalog::catalog::{Catalog, HardDeletionTime};
     use influxdb3_catalog::log::FieldDataType;
     use influxdb3_catalog::resource::CatalogResource;
-    use influxdb3_id::{DbId, TableId};
+    use influxdb3_id::{DbId, ParquetFileId, TableId};
     use influxdb3_shutdown::ShutdownManager;
     use iox_time::{MockProvider, Time};
     use std::sync::Arc;
@@ -182,26 +197,31 @@ mod tests {
     struct MockObjectDeleter {
         db_sender: mpsc::UnboundedSender<DbId>,
         table_sender: mpsc::UnboundedSender<(DbId, TableId)>,
+        parquet_file_sender: mpsc::UnboundedSender<(ParquetFileId, String)>,
     }
 
     #[allow(dead_code, reason = "used in future PR")]
     struct MockObjectDeleterWaiter {
         db_receiver: mpsc::UnboundedReceiver<DbId>,
         table_receiver: mpsc::UnboundedReceiver<(DbId, TableId)>,
+        parquet_file_receiver: mpsc::UnboundedReceiver<(ParquetFileId, String)>,
     }
 
     impl MockObjectDeleter {
         fn new() -> (Self, MockObjectDeleterWaiter) {
             let (db_sender, db_receiver) = mpsc::unbounded_channel();
             let (table_sender, table_receiver) = mpsc::unbounded_channel();
+            let (parquet_file_sender, parquet_file_receiver) = mpsc::unbounded_channel();
             (
                 Self {
                     db_sender,
                     table_sender,
+                    parquet_file_sender,
                 },
                 MockObjectDeleterWaiter {
                     db_receiver,
                     table_receiver,
+                    parquet_file_receiver,
                 },
             )
         }
@@ -224,6 +244,9 @@ mod tests {
         }
         async fn delete_table(&self, db_id: DbId, table_id: TableId) {
             let _ = self.table_sender.send((db_id, table_id));
+        }
+        async fn delete_parquet_file(&self, parquet_file_id: ParquetFileId, path: String) {
+            let _ = self.parquet_file_sender.send((parquet_file_id, path));
         }
     }
 
