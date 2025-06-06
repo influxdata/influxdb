@@ -299,6 +299,7 @@ mod tests {
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
+    use influxdb3_write::deleter::{DeleteManager, DeleteManagerArgs};
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
@@ -870,10 +871,19 @@ mod tests {
         );
         let frontend_shutdown = CancellationToken::new();
         let shutdown_manager = ShutdownManager::new(frontend_shutdown.clone());
+
+        let delete_manager = DeleteManager::new(DeleteManagerArgs {
+            time_provider: Arc::clone(&time_provider) as _,
+            catalog: Arc::clone(&catalog),
+            shutdown: shutdown_manager.register(),
+        });
+        let delete_queuer = delete_manager.get_queuer();
+
         let write_buffer_impl = influxdb3_write::write_buffer::WriteBufferImpl::new(
             influxdb3_write::write_buffer::WriteBufferImplArgs {
                 persister: Arc::clone(&persister),
                 catalog: Arc::clone(&catalog),
+                delete_queuer,
                 last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
                     .await
                     .unwrap(),

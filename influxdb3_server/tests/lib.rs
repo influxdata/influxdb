@@ -14,6 +14,7 @@ use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     Precision, WriteBuffer,
+    deleter::{DeleteManager, DeleteManagerArgs},
     persister::Persister,
     write_buffer::{WriteBufferImpl, WriteBufferImplArgs},
 };
@@ -239,9 +240,18 @@ impl TestService {
             node_id,
             Arc::clone(&time_provider) as _,
         ));
+
+        let delete_manager = DeleteManager::new(DeleteManagerArgs {
+            time_provider: Arc::clone(&time_provider) as _,
+            catalog: Arc::clone(&catalog),
+            shutdown: ShutdownManager::new_testing().register(),
+        });
+        let delete_queuer = delete_manager.get_queuer();
+
         let write_buffer: Arc<dyn WriteBuffer> = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
+            delete_queuer,
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
                 .await
                 .unwrap(),

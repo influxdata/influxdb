@@ -757,6 +757,7 @@ mod tests {
     use influxdb3_shutdown::ShutdownManager;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
+    use influxdb3_write::deleter::{DeleteManager, DeleteManagerArgs};
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
     use influxdb3_write::{Precision, WriteBuffer};
@@ -998,9 +999,18 @@ mod tests {
         .await
         .unwrap();
         let shutdown = ShutdownManager::new_testing();
+
+        let delete_manager = DeleteManager::new(DeleteManagerArgs {
+            time_provider: Arc::clone(&time_provider) as _,
+            catalog: Arc::clone(&catalog),
+            shutdown: shutdown.register(),
+        });
+        let delete_queuer = delete_manager.get_queuer();
+
         let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
+            delete_queuer,
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider),

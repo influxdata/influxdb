@@ -41,6 +41,7 @@ use influxdb3_telemetry::{
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     WriteBuffer,
+    deleter::{DeleteManager, DeleteManagerArgs},
     persister::Persister,
     write_buffer::{
         WriteBufferImpl, WriteBufferImplArgs, check_mem_and_force_snapshot_loop,
@@ -735,9 +736,17 @@ pub async fn command(config: Config) -> Result<()> {
     .await
     .map_err(Error::InitializeDistinctCache)?;
 
+    let delete_manager = DeleteManager::new(DeleteManagerArgs {
+        time_provider: Arc::clone(&time_provider) as _,
+        catalog: Arc::clone(&catalog),
+        shutdown: shutdown_manager.register(),
+    });
+    let delete_queuer = delete_manager.get_queuer();
+
     let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
         persister: Arc::clone(&persister),
         catalog: Arc::clone(&catalog),
+        delete_queuer,
         last_cache,
         distinct_cache,
         time_provider: Arc::<SystemProvider>::clone(&time_provider),

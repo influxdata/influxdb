@@ -14,6 +14,7 @@ use crate::{
     LastCacheManager, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion, Precision,
     WriteBuffer, WriteLineError,
     chunk::ParquetChunk,
+    deleter::DeleteTaskQueuer,
     persister::{Persister, PersisterError},
     write_buffer::{
         persisted_files::PersistedFiles, queryable_buffer::QueryableBuffer,
@@ -153,6 +154,7 @@ pub struct WriteRequest<'a> {
 pub struct WriteBufferImpl {
     catalog: Arc<Catalog>,
     persister: Arc<Persister>,
+    delete_queuer: DeleteTaskQueuer,
     // NOTE(trevor): the parquet cache interface may be used to register other cache
     // requests from the write buffer, e.g., during query...
     #[allow(dead_code)]
@@ -175,6 +177,7 @@ pub const N_SNAPSHOTS_TO_LOAD_ON_START: usize = 1_000;
 pub struct WriteBufferImplArgs {
     pub persister: Arc<Persister>,
     pub catalog: Arc<Catalog>,
+    pub delete_queuer: DeleteTaskQueuer,
     pub last_cache: Arc<LastCacheProvider>,
     pub distinct_cache: Arc<DistinctCacheProvider>,
     pub time_provider: Arc<dyn TimeProvider>,
@@ -193,6 +196,7 @@ impl WriteBufferImpl {
         WriteBufferImplArgs {
             persister,
             catalog,
+            delete_queuer,
             last_cache,
             distinct_cache,
             time_provider,
@@ -259,6 +263,7 @@ impl WriteBufferImpl {
         let result = Arc::new(Self {
             catalog,
             parquet_cache,
+            delete_queuer,
             persister,
             wal_config,
             wal,
@@ -663,6 +668,7 @@ mod tests {
 
     use super::*;
     use crate::PersistedSnapshot;
+    use crate::deleter::{DeleteManager, DeleteManagerArgs};
     use crate::paths::SnapshotInfoFilePath;
     use crate::persister::Persister;
     use crate::test_helpers::WriteBufferTester;
@@ -773,9 +779,15 @@ mod tests {
         )
         .await
         .unwrap();
+        let delete_manager = DeleteManager::new(DeleteManagerArgs {
+            time_provider: Arc::clone(&time_provider),
+            catalog: Arc::clone(&catalog),
+            shutdown: ShutdownManager::new_testing().register(),
+        });
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
+            delete_queuer: delete_manager.get_queuer(),
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider),
@@ -877,9 +889,15 @@ mod tests {
         )
         .await
         .unwrap();
+        let delete_manager = DeleteManager::new(DeleteManagerArgs {
+            time_provider: Arc::clone(&time_provider),
+            catalog: Arc::clone(&catalog),
+            shutdown: ShutdownManager::new_testing().register(),
+        });
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog,
+            delete_queuer: delete_manager.get_queuer(),
             last_cache,
             distinct_cache,
             time_provider,
@@ -970,9 +988,15 @@ mod tests {
             )
             .await
             .unwrap();
+            let delete_manager = DeleteManager::new(DeleteManagerArgs {
+                time_provider: Arc::clone(&time_provider),
+                catalog: Arc::clone(&catalog),
+                shutdown: ShutdownManager::new_testing().register(),
+            });
             WriteBufferImpl::new(WriteBufferImplArgs {
                 persister: Arc::clone(&wbuf.persister),
                 catalog,
+                delete_queuer: delete_manager.get_queuer(),
                 last_cache,
                 distinct_cache,
                 time_provider,
@@ -1230,9 +1254,15 @@ mod tests {
         )
         .await
         .unwrap();
+        let delete_manager = DeleteManager::new(DeleteManagerArgs {
+            time_provider: Arc::clone(&time_provider),
+            catalog: Arc::clone(&catalog),
+            shutdown: ShutdownManager::new_testing().register(),
+        });
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&write_buffer.persister),
             catalog,
+            delete_queuer: delete_manager.get_queuer(),
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider),
@@ -3375,9 +3405,15 @@ mod tests {
         )
         .await
         .unwrap();
+        let delete_manager = DeleteManager::new(DeleteManagerArgs {
+            time_provider: Arc::clone(&time_provider),
+            catalog: Arc::clone(&catalog),
+            shutdown: ShutdownManager::new_testing().register(),
+        });
         let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog,
+            delete_queuer: delete_manager.get_queuer(),
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider),

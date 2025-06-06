@@ -791,9 +791,7 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        Bufferer, WriteBuffer,
-        persister::Persister,
-        write_buffer::{WriteBufferImpl, WriteBufferImplArgs, persisted_files::PersistedFiles},
+        deleter::{DeleteManager, DeleteManagerArgs}, persister::Persister, write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs}, Bufferer, WriteBuffer
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
@@ -864,9 +862,18 @@ mod tests {
             .unwrap(),
         );
         let shutdown = ShutdownManager::new_testing();
+
+        let delete_manager = DeleteManager::new(DeleteManagerArgs {
+            time_provider: Arc::clone(&time_provider) as _,
+            catalog: Arc::clone(&catalog),
+            shutdown: shutdown.register(),
+        });
+        let delete_queuer = delete_manager.get_queuer();
+
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
+            delete_queuer,
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
                 .await
                 .unwrap(),
