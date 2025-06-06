@@ -741,6 +741,12 @@ pub async fn command(config: Config) -> Result<()> {
         catalog: Arc::clone(&catalog),
         shutdown: shutdown_manager.register(),
     });
+    delete_manager.spawn_background_deleter();
+
+    // TODO(wayne): commenting the catalog updater task for now since the ObjectStoreDeleter hasn't
+    // yet been implemented for hard deletes
+    //delete_manager.spawn_background_catalog_update();
+
     let delete_queuer = delete_manager.get_queuer();
 
     let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {

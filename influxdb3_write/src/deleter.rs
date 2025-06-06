@@ -52,11 +52,8 @@ pub fn queue_hard_deletes(manager: &DeleteManager) {
     }
 }
 
-fn spawn_background_catalog_update(manager: DeleteManager) {
+fn spawn_background_deleter(manager: DeleteManager) {
     tokio::spawn(async move {
-        let subscription = manager.catalog.subscribe_to_updates("object_deleter").await;
-        background_catalog_update(manager.clone(), subscription).await;
-
         loop {
             tokio::select! {
                 task = manager.tasks.pop() => {
@@ -118,19 +115,25 @@ impl DeleteManager {
         }: DeleteManagerArgs,
     ) -> Self {
         let tasks = async_collections::PriorityQueue::<DeleteTask>::new(Arc::clone(&time_provider));
-        let s = Self {
+        Self {
             tasks,
             catalog,
             object_deleter: Arc::new(ObjectStoreDeleter {}),
             shutdown: Arc::new(shutdown),
-        };
-        s.spawn_background_catalog_update();
-
-        s
+        }
     }
 
-    fn spawn_background_catalog_update(&self) {
-        spawn_background_catalog_update(self.clone());
+    pub fn spawn_background_catalog_update(&self) {
+        let manager = self.clone();
+        tokio::spawn(async move {
+            let subscription = manager.catalog.subscribe_to_updates("object_deleter").await;
+            let queuer = manager.get_queuer();
+            background_catalog_update(queuer, subscription).await;
+        });
+    }
+
+    pub fn spawn_background_deleter(&self) {
+        spawn_background_deleter(self.clone());
     }
 
     pub fn queue_hard_deletes(&self) {
@@ -145,7 +148,7 @@ impl DeleteManager {
 }
 
 async fn background_catalog_update(
-    manager: DeleteManager,
+    queuer: DeleteTaskQueuer,
     mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -170,7 +173,7 @@ async fn background_catalog_update(
                             else {
                                 continue;
                             };
-                            manager.tasks.push(
+                            queuer.tasks.push(
                                 time,
                                 DeleteTask::Table {
                                     db_id: *database_id,
