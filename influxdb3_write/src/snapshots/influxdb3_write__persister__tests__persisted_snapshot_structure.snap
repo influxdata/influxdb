@@ -1,6 +1,7 @@
 ---
 source: influxdb3_write/src/persister.rs
 expression: snapshot
+snapshot_kind: text
 ---
 {
   "version": "1",
@@ -120,5 +121,6 @@ expression: snapshot
         ]
       }
     ]
-  ]
+  ],
+  "removed_files": []
 }

@@ -643,18 +643,23 @@ impl Catalog {
         Ok((token_info, token))
     }
 
-    // Return the oldest allowable timestamp for the given table according to the
-    // currently-available set of retention policies. This is returned as a number of nanoseconds
-    // since the Unix Epoch.
-    pub fn get_retention_period_cutoff_ts_nanos(&self, db_id: &DbId, _: &TableId) -> Option<i64> {
-        let db = self.db_schema_by_id(db_id)?;
-        let retention_period = match db.retention_period {
-            RetentionPeriod::Duration(d) => Some(d.as_nanos() as u64),
-            RetentionPeriod::Indefinite => None,
-        }?;
-
-        let now = self.time_provider.now().timestamp_nanos();
-        Some(now - retention_period as i64)
+    // Return a map of all retention periods indexed by their combined database & table IDs.
+    pub fn get_retention_period_cutoff_map(&self) -> BTreeMap<(DbId, TableId), i64> {
+        self.list_db_schema()
+            .into_iter()
+            .flat_map(|db_schema| {
+                db_schema
+                    .tables()
+                    .filter_map(|table_def| {
+                        let db_id = db_schema.id();
+                        let table_id = table_def.id();
+                        db_schema
+                            .get_retention_period_cutoff_ts_nanos(self.time_provider())
+                            .map(|cutoff| ((db_id, table_id), cutoff))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 }
 
@@ -1400,6 +1405,22 @@ impl DatabaseSchema {
                 (wal_count, all_wal_count, schedule_count, request_count)
             },
         )
+    }
+
+    // Return the oldest allowable timestamp for the given table according to the
+    // currently-available set of retention policies. This is returned as a number of nanoseconds
+    // since the Unix Epoch.
+    pub fn get_retention_period_cutoff_ts_nanos(
+        &self,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Option<i64> {
+        let retention_period = match self.retention_period {
+            RetentionPeriod::Duration(d) => Some(d.as_nanos() as u64),
+            RetentionPeriod::Indefinite => None,
+        }?;
+
+        let now = time_provider.now().timestamp_nanos();
+        Some(now - retention_period as i64)
     }
 }
 
@@ -2823,6 +2844,97 @@ mod tests {
             Catalog::NUM_TABLES_LIMIT,
             catalog.inner.read().table_count()
         );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn retention_period_cutoff_map() {
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp(60 * 60 * 24, 0).unwrap();
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog =
+            Catalog::new_in_memory_with_args("test", time_provider as _, CatalogArgs::default())
+                .await
+                .unwrap();
+
+        let testdb1 = "test-db";
+        let mut txn = catalog.begin(testdb1).unwrap();
+
+        for i in 0..4 {
+            let table_name = format!("test-table-{i}");
+            txn.table_or_create(&table_name).unwrap();
+            txn.column_or_create(&table_name, "field", FieldDataType::String)
+                .unwrap();
+            txn.column_or_create(&table_name, "time", FieldDataType::Timestamp)
+                .unwrap();
+        }
+        catalog.commit(txn).await.unwrap();
+
+        let testdb2 = "test-db-2";
+        let mut txn = catalog.begin(testdb2).unwrap();
+
+        for i in 0..4 {
+            let table_name = format!("test-table-{i}");
+            txn.table_or_create(&table_name).unwrap();
+            txn.column_or_create(&table_name, "field", FieldDataType::String)
+                .unwrap();
+            txn.column_or_create(&table_name, "time", FieldDataType::Timestamp)
+                .unwrap();
+        }
+        catalog.commit(txn).await.unwrap();
+
+        let database_retention = Duration::from_secs(15);
+        let database_cutoff = now - database_retention;
+
+        // set per-table and database-level retention periods on table 2
+        catalog
+            .set_retention_period_for_database(testdb2, database_retention)
+            .await
+            .expect("must be able to set retention for database");
+
+        let map = catalog.get_retention_period_cutoff_map();
+        assert_eq!(map.len(), 4, "expect 4 entries in resulting map");
+
+        // validate tables where there is either a table or a database retention set
+        for (db_name, table_name, expected_cutoff) in [
+            (testdb2, "test-table-0", database_cutoff.timestamp_nanos()),
+            (testdb2, "test-table-1", database_cutoff.timestamp_nanos()),
+            (testdb2, "test-table-2", database_cutoff.timestamp_nanos()),
+            (testdb2, "test-table-3", database_cutoff.timestamp_nanos()),
+        ] {
+            let db_schema = catalog
+                .db_schema(db_name)
+                .expect("must be able to get expected database schema");
+            let table_def = db_schema
+                .table_definition(table_name)
+                .expect("must be able to get expected table definition");
+            let cutoff = map
+                .get(&(db_schema.id(), table_def.id()))
+                .expect("expected retention period must exist");
+            assert_eq!(
+                *cutoff, expected_cutoff,
+                "expected cutoff must match actual"
+            );
+        }
+
+        // validate tables with no retention set
+        for (db_name, table_name) in [
+            (testdb1, "test-table-0"),
+            (testdb1, "test-table-1"),
+            (testdb1, "test-table-2"),
+            (testdb1, "test-table-3"),
+        ] {
+            let db_schema = catalog
+                .db_schema(db_name)
+                .expect("must be able to get expected database schema");
+            let table_def = db_schema
+                .table_definition(table_name)
+                .expect("must be able to get expected table definition");
+            let v = map.get(&(db_schema.id(), table_def.id()));
+            assert!(
+                v.is_none(),
+                "no retention period cutoff expected for {db_name}/{table_name}"
+            );
+        }
     }
 
     #[test_log::test(tokio::test)]

@@ -24,6 +24,7 @@ use iox_query::QueryChunk;
 use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
+use object_store::Error;
 use object_store::path::Path;
 use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
@@ -218,6 +219,45 @@ impl QueryableBuffer {
             persisting_chunks
         };
 
+        let removed_files = self
+            .persisted_files
+            .remove_files_by_retention_period(Arc::clone(&self.catalog));
+
+        for (_, tables) in &removed_files {
+            for (_, files) in &tables.tables {
+                for file in files {
+                    let path = file.path.clone();
+                    let object_store = Arc::clone(&self.persister.object_store());
+                    // We've removed the file from the PersistedFiles field.
+                    // We'll store them as part of the snapshot so that other parts
+                    // that depend on knowing if they exist or not can update their
+                    // index accordingly. We try to delete them on a best effort
+                    // basis, but if they don't get deleted that's fine they aren't
+                    // referenced anymore.
+                    tokio::spawn(async move {
+                        let mut retry_count = 0;
+                        let path = path.into();
+                        while retry_count <= 10 {
+                            match object_store.delete(&path).await {
+                                Ok(()) => break,
+                                // This was already deleted so we can just skip it
+                                Err(Error::NotFound { .. }) => break,
+                                Err(_) => {
+                                    retry_count += 1;
+                                    // Sleep and increase the time with each retry.
+                                    // This adds up to about 9 minutes over time.
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(
+                                        retry_count * 10,
+                                    ))
+                                    .await;
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
         let (sender, receiver) = oneshot::channel();
 
         let persister = Arc::clone(&self.persister);
@@ -235,13 +275,16 @@ impl QueryableBuffer {
                 persist_jobs.len(),
                 wal_file_number.as_u64(),
             );
-            // persist the individual files, building the snapshot as we go
-            let persisted_snapshot = Arc::new(Mutex::new(PersistedSnapshot::new(
+            let mut snapshot = PersistedSnapshot::new(
                 persister.node_identifier_prefix().to_string(),
                 snapshot_details.snapshot_sequence_number,
                 snapshot_details.last_wal_sequence_number,
                 catalog.sequence_number(),
-            )));
+            );
+
+            snapshot.removed_files = removed_files;
+            // persist the individual files, building the snapshot as we go
+            let persisted_snapshot = Arc::new(Mutex::new(snapshot));
 
             let persist_jobs_empty = persist_jobs.is_empty();
             let mut set = JoinSet::new();
@@ -314,11 +357,12 @@ impl QueryableBuffer {
 
             set.join_all().await;
 
-            // persist the snapshot file - only if persist jobs are present
-            // if persist_jobs is empty, then parquet file wouldn't have been
-            // written out, so it's desirable to not write empty snapshot file.
+            // persist the snapshot file - only if persist jobs are present or
+            // files have been removed due to retention policies.
+            // If persist_jobs is empty, then the parquet file wouldn't have been
+            // written out, so it's desirable to not write empty snapshot files.
             //
-            // How can persist jobs be empty even though snapshot is triggered?
+            // How can persist jobs be empty even though a snapshot is triggered?
             //
             // When force snapshot is set, wal_periods (tracked by
             // snapshot_tracker) will never be empty as a no-op is added. This
@@ -347,12 +391,13 @@ impl QueryableBuffer {
             // force_snapshot) snapshot runs, snapshot_tracker will check if
             // wal_periods are empty so it won't trigger a snapshot in the first
             // place.
+            let removed_files_empty = persisted_snapshot.lock().removed_files.is_empty();
             let persisted_snapshot = PersistedSnapshotVersion::V1(
                 Arc::into_inner(persisted_snapshot)
                     .expect("Should only have one strong reference")
                     .into_inner(),
             );
-            if !persist_jobs_empty {
+            if !persist_jobs_empty || !removed_files_empty {
                 loop {
                     match persister.persist_snapshot(&persisted_snapshot).await {
                         Ok(_) => {
