@@ -7,6 +7,7 @@ use influxdb3_catalog::resource::CatalogResource;
 use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::{Time, TimeProvider};
+use object_store::ObjectStore;
 use observability_deps::tracing::info;
 use std::sync::Arc;
 
@@ -115,10 +116,11 @@ impl DeleteManager {
         }: DeleteManagerArgs,
     ) -> Self {
         let tasks = async_collections::PriorityQueue::<DeleteTask>::new(Arc::clone(&time_provider));
+        let object_store = catalog.object_store();
         Self {
             tasks,
             catalog,
-            object_deleter: Arc::new(ObjectStoreDeleter {}),
+            object_deleter: Arc::new(ObjectStoreDeleter { object_store }),
             shutdown: Arc::new(shutdown),
         }
     }
@@ -200,7 +202,9 @@ impl std::fmt::Debug for DeleteTaskQueuer {
 }
 
 #[derive(Debug)]
-struct ObjectStoreDeleter {}
+struct ObjectStoreDeleter {
+    object_store: Arc<dyn ObjectStore>,
+}
 
 #[async_trait::async_trait]
 impl ObjectDeleter for ObjectStoreDeleter {
