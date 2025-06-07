@@ -785,13 +785,16 @@ mod tests {
         parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_deleter::{DeleteManager, DeleteManagerArgs};
     use influxdb3_internal_api::query_executor::QueryExecutor;
     use influxdb3_shutdown::ShutdownManager;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        deleter::{DeleteManager, DeleteManagerArgs}, persister::Persister, write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs}, Bufferer, WriteBuffer
+        Bufferer, WriteBuffer,
+        persister::Persister,
+        write_buffer::{WriteBufferImpl, WriteBufferImplArgs, persisted_files::PersistedFiles},
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};

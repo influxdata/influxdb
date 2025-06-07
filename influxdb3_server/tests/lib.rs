@@ -6,6 +6,7 @@ use datafusion::assert_batches_sorted_eq;
 use futures::TryStreamExt;
 use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_deleter::{DeleteManager, DeleteManagerArgs};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_server::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
 use influxdb3_shutdown::ShutdownManager;
@@ -14,7 +15,6 @@ use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     Precision, WriteBuffer,
-    deleter::{DeleteManager, DeleteManagerArgs},
     persister::Persister,
     write_buffer::{WriteBufferImpl, WriteBufferImplArgs},
 };

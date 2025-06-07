@@ -17,6 +17,7 @@ use influxdb3_clap_blocks::{
     socket_addr::SocketAddr,
     tokio::TokioDatafusionConfig,
 };
+use influxdb3_deleter::{DeleteManager, DeleteManagerArgs};
 use influxdb3_process::{
     INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_START_TIME, PROCESS_UUID_STR,
 };
@@ -41,7 +42,6 @@ use influxdb3_telemetry::{
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     WriteBuffer,
-    deleter::{DeleteManager, DeleteManagerArgs},
     persister::Persister,
     write_buffer::{
         WriteBufferImpl, WriteBufferImplArgs, check_mem_and_force_snapshot_loop,

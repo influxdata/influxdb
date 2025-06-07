@@ -1,15 +1,18 @@
-use crate::async_collections;
+use std::sync::Arc;
+
 use async_trait::async_trait;
+use iox_time::{Time, TimeProvider};
+use object_store::ObjectStore;
+use observability_deps::tracing::info;
+
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::channel::CatalogUpdateReceiver;
 use influxdb3_catalog::log::{CatalogBatch, DatabaseCatalogOp, SoftDeleteTableLog};
 use influxdb3_catalog::resource::CatalogResource;
 use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_shutdown::ShutdownToken;
-use iox_time::{Time, TimeProvider};
-use object_store::ObjectStore;
-use observability_deps::tracing::info;
-use std::sync::Arc;
+
+mod async_collections;
 
 /// Trait for deleting database objects from object storage.
 #[async_trait]
@@ -224,10 +227,10 @@ impl ObjectDeleter for ObjectStoreDeleter {
 
 #[cfg(test)]
 mod tests {
-    use crate::async_collections;
-    use crate::deleter::DeleteManager;
+    use super::*;
 
-    use super::{DeleteManagerArgs, DeleteTask, ObjectDeleter};
+    use crate::async_collections;
+
     use influxdb3_catalog::catalog::{Catalog, HardDeletionTime};
     use influxdb3_catalog::log::FieldDataType;
     use influxdb3_catalog::resource::CatalogResource;

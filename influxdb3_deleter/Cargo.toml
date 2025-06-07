@@ -1,0 +1,25 @@
+[package]
+name = "influxdb3_deleter"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+futures-util.workspace = true
+influxdb3_catalog = { path = "../influxdb3_catalog" }
+influxdb3_id = { path = "../influxdb3_id" }
+influxdb3_shutdown = { path = "../influxdb3_shutdown" }
+iox_time.workspace = true
+object_store.workspace = true
+observability_deps.workspace = true
+parking_lot.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+test-log.workspace = true
+test_helpers.workspace = true

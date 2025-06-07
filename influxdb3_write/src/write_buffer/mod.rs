@@ -14,7 +14,6 @@ use crate::{
     LastCacheManager, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion, Precision,
     WriteBuffer, WriteLineError,
     chunk::ParquetChunk,
-    deleter::DeleteTaskQueuer,
     persister::{Persister, PersisterError},
     write_buffer::{
         persisted_files::PersistedFiles, queryable_buffer::QueryableBuffer,
@@ -41,6 +40,7 @@ use influxdb3_catalog::{
     CatalogError,
     catalog::{Catalog, DatabaseSchema, Prompt, TableDefinition},
 };
+use influxdb3_deleter::DeleteTaskQueuer;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{
     Wal, WalConfig, WalFileNotifier, WalOp,
@@ -668,7 +668,6 @@ mod tests {
 
     use super::*;
     use crate::PersistedSnapshot;
-    use crate::deleter::{DeleteManager, DeleteManagerArgs};
     use crate::paths::SnapshotInfoFilePath;
     use crate::persister::Persister;
     use crate::test_helpers::WriteBufferTester;
@@ -683,6 +682,7 @@ mod tests {
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::{CatalogSequenceNumber, HardDeletionTime};
     use influxdb3_catalog::log::FieldDataType;
+    use influxdb3_deleter::{DeleteManager, DeleteManagerArgs};
     use influxdb3_id::{ColumnId, DbId, ParquetFileId};
     use influxdb3_shutdown::ShutdownManager;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;

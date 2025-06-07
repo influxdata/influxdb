@@ -753,11 +753,11 @@ mod tests {
     use influxdb3_catalog::CatalogError;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_catalog::log::{TriggerSettings, TriggerSpecificationDefinition};
+    use influxdb3_deleter::{DeleteManager, DeleteManagerArgs};
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_shutdown::ShutdownManager;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
-    use influxdb3_write::deleter::{DeleteManager, DeleteManagerArgs};
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
     use influxdb3_write::{Precision, WriteBuffer};

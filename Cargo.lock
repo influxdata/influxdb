@@ -2779,6 +2779,7 @@ dependencies = [
  "influxdb3_catalog",
  "influxdb3_clap_blocks",
  "influxdb3_client",
+ "influxdb3_deleter",
  "influxdb3_process",
  "influxdb3_processing_engine",
  "influxdb3_server",
@@ -2986,6 +2987,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_deleter"
+version = "3.2.0-nightly"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "influxdb3_catalog",
+ "influxdb3_id",
+ "influxdb3_shutdown",
+ "iox_time",
+ "object_store",
+ "observability_deps",
+ "parking_lot",
+ "test-log",
+ "test_helpers",
+ "tokio",
+]
+
+[[package]]
 name = "influxdb3_id"
 version = "3.2.0-nightly"
 dependencies = [
@@ -3067,6 +3086,7 @@ dependencies = [
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_client",
+ "influxdb3_deleter",
  "influxdb3_internal_api",
  "influxdb3_py_api",
  "influxdb3_shutdown",
@@ -3152,6 +3172,7 @@ dependencies = [
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_client",
+ "influxdb3_deleter",
  "influxdb3_id",
  "influxdb3_internal_api",
  "influxdb3_process",
@@ -3354,6 +3375,7 @@ dependencies = [
  "influxdb-line-protocol",
  "influxdb3_cache",
  "influxdb3_catalog",
+ "influxdb3_deleter",
  "influxdb3_id",
  "influxdb3_internal_api",
  "influxdb3_py_api",

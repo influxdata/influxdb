@@ -6,7 +6,7 @@ members = [
     "influxdb3_cache",
     "influxdb3_catalog",
     "influxdb3_clap_blocks",
-    "influxdb3_client",
+    "influxdb3_client", "influxdb3_deleter",
     "influxdb3_id",
     "influxdb3_internal_api",
     "influxdb3_load_generator",

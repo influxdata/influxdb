@@ -292,6 +292,7 @@ mod tests {
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_deleter::{DeleteManager, DeleteManagerArgs};
     use influxdb3_processing_engine::ProcessingEngineManagerImpl;
     use influxdb3_processing_engine::environment::DisabledManager;
     use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
@@ -299,7 +300,6 @@ mod tests {
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
-    use influxdb3_write::deleter::{DeleteManager, DeleteManagerArgs};
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
