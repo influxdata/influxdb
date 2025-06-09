@@ -743,7 +743,7 @@ workflows:
       - doc:
           <<: *any_filter
       - build-release:
-          <<: *release_filter
+          <<: *any_filter
           name: build-release-<< matrix.target >>
           matrix:
             parameters:
@@ -755,19 +755,19 @@ workflows:
           requires:
             - fetch-python
       - build-packages:
-          <<: *release_filter
+          <<: *any_filter
           requires:
             - build-release
       - check_package_deb_arm64:
-          <<: *release_filter
+          <<: *any_filter
           requires:
             - build-packages
       - check_package_deb_amd64:
-          <<: *release_filter
+          <<: *any_filter
           requires:
             - build-packages
       - check_package_rpm:
-          <<: *nofork_filter
+          <<: *any_filter
           name:
             check_package_rpm-<< matrix.arch >>
           matrix:
@@ -797,12 +797,12 @@ workflows:
             - fmt
             - cargo-audit
       - build-docker:
-          <<: *docker_filter
+          <<: *any_filter
           name: build-docker-amd64
           platform: amd64
           resource_class: runner-ns/clustered-linux-vm
       - build-docker:
-          <<: *docker_filter
+          <<: *any_filter
           name: build-docker-arm64
           platform: arm64
           resource_class: runner-ns/clustered-linux-vm-arm
