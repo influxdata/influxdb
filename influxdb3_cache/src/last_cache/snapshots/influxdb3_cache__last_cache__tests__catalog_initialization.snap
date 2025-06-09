@@ -1,9 +1,11 @@
 ---
 source: influxdb3_cache/src/last_cache/mod.rs
 expression: catalog.snapshot()
-snapshot_kind: text
 ---
 {
+  "generation_config": {
+    "generation_durations": []
+  },
   "nodes": {
     "repo": [],
     "next_id": 0

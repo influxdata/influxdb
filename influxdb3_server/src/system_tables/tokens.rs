@@ -7,7 +7,6 @@ use datafusion::{error::DataFusionError, prelude::Expr};
 use influxdb3_authz::TokenInfo;
 use influxdb3_catalog::catalog::Catalog;
 use iox_system_tables::IoxSystemTable;
-use tonic::async_trait;
 
 #[derive(Debug)]
 pub(crate) struct TokenSystemTable {
@@ -26,7 +25,7 @@ impl TokenSystemTable {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl IoxSystemTable for TokenSystemTable {
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)

@@ -20,12 +20,12 @@ use crate::{
     log::{
         AddFieldsLog, CatalogBatch, ClearRetentionPeriodLog, CreateDatabaseLog, CreateTableLog,
         DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails,
-        DeleteTriggerLog, DistinctCacheDefinition, FieldDataType, FieldDefinition,
+        DeleteTriggerLog, DistinctCacheDefinition, FieldDataType, FieldDefinition, GenerationOp,
         LastCacheDefinition, LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge,
         MaxCardinality, NodeCatalogOp, NodeMode, OrderedCatalogBatch, RegisterNodeLog,
-        SetRetentionPeriodLog, SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog, TokenBatch,
-        TokenCatalogOp, TriggerDefinition, TriggerIdentifier, TriggerSettings,
-        TriggerSpecificationDefinition, ValidPluginFilename,
+        SetGenerationDurationLog, SetRetentionPeriodLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
+        StopNodeLog, TokenBatch, TokenCatalogOp, TriggerDefinition, TriggerIdentifier,
+        TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
 };
@@ -125,6 +125,31 @@ impl Catalog {
             }
             Prompt::Retry(_) => Ok(Prompt::Retry(())),
         }
+    }
+
+    pub async fn set_gen1_duration(&self, duration: Duration) -> Result<OrderedCatalogBatch> {
+        info!(duration_ns = duration.as_nanos(), "set gen1 duration");
+        self.catalog_update_with_retry(|| {
+            let time_ns = self.time_provider.now().timestamp_nanos();
+            if let Some(existing) = self.get_generation_duration(1) {
+                if duration != existing {
+                    return Err(CatalogError::CannotChangeGenerationDuration {
+                        level: 1,
+                        existing: existing.into(),
+                        attempted: duration.into(),
+                    });
+                } else {
+                    return Err(CatalogError::AlreadyExists);
+                }
+            }
+            Ok(CatalogBatch::generation(
+                time_ns,
+                vec![GenerationOp::SetGenerationDuration(
+                    SetGenerationDurationLog { level: 1, duration },
+                )],
+            ))
+        })
+        .await
     }
 
     pub async fn register_node(

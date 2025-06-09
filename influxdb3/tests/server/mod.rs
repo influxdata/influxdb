@@ -76,6 +76,7 @@ pub struct TestConfig {
     // If None, use memory object store.
     object_store_dir: Option<String>,
     disable_authz: Vec<String>,
+    gen1_duration: Option<String>,
 }
 
 impl TestConfig {
@@ -146,6 +147,11 @@ impl TestConfig {
         self.disable_authz = disabled_list;
         self
     }
+
+    pub fn with_gen1_duration(mut self, gen1_duration: impl Into<String>) -> Self {
+        self.gen1_duration = Some(gen1_duration.into());
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -196,6 +202,14 @@ impl ConfigProvider for TestConfig {
                 self.disable_authz.join(","),
             ]);
         }
+
+        if let Some(gen1_duration) = &self.gen1_duration {
+            args.append(&mut vec![
+                "--gen1-duration".to_string(),
+                gen1_duration.to_owned(),
+            ])
+        }
+
         args
     }
 

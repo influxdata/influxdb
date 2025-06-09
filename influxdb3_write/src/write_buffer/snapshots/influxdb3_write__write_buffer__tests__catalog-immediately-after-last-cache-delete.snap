@@ -1,9 +1,11 @@
 ---
 source: influxdb3_write/src/write_buffer/mod.rs
 expression: catalog_json
-snapshot_kind: text
 ---
 {
+  "generation_config": {
+    "generation_durations": []
+  },
   "nodes": {
     "repo": [],
     "next_id": 0

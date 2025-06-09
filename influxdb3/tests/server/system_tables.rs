@@ -1,8 +1,9 @@
 use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
 use serde_json::json;
+use tempfile::TempDir;
 
-use crate::server::{TestServer, collect_stream};
+use crate::server::{ConfigProvider, TestServer, collect_stream};
 
 #[tokio::test]
 async fn queries_table() {
@@ -462,4 +463,80 @@ async fn distinct_caches_table() {
         let batches = collect_stream(response_stream).await;
         assert_batches_sorted_eq!(["++", "++",], &batches);
     }
+}
+
+#[tokio::test]
+async fn test_generation_durations_system_table_with_defaults() {
+    let server = TestServer::spawn().await;
+    let response_stream = server
+        .flight_sql_client("_internal")
+        .await
+        .query("select * from system.generation_durations")
+        .await
+        .unwrap();
+    let batches = collect_stream(response_stream).await;
+    assert_batches_sorted_eq!(
+        [
+            "+-------+------------------+",
+            "| level | duration_seconds |",
+            "+-------+------------------+",
+            "| 1     | 600              |",
+            "+-------+------------------+",
+        ],
+        &batches
+    );
+}
+
+#[tokio::test]
+async fn test_generation_durations_system_table_with_non_defaults() {
+    let tmp_dir = TempDir::new().unwrap();
+    let server = TestServer::configure()
+        .with_gen1_duration("1m")
+        .with_object_store_dir(tmp_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let response_stream = server
+        .flight_sql_client("_internal")
+        .await
+        .query("select * from system.generation_durations")
+        .await
+        .unwrap();
+    let batches = collect_stream(response_stream).await;
+    assert_batches_sorted_eq!(
+        [
+            "+-------+------------------+",
+            "| level | duration_seconds |",
+            "+-------+------------------+",
+            "| 1     | 60               |",
+            "+-------+------------------+",
+        ],
+        &batches
+    );
+
+    drop(server);
+
+    // spawn again using different gen1 duration, so we can check
+    // that the server starts, but the gen1 duration doesn't change:
+    let server = TestServer::configure()
+        .with_gen1_duration("5m")
+        .with_object_store_dir(tmp_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let response_stream = server
+        .flight_sql_client("_internal")
+        .await
+        .query("select * from system.generation_durations")
+        .await
+        .unwrap();
+    let batches = collect_stream(response_stream).await;
+    assert_batches_sorted_eq!(
+        [
+            "+-------+------------------+",
+            "| level | duration_seconds |",
+            "+-------+------------------+",
+            "| 1     | 60               |",
+            "+-------+------------------+",
+        ],
+        &batches
+    );
 }

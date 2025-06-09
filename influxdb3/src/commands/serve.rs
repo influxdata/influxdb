@@ -691,12 +691,6 @@ pub async fn command(config: Config) -> Result<()> {
         config.node_identifier_prefix.as_str(),
         Arc::clone(&time_provider) as _,
     ));
-    let wal_config = WalConfig {
-        gen1_duration: config.gen1_duration,
-        max_write_buffer_size: config.wal_max_write_buffer_size,
-        flush_interval: config.wal_flush_interval.into(),
-        snapshot_size: config.wal_snapshot_size,
-    };
 
     let catalog = Catalog::new_with_shutdown(
         config.node_identifier_prefix.as_str(),
@@ -734,6 +728,36 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await
     .map_err(Error::InitializeDistinctCache)?;
+
+    // Set the gen1 duration in the catalog; if already set, nothing happens; if set to a different
+    // value, we emit a WARN; if some other error occurs we exit.
+    let gen1_duration = match catalog
+        .set_gen1_duration(config.gen1_duration.as_duration())
+        .await
+    {
+        Ok(_) | Err(CatalogError::AlreadyExists) => config.gen1_duration,
+        Err(CatalogError::CannotChangeGenerationDuration { .. }) => {
+            let existing: Gen1Duration = catalog
+                .get_generation_duration(1)
+                .unwrap()
+                .try_into()
+                .expect("catalog should contain valid gen1 duration");
+            warn!(
+                existing_secs = existing.as_duration().as_secs(),
+                provided_secs = config.gen1_duration.as_duration().as_secs(),
+                "cannot change the existing gen1 duration after it has been set"
+            );
+            existing
+        }
+        Err(error) => return Err(error.into()),
+    };
+
+    let wal_config = WalConfig {
+        gen1_duration,
+        max_write_buffer_size: config.wal_max_write_buffer_size,
+        flush_interval: config.wal_flush_interval.into(),
+        snapshot_size: config.wal_snapshot_size,
+    };
 
     let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
         persister: Arc::clone(&persister),

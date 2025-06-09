@@ -5,7 +5,7 @@ use metric::{Attributes, Metric, Registry, U64Counter};
 use crate::{
     channel::CatalogUpdateReceiver,
     log::{
-        CatalogBatch, DatabaseCatalogOp, NodeCatalogOp, TokenCatalogOp,
+        CatalogBatch, DatabaseCatalogOp, GenerationOp, NodeCatalogOp, TokenCatalogOp,
         versions::v3::{ClearRetentionPeriodLog, SetRetentionPeriodLog},
     },
 };
@@ -57,6 +57,11 @@ impl CatalogMetrics {
                         CatalogBatch::Token(token_batch) => {
                             for op in &token_batch.ops {
                                 metrics.catalog_operations.record(op)
+                            }
+                        }
+                        CatalogBatch::Generation(generation_batch) => {
+                            for op in &generation_batch.ops {
+                                metrics.catalog_operations.record(op);
                             }
                         }
                     }
@@ -131,6 +136,14 @@ impl AsMetricStr for DatabaseCatalogOp {
             DatabaseCatalogOp::ClearRetentionPeriod(ClearRetentionPeriodLog { .. }) => {
                 "clear_retention_period_db"
             }
+        }
+    }
+}
+
+impl AsMetricStr for GenerationOp {
+    fn as_metric_str(&self) -> &'static str {
+        match self {
+            GenerationOp::SetGenerationDuration(_) => "set_generation_duration",
         }
     }
 }

@@ -8,6 +8,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use distinct_caches::DistinctCachesTable;
+use generations::GenerationDurationsTable;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
@@ -20,6 +21,7 @@ use tonic::async_trait;
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
 mod distinct_caches;
+mod generations;
 mod last_caches;
 mod parquet_files;
 use crate::system_tables::python_call::{ProcessingEngineLogsTable, ProcessingEngineTriggerTable};
@@ -36,6 +38,7 @@ pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
 pub(crate) const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 pub(crate) const TOKENS_TABLE_NAME: &str = "tokens";
+pub(crate) const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
 
 const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
 
@@ -136,6 +139,12 @@ impl AllSystemSchemaTablesProvider {
                     Arc::clone(&catalog),
                     started_with_auth,
                 )))),
+            );
+            tables.insert(
+                GENERATION_DURATIONS_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(
+                    GenerationDurationsTable::new(Arc::clone(&catalog)),
+                ))),
             );
         }
         Self { tables }
