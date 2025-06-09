@@ -279,9 +279,8 @@ jobs:
 
   # Fetch python-build-standalone for official builds
   fetch-python:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: medium
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm
     environment:
       <<: *pbs_config
     steps:
@@ -485,9 +484,8 @@ jobs:
           path: artifacts/
 
   check_package_deb_amd64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: medium
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -499,9 +497,8 @@ jobs:
               /tmp/workspace/artifacts/influxdb3*amd64.deb
 
   check_package_deb_arm64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.medium
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm-arm
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -513,9 +510,8 @@ jobs:
               /tmp/workspace/artifacts/influxdb3*arm64.deb
 
   check_package_rpm:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.medium
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm-arm
     parameters:
       arch:
         type: string
@@ -617,8 +613,7 @@ jobs:
         default: influxdb3-core
     environment:
       <<: *pbs_config
-    machine:
-      image: default
+    machine: true
     resource_class: << parameters.resource_class >>
     steps:
       - checkout
@@ -805,12 +800,12 @@ workflows:
           <<: *docker_filter
           name: build-docker-amd64
           platform: amd64
-          resource_class: 2xlarge+
+          resource_class: runner-ns/clustered-linux-vm
       - build-docker:
           <<: *docker_filter
           name: build-docker-arm64
           platform: arm64
-          resource_class: arm.2xlarge
+          resource_class: runner-ns/clustered-linux-vm-arm
       - publish-docker:
           <<: *docker_filter
           requires:
