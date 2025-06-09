@@ -1199,6 +1199,7 @@ impl HttpApi {
 
     async fn create_database(&self, req: Request) -> Result<Response> {
         let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
+        validate_db_name(&db, false)?;
         self.write_buffer.catalog().create_database(&db).await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
@@ -1301,6 +1302,7 @@ impl HttpApi {
             tags,
             fields,
         } = self.read_body_json(req).await?;
+        validate_db_name(&db, false)?;
         self.write_buffer
             .catalog()
             .create_table(

@@ -2968,3 +2968,29 @@ async fn test_query_with_null_tags() {
     assert!(json[2]["is_empty"].is_null());
     assert!(json[2]["value"].is_null());
 }
+
+#[test_log::test(tokio::test)]
+async fn test_db_name_cannot_start_with_underscore_on_create_database() {
+    let server = TestServer::configure().spawn().await;
+    let result = server.create_database("_foo_bar").run().unwrap_err();
+    debug!(%result);
+    assert_contains!(
+        result.to_string(),
+        "db name did not start with a number or letter"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_db_name_cannot_start_with_underscore_on_create_table() {
+    let server = TestServer::configure().spawn().await;
+    let result = server
+        .create_table("_foo_bar", "my_table")
+        .with_fields([("f1", "utf8")])
+        .run()
+        .unwrap_err();
+    debug!(%result);
+    assert_contains!(
+        result.to_string(),
+        "db name did not start with a number or letter"
+    );
+}
