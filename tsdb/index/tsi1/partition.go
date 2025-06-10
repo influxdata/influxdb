@@ -359,11 +359,24 @@ func (p *Partition) CurrentCompactionN() int {
 func (p *Partition) Wait() {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
+
+	// Debug level timeout
+	timeout := time.NewTicker(30 * time.Second)
+	defer timeout.Stop()
+
 	for {
 		if p.CurrentCompactionN() == 0 {
 			return
 		}
-		<-ticker.C
+		select {
+		case <-p.closing:
+			return
+		case <-timeout.C:
+			p.logger.Debug("Partition.Wait() timed out waiting for compactions to complete",
+				zap.Int("stuck_compactions", p.CurrentCompactionN()))
+			return
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -1020,6 +1033,10 @@ func (p *Partition) compact() {
 
 	fs := p.retainFileSet()
 	defer fs.Release()
+
+	if len(fs.files) > 1 {
+		p.logger.Info("More then a single TSI file to compact")
+	}
 
 	// check if the current active log file should be rolled
 	if p.needsLogCompaction() {
