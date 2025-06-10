@@ -369,8 +369,6 @@ func (p *Partition) Wait() {
 			return
 		}
 		select {
-		case <-p.closing:
-			return
 		case <-timeout.C:
 			p.logger.Debug("Partition.Wait() timed out waiting for compactions to complete",
 				zap.Int("stuck_compactions", p.CurrentCompactionN()))
