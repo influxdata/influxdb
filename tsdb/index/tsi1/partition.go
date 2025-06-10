@@ -1033,10 +1033,6 @@ func (p *Partition) compact() {
 	fs := p.retainFileSet()
 	defer fs.Release()
 
-	if len(fs.files) > 1 {
-		p.logger.Info("More then a single TSI file to compact")
-	}
-
 	// check if the current active log file should be rolled
 	if p.needsLogCompaction() {
 		if err := p.prependActiveLogFile(); err != nil {
