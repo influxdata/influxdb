@@ -122,10 +122,7 @@ impl CatalogSubscriptions {
 mod tests {
     use observability_deps::tracing::debug;
 
-    use crate::{
-        catalog::Catalog,
-        log::{CatalogBatch, FieldDataType},
-    };
+    use crate::{catalog::Catalog, log::FieldDataType};
 
     #[test_log::test(tokio::test)]
     async fn test_catalog_update_sub() {
@@ -135,13 +132,6 @@ mod tests {
             let mut n_updates = 0;
             while let Some(update) = sub.recv().await {
                 debug!(?update, "got an update");
-                for b in update.batches() {
-                    match b {
-                        CatalogBatch::Node(_) => (),
-                        CatalogBatch::Database(_) => (),
-                        CatalogBatch::Token(_) => (),
-                    }
-                }
                 n_updates += 1;
             }
             n_updates

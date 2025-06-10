@@ -11,6 +11,7 @@ impl From<super::CatalogSnapshot> for v3::CatalogSnapshot {
             catalog_id: value.catalog_id,
             catalog_uuid: value.catalog_uuid,
             tokens: value.tokens.into(),
+            generation_config: Default::default(),
         }
     }
 }

@@ -20,6 +20,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CatalogSnapshot {
+    // NOTE(tjh): added as part of https://github.com/influxdata/influxdb_pro/issues/911
+    #[serde(default)]
+    pub(crate) generation_config: GenerationConfigSnapshot,
     pub(crate) nodes: RepositorySnapshot<NodeId, NodeSnapshot>,
     pub(crate) databases: RepositorySnapshot<DbId, DatabaseSnapshot>,
     pub(crate) sequence: CatalogSequenceNumber,
@@ -37,6 +40,11 @@ impl CatalogSnapshot {
     pub(crate) fn sequence_number(&self) -> CatalogSequenceNumber {
         self.sequence
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub(crate) struct GenerationConfigSnapshot {
+    pub(crate) generation_durations: SerdeVecMap<u8, Duration>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

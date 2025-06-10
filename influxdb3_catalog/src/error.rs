@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use humantime::Duration;
 use schema::InfluxColumnType;
 
 use crate::{
@@ -178,6 +179,16 @@ pub enum CatalogError {
 
     #[error("cannot delete operator token")]
     CannotDeleteOperatorToken,
+
+    #[error(
+        "cannot change the configured generation duration for level {level}; \
+        attempted to set to {attempted:#} but its already set to {existing:#}"
+    )]
+    CannotChangeGenerationDuration {
+        level: u8,
+        existing: Duration,
+        attempted: Duration,
+    },
 }
 
 impl CatalogError {

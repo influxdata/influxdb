@@ -30,6 +30,7 @@ use sha2::Sha512;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::hash::Hash;
 use std::iter;
 use std::sync::Arc;
@@ -45,6 +46,8 @@ pub use update::HardDeletionTime;
 pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
 use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
+use crate::log::GenerationBatch;
+use crate::log::GenerationOp;
 use crate::log::{
     ClearRetentionPeriodLog, CreateAdminTokenDetails, CreateDatabaseLog, DatabaseBatch,
     DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode, RegenerateAdminTokenDetails,
@@ -661,6 +664,23 @@ impl Catalog {
             })
             .collect()
     }
+
+    pub fn get_generation_duration(&self, level: u8) -> Option<Duration> {
+        self.inner
+            .read()
+            .generation_config
+            .duration_for_level(level)
+    }
+
+    pub fn list_generation_durations(&self) -> Vec<(u8, Duration)> {
+        self.inner
+            .read()
+            .generation_config
+            .generation_durations
+            .iter()
+            .map(|(level, duration)| (*level, *duration))
+            .collect()
+    }
 }
 
 async fn create_internal_db(catalog: &Catalog) {
@@ -936,6 +956,8 @@ pub struct InnerCatalog {
     pub(crate) catalog_id: Arc<str>,
     /// The `catalog_uuid` is a unique identifier to distinguish catalog instantiations
     pub(crate) catalog_uuid: Uuid,
+    /// Global generation settings to configure the layout of persisted parquet files
+    pub(crate) generation_config: GenerationConfig,
     /// Collection of nodes in the catalog
     pub(crate) nodes: Repository<NodeId, NodeDefinition>,
     /// Collection of databases in the catalog
@@ -953,6 +975,10 @@ impl InnerCatalog {
             nodes: Repository::default(),
             databases: Repository::default(),
             tokens: TokenRepository::default(),
+            // TODO(tjh): using default here will result in an empty config; some type state could
+            // help us prevent starting a catalog that avoids this case, but we also need to keep
+            // backward compatibility so, just defaulting this for now...
+            generation_config: Default::default(),
         }
     }
 
@@ -991,6 +1017,9 @@ impl InnerCatalog {
             CatalogBatch::Node(root_batch) => self.apply_node_batch(root_batch)?,
             CatalogBatch::Database(database_batch) => self.apply_database_batch(database_batch)?,
             CatalogBatch::Token(token_batch) => self.apply_token_batch(token_batch)?,
+            CatalogBatch::Generation(generation_batch) => {
+                self.apply_generation_batch(generation_batch)?
+            }
         };
 
         Ok(updated.then(|| {
@@ -1122,6 +1151,20 @@ impl InnerCatalog {
         Ok(true)
     }
 
+    fn apply_generation_batch(&mut self, generation_batch: &GenerationBatch) -> Result<bool> {
+        let mut updated = false;
+        for op in &generation_batch.ops {
+            match op {
+                GenerationOp::SetGenerationDuration(log) => {
+                    updated |= self
+                        .generation_config
+                        .set_duration(log.level, log.duration)?;
+                }
+            }
+        }
+        Ok(updated)
+    }
+
     pub fn db_exists(&self, db_id: DbId) -> bool {
         self.databases.get_by_id(&db_id).is_some()
     }
@@ -1151,6 +1194,40 @@ impl InnerCatalog {
                     )
                 },
             )
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct GenerationConfig {
+    /// Map of generation levels to their duration
+    pub(crate) generation_durations: BTreeMap<u8, Duration>,
+}
+
+impl GenerationConfig {
+    fn set_duration(&mut self, level: impl Into<u8>, duration: Duration) -> Result<bool> {
+        let level = level.into();
+        match self.generation_durations.entry(level) {
+            Entry::Occupied(occupied_entry) => {
+                let existing = *occupied_entry.get();
+                if existing != duration {
+                    Err(CatalogError::CannotChangeGenerationDuration {
+                        level,
+                        existing: existing.into(),
+                        attempted: duration.into(),
+                    })
+                } else {
+                    Ok(false)
+                }
+            }
+            Entry::Vacant(vacant_entry) => {
+                vacant_entry.insert(duration);
+                Ok(true)
+            }
+        }
+    }
+
+    fn duration_for_level(&self, level: u8) -> Option<Duration> {
+        self.generation_durations.get(&level).copied()
     }
 }
 
@@ -2289,7 +2366,7 @@ mod tests {
     use super::*;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use iox_time::MockProvider;
-    use object_store::local::LocalFileSystem;
+    use object_store::{local::LocalFileSystem, memory::InMemory};
     use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 
@@ -3173,5 +3250,81 @@ mod tests {
             err.unwrap_err().to_string(),
             "Update to schema would exceed number of tag columns per table limit of 250 columns"
         );
+    }
+
+    #[tokio::test]
+    async fn test_catalog_gen1_duration_can_only_set_once() {
+        // setup:
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let time: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let create_catalog = async || {
+            Catalog::new(
+                "test-node",
+                Arc::clone(&store),
+                Arc::clone(&time),
+                Default::default(),
+            )
+            .await
+            .unwrap()
+        };
+        let catalog = create_catalog().await;
+        let duration = Duration::from_secs(10);
+        // setting the first time succeeds:
+        catalog.set_gen1_duration(duration).await.unwrap();
+        assert_eq!(catalog.get_generation_duration(1), Some(duration));
+        // setting again with the same duration is an AlreadyExists error:
+        let err = catalog.set_gen1_duration(duration).await.unwrap_err();
+        assert!(matches!(err, CatalogError::AlreadyExists));
+        // setting again with a different duraiton is a different error case:
+        let other_duration = Duration::from_secs(20);
+        let err = catalog.set_gen1_duration(other_duration).await.unwrap_err();
+        assert!(matches!(
+            err,
+            CatalogError::CannotChangeGenerationDuration {
+                level: 1,
+                existing,
+                ..
+            } if existing == duration.into()
+        ));
+        // drop and recreate the catalog:
+        drop(catalog);
+        let catalog = create_catalog().await;
+        // the gen1 duration should still be set:
+        assert_eq!(catalog.get_generation_duration(1), Some(duration));
+    }
+
+    #[tokio::test]
+    async fn test_catalog_with_empty_gen_durations_can_be_set() {
+        // setup:
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let time: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let create_catalog = async || {
+            Catalog::new(
+                "test-node",
+                Arc::clone(&store),
+                Arc::clone(&time),
+                Default::default(),
+            )
+            .await
+            .unwrap()
+        };
+        // only initialize the catalog so it is persisted to object store with an empty generation
+        // configuration
+        let catalog = create_catalog().await;
+        let expected_catalog_uuid = catalog.catalog_uuid();
+
+        // drop the catalog and re-initialize from object store:
+        drop(catalog);
+        let catalog = create_catalog().await;
+        let actual_catalog_uuid = catalog.catalog_uuid();
+        assert_eq!(expected_catalog_uuid, actual_catalog_uuid);
+        assert!(catalog.get_generation_duration(1).is_none());
+
+        // set the gen1 duration, which should work:
+        let duration = Duration::from_secs(10);
+        catalog.set_gen1_duration(duration).await.unwrap();
+        assert_eq!(catalog.get_generation_duration(1), Some(duration));
     }
 }

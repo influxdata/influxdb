@@ -9,16 +9,16 @@ use iox_time::Time;
 use schema::{InfluxColumnType, InfluxFieldType};
 use v3::{
     ActionsSnapshot, CatalogSnapshot, ColumnDefinitionSnapshot, CrudActionsSnapshot,
-    DatabaseActionsSnapshot, DatabaseSnapshot, DistinctCacheSnapshot, InfluxType,
-    LastCacheSnapshot, NodeSnapshot, NodeStateSnapshot, PermissionSnapshot,
+    DatabaseActionsSnapshot, DatabaseSnapshot, DistinctCacheSnapshot, GenerationConfigSnapshot,
+    InfluxType, LastCacheSnapshot, NodeSnapshot, NodeStateSnapshot, PermissionSnapshot,
     ProcessingEngineTriggerSnapshot, RepositorySnapshot, ResourceIdentifierSnapshot,
     ResourceTypeSnapshot, RetentionPeriodSnapshot, TableSnapshot, TokenInfoSnapshot,
 };
 
 use crate::{
     catalog::{
-        ColumnDefinition, DatabaseSchema, InnerCatalog, NodeDefinition, NodeState, Repository,
-        RetentionPeriod, TableDefinition, TokenRepository,
+        ColumnDefinition, DatabaseSchema, GenerationConfig, InnerCatalog, NodeDefinition,
+        NodeState, Repository, RetentionPeriod, TableDefinition, TokenRepository,
     },
     log::{
         DistinctCacheDefinition, LastCacheDefinition, LastCacheTtl, LastCacheValueColumnsDef,
@@ -71,6 +71,7 @@ impl Snapshot for InnerCatalog {
             catalog_id: Arc::clone(&self.catalog_id),
             tokens: self.tokens.repo().snapshot(),
             catalog_uuid: self.catalog_uuid,
+            generation_config: self.generation_config.snapshot(),
         }
     }
 
@@ -90,6 +91,27 @@ impl Snapshot for InnerCatalog {
             nodes: Repository::from_snapshot(snap.nodes),
             databases: Repository::from_snapshot(snap.databases),
             tokens: token_info_repo,
+            generation_config: GenerationConfig::from_snapshot(snap.generation_config),
+        }
+    }
+}
+
+impl Snapshot for GenerationConfig {
+    type Serialized = GenerationConfigSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        Self::Serialized {
+            generation_durations: self
+                .generation_durations
+                .iter()
+                .map(|(level, duration)| (*level, *duration))
+                .collect(),
+        }
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        Self {
+            generation_durations: snap.generation_durations.into_iter().collect(),
         }
     }
 }

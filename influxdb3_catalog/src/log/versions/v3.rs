@@ -33,6 +33,8 @@ pub enum CatalogBatch {
     Node(NodeBatch),
     Database(DatabaseBatch),
     Token(TokenBatch),
+    /// A batch for modifying catalog generation configuration
+    Generation(GenerationBatch),
 }
 
 impl CatalogBatch {
@@ -64,11 +66,16 @@ impl CatalogBatch {
         })
     }
 
+    pub fn generation(time_ns: i64, ops: Vec<GenerationOp>) -> Self {
+        Self::Generation(GenerationBatch { time_ns, ops })
+    }
+
     pub fn n_ops(&self) -> usize {
         match self {
             CatalogBatch::Node(node_batch) => node_batch.ops.len(),
             CatalogBatch::Database(database_batch) => database_batch.ops.len(),
             CatalogBatch::Token(token_batch) => token_batch.ops.len(),
+            CatalogBatch::Generation(generation_batch) => generation_batch.ops.len(),
         }
     }
 
@@ -77,6 +84,7 @@ impl CatalogBatch {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
             CatalogBatch::Token(_) => None,
+            CatalogBatch::Generation(_) => None,
         }
     }
 
@@ -85,6 +93,7 @@ impl CatalogBatch {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
             CatalogBatch::Token(_) => None,
+            CatalogBatch::Generation(_) => None,
         }
     }
 
@@ -93,6 +102,16 @@ impl CatalogBatch {
             CatalogBatch::Node(node_batch) => Some(node_batch),
             CatalogBatch::Database(_) => None,
             CatalogBatch::Token(_) => None,
+            CatalogBatch::Generation(_) => None,
+        }
+    }
+
+    pub fn as_generation(&self) -> Option<&GenerationBatch> {
+        match self {
+            CatalogBatch::Node(_) => None,
+            CatalogBatch::Database(_) => None,
+            CatalogBatch::Token(_) => None,
+            CatalogBatch::Generation(generation_batch) => Some(generation_batch),
         }
     }
 }
@@ -111,6 +130,23 @@ pub struct DatabaseBatch {
     pub database_id: DbId,
     pub database_name: Arc<str>,
     pub ops: Vec<DatabaseCatalogOp>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GenerationBatch {
+    pub time_ns: i64,
+    pub ops: Vec<GenerationOp>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum GenerationOp {
+    SetGenerationDuration(SetGenerationDurationLog),
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SetGenerationDurationLog {
+    pub level: u8,
+    pub duration: Duration,
 }
 
 /// A catalog batch that has been processed by the catalog and given a sequence number.

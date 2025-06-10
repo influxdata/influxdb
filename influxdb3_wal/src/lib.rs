@@ -218,6 +218,17 @@ impl FromStr for Gen1Duration {
     }
 }
 
+impl TryFrom<Duration> for Gen1Duration {
+    type Error = Error;
+
+    fn try_from(dur: Duration) -> std::result::Result<Self, Self::Error> {
+        match dur.as_secs() {
+            60 | 300 | 600 => Ok(Self(dur)),
+            d => Err(Error::InvalidGen1Duration(d.to_string())),
+        }
+    }
+}
+
 impl Default for Gen1Duration {
     fn default() -> Self {
         Self(Duration::from_secs(600))
