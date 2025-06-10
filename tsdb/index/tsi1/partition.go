@@ -361,7 +361,7 @@ func (p *Partition) Wait() {
 	defer ticker.Stop()
 
 	// Debug level timeout
-	timeout := time.NewTicker(30 * time.Second)
+	timeout := time.NewTicker(24 * time.Hour)
 	defer timeout.Stop()
 
 	for {
@@ -374,7 +374,6 @@ func (p *Partition) Wait() {
 		case <-timeout.C:
 			p.logger.Debug("Partition.Wait() timed out waiting for compactions to complete",
 				zap.Int("stuck_compactions", p.CurrentCompactionN()))
-			return
 		case <-ticker.C:
 		}
 	}
