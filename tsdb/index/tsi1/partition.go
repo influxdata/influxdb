@@ -1058,12 +1058,15 @@ func (p *Partition) compact() {
 			p.levelCompacting[0] = true
 			p.currentCompactionN++
 			go func() {
+				defer func() {
+					p.mu.Lock()
+					p.currentCompactionN--
+					p.levelCompacting[0] = false
+					p.mu.Unlock()
+					p.Compact()
+				}()
+
 				p.compactLogFile(logFile)
-				p.mu.Lock()
-				p.currentCompactionN--
-				p.levelCompacting[0] = false
-				p.mu.Unlock()
-				p.Compact()
 			}()
 		}
 	}
@@ -1097,18 +1100,19 @@ func (p *Partition) compact() {
 			// Start compacting in a separate goroutine.
 			p.currentCompactionN++
 			go func() {
+				defer func() {
+					// Ensure compaction lock for the level is released.
+					p.mu.Lock()
+					p.levelCompacting[level] = false
+					p.currentCompactionN--
+					p.mu.Unlock()
+
+					// Check for new compactions
+					p.Compact()
+				}()
 
 				// Compact to a new level.
 				p.compactToLevel(files, level+1, interrupt)
-
-				// Ensure compaction lock for the level is released.
-				p.mu.Lock()
-				p.levelCompacting[level] = false
-				p.currentCompactionN--
-				p.mu.Unlock()
-
-				// Check for new compactions
-				p.Compact()
 			}()
 		}(files, level)
 	}
