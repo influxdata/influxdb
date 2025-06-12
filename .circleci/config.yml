@@ -36,7 +36,6 @@ version: 2.1
 
 orbs:
   aws-s3:    circleci/aws-s3@2.0.0
-  terraform: circleci/terraform@2.1.0
   rust: circleci/rust@1.6.1
 
 # Unlike when a commit is pushed to a branch, CircleCI does not automatically
@@ -493,8 +492,8 @@ jobs:
       - run:
           name: Validate Debian Package (AMD64)
           command: |
-            sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb3*amd64.deb
+            docker run --rm --platform linux/amd64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            .circleci/scripts/validate deb /tmp/workspace/artifacts/influxdb3*amd64.deb
 
   check_package_deb_arm64:
     machine: true
@@ -506,26 +505,30 @@ jobs:
       - run:
           name: Validate Debian Package (ARM64)
           command: |
-            sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb3*arm64.deb
+            docker run --rm --platform linux/arm64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            .circleci/scripts/validate deb /tmp/workspace/artifacts/influxdb3*arm64.deb
 
-  check_package_rpm:
+  check_package_rpm_amd64:
     machine: true
-    resource_class: runner-ns/clustered-linux-vm-arm
-    parameters:
-      arch:
-        type: string
+    resource_class: runner-ns/clustered-linux-vm
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - add_ssh_keys:
-          fingerprints:
-            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
       - checkout
       - run: |
-          AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
-          AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
-          .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb3*.<< parameters.arch >>.rpm
+          docker run --rm --platform linux/amd64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          .circleci/scripts/validate rpm /tmp/workspace/artifacts/influxdb3*x86_64.rpm
+
+  check_package_rpm_arm64:
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm-arm
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run: |
+          docker run --rm --platform linux/arm64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          .circleci/scripts/validate rpm /tmp/workspace/artifacts/influxdb3*aarch64.rpm
 
   sign-packages:
     circleci_ip_ranges: true
@@ -766,20 +769,24 @@ workflows:
           <<: *any_filter
           requires:
             - build-packages
-      - check_package_rpm:
+      - check_package_rpm_arm64:
           <<: *any_filter
           name:
-            check_package_rpm-<< matrix.arch >>
-          matrix:
-            parameters:
-              arch: [ x86_64, aarch64 ]
+            check_package_rpm_arm64
+          requires:
+            - build-packages
+      - check_package_rpm_amd64:
+          <<: *any_filter
+          name:
+            check_package_rpm_amd64
           requires:
             - build-packages
       - sign-packages:
           <<: *release_filter
           requires:
             - build-packages
-            - check_package_rpm
+            - check_package_rpm_arm64
+            - check_package_rpm_amd64
             - check_package_deb_arm64
             - check_package_deb_amd64
             - test
