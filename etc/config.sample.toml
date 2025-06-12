@@ -23,7 +23,7 @@
 
 [meta]
   # Where the metadata/raft database is stored
-  dir = "/var/lib/influxdb/meta"
+  dir = "/home/devan/.influxdbchaos/meta"
 
   # Automatically create a default retention policy when creating a database.
   # retention-autocreate = true
@@ -42,10 +42,10 @@
 
 [data]
   # The directory where the TSM storage engine stores TSM files.
-  dir = "/var/lib/influxdb/data"
+  dir = "/home/devan/.influxdbchaos/data"
 
   # The directory where the TSM storage engine stores WAL files.
-  wal-dir = "/var/lib/influxdb/wal"
+  wal-dir = "/home/devan/.influxdbchaos/wal"
 
   # The amount of time that a write will wait before fsyncing.  A duration
   # greater than 0 can be used to batch up multiple fsync calls.  This is useful for slower
@@ -57,7 +57,7 @@
   # The type of shard index to use for new shards.  The default is an in-memory index that is
   # recreated at startup.  A value of "tsi1" will use a disk based index that supports higher
   # cardinality datasets.
-  # index-version = "inmem"
+  index-version = "tsi1"
 
   # Trace logging provides more verbose output around the tsm engine. Turning
   # this on can provide more useful output for debugging tsm engine issues.
@@ -65,7 +65,7 @@
 
   # Whether queries should be logged before execution. Very useful for troubleshooting, but will
   # log any sensitive data contained within a query.
-  # query-log-enabled = true
+  query-log-enabled = false
 
   # It is possible to collect statistics of points written per-measurement and/or per-login.
   # These can be accessed via the monitoring subsystem.
@@ -288,7 +288,7 @@
   # realm = "InfluxDB"
 
   # Determines whether HTTP request logging is enabled.
-  # log-enabled = true
+  log-enabled = false
 
   # Determines whether the HTTP write request logs should be suppressed when the log is enabled.
   # suppress-write-log = false
@@ -394,7 +394,7 @@
   # Determines which level of logs will be emitted. The available levels
   # are error, warn, info, and debug. Logs that are equal to or above the
   # specified level will be emitted.
-  # level = "info"
+  level = "warn"
 
   # Suppresses the logo output that is printed when the program is started.
   # The logo is always suppressed if STDOUT is not a TTY.

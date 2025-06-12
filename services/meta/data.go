@@ -32,7 +32,7 @@ const (
 	DefaultRetentionPolicyName = "autogen"
 
 	// MinRetentionPolicyDuration represents the minimum duration for a policy.
-	MinRetentionPolicyDuration = time.Hour
+	MinRetentionPolicyDuration = 5 * time.Minute
 
 	// MaxNameLen is the maximum length of a database or retention policy name.
 	// InfluxDB uses the name for the directory name on disk.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -359,11 +360,30 @@ func (p *Partition) CurrentCompactionN() int {
 func (p *Partition) Wait() {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
+
+	// Debug level timeout
+	timeoutDuration := 10 * time.Minute
+	timeout := time.NewTicker(timeoutDuration)
+	defer timeout.Stop()
+
+	p.logger.Warn("Starting Partition.Wait()", zap.String("path", p.path), zap.Duration("timeout", timeoutDuration),
+		zap.String("partition_id", p.id), zap.Int("currentCompactionN", p.currentCompactionN))
+
 	for {
-		if p.CurrentCompactionN() == 0 {
-			return
+		select {
+		case <-timeout.C:
+			files := make([]string, 0)
+			for _, v := range p.fileSet.Files() {
+				files = append(files, v.Path())
+			}
+			p.logger.Warn("Partition.Wait() timed out waiting for compactions to complete",
+				zap.Int("stuck_compactions", p.CurrentCompactionN()), zap.Duration("timeout", timeoutDuration),
+				zap.Strings("files", files))
+		case <-ticker.C:
+			if p.CurrentCompactionN() == 0 {
+				return
+			}
 		}
-		<-ticker.C
 	}
 }
 
@@ -1007,6 +1027,18 @@ func (p *Partition) NeedsCompaction(checkRunning bool) bool {
 	return false
 }
 
+func (p *Partition) shouldChaosKill() bool {
+	if !p.chaosTestingEnabled() {
+		return false
+	}
+
+	return rand.Float64() < 0.01
+}
+
+func (p *Partition) chaosTestingEnabled() bool {
+	return os.Getenv("CHAOS_TESTING") == "true"
+}
+
 // compact compacts continguous groups of files that are not currently compacting.
 //
 // compact requires that mu is write-locked.
@@ -1041,10 +1073,17 @@ func (p *Partition) compact() {
 			// Mark the level as compacting.
 			p.levelCompacting[0] = true
 			p.currentCompactionN++
+			p.logger.Warn("currentCompaction INCREASED", zap.Int("currentCompactionN", p.currentCompactionN))
 			go func() {
+				if p.shouldChaosKill() {
+					p.logger.Warn("CHAOS: Randomly killing log file compaction goroutine",
+						zap.String("file", logFile.Path()), zap.Int("currentCompactionN", p.currentCompactionN))
+					return
+				}
 				p.compactLogFile(logFile)
 				p.mu.Lock()
 				p.currentCompactionN--
+				p.logger.Warn("currentCompaction DECREASED", zap.Int("currentCompactionN", p.currentCompactionN))
 				p.levelCompacting[0] = false
 				p.mu.Unlock()
 				p.Compact()
@@ -1080,8 +1119,12 @@ func (p *Partition) compact() {
 		func(files []*IndexFile, level int) {
 			// Start compacting in a separate goroutine.
 			p.currentCompactionN++
+			p.logger.Warn("currentCompaction INCREASED", zap.Int("currentCompactionN", p.currentCompactionN))
 			go func() {
-
+				if p.shouldChaosKill() {
+					p.logger.Warn("CHAOS: Randomly killing log file compaction goroutine", zap.Int("currentCompactionN", p.currentCompactionN))
+					return
+				}
 				// Compact to a new level.
 				p.compactToLevel(files, level+1, interrupt)
 
@@ -1089,6 +1132,7 @@ func (p *Partition) compact() {
 				p.mu.Lock()
 				p.levelCompacting[level] = false
 				p.currentCompactionN--
+				p.logger.Warn("currentCompaction DECREASED", zap.Int("currentCompactionN", p.currentCompactionN))
 				p.mu.Unlock()
 
 				// Check for new compactions
