@@ -166,13 +166,11 @@ jobs:
           path: /tmp/workspace/packages
 
   test_pkgs_64bit:
-    machine:
-      enabled: true
-      docker_layer_caching: true
-      image: ubuntu-2204:current
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm
     steps:
       - attach_workspace:
-          at: /tmp/workspace
+          at: /tmp/workspace/<< pipeline.id >>
       - checkout
       - run:
           name: Test 64 bit packages install
@@ -183,10 +181,10 @@ jobs:
             # The glob pattern with -prune causes find to only return files rooted in packages,
             # thereby avoiding files whose names would match, but are in subdirectories, i.e. packages/static.
             "${WORKING_DIR}/releng/packages/spec/clean_install/run.bash" -D \
-              -p "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb*amd64.deb')"
+              -p "$(find "/tmp/workspace/${CIRCLE_PIPELINE_ID}/packages"/* -prune -name 'influxdb*amd64.deb')"
 
             "${WORKING_DIR}/releng/packages/spec/clean_install/run.bash" -R \
-              -p "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb*x86_64.rpm')"
+              -p "$(find "/tmp/workspace/${CIRCLE_PIPELINE_ID}/packages"/* -prune -name 'influxdb*x86_64.rpm')"
 
   static_code_checks:
     docker:
