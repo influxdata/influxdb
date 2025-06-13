@@ -104,12 +104,12 @@ At a high level, the build process for Official builds consists of:
 
     ```
     implementation=CPython
-    version=3.11
+    version=3.13
     shared=true
     abi3=false
-    lib_name=python3.11
+    lib_name=python3.13
     lib_dir=/path/to/python-standalone/python/lib
-    executable=/path/to/python-standalone/python/bin/python3.11
+    executable=/path/to/python-standalone/python/bin/python3.13
     pointer_width=64
     build_flags=
     suppress_build_script_link_lines=false
@@ -191,18 +191,18 @@ Local development with python-build-standalone currently consists of:
 
 1. download python-build-standalone and unpack it somewhere
     * get from https://github.com/astral-sh/python-build-standalone/releases
-    * based on your host OS, choose one of `aarch64-apple-darwin-install_only_stripped.tar.gz`, `aarch64-unknown-linux-gnu-install_only_stripped.tar.gz`, `x86_64-pc-windows-msvc-shared-install_only_stripped.tar.gz`, `x86_64-unknown-linux-gnu-install_only_stripped.tar.gz`
-2. create `pyo3_config_file.txt` to match the unpacked dir and downloaded python version. Eg, if downloaded and unpacked a 3.11.x version to `/tmp/python`:
+    * based on your host OS, choose one of `aarch64-apple-darwin-install_only_stripped.tar.gz`, `aarch64-unknown-linux-gnu-install_only_stripped.tar.gz`, `x86_64-pc-windows-msvc-install_only_stripped.tar.gz`, `x86_64-unknown-linux-gnu-install_only_stripped.tar.gz`
+2. create `pyo3_config_file.txt` to match the unpacked dir and downloaded python version. Eg, if downloaded and unpacked a 3.13.x version to `/tmp/python`:
 
     ```
     $ cat ./pyo3_config_file.txt
     implementation=CPython
-    version=3.11
+    version=3.13
     shared=true
     abi3=false
-    lib_name=python3.11
+    lib_name=python3.13
     lib_dir=/tmp/python/lib
-    executable=/tmp/python/bin/python3.11
+    executable=/tmp/python/bin/python3.13
     pointer_width=64
     build_flags=
     suppress_build_script_link_lines=false
@@ -222,7 +222,7 @@ Local development with python-build-standalone currently consists of:
     $ patchelf --set-rpath '$ORIGIN/python/lib' ./target/<profile>/influxdb3
 
     # osx (be sure to match the libpython version with what you downloaded)
-    $ install_name_tool -change '/install/lib/libpython3.11.dylib' '@executable_path/python/lib/libpython3.11.dylib' ./target/<profile>/influxdb3
+    $ install_name_tool -change '/install/lib/libpython3.13.dylib' '@executable_path/python/lib/libpython3.13.dylib' ./target/<profile>/influxdb3
     ```
 
 5. Linux/OSX: put the python runtime in the expected location (XXX: may be
@@ -284,7 +284,7 @@ builds:
  * `aarch64-apple-darwin-install_only_stripped.tar.gz`
  * `aarch64-unknown-linux-gnu-install_only_stripped.tar.gz`
  * `x86_64-unknown-linux-gnu-install_only_stripped.tar.gz`
- * `x86_64-pc-windows-msvc-shared-install_only_stripped.tar.gz`
+ * `x86_64-pc-windows-msvc-install_only_stripped.tar.gz`
 
 
 ### How will InfluxData maintain the embedded interpreter?
