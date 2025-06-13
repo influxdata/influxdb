@@ -1198,13 +1198,19 @@ impl HttpApi {
     }
 
     async fn create_database(&self, req: Request) -> Result<Response> {
-        let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
+        let CreateDatabaseRequest {
+            db,
+            retention_period,
+        } = self.read_body_json(req).await?;
         validate_db_name(&db, false)?;
-        self.write_buffer.catalog().create_database(&db).await?;
-        Ok(ResponseBuilder::new()
-            .status(StatusCode::OK)
-            .body(empty_response_body())
-            .unwrap())
+        self.write_buffer
+            .catalog()
+            .create_database_opts(
+                &db,
+                influxdb3_catalog::catalog::CreateDatabaseOptions { retention_period },
+            )
+            .await?;
+        Ok(Response::new(empty_response_body()))
     }
 
     /// Endpoint for testing a plugin that will be trigger on WAL writes.
@@ -1282,6 +1288,27 @@ impl HttpApi {
         }
     }
 
+    async fn update_database(&self, req: Request) -> Result<Response> {
+        let update_req = self.read_body_json::<UpdateDatabaseRequest>(req).await?;
+
+        match update_req.retention_period {
+            Some(duration) => {
+                self.write_buffer
+                    .catalog()
+                    .set_retention_period_for_database(&update_req.db, duration)
+                    .await?;
+            }
+            None => {
+                self.write_buffer
+                    .catalog()
+                    .clear_retention_period_for_database(&update_req.db)
+                    .await?;
+            }
+        }
+
+        Ok(Response::new(empty_response_body()))
+    }
+
     async fn delete_database(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
@@ -1289,10 +1316,7 @@ impl HttpApi {
             .catalog()
             .soft_delete_database(&delete_req.db)
             .await?;
-        Ok(ResponseBuilder::new()
-            .status(StatusCode::OK)
-            .body(empty_response_body())
-            .unwrap())
+        Ok(Response::new(empty_response_body()))
     }
 
     async fn create_table(&self, req: Request) -> Result<Response> {
@@ -1315,10 +1339,7 @@ impl HttpApi {
                     .collect::<Vec<(String, FieldDataType)>>(),
             )
             .await?;
-        Ok(ResponseBuilder::new()
-            .status(StatusCode::OK)
-            .body(empty_response_body())
-            .unwrap())
+        Ok(Response::new(empty_response_body()))
     }
 
     async fn delete_table(&self, req: Request) -> Result<Response> {
@@ -1923,6 +1944,9 @@ pub(crate) async fn route_request(
         }
         (Method::POST, all_paths::API_V3_CONFIGURE_DATABASE) => {
             http_server.create_database(req).await
+        }
+        (Method::PUT, all_paths::API_V3_CONFIGURE_DATABASE) => {
+            http_server.update_database(req).await
         }
         (Method::DELETE, all_paths::API_V3_CONFIGURE_DATABASE) => {
             http_server.delete_database(req).await

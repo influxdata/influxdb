@@ -269,6 +269,7 @@ impl std::fmt::Display for NodeMode {
 pub struct CreateDatabaseLog {
     pub database_id: DbId,
     pub database_name: Arc<str>,
+    pub retention_period: Option<Duration>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

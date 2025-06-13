@@ -35,6 +35,7 @@ pub mod commands {
     pub mod serve;
     pub mod show;
     pub mod test;
+    pub mod update;
     pub mod write;
 }
 
@@ -105,6 +106,8 @@ enum Command {
     /// Test things, such as plugins, work the way you expect
     Test(commands::test::Config),
 
+    /// Update resources on the InfluxDB 3 Core server
+    Update(commands::update::Config),
     /// Perform a set of writes to a running InfluxDB 3 Core server
     Write(commands::write::Config),
 }
@@ -197,6 +200,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Test(config)) => {
                 if let Err(e) = commands::test::command(config).await {
                     eprintln!("Test command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Update(config)) => {
+                if let Err(e) = commands::update::command(config).await {
+                    eprintln!("Update command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

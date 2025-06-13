@@ -132,6 +132,10 @@ pub struct DatabaseConfig {
     #[clap(env = "INFLUXDB3_DATABASE_NAME", required = true)]
     pub database_name: String,
 
+    #[clap(long = "retention-period")]
+    /// The retention period for the database as a human-readable duration, e.g., "30d", "24h"
+    pub retention_period: Option<Duration>,
+
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
@@ -277,8 +281,14 @@ pub struct TriggerConfig {
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
     let client = config.get_client()?;
     match config.cmd {
-        SubCommand::Database(DatabaseConfig { database_name, .. }) => {
-            client.api_v3_configure_db_create(&database_name).await?;
+        SubCommand::Database(DatabaseConfig {
+            database_name,
+            retention_period,
+            ..
+        }) => {
+            client
+                .api_v3_configure_db_create(&database_name, retention_period.map(Into::into))
+                .await?;
 
             println!("Database {:?} created successfully", &database_name);
         }

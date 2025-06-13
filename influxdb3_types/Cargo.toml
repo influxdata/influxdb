@@ -21,6 +21,7 @@ chrono.workspace = true
 serde.workspace = true
 hashbrown.workspace = true
 hex.workspace = true
+humantime-serde.workspace = true
 hyper.workspace = true
 thiserror.workspace = true
 uuid.workspace = true

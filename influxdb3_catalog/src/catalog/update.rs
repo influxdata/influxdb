@@ -55,6 +55,11 @@ impl HardDeletionTime {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy)]
+pub struct CreateDatabaseOptions {
+    pub retention_period: Option<Duration>,
+}
+
 impl Catalog {
     pub fn begin(&self, db_name: &str) -> Result<DatabaseCatalogTransaction> {
         debug!(db_name, "starting catalog transaction");
@@ -79,10 +84,15 @@ impl Catalog {
                 let database_name = Arc::from(db_name);
                 let database_schema =
                     Arc::new(DatabaseSchema::new(database_id, Arc::clone(&database_name)));
+                let retention_period = match database_schema.retention_period {
+                    RetentionPeriod::Duration(duration) => Some(duration),
+                    RetentionPeriod::Indefinite => None,
+                };
                 let time_ns = self.time_provider.now().timestamp_nanos();
                 let ops = vec![DatabaseCatalogOp::CreateDatabase(CreateDatabaseLog {
                     database_id,
                     database_name,
+                    retention_period,
                 })];
                 Ok(DatabaseCatalogTransaction {
                     catalog_sequence: inner.sequence_number(),
@@ -240,10 +250,22 @@ impl Catalog {
     }
 
     pub async fn create_database(&self, name: &str) -> Result<OrderedCatalogBatch> {
+        self.create_database_opts(name, CreateDatabaseOptions::default())
+            .await
+    }
+
+    pub async fn create_database_opts(
+        &self,
+        name: &str,
+        options: CreateDatabaseOptions,
+    ) -> Result<OrderedCatalogBatch> {
         info!(name, "create database");
         self.catalog_update_with_retry(|| {
-            let (_, Some(batch)) =
-                self.db_or_create(name, self.time_provider.now().timestamp_nanos())?
+            let (_, Some(batch)) = self.db_or_create(
+                name,
+                options.retention_period,
+                self.time_provider.now().timestamp_nanos(),
+            )?
             else {
                 return Err(CatalogError::AlreadyExists);
             };

@@ -43,7 +43,7 @@ mod update;
 use schema::sort::SortKey;
 pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::HardDeletionTime;
-pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
+pub use update::{CatalogUpdate, CreateDatabaseOptions, DatabaseCatalogTransaction, Prompt};
 
 use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
 use crate::log::GenerationBatch;
@@ -403,6 +403,7 @@ impl Catalog {
     pub(crate) fn db_or_create(
         &self,
         db_name: &str,
+        retention_period: Option<Duration>,
         now_time_ns: i64,
     ) -> Result<(Arc<DatabaseSchema>, Option<CatalogBatch>)> {
         match self.db_schema(db_name) {
@@ -425,6 +426,7 @@ impl Catalog {
                     vec![DatabaseCatalogOp::CreateDatabase(CreateDatabaseLog {
                         database_id: db.id,
                         database_name: Arc::clone(&db.name),
+                        retention_period,
                     })],
                 );
                 Ok((db, Some(batch)))
@@ -1516,13 +1518,15 @@ impl UpdateDatabaseSchema for DatabaseCatalogOp {
                 if create_database.database_id != schema.id
                     || create_database.database_name != schema.name
                 {
-                    warn!(
+                    panic!(
                         "Create database call received by a mismatched DatabaseSchema. This should not be possible."
                     )
                 }
-                // NOTE(trevor/catalog-refactor): if the database is already there, shouldn't this
-                // be a no-op, and not to_mut the cow?
-                schema.to_mut();
+                schema.to_mut().retention_period = match create_database.retention_period {
+                    Some(duration) => RetentionPeriod::Duration(duration),
+                    None => RetentionPeriod::Indefinite,
+                };
+
                 Ok(schema)
             }
             DatabaseCatalogOp::CreateTable(create_table) => create_table.update_schema(schema),
@@ -2312,6 +2316,7 @@ impl TokenRepository {
             .get_by_id(&token_id)
             .ok_or_else(|| CatalogError::MissingAdminTokenToUpdate)?;
         let updatable = Arc::make_mut(&mut token_info);
+
         updatable.hash = hash.clone();
         updatable.updated_at = Some(updated_at);
         updatable.updated_by = Some(token_id);

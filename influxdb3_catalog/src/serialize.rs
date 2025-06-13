@@ -842,6 +842,7 @@ mod v1_tests {
                     crate::log::DatabaseCatalogOp::CreateDatabase(crate::log::CreateDatabaseLog {
                         database_id: DbId::new(0),
                         database_name: "test-db".into(),
+                        retention_period: None,
                     }),
                     crate::log::DatabaseCatalogOp::SoftDeleteDatabase(
                         crate::log::SoftDeleteDatabaseLog {

@@ -18,16 +18,20 @@ use parquet_files::ParquetFilesTable;
 use tokens::TokenSystemTable;
 use tonic::async_trait;
 
-use self::{last_caches::LastCachesTable, queries::QueriesTable};
+use self::{
+    databases::DatabasesTable, last_caches::LastCachesTable, queries::QueriesTable,
+    tables::TablesTable,
+};
 
+mod databases;
 mod distinct_caches;
 mod generations;
 mod last_caches;
 mod parquet_files;
 use crate::system_tables::python_call::{ProcessingEngineLogsTable, ProcessingEngineTriggerTable};
-
 mod python_call;
 mod queries;
+mod tables;
 mod tokens;
 
 pub(crate) const SYSTEM_SCHEMA_NAME: &str = "system";
@@ -38,6 +42,8 @@ pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
 pub(crate) const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 pub(crate) const TOKENS_TABLE_NAME: &str = "tokens";
+pub(crate) const DATABASES_TABLE_NAME: &str = "databases";
+pub(crate) const TABLES_TABLE_NAME: &str = "tables";
 pub(crate) const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
 
 const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
@@ -138,6 +144,18 @@ impl AllSystemSchemaTablesProvider {
                 Arc::new(SystemTableProvider::new(Arc::new(TokenSystemTable::new(
                     Arc::clone(&catalog),
                     started_with_auth,
+                )))),
+            );
+            tables.insert(
+                DATABASES_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(DatabasesTable::new(
+                    Arc::clone(&catalog),
+                )))),
+            );
+            tables.insert(
+                TABLES_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(TablesTable::new(
+                    Arc::clone(&catalog),
                 )))),
             );
             tables.insert(
