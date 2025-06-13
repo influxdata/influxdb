@@ -33,7 +33,7 @@ readonly PBS_TOP_DIR="/tmp/workspace"
 # - aarch64-apple-darwin
 # - aarch64-unknown-linux-gnu
 # - x86_64-unknown-linux-gnu
-# - x86_64-pc-windows-msvc-shared
+# - x86_64-pc-windows-msvc
 #
 # Note: musl builds of python-build-standablone currently (as of 2025-02-04)
 # have limitations:
@@ -47,13 +47,13 @@ readonly PBS_TOP_DIR="/tmp/workspace"
 # - https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst
 # - https://edu.chainguard.dev/chainguard/chainguard-images/about/images-compiled-programs/glibc-vs-musl/#python-builds
 # - https://pythonspeed.com/articles/alpine-docker-python/
-readonly TARGETS="aarch64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu x86_64-pc-windows-msvc-shared"
+readonly TARGETS="aarch64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu x86_64-pc-windows-msvc"
 
 fetch() {
     target="$1"
     suffix="${2}"
     if [ "${suffix}" = "full.tar.zst" ]; then
-        if [ "${target}" = "x86_64-pc-windows-msvc-shared" ]; then
+        if [ "${target}" = "x86_64-pc-windows-msvc" ]; then
             suffix="pgo-${2}"
         else
             suffix="debug-${2}"
@@ -84,7 +84,7 @@ fetch() {
 
     echo "Unpacking ${binary} to '${DOWNLOAD_DIR}'"
     UNPACK_DIR="${DOWNLOAD_DIR}/${target}"
-    if [ "${target}" = "x86_64-pc-windows-msvc-shared" ]; then
+    if [ "${target}" = "x86_64-pc-windows-msvc" ]; then
         UNPACK_DIR="${DOWNLOAD_DIR}/x86_64-pc-windows-gnu"
     fi
     mkdir "${UNPACK_DIR}" 2>/dev/null || true
@@ -103,7 +103,7 @@ fetch() {
         echo "Creating ${UNPACK_DIR}/pyo3_config_file.txt"
         PYO3_CONFIG_FILE="${UNPACK_DIR}/pyo3_config_file.txt"
         PBS_DIR="${PBS_TOP_DIR}"/$(basename "${DOWNLOAD_DIR}")/$(basename "${UNPACK_DIR}")
-        if [ "${target}" = "x86_64-pc-windows-msvc-shared" ]; then
+        if [ "${target}" = "x86_64-pc-windows-msvc" ]; then
             cat > "${PYO3_CONFIG_FILE}" <<EOM
 implementation=CPython
 version=${PBS_MAJ_MIN}
