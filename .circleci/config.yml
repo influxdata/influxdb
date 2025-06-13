@@ -287,17 +287,33 @@ jobs:
     steps:
       - checkout
       - run:
-          name: pull Python Build Standalone
+          name: Record Python Build Standalone version for caching
           command: |
-            echo "PBS_DATE=$PBS_DATE"
-            .circleci/scripts/fetch-python-standalone.bash \
-              "python-artifacts" \
-              "$PBS_DATE" \
-              "$PBS_VERSION"
+            echo "$PBS_VERSION-$PBS_DATE" | tee /tmp/pbs_version
+      - restore_cache:
+          name: Restore Python Build Standalone from cache
+          key: python-artifacts-{{ checksum "/tmp/pbs_version" }}
+      - run:
+          name: Pull Python Build Standalone
+          command: |
+            if [ -d "python-artifacts" ]; then
+              echo "Using cached python-artifacts for $(cat /tmp/pbs_version)"
+            else
+              echo "PBS_DATE=$PBS_DATE"
+              .circleci/scripts/fetch-python-standalone.bash \
+                "python-artifacts" \
+                "$PBS_DATE" \
+                "$PBS_VERSION"
+            fi
       - store_artifacts:
           path: python-artifacts
       - persist_to_workspace:
           root: .
+          paths:
+            - python-artifacts
+      - save_cache:
+          name: Save python-build-standalone to cache
+          key: python-artifacts-{{ checksum "/tmp/pbs_version" }}
           paths:
             - python-artifacts
 
