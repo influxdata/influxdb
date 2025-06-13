@@ -5,6 +5,14 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+name = "influxdb3_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "influxdb3"
+path = "src/main.rs"
+
 [lints]
 workspace = true
 
@@ -92,6 +100,10 @@ tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/rele
 
 # Use jemalloc as the default allocator.
 jemalloc_replacing_malloc = ["tikv-jemallocator", "tikv-jemalloc-ctl"]
+
+# Enable use as library in downstream projects that already configure a defaul
+# global allocator.
+disable_custom_global_allocator = []
 
 [dev-dependencies]
 # Core Crates

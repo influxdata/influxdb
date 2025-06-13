@@ -1078,7 +1078,11 @@ async fn background_buffer_checker(
     .await;
 }
 
-#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
+#[cfg(all(
+    feature = "jemalloc_replacing_malloc",
+    not(target_env = "msvc"),
+    not(feature = "disable_custom_global_allocator")
+))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
