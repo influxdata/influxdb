@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/streadway/handy/atomic"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -62,7 +63,7 @@ type Partition struct {
 	// Fieldset shared with engine.
 	fieldset *tsdb.MeasurementFieldSet
 
-	currentCompactionN int // counter of in-progress compactions
+	currentCompactionN atomic.Int // counter of in-progress compactions
 
 	// Directory of the Partition's index files.
 	path string
@@ -348,7 +349,7 @@ func (p *Partition) buildSeriesSet() error {
 }
 
 // CurrentCompactionN returns the number of compactions currently running.
-func (p *Partition) CurrentCompactionN() int {
+func (p *Partition) CurrentCompactionN() atomic.Int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.currentCompactionN
@@ -366,7 +367,8 @@ func (p *Partition) Wait() {
 	defer timeout.Stop()
 
 	for {
-		if p.CurrentCompactionN() == 0 {
+		n := p.CurrentCompactionN()
+		if n.Get() == 0 {
 			return
 		}
 		select {
@@ -376,7 +378,7 @@ func (p *Partition) Wait() {
 				files = append(files, v.Path())
 			}
 			p.logger.Debug("Partition.Wait() timed out waiting for compactions to complete",
-				zap.Int("stuck_compactions", p.CurrentCompactionN()), zap.Duration("timeout", timeoutDuration),
+				zap.Int64("stuck_compactions", n.Get()), zap.Duration("timeout", timeoutDuration),
 				zap.Strings("files", files))
 		case <-ticker.C:
 		}
