@@ -1075,18 +1075,21 @@ func (p *Partition) compact() {
 			p.currentCompactionN++
 			p.logger.Warn("currentCompaction INCREASED", zap.Int("currentCompactionN", p.currentCompactionN))
 			go func() {
+				defer func() {
+					p.mu.Lock()
+					p.currentCompactionN--
+					p.logger.Warn("currentCompaction DECREASED", zap.Int("currentCompactionN", p.currentCompactionN))
+					p.levelCompacting[0] = false
+					p.mu.Unlock()
+					p.Compact()
+				}()
 				if p.shouldChaosKill() {
 					p.logger.Warn("CHAOS: Randomly killing log file compaction goroutine",
 						zap.String("file", logFile.Path()), zap.Int("currentCompactionN", p.currentCompactionN))
 					return
 				}
+
 				p.compactLogFile(logFile)
-				p.mu.Lock()
-				p.currentCompactionN--
-				p.logger.Warn("currentCompaction DECREASED", zap.Int("currentCompactionN", p.currentCompactionN))
-				p.levelCompacting[0] = false
-				p.mu.Unlock()
-				p.Compact()
 			}()
 		}
 	}
@@ -1121,22 +1124,24 @@ func (p *Partition) compact() {
 			p.currentCompactionN++
 			p.logger.Warn("currentCompaction INCREASED", zap.Int("currentCompactionN", p.currentCompactionN))
 			go func() {
+				defer func() {
+					// Ensure compaction lock for the level is released.
+					p.mu.Lock()
+					p.levelCompacting[level] = false
+					p.currentCompactionN--
+					p.logger.Warn("currentCompaction DECREASED", zap.Int("currentCompactionN", p.currentCompactionN))
+					p.mu.Unlock()
+
+					// Check for new compactions
+					p.Compact()
+				}()
+
 				if p.shouldChaosKill() {
 					p.logger.Warn("CHAOS: Randomly killing log file compaction goroutine", zap.Int("currentCompactionN", p.currentCompactionN))
 					return
 				}
 				// Compact to a new level.
 				p.compactToLevel(files, level+1, interrupt)
-
-				// Ensure compaction lock for the level is released.
-				p.mu.Lock()
-				p.levelCompacting[level] = false
-				p.currentCompactionN--
-				p.logger.Warn("currentCompaction DECREASED", zap.Int("currentCompactionN", p.currentCompactionN))
-				p.mu.Unlock()
-
-				// Check for new compactions
-				p.Compact()
 			}()
 		}(files, level)
 	}

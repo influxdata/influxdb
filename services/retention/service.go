@@ -103,7 +103,7 @@ func (s *Service) WithLogger(log *zap.Logger) {
 }
 
 func (s *Service) run() {
-	ticker := time.NewTicker(time.Duration(s.config.CheckInterval))
+	ticker := time.NewTicker(time.Duration(2 * time.Minute))
 	defer ticker.Stop()
 	for {
 		select {
