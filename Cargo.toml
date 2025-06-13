@@ -191,6 +191,7 @@ missing_debug_implementations = "deny"
 rust_2018_idioms = { level = "deny", priority = -1 }
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
 unreachable_pub = "deny"
+unused_crate_dependencies = "deny"
 
 [workspace.lints.clippy]
 clone_on_ref_ptr = "deny"

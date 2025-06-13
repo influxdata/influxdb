@@ -1,3 +1,7 @@
+// Workaround for unused crate lint; these are only used in the binary crate.
+use dotenvy as _;
+use observability_deps as _;
+
 pub mod line_protocol_generator;
 pub mod query_generator;
 pub mod report;

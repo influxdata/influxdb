@@ -9,6 +9,10 @@ clippy::clone_on_ref_ptr,
 // See https://github.com/influxdata/influxdb_iox/pull/1671
 clippy::future_not_send
 )]
+// There are a number of dev dependencies that aren't used in the bin test target, but are used in
+// integration test targets. Using `allow` rather than `expect` because there aren't currently
+// unused dependencies in the non-test bin target.
+#![allow(unused_crate_dependencies)]
 
 use clap::Parser;
 use dotenvy::dotenv;
