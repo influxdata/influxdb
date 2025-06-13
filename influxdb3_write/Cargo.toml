@@ -12,9 +12,7 @@ workspace = true
 # Core Crates
 data_types.workspace = true
 datafusion_util.workspace = true
-executor.workspace = true
 influxdb-line-protocol.workspace = true
-iox_http.workspace = true
 iox_query.workspace = true
 iox_time.workspace = true
 metric.workspace = true
@@ -27,12 +25,8 @@ trace.workspace = true
 influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_id = { path = "../influxdb3_id" }
-influxdb3_internal_api = { path = "../influxdb3_internal_api" }
-influxdb3_py_api = {path = "../influxdb3_py_api"}
-influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
-influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 influxdb3_types = { path = "../influxdb3_types" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 
@@ -40,36 +34,24 @@ influxdb3_wal = { path = "../influxdb3_wal" }
 anyhow.workspace = true
 arrow.workspace = true
 async-trait.workspace = true
-byteorder.workspace  = true
 bytes.workspace = true
-bimap.workspace = true
 chrono.workspace  = true
-crc32fast.workspace  = true
-crossbeam-channel.workspace  = true
-dashmap.workspace = true
 datafusion.workspace = true
-futures.workspace = true
 futures-util.workspace = true
 hashbrown.workspace = true
-hex.workspace = true
 indexmap.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 parquet.workspace = true
-pyo3.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-serde_with.workspace = true
-sha2.workspace = true
-snap.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-url.workspace = true
-uuid.workspace = true
 
 [dev-dependencies]
-# Core Crates
 arrow_util.workspace = true
+executor.workspace = true
+influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 insta.workspace = true
 pretty_assertions.workspace = true
 test_helpers.workspace = true

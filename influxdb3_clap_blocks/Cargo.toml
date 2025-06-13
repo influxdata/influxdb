@@ -14,29 +14,22 @@ observability_deps.workspace = true
 async-trait.workspace = true
 clap.workspace = true
 datafusion.workspace = true
-http.workspace = true
 # object store crate uses the new version of the http crate
 http_1 = { version = "1.1", package = "http" }
 humantime.workspace = true
-iox_time.workspace = true
-itertools.workspace = true
 libc.workspace = true
-metric.workspace = true
 non-empty-string.workspace = true
 object_store.workspace = true
 paste.workspace = true
 snafu.workspace = true
 sysinfo.workspace = true
 tokio.workspace = true
-trace_exporters.workspace = true
-trogging.workspace = true
 url.workspace = true
 bytes.workspace = true
 futures.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-test_helpers.workspace = true
 futures.workspace = true
 test-log.workspace = true
 

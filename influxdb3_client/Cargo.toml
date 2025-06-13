@@ -12,7 +12,6 @@ iox_query_params.workspace = true
 # Local deps
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_types = { path = "../influxdb3_types" }
-influxdb3_wal = { path = "../influxdb3_wal" }
 
 # crates.io dependencies
 bytes.workspace = true

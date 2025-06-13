@@ -30,7 +30,6 @@ futures.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
 object_store.workspace = true
-serde.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 
@@ -44,7 +43,6 @@ influxdb3_write = { path = "../influxdb3_write" }
 influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 
 # crates.io deps
-bimap.workspace = true
 insta.workspace = true
 object_store.workspace = true
 pretty_assertions.workspace = true

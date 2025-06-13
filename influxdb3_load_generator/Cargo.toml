@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 # Core Crates
 observability_deps.workspace = true
-trogging.workspace = true
 
 # Local Deps
 influxdb3_client = { path = "../influxdb3_client" }
