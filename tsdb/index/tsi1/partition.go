@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/streadway/handy/atomic"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -63,7 +63,7 @@ type Partition struct {
 	// Fieldset shared with engine.
 	fieldset *tsdb.MeasurementFieldSet
 
-	currentCompactionN atomic.Int // counter of in-progress compactions
+	currentCompactionN atomic.Int32 // counter of in-progress compactions
 
 	// Directory of the Partition's index files.
 	path string
@@ -349,10 +349,8 @@ func (p *Partition) buildSeriesSet() error {
 }
 
 // CurrentCompactionN returns the number of compactions currently running.
-func (p *Partition) CurrentCompactionN() atomic.Int {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.currentCompactionN
+func (p *Partition) CurrentCompactionN() int32 {
+	return p.currentCompactionN.Load()
 }
 
 // Wait will block until all compactions are finished.
@@ -367,8 +365,7 @@ func (p *Partition) Wait() {
 	defer timeout.Stop()
 
 	for {
-		n := p.CurrentCompactionN()
-		if n.Get() == 0 {
+		if p.CurrentCompactionN() == 0 {
 			return
 		}
 		select {
@@ -378,7 +375,7 @@ func (p *Partition) Wait() {
 				files = append(files, v.Path())
 			}
 			p.logger.Debug("Partition.Wait() timed out waiting for compactions to complete",
-				zap.Int64("stuck_compactions", n.Get()), zap.Duration("timeout", timeoutDuration),
+				zap.Int32("stuck_compactions", p.CurrentCompactionN()), zap.Duration("timeout", timeoutDuration),
 				zap.Strings("files", files))
 		case <-ticker.C:
 		}
@@ -1058,11 +1055,11 @@ func (p *Partition) compact() {
 			}
 			// Mark the level as compacting.
 			p.levelCompacting[0] = true
-			p.currentCompactionN++
+			p.currentCompactionN.Add(1)
 			go func() {
 				defer func() {
 					p.mu.Lock()
-					p.currentCompactionN--
+					p.currentCompactionN.Add(-1)
 					p.levelCompacting[0] = false
 					p.mu.Unlock()
 					p.Compact()
@@ -1100,13 +1097,13 @@ func (p *Partition) compact() {
 		// Execute in closure to save reference to the group within the loop.
 		func(files []*IndexFile, level int) {
 			// Start compacting in a separate goroutine.
-			p.currentCompactionN++
+			p.currentCompactionN.Add(1)
 			go func() {
 				defer func() {
 					// Ensure compaction lock for the level is released.
 					p.mu.Lock()
 					p.levelCompacting[level] = false
-					p.currentCompactionN--
+					p.currentCompactionN.Add(-1)
 					p.mu.Unlock()
 
 					// Check for new compactions
