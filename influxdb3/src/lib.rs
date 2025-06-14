@@ -109,7 +109,7 @@ enum Command {
     Write(commands::write::Config),
 }
 
-pub fn startup() -> Result<(), std::io::Error> {
+pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
     #[cfg(unix)]
     install_crash_handler(); // attempt to render a useful stacktrace to stderr
 
@@ -133,7 +133,7 @@ pub fn startup() -> Result<(), std::io::Error> {
     TokioDatafusionConfig::copy_deprecated_env_aliases();
 
     // Note the help code above *must* run before this function call
-    let config = Config::parse();
+    let config = Config::parse_from(args);
 
     let tokio_runtime = config.runtime_config.builder()?.build()?;
 
