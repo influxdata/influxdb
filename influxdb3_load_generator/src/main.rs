@@ -8,6 +8,8 @@
     clippy::clone_on_ref_ptr,
     clippy::future_not_send
 )]
+// There are many crates only used by the library.
+#![expect(unused_crate_dependencies)]
 
 use dotenvy::dotenv;
 use observability_deps::tracing::warn;

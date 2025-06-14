@@ -282,6 +282,9 @@ pub async fn serve(
 
 #[cfg(test)]
 mod tests {
+    // Workaround for "unused crate" lint false positives; this is only used in integration tests.
+    use insta as _;
+
     use crate::builder::ServerBuilder;
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;

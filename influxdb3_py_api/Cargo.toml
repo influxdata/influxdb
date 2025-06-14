@@ -28,7 +28,6 @@ pyo3.workspace = true
 futures.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-lazy_static = "1.5.0"
 
 [lints]
 workspace = true

@@ -172,6 +172,10 @@ impl<D> Event<D> {
 
 #[cfg(test)]
 mod tests {
+    // Workaround for "unused crate" lint false positives; these are only used in benches.
+    use criterion as _;
+    use rand as _;
+
     use std::sync::Arc;
 
     use arrow::{

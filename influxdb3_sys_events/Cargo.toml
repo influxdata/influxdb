@@ -11,22 +11,17 @@ workspace = true
 [dependencies]
 # core crates
 iox_time.workspace = true
-iox_system_tables.workspace = true
-observability_deps.workspace = true
 
 # crates.io deps
 arrow.workspace = true
 arrow-array.workspace = true
-async-trait.workspace = true
-chrono.workspace = true
 dashmap.workspace = true
-datafusion.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
-test-log.workspace = true
-proptest.workspace = true
+observability_deps.workspace = true
 rand.workspace = true
+test-log.workspace = true
 
 [[bench]]
 name = "store_benchmark"

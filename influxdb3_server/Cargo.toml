@@ -26,7 +26,6 @@ metric.workspace = true
 metric_exporters.workspace = true
 observability_deps.workspace = true
 schema.workspace = true
-service_common.workspace = true
 service_grpc_flight.workspace = true
 trace.workspace = true
 trace_exporters.workspace = true
@@ -37,17 +36,14 @@ tracker.workspace = true
 influxdb3_authz = { path = "../influxdb3_authz" }
 influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_catalog = { path = "../influxdb3_catalog" }
-influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_processing_engine = { path = "../influxdb3_processing_engine" }
 influxdb3_py_api = {path = "../influxdb3_py_api"}
 influxdb3_sys_events = { path = "../influxdb3_sys_events" }
-influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
 influxdb3_types = { path = "../influxdb3_types"}
-influxdb3_wal = { path = "../influxdb3_wal"}
 influxdb3_write = { path = "../influxdb3_write" }
 iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
 
@@ -76,17 +72,13 @@ hyper-rustls.workspace = true
 humantime.workspace = true
 mime.workspace = true
 object_store.workspace = true
-parking_lot.workspace = true
 pin-project-lite.workspace = true
-pyo3.workspace = true
 regex.workspace = true
 rustls.workspace = true
 rustls-pemfile.workspace = true
-secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_urlencoded.workspace = true
-sha2.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
@@ -101,6 +93,10 @@ uuid.workspace = true
 parquet.workspace = true
 parquet_file.workspace = true
 test_helpers.workspace = true
+
+# Local Deps
+influxdb3_shutdown = { path = "../influxdb3_shutdown" }
+influxdb3_wal = { path = "../influxdb3_wal"}
 
 # crates.io crates
 http.workspace = true

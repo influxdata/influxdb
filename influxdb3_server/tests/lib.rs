@@ -1,3 +1,6 @@
+// Tests and benchmarks don't use all the crate dependencies and that's all right.
+#![expect(unused_crate_dependencies)]
+
 use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use arrow_array::RecordBatch;
