@@ -299,7 +299,7 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 		return
 	}
 	srv := retention.NewService(c)
-	srv.MetaClient = s.MetaClient
+	srv.SetOSSMetaClient(s.MetaClient)
 	srv.TSDBStore = s.TSDBStore
 	srv.DropShardMetaRef = retention.OSSDropShardMetaRef(s.MetaClient)
 	s.Services = append(s.Services, srv)
