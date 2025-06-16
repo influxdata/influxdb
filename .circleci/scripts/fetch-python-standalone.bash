@@ -165,6 +165,8 @@ done
 # This speeds up CircleCI
 echo "Creating '${DOWNLOAD_DIR}/all.tar.gz'"
 cd "${DOWNLOAD_DIR}"
+sync
 tar -zcf ./.all.tar.gz ./[a-z]*
 rm -rf ./[a-z]*
 mv ./.all.tar.gz ./all.tar.gz
+sync
