@@ -355,12 +355,40 @@ impl Client {
     }
 
     /// Make a request to the `POST /api/v3/configure/database` API
-    pub async fn api_v3_configure_db_create(&self, db: impl Into<String> + Send) -> Result<()> {
+    pub async fn api_v3_configure_db_create(
+        &self,
+        db: impl Into<String> + Send,
+        retention_period: Option<Duration>,
+    ) -> Result<()> {
         let _bytes = self
             .send_json_get_bytes(
                 Method::POST,
                 "/api/v3/configure/database",
-                Some(CreateDatabaseRequest { db: db.into() }),
+                Some(CreateDatabaseRequest {
+                    db: db.into(),
+                    retention_period,
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Make a request to the `PUT /api/v3/configure/database` API
+    pub async fn api_v3_configure_db_update(
+        &self,
+        db: impl Into<String> + Send,
+        retention_period: Option<Duration>,
+    ) -> Result<()> {
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::PUT,
+                "/api/v3/configure/database",
+                Some(UpdateDatabaseRequest {
+                    db: db.into(),
+                    retention_period,
+                }),
                 None::<()>,
                 None,
             )

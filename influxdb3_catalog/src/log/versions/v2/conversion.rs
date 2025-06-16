@@ -194,6 +194,7 @@ impl From<v2::CreateDatabaseLog> for v3::CreateDatabaseLog {
         Self {
             database_id: value.database_id,
             database_name: value.database_name,
+            retention_period: None,
         }
     }
 }

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use influxdb3_authz::TokenInfo;
@@ -230,6 +230,16 @@ pub struct ShowDatabasesRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateDatabaseRequest {
     pub db: String,
+    #[serde(with = "humantime_serde", default)]
+    pub retention_period: Option<Duration>,
+}
+
+/// Request definition for the `PUT /api/v3/configure/database` API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UpdateDatabaseRequest {
+    pub db: String,
+    #[serde(with = "humantime_serde", default)]
+    pub retention_period: Option<Duration>,
 }
 
 /// Request definition for the `DELETE /api/v3/configure/database` API
