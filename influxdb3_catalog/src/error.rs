@@ -17,8 +17,8 @@ pub enum CatalogError {
     #[error("attempted to create a resource that already exists")]
     AlreadyExists,
 
-    #[error("the requested resource was not found")]
-    NotFound,
+    #[error("the requested {resource} name {resource_name} was not found")]
+    NotFound {resource: &'static str, resource_name: String},
 
     #[error("attempted to delete resource that was already deleted")]
     AlreadyDeleted,
@@ -200,5 +200,12 @@ impl CatalogError {
 
     pub fn unexpected(message: impl Into<String>) -> Self {
         Self::Other(anyhow!(message.into()))
+    }
+
+    pub fn not_found(resource: &'static str, resource_name: impl Into<String>) -> Self {
+        Self::NotFound {
+            resource,
+            resource_name: resource_name.into(),
+        }
     }
 }

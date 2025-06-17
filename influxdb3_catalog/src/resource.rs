@@ -10,6 +10,8 @@ use crate::{
 pub trait CatalogResource: Clone {
     type Identifier;
 
+    const KIND: &'static str;
+
     fn id(&self) -> Self::Identifier;
     fn name(&self) -> Arc<str>;
 }

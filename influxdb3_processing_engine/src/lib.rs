@@ -955,7 +955,7 @@ mod tests {
             )
             .await?;
 
-        let Err(CatalogError::NotFound) = pem
+        let Err(CatalogError::not_found("trigger", "nonexistent_trigger")) = pem
             .catalog
             .enable_processing_engine_trigger("foo", "nonexistent_trigger")
             .await
