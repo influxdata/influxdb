@@ -143,7 +143,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	e.retentionService = retention.NewService(c.RetentionService)
 	e.retentionService.TSDBStore = e.tsdbStore
-	e.retentionService.MetaClient = e.metaClient
+	e.retentionService.SetOSSMetaClient(e.metaClient)
 	e.retentionService.DropShardMetaRef = retention.OSSDropShardMetaRef(e.MetaClient())
 
 	e.precreatorService = precreator.NewService(c.PrecreatorConfig)
