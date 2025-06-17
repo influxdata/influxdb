@@ -42,6 +42,10 @@ Examples:
   --bucket <BUCKET>                Bucket name for cloud object storage [env: INFLUXDB3_BUCKET=]
   --gen1-duration <DURATION>       Duration for Parquet file arrangement [default: 10m]
                                   [env: INFLUXDB3_GEN1_DURATION=]
+  --gen1-lookback-duration <DURATION>
+                                   The amount of time that the server looks back on startup
+                                   when populating the in-memory index of gen1 files.
+                                  [env: INFLUXDB3_GEN1_LOOKBACK_DURATION=]
 
 {}
   --aws-access-key-id <KEY>        S3 access key ID [env: AWS_ACCESS_KEY_ID=] [default: ]

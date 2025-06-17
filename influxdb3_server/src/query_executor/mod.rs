@@ -793,7 +793,10 @@ mod tests {
     use influxdb3_write::{
         Bufferer, WriteBuffer,
         persister::Persister,
-        write_buffer::{WriteBufferImpl, WriteBufferImplArgs, persisted_files::PersistedFiles},
+        write_buffer::{
+            N_SNAPSHOTS_TO_LOAD_ON_START, WriteBufferImpl, WriteBufferImplArgs,
+            persisted_files::PersistedFiles,
+        },
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
@@ -888,6 +891,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 1,
             query_file_limit,
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: shutdown.register(),
             wal_replay_concurrency_limit: Some(1),
         })

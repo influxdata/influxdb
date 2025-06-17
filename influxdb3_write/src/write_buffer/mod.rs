@@ -184,6 +184,7 @@ pub struct WriteBufferImplArgs {
     pub metric_registry: Arc<Registry>,
     pub snapshotted_wal_files_to_keep: u64,
     pub query_file_limit: Option<usize>,
+    pub n_snapshots_to_load_on_start: usize,
     pub shutdown: ShutdownToken,
     pub wal_replay_concurrency_limit: Option<usize>,
 }
@@ -202,13 +203,14 @@ impl WriteBufferImpl {
             metric_registry,
             snapshotted_wal_files_to_keep,
             query_file_limit,
+            n_snapshots_to_load_on_start,
             shutdown,
             wal_replay_concurrency_limit,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
-            .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
+            .load_snapshots(n_snapshots_to_load_on_start)
             .await?
             .into_iter()
             // map the persisted snapshots into the newest version
@@ -785,6 +787,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: Some(1),
         })
@@ -894,6 +897,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: Some(1),
         })
@@ -987,6 +991,7 @@ mod tests {
                 metric_registry: Default::default(),
                 snapshotted_wal_files_to_keep: 10,
                 query_file_limit: None,
+                n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
                 shutdown: ShutdownManager::new_testing().register(),
                 wal_replay_concurrency_limit: Some(1),
             })
@@ -1247,6 +1252,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: Some(1),
         })
@@ -3391,6 +3397,7 @@ mod tests {
             metric_registry: Arc::clone(&metric_registry),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: None,
         })

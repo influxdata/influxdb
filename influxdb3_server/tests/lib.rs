@@ -15,7 +15,7 @@ use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     Precision, WriteBuffer,
     persister::Persister,
-    write_buffer::{WriteBufferImpl, WriteBufferImplArgs},
+    write_buffer::{N_SNAPSHOTS_TO_LOAD_ON_START, WriteBufferImpl, WriteBufferImplArgs},
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
 use iox_time::{MockProvider, Time, TimeProvider};
@@ -259,6 +259,7 @@ impl TestService {
             snapshotted_wal_files_to_keep: 100,
             query_file_limit: None,
             shutdown: ShutdownManager::new_testing().register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             wal_replay_concurrency_limit: Some(1),
         })
         .await
