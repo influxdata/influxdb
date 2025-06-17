@@ -152,6 +152,7 @@ impl AsMetricStr for GenerationOp {
 mod tests {
     use std::sync::Arc;
 
+    use influxdb3_process::{ProcessUuidGetter, ProcessUuidWrapper};
     use iox_time::{MockProvider, Time};
     use metric::{Attributes, Metric, Registry, U64Counter};
     use object_store::memory::InMemory;
@@ -232,6 +233,7 @@ mod tests {
         )
         .await
         .unwrap();
+        let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
         check_metric_empty(&metrics, "create_database");
         catalog.create_database("foo").await.unwrap();
         check_metric(&metrics, "create_database", 1);
@@ -257,7 +259,12 @@ mod tests {
 
         check_metric_empty(&metrics, "register_node");
         catalog
-            .register_node("node2", 4, vec![NodeMode::Core])
+            .register_node(
+                "node2",
+                4,
+                vec![NodeMode::Core],
+                Arc::clone(&process_uuid_getter),
+            )
             .await
             .unwrap();
         check_metric(&metrics, "register_node", 1);

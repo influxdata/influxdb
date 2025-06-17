@@ -15,9 +15,12 @@
 //! cleanup logic before signaling back via [`complete`][ShutdownToken::complete] to indicate that
 //! shutdown can proceed.
 
-use observability_deps::tracing::info;
+use std::{sync::Arc, time::Duration};
+
+use iox_time::TimeProvider;
+use observability_deps::tracing::{info, warn};
 use parking_lot::Mutex;
-use tokio::sync::oneshot;
+use tokio::{sync::oneshot, task::JoinError};
 pub use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
@@ -165,17 +168,148 @@ impl Drop for ShutdownToken {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum AbortableTaskRunnerError {
+    #[error("aborted the background task")]
+    Aborted,
+
+    #[error("background task panicked {0}")]
+    Panicked(String),
+
+    #[error("error when running background task {0}")]
+    Other(JoinError),
+}
+
+/// This type aborts a long running future immediately (based on the `check_interval`) by
+/// running it in the background and checking if token has received a cancellation signal.
+#[derive(Debug)]
+pub struct AbortableTaskRunner<F> {
+    task: F,
+    time_provider: Arc<dyn TimeProvider>,
+    check_interval: Duration,
+    cancellation_token: CancellationToken,
+}
+
+impl<F> AbortableTaskRunner<F>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    pub fn new(
+        task: F,
+        time_provider: Arc<dyn TimeProvider>,
+        check_interval: Duration,
+        token: CancellationToken,
+    ) -> Self {
+        Self {
+            task,
+            time_provider,
+            check_interval,
+            cancellation_token: token,
+        }
+    }
+
+    /// The return conditions for this method are,
+    ///   - the original task [`Self::task`] output if it exits cleanly
+    ///   - the task itself runs into an error
+    ///       - the task gets aborted, returns [`AbortableTaskRunnerError::Aborted`].
+    ///         it can be argued that this is not an error but useful to distinguish this exit
+    ///         condition for the call site if it chooses to handle it (for logging etc.)
+    ///       - if it panics this method returns [`AbortableTaskRunnerError::Panicked`].
+    ///       - all other failure paths (like runtime shutdown) is not really an error that needs
+    ///         to be handled, but it is returned as `Other` [`AbortableTaskRunnerError::Other`]
+    ///         variant
+    pub async fn run(self) -> Result<F::Output, AbortableTaskRunnerError> {
+        let worker = tokio::spawn(self.task);
+        let checker = tokio::spawn({
+            let handle = worker.abort_handle();
+            async move {
+                loop {
+                    self.time_provider.sleep(self.check_interval).await;
+                    // at this point we only care about cancelled branch, if the work itself is
+                    // finished then the select! below will choose the other path
+                    if self.cancellation_token.is_cancelled() {
+                        warn!("aborting the running process");
+                        handle.abort();
+                        break;
+                    }
+                }
+            }
+        });
+        let run_result = tokio::select! {
+            _ = checker => {
+                return Err(AbortableTaskRunnerError::Aborted);
+            }
+            result = worker => {
+                result.map_err(|join_err| {
+                    if join_err.is_panic() {
+                        // bubbling up this panic here means it'll keep it's original panic behaviour
+                        // i.e if this task were to panic (without `tokio::spawn`), this would have
+                        //     resulted in bubbling up the panic through the stack
+                        AbortableTaskRunnerError::Panicked(join_err.to_string())
+
+                    } else if join_err.is_cancelled() {
+                        // if it's cancelled already then before the "checker" branch got a chance
+                        // to return, the worker is marked as "cancelled" because of "abort()",
+                        // safe to return `Aborted`
+                        AbortableTaskRunnerError::Aborted
+
+                    } else {
+                        AbortableTaskRunnerError::Other(join_err)
+                    }
+                })?
+            }
+        };
+        Ok(run_result)
+    }
+
+    /// This method runs in background, but checks if the process is shutting down by checking the
+    /// cancellation token and exiting. But this method more importantly does not return or
+    /// indicate why it exited which is compatible with how usually `tokio::spawn` is used to run
+    /// task in the background
+    pub fn run_in_background(self) {
+        let worker = tokio::spawn(self.task);
+        let checker = tokio::spawn({
+            let handle = worker.abort_handle();
+            async move {
+                loop {
+                    self.time_provider.sleep(self.check_interval).await;
+                    // at this point we only care about cancelled branch, if the work itself is
+                    // finished then the select! below will choose the other path
+                    if self.cancellation_token.is_cancelled() {
+                        warn!("aborting the running background process");
+                        handle.abort();
+                        break;
+                    }
+                }
+            }
+        });
+
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = checker => {}
+                _ = worker => {}
+            };
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
-        sync::atomic::{AtomicBool, Ordering},
+        sync::{
+            Arc,
+            atomic::{AtomicBool, AtomicU64, Ordering},
+        },
         time::Duration,
     };
 
     use futures::FutureExt;
+    use iox_time::{MockProvider, Time, TimeProvider};
+    use observability_deps::tracing::{error, info};
     use tokio_util::sync::CancellationToken;
 
-    use crate::ShutdownManager;
+    use crate::{AbortableTaskRunner, AbortableTaskRunnerError, ShutdownManager};
 
     #[tokio::test]
     async fn test_shutdown_order() {
@@ -209,5 +343,106 @@ mod tests {
             frontend_token.is_cancelled(),
             "frontend shutdown was not triggered"
         );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_abortable_background_task_runner() {
+        let timer = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let worker_timer = Arc::clone(&timer);
+        let cancel_timer = Arc::clone(&timer);
+        let fut = async move {
+            let mut count = 0;
+            loop {
+                count += 1;
+                if count > 1_000_000_000 {
+                    break;
+                }
+                worker_timer.sleep(Duration::from_millis(10)).await;
+            }
+            count
+        };
+
+        let token = CancellationToken::new();
+        let token_clone = token.clone();
+
+        let runner = AbortableTaskRunner::new(
+            fut,
+            Arc::clone(&timer) as _,
+            Duration::from_millis(1),
+            token,
+        );
+
+        tokio::spawn(async move {
+            // wait for a millisecond and cancel
+            cancel_timer.sleep(Duration::from_millis(1)).await;
+            token_clone.cancel();
+        });
+
+        tokio::spawn(async move {
+            loop {
+                timer.inc(Duration::from_millis(10));
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        });
+        let res = runner.run().await.unwrap_err();
+        error!(?res, "error after abort");
+        assert!(matches!(res, AbortableTaskRunnerError::Aborted));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_abortable_background_task_runner_runs_forever_should_abort() {
+        let timer = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let worker_timer = Arc::clone(&timer);
+        let cancel_timer = Arc::clone(&timer);
+        let atomic_counter = Arc::new(AtomicU64::new(0));
+        let cloned = Arc::clone(&atomic_counter);
+        let fut = async move {
+            loop {
+                let current = atomic_counter.fetch_add(1, Ordering::SeqCst);
+                if current > 1_000_000_000 {
+                    break;
+                }
+                worker_timer.sleep(Duration::from_millis(10)).await;
+            }
+            atomic_counter.load(Ordering::SeqCst)
+        };
+
+        let token = CancellationToken::new();
+        let token_clone = token.clone();
+
+        let runner = AbortableTaskRunner::new(
+            fut,
+            Arc::clone(&timer) as _,
+            Duration::from_millis(1),
+            token,
+        );
+
+        tokio::spawn(async move {
+            // wait for a millisecond and cancel
+            cancel_timer.sleep(Duration::from_millis(1)).await;
+            token_clone.cancel();
+        });
+
+        tokio::spawn(async move {
+            loop {
+                timer.inc(Duration::from_millis(10));
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        });
+
+        // although it's set to run forever because of cancelling the token this should stop
+        // running forever and break
+        runner.run_in_background();
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let current_1 = cloned.load(Ordering::SeqCst);
+        info!(current_1, "current val");
+        assert_ne!(current_1, 1_000_000_000);
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let current_2 = cloned.load(Ordering::SeqCst);
+        info!(current_2, "current val");
+        assert_ne!(current_2, 1_000_000_000);
+        assert_eq!(current_1, current_2);
     }
 }

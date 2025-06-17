@@ -13,6 +13,7 @@ use influxdb3_id::{
     CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId, TokenId,
     TriggerId,
 };
+use influxdb3_process::ProcessUuidGetter;
 use influxdb3_shutdown::ShutdownToken;
 use influxdb3_telemetry::ProcessingEngineMetrics;
 use iox_time::{Time, TimeProvider};
@@ -260,6 +261,7 @@ impl Catalog {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<Registry>,
         shutdown_token: ShutdownToken,
+        process_uuid_getter: Arc<dyn ProcessUuidGetter>,
     ) -> Result<Arc<Self>> {
         let node_id = node_id.into();
         let catalog =
@@ -272,7 +274,7 @@ impl Catalog {
                 "updating node state to stopped in catalog"
             );
             if let Err(error) = catalog_cloned
-                .update_node_state_stopped(node_id.as_ref())
+                .update_node_state_stopped(node_id.as_ref(), process_uuid_getter)
                 .await
             {
                 error!(

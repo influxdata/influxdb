@@ -7,14 +7,19 @@ license.workspace = true
 
 [dependencies]
 # influxdb3_core dependencies
+iox_time.workspace = true
 observability_deps.workspace = true
 
 # crates.io dependencies
 futures.workspace = true
 futures-util.workspace = true
 parking_lot.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+
+[dev-dependencies]
+test-log.workspace = true
 
 [lints]
 workspace = true
