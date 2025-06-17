@@ -3228,8 +3228,11 @@ version = "3.2.0-nightly"
 dependencies = [
  "futures",
  "futures-util",
+ "iox_time",
  "observability_deps",
  "parking_lot",
+ "test-log",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-util",
 ]

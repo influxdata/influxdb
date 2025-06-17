@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
-use influxdb3_process::PROCESS_UUID;
+use influxdb3_process::ProcessUuidGetter;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, info, trace};
 use schema::{InfluxColumnType, InfluxFieldType};
@@ -167,9 +167,10 @@ impl Catalog {
         node_id: &str,
         core_count: u64,
         mode: Vec<NodeMode>,
+        process_uuid_getter: Arc<dyn ProcessUuidGetter>,
     ) -> Result<OrderedCatalogBatch> {
         info!(node_id, core_count, mode = ?mode, "register node");
-        let process_uuid = *PROCESS_UUID;
+        let process_uuid = *process_uuid_getter.get_process_uuid();
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
             let (node_catalog_id, node_id, instance_id) = if let Some(node) = self.node(node_id) {
@@ -218,8 +219,12 @@ impl Catalog {
         .await
     }
 
-    pub async fn update_node_state_stopped(&self, node_id: &str) -> Result<OrderedCatalogBatch> {
-        let process_uuid = *PROCESS_UUID;
+    pub async fn update_node_state_stopped(
+        &self,
+        node_id: &str,
+        process_uuid_getter: Arc<dyn ProcessUuidGetter>,
+    ) -> Result<OrderedCatalogBatch> {
+        let process_uuid = *process_uuid_getter.get_process_uuid();
         info!(
             node_id,
             %process_uuid,

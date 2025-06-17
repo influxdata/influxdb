@@ -18,7 +18,8 @@ use influxdb3_clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use influxdb3_process::{
-    INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_START_TIME, PROCESS_UUID_STR,
+    INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_START_TIME, PROCESS_UUID_STR, ProcessUuidGetter,
+    ProcessUuidWrapper,
 };
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::{
@@ -692,12 +693,14 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&time_provider) as _,
     ));
 
+    let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
     let catalog = Catalog::new_with_shutdown(
         config.node_identifier_prefix.as_str(),
         Arc::clone(&object_store),
         Arc::<SystemProvider>::clone(&time_provider),
         Arc::clone(&metrics),
         shutdown_manager.register(),
+        Arc::clone(&process_uuid_getter),
     )
     .await?;
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
@@ -707,6 +710,7 @@ pub async fn command(config: Config) -> Result<()> {
             &config.node_identifier_prefix,
             num_cpus as u64,
             vec![influxdb3_catalog::log::NodeMode::Core],
+            process_uuid_getter,
         )
         .await?;
     let node_def = catalog

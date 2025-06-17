@@ -1,6 +1,7 @@
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 
 use iox_time::{SystemProvider, Time, TimeProvider};
+use uuid::Uuid;
 
 /// The process name on the local OS running `influxdb3`
 pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
@@ -38,13 +39,54 @@ pub static VERSION_STRING: LazyLock<&'static str> = LazyLock::new(|| {
 
 /// A UUID that is unique for the process lifetime.
 pub static PROCESS_UUID_STR: LazyLock<&'static str> = LazyLock::new(|| {
-    let s = PROCESS_UUID.to_string();
-    let s: Box<str> = Box::from(s);
-    Box::leak(s)
+    let uuid_wrapper = ProcessUuidWrapper::new();
+    uuid_wrapper.as_str()
 });
 
 /// A UUID that is unique for the process lifetime.
-pub static PROCESS_UUID: LazyLock<uuid::Uuid> = LazyLock::new(uuid::Uuid::new_v4);
+static PROCESS_UUID: OnceLock<uuid::Uuid> = OnceLock::new();
+
+#[derive(Debug, Copy, Clone)]
+pub struct ProcessUuidWrapper {
+    id: &'static Uuid,
+}
+
+impl ProcessUuidWrapper {
+    pub fn new() -> Self {
+        Self {
+            id: PROCESS_UUID.get_or_init(Uuid::new_v4),
+        }
+    }
+
+    pub fn new_testing(id: Uuid) -> Self {
+        let boxed: &'static Uuid = Box::leak(Box::from(id));
+        Self { id: boxed }
+    }
+
+    pub fn get(&self) -> &'static Uuid {
+        self.id
+    }
+
+    fn as_str(&self) -> &'static str {
+        Box::leak(Box::from(self.id.to_string()))
+    }
+}
+
+impl Default for ProcessUuidWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ProcessUuidGetter for ProcessUuidWrapper {
+    fn get_process_uuid(&self) -> &'static Uuid {
+        self.get()
+    }
+}
+
+pub trait ProcessUuidGetter: Send + Sync {
+    fn get_process_uuid(&self) -> &'static Uuid;
+}
 
 /// Process start time.
 pub static PROCESS_START_TIME: LazyLock<Time> = LazyLock::new(|| SystemProvider::new().now());

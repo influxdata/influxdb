@@ -2465,7 +2465,11 @@ mod tests {
         drop(write_buffer);
         assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
 
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        // dropping write_buffer does not kill any background task (like snapshot which does a
+        // WAL file cleanup) which means when we start the buffer again it sees the WAL file but
+        // before it can read it's removed by the previous snapshot run. This extra sleep works
+        // around that issue for now.
+        tokio::time::sleep(Duration::from_millis(100)).await;
         // restart
         debug!("Restarting..");
         let (write_buffer_after_restart, _, _) = setup(
