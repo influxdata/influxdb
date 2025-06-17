@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -15,11 +17,35 @@ import (
 	"go.uber.org/zap"
 )
 
-type MetaClient interface {
+type OSSMetaClient interface {
 	Databases() []meta.DatabaseInfo
 	DeleteShardGroup(database, policy string, id uint64) error
 	DropShard(id uint64) error
 	PruneShardGroups() error
+}
+
+type MetaClient interface {
+	OSSMetaClient
+	NodeID() uint64
+}
+
+const (
+	// ossNodeID is a special node ID for OSS nodes. No enterprise node will ever have this node ID.
+	// 0 can not be used because there is a brief period on startup before meta-client initialization
+	// and before joining a cluster that NodeID() == 0.
+	ossNodeID uint64 = math.MaxUint64
+)
+
+// ossMetaClientAdapter adds methods the retention service needs to the OSS meta.Client implementation.
+// OSSMetaClient is decorated with methods needed for the Enterprise retention service instead of adding
+// them to the OSS MetaClient to avoid polluting the OSS MetaClient namespace.
+type ossMetaClientAdapter struct {
+	OSSMetaClient
+}
+
+// NodeID returns the magic ossNodeID identifier.
+func (c *ossMetaClientAdapter) NodeID() uint64 {
+	return ossNodeID
 }
 
 // Service represents the retention policy enforcement service.
@@ -58,10 +84,18 @@ func NewService(c Config) *Service {
 }
 
 // OSSDropShardMetaRef creates a closure appropriate for OSS to use as DropShardMetaRef.
-func OSSDropShardMetaRef(mc MetaClient) func(uint64, []uint64) error {
+func OSSDropShardMetaRef(mc OSSMetaClient) func(uint64, []uint64) error {
 	return func(shardID uint64, owners []uint64) error {
 		return mc.DropShard(shardID)
 	}
+}
+
+func (s *Service) SetMetaClient(c MetaClient) {
+	s.MetaClient = c
+}
+
+func (s *Service) SetOSSMetaClient(c OSSMetaClient) {
+	s.SetMetaClient(&ossMetaClientAdapter{OSSMetaClient: c})
 }
 
 // Open starts retention policy enforcement.
@@ -146,6 +180,10 @@ func (s *Service) run(ctx context.Context) {
 			s.DeletionCheck(ctx)
 		}
 	}
+}
+
+func (s *Service) isOSS() bool {
+	return s.NodeID() == ossNodeID
 }
 
 func (s *Service) DeletionCheck(ctx context.Context) {
@@ -276,16 +314,21 @@ func (s *Service) DeletionCheck(ctx context.Context) {
 
 	// Check for expired phantom shards that exist in the metadata but not in the store.
 	for id, info := range deletedShardIDs {
-		func() {
-			log, logEnd := logger.NewOperation(ctx, log, "Drop phantom shard references", "retention_drop_phantom_refs",
-				logger.Database(info.db), logger.Shard(id), logger.RetentionPolicy(info.rp), zap.Uint64s("owners", info.owners))
-			defer logEnd()
-			log.Warn("Expired phantom shard detected during retention check, removing from metadata")
-			if err := s.DropShardMetaRef(id, info.owners); err != nil {
-				log.Error("Error dropping shard meta reference for phantom shard", zap.Error(err))
-				retryNeeded = true
-			}
-		}()
+		// Enterprise tracks shard ownership while OSS does not because it is single node. A shard not in the
+		// TSDB but in the metadata is always a phantom shard for OSS. For enterprise, it is only a phantom shard
+		// if this node is supposed to own the shard according to the metadata.
+		if s.isOSS() || slices.Contains(info.owners, s.NodeID()) {
+			func() {
+				log, logEnd := logger.NewOperation(ctx, log, "Drop phantom shard references", "retention_drop_phantom_refs",
+					logger.Database(info.db), logger.Shard(id), logger.RetentionPolicy(info.rp), zap.Uint64s("owners", info.owners))
+				defer logEnd()
+				log.Warn("Expired phantom shard detected during retention check, removing from metadata")
+				if err := s.DropShardMetaRef(id, info.owners); err != nil {
+					log.Error("Error dropping shard meta reference for phantom shard", zap.Error(err))
+					retryNeeded = true
+				}
+			}()
+		}
 	}
 
 	func() {

@@ -268,7 +268,7 @@ func TestRetention_DeletionCheck(t *testing.T) {
 	}
 
 	s := retention.NewService(cfg)
-	s.MetaClient = mc
+	s.SetOSSMetaClient(mc)
 	s.TSDBStore = store
 	s.DropShardMetaRef = retention.OSSDropShardMetaRef(s.MetaClient)
 	require.NoError(t, s.Open(context.Background()))
@@ -728,7 +728,7 @@ func NewService(tb testing.TB, c retention.Config) *Service {
 	s.LogBuf = logbuf
 	s.WithLogger(log)
 
-	s.Service.MetaClient = s.MetaClient
+	s.Service.SetOSSMetaClient(s.MetaClient)
 	s.Service.TSDBStore = s.TSDBStore
 	s.Service.DropShardMetaRef = retention.OSSDropShardMetaRef(s.Service.MetaClient)
 	return s
