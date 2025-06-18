@@ -213,6 +213,33 @@ pub struct Config {
     )]
     pub gen1_duration: Gen1Duration,
 
+    /// The amount of time that the server looks back on startup when populating the in-memory
+    /// index of gen1 files.
+    ///
+    /// This has two dimensions of impact on performance. The first is in terms of S3 API usage on
+    /// startup; the second is in terms of initial memory usage on startup. To get a rough sense of
+    /// both of these performance impacts, take the --gen1-duration value and divide that number
+    /// into this parameter to get the total number of gen1 index snapshots loaded on startup. You
+    /// can then take that number and multiply it by a rough approximation of the gen1 metadata
+    /// stored in this index to obtain a rough estimate of memory usage.
+    ///
+    /// As an example, let's say we have the following values:
+    ///
+    /// * Estimated average of 128 bytes of parquet file metadata
+    /// * --gen1-duration value of 10 minutes
+    /// * --gen1-lookback-duration value of 1 month
+    ///
+    /// This leads to 144 files per day for 30 days for a total of 4320 index snapshots read in
+    /// (via object store API calls) on startup and a (very rough) memory consumption estimate of
+    /// ~533 KB.
+    #[clap(
+        long = "gen1-lookback-duration",
+        env = "INFLUXDB3_GEN1_LOOKBACK_DURATION",
+        default_value = "1month",
+        action
+    )]
+    pub gen1_lookback_duration: humantime::Duration,
+
     /// Interval to flush buffered data to a wal file. Writes that wait for wal confirmation will
     /// take as long as this interval to complete.
     #[clap(
@@ -756,6 +783,9 @@ pub async fn command(config: Config) -> Result<()> {
         Err(error) => return Err(error.into()),
     };
 
+    let n_snapshots_to_load_on_start =
+        config.gen1_lookback_duration.as_secs() / gen1_duration.as_duration().as_secs();
+
     let wal_config = WalConfig {
         gen1_duration,
         max_write_buffer_size: config.wal_max_write_buffer_size,
@@ -775,6 +805,7 @@ pub async fn command(config: Config) -> Result<()> {
         metric_registry: Arc::clone(&metrics),
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
         query_file_limit: config.query_file_limit,
+        n_snapshots_to_load_on_start: n_snapshots_to_load_on_start as usize,
         shutdown: shutdown_manager.register(),
         wal_replay_concurrency_limit: config.wal_replay_concurrency_limit,
     })

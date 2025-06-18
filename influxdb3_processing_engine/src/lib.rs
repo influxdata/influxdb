@@ -758,7 +758,9 @@ mod tests {
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::persister::Persister;
-    use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
+    use influxdb3_write::write_buffer::{
+        N_SNAPSHOTS_TO_LOAD_ON_START, WriteBufferImpl, WriteBufferImplArgs,
+    };
     use influxdb3_write::{Precision, WriteBuffer};
     use iox_query::exec::{
         DedicatedExecutor, Executor, ExecutorConfig, IOxSessionContext, PerQueryMemoryPoolConfig,
@@ -1011,6 +1013,7 @@ mod tests {
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
             shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             wal_replay_concurrency_limit: Some(1),
         })
         .await

@@ -300,6 +300,7 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
     use influxdb3_write::persister::Persister;
+    use influxdb3_write::write_buffer::N_SNAPSHOTS_TO_LOAD_ON_START;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
     use iox_http_util::{
@@ -890,6 +891,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 snapshotted_wal_files_to_keep: 100,
                 query_file_limit: None,
+                n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
                 shutdown: shutdown_manager.register(),
                 wal_replay_concurrency_limit: Some(1),
             },
