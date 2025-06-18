@@ -2646,8 +2646,8 @@ func (s *compactionStrategy) compactGroup() {
 
 	if err != nil {
 		defer func(fs []string) {
-			if removeErr := s.compactor.RemoveTmpFiles(fs); removeErr != nil {
-				log.Warn("Unable to remove temporary file(s)", zap.Error(removeErr))
+			if removeErr := removeTmpFiles(fs); removeErr != nil {
+				log.Error("Unable to remove temporary file(s)", zap.Error(removeErr))
 			}
 		}(files)
 		_, inProgress := err.(errCompactionInProgress)
@@ -2660,7 +2660,7 @@ func (s *compactionStrategy) compactGroup() {
 			return
 		}
 
-		log.Warn("Error compacting TSM files", zap.Error(err))
+		log.Error("Error compacting TSM files", zap.Error(err))
 
 		MoveTsmOnReadErr(err, log, s.fileStore.Replace)
 
@@ -2683,11 +2683,7 @@ func (s *compactionStrategy) compactGroup() {
 		return
 	}
 
-	for i, f := range files {
-		log.Info("Compacted file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
-	}
-	log.Info("Finished compacting files",
-		zap.Int("tsm1_files_n", len(files)))
+	log.Info("Finished compacting and renaming files", zap.Int("count", len(files)), zap.Strings("files", files))
 	atomic.AddInt64(s.successStat, 1)
 }
 
@@ -2698,9 +2694,9 @@ func MoveTsmOnReadErr(err error, log *zap.Logger, replaceFn func([]string, []str
 		path := blockReadErr.file
 		log.Info("Renaming a corrupt TSM file due to compaction error", zap.String("file", path), zap.Error(err))
 		if err := replaceFn([]string{path}, nil); err != nil {
-			log.Info("Error removing bad TSM file", zap.String("file", path), zap.Error(err))
+			log.Error("Failed removing bad TSM file", zap.String("file", path), zap.Error(err))
 		} else if e := os.Rename(path, path+"."+BadTSMFileExtension); e != nil {
-			log.Info("Error renaming corrupt TSM file", zap.String("file", path), zap.Error(err))
+			log.Error("Failed renaming corrupt TSM file", zap.String("file", path), zap.Error(err))
 		}
 	}
 }
