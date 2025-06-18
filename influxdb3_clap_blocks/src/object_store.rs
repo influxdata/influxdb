@@ -802,7 +802,7 @@ macro_rules! object_store_config_inner {
                         builder = builder.with_credentials(Arc::clone(&credentials) as _);
                         let r: Arc<dyn ObjectStore> = builder.build().map(Arc::new).context(InvalidS3ConfigSnafu)? as _;
 
-                        let reauthing_object_store = ReauthingObjectStore::new(r, credentials) ;
+                        let reauthing_object_store = ReauthingObjectStore::new_arc(r, credentials) ;
 
                         reauthing_object_store
                     } else {
@@ -1164,11 +1164,7 @@ impl AwsCredentialReloader {
 
         let do_update = {
             let guard = self.current.read().await;
-            if guard.as_ref() == &credentials {
-                false
-            } else {
-                true
-            }
+            guard.as_ref() != &credentials
         };
 
         if do_update {
@@ -1199,7 +1195,7 @@ struct ReauthingObjectStore {
 }
 
 impl ReauthingObjectStore {
-    fn new(
+    fn new_arc(
         inner: Arc<dyn ObjectStore>,
         credential_reloader: Arc<AwsCredentialReloader>,
     ) -> Arc<dyn ObjectStore> {
@@ -1233,15 +1229,15 @@ macro_rules! retry_if_unauthenticated {
 #[async_trait]
 impl object_store::ObjectStore for ReauthingObjectStore {
     async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        retry_if_unauthenticated!(self, self.inner.copy(from, to).await)
+        retry_if_unauthenticated!(self, self.inner.as_ref().copy(from, to).await)
     }
 
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        retry_if_unauthenticated!(self, self.inner.copy_if_not_exists(from, to).await)
+        retry_if_unauthenticated!(self, self.inner.as_ref().copy_if_not_exists(from, to).await)
     }
 
     async fn delete(&self, location: &Path) -> object_store::Result<()> {
-        retry_if_unauthenticated!(self, self.inner.delete(location).await)
+        retry_if_unauthenticated!(self, self.inner.as_ref().delete(location).await)
     }
 
     async fn get_opts(
@@ -1249,7 +1245,13 @@ impl object_store::ObjectStore for ReauthingObjectStore {
         location: &Path,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
-        retry_if_unauthenticated!(self, self.inner.get_opts(location, options.clone()).await)
+        retry_if_unauthenticated!(
+            self,
+            self.inner
+                .as_ref()
+                .get_opts(location, options.clone())
+                .await
+        )
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
@@ -1272,7 +1274,7 @@ impl object_store::ObjectStore for ReauthingObjectStore {
                 // we could use TryStreamExt.collect() here to drop all collected results and
                 // return the first error we encounter, but users of the ObjectStore API will
                 // probably expect to have to deal with errors one element at a time anyway
-                self.inner.list(prefix).collect().await
+                self.inner.as_ref().list(prefix).collect().await
             });
             return futures::stream::iter(items).boxed();
         }
@@ -1281,7 +1283,7 @@ impl object_store::ObjectStore for ReauthingObjectStore {
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> object_store::Result<ListResult> {
-        retry_if_unauthenticated!(self, self.list_with_delimiter(prefix).await)
+        retry_if_unauthenticated!(self, self.inner.as_ref().list_with_delimiter(prefix).await)
     }
 
     async fn put_multipart_opts(
@@ -1289,7 +1291,13 @@ impl object_store::ObjectStore for ReauthingObjectStore {
         location: &Path,
         opts: PutMultipartOpts,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        retry_if_unauthenticated!(self, self.put_multipart_opts(location, opts.clone()).await)
+        retry_if_unauthenticated!(
+            self,
+            self.inner
+                .as_ref()
+                .put_multipart_opts(location, opts.clone())
+                .await
+        )
     }
 
     async fn put_opts(
@@ -1300,7 +1308,9 @@ impl object_store::ObjectStore for ReauthingObjectStore {
     ) -> object_store::Result<PutResult> {
         retry_if_unauthenticated!(
             self,
-            self.put_opts(location, payload.clone(), options.clone())
+            self.inner
+                .as_ref()
+                .put_opts(location, payload.clone(), options.clone())
                 .await
         )
     }
@@ -2017,7 +2027,7 @@ mod tests {
             next_error: Arc::new(Mutex::new(None)),
         });
         let reloading_object_store =
-            ReauthingObjectStore::new(Arc::clone(&test_inner) as _, Arc::clone(&reloader));
+            ReauthingObjectStore::new_arc(Arc::clone(&test_inner) as _, Arc::clone(&reloader));
 
         macro_rules! validate_endpoint {
             ($expression:expr) => {
