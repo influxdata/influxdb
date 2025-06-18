@@ -1066,7 +1066,7 @@ struct AwsFileCredential {
     aws_access_key_id: String,
     aws_secret_access_key: String,
     aws_session_token: Option<String>,
-    expiry: u64,
+    expiry: Option<u64>,
 }
 
 impl From<AwsFileCredential> for AwsCredential {
@@ -1171,7 +1171,7 @@ impl AwsCredentialReloader {
             let mut guard = self.current.write().await;
             *guard = Arc::new(credentials);
 
-            Some(next_expiry)
+            next_expiry
         } else {
             None
         }
@@ -1827,7 +1827,7 @@ mod tests {
             aws_access_key_id: String::from("access_key_1"),
             aws_secret_access_key: String::from("secret_key_1"),
             aws_session_token: None,
-            expiry: expiry.timestamp() as u64,
+            expiry: Some(expiry.timestamp() as u64),
         };
         let initial_credentials: AwsCredential = initial_file_credentials.clone().into();
         let initial_file_credentials_serialized =
@@ -1838,7 +1838,7 @@ mod tests {
             aws_access_key_id: String::from("access_key_2"),
             aws_secret_access_key: String::from("secret_key_2"),
             aws_session_token: None,
-            expiry: next_expiry.timestamp() as u64,
+            expiry: Some(next_expiry.timestamp() as u64),
         };
         let next_credentials: AwsCredential = next_file_credentials.clone().into();
         let next_file_credentials_serialized =
@@ -1991,7 +1991,7 @@ mod tests {
             aws_access_key_id: String::from("access_key_1"),
             aws_secret_access_key: String::from("secret_key_1"),
             aws_session_token: None,
-            expiry: expiry.timestamp() as u64,
+            expiry: Some(expiry.timestamp() as u64),
         };
         let initial_credentials: AwsCredential = initial_file_credentials.clone().into();
         let initial_file_credentials_serialized =
@@ -2003,7 +2003,7 @@ mod tests {
             aws_access_key_id: String::from("access_key_2"),
             aws_secret_access_key: String::from("secret_key_2"),
             aws_session_token: None,
-            expiry: expiry.timestamp() as u64,
+            expiry: Some(expiry.timestamp() as u64),
         };
         let next_credentials: AwsCredential = next_file_credentials.clone().into();
         let next_file_credentials_serialized =
