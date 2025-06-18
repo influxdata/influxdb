@@ -518,10 +518,10 @@ macro_rules! object_store_config_inner {
                 ///
                 /// ```
                 /// {
-                /// "aws_access_key_id": "<key>",
-                /// "aws_secret_access_key": "<secret>",
-                /// "aws_session_token": "<token>",
-                /// "expiry": "<expiry_timestamp_ns>"
+                ///     "aws_access_key_id": "<key>",
+                ///     "aws_secret_access_key": "<secret>",
+                ///     "aws_session_token": "<token>",
+                ///     "expiry": "<expiry_timestamp_seconds_since_epoch>"
                 /// }
                 /// ```
                 ///

@@ -47,6 +47,9 @@ Examples
   --aws-access-key-id <KEY>        S3 access key ID [env: AWS_ACCESS_KEY_ID=]
   --aws-secret-access-key <KEY>    S3 secret access key [env: AWS_SECRET_ACCESS_KEY=]
   --aws-default-region <REGION>    S3 region [default: us-east-1] [env: AWS_DEFAULT_REGION=]
+  --aws-credentials-file <PATH>    S3 credentials file. Overrides '--aws-access-key-id' and
+                                   '--aws-secret-access-key'.
+                                  [env: AWS_CREDENTIALS_FILE]
 
 {}
   --google-service-account <PATH>  Path to Google credentials JSON [env: GOOGLE_SERVICE_ACCOUNT=]

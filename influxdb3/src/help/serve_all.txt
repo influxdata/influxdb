@@ -51,6 +51,28 @@ Examples:
   --aws-session-token <TOKEN>      S3 session token for federated login/SSO [env: AWS_SESSION_TOKEN=]
   --aws-allow-http                 Allow unencrypted HTTP to AWS [env: AWS_ALLOW_HTTP=]
   --aws-skip-signature             Skip request signing [env: AWS_SKIP_SIGNATURE=]
+  --aws-credentials-file <PATH>    S3 credentials file. The format is JSON that looks like the
+                                   following:
+
+                                   ```
+                                   {{
+                                     "aws_access_key_id": "<key>",
+                                     "aws_secret_access_key": "<secret>",
+                                     "aws_session_token": "<token>",
+                                     "expiry": "<expiry_timestamp_seconds_since_epoch>"
+                                   }}
+                                   ```
+                                   Settings in this file override the corresponding CLI flags.
+
+                                   The `aws_session_token` and `expiry` fields are optional and
+                                   the file is automatically checked for updates at the expiry
+                                   time if specified or at 1-hour intervals.
+
+                                   If the object store returns an "Unauthenticated" error,
+                                   InfluxDB3 will attempt to update its in-memory credentials
+                                   from this file then retry the object store request.
+
+                                  [env: AWS_CREDENTIALS_FILE]
 
 {}
   --google-service-account <PATH>  Path to Google credentials JSON [env: GOOGLE_SERVICE_ACCOUNT=]
