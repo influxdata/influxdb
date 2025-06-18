@@ -34,6 +34,16 @@
 #       https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline
 version: 2.1
 
+executors:
+  self-hosted-amd:
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm
+    working_directory: /tmp/workspace/<< pipeline.id >>
+  self-hosted-arm:
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm-arm
+    working_directory: /tmp/workspace/<< pipeline.id >>
+
 orbs:
   aws-s3:    circleci/aws-s3@2.0.0
   rust: circleci/rust@1.6.1
@@ -278,8 +288,7 @@ jobs:
 
   # Fetch python-build-standalone for official builds
   fetch-python:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm
+    executor: self-hosted-amd
     environment:
       <<: *pbs_config
     steps:
@@ -499,52 +508,48 @@ jobs:
           path: artifacts/
 
   check_package_deb_amd64:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: .
       - run:
           name: Validate Debian Package (AMD64)
           command: |
-            docker run --rm --platform linux/amd64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
-            .circleci/scripts/validate deb /tmp/workspace/artifacts/influxdb3*amd64.deb
+            docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            .circleci/scripts/validate deb /workspace/artifacts/influxdb3*amd64.deb
 
   check_package_deb_arm64:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm-arm
+    executor: self-hosted-arm
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: .
       - run:
           name: Validate Debian Package (ARM64)
           command: |
-            docker run --rm --platform linux/arm64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
-            .circleci/scripts/validate deb /tmp/workspace/artifacts/influxdb3*arm64.deb
+            docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            .circleci/scripts/validate deb /workspace/artifacts/influxdb3*arm64.deb
 
   check_package_rpm_amd64:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: .
       - run: |
-          docker run --rm --platform linux/amd64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
-          .circleci/scripts/validate rpm /tmp/workspace/artifacts/influxdb3*x86_64.rpm
+          docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          .circleci/scripts/validate rpm /workspace/artifacts/influxdb3*x86_64.rpm
 
   check_package_rpm_arm64:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm-arm
+    executor: self-hosted-arm
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: .
       - run: |
-          docker run --rm --platform linux/arm64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
-          .circleci/scripts/validate rpm /tmp/workspace/artifacts/influxdb3*aarch64.rpm
+          docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          .circleci/scripts/validate rpm /workspace/artifacts/influxdb3*aarch64.rpm
 
   sign-packages:
     circleci_ip_ranges: true
@@ -657,10 +662,12 @@ jobs:
               "$DOCKER_PROFILE"
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 60m
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          docker save << parameters.image_name >>:latest-<< parameters.platform >> > << parameters.image_name >>-<< parameters.platform >>.tar
+          docker save << parameters.image_name >>:latest-<< parameters.platform >> > /tmp/workspace/<< pipeline.id >>/<< parameters.image_name >>-<< parameters.platform >>.tar
       - persist_to_workspace:
-          root: .
+          root: /tmp/workspace/<< pipeline.id >>
           paths:
             - << parameters.image_name >>-<< parameters.platform >>.tar
 
