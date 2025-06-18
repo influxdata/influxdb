@@ -1785,4 +1785,84 @@ mod tests {
             "relative URL without a base",
         );
     }
+
+    impl AwsCredentialReloader {
+        fn new_test(
+            path: PathBuf,
+            initial_test_credentials: AwsFileCredential,
+            time_provider: Arc<dyn TimeProvider>,
+        ) -> Self {
+            let credential = initial_test_credentials.into();
+            Self {
+                path,
+                current: Arc::new(RwLock::new(Arc::new(credential))),
+                time_provider,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn validate_aws_credential_reloader() {
+        let initial_time = Time::from_timestamp(60 * 60 * 24 * 365, 0).unwrap();
+        let expiry = initial_time + Duration::from_secs(60 * 60);
+
+        let mock_provider: Arc<MockProvider> = Arc::new(MockProvider::new(initial_time));
+        let time_provider: Arc<dyn TimeProvider> = Arc::clone(&mock_provider) as _;
+
+        let dir = TempDir::new().expect("must be able to create temp directory");
+        let path = dir.path().join("credentials-file");
+
+        let initial_file_credentials = AwsFileCredential {
+            aws_access_key_id: String::from("access_key_1"),
+            aws_secret_access_key: String::from("secret_key_1"),
+            aws_session_token: None,
+            expiry: expiry.timestamp() as u64,
+        };
+        let initial_credentials: AwsCredential = initial_file_credentials.clone().into();
+        let initial_file_credentials_serialized =
+            serde_json::to_string(&initial_file_credentials).expect("must serialize");
+        std::fs::write(&path, initial_file_credentials_serialized).expect("must succeed writing");
+
+        let next_file_credentials = AwsFileCredential {
+            aws_access_key_id: String::from("access_key_2"),
+            aws_secret_access_key: String::from("secret_key_2"),
+            aws_session_token: None,
+            expiry: expiry.timestamp() as u64,
+        };
+        let next_credentials: AwsCredential = next_file_credentials.clone().into();
+        let next_file_credentials_serialized =
+            serde_json::to_string(&next_file_credentials).expect("must serialize");
+
+        let reloader =
+            AwsCredentialReloader::new_test(path.clone(), initial_file_credentials, time_provider);
+
+        // validate the current reloader credentials are still equal to the initial credentials
+        assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+
+        reloader.spawn_background_updates();
+
+        // set the duration to five seconds after expiry and give the background task a short time
+        // to reload the credentials
+        mock_provider.set(expiry + Duration::from_secs(5));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // validate the current reloader credentials haven't changed -- nothing was written to disk
+        // yet so the initial credentials written to disk should be the same
+        assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+
+        // write to the credentials file
+        std::fs::write(&path, next_file_credentials_serialized).expect("must succeed writing");
+
+        // set the duration to five seconds past the default interval reloader interval so we
+        // prompt another check
+        mock_provider.set(
+            expiry
+                + Duration::from_secs(AWS_CREDENTIAL_RELOADER_DEFAULT_INTERVAL_SECONDS)
+                + Duration::from_secs(5),
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // verify the credentials have been updated in the reloader
+        assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+    }
 }
