@@ -1335,7 +1335,7 @@ mod tests {
     use clap::Parser;
     use iox_time::{MockProvider, Time};
     use object_store::ObjectStore;
-    use std::{env, str::FromStr};
+    use std::{env, str::FromStr, sync::Mutex};
     use tempfile::TempDir;
 
     /// The current object store store configurations.
@@ -1805,6 +1805,7 @@ mod tests {
     async fn validate_aws_credential_reloader() {
         let initial_time = Time::from_timestamp(60 * 60 * 24 * 365, 0).unwrap();
         let expiry = initial_time + Duration::from_secs(60 * 60);
+        let next_expiry = expiry + Duration::from_secs(60 * 60);
 
         let mock_provider: Arc<MockProvider> = Arc::new(MockProvider::new(initial_time));
         let time_provider: Arc<dyn TimeProvider> = Arc::clone(&mock_provider) as _;
@@ -1827,7 +1828,7 @@ mod tests {
             aws_access_key_id: String::from("access_key_2"),
             aws_secret_access_key: String::from("secret_key_2"),
             aws_session_token: None,
-            expiry: expiry.timestamp() as u64,
+            expiry: next_expiry.timestamp() as u64,
         };
         let next_credentials: AwsCredential = next_file_credentials.clone().into();
         let next_file_credentials_serialized =
@@ -1855,14 +1856,306 @@ mod tests {
 
         // set the duration to five seconds past the default interval reloader interval so we
         // prompt another check
-        mock_provider.set(
-            expiry
-                + Duration::from_secs(AWS_CREDENTIAL_RELOADER_DEFAULT_INTERVAL_SECONDS)
-                + Duration::from_secs(5),
-        );
+        mock_provider.set(next_expiry + Duration::from_secs(5));
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // verify the credentials have been updated in the reloader
         assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+    }
+
+    #[derive(Debug)]
+    struct TestReloadingObjectStoreInner {
+        inner: Arc<dyn ObjectStore>,
+        next_error: Arc<Mutex<Option<object_store::Error>>>,
+    }
+
+    impl TestReloadingObjectStoreInner {
+        fn next_error(&self) -> Option<object_store::Error> {
+            self.next_error.lock().unwrap().take()
+        }
+    }
+
+    impl std::fmt::Display for TestReloadingObjectStoreInner {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "whatever")
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ObjectStore for TestReloadingObjectStoreInner {
+        async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+            if let Some(e) = self.next_error() {
+                Err(e)
+            } else {
+                self.inner.as_ref().copy(from, to).await
+            }
+        }
+
+        async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+            if let Some(e) = self.next_error() {
+                Err(e)
+            } else {
+                self.inner.as_ref().copy_if_not_exists(from, to).await
+            }
+        }
+
+        async fn delete(&self, location: &Path) -> object_store::Result<()> {
+            if let Some(e) = self.next_error() {
+                Err(e)
+            } else {
+                self.inner.as_ref().delete(location).await
+            }
+        }
+
+        async fn get_opts(
+            &self,
+            location: &Path,
+            options: GetOptions,
+        ) -> object_store::Result<GetResult> {
+            if let Some(e) = self.next_error() {
+                Err(e)
+            } else {
+                self.inner.as_ref().get_opts(location, options).await
+            }
+        }
+
+        fn list(
+            &self,
+            _prefix: Option<&Path>,
+        ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
+            unimplemented!()
+        }
+
+        async fn list_with_delimiter(
+            &self,
+            prefix: Option<&Path>,
+        ) -> object_store::Result<ListResult> {
+            if let Some(e) = self.next_error() {
+                Err(e)
+            } else {
+                self.inner.as_ref().list_with_delimiter(prefix).await
+            }
+        }
+
+        async fn put_multipart_opts(
+            &self,
+            location: &Path,
+            opts: PutMultipartOpts,
+        ) -> object_store::Result<Box<dyn MultipartUpload>> {
+            if let Some(e) = self.next_error() {
+                Err(e)
+            } else {
+                self.inner.as_ref().put_multipart_opts(location, opts).await
+            }
+        }
+
+        async fn put_opts(
+            &self,
+            location: &Path,
+            payload: PutPayload,
+            options: PutOptions,
+        ) -> object_store::Result<PutResult> {
+            if let Some(e) = self.next_error() {
+                Err(e)
+            } else {
+                self.inner
+                    .as_ref()
+                    .put_opts(location, payload, options)
+                    .await
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn validate_reauthing_object_store() {
+        let initial_time = Time::from_timestamp(60 * 60 * 24 * 365, 0).unwrap();
+        let expiry = initial_time + Duration::from_secs(60 * 60);
+
+        let mock_provider: Arc<MockProvider> = Arc::new(MockProvider::new(initial_time));
+        let time_provider: Arc<dyn TimeProvider> = Arc::clone(&mock_provider) as _;
+
+        let dir = TempDir::new().expect("must be able to create temp directory");
+        let path = dir.path().join("credentials-file");
+
+        let initial_file_credentials = AwsFileCredential {
+            aws_access_key_id: String::from("access_key_1"),
+            aws_secret_access_key: String::from("secret_key_1"),
+            aws_session_token: None,
+            expiry: expiry.timestamp() as u64,
+        };
+        let initial_credentials: AwsCredential = initial_file_credentials.clone().into();
+        let initial_file_credentials_serialized =
+            serde_json::to_string(&initial_file_credentials).expect("must serialize");
+        std::fs::write(&path, initial_file_credentials_serialized.clone())
+            .expect("must succeed writing");
+
+        let next_file_credentials = AwsFileCredential {
+            aws_access_key_id: String::from("access_key_2"),
+            aws_secret_access_key: String::from("secret_key_2"),
+            aws_session_token: None,
+            expiry: expiry.timestamp() as u64,
+        };
+        let next_credentials: AwsCredential = next_file_credentials.clone().into();
+        let next_file_credentials_serialized =
+            serde_json::to_string(&next_file_credentials).expect("must serialize");
+
+        let reloader = Arc::new(AwsCredentialReloader::new_test(
+            path.clone(),
+            initial_file_credentials.clone(),
+            time_provider,
+        ));
+
+        let reauthable_fn = || object_store::Error::Unauthenticated {
+            path: "fake".to_string(),
+            source: "fake error".into(),
+        };
+        let not_reauthable_fn = || object_store::Error::NotImplemented;
+
+        let object_store = Arc::new(object_store::memory::InMemory::new()) as _;
+        let test_inner = Arc::new(TestReloadingObjectStoreInner {
+            inner: object_store,
+            next_error: Arc::new(Mutex::new(None)),
+        });
+        let reloading_object_store =
+            ReauthingObjectStore::new(Arc::clone(&test_inner) as _, Arc::clone(&reloader));
+
+        macro_rules! validate_endpoint {
+            ($expression:expr) => {
+                // validate expression works normally
+                $expression
+                    .await
+                    .expect("must succeed");
+
+                // set reauthable error on inner test object store
+                test_inner
+                    .as_ref()
+                    .next_error
+                    .lock()
+                    .unwrap()
+                    .replace(reauthable_fn());
+
+                // verify the initial credentials are still set
+                assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+
+                // write to the credentials file so we can verify it gets updated
+                std::fs::write(&path, next_file_credentials_serialized.clone()).expect("must succeed writing");
+
+                // validate that the expression still transparently works even though there is an
+                // initial authentication error
+                $expression
+                    .await
+                    .expect("must succeed");
+
+                // verify the next credentials have been loaded
+                assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+
+                // write to the credentials file so we can verify it doesn't get updated
+                std::fs::write(&path, initial_file_credentials_serialized.clone())
+                    .expect("must succeed writing");
+
+                // set non-reauthable error on inner test object store so we can validate no re-auth occurs
+                test_inner
+                    .as_ref()
+                    .next_error
+                    .lock()
+                    .unwrap()
+                    .replace(not_reauthable_fn());
+
+                // verify the credentials are unchanged
+                assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+
+                // validate that expression still transparently works
+                $expression
+                    .await
+                    .expect_err("must error");
+
+                // reset the credentials to the initial state for the next test
+                *reloader.current.write().await = Arc::new(initial_file_credentials.clone().into());
+            }
+        }
+
+        let obj_path = Path::from("whatever");
+        validate_endpoint!(reloading_object_store.put(&obj_path, PutPayload::from("woof")));
+        validate_endpoint!(reloading_object_store.put_opts(
+            &obj_path,
+            PutPayload::from("woof"),
+            PutOptions::default()
+        ));
+        validate_endpoint!(
+            reloading_object_store.put_multipart_opts(&obj_path, PutMultipartOpts::default())
+        );
+        validate_endpoint!(reloading_object_store.get(&obj_path));
+        validate_endpoint!(reloading_object_store.get_opts(&obj_path, GetOptions::default()));
+        validate_endpoint!(reloading_object_store.list_with_delimiter(Some(&obj_path)));
+
+        let copy_path = Path::from("whatever2");
+        validate_endpoint!(reloading_object_store.copy(&obj_path, &copy_path));
+
+        validate_endpoint!(reloading_object_store.delete(&copy_path));
+
+        // cannot validate copy_if_not_exists using the above macro since copies will fail if the
+        // destination path already has content
+        reloading_object_store
+            .copy_if_not_exists(&obj_path, &copy_path)
+            .await
+            .expect("must copy");
+        reloading_object_store
+            .delete(&copy_path)
+            .await
+            .expect("must delete");
+
+        // set reauthable error on inner test object store
+        test_inner
+            .as_ref()
+            .next_error
+            .lock()
+            .unwrap()
+            .replace(reauthable_fn());
+
+        // verify the initial credentials are still set
+        assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+
+        // write to the credentials file so we can verify it gets updated
+        std::fs::write(&path, next_file_credentials_serialized.clone())
+            .expect("must succeed writing");
+
+        // validate that copy still transparently works even though there is an initialy
+        // authentication error
+        reloading_object_store
+            .copy_if_not_exists(&obj_path, &copy_path)
+            .await
+            .expect("must copy");
+        // must always delete after copy_if_not_exists
+        reloading_object_store
+            .delete(&copy_path)
+            .await
+            .expect("must delete");
+
+        // verify the next credentials have been loaded
+        assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+
+        // write to the credentials file so we can verify it doesn't get updated
+        std::fs::write(&path, initial_file_credentials_serialized.clone())
+            .expect("must succeed writing");
+
+        // set non-reauthable error on inner test object store so we can validate no re-auth occurs
+        test_inner
+            .as_ref()
+            .next_error
+            .lock()
+            .unwrap()
+            .replace(not_reauthable_fn());
+
+        // verify the credentials are unchanged
+        assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+
+        // validate that copy still transparently works
+        reloading_object_store
+            .copy_if_not_exists(&obj_path, &copy_path)
+            .await
+            .expect_err("must error");
+
+        // reset the credentials to the initial state for the next test
+        *reloader.current.write().await = Arc::new(initial_file_credentials.clone().into());
     }
 }
