@@ -450,10 +450,6 @@ workflows:
         - equal: [ << pipeline.parameters.workflow >>, nightly ]
     jobs:
       - changelog
-      - publish_changelog:
-          workflow: nightly
-          requires:
-            - changelog
       - static_code_checks
       - fluxtest
       - unit_test:
