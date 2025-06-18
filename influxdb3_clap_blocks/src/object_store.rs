@@ -1217,7 +1217,8 @@ macro_rules! retry_if_unauthenticated {
         match $expression {
             Ok(v) => Ok(v),
             Err(object_store::Error::Unauthenticated { source, .. }) => {
-                warn!(error = ?source, "authentication with object store failed, attempting to reload from disk");
+                let path = $self.credential_reloader.path.display();
+                warn!(error = ?source, "authentication with object store failed, attempting to reload credentials from {path}");
                 let _ = $self.credential_reloader.check_and_update().await;
                 $expression
             }
