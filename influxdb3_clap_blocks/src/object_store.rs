@@ -3,21 +3,25 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{StreamExt, stream::BoxStream};
+use iox_time::{SystemProvider, TimeProvider};
 use non_empty_string::NonEmptyString;
 use object_store::{
-    DynObjectStore, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    PutMultipartOpts, PutOptions, PutPayload, PutResult,
+    CredentialProvider, DynObjectStore, GetOptions, GetResult, ListResult, MultipartUpload,
+    ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
+    aws::AwsCredential,
     local::LocalFileSystem,
     memory::InMemory,
     path::Path,
     throttle::{ThrottleConfig, ThrottledStore},
 };
 use observability_deps::tracing::{info, warn};
+use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use std::{
     cmp::Ordering, convert::Infallible, fs, num::NonZeroUsize, ops::Range, path::PathBuf,
     sync::Arc, time::Duration,
 };
+use tokio::sync::RwLock;
 use url::Url;
 
 #[derive(Debug, Snafu)]
@@ -59,6 +63,12 @@ pub enum ParseError {
 
     #[snafu(display("Error configuring Microsoft Azure: {}", source))]
     InvalidAzureConfig { source: object_store::Error },
+
+    #[snafu(display("Error reading AWS credentials from file: {}", source))]
+    ReadingAwsFileCredentialsToString { source: std::io::Error },
+
+    #[snafu(display("Error deserializing AWS file credentials: {}", source))]
+    DeserializingAwsFileCredentials { source: serde_json::Error },
 }
 
 /// The AWS region to use for Amazon S3 based object storage if none is
@@ -502,6 +512,29 @@ macro_rules! object_store_config_inner {
                 )]
                 pub aws_skip_signature: bool,
 
+                /// Specify this as an alternative to `--aws-access-key-id`,
+                /// `--aws-secret-access-key`,  and `--aws-session-token`. This is a file path
+                /// argument where the format of the file is as follows:
+                ///
+                /// ```
+                /// {
+                /// "aws_access_key_id": "<key>",
+                /// "aws_secret_access_key": "<secret>",
+                /// "aws_session_token": "<token>",
+                /// "expiry": "<expiry_timestamp_ns>"
+                /// }
+                /// ```
+                ///
+                /// The server will periodically check this file path for updated contents such
+                /// that the credentials can be updated without restarting the server.
+                #[clap(
+                    id = gen_name!($prefix, "aws-credentials-file"),
+                    long = gen_name!($prefix, "aws-credentials-file"),
+                    env = gen_name!($prefix, "AWS_CREDENTIALS_FILE"),
+                    action
+                )]
+                pub aws_credentials_file: Option<String>,
+
                 /// When using Google Cloud Storage as the object store, set this to the
                 /// path to the JSON file that contains the Google credentials.
                 ///
@@ -640,6 +673,7 @@ macro_rules! object_store_config_inner {
                         aws_secret_access_key: Default::default(),
                         aws_session_token: Default::default(),
                         aws_skip_signature: Default::default(),
+                        aws_credentials_file: Default::default(),
                         azure_storage_access_key: Default::default(),
                         azure_storage_account: Default::default(),
                         bucket: Default::default(),
@@ -732,7 +766,7 @@ macro_rules! object_store_config_inner {
                 /// to create an [`object_store::aws::AmazonS3Builder`] and further customize, then call `.build()`
                 /// directly.
                 #[cfg(feature = "aws")]
-                pub fn s3_builder(&self) -> object_store::aws::AmazonS3Builder {
+                pub fn s3_builder(&self) -> Result<object_store::aws::AmazonS3Builder, ParseError> {
                     use object_store::aws::AmazonS3Builder;
                     use object_store::aws::S3ConditionalPut;
 
@@ -750,25 +784,48 @@ macro_rules! object_store_config_inner {
                     if let Some(bucket) = &self.bucket {
                         builder = builder.with_bucket_name(bucket);
                     }
-                    if let Some(key_id) = &self.aws_access_key_id {
-                        builder = builder.with_access_key_id(key_id.get());
-                    }
-                    if let Some(token) = &self.aws_session_token {
-                        builder = builder.with_token(token);
-                    }
-                    if let Some(secret) = &self.aws_secret_access_key {
-                        builder = builder.with_secret_access_key(secret.get());
-                    }
                     if let Some(endpoint) = &self.aws_endpoint {
                         builder = builder.with_endpoint(endpoint.clone());
                     }
 
-                    builder
+                    Ok(builder)
                 }
 
                 #[cfg(feature = "aws")]
-                fn build_s3(&self) -> Result<object_store::aws::AmazonS3, ParseError> {
-                    let builder = self.s3_builder();
+                fn build_s3(&self) -> Result<Arc<dyn ObjectStore>, ParseError> {
+                    let mut builder = self.s3_builder()?;
+
+                    let r = if let Some(path) = &self.aws_credentials_file {
+                        let credentials = Arc::new(AwsCredentialReloader::new(path.into())? );
+                        credentials.spawn_background_updates();
+
+                        builder = builder.with_credentials(Arc::clone(&credentials) as _);
+                        let r: Arc<dyn ObjectStore> = builder.build().map(Arc::new).context(InvalidS3ConfigSnafu)? as _;
+
+                        let reauthing_object_store = ReauthingObjectStore::new(r, credentials) ;
+
+                        reauthing_object_store
+                    } else {
+                        if let Some(key_id) = &self.aws_access_key_id {
+                        builder = builder.with_access_key_id(key_id.get());
+                        }
+                        if let Some(token) = &self.aws_session_token {
+                            builder = builder.with_token(token);
+                        }
+                        if let Some(secret) = &self.aws_secret_access_key {
+                            builder = builder.with_secret_access_key(secret.get());
+                        }
+                        let r: Arc<dyn ObjectStore> = builder.build().map(Arc::new).context(InvalidS3ConfigSnafu)? as _;
+
+                        r
+                    };
+
+                    Ok(r)
+                }
+
+                #[cfg(feature = "aws")]
+                pub fn build_s3_signer(&self) -> Result<object_store::aws::AmazonS3, ParseError> {
+                    let builder = self.s3_builder()?;
 
                     builder.build().context(InvalidS3ConfigSnafu)
                 }
@@ -967,7 +1024,7 @@ pub fn make_presigned_url_signer(
     config: &ObjectStoreConfig,
 ) -> Result<Option<Arc<dyn object_store::signer::Signer>>, ParseError> {
     match &config.object_store {
-        Some(ObjectStoreType::S3) => Ok(Some(Arc::new(config.build_s3()?))),
+        Some(ObjectStoreType::S3) => Ok(Some(Arc::new(config.build_s3_signer()?))),
         Some(ObjectStoreType::File) => Ok(Some(Arc::new(LocalUploadSigner::new(config)?))),
         _ => Ok(None),
     }
@@ -1004,6 +1061,251 @@ impl LocalUploadSigner {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct AwsFileCredential {
+    aws_access_key_id: String,
+    aws_secret_access_key: String,
+    aws_session_token: Option<String>,
+    expiry: u64,
+}
+
+impl From<AwsFileCredential> for AwsCredential {
+    fn from(afc: AwsFileCredential) -> AwsCredential {
+        AwsCredential {
+            key_id: afc.aws_access_key_id,
+            secret_key: afc.aws_secret_access_key,
+            token: afc.aws_session_token,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct AwsCredentialReloader {
+    path: PathBuf,
+    current: Arc<RwLock<Arc<AwsCredential>>>,
+    time_provider: Arc<dyn TimeProvider>,
+}
+
+// default AWS credential reloader interval is one hour, assuming we've exceeded the configured
+// expiry
+const AWS_CREDENTIAL_RELOADER_DEFAULT_INTERVAL_SECONDS: u64 = 60 * 60;
+
+fn default_check_in() -> std::time::Duration {
+    std::time::Duration::from_secs(AWS_CREDENTIAL_RELOADER_DEFAULT_INTERVAL_SECONDS)
+}
+
+impl AwsCredentialReloader {
+    pub fn new(path: PathBuf) -> std::result::Result<Self, ParseError> {
+        let cloned = path.clone();
+        let afc = Self::get_file_credentials_sync(&cloned)?;
+        let current = Arc::new(RwLock::new(Arc::new(afc.into())));
+        Ok(Self {
+            path,
+            current,
+            time_provider: Arc::new(SystemProvider::new()),
+        })
+    }
+
+    pub fn spawn_background_updates(&self) {
+        let cloned = self.clone();
+        tokio::spawn(async move {
+            loop {
+                let next_check_in = cloned
+                    .check_and_update()
+                    .await
+                    .and_then(|next_check_ts| {
+                        let now = cloned.time_provider.now().timestamp() as u64;
+                        if next_check_ts < now {
+                            None
+                        } else {
+                            Some(Duration::from_secs(now - next_check_ts))
+                        }
+                    })
+                    .unwrap_or_else(default_check_in);
+
+                cloned.time_provider.sleep(next_check_in).await;
+            }
+        });
+    }
+
+    fn get_file_credentials_sync(
+        path: &PathBuf,
+    ) -> std::result::Result<AwsFileCredential, ParseError> {
+        let contents =
+            std::fs::read_to_string(path).context(ReadingAwsFileCredentialsToStringSnafu)?;
+
+        let afc = serde_json::from_str(&contents).context(DeserializingAwsFileCredentialsSnafu)?;
+
+        Ok(afc)
+    }
+
+    async fn get_file_credentials(
+        path: &PathBuf,
+    ) -> std::result::Result<AwsFileCredential, ParseError> {
+        let contents = tokio::fs::read_to_string(path)
+            .await
+            .context(ReadingAwsFileCredentialsToStringSnafu)?;
+
+        let afc = serde_json::from_str(&contents).context(DeserializingAwsFileCredentialsSnafu)?;
+
+        Ok(afc)
+    }
+
+    async fn check_and_update(&self) -> Option<u64> {
+        let file_credentials = match Self::get_file_credentials(&self.path).await {
+            Ok(c) => c,
+            Err(e) => {
+                info!(error = ?e, path = ?self.path, "could not read aws credentials file");
+                return None;
+            }
+        };
+        let next_expiry = file_credentials.expiry;
+        let credentials = file_credentials.into();
+
+        let do_update = {
+            let guard = self.current.read().await;
+            if guard.as_ref() == &credentials {
+                false
+            } else {
+                true
+            }
+        };
+
+        if do_update {
+            let mut guard = self.current.write().await;
+            *guard = Arc::new(credentials);
+
+            Some(next_expiry)
+        } else {
+            None
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl CredentialProvider for AwsCredentialReloader {
+    type Credential = AwsCredential;
+
+    async fn get_credential(&self) -> object_store::Result<Arc<Self::Credential>> {
+        let current = self.current.read().await;
+        Ok(Arc::clone(&current))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ReauthingObjectStore {
+    inner: Arc<dyn ObjectStore>,
+    credential_reloader: Arc<AwsCredentialReloader>,
+}
+
+impl ReauthingObjectStore {
+    fn new(
+        inner: Arc<dyn ObjectStore>,
+        credential_reloader: Arc<AwsCredentialReloader>,
+    ) -> Arc<dyn ObjectStore> {
+        Arc::new(Self {
+            inner,
+            credential_reloader,
+        })
+    }
+}
+
+impl std::fmt::Display for ReauthingObjectStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
+    }
+}
+
+macro_rules! retry_if_unauthenticated {
+    ($self:ident, $expression:expr) => {
+        match $expression {
+            Ok(v) => Ok(v),
+            Err(object_store::Error::Unauthenticated { source, .. }) => {
+                warn!(error = ?source, "authentication with object store failed, attempting to reload from disk");
+                let _ = $self.credential_reloader.check_and_update().await;
+                $expression
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
+#[async_trait]
+impl object_store::ObjectStore for ReauthingObjectStore {
+    async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        retry_if_unauthenticated!(self, self.inner.copy(from, to).await)
+    }
+
+    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        retry_if_unauthenticated!(self, self.inner.copy_if_not_exists(from, to).await)
+    }
+
+    async fn delete(&self, location: &Path) -> object_store::Result<()> {
+        retry_if_unauthenticated!(self, self.inner.delete(location).await)
+    }
+
+    async fn get_opts(
+        &self,
+        location: &Path,
+        options: GetOptions,
+    ) -> object_store::Result<GetResult> {
+        retry_if_unauthenticated!(self, self.inner.get_opts(location, options.clone()).await)
+    }
+
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
+        let inner_cloned = Arc::clone(&self.inner);
+        let items: Vec<object_store::Result<ObjectMeta, _>> = futures::executor::block_on(async {
+            // we could use TryStreamExt.collect() here to drop all collected results and
+            // return the first error we encounter, but users of the ObjectStore API will
+            // probably expect to have to deal with errors one element at a time anyway
+            inner_cloned.list(prefix).collect().await
+        });
+
+        if items.is_empty() {
+            return futures::stream::iter(items).boxed();
+        }
+
+        if let Err(object_store::Error::Unauthenticated { source, .. }) = &items[0] {
+            warn!(error = ?source, "authentication with object store failed, attempting to reload from disk");
+            let items: Vec<Result<ObjectMeta, _>> = futures::executor::block_on(async {
+                self.credential_reloader.check_and_update().await;
+                // we could use TryStreamExt.collect() here to drop all collected results and
+                // return the first error we encounter, but users of the ObjectStore API will
+                // probably expect to have to deal with errors one element at a time anyway
+                self.inner.list(prefix).collect().await
+            });
+            return futures::stream::iter(items).boxed();
+        }
+
+        futures::stream::iter(items).boxed()
+    }
+
+    async fn list_with_delimiter(&self, prefix: Option<&Path>) -> object_store::Result<ListResult> {
+        retry_if_unauthenticated!(self, self.list_with_delimiter(prefix).await)
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        location: &Path,
+        opts: PutMultipartOpts,
+    ) -> object_store::Result<Box<dyn MultipartUpload>> {
+        retry_if_unauthenticated!(self, self.put_multipart_opts(location, opts.clone()).await)
+    }
+
+    async fn put_opts(
+        &self,
+        location: &Path,
+        payload: PutPayload,
+        options: PutOptions,
+    ) -> object_store::Result<PutResult> {
+        retry_if_unauthenticated!(
+            self,
+            self.put_opts(location, payload.clone(), options.clone())
+                .await
+        )
+    }
+}
+
 #[async_trait]
 impl object_store::signer::Signer for LocalUploadSigner {
     async fn signed_url(
@@ -1031,6 +1333,7 @@ pub enum CheckError {
 mod tests {
     use super::*;
     use clap::Parser;
+    use iox_time::{MockProvider, Time};
     use object_store::ObjectStore;
     use std::{env, str::FromStr};
     use tempfile::TempDir;
