@@ -54,14 +54,13 @@ Examples:
   --aws-credentials-file <PATH>    S3 credentials file. The format is JSON that looks like the
                                    following:
 
-                                   ```
                                    {{
                                      "aws_access_key_id": "<key>",
                                      "aws_secret_access_key": "<secret>",
                                      "aws_session_token": "<token>",
                                      "expiry": "<expiry_timestamp_seconds_since_epoch>"
                                    }}
-                                   ```
+
                                    Settings in this file override the corresponding CLI flags.
 
                                    The `aws_session_token` and `expiry` fields are optional and
