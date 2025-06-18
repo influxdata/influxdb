@@ -2964,6 +2964,8 @@ dependencies = [
  "object_store",
  "observability_deps",
  "paste",
+ "serde",
+ "serde_json",
  "snafu",
  "sysinfo 0.30.13",
  "tempfile",

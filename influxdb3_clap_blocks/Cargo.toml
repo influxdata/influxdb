@@ -33,6 +33,8 @@ trogging.workspace = true
 url.workspace = true
 bytes.workspace = true
 futures.workspace = true
+serde_json.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
