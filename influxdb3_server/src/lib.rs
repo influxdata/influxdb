@@ -179,6 +179,8 @@ pub async fn serve(
         trace_http::tower::ServiceProtocol::Http,
     );
 
+    // Create a new http listener here
+
     if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
