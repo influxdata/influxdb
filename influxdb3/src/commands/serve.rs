@@ -25,7 +25,7 @@ use influxdb3_processing_engine::environment::{
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::virtualenv::find_python;
 use influxdb3_server::{
-    CommonServerState, Server,
+    CommonServerState, CreateServerArgs, Server,
     http::HttpApi,
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
     serve,
@@ -915,15 +915,17 @@ pub async fn command(config: Config) -> Result<()> {
 
     let cert_file = config.cert_file;
     let key_file = config.key_file;
-    
+
     // Start processing engine triggers
     Arc::clone(&processing_engine)
         .start_triggers()
         .await
         .expect("failed to start processing engine triggers");
 
-    write_buffer.wal().add_file_notifier(Arc::clone(&processing_engine) as _);
-    
+    write_buffer
+        .wal()
+        .add_file_notifier(Arc::clone(&processing_engine) as _);
+
     let authorizer: Arc<dyn influxdb3_authz::AuthProvider> = if config.without_auth {
         Arc::new(influxdb3_authz::NoAuthAuthenticator)
     } else {
@@ -932,7 +934,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::clone(&time_provider) as _,
         ))
     };
-    
+
     let http = Arc::new(HttpApi::new(
         common_state.clone(),
         Arc::clone(&time_provider) as _,
@@ -943,16 +945,15 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&authorizer),
     ));
 
-    let server = Server::new(
+    let server = Server::new(CreateServerArgs {
         common_state,
         http,
-        persister,
         authorizer,
         listener,
         cert_file,
         key_file,
-        config.tls_minimum_version.into(),
-    );
+        tls_minimum_version: config.tls_minimum_version.into(),
+    });
 
     // There are two different select! macros - tokio::select and futures::select
     //

@@ -513,9 +513,6 @@ mod tests {
     // This test makes sure that the proper next_file_id is used if a parquet file
     // is added
     async fn persist_add_parquet_file_and_load_snapshot() {
-        // Reset the global file ID counter for consistent test results
-        ParquetFileId::from(0).set_next_id();
-        
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -571,9 +568,6 @@ mod tests {
 
     #[test]
     fn persisted_snapshot_structure() {
-        // Reset the global file ID counter for consistent test results
-        ParquetFileId::from(0).set_next_id();
-        
         let databases = [
             (
                 DbId::new(0),

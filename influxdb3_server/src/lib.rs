@@ -28,7 +28,6 @@ use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
-use influxdb3_write::persister::Persister;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
 use rustls::ServerConfig;
@@ -77,9 +76,6 @@ pub enum Error {
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
-
-    #[error("server setup error: {0}")]
-    SetupError(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -126,12 +122,21 @@ impl CommonServerState {
     }
 }
 
-#[allow(dead_code)]
+#[derive(Debug)]
+pub struct CreateServerArgs<'a> {
+    pub common_state: CommonServerState,
+    pub http: Arc<HttpApi>,
+    pub authorizer: Arc<dyn AuthProvider>,
+    pub listener: TcpListener,
+    pub cert_file: Option<PathBuf>,
+    pub key_file: Option<PathBuf>,
+    pub tls_minimum_version: &'a [&'static SupportedProtocolVersion],
+}
+
 #[derive(Debug)]
 pub struct Server<'a> {
     common_state: CommonServerState,
     http: Arc<HttpApi>,
-    persister: Arc<Persister>,
     authorizer: Arc<dyn AuthProvider>,
     listener: TcpListener,
     key_file: Option<PathBuf>,
@@ -141,19 +146,19 @@ pub struct Server<'a> {
 
 impl<'a> Server<'a> {
     pub fn new(
-        common_state: CommonServerState,
-        http: Arc<HttpApi>,
-        persister: Arc<Persister>,
-        authorizer: Arc<dyn AuthProvider>,
-        listener: TcpListener,
-        cert_file: Option<PathBuf>,
-        key_file: Option<PathBuf>,
-        tls_minimum_version: &'a [&'static SupportedProtocolVersion],
+        CreateServerArgs {
+            common_state,
+            http,
+            authorizer,
+            listener,
+            cert_file,
+            key_file,
+            tls_minimum_version,
+        }: CreateServerArgs<'a>,
     ) -> Self {
         Self {
             common_state,
             http,
-            persister,
             authorizer,
             listener,
             key_file,
@@ -202,8 +207,6 @@ pub async fn serve(
         TRACE_HTTP_SERVER_NAME,
         trace_http::tower::ServiceProtocol::Http,
     );
-
-    // Create a new http listener here
 
     if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
         let rest_service = hyper::service::make_service_fn(|_| {
@@ -308,9 +311,9 @@ pub async fn serve(
 
 #[cfg(test)]
 mod tests {
-    use crate::{Server, http::HttpApi};
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
-    use crate::serve;
+    use crate::{CreateServerArgs, serve};
+    use crate::{Server, http::HttpApi};
     use chrono::DateTime;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{Client, StatusCode};
@@ -1519,8 +1522,10 @@ mod tests {
             .await
             .expect("failed to start processing engine triggers");
 
-        write_buffer.wal().add_file_notifier(Arc::clone(&processing_engine) as _);
-        
+        write_buffer
+            .wal()
+            .add_file_notifier(Arc::clone(&processing_engine) as _);
+
         let authorizer = Arc::new(NoAuthAuthenticator);
         let http = Arc::new(HttpApi::new(
             common_state.clone(),
@@ -1532,16 +1537,15 @@ mod tests {
             Arc::clone(&authorizer) as _,
         ));
 
-        let server = Server::new(
+        let server = Server::new(CreateServerArgs {
             common_state,
             http,
-            persister,
-            authorizer as _,
+            authorizer: authorizer as _,
             listener,
-            None,
-            None,
-            TLS_MIN_VERSION,
-        );
+            cert_file: None,
+            key_file: None,
+            tls_minimum_version: TLS_MIN_VERSION,
+        });
         let shutdown = frontend_shutdown.clone();
         let paths = EMPTY_PATHS.get_or_init(std::vec::Vec::new);
         tokio::spawn(async move {
