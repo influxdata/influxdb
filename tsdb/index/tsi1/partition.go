@@ -370,7 +370,7 @@ func (p *Partition) Wait() {
 		select {
 		case <-ticker.C:
 			elapsed := time.Since(startTime)
-			if elapsed >= timeoutDuration && (startTime.IsZero() || time.Since(startTime) >= timeoutDuration) {
+			if elapsed >= timeoutDuration {
 				files := make([]string, 0)
 				for _, v := range p.fileSet.Files() {
 					files = append(files, v.Path())
