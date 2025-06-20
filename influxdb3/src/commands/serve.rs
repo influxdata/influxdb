@@ -891,6 +891,7 @@ pub async fn command(config: Config) -> Result<()> {
         builder
             .build(cert_file, key_file, config.tls_minimum_version.into())
             .await
+            .map_err(|e| Error::Server(influxdb3_server::Error::SetupError(e.to_string())))?
     } else {
         let authentication_provider = Arc::new(TokenAuthenticator::new(
             Arc::clone(&catalog) as _,
@@ -900,6 +901,7 @@ pub async fn command(config: Config) -> Result<()> {
             .authorizer(authentication_provider as _)
             .build(cert_file, key_file, config.tls_minimum_version.into())
             .await
+            .map_err(|e| Error::Server(influxdb3_server::Error::SetupError(e.to_string())))?
     };
 
     // There are two different select! macros - tokio::select and futures::select
