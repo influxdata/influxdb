@@ -2647,14 +2647,14 @@ func (s *compactionStrategy) compactGroup() {
 	if err != nil {
 		defer func(fs []string) {
 			if removeErr := removeTmpFiles(fs); removeErr != nil {
-				log.Error("Unable to remove temporary file(s)", zap.Error(removeErr))
+				log.Error("Unable to remove temporary file(s)", zap.Error(removeErr), zap.Strings("files", fs))
 			}
 		}(files)
-		_, inProgress := err.(errCompactionInProgress)
-		if err == errCompactionsDisabled || inProgress {
+		inProgress := errors.Is(err, errCompactionInProgress{})
+		if errors.Is(err, errCompactionsDisabled) || inProgress {
 			log.Info("Aborted compaction", zap.Error(err))
 
-			if _, ok := err.(errCompactionInProgress); ok {
+			if inProgress {
 				time.Sleep(time.Second)
 			}
 			return

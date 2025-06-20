@@ -69,6 +69,11 @@ func (e errCompactionInProgress) Unwrap() error {
 	return e.err
 }
 
+func (e errCompactionInProgress) Is(target error) bool {
+	_, ok := target.(errCompactionInProgress)
+	return ok
+}
+
 type errCompactionAborted struct {
 	err error
 }
@@ -78,6 +83,15 @@ func (e errCompactionAborted) Error() string {
 		return fmt.Sprintf("compaction aborted: %s", e.err)
 	}
 	return "compaction aborted"
+}
+
+func (e errCompactionAborted) Unwrap() error {
+	return e.err
+}
+
+func (e errCompactionAborted) Is(target error) bool {
+	_, ok := target.(errCompactionAborted)
+	return ok
 }
 
 type errBlockRead struct {
