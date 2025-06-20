@@ -362,7 +362,6 @@ func (p *Partition) Wait() {
 	// Debug level timeout
 	timeoutDuration := 24 * time.Hour
 	startTime := time.Now()
-	var lastWarningTime time.Time
 
 	for {
 		if p.CurrentCompactionN() == 0 {
@@ -371,7 +370,7 @@ func (p *Partition) Wait() {
 		select {
 		case <-ticker.C:
 			elapsed := time.Since(startTime)
-			if elapsed >= timeoutDuration && (lastWarningTime.IsZero() || time.Since(lastWarningTime) >= timeoutDuration) {
+			if elapsed >= timeoutDuration && (startTime.IsZero() || time.Since(startTime) >= timeoutDuration) {
 				files := make([]string, 0)
 				for _, v := range p.fileSet.Files() {
 					files = append(files, v.Path())
@@ -379,7 +378,7 @@ func (p *Partition) Wait() {
 				p.logger.Warn("Partition.Wait() timed out waiting for compactions to complete",
 					zap.Int32("stuck_compactions", p.CurrentCompactionN()), zap.Duration("timeout", timeoutDuration),
 					zap.Strings("files", files))
-				lastWarningTime = time.Now()
+				startTime = time.Now()
 			}
 		}
 	}
