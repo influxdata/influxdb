@@ -1407,9 +1407,6 @@ mod tests {
     /// generated snapshot files use the next sequence number.
     #[tokio::test]
     async fn new_snapshots_use_correct_sequence() {
-        // Reset the global file ID counter for consistent test results
-        ParquetFileId::from(0).set_next_id();
-        
         // set up a local file system object store:
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
@@ -1518,9 +1515,6 @@ mod tests {
 
     #[tokio::test]
     async fn next_id_is_correct_number() {
-        // Reset the global file ID counter for consistent test results
-        ParquetFileId::from(0).set_next_id();
-        
         // set up a local file system object store:
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
