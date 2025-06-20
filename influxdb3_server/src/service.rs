@@ -27,10 +27,10 @@ use tower::Service;
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 /// Generate a [`HybridMakeService`]
-pub(crate) fn hybrid<MakeRest, Grpc>(
-    make_rest: MakeRest,
-    grpc: Grpc,
-) -> HybridMakeService<MakeRest, Grpc> {
+pub(crate) fn hybrid<R, G>(
+    make_rest: R,
+    grpc: G,
+) -> HybridMakeService<R, G> {
     HybridMakeService { make_rest, grpc }
 }
 
@@ -41,25 +41,25 @@ pub(crate) fn hybrid<MakeRest, Grpc>(
 /// on a single port.
 ///
 /// [hyper-server]: https://docs.rs/hyper/0.14.28/hyper/server/struct.Server.html
-pub(crate) struct HybridMakeService<MakeRest, Grpc> {
-    make_rest: MakeRest,
-    grpc: Grpc,
+pub(crate) struct HybridMakeService<R, G> {
+    make_rest: R,
+    grpc: G,
 }
 
-impl<ConnInfo, MakeRest, Grpc> Service<ConnInfo> for HybridMakeService<MakeRest, Grpc>
+impl<C, R, G> Service<C> for HybridMakeService<R, G>
 where
-    MakeRest: Service<ConnInfo>,
-    Grpc: Clone,
+    R: Service<C>,
+    G: Clone,
 {
-    type Response = HybridService<MakeRest::Response, Grpc>;
-    type Error = MakeRest::Error;
-    type Future = HybridMakeServiceFuture<MakeRest::Future, Grpc>;
+    type Response = HybridService<R::Response, G>;
+    type Error = R::Error;
+    type Future = HybridMakeServiceFuture<R::Future, G>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.make_rest.poll_ready(cx)
     }
 
-    fn call(&mut self, conn_info: ConnInfo) -> Self::Future {
+    fn call(&mut self, conn_info: C) -> Self::Future {
         HybridMakeServiceFuture {
             rest_future: self.make_rest.call(conn_info),
             grpc: Some(self.grpc.clone()),
