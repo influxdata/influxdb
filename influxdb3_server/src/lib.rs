@@ -78,6 +78,9 @@ pub enum Error {
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("server setup error: {0}")]
+    SetupError(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -1498,7 +1501,8 @@ mod tests {
             .tcp_listener(listener)
             .processing_engine(processing_engine)
             .build(None, None, TLS_MIN_VERSION)
-            .await;
+            .await
+            .expect("Failed to build server");
         let shutdown = frontend_shutdown.clone();
         let paths = EMPTY_PATHS.get_or_init(std::vec::Vec::new);
         tokio::spawn(async move {
