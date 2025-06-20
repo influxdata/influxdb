@@ -12,9 +12,8 @@ clippy::future_not_send
 )]
 
 pub mod all_paths;
-pub mod builder;
 mod grpc;
-mod http;
+pub mod http;
 pub mod query_executor;
 mod query_planner;
 mod service;
@@ -140,7 +139,29 @@ pub struct Server<'a> {
     tls_minimum_version: &'a [&'static SupportedProtocolVersion],
 }
 
-impl Server<'_> {
+impl<'a> Server<'a> {
+    pub fn new(
+        common_state: CommonServerState,
+        http: Arc<HttpApi>,
+        persister: Arc<Persister>,
+        authorizer: Arc<dyn AuthProvider>,
+        listener: TcpListener,
+        cert_file: Option<PathBuf>,
+        key_file: Option<PathBuf>,
+        tls_minimum_version: &'a [&'static SupportedProtocolVersion],
+    ) -> Self {
+        Self {
+            common_state,
+            http,
+            persister,
+            authorizer,
+            listener,
+            key_file,
+            cert_file,
+            tls_minimum_version,
+        }
+    }
+
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer.upcast())
     }
@@ -287,7 +308,7 @@ pub async fn serve(
 
 #[cfg(test)]
 mod tests {
-    use crate::builder::ServerBuilder;
+    use crate::{Server, http::HttpApi};
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use chrono::DateTime;
@@ -1492,17 +1513,35 @@ mod tests {
         static TLS_MIN_VERSION: &[&rustls::SupportedProtocolVersion] =
             &[&rustls::version::TLS12, &rustls::version::TLS13];
 
-        let server = ServerBuilder::new(common_state)
-            .write_buffer(Arc::clone(&write_buffer))
-            .query_executor(query_executor)
-            .persister(persister)
-            .authorizer(Arc::new(NoAuthAuthenticator))
-            .time_provider(Arc::clone(&time_provider) as _)
-            .tcp_listener(listener)
-            .processing_engine(processing_engine)
-            .build(None, None, TLS_MIN_VERSION)
+        // Start processing engine triggers
+        Arc::clone(&processing_engine)
+            .start_triggers()
             .await
-            .expect("Failed to build server");
+            .expect("failed to start processing engine triggers");
+
+        write_buffer.wal().add_file_notifier(Arc::clone(&processing_engine) as _);
+        
+        let authorizer = Arc::new(NoAuthAuthenticator);
+        let http = Arc::new(HttpApi::new(
+            common_state.clone(),
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&write_buffer),
+            Arc::clone(&query_executor) as _,
+            Arc::clone(&processing_engine),
+            usize::MAX,
+            Arc::clone(&authorizer) as _,
+        ));
+
+        let server = Server::new(
+            common_state,
+            http,
+            persister,
+            authorizer as _,
+            listener,
+            None,
+            None,
+            TLS_MIN_VERSION,
+        );
         let shutdown = frontend_shutdown.clone();
         let paths = EMPTY_PATHS.get_or_init(std::vec::Vec::new);
         tokio::spawn(async move {
