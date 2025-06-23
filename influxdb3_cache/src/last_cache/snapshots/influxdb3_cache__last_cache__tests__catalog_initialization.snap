@@ -26,7 +26,8 @@ expression: catalog.snapshot()
             "repo": [],
             "next_id": 0
           },
-          "deleted": false
+          "deleted": false,
+          "hard_delete_time": null
         }
       ],
       [
@@ -275,7 +276,8 @@ expression: catalog.snapshot()
             "repo": [],
             "next_id": 0
           },
-          "deleted": false
+          "deleted": false,
+          "hard_delete_time": null
         }
       ]
     ],

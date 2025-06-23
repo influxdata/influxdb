@@ -66,19 +66,31 @@ use crate::{
         DeleteTriggerLog, DistinctCacheDefinition, FieldDefinition, LastCacheDefinition,
         OrderedCatalogBatch, SoftDeleteDatabaseLog, SoftDeleteTableLog, TriggerDefinition,
         TriggerIdentifier,
+        versions::v3::{DeleteBatch, DeleteOp},
     },
 };
 
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
-pub const TIME_COLUMN_NAME: &str = "time";
-
 pub const INTERNAL_DB_NAME: &str = "_internal";
+
+pub const TIME_COLUMN_NAME: &str = "time";
 
 const DEFAULT_OPERATOR_TOKEN_NAME: &str = "_admin";
 
 /// Limit for the number of tag columns on a table
 pub(crate) const NUM_TAG_COLUMNS_LIMIT: usize = 250;
+
+/// Represents the deletion status of a database or table in the catalog
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DeletionStatus {
+    /// The resource has been soft deleted but not yet hard deleted
+    Soft,
+    /// The resource has been hard deleted with the duration since deletion
+    Hard(Duration),
+    /// The resource was not found in the catalog
+    NotFound,
+}
 
 /// The sequence number of a batch of WAL operations.
 #[derive(
@@ -343,7 +355,7 @@ impl Catalog {
     /// Acquire a permit to write the provided `CatalogBatch` to object store
     ///
     /// This issues a `Prompt` to signal retry or success. The provided `sequence` is checked
-    /// against the current catlog's sequence. If it is behind, due to some other concurrent
+    /// against the current catalog's sequence. If it is behind, due to some other concurrent
     /// update to the catalog, a retry is issued, so that the caller can re-compose the catalog
     /// batch using the latest state of the catalog and try again.
     pub async fn get_permit_and_verify_catalog_batch(
@@ -470,6 +482,27 @@ impl Catalog {
             .resource_iter()
             .cloned()
             .collect()
+    }
+
+    /// Returns the deletion status of a database by its ID.
+    ///
+    /// If the database exists as is not marked for deletion, `None` is returned.
+    pub fn database_deletion_status(&self, db_id: DbId) -> Option<DeletionStatus> {
+        let inner = self.inner.read();
+
+        database_or_deletion_status(inner.databases.get_by_id(&db_id), &self.time_provider).err()
+    }
+
+    /// Returns the deletion status of a table by its ID within a specific database.
+    ///
+    /// If the table exists and is not marked for deletion, `None` is returned.
+    pub fn table_deletion_status(&self, db_id: DbId, table_id: TableId) -> Option<DeletionStatus> {
+        let inner = self.inner.read();
+
+        match database_or_deletion_status(inner.databases.get_by_id(&db_id), &self.time_provider) {
+            Ok(db_schema) => table_deletion_status(&db_schema, table_id, &self.time_provider),
+            Err(status) => Some(status),
+        }
     }
 
     pub fn sequence_number(&self) -> CatalogSequenceNumber {
@@ -794,6 +827,47 @@ impl ProcessingEngineMetrics for Catalog {
     }
 }
 
+fn database_or_deletion_status(
+    db_schema: Option<Arc<DatabaseSchema>>,
+    time_provider: &Arc<dyn TimeProvider>,
+) -> Result<Arc<DatabaseSchema>, DeletionStatus> {
+    match db_schema {
+        Some(db_schema) if db_schema.deleted => Err(db_schema
+            .hard_delete_time
+            .and_then(|time| {
+                time_provider
+                    .now()
+                    .checked_duration_since(time)
+                    .map(DeletionStatus::Hard)
+            })
+            .unwrap_or(DeletionStatus::Soft)),
+        Some(db_schema) => Ok(db_schema),
+        None => Err(DeletionStatus::NotFound),
+    }
+}
+
+fn table_deletion_status(
+    db_schema: &DatabaseSchema,
+    table_id: TableId,
+    time_provider: &dyn TimeProvider,
+) -> Option<DeletionStatus> {
+    match db_schema.tables.get_by_id(&table_id) {
+        Some(table_def) if table_def.deleted => Some(
+            table_def
+                .hard_delete_time
+                .and_then(|time| {
+                    time_provider
+                        .now()
+                        .checked_duration_since(time)
+                        .map(DeletionStatus::Hard)
+                })
+                .unwrap_or(DeletionStatus::Soft),
+        ),
+        Some(_) => None,
+        None => Some(DeletionStatus::NotFound),
+    }
+}
+
 /// General purpose type for storing a collection of things in the catalog
 ///
 /// Each item in the repository has a unique identifier and name. The repository tracks the next
@@ -1021,6 +1095,7 @@ impl InnerCatalog {
             CatalogBatch::Node(root_batch) => self.apply_node_batch(root_batch)?,
             CatalogBatch::Database(database_batch) => self.apply_database_batch(database_batch)?,
             CatalogBatch::Token(token_batch) => self.apply_token_batch(token_batch)?,
+            CatalogBatch::Delete(delete_batch) => self.apply_delete_batch(delete_batch)?,
             CatalogBatch::Generation(generation_batch) => {
                 self.apply_generation_batch(generation_batch)?
             }
@@ -1153,6 +1228,32 @@ impl InnerCatalog {
                 .expect("new database should be inserted");
         };
         Ok(true)
+    }
+
+    fn apply_delete_batch(&mut self, delete_batch: &DeleteBatch) -> Result<bool> {
+        let mut updated = false;
+        for op in &delete_batch.ops {
+            match op {
+                DeleteOp::DeleteDatabase(db_id) => {
+                    // Remove the database from schema
+                    if self.databases.get_by_id(db_id).is_some() {
+                        self.databases.remove(db_id);
+                        updated = true;
+                    }
+                }
+                DeleteOp::DeleteTable(db_id, table_id) => {
+                    // Remove the table from the database schema
+                    if let Some(mut db_schema) = self.databases.get_by_id(db_id) {
+                        if db_schema.tables.get_by_id(table_id).is_some() {
+                            Arc::make_mut(&mut db_schema).tables.remove(table_id);
+                            self.databases.update(*db_id, db_schema)?;
+                            updated = true;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(updated)
     }
 
     fn apply_generation_batch(&mut self, generation_batch: &GenerationBatch) -> Result<bool> {
@@ -1316,6 +1417,8 @@ pub struct DatabaseSchema {
     pub processing_engine_triggers: Repository<TriggerId, TriggerDefinition>,
     /// Whether this database has been flagged as deleted
     pub deleted: bool,
+    /// The time when the database is scheduled to be hard deleted.
+    pub hard_delete_time: Option<Time>,
 }
 
 impl DatabaseSchema {
@@ -1327,6 +1430,7 @@ impl DatabaseSchema {
             retention_period: RetentionPeriod::Indefinite,
             processing_engine_triggers: Repository::new(),
             deleted: false,
+            hard_delete_time: None,
         }
     }
 
@@ -1503,6 +1607,102 @@ impl DatabaseSchema {
         let now = time_provider.now().timestamp_nanos();
         Some(now - retention_period as i64)
     }
+
+    /// Returns the deletion status of a table by its table ID
+    ///
+    /// If the table exists and is not deleted, returns `None`.
+    pub fn table_deletion_status(
+        &self,
+        table_id: TableId,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Option<DeletionStatus> {
+        table_deletion_status(self, table_id, &time_provider)
+    }
+}
+
+/// Trait for schema objects that can be marked as deleted.
+pub trait DeletedSchema: Sized {
+    /// Check if the schema is marked as deleted.
+    fn is_deleted(&self) -> bool;
+}
+
+/// A trait for types that can filter themselves based on deletion status.
+///
+/// This trait provides a convenient way to filter out deleted items by converting
+/// them to `None` if they are marked as deleted. It is typically implemented on
+/// types that also implement [`DeletedSchema`].
+///
+/// # Examples
+///
+/// ```ignore
+/// // Get a database schema and filter out if deleted
+/// let Some(db) = catalog.db_schema("my_db").not_deleted() else { continue };
+/// ```
+pub trait IfNotDeleted {
+    /// The type that is returned when the item is not deleted.
+    type T;
+
+    /// Returns `Some(self)` if the item is not deleted, otherwise returns `None`.
+    ///
+    /// This method provides a convenient way to filter out deleted items
+    /// from the catalog without explicit conditional checks.
+    fn if_not_deleted(self) -> Option<Self::T>;
+}
+
+impl DeletedSchema for DatabaseSchema {
+    fn is_deleted(&self) -> bool {
+        self.deleted
+    }
+}
+
+impl IfNotDeleted for DatabaseSchema {
+    type T = Self;
+
+    fn if_not_deleted(self) -> Option<Self::T> {
+        (!self.deleted).then_some(self)
+    }
+}
+
+impl DeletedSchema for TableDefinition {
+    fn is_deleted(&self) -> bool {
+        self.deleted
+    }
+}
+
+impl IfNotDeleted for TableDefinition {
+    type T = Self;
+
+    fn if_not_deleted(self) -> Option<Self::T> {
+        (!self.deleted).then_some(self)
+    }
+}
+
+impl<T: DeletedSchema> DeletedSchema for Option<T> {
+    fn is_deleted(&self) -> bool {
+        self.as_ref().is_some_and(DeletedSchema::is_deleted)
+    }
+}
+
+impl<T: DeletedSchema> IfNotDeleted for Option<T> {
+    type T = T;
+
+    fn if_not_deleted(self) -> Option<Self::T> {
+        self.and_then(|d| (!d.is_deleted()).then_some(d))
+    }
+}
+
+impl<T: DeletedSchema> DeletedSchema for Arc<T> {
+    fn is_deleted(&self) -> bool {
+        self.as_ref().is_deleted()
+    }
+}
+
+impl<T: DeletedSchema> IfNotDeleted for Arc<T> {
+    type T = Self;
+
+    fn if_not_deleted(self) -> Option<Self::T> {
+        (!self.is_deleted()).then_some(self)
+    }
 }
 
 trait UpdateDatabaseSchema {
@@ -1604,6 +1804,7 @@ impl UpdateDatabaseSchema for SoftDeleteDatabaseLog {
         let owned = schema.to_mut();
         owned.name = make_new_name_using_deleted_time(&self.database_name, deletion_time);
         owned.deleted = true;
+        owned.hard_delete_time = self.hard_deletion_time.map(Time::from_timestamp_nanos);
         Ok(schema)
     }
 }
@@ -2365,7 +2566,10 @@ fn create_token_and_hash() -> (String, Vec<u8>) {
 mod tests {
 
     use crate::{
-        log::{FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, create},
+        log::{
+            FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, create,
+            versions::v3::{DeleteBatch, DeleteOp},
+        },
         object_store::CatalogFilePath,
         serialize::{serialize_catalog_file, verify_and_deserialize_catalog_checkpoint_file},
     };
@@ -2442,6 +2646,7 @@ mod tests {
             retention_period: RetentionPeriod::Indefinite,
             processing_engine_triggers: Default::default(),
             deleted: false,
+            hard_delete_time: None,
         };
         database
             .tables
@@ -2732,6 +2937,561 @@ mod tests {
         );
     }
 
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_table() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Create database and table
+        catalog.create_database("test").await.unwrap();
+        catalog
+            .create_table(
+                "test",
+                "boo",
+                &["tag_1", "tag_2"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        // Get database and table IDs
+        let db_id = catalog.db_name_to_id("test").unwrap();
+        let table_id = catalog
+            .db_schema("test")
+            .unwrap()
+            .table_definition("boo")
+            .unwrap()
+            .table_id;
+
+        // Verify table exists
+        assert!(
+            catalog
+                .db_schema("test")
+                .unwrap()
+                .table_definition("boo")
+                .is_some()
+        );
+
+        // Hard delete the table
+        catalog.hard_delete_table(&db_id, &table_id).await.unwrap();
+
+        // Verify table is removed from the database schema
+        assert!(
+            catalog
+                .db_schema("test")
+                .unwrap()
+                .table_definition("boo")
+                .is_none(),
+            "Table should be removed after hard deletion"
+        );
+
+        // Verify database still exists
+        assert!(
+            catalog.db_schema("test").is_some(),
+            "Database should still exist after table hard deletion"
+        );
+
+        assert!(
+            catalog
+                .db_schema("test")
+                .unwrap()
+                .table_definition("boo")
+                .is_none(),
+            "Table boo should be hard deleted"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_multiple_tables() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Create database and multiple tables
+        catalog.create_database("test").await.unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table1",
+                &["tag"],
+                &[("field", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table2",
+                &["tag"],
+                &[("field", FieldDataType::Integer)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table3",
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        // Get database and table IDs
+        let db_id = catalog.db_name_to_id("test").unwrap();
+        let db_schema = catalog.db_schema("test").unwrap();
+        let table_id_1 = db_schema.table_definition("table1").unwrap().table_id;
+        let table_id_2 = db_schema.table_definition("table2").unwrap().table_id;
+        let table_id_3 = db_schema.table_definition("table3").unwrap().table_id;
+
+        // Hard delete all tables
+        catalog
+            .hard_delete_table(&db_id, &table_id_1)
+            .await
+            .unwrap();
+        catalog
+            .hard_delete_table(&db_id, &table_id_2)
+            .await
+            .unwrap();
+        catalog
+            .hard_delete_table(&db_id, &table_id_3)
+            .await
+            .unwrap();
+
+        // Verify all tables have been hard deleted
+        let db_schema_after = catalog.db_schema("test").unwrap();
+        assert!(
+            db_schema_after.table_definition("table1").is_none(),
+            "Table table1 should be hard deleted"
+        );
+        assert!(
+            db_schema_after.table_definition("table2").is_none(),
+            "Table table2 should be hard deleted"
+        );
+        assert!(
+            db_schema_after.table_definition("table3").is_none(),
+            "Table table3 should be hard deleted"
+        );
+
+        // Verify database still exists
+        assert!(
+            catalog.db_schema("test").is_some(),
+            "Database should still exist after all tables are hard deleted"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_nonexistent_table() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Try to delete table from non-existent database
+        let fake_db_id = DbId::from(999);
+        let fake_table_id = TableId::from(123);
+        let result = catalog.hard_delete_table(&fake_db_id, &fake_table_id).await;
+        assert!(matches!(result, Err(CatalogError::NotFound)));
+
+        // Create database but try to delete non-existent table
+        catalog.create_database("test").await.unwrap();
+        let db_id = catalog.db_name_to_id("test").unwrap();
+        let result = catalog.hard_delete_table(&db_id, &fake_table_id).await;
+        assert!(matches!(result, Err(CatalogError::NotFound)));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_table_after_soft_delete() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Create database and table
+        catalog.create_database("test").await.unwrap();
+        catalog
+            .create_table("test", "boo", &["tag"], &[("field", FieldDataType::String)])
+            .await
+            .unwrap();
+
+        // Get database and table IDs
+        let db_id = catalog.db_name_to_id("test").unwrap();
+        let table_id = catalog
+            .db_schema("test")
+            .unwrap()
+            .table_definition("boo")
+            .unwrap()
+            .table_id;
+
+        // First soft delete the table
+        catalog
+            .soft_delete_table("test", "boo", HardDeletionTime::Never)
+            .await
+            .unwrap();
+
+        // Verify table is soft deleted
+        assert!(
+            catalog
+                .db_schema("test")
+                .unwrap()
+                .table_definition("boo-19700101T000000")
+                .unwrap()
+                .deleted
+        );
+
+        // Now hard delete the table
+        catalog.hard_delete_table(&db_id, &table_id).await.unwrap();
+
+        // Verify the soft-deleted table is now completely removed
+        assert!(
+            catalog
+                .db_schema("test")
+                .unwrap()
+                .table_definition("boo-19700101T000000")
+                .is_none(),
+            "Soft-deleted table should be removed after hard deletion"
+        );
+
+        // Verify database still exists
+        assert!(
+            catalog.db_schema("test").is_some(),
+            "Database should still exist after table hard deletion"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_table_with_snapshot() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Create database and tables
+        catalog.create_database("test").await.unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table1",
+                &["tag"],
+                &[("field", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table2",
+                &["tag"],
+                &[("field", FieldDataType::Integer)],
+            )
+            .await
+            .unwrap();
+
+        // Get database and table IDs
+        let db_id = catalog.db_name_to_id("test").unwrap();
+        let db_schema = catalog.db_schema("test").unwrap();
+        let table_id_1 = db_schema.table_definition("table1").unwrap().table_id;
+
+        // Hard delete one table
+        catalog
+            .hard_delete_table(&db_id, &table_id_1)
+            .await
+            .unwrap();
+
+        // Take a snapshot
+        let snapshot = catalog.snapshot();
+
+        // Serialize and deserialize the snapshot
+        let serialized = serialize_catalog_file(&snapshot).unwrap();
+        let deserialized = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap();
+
+        // Create a new catalog from the snapshot
+        let new_catalog = Catalog::new_in_memory("test-host-2").await.unwrap();
+        new_catalog.update_from_snapshot(deserialized);
+
+        // Verify the new catalog has the same state as the original after hard deletion
+        let new_db_schema = new_catalog.db_schema("test").unwrap();
+        assert!(
+            new_db_schema.table_definition("table1").is_none(),
+            "Table1 should remain deleted in the new catalog"
+        );
+        assert!(
+            new_db_schema.table_definition("table2").is_some(),
+            "Table2 should still exist in the new catalog"
+        );
+
+        // Verify the database still exists
+        assert!(
+            new_catalog.db_schema("test").is_some(),
+            "Database should exist in the new catalog"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_database() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Create databases
+        catalog.create_database("test").await.unwrap();
+        catalog.create_database("test2").await.unwrap();
+
+        // Create tables in test database
+        catalog
+            .create_table(
+                "test",
+                "table1",
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table2",
+                &["tag"],
+                &[("field", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+
+        // Get database ID
+        let db_id = catalog.db_name_to_id("test").unwrap();
+
+        // Hard delete the database
+        catalog.hard_delete_database(&db_id).await.unwrap();
+
+        // Verify database is completely removed
+        assert!(
+            catalog.db_schema("test").is_none(),
+            "Database 'test' should be removed after hard deletion"
+        );
+
+        // Verify test2 database still exists
+        assert!(
+            catalog.db_schema("test2").is_some(),
+            "Database 'test2' should still exist"
+        );
+
+        // Verify we can't look up the deleted database by name
+        assert!(
+            catalog.db_name_to_id("test").is_none(),
+            "Should not be able to look up deleted database by name"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_nonexistent_database() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Try to delete non-existent database
+        let fake_db_id = DbId::from(999);
+        let result = catalog.hard_delete_database(&fake_db_id).await;
+        assert!(matches!(result, Err(CatalogError::NotFound)));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_internal_database() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Get internal database ID
+        let internal_db_id = catalog.db_name_to_id("_internal").unwrap();
+
+        // Try to hard delete internal database
+        let result = catalog.hard_delete_database(&internal_db_id).await;
+        assert!(matches!(
+            result,
+            Err(CatalogError::CannotDeleteInternalDatabase)
+        ));
+
+        // Verify internal database still exists
+        assert!(
+            catalog.db_schema("_internal").is_some(),
+            "Internal database should still exist after failed deletion attempt"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_database_overrides_table_deletions() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Create database and tables
+        catalog.create_database("test").await.unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table1",
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table2",
+                &["tag"],
+                &[("field", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+
+        // Get IDs
+        let db_id = catalog.db_name_to_id("test").unwrap();
+        let db_schema = catalog.db_schema("test").unwrap();
+        let table1_id = db_schema.table_definition("table1").unwrap().table_id;
+        let _table2_id = db_schema.table_definition("table2").unwrap().table_id;
+
+        // First hard delete a table
+        catalog.hard_delete_table(&db_id, &table1_id).await.unwrap();
+
+        // Verify table1 is deleted but database still exists
+        assert!(
+            catalog
+                .db_schema("test")
+                .unwrap()
+                .table_definition("table1")
+                .is_none(),
+            "Table1 should be deleted"
+        );
+        assert!(
+            catalog.db_schema("test").is_some(),
+            "Database should still exist after table deletion"
+        );
+
+        // Now hard delete the database
+        catalog.hard_delete_database(&db_id).await.unwrap();
+
+        // Verify the entire database is now gone
+        assert!(
+            catalog.db_schema("test").is_none(),
+            "Database should be removed after hard deletion"
+        );
+        assert!(
+            catalog.db_name_to_id("test").is_none(),
+            "Database should not be found by name after hard deletion"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_database_with_snapshot() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Create databases
+        catalog.create_database("test1").await.unwrap();
+        catalog.create_database("test2").await.unwrap();
+
+        // Create tables
+        catalog
+            .create_table(
+                "test1",
+                "table1",
+                &["tag"],
+                &[("field", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test2",
+                "table1",
+                &["tag"],
+                &[("field", FieldDataType::Integer)],
+            )
+            .await
+            .unwrap();
+
+        // Get database IDs
+        let db1_id = catalog.db_name_to_id("test1").unwrap();
+        let _db2_id = catalog.db_name_to_id("test2").unwrap();
+
+        // Hard delete one database
+        catalog.hard_delete_database(&db1_id).await.unwrap();
+
+        // Verify test1 is deleted but test2 still exists before snapshot
+        assert!(
+            catalog.db_schema("test1").is_none(),
+            "test1 database should be deleted"
+        );
+        assert!(
+            catalog.db_schema("test2").is_some(),
+            "test2 database should still exist"
+        );
+
+        // Take a snapshot
+        let snapshot = catalog.snapshot();
+
+        // Serialize and deserialize the snapshot
+        let serialized = serialize_catalog_file(&snapshot).unwrap();
+        let deserialized = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap();
+
+        // Create a new catalog from the snapshot
+        let new_catalog = Catalog::new_in_memory("test-host-2").await.unwrap();
+        new_catalog.update_from_snapshot(deserialized);
+
+        // Verify the new catalog has the same state
+        assert!(
+            new_catalog.db_schema("test1").is_none(),
+            "test1 database should remain deleted in new catalog"
+        );
+        assert!(
+            new_catalog.db_schema("test2").is_some(),
+            "test2 database should still exist in new catalog"
+        );
+
+        // Verify test2's table still exists
+        assert!(
+            new_catalog
+                .db_schema("test2")
+                .unwrap()
+                .table_definition("table1")
+                .is_some(),
+            "test2's table should still exist in new catalog"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_hard_delete_database_after_soft_delete() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Create database
+        catalog.create_database("test").await.unwrap();
+        catalog
+            .create_table(
+                "test",
+                "table1",
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test").unwrap();
+
+        // Soft delete the database
+        catalog
+            .soft_delete_database("test", HardDeletionTime::Never)
+            .await
+            .unwrap();
+
+        // Find the soft-deleted database by iterating databases
+        let db_schema = catalog
+            .inner
+            .read()
+            .databases
+            .get_by_id(&db_id)
+            .expect("database should exist");
+        assert!(db_schema.deleted);
+
+        // Hard delete the database
+        catalog.hard_delete_database(&db_id).await.unwrap();
+
+        // Verify the database is completely removed
+        assert!(
+            catalog.inner.read().databases.get_by_id(&db_id).is_none(),
+            "Database should be completely removed after hard deletion"
+        );
+
+        // Verify we can't find it by name either
+        assert!(
+            catalog.db_name_to_id("test").is_none(),
+            "Should not be able to find hard deleted database by name"
+        );
+        assert!(
+            catalog.db_name_to_id("test-19700101T000000").is_none(),
+            "Should not be able to find soft-deleted name after hard deletion"
+        );
+    }
+
     // NOTE(trevor/catalog-refactor): this test predates the object-store based catalog, where
     // ordering is still enforced, but it is different. This test mainly verifies that when
     // `OrderedCatalogBatch`s are sorted, they are sorted into the correct order of application.
@@ -2844,7 +3604,10 @@ mod tests {
 
         // now delete a database:
         let db_name = format!("test-db-{}", Catalog::NUM_DBS_LIMIT - 1);
-        catalog.soft_delete_database(&db_name).await.unwrap();
+        catalog
+            .soft_delete_database(&db_name, HardDeletionTime::Never)
+            .await
+            .unwrap();
 
         // check again, count should have gone down:
         assert_eq!(
@@ -3333,5 +4096,1174 @@ mod tests {
         let duration = Duration::from_secs(10);
         catalog.set_gen1_duration(duration).await.unwrap();
         assert_eq!(catalog.get_generation_duration(1), Some(duration));
+    }
+
+    #[test]
+    fn test_deleted_objects_initialization() {
+        let catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+        // Test that catalog initializes successfully
+        assert_eq!(catalog.catalog_id.as_ref(), "test-catalog");
+    }
+
+    #[test]
+    fn test_apply_delete_batch_delete_database() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+        let db_id = DbId::from(1);
+
+        // Create a database first
+        let db_schema = DatabaseSchema::new(db_id, "test_db".into());
+        catalog.databases.insert(db_id, db_schema).unwrap();
+
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteDatabase(db_id)],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+    }
+
+    #[test]
+    fn test_apply_delete_batch_delete_table() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+        let db_id = DbId::from(1);
+        let table_id = TableId::from(1);
+
+        // Create a database and table first
+        let mut db_schema = DatabaseSchema::new(db_id, "test_db".into());
+        let table_def = TableDefinition::new_empty(table_id, "test_table".into());
+        db_schema.tables.insert(table_id, table_def).unwrap();
+        catalog.databases.insert(db_id, db_schema).unwrap();
+
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteTable(db_id, table_id)],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+    }
+
+    #[test]
+    fn test_apply_delete_batch_multiple_tables() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+        let db_id = DbId::from(1);
+        let table_id_1 = TableId::from(1);
+        let table_id_2 = TableId::from(2);
+        let table_id_3 = TableId::from(3);
+
+        // Create a database and tables first
+        let mut db_schema = DatabaseSchema::new(db_id, "test_db".into());
+        db_schema
+            .tables
+            .insert(
+                table_id_1,
+                TableDefinition::new_empty(table_id_1, "table1".into()),
+            )
+            .unwrap();
+        db_schema
+            .tables
+            .insert(
+                table_id_2,
+                TableDefinition::new_empty(table_id_2, "table2".into()),
+            )
+            .unwrap();
+        db_schema
+            .tables
+            .insert(
+                table_id_3,
+                TableDefinition::new_empty(table_id_3, "table3".into()),
+            )
+            .unwrap();
+        catalog.databases.insert(db_id, db_schema).unwrap();
+
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![
+                DeleteOp::DeleteTable(db_id, table_id_1),
+                DeleteOp::DeleteTable(db_id, table_id_2),
+                DeleteOp::DeleteTable(db_id, table_id_3),
+            ],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+    }
+
+    #[test]
+    fn test_apply_delete_batch_mixed_operations() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+        let db_id_1 = DbId::from(1);
+        let db_id_2 = DbId::from(2);
+        let table_id_1 = TableId::from(1);
+        let table_id_2 = TableId::from(2);
+
+        // Create databases and tables first
+        let mut db_schema_1 = DatabaseSchema::new(db_id_1, "test_db1".into());
+        db_schema_1
+            .tables
+            .insert(
+                table_id_1,
+                TableDefinition::new_empty(table_id_1, "table1".into()),
+            )
+            .unwrap();
+        db_schema_1
+            .tables
+            .insert(
+                table_id_2,
+                TableDefinition::new_empty(table_id_2, "table2".into()),
+            )
+            .unwrap();
+        catalog.databases.insert(db_id_1, db_schema_1).unwrap();
+
+        let db_schema_2 = DatabaseSchema::new(db_id_2, "test_db2".into());
+        catalog.databases.insert(db_id_2, db_schema_2).unwrap();
+
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![
+                DeleteOp::DeleteTable(db_id_1, table_id_1),
+                DeleteOp::DeleteTable(db_id_1, table_id_2),
+                DeleteOp::DeleteDatabase(db_id_2),
+            ],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+    }
+
+    #[test]
+    fn test_apply_delete_batch_database_overrides_tables() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+        let db_id = DbId::from(1);
+        let table_id = TableId::from(1);
+
+        // Create a database and table first
+        let mut db_schema = DatabaseSchema::new(db_id, "test_db".into());
+        db_schema
+            .tables
+            .insert(
+                table_id,
+                TableDefinition::new_empty(table_id, "test_table".into()),
+            )
+            .unwrap();
+        catalog.databases.insert(db_id, db_schema).unwrap();
+
+        // First delete a table
+        let delete_batch_1 = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteTable(db_id, table_id)],
+        };
+        catalog.apply_delete_batch(&delete_batch_1).unwrap();
+
+        // Then delete the database
+        let delete_batch_2 = DeleteBatch {
+            time_ns: 2000,
+            ops: vec![DeleteOp::DeleteDatabase(db_id)],
+        };
+        catalog.apply_delete_batch(&delete_batch_2).unwrap();
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_catalog_batch_delete_serialization() {
+        let db_id = DbId::from(1);
+        let table_id = TableId::from(1);
+
+        let delete_batch = CatalogBatch::delete(
+            1000,
+            vec![
+                DeleteOp::DeleteDatabase(db_id),
+                DeleteOp::DeleteTable(DbId::from(2), table_id),
+            ],
+        );
+
+        // Test basic properties
+        assert_eq!(delete_batch.n_ops(), 2);
+        assert!(delete_batch.as_delete().is_some());
+
+        // Test serialization roundtrip
+        let serialized = serde_json::to_string(&delete_batch).unwrap();
+        let deserialized: CatalogBatch = serde_json::from_str(&serialized).unwrap();
+
+        if let CatalogBatch::Delete(batch) = deserialized {
+            assert_eq!(batch.time_ns, 1000);
+            assert_eq!(batch.ops.len(), 2);
+            match &batch.ops[0] {
+                DeleteOp::DeleteDatabase(id) => assert_eq!(*id, db_id),
+                _ => panic!("Expected DeleteDatabase operation"),
+            }
+            match &batch.ops[1] {
+                DeleteOp::DeleteTable(db, tbl) => {
+                    assert_eq!(*db, DbId::from(2));
+                    assert_eq!(*tbl, table_id);
+                }
+                _ => panic!("Expected DeleteTable operation"),
+            }
+        } else {
+            panic!("Expected Delete variant");
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_catalog_with_deleted_objects_snapshot() {
+        let catalog = Catalog::new_in_memory("test-host").await.unwrap();
+
+        // Create a database and table
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+
+        // Get the IDs
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_def = db_schema.table_definition("test_table").unwrap();
+        let table_id = table_def.table_id;
+
+        // Apply delete operations directly to inner catalog for testing
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteTable(db_id, table_id)],
+        };
+
+        catalog
+            .inner
+            .write()
+            .apply_delete_batch(&delete_batch)
+            .unwrap();
+
+        // Verify table is deleted from database schema
+        let db_schema_after = catalog.db_schema("test_db").unwrap();
+        assert!(
+            db_schema_after.table_definition("test_table").is_none(),
+            "Table should be deleted from schema"
+        );
+
+        // Create a snapshot
+        let snapshot = catalog.snapshot();
+
+        // Test serialization/deserialization roundtrip
+        let serialized = serialize_catalog_file(&snapshot).unwrap();
+        let deserialized = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap();
+
+        // Create a new catalog from the snapshot
+        let new_catalog = Catalog::new_in_memory("test-host-2").await.unwrap();
+        new_catalog.update_from_snapshot(deserialized);
+
+        // Verify the new catalog has the same state - table is deleted
+        let new_db_schema = new_catalog.db_schema("test_db").unwrap();
+        assert!(
+            new_db_schema.table_definition("test_table").is_none(),
+            "Table should remain deleted in new catalog"
+        );
+        assert!(
+            new_catalog.db_schema("test_db").is_some(),
+            "Database should still exist in new catalog"
+        );
+    }
+
+    #[test]
+    fn test_database_deletion_removes_from_deleted_tables() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+        let db_id_1 = DbId::from(1);
+        let db_id_2 = DbId::from(2);
+        let table_id_1 = TableId::from(1);
+        let table_id_2 = TableId::from(2);
+        let table_id_3 = TableId::from(3);
+
+        // First, delete some tables from both databases
+        let delete_batch_1 = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![
+                DeleteOp::DeleteTable(db_id_1, table_id_1),
+                DeleteOp::DeleteTable(db_id_1, table_id_2),
+                DeleteOp::DeleteTable(db_id_2, table_id_3),
+            ],
+        };
+        catalog.apply_delete_batch(&delete_batch_1).unwrap();
+
+        // Now delete database 1
+        let delete_batch_2 = DeleteBatch {
+            time_ns: 2000,
+            ops: vec![DeleteOp::DeleteDatabase(db_id_1)],
+        };
+        catalog.apply_delete_batch(&delete_batch_2).unwrap();
+    }
+
+    #[test]
+    fn test_apply_delete_batch_removes_database_from_schema() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+
+        // Create a database
+        let db_id = DbId::from(1);
+        let db_name = Arc::from("test_db");
+        let db_schema = DatabaseSchema::new(db_id, Arc::clone(&db_name));
+        catalog
+            .databases
+            .insert(db_id, Arc::new(db_schema))
+            .unwrap();
+
+        // Verify database exists
+        assert!(catalog.databases.get_by_id(&db_id).is_some());
+
+        // Delete the database
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteDatabase(db_id)],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+
+        // Verify database is removed from schema
+        assert!(catalog.databases.get_by_id(&db_id).is_none());
+    }
+
+    #[test]
+    fn test_apply_delete_batch_removes_table_from_schema() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+
+        // Create a database with a table
+        let db_id = DbId::from(1);
+        let db_name = Arc::from("test_db");
+        let mut db_schema = DatabaseSchema::new(db_id, Arc::clone(&db_name));
+
+        let table_id = TableId::from(1);
+        let table_name = Arc::from("test_table");
+        let table_def = TableDefinition::new_empty(table_id, Arc::clone(&table_name));
+        db_schema
+            .tables
+            .insert(table_id, Arc::new(table_def))
+            .unwrap();
+
+        catalog
+            .databases
+            .insert(db_id, Arc::new(db_schema))
+            .unwrap();
+
+        // Verify table exists
+        let db = catalog.databases.get_by_id(&db_id).unwrap();
+        assert!(db.tables.get_by_id(&table_id).is_some());
+
+        // Delete the table
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteTable(db_id, table_id)],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+
+        // Verify table is removed from schema
+        let db = catalog.databases.get_by_id(&db_id).unwrap();
+        assert!(db.tables.get_by_id(&table_id).is_none());
+    }
+
+    /// Tests that deleting a table from a database schema that has multiple Arc references
+    /// is correctly handled.
+    #[test]
+    fn test_apply_delete_batch_database_delete_table_correctness_with_multiple_schema_references() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+
+        let db_id = DbId::from(1);
+
+        // Database 1 with 2 tables
+        let mut db_schema_1 = DatabaseSchema::new(db_id, Arc::from("db1"));
+        let table_id_1 = TableId::from(1);
+        let table_id_2 = TableId::from(2);
+        db_schema_1
+            .tables
+            .insert(
+                table_id_1,
+                Arc::new(TableDefinition::new_empty(table_id_1, Arc::from("table1"))),
+            )
+            .unwrap();
+        db_schema_1
+            .tables
+            .insert(
+                table_id_2,
+                Arc::new(TableDefinition::new_empty(table_id_2, Arc::from("table2"))),
+            )
+            .unwrap();
+        catalog
+            .databases
+            .insert(db_id, Arc::new(db_schema_1))
+            .unwrap();
+
+        // Create an additional reference to the database schema
+        let _db_schema = catalog.databases.get_by_id(&db_id).unwrap();
+
+        // Delete table from db1 and entire db2
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteTable(db_id, table_id_1)],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+
+        let new_db_schema = catalog.databases.get_by_id(&db_id).unwrap();
+        assert!(new_db_schema.tables.get_by_id(&table_id_1).is_none());
+        assert!(new_db_schema.tables.get_by_id(&table_id_2).is_some());
+    }
+
+    #[test]
+    fn test_apply_delete_batch_database_deletion_removes_all_tables() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+
+        // Create a database with multiple tables
+        let db_id = DbId::from(1);
+        let db_name = Arc::from("test_db");
+        let mut db_schema = DatabaseSchema::new(db_id, Arc::clone(&db_name));
+
+        let table_ids = vec![TableId::from(1), TableId::from(2), TableId::from(3)];
+        for (i, table_id) in table_ids.iter().enumerate() {
+            let table_name = Arc::from(format!("table_{}", i));
+            let table_def = TableDefinition::new_empty(*table_id, table_name);
+            db_schema
+                .tables
+                .insert(*table_id, Arc::new(table_def))
+                .unwrap();
+        }
+
+        catalog
+            .databases
+            .insert(db_id, Arc::new(db_schema))
+            .unwrap();
+
+        // Verify all tables exist
+        let db = catalog.databases.get_by_id(&db_id).unwrap();
+        for table_id in &table_ids {
+            assert!(db.tables.get_by_id(table_id).is_some());
+        }
+
+        // Delete the database
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteDatabase(db_id)],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+
+        // Verify database and all its tables are removed from schema
+        assert!(catalog.databases.get_by_id(&db_id).is_none());
+    }
+
+    #[test]
+    fn test_apply_delete_batch_mixed_operations_with_schema_removal() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+
+        // Create two databases with tables
+        let db_id_1 = DbId::from(1);
+        let db_id_2 = DbId::from(2);
+
+        // Database 1 with 2 tables
+        let mut db_schema_1 = DatabaseSchema::new(db_id_1, Arc::from("db1"));
+        let table_id_1 = TableId::from(1);
+        let table_id_2 = TableId::from(2);
+        db_schema_1
+            .tables
+            .insert(
+                table_id_1,
+                Arc::new(TableDefinition::new_empty(table_id_1, Arc::from("table1"))),
+            )
+            .unwrap();
+        db_schema_1
+            .tables
+            .insert(
+                table_id_2,
+                Arc::new(TableDefinition::new_empty(table_id_2, Arc::from("table2"))),
+            )
+            .unwrap();
+
+        // Database 2 with 1 table
+        let mut db_schema_2 = DatabaseSchema::new(db_id_2, Arc::from("db2"));
+        let table_id_3 = TableId::from(3);
+        db_schema_2
+            .tables
+            .insert(
+                table_id_3,
+                Arc::new(TableDefinition::new_empty(table_id_3, Arc::from("table3"))),
+            )
+            .unwrap();
+
+        catalog
+            .databases
+            .insert(db_id_1, Arc::new(db_schema_1))
+            .unwrap();
+        catalog
+            .databases
+            .insert(db_id_2, Arc::new(db_schema_2))
+            .unwrap();
+
+        // Delete table from db1 and entire db2
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![
+                DeleteOp::DeleteTable(db_id_1, table_id_1),
+                DeleteOp::DeleteDatabase(db_id_2),
+            ],
+        };
+
+        let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+        assert!(result);
+
+        // Verify db1 still exists with only table2
+        let db1 = catalog.databases.get_by_id(&db_id_1).unwrap();
+        assert!(db1.tables.get_by_id(&table_id_1).is_none());
+        assert!(db1.tables.get_by_id(&table_id_2).is_some());
+
+        // Verify db2 is completely removed
+        assert!(catalog.databases.get_by_id(&db_id_2).is_none());
+    }
+
+    #[test]
+    fn test_apply_delete_batch_table_deletion_after_database_deletion() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+
+        let db_id = DbId::from(1);
+        let table_id = TableId::from(1);
+
+        // First delete the database
+        let delete_batch_1 = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![DeleteOp::DeleteDatabase(db_id)],
+        };
+        catalog.apply_delete_batch(&delete_batch_1).unwrap();
+
+        // Then try to delete a table from the deleted database
+        let delete_batch_2 = DeleteBatch {
+            time_ns: 2000,
+            ops: vec![DeleteOp::DeleteTable(db_id, table_id)],
+        };
+        let result = catalog.apply_delete_batch(&delete_batch_2).unwrap();
+
+        // Should return false since no changes were made (database already deleted)
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_serialization_format() {
+        let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+        let db_id_1 = DbId::from(2);
+        let db_id_2 = DbId::from(5);
+        let db_id_3 = DbId::from(3);
+        let db_id_4 = DbId::from(9);
+        let table_id_1 = TableId::from(1);
+        let table_id_2 = TableId::from(6);
+        let table_id_3 = TableId::from(7);
+        let table_id_4 = TableId::from(2);
+
+        // Create the exact scenario from the user's example
+        let delete_batch = DeleteBatch {
+            time_ns: 1000,
+            ops: vec![
+                DeleteOp::DeleteDatabase(db_id_1),          // 2
+                DeleteOp::DeleteDatabase(db_id_2),          // 5
+                DeleteOp::DeleteTable(db_id_3, table_id_1), // 3: [1, 6, 7]
+                DeleteOp::DeleteTable(db_id_3, table_id_2),
+                DeleteOp::DeleteTable(db_id_3, table_id_3),
+                DeleteOp::DeleteTable(db_id_4, table_id_4), // 9: [2]
+            ],
+        };
+        catalog.apply_delete_batch(&delete_batch).unwrap();
+
+        insta::allow_duplicates! {
+            insta::with_settings!({
+                sort_maps => true,
+                description => "Catalog snapshot with deleted objects"
+            }, {
+                let snapshot = catalog.snapshot();
+
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+            })
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_hard_delete_time_never() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Soft delete with Never
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Never)
+            .await
+            .unwrap();
+
+        // Verify hard_delete_time is None
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert!(db_schema.hard_delete_time.is_none());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_hard_delete_time_default() {
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Soft delete with Default
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Default)
+            .await
+            .unwrap();
+
+        // Verify hard_delete_time is set to now + default duration
+        let expected_time = now + Catalog::DEFAULT_HARD_DELETE_DURATION;
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(expected_time));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_hard_delete_time_specific_timestamp() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        let specific_time = Time::from_timestamp_nanos(5000000000);
+
+        // Soft delete with specific timestamp
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Timestamp(specific_time))
+            .await
+            .unwrap();
+
+        // Verify hard_delete_time is set to the specific time
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(specific_time));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_hard_delete_time_now() {
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(2000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Soft delete with Now
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Now)
+            .await
+            .unwrap();
+
+        // Verify hard_delete_time is set to current time
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(now));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_hard_delete_time_serialization() {
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(3000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Soft delete with Default hard delete time
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Default)
+            .await
+            .unwrap();
+
+        // Take a snapshot
+        let snapshot = catalog.snapshot();
+
+        // Verify hard_delete_time is in the snapshot
+        let expected_time = now + Catalog::DEFAULT_HARD_DELETE_DURATION;
+        let db_snapshot = snapshot.databases.repo.get(&db_id).unwrap();
+        assert_eq!(
+            db_snapshot.hard_delete_time,
+            Some(expected_time.timestamp_nanos())
+        );
+
+        // Test deserialization
+        let new_catalog = Catalog::new_in_memory("test-catalog-2").await.unwrap();
+        new_catalog.update_from_snapshot(snapshot);
+
+        let restored_db_schema = new_catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(restored_db_schema.deleted);
+        assert_eq!(restored_db_schema.hard_delete_time, Some(expected_time));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_deletion_status_existing_not_deleted() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Database exists and is not deleted - should return None
+        assert_eq!(catalog.database_deletion_status(db_id), None);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_deletion_status_soft_deleted() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Soft delete the database
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Never)
+            .await
+            .unwrap();
+
+        // Should return Soft status
+        assert_eq!(
+            catalog.database_deletion_status(db_id),
+            Some(DeletionStatus::Soft)
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_deletion_status_hard_deleted() {
+        use iox_time::MockProvider;
+        use std::time::Duration;
+
+        let now = Time::from_timestamp_nanos(1_000_000_000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Soft delete the database with immediate hard deletion
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Now)
+            .await
+            .unwrap();
+
+        // Advance time to simulate hard deletion has occurred
+        let future_time = now + Duration::from_secs(3600); // 1 hour later
+        time_provider.set(future_time);
+
+        // Should return Hard status with duration
+        match catalog.database_deletion_status(db_id) {
+            Some(DeletionStatus::Hard(duration)) => {
+                // Duration should be approximately 1 hour
+                assert!(duration >= Duration::from_secs(3599));
+                assert!(duration <= Duration::from_secs(3601));
+            }
+            other => panic!("Expected Hard deletion status, got {:?}", other),
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_deletion_status_scheduled_for_hard_deletion() {
+        use iox_time::MockProvider;
+        use std::time::Duration;
+
+        let now = Time::from_timestamp_nanos(1_000_000_000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Soft delete with future hard deletion time
+        let future_deletion_time = now + Duration::from_secs(7200); // 2 hours from now
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Timestamp(future_deletion_time))
+            .await
+            .unwrap();
+
+        // Should still return Soft status since hard deletion time hasn't arrived
+        assert_eq!(
+            catalog.database_deletion_status(db_id),
+            Some(DeletionStatus::Soft)
+        );
+
+        // Advance time past the hard deletion time
+        let past_deletion_time = future_deletion_time + Duration::from_secs(600); // 10 minutes after
+        time_provider.set(past_deletion_time);
+
+        // Now should return Hard status
+        match catalog.database_deletion_status(db_id) {
+            Some(DeletionStatus::Hard(duration)) => {
+                // Duration should be approximately 10 minutes
+                assert!(duration >= Duration::from_secs(599));
+                assert!(duration <= Duration::from_secs(601));
+            }
+            other => panic!("Expected Hard deletion status, got {:?}", other),
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_deletion_status_not_found() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+        // Non-existent database ID
+        let non_existent_id = DbId::from(999);
+
+        // Should return NotFound status
+        assert_eq!(
+            catalog.database_deletion_status(non_existent_id),
+            Some(DeletionStatus::NotFound)
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_deletion_status_in_deleted_set() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Manually remove database to simulate hard deletion cleanup
+        {
+            let mut inner = catalog.inner.write();
+            inner.databases.remove(&db_id);
+        }
+
+        // Should return NotFound status
+        assert_eq!(
+            catalog.database_deletion_status(db_id),
+            Some(DeletionStatus::NotFound)
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_deletion_status_existing_not_deleted() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+        // Table exists and is not deleted - should return None
+        assert_eq!(
+            db_schema.table_deletion_status(table_id, catalog.time_provider()),
+            None
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_deletion_status_soft_deleted() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+        // Soft delete the table
+        catalog
+            .soft_delete_table("test_db", "test_table", HardDeletionTime::Never)
+            .await
+            .unwrap();
+
+        // Get updated schema after deletion
+        let updated_db_schema = catalog.db_schema("test_db").unwrap();
+
+        // Should return Soft status
+        assert_eq!(
+            updated_db_schema.table_deletion_status(table_id, catalog.time_provider()),
+            Some(DeletionStatus::Soft)
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_deletion_status_hard_deleted() {
+        use iox_time::MockProvider;
+        use std::time::Duration;
+
+        let now = Time::from_timestamp_nanos(1_000_000_000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+        // Soft delete the table with immediate hard deletion
+        catalog
+            .soft_delete_table("test_db", "test_table", HardDeletionTime::Now)
+            .await
+            .unwrap();
+
+        // Advance time to simulate hard deletion has occurred
+        let future_time = now + Duration::from_secs(3600); // 1 hour later
+        time_provider.set(future_time);
+
+        // Get updated schema after deletion
+        let updated_db_schema = catalog.db_schema("test_db").unwrap();
+
+        // Should return Hard status with duration
+        match updated_db_schema.table_deletion_status(table_id, Arc::clone(&time_provider) as _) {
+            Some(DeletionStatus::Hard(duration)) => {
+                // Duration should be approximately 1 hour
+                assert!(duration >= Duration::from_secs(3599));
+                assert!(duration <= Duration::from_secs(3601));
+            }
+            other => panic!("Expected Hard deletion status, got {:?}", other),
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_deletion_status_scheduled_for_hard_deletion() {
+        use iox_time::MockProvider;
+        use std::time::Duration;
+
+        let now = Time::from_timestamp_nanos(1_000_000_000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+        // Soft delete with future hard deletion time
+        let future_deletion_time = now + Duration::from_secs(7200); // 2 hours from now
+        catalog
+            .soft_delete_table(
+                "test_db",
+                "test_table",
+                HardDeletionTime::Timestamp(future_deletion_time),
+            )
+            .await
+            .unwrap();
+
+        // Get updated schema after deletion
+        let updated_db_schema = catalog.db_schema("test_db").unwrap();
+
+        // Should still return Soft status since hard deletion time hasn't arrived
+        assert_eq!(
+            updated_db_schema.table_deletion_status(table_id, Arc::clone(&time_provider) as _),
+            Some(DeletionStatus::Soft)
+        );
+
+        // Advance time past the hard deletion time
+        let past_deletion_time = future_deletion_time + Duration::from_secs(600); // 10 minutes after
+        time_provider.set(past_deletion_time);
+
+        // Get updated schema (should be the same instance since it's time-based)
+        let final_db_schema = catalog.db_schema("test_db").unwrap();
+
+        // Now should return Hard status
+        match final_db_schema.table_deletion_status(table_id, Arc::clone(&time_provider) as _) {
+            Some(DeletionStatus::Hard(duration)) => {
+                // Duration should be approximately 10 minutes
+                assert!(duration >= Duration::from_secs(599));
+                assert!(duration <= Duration::from_secs(601));
+            }
+            other => panic!("Expected Hard deletion status, got {:?}", other),
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_deletion_status_not_found() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        // Non-existent table ID
+        let non_existent_id = TableId::from(999);
+
+        // Should return NotFound status
+        assert_eq!(
+            db_schema.table_deletion_status(non_existent_id, catalog.time_provider()),
+            Some(DeletionStatus::NotFound)
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_deletion_status_multiple_tables() {
+        use iox_time::MockProvider;
+        use std::time::Duration;
+
+        let now = Time::from_timestamp_nanos(1_000_000_000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+
+        // Create multiple tables
+        catalog
+            .create_table(
+                "test_db",
+                "table1",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "table2",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "table3",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table1_id = db_schema.table_name_to_id("table1").unwrap();
+        let table2_id = db_schema.table_name_to_id("table2").unwrap();
+        let table3_id = db_schema.table_name_to_id("table3").unwrap();
+
+        // Leave table1 as is (not deleted)
+        // Soft delete table2
+        catalog
+            .soft_delete_table("test_db", "table2", HardDeletionTime::Never)
+            .await
+            .unwrap();
+        // Hard delete table3
+        catalog
+            .soft_delete_table("test_db", "table3", HardDeletionTime::Now)
+            .await
+            .unwrap();
+
+        // Advance time for table3 hard deletion
+        time_provider.set(now + Duration::from_secs(1800)); // 30 minutes later
+
+        // Get updated schema
+        let updated_db_schema = catalog.db_schema("test_db").unwrap();
+
+        // Test all three tables
+        assert_eq!(
+            updated_db_schema.table_deletion_status(table1_id, Arc::clone(&time_provider) as _),
+            None
+        ); // Not deleted
+        assert_eq!(
+            updated_db_schema.table_deletion_status(table2_id, Arc::clone(&time_provider) as _),
+            Some(DeletionStatus::Soft)
+        ); // Soft deleted
+        match updated_db_schema.table_deletion_status(table3_id, Arc::clone(&time_provider) as _) {
+            Some(DeletionStatus::Hard(duration)) => {
+                // Should be around 30 minutes
+                assert!(duration >= Duration::from_secs(1799));
+                assert!(duration <= Duration::from_secs(1801));
+            }
+            other => panic!("Expected Hard deletion status for table3, got {:?}", other),
+        }
     }
 }

@@ -2,9 +2,9 @@ use std::ops::Add;
 use std::sync::Arc;
 
 use hashbrown::HashMap;
-use influxdb3_id::ColumnId;
+use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_process::ProcessUuidGetter;
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::{debug, error, info, trace};
 use schema::{InfluxColumnType, InfluxFieldType};
 use std::time::Duration;
@@ -16,19 +16,27 @@ use super::{
 };
 use crate::{
     CatalogError, Result,
-    catalog::{DEFAULT_OPERATOR_TOKEN_NAME, NUM_TAG_COLUMNS_LIMIT, RetentionPeriod},
+    catalog::{
+        DEFAULT_OPERATOR_TOKEN_NAME, INTERNAL_DB_NAME, NUM_TAG_COLUMNS_LIMIT, RetentionPeriod,
+    },
     log::{
         AddFieldsLog, CatalogBatch, ClearRetentionPeriodLog, CreateDatabaseLog, CreateTableLog,
-        DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails,
-        DeleteTriggerLog, DistinctCacheDefinition, FieldDataType, FieldDefinition, GenerationOp,
-        LastCacheDefinition, LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge,
-        MaxCardinality, NodeCatalogOp, NodeMode, OrderedCatalogBatch, RegisterNodeLog,
-        SetGenerationDurationLog, SetRetentionPeriodLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
-        StopNodeLog, TokenBatch, TokenCatalogOp, TriggerDefinition, TriggerIdentifier,
-        TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
+        DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteOp,
+        DeleteTokenDetails, DeleteTriggerLog, DistinctCacheDefinition, FieldDataType,
+        FieldDefinition, GenerationOp, LastCacheDefinition, LastCacheSize, LastCacheTtl,
+        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
+        OrderedCatalogBatch, RegisterNodeLog, SetGenerationDurationLog, SetRetentionPeriodLog,
+        SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog, TokenBatch, TokenCatalogOp,
+        TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition,
+        ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
 };
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct CreateDatabaseOptions {
+    pub retention_period: Option<Duration>,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum HardDeletionTime {
@@ -36,8 +44,8 @@ pub enum HardDeletionTime {
     Never,
     /// The object will be hard deleted after the default duration.
     Default,
-    /// The object will be hard deleted after a specific duration.
-    After(Duration),
+    /// The object will be hard deleted at a specific timestamp.
+    Timestamp(Time),
     /// The object will be hard deleted as soon as possible.
     Now,
 }
@@ -47,17 +55,10 @@ impl HardDeletionTime {
         match self {
             HardDeletionTime::Never => None,
             HardDeletionTime::Default => Some(time_provider.now().add(default).timestamp_nanos()),
-            HardDeletionTime::After(duration) => {
-                Some(time_provider.now().add(duration).timestamp_nanos())
-            }
+            HardDeletionTime::Timestamp(time) => Some(time.timestamp_nanos()),
             HardDeletionTime::Now => Some(time_provider.now().timestamp_nanos()),
         }
     }
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-pub struct CreateDatabaseOptions {
-    pub retention_period: Option<Duration>,
 }
 
 impl Catalog {
@@ -279,9 +280,17 @@ impl Catalog {
         .await
     }
 
-    pub async fn soft_delete_database(&self, name: &str) -> Result<OrderedCatalogBatch> {
+    pub async fn soft_delete_database(
+        &self,
+        name: &str,
+        hard_delete_time: HardDeletionTime,
+    ) -> Result<OrderedCatalogBatch> {
         info!(name, "soft delete database");
         self.catalog_update_with_retry(|| {
+            if name == INTERNAL_DB_NAME {
+                return Err(CatalogError::CannotDeleteInternalDatabase);
+            };
+
             let Some(db) = self.db_schema(name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -299,6 +308,8 @@ impl Catalog {
                         database_id,
                         database_name: db.name(),
                         deletion_time,
+                        hard_deletion_time: hard_delete_time
+                            .value(&self.time_provider, self.default_hard_delete_duration()),
                     },
                 )],
             ))
@@ -350,6 +361,68 @@ impl Catalog {
                     hard_deletion_time: hard_delete_time
                         .value(&self.time_provider, self.default_hard_delete_duration()),
                 })],
+            ))
+        })
+        .await
+    }
+
+    /// Permanently delete a table from the catalog.
+    ///
+    /// This function performs a hard deletion of a table, which means the table
+    /// will be completely removed from the catalog and marked for cleanup in the
+    /// deleted objects tracking system.
+    ///
+    /// # Errors
+    /// * `CatalogError::NotFound` - If the database or table doesn't exist
+    pub async fn hard_delete_table(
+        &self,
+        db_id: &DbId,
+        table_id: &TableId,
+    ) -> Result<OrderedCatalogBatch> {
+        info!(?db_id, ?table_id, "Hard delete table.");
+        self.catalog_update_with_retry(|| {
+            let Some(db) = self.db_schema_by_id(db_id) else {
+                return Err(CatalogError::NotFound);
+            };
+            let Some(_table_def) = db.table_definition_by_id(table_id) else {
+                return Err(CatalogError::NotFound);
+            };
+
+            let deletion_time = self.time_provider.now().timestamp_nanos();
+            Ok(CatalogBatch::delete(
+                deletion_time,
+                vec![DeleteOp::DeleteTable(*db_id, *table_id)],
+            ))
+        })
+        .await
+    }
+
+    /// Permanently delete a database from the catalog.
+    ///
+    /// This function performs a hard deletion of a database, which means the database
+    /// will be completely removed from the catalog and marked for cleanup in the
+    /// deleted objects tracking system. All tables within the database are implicitly
+    /// deleted.
+    ///
+    /// # Errors
+    /// * `CatalogError::NotFound` - If the database doesn't exist
+    /// * `CatalogError::CannotDeleteInternalDatabase` - If attempting to delete the internal database
+    pub async fn hard_delete_database(&self, db_id: &DbId) -> Result<OrderedCatalogBatch> {
+        info!(?db_id, "Hard delete database.");
+        self.catalog_update_with_retry(|| {
+            let Some(db) = self.db_schema_by_id(db_id) else {
+                return Err(CatalogError::NotFound);
+            };
+
+            // Prevent deletion of internal database
+            if db.name.as_ref() == INTERNAL_DB_NAME {
+                return Err(CatalogError::CannotDeleteInternalDatabase);
+            }
+
+            let deletion_time = self.time_provider.now().timestamp_nanos();
+            Ok(CatalogBatch::delete(
+                deletion_time,
+                vec![DeleteOp::DeleteDatabase(*db_id)],
             ))
         })
         .await

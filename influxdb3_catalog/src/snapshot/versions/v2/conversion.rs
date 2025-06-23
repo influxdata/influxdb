@@ -141,6 +141,7 @@ impl From<super::DatabaseSnapshot> for v3::DatabaseSnapshot {
             retention_period: None,
             processing_engine_triggers: value.processing_engine_triggers.into(),
             deleted: value.deleted,
+            hard_delete_time: None,
         }
     }
 }

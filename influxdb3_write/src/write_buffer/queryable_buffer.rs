@@ -179,8 +179,20 @@ impl QueryableBuffer {
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
+                // Skip buffering deleted databases.
+                if catalog.database_deletion_status(*database_id).is_some() {
+                    continue;
+                }
                 let db_schema = catalog.db_schema_by_id(database_id).expect("db exists");
                 for (table_id, table_buffer) in table_map.iter_mut() {
+                    // Skip buffering deleted tables.
+                    if catalog
+                        .table_deletion_status(*database_id, *table_id)
+                        .is_some()
+                    {
+                        continue;
+                    }
+
                     let table_def = db_schema
                         .table_definition_by_id(table_id)
                         .expect("table exists");
@@ -221,7 +233,7 @@ impl QueryableBuffer {
 
         let removed_files = self
             .persisted_files
-            .remove_files_by_retention_period(Arc::clone(&self.catalog));
+            .remove_files_for_deletion(Arc::clone(&self.catalog));
 
         for (_, tables) in &removed_files {
             for (_, files) in &tables.tables {
@@ -641,9 +653,11 @@ async fn sort_dedupe_persist(
 mod tests {
     use super::*;
     use crate::Precision;
+    use crate::test_helpers::TestWriter;
     use crate::write_buffer::validator::WriteValidator;
     use datafusion_util::config::register_iox_object_store;
     use executor::{DedicatedExecutor, register_current_runtime_for_io};
+    use influxdb3_catalog::resource::CatalogResource;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::{ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -857,5 +871,122 @@ mod tests {
             let primary_key = schema.primary_key();
             assert_eq!(primary_key, &["t2", "t1", "time"]);
         }
+    }
+
+    /// This test validates that buffer replay ignores data from deleted tables.
+    #[tokio::test]
+    async fn snapshot_skips_deleted_table() {
+        // Setup test infrastructure
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let metrics = Arc::new(metric::Registry::default());
+        let parquet_store =
+            ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+        let exec = Arc::new(Executor::new_with_config_and_executor(
+            ExecutorConfig {
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                mem_pool_size: 1024 * 1024 * 1024,
+                per_query_mem_pool_config: PerQueryMemoryPoolConfig::Disabled,
+                heap_memory_limit: None,
+            },
+            DedicatedExecutor::new_testing(),
+        ));
+        let runtime_env = exec.new_context().inner().runtime_env();
+        register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
+        register_current_runtime_for_io();
+
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let catalog = Arc::new(
+            Catalog::new(
+                "hosta",
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider) as _,
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "hosta",
+            Arc::clone(&time_provider) as _,
+        ));
+
+        let queryable_buffer_args = QueryableBufferArgs {
+            executor: Arc::clone(&exec),
+            catalog: Arc::clone(&catalog),
+            persister: Arc::clone(&persister),
+            last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
+            distinct_cache_provider: DistinctCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider) as _,
+                Arc::clone(&catalog),
+            )
+            .await
+            .unwrap(),
+            persisted_files: Arc::new(PersistedFiles::new()),
+            parquet_cache: None,
+        };
+        let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
+
+        let writer = TestWriter::new_with_catalog(Arc::clone(&catalog));
+        let lines1 = writer
+            .write_lp_to_write_batch("table1,tag=a value=1i 1000", 0)
+            .await;
+        let lines2 = writer
+            .write_lp_to_write_batch("table2,tag=b value=2i 2000", 0)
+            .await;
+
+        let db_schema = catalog.db_schema(TestWriter::DB_NAME).unwrap();
+        let db_id = db_schema.id();
+        let table1_id = db_schema.table_name_to_id("table1").unwrap();
+        let table2_id = db_schema.table_name_to_id("table2").unwrap();
+
+        // Soft delete the second table
+        use influxdb3_catalog::catalog::HardDeletionTime;
+        catalog
+            .soft_delete_table(TestWriter::DB_NAME, "table2", HardDeletionTime::Now)
+            .await
+            .unwrap();
+
+        let snapshot_details = SnapshotDetails {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(1),
+            end_time_marker: 1000,
+            first_wal_sequence_number: WalFileSequenceNumber::new(1),
+            last_wal_sequence_number: WalFileSequenceNumber::new(2),
+            forced: false,
+        };
+
+        let wal_contents = influxdb3_wal::create::wal_contents_with_snapshot(
+            (0, 100, 1),
+            [
+                influxdb3_wal::create::write_batch_op(lines1),
+                influxdb3_wal::create::write_batch_op(lines2),
+            ],
+            snapshot_details,
+        );
+
+        queryable_buffer
+            .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
+            .await
+            .await
+            .unwrap();
+
+        // Verify only table1 has persisted files
+        let files1 = queryable_buffer.persisted_files.get_files(db_id, table1_id);
+        assert_eq!(files1.len(), 1, "Should have 1 persisted file for table1");
+
+        let files2 = queryable_buffer.persisted_files.get_files(db_id, table2_id);
+        assert_eq!(
+            files2.len(),
+            0,
+            "Soft deleted table should not have persisted files"
+        );
     }
 }

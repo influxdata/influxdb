@@ -285,6 +285,7 @@ mod tests {
     use crate::builder::ServerBuilder;
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
+    use chrono::DateTime;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{Client, StatusCode};
     use influxdb3_authz::NoAuthAuthenticator;
@@ -690,6 +691,551 @@ mod tests {
                         b,2024-02-21T00:00:06,6.0\n\
                         b,2024-02-21T00:00:07,6.0";
         assert_eq!(actual, expected);
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_table_defaults_to_hard_delete_never() {
+        let start_time = 0;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+        let table_name = "test_table";
+
+        // Write some data to create the table
+        write_lp(
+            &server,
+            db_name,
+            &format!("{table_name},host=a val=1i 123"),
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Make a DELETE request to delete the table without hard_delete_at parameter
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/table?db={}&table={}",
+            server, db_name, table_name
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Access the catalog to verify the table's hard_delete_time is None (which represents Never)
+        let catalog = write_buffer.catalog();
+        let db_schema = catalog.db_schema(db_name).expect("database should exist");
+
+        // After soft deletion, the table name is changed, so we need to find it by iterating through all tables
+        let deleted_table = db_schema
+            .tables()
+            .find(|table| table.deleted && table.table_name.starts_with(table_name))
+            .expect("deleted table should exist");
+
+        // Verify the table is marked as deleted and hard_delete_time is None (Never)
+        assert!(deleted_table.deleted, "table should be marked as deleted");
+        assert!(
+            deleted_table.hard_delete_time.is_none(),
+            "hard_delete_time should be None (Never) when hard_delete_at is omitted"
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_table_with_explicit_hard_delete_never() {
+        let start_time = 0;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+        let table_name = "test_table";
+
+        // Write some data to create the table
+        write_lp(
+            &server,
+            db_name,
+            &format!("{table_name},host=a val=1i 123"),
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Make a DELETE request to delete the table with explicit hard_delete_at=never parameter
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/table?db={}&table={}&hard_delete_at=never",
+            server, db_name, table_name
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Access the catalog to verify the table's hard_delete_time is None (which represents Never)
+        let catalog = write_buffer.catalog();
+        let db_schema = catalog.db_schema(db_name).expect("database should exist");
+
+        // After soft deletion, the table name is changed, so we need to find it by iterating through all tables
+        let deleted_table = db_schema
+            .tables()
+            .find(|table| table.deleted && table.table_name.starts_with(table_name))
+            .expect("deleted table should exist");
+
+        // Verify the table is marked as deleted and hard_delete_time is None (Never)
+        assert!(deleted_table.deleted, "table should be marked as deleted");
+        assert!(
+            deleted_table.hard_delete_time.is_none(),
+            "hard_delete_time should be None (Never) when hard_delete_at=never is explicitly provided"
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_table_with_explicit_hard_delete_now() {
+        let start_time = 1000;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+        let table_name = "test_table";
+
+        // Write some data to create the table
+        write_lp(
+            &server,
+            db_name,
+            &format!("{table_name},host=a val=1i 123"),
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Make a DELETE request to delete the table with explicit hard_delete_at=now parameter
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/table?db={}&table={}&hard_delete_at=now",
+            server, db_name, table_name
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Access the catalog to verify the table's hard_delete_time is set to a time value (not None)
+        let catalog = write_buffer.catalog();
+        let db_schema = catalog.db_schema(db_name).expect("database should exist");
+
+        // After soft deletion, the table name is changed, so we need to find it by iterating through all tables
+        let deleted_table = db_schema
+            .tables()
+            .find(|table| table.deleted && table.table_name.starts_with(table_name))
+            .expect("deleted table should exist");
+
+        // Verify the table is marked as deleted and hard_delete_time is Some (indicating it will be hard deleted)
+        assert!(deleted_table.deleted, "table should be marked as deleted");
+        assert_eq!(
+            deleted_table.hard_delete_time.unwrap().timestamp_nanos(),
+            start_time,
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_table_with_explicit_hard_delete_timestamp() {
+        let start_time = 0;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+        let table_name = "test_table";
+
+        // Write some data to create the table
+        write_lp(
+            &server,
+            db_name,
+            &format!("{table_name},host=a val=1i 123"),
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Use a future timestamp (year 2025)
+        let future_timestamp = "2025-12-31T23:59:59Z";
+        let expected_time = Time::from_datetime(
+            DateTime::parse_from_rfc3339(future_timestamp)
+                .unwrap()
+                .to_utc(),
+        );
+
+        // Make a DELETE request to delete the table with explicit hard_delete_at timestamp
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/table?db={}&table={}&hard_delete_at={}",
+            server, db_name, table_name, future_timestamp
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Access the catalog to verify the table's hard_delete_time matches the expected timestamp
+        let catalog = write_buffer.catalog();
+        let db_schema = catalog.db_schema(db_name).expect("database should exist");
+
+        // After soft deletion, the table name is changed, so we need to find it by iterating through all tables
+        let deleted_table = db_schema
+            .tables()
+            .find(|table| table.deleted && table.table_name.starts_with(table_name))
+            .expect("deleted table should exist");
+
+        // Verify the table is marked as deleted and hard_delete_time matches the expected timestamp
+        assert!(deleted_table.deleted, "table should be marked as deleted");
+        assert_eq!(
+            deleted_table.hard_delete_time.unwrap().timestamp_nanos(),
+            expected_time.timestamp_nanos(),
+            "hard_delete_time should match the explicitly provided timestamp"
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_table_with_explicit_hard_delete_default() {
+        let start_time = 0;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+        let table_name = "test_table";
+
+        // Write some data to create the table
+        write_lp(
+            &server,
+            db_name,
+            &format!("{table_name},host=a val=1i 123"),
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Make a DELETE request to delete the table with explicit hard_delete_at=default parameter
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/table?db={}&table={}&hard_delete_at=default",
+            server, db_name, table_name
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Access the catalog to verify the table's hard_delete_time is set to Some (indicating it will be hard deleted after default duration)
+        let catalog = write_buffer.catalog();
+        let db_schema = catalog.db_schema(db_name).expect("database should exist");
+
+        // After soft deletion, the table name is changed, so we need to find it by iterating through all tables
+        let deleted_table = db_schema
+            .tables()
+            .find(|table| table.deleted && table.table_name.starts_with(table_name))
+            .expect("deleted table should exist");
+
+        // Verify the table is marked as deleted and hard_delete_time is Some (indicating it will be hard deleted after default duration)
+        assert!(deleted_table.deleted, "table should be marked as deleted");
+        assert_eq!(
+            deleted_table.hard_delete_time.unwrap().timestamp_nanos(),
+            start_time + Catalog::DEFAULT_HARD_DELETE_DURATION.as_nanos() as i64,
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_database_with_explicit_hard_delete_never() {
+        let start_time = 0;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+
+        // Write some data to create the database
+        write_lp(
+            &server,
+            db_name,
+            "cpu,host=a val=1i 123",
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Make a DELETE request to delete the database with explicit hard_delete_at=never parameter
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/database?db={}&hard_delete_at=never",
+            server, db_name
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // After soft deletion, the database name is changed, so we need to find it by iterating through all databases
+        let all_databases = write_buffer.catalog().list_db_schema();
+        let deleted_db = all_databases
+            .iter()
+            .find(|db| db.deleted && db.name.starts_with(db_name))
+            .expect("deleted database should exist");
+
+        // Verify the database is marked as deleted and hard_delete_time is None (indicating it will never be hard deleted)
+        assert!(deleted_db.deleted, "database should be marked as deleted");
+        assert!(
+            deleted_db.hard_delete_time.is_none(),
+            "hard_delete_time should be None for never hard delete"
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_database_defaults_to_hard_delete_never() {
+        let start_time = 0;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+
+        // Write some data to create the database
+        write_lp(
+            &server,
+            db_name,
+            "cpu,host=a val=1i 123",
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Make a DELETE request to delete the database without hard_delete_at parameter
+        let client = Client::new();
+        let url = format!("{}/api/v3/configure/database?db={}", server, db_name);
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // After soft deletion, the database name is changed, so we need to find it by iterating through all databases
+        let all_databases = write_buffer.catalog().list_db_schema();
+        let deleted_db = all_databases
+            .iter()
+            .find(|db| db.deleted && db.name.starts_with(db_name))
+            .expect("deleted database should exist");
+
+        // Verify the database is marked as deleted and hard_delete_time is None (Never)
+        assert!(deleted_db.deleted, "database should be marked as deleted");
+        assert!(
+            deleted_db.hard_delete_time.is_none(),
+            "hard_delete_time should be None (Never) when hard_delete_at is omitted"
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_database_with_explicit_hard_delete_now() {
+        let start_time = 1000;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+
+        // Write some data to create the database
+        write_lp(
+            &server,
+            db_name,
+            "cpu,host=a val=1i 123",
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Make a DELETE request to delete the database with explicit hard_delete_at=now parameter
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/database?db={}&hard_delete_at=now",
+            server, db_name
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // After soft deletion, the database name is changed, so we need to find it by iterating through all databases
+        let all_databases = write_buffer.catalog().list_db_schema();
+        let deleted_db = all_databases
+            .iter()
+            .find(|db| db.deleted && db.name.starts_with(db_name))
+            .expect("deleted database should exist");
+
+        // Verify the database is marked as deleted and hard_delete_time is Some (indicating it will be hard deleted)
+        assert!(deleted_db.deleted, "database should be marked as deleted");
+        assert_eq!(
+            deleted_db.hard_delete_time.unwrap().timestamp_nanos(),
+            start_time,
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_database_with_explicit_hard_delete_default() {
+        let start_time = 0;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+
+        // Write some data to create the database
+        write_lp(
+            &server,
+            db_name,
+            "cpu,host=a val=1i 123",
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Make a DELETE request to delete the database with explicit hard_delete_at=default parameter
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/database?db={}&hard_delete_at=default",
+            server, db_name
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // After soft deletion, the database name is changed, so we need to find it by iterating through all databases
+        let all_databases = write_buffer.catalog().list_db_schema();
+        let deleted_db = all_databases
+            .iter()
+            .find(|db| db.deleted && db.name.starts_with(db_name))
+            .expect("deleted database should exist");
+
+        // Verify the database is marked as deleted and hard_delete_time is Some (indicating it will be hard deleted after default duration)
+        assert!(deleted_db.deleted, "database should be marked as deleted");
+        assert_eq!(
+            deleted_db.hard_delete_time.unwrap().timestamp_nanos(),
+            start_time + Catalog::DEFAULT_HARD_DELETE_DURATION.as_nanos() as i64,
+        );
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn delete_database_with_explicit_hard_delete_timestamp() {
+        let start_time = 0;
+        let (server, shutdown, write_buffer) = setup_server(start_time).await;
+
+        let db_name = "test_db";
+
+        // Write some data to create the database
+        write_lp(
+            &server,
+            db_name,
+            "cpu,host=a val=1i 123",
+            None,
+            false,
+            "nanosecond",
+        )
+        .await;
+
+        // Use a future timestamp (year 2025)
+        let future_timestamp = "2025-12-31T23:59:59Z";
+        let expected_time = Time::from_datetime(
+            DateTime::parse_from_rfc3339(future_timestamp)
+                .unwrap()
+                .to_utc(),
+        );
+
+        // Make a DELETE request to delete the database with explicit hard_delete_at timestamp
+        let client = Client::new();
+        let url = format!(
+            "{}/api/v3/configure/database?db={}&hard_delete_at={}",
+            server, db_name, future_timestamp
+        );
+
+        let request = RequestBuilder::new()
+            .uri(url)
+            .method("DELETE")
+            .body(empty_request_body())
+            .expect("failed to construct HTTP request");
+
+        let response = client.request(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // After soft deletion, the database name is changed, so we need to find it by iterating through all databases
+        let all_databases = write_buffer.catalog().list_db_schema();
+        let deleted_db = all_databases
+            .iter()
+            .find(|db| db.deleted && db.name.starts_with(db_name))
+            .expect("deleted database should exist");
+
+        // Verify the database is marked as deleted and hard_delete_time matches the expected timestamp
+        assert!(deleted_db.deleted, "database should be marked as deleted");
+        assert_eq!(
+            deleted_db.hard_delete_time.unwrap().timestamp_nanos(),
+            expected_time.timestamp_nanos(),
+            "hard_delete_time should match the explicitly provided timestamp"
+        );
 
         shutdown.cancel();
     }

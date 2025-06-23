@@ -405,6 +405,28 @@ impl Client {
                 None::<()>,
                 Some(DeleteDatabaseRequest {
                     db: db.as_ref().to_string(),
+                    hard_delete_at: None,
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Make a request to the `DELETE /api/v3/configure/database` API with hard delete option
+    pub async fn api_v3_configure_db_delete_with_hard_delete(
+        &self,
+        db: impl AsRef<str> + Send,
+        hard_delete_at: Option<HardDeletionTime>,
+    ) -> Result<()> {
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/database",
+                None::<()>,
+                Some(DeleteDatabaseRequest {
+                    db: db.as_ref().to_string(),
+                    hard_delete_at,
                 }),
                 None,
             )
@@ -426,6 +448,30 @@ impl Client {
                 Some(DeleteTableRequest {
                     db: db.as_ref().to_string(),
                     table: table.as_ref().to_string(),
+                    hard_delete_at: None,
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Make a request to the `DELETE /api/v3/configure/table` API with hard delete option
+    pub async fn api_v3_configure_table_delete_with_hard_delete<T: AsRef<str> + Send>(
+        &self,
+        db: T,
+        table: T,
+        hard_delete_at: Option<HardDeletionTime>,
+    ) -> Result<()> {
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/table",
+                None::<()>,
+                Some(DeleteTableRequest {
+                    db: db.as_ref().to_string(),
+                    table: table.as_ref().to_string(),
+                    hard_delete_at,
                 }),
                 None,
             )

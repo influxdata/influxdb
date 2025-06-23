@@ -1312,6 +1312,120 @@ async fn api_v3_configure_table_delete_missing_query_param() {
 }
 
 #[tokio::test]
+async fn api_v3_configure_table_delete_with_hard_delete_at_never() {
+    let db_name = "foo";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}&hard_delete_at=never",
+        base = server.client_addr()
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+    assert_eq!(200, resp.status());
+}
+
+#[tokio::test]
+async fn api_v3_configure_table_delete_with_hard_delete_at_timestamp() {
+    let db_name = "foo";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}&hard_delete_at=2025-12-31T23:59:59Z",
+        base = server.client_addr()
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+
+    assert_eq!(200, resp.status());
+}
+
+#[tokio::test]
+async fn api_v3_configure_table_delete_with_invalid_timestamp() {
+    let db_name = "foo";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}&hard_delete_at=invalid-timestamp",
+        base = server.client_addr()
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+    assert_eq!(StatusCode::BAD_REQUEST, resp.status());
+}
+
+#[tokio::test]
+async fn api_v3_configure_table_delete_with_past_timestamp_becomes_now() {
+    let db_name = "foo";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}&hard_delete_at=2020-01-01T00:00:00Z",
+        base = server.client_addr()
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+
+    assert_eq!(200, resp.status());
+}
+
+#[tokio::test]
 async fn try_deleting_table_after_db_is_deleted() {
     let db_name = "db";
     let tbl_name = "tbl";

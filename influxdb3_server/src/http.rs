@@ -7,6 +7,7 @@ use authz::http::AuthorizationHeaderExtension;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64_STANDARD;
 use bytes::{Bytes, BytesMut};
+use chrono::DateTime;
 use data_types::NamespaceName;
 use datafusion::error::DataFusionError;
 use datafusion::execution::RecordBatchStream;
@@ -50,7 +51,7 @@ use iox_http_util::{
 };
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::{debug, error, info, trace};
 use serde::Deserialize;
 use serde::Serialize;
@@ -252,6 +253,12 @@ pub enum Error {
 
     #[error("Cannot parse the given human time: {0}")]
     ParsingHumanTime(#[source] humantime::DurationError),
+
+    #[error("Cannot parse the timestamp: {0}")]
+    ParsingTimestamp(#[from] chrono::ParseError),
+
+    #[error("Timestamp is out of range")]
+    TimestampOutOfRange,
 }
 
 #[derive(Debug, Error)]
@@ -517,6 +524,10 @@ impl IntoResponse for Error {
             | Self::MissingQueryV1Params
             | Self::MissingWriteParams
             | Self::MissingDeleteDatabaseParams => ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
+            Self::ParsingTimestamp(_) | Self::TimestampOutOfRange => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
@@ -1313,9 +1324,24 @@ impl HttpApi {
     async fn delete_database(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
+
+        let hard_delete_time = match delete_req.hard_delete_at.unwrap_or_default() {
+            influxdb3_types::http::HardDeletionTime::Never => HardDeletionTime::Never,
+            influxdb3_types::http::HardDeletionTime::Now => HardDeletionTime::Now,
+            influxdb3_types::http::HardDeletionTime::Default => HardDeletionTime::Default,
+            influxdb3_types::http::HardDeletionTime::Timestamp(ts) => {
+                let time = Time::from_datetime(DateTime::parse_from_rfc3339(&ts)?.to_utc());
+                if time < self.time_provider.now() {
+                    HardDeletionTime::Now
+                } else {
+                    HardDeletionTime::Timestamp(time)
+                }
+            }
+        };
+
         self.write_buffer
             .catalog()
-            .soft_delete_database(&delete_req.db)
+            .soft_delete_database(&delete_req.db, hard_delete_time)
             .await?;
         Ok(Response::new(empty_response_body()))
     }
@@ -1346,10 +1372,24 @@ impl HttpApi {
     async fn delete_table(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteTableRequest>(query)?;
+
+        let hard_delete_time = match delete_req.hard_delete_at.unwrap_or_default() {
+            influxdb3_types::http::HardDeletionTime::Never => HardDeletionTime::Never,
+            influxdb3_types::http::HardDeletionTime::Now => HardDeletionTime::Now,
+            influxdb3_types::http::HardDeletionTime::Default => HardDeletionTime::Default,
+            influxdb3_types::http::HardDeletionTime::Timestamp(ts) => {
+                let time = Time::from_datetime(DateTime::parse_from_rfc3339(&ts)?.to_utc());
+                if time < self.time_provider.now() {
+                    HardDeletionTime::Now
+                } else {
+                    HardDeletionTime::Timestamp(time)
+                }
+            }
+        };
+
         self.write_buffer
             .catalog()
-            // NOTE(sgc): Until delete is implemented, default to no hard delete time.
-            .soft_delete_table(&delete_req.db, &delete_req.table, HardDeletionTime::Never)
+            .soft_delete_table(&delete_req.db, &delete_req.table, hard_delete_time)
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)

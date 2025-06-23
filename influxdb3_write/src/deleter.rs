@@ -1,29 +1,33 @@
 use crate::async_collections;
-use async_trait::async_trait;
+use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::channel::CatalogUpdateReceiver;
-use influxdb3_catalog::log::{CatalogBatch, DatabaseCatalogOp, SoftDeleteTableLog};
+use influxdb3_catalog::log::{
+    CatalogBatch, DatabaseCatalogOp, SoftDeleteDatabaseLog, SoftDeleteTableLog,
+};
 use influxdb3_catalog::resource::CatalogResource;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::{Time, TimeProvider};
-use observability_deps::tracing::info;
+use observability_deps::tracing::{error, info};
 use std::sync::Arc;
 
-/// Trait for deleting database objects from object storage.
-#[async_trait]
+/// Trait for clients to be notified when a database or table should be deleted.
 pub trait ObjectDeleter: std::fmt::Debug + Send + Sync {
-    /// Deletes a database from object storage.
-    async fn delete_database(&self, db_id: DbId);
-    /// Deletes a table from object storage.
-    async fn delete_table(&self, db_id: DbId, table_id: TableId);
+    /// Deletes a database.
+    fn delete_database(&self, db_id: DbId);
+    /// Deletes a table.
+    fn delete_table(&self, db_id: DbId, table_id: TableId);
 }
 
 #[derive(Debug)]
 pub struct DeleteManagerArgs {
-    catalog: Arc<Catalog>,
-    time_provider: Arc<dyn TimeProvider>,
-    object_deleter: Arc<dyn ObjectDeleter>,
+    pub catalog: Arc<Catalog>,
+    pub time_provider: Arc<dyn TimeProvider>,
+    pub object_deleter: Option<Arc<dyn ObjectDeleter>>,
+    /// The grace period after the hard delete time that the object will be removed
+    /// permanently from the catalog.
+    pub delete_grace_period: std::time::Duration,
 }
 
 /// Starts the delete manager, which processes hard deletion tasks for database objects.
@@ -32,13 +36,35 @@ pub fn run(
         catalog,
         time_provider,
         object_deleter,
+        delete_grace_period,
     }: DeleteManagerArgs,
-    shutdown: ShutdownToken,
+    shutdown_token: ShutdownToken,
 ) {
-    let tasks = async_collections::PriorityQueue::<DeleteTask>::new(Arc::clone(&time_provider));
-    // Find all tables in catalog that are marked as deleted with a hard delete time.
+    let tasks = async_collections::PriorityQueue::<Task>::new(Arc::clone(&time_provider));
+    // Find all databases and tables in catalog that are marked as deleted with a hard delete time.
     for db_schema in catalog.list_db_schema() {
-        // TODO(sgc): handle db_schema.deleted in the future.
+        if let Some(hard_delete_time) = db_schema
+            .deleted
+            .then(|| db_schema.hard_delete_time)
+            .flatten()
+        {
+            if let Some(object_deleter) = &object_deleter {
+                tasks.push(
+                    hard_delete_time,
+                    Task::NotifyDeleteDatabase {
+                        db_id: db_schema.id(),
+                        object_deleter: Arc::clone(object_deleter),
+                    },
+                );
+            }
+            tasks.push(
+                hard_delete_time + delete_grace_period,
+                Task::DeleteDatabase {
+                    db_id: db_schema.id(),
+                    catalog: Arc::clone(&catalog),
+                },
+            );
+        }
 
         for (time, table_def) in db_schema.tables().filter_map(|td| {
             // Table is marked as deleted
@@ -47,19 +73,35 @@ pub fn run(
                 .then(|| td.hard_delete_time.map(|t| (t, td)))
                 .flatten()
         }) {
+            if let Some(object_deleter) = &object_deleter {
+                tasks.push(
+                    time,
+                    Task::NotifyDeleteTable {
+                        db_id: db_schema.id(),
+                        table_id: table_def.id(),
+                        object_deleter: Arc::clone(object_deleter),
+                    },
+                );
+            }
             tasks.push(
-                time,
-                DeleteTask::Table {
+                time + delete_grace_period,
+                Task::DeleteTable {
                     db_id: db_schema.id(),
                     table_id: table_def.id(),
+                    catalog: Arc::clone(&catalog),
                 },
             );
         }
     }
 
     tokio::spawn(async move {
+        info!(delete_grace_period = ?delete_grace_period, "Started catalog hard deleter task.");
+
         let delete_manager = DeleteManager {
             tasks: tasks.clone(),
+            catalog: Arc::clone(&catalog),
+            object_deleter,
+            delete_grace_period,
         };
 
         background_catalog_update(
@@ -70,30 +112,95 @@ pub fn run(
         loop {
             tokio::select! {
                 task = tasks.pop() => {
-                    match task {
-                        DeleteTask::Table { db_id, table_id } => {
-                            info!(?db_id, ?table_id, "Processing delete task for table.");
-                            object_deleter.delete_table(db_id, table_id).await;
-                        }
-                    }
+                    task.execute().await;
                 }
-                _ = shutdown.wait_for_shutdown() => {
+                _ = shutdown_token.wait_for_shutdown() => {
                     info!("Shutdown signal received, exiting object deleter loop.");
                     break;
                 }
             }
         }
+        shutdown_token.complete();
     });
 }
 
 /// Represents a task to delete a database object's data.
 #[derive(Clone)]
-enum DeleteTask {
-    Table { db_id: DbId, table_id: TableId },
+enum Task {
+    /// Notify the object_deleter that the specified database should be deleted.
+    NotifyDeleteDatabase {
+        db_id: DbId,
+        object_deleter: Arc<dyn ObjectDeleter>,
+    },
+    /// Notify the object_deleter that the specified table should be deleted.
+    NotifyDeleteTable {
+        db_id: DbId,
+        table_id: TableId,
+        object_deleter: Arc<dyn ObjectDeleter>,
+    },
+    /// Remove the database from the catalog.
+    DeleteDatabase { db_id: DbId, catalog: Arc<Catalog> },
+    /// Remove the table from the catalog.
+    DeleteTable {
+        db_id: DbId,
+        table_id: TableId,
+        catalog: Arc<Catalog>,
+    },
+}
+
+impl Task {
+    async fn execute(self) {
+        match self {
+            Task::NotifyDeleteDatabase {
+                db_id,
+                object_deleter,
+            } => {
+                info!(?db_id, "Notify object_deleter to delete database.");
+                object_deleter.delete_database(db_id);
+            }
+            Task::NotifyDeleteTable {
+                db_id,
+                table_id,
+                object_deleter,
+            } => {
+                info!(?db_id, ?table_id, "Notify object_deleter to delete table.");
+                object_deleter.delete_table(db_id, table_id);
+            }
+            Task::DeleteDatabase { db_id, catalog } => {
+                info!(?db_id, "Processing delete database task.");
+                match catalog.hard_delete_database(&db_id).await {
+                    Err(CatalogError::NotFound) | Ok(_) => {}
+                    Err(CatalogError::CannotDeleteInternalDatabase) => {
+                        // This should not happen
+                        error!("Rejected request to delete internal database")
+                    }
+                    Err(err) => {
+                        error!(%db_id, ?err, "Unexpected error deleting database from catalog.");
+                    }
+                }
+            }
+            Task::DeleteTable {
+                db_id,
+                table_id,
+                catalog,
+            } => {
+                info!(?db_id, ?table_id, "Processing delete table task.");
+                match catalog.hard_delete_table(&db_id, &table_id).await {
+                    Err(CatalogError::NotFound) | Ok(_) => {}
+                    Err(err) => {
+                        error!(%db_id, %table_id, ?err, "Unexpected error deleting table from catalog.");
+                    }
+                }
+            }
+        }
+    }
 }
 
 struct DeleteManager {
-    tasks: async_collections::PriorityQueue<DeleteTask>,
+    tasks: async_collections::PriorityQueue<Task>,
+    catalog: Arc<Catalog>,
+    object_deleter: Option<Arc<dyn ObjectDeleter>>,
+    delete_grace_period: std::time::Duration,
 }
 
 fn background_catalog_update(
@@ -107,26 +214,53 @@ fn background_catalog_update(
                 .filter_map(CatalogBatch::as_database)
             {
                 for op in batch.ops.iter() {
-                    #[allow(
-                        clippy::single_match,
-                        reason = "we're going to handle database deletion in the future"
-                    )]
                     match op {
+                        DatabaseCatalogOp::SoftDeleteDatabase(SoftDeleteDatabaseLog {
+                            database_id,
+                            hard_deletion_time: Some(hard_delete_time),
+                            ..
+                        }) => {
+                            let time = Time::from_timestamp_nanos(*hard_delete_time);
+                            if let Some(object_deleter) = manager.object_deleter.as_ref() {
+                                manager.tasks.push(
+                                    time,
+                                    Task::NotifyDeleteDatabase {
+                                        db_id: *database_id,
+                                        object_deleter: Arc::clone(object_deleter),
+                                    },
+                                );
+                            }
+                            manager.tasks.push(
+                                time + manager.delete_grace_period,
+                                Task::DeleteDatabase {
+                                    db_id: *database_id,
+                                    catalog: Arc::clone(&manager.catalog),
+                                },
+                            );
+                        }
                         DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
                             database_id,
                             table_id,
-                            hard_deletion_time,
+                            hard_deletion_time: Some(hard_deletion_time),
                             ..
                         }) => {
-                            let Some(time) = hard_deletion_time.map(Time::from_timestamp_nanos)
-                            else {
-                                continue;
-                            };
+                            let time = Time::from_timestamp_nanos(*hard_deletion_time);
+                            if let Some(object_deleter) = manager.object_deleter.as_ref() {
+                                manager.tasks.push(
+                                    time,
+                                    Task::NotifyDeleteTable {
+                                        db_id: *database_id,
+                                        table_id: *table_id,
+                                        object_deleter: Arc::clone(object_deleter),
+                                    },
+                                );
+                            }
                             manager.tasks.push(
-                                time,
-                                DeleteTask::Table {
+                                time + manager.delete_grace_period,
+                                Task::DeleteTable {
                                     db_id: *database_id,
                                     table_id: *table_id,
+                                    catalog: Arc::clone(&manager.catalog),
                                 },
                             );
                         }
@@ -143,7 +277,6 @@ mod tests {
     use super::{DeleteManagerArgs, ObjectDeleter, run};
     use influxdb3_catalog::catalog::{Catalog, HardDeletionTime};
     use influxdb3_catalog::log::FieldDataType;
-    use influxdb3_catalog::resource::CatalogResource;
     use influxdb3_id::{DbId, TableId};
     use influxdb3_shutdown::ShutdownManager;
     use iox_time::{MockProvider, Time};
@@ -182,7 +315,6 @@ mod tests {
     }
 
     impl MockObjectDeleterWaiter {
-        #[allow(dead_code, reason = "used in future PR")]
         async fn wait_delete_database(&mut self) -> Option<DbId> {
             self.db_receiver.recv().await
         }
@@ -191,12 +323,11 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
     impl ObjectDeleter for MockObjectDeleter {
-        async fn delete_database(&self, db_id: DbId) {
+        fn delete_database(&self, db_id: DbId) {
             let _ = self.db_sender.send(db_id);
         }
-        async fn delete_table(&self, db_id: DbId, table_id: TableId) {
+        fn delete_table(&self, db_id: DbId, table_id: TableId) {
             let _ = self.table_sender.send((db_id, table_id));
         }
     }
@@ -212,7 +343,7 @@ mod tests {
         );
 
         catalog.create_database("foo").await.unwrap();
-        let db_id = catalog.db_schema("foo").unwrap().id();
+        let db_id = catalog.db_name_to_id("foo").unwrap();
 
         let new_table = async |name: &str| {
             catalog
@@ -245,7 +376,8 @@ mod tests {
             DeleteManagerArgs {
                 catalog: Arc::clone(&catalog),
                 time_provider: Arc::clone(&time_provider) as _,
-                object_deleter: Arc::new(object_deleter),
+                object_deleter: Some(Arc::new(object_deleter)),
+                delete_grace_period: Duration::from_millis(0),
             },
             shutdown_manager.register(),
         );
@@ -311,6 +443,113 @@ mod tests {
             .expect_err("should be an error");
 
         assert!(catalog.db_schema("foo").unwrap().table_exists(&t4_id));
+
+        shutdown_manager.shutdown();
+        shutdown_manager.join().await;
+    }
+
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+    async fn test_delete_database() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let args = influxdb3_catalog::catalog::CatalogArgs::new(Duration::from_millis(10));
+        let catalog = Arc::new(
+            Catalog::new_in_memory_with_args("cats", Arc::clone(&time_provider) as _, args)
+                .await
+                .unwrap(),
+        );
+
+        // Create databases
+        catalog.create_database("db1").await.unwrap();
+        catalog.create_database("db2").await.unwrap();
+        catalog.create_database("db3").await.unwrap();
+        catalog.create_database("db4").await.unwrap();
+
+        let db1_id = catalog.db_name_to_id("db1").unwrap();
+        let db2_id = catalog.db_name_to_id("db2").unwrap();
+        let db3_id = catalog.db_name_to_id("db3").unwrap();
+        let db4_id = catalog.db_name_to_id("db4").unwrap();
+
+        // Mark db2 as deleted, which will default to a hard delete time of 10 ms from now.
+        catalog
+            .soft_delete_database("db2", HardDeletionTime::Default)
+            .await
+            .expect("soft delete database");
+
+        let (object_deleter, mut waiter) = MockObjectDeleter::new();
+        let shutdown_manager = ShutdownManager::new_testing();
+
+        run(
+            DeleteManagerArgs {
+                catalog: Arc::clone(&catalog),
+                time_provider: Arc::clone(&time_provider) as _,
+                object_deleter: Some(Arc::new(object_deleter)),
+                delete_grace_period: Duration::from_millis(0),
+            },
+            shutdown_manager.register(),
+        );
+
+        // First check that the object deleter was not called before the hard delete time
+        waiter
+            .wait_delete_database()
+            // We wait 15 ms, which is greater than the hard delete time of 10 ms, and the longest interval
+            // the deleter would wait to retry.
+            .with_timeout(Duration::from_millis(15))
+            .await
+            .expect_err("should not have been called");
+
+        // Advance time to trigger the deletion.
+        time_provider.inc(Duration::from_millis(15));
+
+        // Now the object deleter should have been called to delete db2.
+        let res = waiter
+            .wait_delete_database()
+            .with_timeout(Duration::from_millis(15))
+            .await
+            .expect("should have been called")
+            .unwrap();
+        assert_eq!(res, db2_id);
+
+        // Delete a database and verify the object deleter is called.
+        catalog
+            .soft_delete_database("db1", HardDeletionTime::Default)
+            .await
+            .expect("soft delete database");
+        time_provider.inc(Duration::from_millis(15));
+        let res = waiter
+            .wait_delete_database()
+            .with_timeout(Duration::from_millis(15))
+            .await
+            .expect("should have been called")
+            .unwrap();
+        assert_eq!(res, db1_id);
+
+        // Delete a database without a delay and verify the object deleter is called immediately.
+        catalog
+            .soft_delete_database("db3", HardDeletionTime::Now)
+            .await
+            .expect("soft delete database");
+        let res = waiter
+            .wait_delete_database()
+            .with_timeout(Duration::from_millis(15))
+            .await
+            .expect("should have been called")
+            .unwrap();
+        assert_eq!(res, db3_id);
+
+        // Soft-delete the database only.
+        catalog
+            .soft_delete_database("db4", HardDeletionTime::Never)
+            .await
+            .expect("soft delete database");
+        waiter
+            .wait_delete_database()
+            // Wait for a time that is greater than the default hard delete time of 10 ms.
+            .with_timeout(Duration::from_millis(15))
+            .await
+            .expect_err("should be an error");
+
+        // Verify db4 still exists in catalog (soft-deleted only)
+        assert!(catalog.db_schema_by_id(&db4_id).is_some());
 
         shutdown_manager.shutdown();
         shutdown_manager.join().await;

@@ -4,6 +4,7 @@ use arrow::{array::RecordBatch, datatypes::SchemaRef as ArrowSchemaRef, error::A
 
 use influxdb3_catalog::{
     catalog::Catalog,
+    catalog::IfNotDeleted,
     channel::CatalogUpdateReceiver,
     log::{
         CatalogBatch, DatabaseCatalogOp, DeleteLastCacheLog, LastCacheDefinition,
@@ -48,8 +49,12 @@ impl LastCacheProvider {
                 catalog.time_provider(),
             )),
         });
-        for db_schema in catalog.list_db_schema() {
-            for table_def in db_schema.tables() {
+        for db_schema in catalog
+            .list_db_schema()
+            .into_iter()
+            .filter_map(IfNotDeleted::if_not_deleted)
+        {
+            for table_def in db_schema.tables().filter_map(IfNotDeleted::if_not_deleted) {
                 for (cache_id, cache_def) in table_def.last_caches.iter() {
                     debug!(
                         cache_name = cache_def.name.as_ref(),
@@ -247,13 +252,17 @@ impl LastCacheProvider {
                         if db_cache.is_empty() {
                             continue;
                         }
-                        let Some(db_schema) = self.catalog.db_schema_by_id(&batch.database_id)
+                        let Some(db_schema) = self
+                            .catalog
+                            .db_schema_by_id(&batch.database_id)
+                            .if_not_deleted()
                         else {
                             continue;
                         };
                         for (table_id, table_chunks) in &batch.table_chunks {
                             if let Some(table_cache) = db_cache.get_mut(table_id) {
-                                let Some(table_def) = db_schema.table_definition_by_id(table_id)
+                                let Some(table_def) =
+                                    db_schema.table_definition_by_id(table_id).if_not_deleted()
                                 else {
                                     continue;
                                 };

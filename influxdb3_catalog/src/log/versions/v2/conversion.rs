@@ -205,6 +205,7 @@ impl From<v2::SoftDeleteDatabaseLog> for v3::SoftDeleteDatabaseLog {
             database_id: value.database_id,
             database_name: value.database_name,
             deletion_time: value.deletion_time,
+            hard_deletion_time: None,
         }
     }
 }

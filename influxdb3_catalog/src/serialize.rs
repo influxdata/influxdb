@@ -849,6 +849,7 @@ mod v1_tests {
                             database_id: DbId::new(0),
                             database_name: "test-db".into(),
                             deletion_time: 0,
+                            hard_deletion_time: None,
                         },
                     ),
                     crate::log::DatabaseCatalogOp::CreateTable(crate::log::CreateTableLog {

@@ -1,5 +1,6 @@
 use super::common::InfluxDb3Config;
 use influxdb3_client::Client;
+use influxdb3_types::http::HardDeletionTime;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
 use std::error::Error;
@@ -115,6 +116,11 @@ pub struct DatabaseConfig {
     #[clap(env = "INFLUXDB3_DATABASE_NAME", required = true)]
     pub database_name: String,
 
+    /// When to perform hard deletion (never/now/default/timestamp).
+    /// Examples: 'never', 'now', 'default', '2024-06-18T10:30:00Z'
+    #[clap(long = "hard-delete", value_name = "WHEN")]
+    pub hard_delete: Option<String>,
+
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
@@ -164,6 +170,11 @@ pub struct TableConfig {
     /// The name of the table to be deleted
     table_name: String,
 
+    /// When to perform hard deletion (never/now/default/timestamp).
+    /// Examples: 'never', 'now', 'default', '2024-06-18T10:30:00Z'
+    #[clap(long = "hard-delete", value_name = "WHEN")]
+    hard_delete: Option<String>,
+
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
@@ -211,10 +222,26 @@ pub struct TokenConfig {
     ca_cert: Option<PathBuf>,
 }
 
+fn parse_hard_delete_time(value: Option<String>) -> Option<HardDeletionTime> {
+    match value {
+        None => None,
+        Some(s) => match s.to_lowercase().as_str() {
+            "never" => Some(HardDeletionTime::Never),
+            "now" => Some(HardDeletionTime::Now),
+            "default" => Some(HardDeletionTime::Default),
+            _ => Some(HardDeletionTime::Timestamp(s)),
+        },
+    }
+}
+
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
     let client = config.get_client()?;
     match config.cmd {
-        SubCommand::Database(DatabaseConfig { database_name, .. }) => {
+        SubCommand::Database(DatabaseConfig {
+            database_name,
+            hard_delete,
+            ..
+        }) => {
             println!(
                 "Are you sure you want to delete {:?}? Enter 'yes' to confirm",
                 database_name
@@ -224,7 +251,18 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             if confirmation.trim() != "yes" {
                 println!("Cannot delete database without confirmation");
             } else {
-                client.api_v3_configure_db_delete(&database_name).await?;
+                let hard_delete_time = parse_hard_delete_time(hard_delete);
+
+                if hard_delete_time.is_some() {
+                    client
+                        .api_v3_configure_db_delete_with_hard_delete(
+                            &database_name,
+                            hard_delete_time,
+                        )
+                        .await?;
+                } else {
+                    client.api_v3_configure_db_delete(&database_name).await?;
+                }
 
                 println!("Database {:?} deleted successfully", &database_name);
             }
@@ -256,6 +294,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Table(TableConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table_name,
+            hard_delete,
             ..
         }) => {
             println!(
@@ -267,9 +306,21 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             if confirmation.trim() != "yes" {
                 println!("Cannot delete table without confirmation");
             } else {
-                client
-                    .api_v3_configure_table_delete(&database_name, &table_name)
-                    .await?;
+                let hard_delete_time = parse_hard_delete_time(hard_delete);
+
+                if hard_delete_time.is_some() {
+                    client
+                        .api_v3_configure_table_delete_with_hard_delete(
+                            &database_name,
+                            &table_name,
+                            hard_delete_time,
+                        )
+                        .await?;
+                } else {
+                    client
+                        .api_v3_configure_table_delete(&database_name, &table_name)
+                        .await?;
+                }
 
                 println!(
                     "Table {:?}.{:?} deleted successfully",

@@ -33,6 +33,9 @@ pub enum CatalogBatch {
     Node(NodeBatch),
     Database(DatabaseBatch),
     Token(TokenBatch),
+    /// A batch of delete operations to track database objects that have been permanently deleted
+    /// from the catalog.
+    Delete(DeleteBatch),
     /// A batch for modifying catalog generation configuration
     Generation(GenerationBatch),
 }
@@ -66,6 +69,10 @@ impl CatalogBatch {
         })
     }
 
+    pub fn delete(time_ns: i64, ops: Vec<DeleteOp>) -> Self {
+        Self::Delete(DeleteBatch { time_ns, ops })
+    }
+
     pub fn generation(time_ns: i64, ops: Vec<GenerationOp>) -> Self {
         Self::Generation(GenerationBatch { time_ns, ops })
     }
@@ -75,16 +82,25 @@ impl CatalogBatch {
             CatalogBatch::Node(node_batch) => node_batch.ops.len(),
             CatalogBatch::Database(database_batch) => database_batch.ops.len(),
             CatalogBatch::Token(token_batch) => token_batch.ops.len(),
+            CatalogBatch::Delete(delete_batch) => delete_batch.ops.len(),
             CatalogBatch::Generation(generation_batch) => generation_batch.ops.len(),
         }
     }
 
     pub fn as_database(&self) -> Option<&DatabaseBatch> {
         match self {
-            CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
+            CatalogBatch::Node(_) => None,
             CatalogBatch::Token(_) => None,
+            CatalogBatch::Delete(_) => None,
             CatalogBatch::Generation(_) => None,
+        }
+    }
+
+    pub fn as_delete(&self) -> Option<&DeleteBatch> {
+        match self {
+            CatalogBatch::Delete(delete_batch) => Some(delete_batch),
+            _ => None,
         }
     }
 
@@ -93,6 +109,7 @@ impl CatalogBatch {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
             CatalogBatch::Token(_) => None,
+            CatalogBatch::Delete(_) => None,
             CatalogBatch::Generation(_) => None,
         }
     }
@@ -102,6 +119,7 @@ impl CatalogBatch {
             CatalogBatch::Node(node_batch) => Some(node_batch),
             CatalogBatch::Database(_) => None,
             CatalogBatch::Token(_) => None,
+            CatalogBatch::Delete(_) => None,
             CatalogBatch::Generation(_) => None,
         }
     }
@@ -111,6 +129,7 @@ impl CatalogBatch {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(_) => None,
             CatalogBatch::Token(_) => None,
+            CatalogBatch::Delete(_) => None,
             CatalogBatch::Generation(generation_batch) => Some(generation_batch),
         }
     }
@@ -130,6 +149,18 @@ pub struct DatabaseBatch {
     pub database_id: DbId,
     pub database_name: Arc<str>,
     pub ops: Vec<DatabaseCatalogOp>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
+pub struct DeleteBatch {
+    pub time_ns: i64,
+    pub ops: Vec<DeleteOp>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum DeleteOp {
+    DeleteDatabase(DbId),
+    DeleteTable(DbId, TableId),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -277,6 +308,7 @@ pub struct SoftDeleteDatabaseLog {
     pub database_id: DbId,
     pub database_name: Arc<str>,
     pub deletion_time: i64,
+    pub hard_deletion_time: Option<i64>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -286,8 +318,6 @@ pub struct SoftDeleteTableLog {
     pub table_id: TableId,
     pub table_name: Arc<str>,
     pub deletion_time: i64,
-    // TODO(sgc): Remove `skip_serializing_if` when implementation is complete
-    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub hard_deletion_time: Option<i64>,
 }
 

@@ -6,7 +6,7 @@ use crate::{
     channel::CatalogUpdateReceiver,
     log::{
         CatalogBatch, DatabaseCatalogOp, GenerationOp, NodeCatalogOp, TokenCatalogOp,
-        versions::v3::{ClearRetentionPeriodLog, SetRetentionPeriodLog},
+        versions::v3::{ClearRetentionPeriodLog, DeleteOp, SetRetentionPeriodLog},
     },
 };
 
@@ -57,6 +57,11 @@ impl CatalogMetrics {
                         CatalogBatch::Token(token_batch) => {
                             for op in &token_batch.ops {
                                 metrics.catalog_operations.record(op)
+                            }
+                        }
+                        CatalogBatch::Delete(delete_batch) => {
+                            for op in &delete_batch.ops {
+                                metrics.catalog_operations.record(op);
                             }
                         }
                         CatalogBatch::Generation(generation_batch) => {
@@ -136,6 +141,15 @@ impl AsMetricStr for DatabaseCatalogOp {
             DatabaseCatalogOp::ClearRetentionPeriod(ClearRetentionPeriodLog { .. }) => {
                 "clear_retention_period_db"
             }
+        }
+    }
+}
+
+impl AsMetricStr for DeleteOp {
+    fn as_metric_str(&self) -> &'static str {
+        match self {
+            DeleteOp::DeleteDatabase(_) => "delete_database",
+            DeleteOp::DeleteTable(_, _) => "delete_table",
         }
     }
 }
