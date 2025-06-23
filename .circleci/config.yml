@@ -166,10 +166,8 @@ jobs:
           path: /tmp/workspace/packages
 
   test_pkgs_64bit:
-    machine:
-      enabled: true
-      docker_layer_caching: true
-      image: ubuntu-2204:current
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm
     steps:
       - attach_workspace:
           at: /tmp/workspace
