@@ -350,6 +350,7 @@ impl Snapshot for DatabaseSchema {
             retention_period: Some(self.retention_period.snapshot()),
             processing_engine_triggers: self.processing_engine_triggers.snapshot(),
             deleted: self.deleted,
+            hard_delete_time: self.hard_delete_time.as_ref().map(Time::timestamp_nanos),
         }
     }
 
@@ -364,6 +365,7 @@ impl Snapshot for DatabaseSchema {
                 .unwrap_or(RetentionPeriod::Indefinite),
             processing_engine_triggers: Repository::from_snapshot(snap.processing_engine_triggers),
             deleted: snap.deleted,
+            hard_delete_time: snap.hard_delete_time.map(Time::from_timestamp_nanos),
         }
     }
 }

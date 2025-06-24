@@ -123,6 +123,7 @@ pub(crate) struct DatabaseSnapshot {
     pub(crate) processing_engine_triggers:
         RepositorySnapshot<TriggerId, ProcessingEngineTriggerSnapshot>,
     pub(crate) deleted: bool,
+    pub(crate) hard_delete_time: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

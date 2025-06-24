@@ -46,6 +46,9 @@ Examples:
                                    The amount of time that the server looks back on startup
                                    when populating the in-memory index of gen1 files.
                                   [env: INFLUXDB3_GEN1_LOOKBACK_DURATION=]
+  --delete-grace-period <DURATION> Grace period for hard deleted databases and tables before they are
+                                   removed permanently from the catalog [default: 24h]
+                                   [env: INFLUXDB3_DELETE_GRACE_PERIOD=]
 
 {}
   --aws-access-key-id <KEY>        S3 access key ID [env: AWS_ACCESS_KEY_ID=] [default: ]

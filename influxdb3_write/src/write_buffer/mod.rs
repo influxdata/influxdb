@@ -2195,9 +2195,35 @@ mod tests {
             .await
             .unwrap();
 
-        let result = write_buffer.catalog().soft_delete_database("foo").await;
+        let result = write_buffer
+            .catalog()
+            .soft_delete_database("foo", HardDeletionTime::Never)
+            .await;
 
         assert!(result.is_ok());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_delete_internal_database() {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+        let returned_error = write_buffer
+            .catalog()
+            .soft_delete_database("_internal", HardDeletionTime::Never)
+            .await
+            .expect_err("delete _internal to fail");
+        assert!(matches!(
+            returned_error,
+            CatalogError::CannotDeleteInternalDatabase
+        ));
     }
 
     #[tokio::test]

@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::deleter::ObjectDeleter;
 use crate::{ChunkFilter, DatabaseTables};
 use crate::{ParquetFile, PersistedSnapshot};
 use hashbrown::{HashMap, HashSet};
@@ -19,6 +20,38 @@ type TableToFiles = HashMap<TableId, Vec<ParquetFile>>;
 #[derive(Debug, Default)]
 pub struct PersistedFiles {
     inner: RwLock<Inner>,
+}
+
+#[derive(Debug)]
+enum DeletedTables {
+    /// All tables in the database are marked for deletion
+    All,
+    /// A list of tables in the database that are marked for deletion
+    List(HashSet<TableId>),
+}
+
+impl ObjectDeleter for PersistedFiles {
+    fn delete_database(&self, db_id: DbId) {
+        let mut inner = self.inner.write();
+        inner.deleted_data.insert(db_id, DeletedTables::All);
+    }
+
+    fn delete_table(&self, db_id: DbId, table_id: TableId) {
+        let mut inner = self.inner.write();
+        match inner.deleted_data.entry(db_id) {
+            hashbrown::hash_map::Entry::Occupied(mut entry) => {
+                match entry.get_mut() {
+                    DeletedTables::All => (), // already marked for deletion
+                    DeletedTables::List(tables) => {
+                        tables.insert(table_id);
+                    }
+                }
+            }
+            hashbrown::hash_map::Entry::Vacant(entry) => {
+                entry.insert(DeletedTables::List(HashSet::from([table_id])));
+            }
+        }
+    }
 }
 
 impl PersistedFiles {
@@ -75,7 +108,8 @@ impl PersistedFiles {
         files
     }
 
-    pub fn remove_files_by_retention_period(
+    /// Remove files that are marked for deletion or that violate their retention period.
+    pub fn remove_files_for_deletion(
         &self,
         catalog: Arc<Catalog>,
     ) -> SerdeVecMap<DbId, DatabaseTables> {
@@ -84,18 +118,68 @@ impl PersistedFiles {
         let mut size = 0;
         let mut row_count = 0;
 
-        let retention_periods = catalog.get_retention_period_cutoff_map();
-
-        // nothing to do if there are no retention periods, return empty result
-        if retention_periods.is_empty() {
-            return removed;
-        }
-
-        // do all retention period checking of persisted files under a read lock to prevent
-        // blocking unnecessarily blocking concurrently-running queries
+        // First pass is under a read lock to permit queries running concurrently.
         {
+            let mut queue_for_removal = |db_id: DbId, table_id: TableId, file: &ParquetFile| {
+                // Guard to prevent adding a file more than once.
+                if removed_paths.contains(&file.path) {
+                    return;
+                }
+
+                size += file.size_bytes;
+                row_count += file.row_count;
+                removed
+                    .entry(db_id)
+                    .or_default()
+                    .tables
+                    .entry(table_id)
+                    .or_default()
+                    .push(file.clone());
+                removed_paths.insert(file.path.clone());
+            };
+
             let guard = self.inner.read();
-            for ((db_id, table_id), cutoff) in catalog.get_retention_period_cutoff_map() {
+
+            // Remove any data marked for hard-deletion.
+            for (db_id, deleted) in guard.deleted_data.iter() {
+                let Some(tables) = guard.files.get(db_id) else {
+                    continue;
+                };
+
+                match deleted {
+                    DeletedTables::All => {
+                        for (table_id, files) in tables {
+                            for file in files {
+                                queue_for_removal(*db_id, *table_id, file);
+                            }
+                        }
+                    }
+                    DeletedTables::List(table_ids) => {
+                        for (table_id, files) in table_ids.iter().filter_map(|table_id| {
+                            tables.get(table_id).map(|file| (table_id, file))
+                        }) {
+                            for file in files {
+                                queue_for_removal(*db_id, *table_id, file);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let retention_periods = catalog.get_retention_period_cutoff_map();
+
+            for ((db_id, table_id), cutoff) in retention_periods {
+                // If the database or table is deleted, the files are already scheduled for deletion.
+                match guard.deleted_data.get(&db_id) {
+                    Some(DeletedTables::All) => {
+                        continue;
+                    }
+                    Some(DeletedTables::List(tables)) if tables.contains(&table_id) => {
+                        continue;
+                    }
+                    _ => {}
+                }
+
                 let Some(files) = guard.files.get(&db_id).and_then(|hm| hm.get(&table_id)) else {
                     continue;
                 };
@@ -103,16 +187,7 @@ impl PersistedFiles {
                     // remove files if their max time (aka newest timestamp) is less than (aka older
                     // than) the cutoff timestamp for the retention period
                     if file.max_time < cutoff {
-                        size += file.size_bytes;
-                        row_count += file.row_count;
-                        removed
-                            .entry(db_id)
-                            .or_default()
-                            .tables
-                            .entry(table_id)
-                            .or_default()
-                            .push(file.clone());
-                        removed_paths.insert(file.path.clone());
+                        queue_for_removal(db_id, table_id, file);
                     }
                 }
             }
@@ -131,9 +206,13 @@ impl PersistedFiles {
             }
         }
 
-        guard.parquet_files_count -= removed.len() as u64;
+        guard.parquet_files_count -= removed_paths.len() as u64;
         guard.parquet_files_size_mb -= as_mb(size);
         guard.parquet_files_row_count -= row_count;
+
+        // The deleted data has been processed.
+        guard.deleted_data = HashMap::new();
+
         removed
     }
 }
@@ -160,6 +239,8 @@ struct Inner {
     pub parquet_files_size_mb: f64,
     /// Overall row count within the parquet files
     pub parquet_files_row_count: u64,
+    /// Data that are marked for deletion.
+    pub deleted_data: HashMap<DbId, DeletedTables>,
 }
 
 impl Inner {
@@ -189,6 +270,7 @@ impl Inner {
             parquet_files_count: file_count,
             parquet_files_row_count: row_count,
             parquet_files_size_mb: size_in_mb,
+            deleted_data: HashMap::new(),
         }
     }
 
@@ -290,6 +372,7 @@ fn update_persisted_files_with_snapshot(
 #[cfg(test)]
 mod tests {
 
+    use crate::ParquetFileId;
     use datafusion::prelude::Expr;
     use datafusion::prelude::col;
     use datafusion::prelude::lit_timestamp_nano;
@@ -301,8 +384,6 @@ mod tests {
     use pretty_assertions::assert_eq;
     use schema::InfluxColumnType;
     use std::sync::Arc;
-
-    use crate::ParquetFileId;
 
     use super::*;
 
@@ -325,7 +406,7 @@ mod tests {
         let all_persisted_snapshot_files = build_persisted_snapshots();
         let persisted_file =
             PersistedFiles::new_from_persisted_snapshots(all_persisted_snapshot_files);
-        let parquet_files = build_parquet_files(5);
+        let parquet_files = build_parquet_files("file_", 5);
         let new_snapshot = build_snapshot(parquet_files, 1, 1, 1);
         persisted_file.add_persisted_snapshot_files(new_snapshot);
 
@@ -355,7 +436,7 @@ mod tests {
 
         let persisted_file =
             PersistedFiles::new_from_persisted_snapshots(all_persisted_snapshot_files);
-        let mut parquet_files = build_parquet_files(4);
+        let mut parquet_files = build_parquet_files("file_", 4);
         info!(all_persisted_files = ?persisted_file, "Full persisted file");
         info!(already_existing_file = ?already_existing_file, "Existing file");
         parquet_files.push(already_existing_file);
@@ -494,10 +575,10 @@ mod tests {
 
     fn build_persisted_snapshots() -> Vec<PersistedSnapshot> {
         let mut all_persisted_snapshot_files = Vec::new();
-        let parquet_files_1 = build_parquet_files(5);
+        let parquet_files_1 = build_parquet_files("file_", 5);
         all_persisted_snapshot_files.push(build_snapshot(parquet_files_1, 1, 1, 1));
 
-        let parquet_files_2 = build_parquet_files(5);
+        let parquet_files_2 = build_parquet_files("file_", 5);
         all_persisted_snapshot_files.push(build_snapshot(parquet_files_2, 2, 2, 2));
 
         all_persisted_snapshot_files
@@ -523,11 +604,11 @@ mod tests {
         new_snapshot
     }
 
-    fn build_parquet_files(num_files: u32) -> Vec<ParquetFile> {
+    fn build_parquet_files(prefix: &str, num_files: u32) -> Vec<ParquetFile> {
         let parquet_files: Vec<ParquetFile> = (0..num_files)
-            .map(|_| ParquetFile {
+            .map(|i| ParquetFile {
                 id: ParquetFileId::new(),
-                path: "/random/path/file".to_owned(),
+                path: format!("/random/path/{prefix}_{}.parquet", i),
                 size_bytes: 50_000,
                 row_count: 10,
                 chunk_time: 10,
@@ -536,5 +617,125 @@ mod tests {
             })
             .collect();
         parquet_files
+    }
+
+    #[tokio::test]
+    async fn test_remove_files_for_deletion_deleted_database() {
+        let parquet_files = build_parquet_files("file_", 5);
+        let mut snapshot = build_snapshot(parquet_files.clone(), 1, 1, 1);
+
+        // Add files to a second database
+        let db_id2 = DbId::from(1);
+        let table_id2 = TableId::from(1);
+        let more_files = build_parquet_files("db2_", 3);
+        for file in more_files.iter() {
+            snapshot.add_parquet_file(db_id2, table_id2, file.clone());
+        }
+
+        let persisted_files = PersistedFiles::new_from_persisted_snapshots(vec![snapshot]);
+
+        // Delete the first database
+        persisted_files.delete_database(DbId::from(0));
+
+        // Create a mock catalog that returns no retention periods
+        let catalog = Arc::new(Catalog::new_in_memory("test").await.unwrap());
+
+        let removed = persisted_files.remove_files_for_deletion(catalog);
+
+        // Verify all files from database 0 are removed
+        assert_eq!(removed.len(), 1);
+        let db_tables = removed.get(&DbId::from(0)).unwrap();
+        assert_eq!(db_tables.tables.len(), 1);
+        let table_files = db_tables.tables.get(&TableId::from(0)).unwrap();
+        assert_eq!(table_files.len(), 5);
+
+        // Verify database 1 files remain
+        let remaining_files = persisted_files.get_files(db_id2, table_id2);
+        assert_eq!(remaining_files.len(), 3);
+
+        // Verify metrics are updated
+        let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+        assert_eq!(file_count, 3);
+        assert!((size_mb - 0.15).abs() < 0.0001); // 3 files * 50_000 bytes (check with epsilon for floating point)
+        assert_eq!(row_count, 30); // 3 files * 10 rows
+    }
+
+    #[tokio::test]
+    async fn test_remove_files_for_deletion_deleted_tables() {
+        let parquet_files = build_parquet_files("file_", 3);
+        let mut snapshot = build_snapshot(parquet_files.clone(), 1, 1, 1);
+
+        // Add files to multiple tables in the same database
+        let db_id = DbId::from(0);
+        let table_id1 = TableId::from(0);
+        let table_id2 = TableId::from(1);
+        let table_id3 = TableId::from(2);
+
+        let table2_files = build_parquet_files("table2_", 4);
+        for file in table2_files.iter() {
+            snapshot.add_parquet_file(db_id, table_id2, file.clone());
+        }
+
+        let table3_files: Vec<ParquetFile> = build_parquet_files("table_3", 2);
+        for file in table3_files.iter() {
+            snapshot.add_parquet_file(db_id, table_id3, file.clone());
+        }
+
+        let persisted_files = PersistedFiles::new_from_persisted_snapshots(vec![snapshot]);
+
+        // Delete specific tables
+        persisted_files.delete_table(db_id, table_id1);
+        persisted_files.delete_table(db_id, table_id3);
+
+        let catalog = Arc::new(Catalog::new_in_memory("test").await.unwrap());
+
+        let removed = persisted_files.remove_files_for_deletion(catalog);
+
+        // Verify only tables 1 and 3 are removed
+        assert_eq!(removed.len(), 1);
+        let db_tables = removed.get(&db_id).unwrap();
+        assert_eq!(db_tables.tables.len(), 2);
+
+        let table1_removed = db_tables.tables.get(&table_id1).unwrap();
+        assert_eq!(table1_removed.len(), 3);
+
+        let table3_removed = db_tables.tables.get(&table_id3).unwrap();
+        assert_eq!(table3_removed.len(), 2);
+
+        // Verify table 2 remains
+        let table2_remaining = persisted_files.get_files(db_id, table_id2);
+        assert_eq!(table2_remaining.len(), 4);
+
+        // Verify metrics
+        let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+        assert_eq!(file_count, 4);
+        assert_eq!(size_mb, 0.2); // 4 files * 50_000 bytes
+        assert_eq!(row_count, 40); // 4 files * 10 rows
+    }
+
+    #[tokio::test]
+    async fn test_remove_files_for_deletion_clears_deleted_data() {
+        let parquet_files = build_parquet_files("file_", 3);
+        let snapshot = build_snapshot(parquet_files.clone(), 1, 1, 1);
+        let persisted_files = PersistedFiles::new_from_persisted_snapshots(vec![snapshot]);
+
+        // Delete a database
+        persisted_files.delete_database(DbId::from(0));
+
+        // Verify deleted_data is populated
+        {
+            let inner = persisted_files.inner.read();
+            assert_eq!(inner.deleted_data.len(), 1);
+        }
+
+        let catalog = Arc::new(Catalog::new_in_memory("test").await.unwrap());
+
+        persisted_files.remove_files_for_deletion(catalog);
+
+        // Verify deleted_data is cleared after removal
+        {
+            let inner = persisted_files.inner.read();
+            assert_eq!(inner.deleted_data.len(), 0);
+        }
     }
 }

@@ -1,6 +1,11 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use super::{
+    CacheError,
+    cache::{CreateDistinctCacheArgs, DistinctCache},
+};
 use arrow::datatypes::SchemaRef;
+use influxdb3_catalog::catalog::IfNotDeleted;
 use influxdb3_catalog::{
     catalog::Catalog,
     channel::CatalogUpdateReceiver,
@@ -13,11 +18,6 @@ use influxdb3_id::{DbId, DistinctCacheId, TableId};
 use influxdb3_wal::{WalContents, WalOp};
 use iox_time::TimeProvider;
 use parking_lot::RwLock;
-
-use super::{
-    CacheError,
-    cache::{CreateDistinctCacheArgs, DistinctCache},
-};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProviderError {
@@ -54,8 +54,12 @@ impl DistinctCacheProvider {
             catalog: Arc::clone(&catalog),
             cache_map: Default::default(),
         });
-        for db_schema in catalog.list_db_schema() {
-            for table_def in db_schema.tables() {
+        for db_schema in catalog
+            .list_db_schema()
+            .into_iter()
+            .filter_map(IfNotDeleted::if_not_deleted)
+        {
+            for table_def in db_schema.tables().filter_map(IfNotDeleted::if_not_deleted) {
                 for (cache_id, cache_def) in table_def.distinct_caches.iter() {
                     provider.create_cache(
                         db_schema.id,

@@ -16,6 +16,44 @@ pub use influxdb3_catalog::log::{
 use iox_query_params::StatementParams;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Default)]
+pub enum HardDeletionTime {
+    #[default]
+    Never,
+    Timestamp(String),
+    Now,
+    Default,
+}
+
+impl serde::Serialize for HardDeletionTime {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Never => serializer.serialize_str("never"),
+            Self::Now => serializer.serialize_str("now"),
+            Self::Timestamp(timestamp) => serializer.serialize_str(timestamp),
+            Self::Default => serializer.serialize_str("default"),
+        }
+    }
+}
+
+impl<'a> serde::Deserialize<'a> for HardDeletionTime {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'a>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "never" => Ok(Self::Never),
+            "now" => Ok(Self::Now),
+            "default" => Ok(Self::Default),
+            timestamp => Ok(Self::Timestamp(timestamp.to_string())),
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("invalid mime type ({0})")]
@@ -246,6 +284,8 @@ pub struct UpdateDatabaseRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeleteDatabaseRequest {
     pub db: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hard_delete_at: Option<HardDeletionTime>,
 }
 
 /// Request definition for the `POST /api/v3/configure/table` API
@@ -290,6 +330,8 @@ impl From<FieldType> for FieldDataType {
 pub struct DeleteTableRequest {
     pub db: String,
     pub table: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hard_delete_at: Option<HardDeletionTime>,
 }
 
 pub type ClientQueryRequest = QueryRequest<String, Option<QueryFormat>, StatementParams>;

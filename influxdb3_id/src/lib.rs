@@ -7,7 +7,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 mod serialize;
-pub use serialize::SerdeVecMap;
+pub use serialize::{SerdeVecMap, SerdeVecSet};
 
 pub trait CatalogId: Default + Hash + Eq + Copy + Ord + Serialize {
     type Integer;

@@ -465,9 +465,14 @@ impl<'a> ChunkFilter<'a> {
 pub mod test_helpers {
     use crate::ChunkFilter;
     use crate::WriteBuffer;
+    use crate::write_buffer::validator::WriteValidator;
     use arrow::array::RecordBatch;
     use datafusion::prelude::Expr;
+    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+    use influxdb3_wal::{Gen1Duration, WriteBatch};
     use iox_query::exec::IOxSessionContext;
+    use iox_time::Time;
+    use std::sync::Arc;
 
     /// Helper trait for getting [`RecordBatch`]es from a [`WriteBuffer`] implementation in tests
     #[async_trait::async_trait]
@@ -534,6 +539,54 @@ pub mod test_helpers {
         ) -> Vec<RecordBatch> {
             self.get_record_batches_filtered_unchecked(database_name, table_name, &[], ctx)
                 .await
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct TestWriter {
+        catalog: Arc<Catalog>,
+    }
+
+    impl TestWriter {
+        pub const DB_NAME: &str = "test_db";
+
+        pub fn new_with_catalog(catalog: Arc<Catalog>) -> Self {
+            Self { catalog }
+        }
+
+        pub async fn write_lp_to_write_batch(
+            &self,
+            lp: impl AsRef<str>,
+            time_ns: i64,
+        ) -> WriteBatch {
+            let validated = WriteValidator::initialize(
+                Self::DB_NAME.try_into().unwrap(),
+                Arc::clone(&self.catalog),
+            )
+            .expect("initialize write validator")
+            .v1_parse_lines_and_catalog_updates(
+                lp.as_ref(),
+                false,
+                Time::from_timestamp_nanos(time_ns),
+                crate::Precision::Nanosecond,
+            )
+            .expect("parse and validate v1 line protocol")
+            .commit_catalog_changes()
+            .await
+            .unwrap()
+            .unwrap_success()
+            .convert_lines_to_buffer(Gen1Duration::new_1m());
+            validated.into()
+        }
+
+        pub fn catalog(&self) -> Arc<Catalog> {
+            Arc::clone(&self.catalog)
+        }
+
+        pub fn db_schema(&self) -> Arc<DatabaseSchema> {
+            self.catalog
+                .db_schema(Self::DB_NAME)
+                .expect("db schema should be initialized")
         }
     }
 }
