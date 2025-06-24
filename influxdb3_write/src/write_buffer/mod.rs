@@ -2231,6 +2231,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            wal_replay_fail_on_error: false,
         };
         let (write_buffer, _, _) =
             setup_cache_optional(start_time, test_store, wal_config, false).await;
