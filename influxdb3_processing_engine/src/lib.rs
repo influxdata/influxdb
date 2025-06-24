@@ -785,6 +785,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            ..Default::default()
         };
         let (pem, file) = setup(start_time, test_store, wal_config).await;
         let file_name = file
@@ -880,6 +881,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            ..Default::default()
         };
         let (pem, file) = setup(start_time, test_store, wal_config).await;
         let file_name = file
@@ -940,6 +942,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            ..Default::default()
         };
         let (pem, _file_name) = setup(start_time, test_store, wal_config).await;
 

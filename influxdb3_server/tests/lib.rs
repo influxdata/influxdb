@@ -33,6 +33,7 @@ async fn test_deduplicate_rows_in_write_buffer_memory() {
         flush_interval: Duration::from_millis(10),
         // use a large snapshot size so that queries are served only by in-memory buffer chunks:
         snapshot_size: 100,
+        ..Default::default()
     };
     let service = TestService::setup(wal_config).await;
 
@@ -82,6 +83,7 @@ async fn test_deduplicate_rows_in_write_buffer_parquet() {
         // uses a small snapshot size to get parquet persisted early, and therefore have queries
         // serve chunks from both in-memory buffer and persisted parquet
         snapshot_size: 1,
+        ..Default::default()
     };
     let service = TestService::setup(wal_config).await;
 
@@ -133,6 +135,7 @@ async fn test_deduplicate_rows_in_write_buffer_both_memory_and_parquet() {
         // uses a small snapshot size to get parquet persisted early, and therefore have queries
         // serve chunks from both in-memory buffer and persisted parquet
         snapshot_size: 1,
+        ..Default::default()
     };
     let service = TestService::setup(wal_config).await;
 

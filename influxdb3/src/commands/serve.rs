@@ -270,6 +270,18 @@ pub struct Config {
     )]
     pub wal_max_write_buffer_size: usize,
 
+    /// Fail on error when replaying corrupt WAL files.
+    ///
+    /// When false (default), corrupt or truncated WAL files will be logged and skipped during startup.
+    /// When true, the server will fail to start if any WAL files are corrupt.
+    #[clap(
+        long = "wal-replay-fail-on-error",
+        env = "INFLUXDB3_WAL_REPLAY_FAIL_ON_ERROR",
+        default_value_t = false,
+        action
+    )]
+    pub wal_replay_fail_on_error: bool,
+
     /// Number of snapshotted wal files to retain in object store, wal flush does not clear
     /// the wal files immediately instead they are only deleted when snapshotted and num wal files
     /// count exceeds this size
@@ -804,6 +816,7 @@ pub async fn command(config: Config) -> Result<()> {
         max_write_buffer_size: config.wal_max_write_buffer_size,
         flush_interval: config.wal_flush_interval.into(),
         snapshot_size: config.wal_snapshot_size,
+        wal_replay_fail_on_error: config.wal_replay_fail_on_error,
     };
 
     let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {

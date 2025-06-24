@@ -892,6 +892,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(50),
                 snapshot_size: 100,
+                ..Default::default()
             },
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
@@ -921,6 +922,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -986,6 +988,7 @@ mod tests {
                     max_write_buffer_size: 100,
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1,
+                    ..Default::default()
                 },
                 parquet_cache: wbuf.parquet_cache.clone(),
                 metric_registry: Default::default(),
@@ -1087,6 +1090,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
+                ..Default::default()
             },
         )
         .await;
@@ -1247,6 +1251,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
+                ..Default::default()
             },
             parquet_cache: write_buffer.parquet_cache.clone(),
             metric_registry: Default::default(),
@@ -1327,6 +1332,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(5),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -1445,6 +1451,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(5),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -1579,6 +1586,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(5),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -1598,6 +1606,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            ..Default::default()
         };
         let (mut wbuf, mut ctx, _time_provider) = setup(
             Time::from_timestamp_nanos(0),
@@ -1687,6 +1696,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
+                ..Default::default()
             },
         )
         .await;
@@ -1739,6 +1749,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
+                ..Default::default()
             },
         )
         .await;
@@ -1775,6 +1786,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -1819,6 +1831,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -1852,6 +1865,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -1901,6 +1915,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -1946,6 +1961,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
         )
         .await;
@@ -1968,6 +1984,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
             true,
         )
@@ -2076,6 +2093,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
             false,
         )
@@ -2180,6 +2198,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            ..Default::default()
         };
         let (write_buffer, _, _) =
             setup_cache_optional(start_time, test_store, wal_config, false).await;
@@ -2235,6 +2254,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            ..Default::default()
         };
         let (write_buffer, _, _) =
             setup_cache_optional(start_time, test_store, wal_config, false).await;
@@ -2418,6 +2438,7 @@ mod tests {
                 max_write_buffer_size: 100_000,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 10,
+                ..Default::default()
             },
         )
         .await;
@@ -2512,6 +2533,7 @@ mod tests {
                 max_write_buffer_size: 100_000,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 10,
+                ..Default::default()
             },
         )
         .await;
@@ -2530,6 +2552,7 @@ mod tests {
                 max_write_buffer_size: 100_000,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 10,
+                ..Default::default()
             },
         )
         .await;
@@ -2554,6 +2577,7 @@ mod tests {
                 max_write_buffer_size: 100_000,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 5,
+                ..Default::default()
             },
         )
         .await;
@@ -2677,6 +2701,7 @@ mod tests {
                 max_write_buffer_size: 100_000,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 5,
+                ..Default::default()
             },
         )
         .await;
@@ -2806,6 +2831,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
             false,
         )
@@ -2875,6 +2901,7 @@ mod tests {
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
+                ..Default::default()
             },
             true,
         )
@@ -3014,6 +3041,7 @@ mod tests {
                     max_write_buffer_size: 1,
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1,
+                    ..Default::default()
                 },
             )
             .await;
@@ -3071,6 +3099,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            ..Default::default()
         };
         let (wb, _ctx, _tp) = setup(
             Time::from_timestamp_nanos(0),
@@ -3186,6 +3215,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 1,
+            ..Default::default()
         };
         let (wb, ctx, metrics) = setup_with_metrics_and_parquet_cache(
             Time::from_timestamp_nanos(0),
