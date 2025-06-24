@@ -36,6 +36,7 @@ version: 2.1
 
 orbs:
   aws-s3:    circleci/aws-s3@2.0.0
+  terraform: circleci/terraform@2.1.0
   rust: circleci/rust@1.6.1
 
 # Unlike when a commit is pushed to a branch, CircleCI does not automatically
@@ -278,8 +279,9 @@ jobs:
 
   # Fetch python-build-standalone for official builds
   fetch-python:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm
+    machine:
+      image: ubuntu-2204:current
+      resource_class: medium
     environment:
       <<: *pbs_config
     steps:
@@ -499,8 +501,9 @@ jobs:
           path: artifacts/
 
   check_package_deb_amd64:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm
+    machine:
+      image: ubuntu-2204:current
+      resource_class: medium
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -508,12 +511,13 @@ jobs:
       - run:
           name: Validate Debian Package (AMD64)
           command: |
-            docker run --rm --platform linux/amd64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
-            .circleci/scripts/validate deb /tmp/workspace/artifacts/influxdb3*amd64.deb
+            sudo .circleci/scripts/package-validation/debian \
+              /tmp/workspace/artifacts/influxdb3*amd64.deb
 
   check_package_deb_arm64:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm-arm
+    machine:
+      image: ubuntu-2204:current
+      resource_class: arm.medium
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -521,30 +525,27 @@ jobs:
       - run:
           name: Validate Debian Package (ARM64)
           command: |
-            docker run --rm --platform linux/arm64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
-            .circleci/scripts/validate deb /tmp/workspace/artifacts/influxdb3*arm64.deb
+            sudo .circleci/scripts/package-validation/debian \
+              /tmp/workspace/artifacts/influxdb3*arm64.deb
 
-  check_package_rpm_amd64:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm
+  check_package_rpm:
+    machine:
+      image: ubuntu-2204:current
+      resource_class: arm.medium
+    parameters:
+      arch:
+        type: string
     steps:
       - attach_workspace:
           at: /tmp/workspace
+      - add_ssh_keys:
+          fingerprints:
+            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
       - checkout
       - run: |
-          docker run --rm --platform linux/amd64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
-          .circleci/scripts/validate rpm /tmp/workspace/artifacts/influxdb3*x86_64.rpm
-
-  check_package_rpm_arm64:
-    machine: true
-    resource_class: runner-ns/clustered-linux-vm-arm
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - run: |
-          docker run --rm --platform linux/arm64 -v /tmp/workspace:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
-          .circleci/scripts/validate rpm /tmp/workspace/artifacts/influxdb3*aarch64.rpm
+          AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
+          AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
+          .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb3*.<< parameters.arch >>.rpm
 
   sign-packages:
     circleci_ip_ranges: true
@@ -632,7 +633,8 @@ jobs:
         default: influxdb3-core
     environment:
       <<: *pbs_config
-    machine: true
+    machine:
+      image: default
     resource_class: << parameters.resource_class >>
     steps:
       - checkout
@@ -785,24 +787,20 @@ workflows:
           <<: *release_filter
           requires:
             - build-packages
-      - check_package_rpm_arm64:
+      - check_package_rpm:
           <<: *nofork_filter
           name:
-            check_package_rpm_arm64
-          requires:
-            - build-packages
-      - check_package_rpm_amd64:
-          <<: *nofork_filter
-          name:
-            check_package_rpm_amd64
+            check_package_rpm-<< matrix.arch >>
+          matrix:
+            parameters:
+              arch: [ x86_64, aarch64 ]
           requires:
             - build-packages
       - sign-packages:
           <<: *release_filter
           requires:
             - build-packages
-            - check_package_rpm_arm64
-            - check_package_rpm_amd64
+            - check_package_rpm
             - check_package_deb_arm64
             - check_package_deb_amd64
             - test
@@ -823,12 +821,12 @@ workflows:
           <<: *docker_filter
           name: build-docker-amd64
           platform: amd64
-          resource_class: runner-ns/clustered-linux-vm
+          resource_class: 2xlarge+
       - build-docker:
           <<: *docker_filter
           name: build-docker-arm64
           platform: arm64
-          resource_class: runner-ns/clustered-linux-vm-arm
+          resource_class: arm.2xlarge
       - publish-docker:
           <<: *docker_filter
           requires:
