@@ -21,12 +21,13 @@ Options:
 EOF
 }
 
-if [[ ! "${1:-}" ]] || [[ ! "${2:-}" ]]
+if [[ ! "${1:-}" ]] || [[ ! "${2:-}" ]] || [[ ! "${3:-}" ]]
 then
   (usage) && exit 1
 fi
-PACKAGE_TYPE="${1}"
-PACKAGE_PATH="${2}"
+PACKAGE_ARCH="${1}"
+PACKAGE_TYPE="${2}"
+PACKAGE_PATH="${3}"
 
 install_deb() {
   # When installing the package, ensure that the latest repository listings
@@ -38,7 +39,7 @@ install_deb() {
   # "apt-get install" should be used instead of "dpkg -i", because "dpkg"
   # does not resolve dependencies. "apt-get" requires that the package
   # path looks like a path (either fullpath or prefixed with "./").
-  apt-get install -y binutils "$(realpath "${PACKAGE_PATH}")"
+  apt-get install -y binutils $1
 }
 
 install_rpm() {
@@ -47,16 +48,19 @@ install_rpm() {
   yum install -y binutils
   yum install -y shadow-utils       # for useradd
   yum install -y libxcrypt-compat   # for libcrypt.so.1
-  yum localinstall -y "$(realpath "${PACKAGE_PATH}")"
+  yum localinstall -y $1
 }
+
+bin=$(find $PACKAGE_PATH -name "*${PACKAGE_ARCH}.${PACKAGE_TYPE}")
+[ ! -f $bin ] && echo "unable to find ${PACKAGE_TYPE} in ${PACKAGE_PATH}" && exit 1
 
 case ${PACKAGE_TYPE}
 in
   deb)
-    (install_deb)
+    (install_deb $bin)
     ;;
   rpm)
-    (install_rpm)
+    (install_rpm $bin)
     ;;
 esac
 
