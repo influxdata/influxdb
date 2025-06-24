@@ -14,6 +14,9 @@ pub enum Error {
     #[error("Invalid wal file identifier")]
     InvalidWalFile,
 
+    #[error("WAL file too small: expected at least {expected} bytes, but got {actual} bytes")]
+    WalFileTooSmall { expected: usize, actual: usize },
+
     #[error("crc32 checksum mismatch")]
     Crc32Mismatch,
 
@@ -37,6 +40,16 @@ pub fn verify_file_type_and_deserialize(b: Bytes) -> Result<WalContents> {
     let contents = b.to_vec();
 
     let pos = FILE_TYPE_IDENTIFIER.len();
+    const CHECKSUM_LEN: usize = size_of::<u32>();
+    let min_file_size = pos + CHECKSUM_LEN;
+
+    // Check if file has minimum required bytes
+    if contents.len() < min_file_size {
+        return Err(Error::WalFileTooSmall {
+            expected: min_file_size,
+            actual: contents.len(),
+        });
+    }
 
     // Read and verify the file type identifier
     let file_type = &contents[..pos];
@@ -46,7 +59,6 @@ pub fn verify_file_type_and_deserialize(b: Bytes) -> Result<WalContents> {
     }
 
     // Read the crc32 checksum
-    const CHECKSUM_LEN: usize = size_of::<u32>();
     let checksum_slice = &contents[pos..pos + CHECKSUM_LEN]; // Ensure this slice covers the 4 bytes for the checksum
     let mut cursor = Cursor::new(checksum_slice);
     let crc32_checksum = cursor.read_u32::<BigEndian>().unwrap();
@@ -140,5 +152,55 @@ mod tests {
         let deserialized = verify_file_type_and_deserialize(Bytes::from(bytes)).unwrap();
 
         assert_eq!(contents, deserialized);
+    }
+
+    #[test]
+    fn test_empty_wal_file() {
+        let empty_bytes = Bytes::new();
+        let result = verify_file_type_and_deserialize(empty_bytes);
+
+        match result {
+            Err(Error::WalFileTooSmall {
+                expected: 12,
+                actual: 0,
+            }) => {
+                // Expected error
+            }
+            _ => panic!("Expected WalFileTooSmall error for empty file"),
+        }
+    }
+
+    #[test]
+    fn test_truncated_wal_file() {
+        // File with only 5 bytes (less than minimum required)
+        let truncated_bytes = Bytes::from(vec![b'i', b'd', b'b', b'3', b'.']);
+        let result = verify_file_type_and_deserialize(truncated_bytes);
+
+        match result {
+            Err(Error::WalFileTooSmall {
+                expected: 12,
+                actual: 5,
+            }) => {
+                // Expected error
+            }
+            _ => panic!("Expected WalFileTooSmall error for truncated file"),
+        }
+    }
+
+    #[test]
+    fn test_wal_file_with_header_but_no_checksum() {
+        // File with complete header but no checksum
+        let header_only = Bytes::from(FILE_TYPE_IDENTIFIER);
+        let result = verify_file_type_and_deserialize(header_only);
+
+        match result {
+            Err(Error::WalFileTooSmall {
+                expected: 12,
+                actual: 8,
+            }) => {
+                // Expected error
+            }
+            _ => panic!("Expected WalFileTooSmall error for file with only header"),
+        }
     }
 }

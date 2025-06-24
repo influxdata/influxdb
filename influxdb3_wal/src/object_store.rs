@@ -12,7 +12,7 @@ use influxdb3_shutdown::{CancellationToken, ShutdownToken};
 use iox_time::TimeProvider;
 use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutMode, PutOptions, PutPayload};
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error, info, warn};
 use std::time::{Duration, Instant};
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
@@ -84,6 +84,7 @@ impl WalObjectStore {
             last_wal_sequence_number,
             &all_wal_file_paths,
             wal_replay_concurrency_limit,
+            config.wal_replay_fail_on_error,
         )
         .await?;
         let wal = Arc::new(wal);
@@ -149,6 +150,7 @@ impl WalObjectStore {
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         all_wal_file_paths: &[Path],
         concurrency_limit: Option<usize>,
+        fail_on_error: bool,
     ) -> crate::Result<()> {
         let replay_start = Instant::now();
         info!("replaying WAL files");
@@ -165,9 +167,13 @@ impl WalObjectStore {
         async fn get_contents(
             object_store: Arc<dyn ObjectStore>,
             path: Path,
-        ) -> Result<WalContents, crate::Error> {
-            let file_bytes = object_store.get(&path).await?.bytes().await?;
-            Ok(verify_file_type_and_deserialize(file_bytes)?)
+        ) -> (Path, Result<WalContents, crate::Error>) {
+            let result = async {
+                let file_bytes = object_store.get(&path).await?.bytes().await?;
+                verify_file_type_and_deserialize(file_bytes).map_err(Into::into)
+            }
+            .await;
+            (path, result)
         }
 
         // Load N files concurrently and then replay them immediately before loading the next batch
@@ -182,8 +188,28 @@ impl WalObjectStore {
                 results.push(tokio::spawn(get_contents(object_store, path.clone())));
             }
 
-            for wal_contents in results {
-                let wal_contents = wal_contents.await??;
+            for result in results {
+                use crate::Error;
+                use crate::serialize::Error as SerializeError;
+
+                let wal_contents = match result.await? {
+                    (_, Ok(wal_contents)) => wal_contents,
+                    (
+                        path,
+                        Err(Error::Serialize(
+                            error @ (SerializeError::WalFileTooSmall { .. }
+                            | SerializeError::InvalidWalFile
+                            | SerializeError::Crc32Mismatch),
+                        )),
+                    ) if !fail_on_error => {
+                        warn!(%error, %path, "Skipping corrupt WAL file");
+                        continue;
+                    }
+                    (path, Err(error)) => {
+                        error!(%error, %path, "Error loading WAL file");
+                        return Err(error);
+                    }
+                };
                 info!(
                     n_ops = %wal_contents.ops.len(),
                     min_timestamp_ns = %wal_contents.min_timestamp_ns,
@@ -1004,6 +1030,7 @@ mod tests {
             flush_interval: Duration::from_secs(1),
             snapshot_size: 2,
             gen1_duration: Gen1Duration::new_1m(),
+            ..Default::default()
         };
         let paths = vec![];
         let wal = WalObjectStore::new_without_replay(
@@ -1251,6 +1278,7 @@ mod tests {
                     Path::from("my_host/wal/00000000002.wal"),
                 ],
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -1399,7 +1427,12 @@ mod tests {
             vec![Path::from("my_host/wal/00000000003.wal")]
         );
         replay_wal
-            .replay(None, &[Path::from("my_host/wal/00000000003.wal")], None)
+            .replay(
+                None,
+                &[Path::from("my_host/wal/00000000003.wal")],
+                None,
+                true,
+            )
             .await
             .unwrap();
         let replay_notifier = replay_notifier
@@ -1427,6 +1460,7 @@ mod tests {
             flush_interval: Duration::from_secs(1),
             snapshot_size: 2,
             gen1_duration: Gen1Duration::new_1m(),
+            ..Default::default()
         };
         let paths = vec![];
         let wal = WalObjectStore::new_without_replay(
@@ -1631,6 +1665,7 @@ mod tests {
             flush_interval: Duration::from_secs(1),
             snapshot_size: 1,
             gen1_duration: Gen1Duration::new_1m(),
+            ..Default::default()
         };
 
         // load some files into OS
@@ -1774,6 +1809,7 @@ mod tests {
             flush_interval: Duration::from_secs(1),
             snapshot_size: 1,
             gen1_duration: Gen1Duration::new_1m(),
+            ..Default::default()
         };
 
         // load some files into OS

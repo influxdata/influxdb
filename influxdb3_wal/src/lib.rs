@@ -143,6 +143,8 @@ pub struct WalConfig {
     pub flush_interval: Duration,
     /// The number of wal files to snapshot at a time
     pub snapshot_size: usize,
+    /// Fail on error when replaying corrupt WAL files
+    pub wal_replay_fail_on_error: bool,
 }
 
 impl WalConfig {
@@ -152,6 +154,7 @@ impl WalConfig {
             max_write_buffer_size: 1000,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 100,
+            wal_replay_fail_on_error: false,
         }
     }
 }
@@ -163,6 +166,7 @@ impl Default for WalConfig {
             max_write_buffer_size: 100_000,
             flush_interval: Duration::from_secs(1),
             snapshot_size: 600,
+            wal_replay_fail_on_error: false,
         }
     }
 }
