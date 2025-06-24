@@ -41,7 +41,7 @@ use influxdb3_telemetry::{
 };
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
-    WriteBuffer,
+    WriteBuffer, deleter,
     persister::Persister,
     write_buffer::{
         WriteBufferImpl, WriteBufferImplArgs, check_mem_and_force_snapshot_loop,
@@ -49,7 +49,7 @@ use influxdb3_write::{
     },
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
-use iox_time::SystemProvider;
+use iox_time::{SystemProvider, TimeProvider};
 use metric::U64Gauge;
 use object_store::ObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
@@ -455,6 +455,16 @@ pub struct Config {
         default_value_t = Catalog::DEFAULT_HARD_DELETE_DURATION.into(),
     )]
     pub hard_delete_default_duration: humantime::Duration,
+
+    /// Grace period for hard deleted databases and tables before they are removed permanently from
+    /// the catalog.
+    #[clap(
+        long = "delete-grace-period",
+        env = "INFLUXDB3_DELETE_GRACE_PERIOD",
+        default_value = "24h",
+        action
+    )]
+    pub delete_grace_period: humantime::Duration,
 }
 
 /// The minimum version of TLS to use for InfluxDB
@@ -506,6 +516,9 @@ impl FromStr for MemorySizeMb {
         let num_bytes = if s.contains("%") {
             let mem_size = MemorySize::from_str(s)?;
             mem_size.bytes()
+        } else if let Some(suffix) = s.strip_suffix('b') {
+            usize::from_str(suffix)
+                .map_err(|_| "failed to parse value as unsigned integer".to_string())?
         } else {
             let num_mb = usize::from_str(s)
                 .map_err(|_| "failed to parse value as unsigned integer".to_string())?;
@@ -606,7 +619,7 @@ pub async fn command(config: Config) -> Result<()> {
     let frontend_shutdown = CancellationToken::new();
     let shutdown_manager = ShutdownManager::new(frontend_shutdown.clone());
 
-    let time_provider = Arc::new(SystemProvider::new());
+    let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
     let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
     // setup base object store:
     let object_store: Arc<dyn ObjectStore> = config
@@ -724,7 +737,7 @@ pub async fn command(config: Config) -> Result<()> {
     let catalog = Catalog::new_with_shutdown(
         config.node_identifier_prefix.as_str(),
         Arc::clone(&object_store),
-        Arc::<SystemProvider>::clone(&time_provider),
+        Arc::clone(&time_provider),
         Arc::clone(&metrics),
         shutdown_manager.register(),
         Arc::clone(&process_uuid_getter),
@@ -798,7 +811,7 @@ pub async fn command(config: Config) -> Result<()> {
         catalog: Arc::clone(&catalog),
         last_cache,
         distinct_cache,
-        time_provider: Arc::<SystemProvider>::clone(&time_provider),
+        time_provider: Arc::clone(&time_provider),
         executor: Arc::clone(&write_path_executor),
         wal_config,
         parquet_cache,
@@ -812,6 +825,20 @@ pub async fn command(config: Config) -> Result<()> {
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
 
+    let persisted_files = write_buffer_impl.persisted_files();
+
+    let object_deleter = Some(Arc::clone(&persisted_files) as _);
+
+    deleter::run(
+        DeleteManagerArgs {
+            catalog: Arc::clone(&catalog),
+            time_provider: Arc::clone(&time_provider),
+            object_deleter,
+            delete_grace_period: *config.delete_grace_period,
+        },
+        shutdown_manager.register(),
+    );
+
     info!("setting up background mem check for query buffer");
     background_buffer_checker(
         config.force_snapshot_mem_threshold.as_num_bytes(),
@@ -824,7 +851,7 @@ pub async fn command(config: Config) -> Result<()> {
         object_store_config: &config.object_store_config,
         instance_id: node_def.instance_id(),
         num_cpus,
-        persisted_files: Some(Arc::clone(&write_buffer_impl.persisted_files())),
+        persisted_files: Some(persisted_files),
         telemetry_endpoint: &config.telemetry_endpoint,
         disable_upload: config.disable_telemetry_upload,
         catalog_uuid: catalog.catalog_uuid().to_string(),
@@ -1121,6 +1148,7 @@ async fn background_buffer_checker(
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
+use influxdb3_write::deleter::DeleteManagerArgs;
 #[cfg(tokio_unstable)]
 use tokio_metrics_bridge::setup_tokio_metrics;
 
