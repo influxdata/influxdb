@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	arrowmemory "github.com/apache/arrow/go/v7/arrow/memory"
+	arrowmemory "github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/codes"

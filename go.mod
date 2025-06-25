@@ -10,7 +10,7 @@ require (
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
-	github.com/apache/arrow/go/v7 v7.0.1
+	github.com/apache/arrow-go/v18 v18.2.0
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/buger/jsonparser v1.1.1
@@ -114,7 +114,6 @@ require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/SAP/go-hdb v1.9.6 // indirect
 	github.com/aokoli/goutils v1.0.1 // indirect
-	github.com/apache/arrow-go/v18 v18.2.0 // indirect
 	github.com/apache/arrow/go/v15 v15.0.2 // indirect
 	github.com/aws/aws-sdk-go v1.34.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.27.1 // indirect
