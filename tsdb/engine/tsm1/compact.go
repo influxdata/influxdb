@@ -69,6 +69,11 @@ func (e errCompactionInProgress) Unwrap() error {
 	return e.err
 }
 
+func (e errCompactionInProgress) Is(target error) bool {
+	_, ok := target.(errCompactionInProgress)
+	return ok
+}
+
 type errCompactionAborted struct {
 	err error
 }
@@ -78,6 +83,15 @@ func (e errCompactionAborted) Error() string {
 		return fmt.Sprintf("compaction aborted: %s", e.err)
 	}
 	return "compaction aborted"
+}
+
+func (e errCompactionAborted) Unwrap() error {
+	return e.err
+}
+
+func (e errCompactionAborted) Is(target error) bool {
+	_, ok := target.(errCompactionAborted)
+	return ok
 }
 
 type errBlockRead struct {
@@ -1053,7 +1067,7 @@ func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger, pointsPer
 	c.mu.RUnlock()
 
 	if !enabled {
-		if err := c.RemoveTmpFiles(files); err != nil {
+		if err := removeTmpFiles(files); err != nil {
 			return nil, err
 		}
 		return nil, errCompactionsDisabled
@@ -1085,7 +1099,7 @@ func (c *Compactor) CompactFast(tsmFiles []string, logger *zap.Logger, pointsPer
 	c.mu.RUnlock()
 
 	if !enabled {
-		if err := c.RemoveTmpFiles(files); err != nil {
+		if err := removeTmpFiles(files); err != nil {
 			return nil, err
 		}
 		return nil, errCompactionsDisabled
@@ -1095,9 +1109,9 @@ func (c *Compactor) CompactFast(tsmFiles []string, logger *zap.Logger, pointsPer
 
 }
 
-// RemoveTmpFiles is responsible for cleaning up a compaction that
+// removeTmpFiles is responsible for cleaning up a compaction that
 // was started, but then abandoned before the temporary files were dealt with.
-func (c *Compactor) RemoveTmpFiles(files []string) error {
+func removeTmpFiles(files []string) error {
 	var errs []error
 	for _, f := range files {
 		if err := os.Remove(f); err != nil {
@@ -1107,8 +1121,8 @@ func (c *Compactor) RemoveTmpFiles(files []string) error {
 	return errors.Join(errs...)
 }
 
-func (c *Compactor) RemoveTmpFilesOnErr(files []string, originalErrs ...error) error {
-	removeErr := c.RemoveTmpFiles(files)
+func removeTmpFilesOnErr(files []string, originalErrs ...error) error {
+	removeErr := removeTmpFiles(files)
 	if removeErr == nil {
 		if len(originalErrs) == 1 {
 			return originalErrs[0]
@@ -1151,7 +1165,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			// file that we can drop.
 			if err := os.RemoveAll(fileName); err != nil {
 				// Only return an error if we couldn't remove the temp files
-				return nil, c.RemoveTmpFilesOnErr(files, err)
+				return nil, removeTmpFilesOnErr(files, err)
 			}
 			break
 		} else if errors.As(err, &eInProgress) {
@@ -1164,12 +1178,12 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			}
 			// We hit an error and didn't finish the compaction.  Abort.
 			// Remove any tmp files we already completed
-			return nil, c.RemoveTmpFilesOnErr(files, err)
+			return nil, removeTmpFilesOnErr(files, err)
 		} else if err != nil {
 			// We hit an error and didn't finish the compaction.  Abort.
 			// Remove any tmp files we already completed, as well as the current
 			// file we were writing to.
-			return nil, c.RemoveTmpFilesOnErr(files, err, os.RemoveAll(fileName))
+			return nil, removeTmpFilesOnErr(files, err, os.RemoveAll(fileName))
 		}
 
 		files = append(files, fileName)
