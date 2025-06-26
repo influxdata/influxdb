@@ -807,17 +807,17 @@ impl TriggerSpecificationDefinition {
     pub fn string_rep(&self) -> String {
         match self {
             TriggerSpecificationDefinition::SingleTableWalWrite { table_name } => {
-                format!("table:{}", table_name)
+                format!("table:{table_name}")
             }
             TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
             TriggerSpecificationDefinition::Schedule { schedule } => {
-                format!("cron:{}", schedule)
+                format!("cron:{schedule}")
             }
             TriggerSpecificationDefinition::Every { duration } => {
                 format!("every:{}", format_duration(*duration))
             }
             TriggerSpecificationDefinition::RequestPath { path } => {
-                format!("request:{}", path)
+                format!("request:{path}")
             }
         }
     }

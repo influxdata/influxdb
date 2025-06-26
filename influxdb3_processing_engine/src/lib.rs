@@ -266,8 +266,7 @@ impl ProcessingEngineManagerImpl {
         if name.starts_with("gh:") {
             let plugin_path = name.strip_prefix("gh:").unwrap();
             let url = format!(
-                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{}",
-                plugin_path
+                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{plugin_path}"
             );
             let resp = reqwest::get(&url)
                 .await
@@ -1032,7 +1031,7 @@ mod tests {
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("done")
 "#;
-        writeln!(file, "{}", code).unwrap();
+        writeln!(file, "{code}").unwrap();
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(file.path().parent().unwrap().to_path_buf()),
             virtual_env_location: None,
