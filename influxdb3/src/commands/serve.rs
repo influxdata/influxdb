@@ -1111,7 +1111,7 @@ async fn setup_telemetry_store(
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
     let influxdb_pkg_name = env!("CARGO_PKG_NAME");
     // Following should show influxdb3-0.1.0
-    let influx_version = format!("{}-{}", influxdb_pkg_name, influxdb_pkg_version);
+    let influx_version = format!("{influxdb_pkg_name}-{influxdb_pkg_version}");
     let obj_store_type = object_store_config
         .object_store
         .unwrap_or(ObjectStoreType::Memory);

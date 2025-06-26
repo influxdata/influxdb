@@ -318,12 +318,12 @@ impl Generator {
 
                 for (i, field) in measurement.fields.iter_mut().enumerate() {
                     let separator = if i == 0 { " " } else { "," };
-                    write!(w, "{}", separator)?;
+                    write!(w, "{separator}")?;
                     field.write_to(&mut w, rng)?;
                 }
                 write_summary.fields_written += measurement.fields.len();
 
-                writeln!(w, " {}", timestamp)?;
+                writeln!(w, " {timestamp}")?;
 
                 write_summary.lines_written += 1;
             }
@@ -383,12 +383,12 @@ impl Tag {
         }
 
         if let Some(v) = &self.value {
-            write!(w, "{}", v)?;
+            write!(w, "{v}")?;
         }
 
         // append the writer id with a preceding w if we're supposed to
         if self.append_writer_id {
-            write!(w, "{}", writer_id)?;
+            write!(w, "{writer_id}")?;
         }
 
         // append the copy id with a preceding c if we're supposed to
@@ -458,29 +458,29 @@ impl Field {
 
         match &mut self.field_value {
             FieldValue::Integer(f) => match f {
-                IntegerValue::Fixed(v) => write!(w, "{}i", v)?,
+                IntegerValue::Fixed(v) => write!(w, "{v}i")?,
                 IntegerValue::Random(range) => {
                     let v: i64 = rng.gen_range(range.clone());
-                    write!(w, "{}i", v)?;
+                    write!(w, "{v}i")?;
                 }
                 IntegerValue::Sequential(v) => {
-                    write!(w, "{}u", v)?;
+                    write!(w, "{v}u")?;
                     *v += 1;
                 }
             },
             FieldValue::Float(f) => match f {
-                FloatValue::Fixed(v) => write!(w, "{}", v)?,
+                FloatValue::Fixed(v) => write!(w, "{v}")?,
                 FloatValue::Random(range) => {
                     let v: f64 = rng.gen_range(range.clone());
-                    write!(w, "{:.3}", v)?;
+                    write!(w, "{v:.3}")?;
                 }
                 FloatValue::SequentialWithInc { next, inc } => {
-                    write!(w, "{:.10}", next)?;
+                    write!(w, "{next:.10}")?;
                     *next += *inc;
                 }
             },
             FieldValue::String(s) => match s {
-                StringValue::Fixed(v) => write!(w, "\"{}\"", v)?,
+                StringValue::Fixed(v) => write!(w, "\"{v}\"")?,
                 StringValue::Random(size) => {
                     let random: String = rng
                         .sample_iter(&Alphanumeric)
@@ -488,17 +488,17 @@ impl Field {
                         .map(char::from)
                         .collect();
 
-                    write!(w, "\"{}\"", random)?;
+                    write!(w, "\"{random}\"")?;
                 }
                 StringValue::Sequential(prefix, inc) => {
-                    write!(w, "\"{}{}\"", prefix, inc)?;
+                    write!(w, "\"{prefix}{inc}\"")?;
                     *inc += 1;
                 }
             },
             FieldValue::Boolean(f) => match f {
                 BooleanValue::Random => {
                     let v: bool = rng.r#gen();
-                    write!(w, "{}", v)?;
+                    write!(w, "{v}")?;
                 }
                 BooleanValue::Toggle(current) => {
                     write!(w, "{current}")?;

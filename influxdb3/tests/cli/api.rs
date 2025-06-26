@@ -176,7 +176,7 @@ impl CreateTableQuery<'_> {
         let fields_arg = self
             .fields
             .iter()
-            .map(|(name, dt)| format!("{}:{}", name, dt))
+            .map(|(name, dt)| format!("{name}:{dt}"))
             .collect::<Vec<_>>()
             .join(",");
 

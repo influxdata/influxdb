@@ -716,10 +716,7 @@ mod tests {
 
         // Make a DELETE request to delete the table without hard_delete_at parameter
         let client = Client::new();
-        let url = format!(
-            "{}/api/v3/configure/table?db={}&table={}",
-            server, db_name, table_name
-        );
+        let url = format!("{server}/api/v3/configure/table?db={db_name}&table={table_name}");
 
         let request = RequestBuilder::new()
             .uri(url)
@@ -772,8 +769,7 @@ mod tests {
         // Make a DELETE request to delete the table with explicit hard_delete_at=never parameter
         let client = Client::new();
         let url = format!(
-            "{}/api/v3/configure/table?db={}&table={}&hard_delete_at=never",
-            server, db_name, table_name
+            "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=never"
         );
 
         let request = RequestBuilder::new()
@@ -827,8 +823,7 @@ mod tests {
         // Make a DELETE request to delete the table with explicit hard_delete_at=now parameter
         let client = Client::new();
         let url = format!(
-            "{}/api/v3/configure/table?db={}&table={}&hard_delete_at=now",
-            server, db_name, table_name
+            "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=now"
         );
 
         let request = RequestBuilder::new()
@@ -890,8 +885,7 @@ mod tests {
         // Make a DELETE request to delete the table with explicit hard_delete_at timestamp
         let client = Client::new();
         let url = format!(
-            "{}/api/v3/configure/table?db={}&table={}&hard_delete_at={}",
-            server, db_name, table_name, future_timestamp
+            "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at={future_timestamp}"
         );
 
         let request = RequestBuilder::new()
@@ -946,8 +940,7 @@ mod tests {
         // Make a DELETE request to delete the table with explicit hard_delete_at=default parameter
         let client = Client::new();
         let url = format!(
-            "{}/api/v3/configure/table?db={}&table={}&hard_delete_at=default",
-            server, db_name, table_name
+            "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=default"
         );
 
         let request = RequestBuilder::new()
@@ -999,10 +992,7 @@ mod tests {
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=never parameter
         let client = Client::new();
-        let url = format!(
-            "{}/api/v3/configure/database?db={}&hard_delete_at=never",
-            server, db_name
-        );
+        let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=never");
 
         let request = RequestBuilder::new()
             .uri(url)
@@ -1050,7 +1040,7 @@ mod tests {
 
         // Make a DELETE request to delete the database without hard_delete_at parameter
         let client = Client::new();
-        let url = format!("{}/api/v3/configure/database?db={}", server, db_name);
+        let url = format!("{server}/api/v3/configure/database?db={db_name}");
 
         let request = RequestBuilder::new()
             .uri(url)
@@ -1098,10 +1088,7 @@ mod tests {
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=now parameter
         let client = Client::new();
-        let url = format!(
-            "{}/api/v3/configure/database?db={}&hard_delete_at=now",
-            server, db_name
-        );
+        let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=now");
 
         let request = RequestBuilder::new()
             .uri(url)
@@ -1149,10 +1136,7 @@ mod tests {
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=default parameter
         let client = Client::new();
-        let url = format!(
-            "{}/api/v3/configure/database?db={}&hard_delete_at=default",
-            server, db_name
-        );
+        let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=default");
 
         let request = RequestBuilder::new()
             .uri(url)
@@ -1209,8 +1193,7 @@ mod tests {
         // Make a DELETE request to delete the database with explicit hard_delete_at timestamp
         let client = Client::new();
         let url = format!(
-            "{}/api/v3/configure/database?db={}&hard_delete_at={}",
-            server, db_name, future_timestamp
+            "{server}/api/v3/configure/database?db={db_name}&hard_delete_at={future_timestamp}"
         );
 
         let request = RequestBuilder::new()
@@ -1545,7 +1528,7 @@ mod tests {
             database.into(),
             precision.into(),
         );
-        println!("{}", url);
+        println!("{url}");
 
         let mut builder = RequestBuilder::new().uri(url).method("POST");
         if let Some(authorization) = authorization {
@@ -1579,7 +1562,7 @@ mod tests {
             format.into()
         );
 
-        println!("query url: {}", url);
+        println!("query url: {url}");
         let mut builder = RequestBuilder::new().uri(url).method("GET");
         if let Some(authorization) = authorization {
             builder = builder.header(hyper::header::AUTHORIZATION, authorization);

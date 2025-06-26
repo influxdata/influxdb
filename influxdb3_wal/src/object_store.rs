@@ -574,7 +574,7 @@ async fn load_all_wal_file_paths(
 ) -> Result<Vec<Path>, crate::Error> {
     let mut paths = Vec::new();
     let mut offset: Option<Path> = None;
-    let path = Path::from(format!("{writer}/wal", writer = node_identifier_prefix));
+    let path = Path::from(format!("{node_identifier_prefix}/wal"));
     loop {
         let mut listing = if let Some(offset) = offset {
             object_store.list_with_offset(Some(&path), &offset)

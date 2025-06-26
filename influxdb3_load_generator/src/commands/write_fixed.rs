@@ -86,8 +86,7 @@ fn generate_data_points(expected_tput_in_mb: f64, num_writers: usize) -> (Vec<Ve
     let mut curr_size = 0.0;
     let num_bytes_per_client = tput_bytes / (num_writers as f64);
     println!(
-        "setup tput_bytes {}, num_writers {}, num_bytes_per_client {}",
-        tput_bytes, num_writers, num_bytes_per_client
+        "setup tput_bytes {tput_bytes}, num_writers {num_writers}, num_bytes_per_client {num_bytes_per_client}"
     );
 
     let mut rng = SmallRng::seed_from_u64(123_456_789);
@@ -108,8 +107,7 @@ fn generate_data_points(expected_tput_in_mb: f64, num_writers: usize) -> (Vec<Ve
             let line = format!(
                 // this literal, and the associated generators can be moved to a constant to set
                 // the data up
-                "series_{},tag_1=value{},tag_2=value{},tag_3=value{} field_1=100,field_2=1.0",
-                db_series_val, tag1_val, tag2_val, tag3_val
+                "series_{db_series_val},tag_1=value{tag1_val},tag_2=value{tag2_val},tag_3=value{tag3_val} field_1=100,field_2=1.0"
             );
 
             if (curr_size + line.len() as f64) > tput_bytes {
@@ -174,13 +172,13 @@ pub async fn command(config: WriteFixedConfig) -> Result<(), Infallible> {
 
     let mut all_dbs = vec![];
     for i in 1..=config.write.num_databases {
-        all_dbs.push(format!("foo_{}", i));
+        all_dbs.push(format!("foo_{i}"));
     }
     let mut db_iter = CustomDbIter {
         iter: all_dbs.iter().cycle(),
     };
     let write_uri = format!("{}api/v3/write_lp", config.host_url);
-    println!("writing to {}", write_uri);
+    println!("writing to {write_uri}");
 
     loop {
         let mut futs = vec![];

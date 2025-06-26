@@ -8,9 +8,11 @@ use std::process::Command;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=GIT_HASH");
     // Populate env!(GIT_HASH) with the current git commit
-    println!("cargo:rustc-env=GIT_HASH={}", get_git_hash());
+    let git_hash = get_git_hash();
+    println!("cargo:rustc-env=GIT_HASH={git_hash}");
     // Populate env!(GIT_HASH_SHORT) with the current git commit
-    println!("cargo:rustc-env=GIT_HASH_SHORT={}", get_git_hash_short());
+    let git_hash_short = get_git_hash_short();
+    println!("cargo:rustc-env=GIT_HASH_SHORT={git_hash_short}");
 
     let path = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let meta = MetadataCommand::new()
@@ -24,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .as_str()
         .unwrap_or("Core");
     println!("cargo:rerun-if-env-changed=INFLUXDB3_BUILD_VERSION");
-    println!("cargo:rustc-env=INFLUXDB3_BUILD_VERSION={}", build);
+    println!("cargo:rustc-env=INFLUXDB3_BUILD_VERSION={build}");
 
     Ok(())
 }

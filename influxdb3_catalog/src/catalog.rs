@@ -4524,7 +4524,7 @@ mod tests {
 
         let table_ids = vec![TableId::from(1), TableId::from(2), TableId::from(3)];
         for (i, table_id) in table_ids.iter().enumerate() {
-            let table_name = Arc::from(format!("table_{}", i));
+            let table_name = Arc::from(format!("table_{i}"));
             let table_def = TableDefinition::new_empty(*table_id, table_name);
             db_schema
                 .tables
@@ -4902,7 +4902,7 @@ mod tests {
                 assert!(duration >= Duration::from_secs(3599));
                 assert!(duration <= Duration::from_secs(3601));
             }
-            other => panic!("Expected Hard deletion status, got {:?}", other),
+            other => panic!("Expected Hard deletion status, got {other:?}"),
         }
     }
 
@@ -4948,7 +4948,7 @@ mod tests {
                 assert!(duration >= Duration::from_secs(599));
                 assert!(duration <= Duration::from_secs(601));
             }
-            other => panic!("Expected Hard deletion status, got {:?}", other),
+            other => panic!("Expected Hard deletion status, got {other:?}"),
         }
     }
 
@@ -5092,7 +5092,7 @@ mod tests {
                 assert!(duration >= Duration::from_secs(3599));
                 assert!(duration <= Duration::from_secs(3601));
             }
-            other => panic!("Expected Hard deletion status, got {:?}", other),
+            other => panic!("Expected Hard deletion status, got {other:?}"),
         }
     }
 
@@ -5159,7 +5159,7 @@ mod tests {
                 assert!(duration >= Duration::from_secs(599));
                 assert!(duration <= Duration::from_secs(601));
             }
-            other => panic!("Expected Hard deletion status, got {:?}", other),
+            other => panic!("Expected Hard deletion status, got {other:?}"),
         }
     }
 
@@ -5263,7 +5263,7 @@ mod tests {
                 assert!(duration >= Duration::from_secs(1799));
                 assert!(duration <= Duration::from_secs(1801));
             }
-            other => panic!("Expected Hard deletion status for table3, got {:?}", other),
+            other => panic!("Expected Hard deletion status for table3, got {other:?}"),
         }
     }
 }

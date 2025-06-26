@@ -50,7 +50,7 @@ fn write_plugin_to_temp_dir(temp_dir: &TempDir, name: &str, code: &str) -> PathB
 
     // Write the code to the file
     let mut file = File::create(&file_path).unwrap();
-    writeln!(file, "{}", code).unwrap();
+    writeln!(file, "{code}").unwrap();
     file_path
 }
 
@@ -628,16 +628,13 @@ async fn test_create_trigger_and_run() {
                 }
                 check_count += 1;
                 if check_count > 10 {
-                    panic!(
-                        "Unexpected query result, got: {:#?}, expected {:#?}",
-                        value, expected
-                    );
+                    panic!("Unexpected query result, got: {value:#?}, expected {expected:#?}");
                 }
             }
             Err(e) => {
                 check_count += 1;
                 if check_count > 10 {
-                    panic!("Failed to query processed data: {}", e);
+                    panic!("Failed to query processed data: {e}");
                 }
                 tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
             }
@@ -722,16 +719,13 @@ async fn test_triggers_are_started() {
                 }
                 check_count += 1;
                 if check_count > 10 {
-                    panic!(
-                        "Unexpected query result, got: {:#?}, expected {:#?}",
-                        value, expected
-                    );
+                    panic!("Unexpected query result, got: {value:#?}, expected {expected:#?}");
                 }
             }
             Err(e) => {
                 check_count += 1;
                 if check_count > 10 {
-                    panic!("Failed to query processed data: {}", e);
+                    panic!("Failed to query processed data: {e}");
                 }
                 tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
             }
@@ -894,7 +888,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             db_name,
             trigger_name,
             plugin_filename,
-            format!("table:{}", table_name),
+            format!("table:{table_name}"),
         )
         .run()
         .unwrap();
@@ -2165,9 +2159,7 @@ async fn test_trigger_create_validates_file_present() {
 fn check_logs(response: &Value, expected_logs: &[&str]) {
     assert!(
         response["errors"].as_array().unwrap().is_empty(),
-        "Unexpected errors in response {:#?}, expected logs {:#?}",
-        response,
-        expected_logs
+        "Unexpected errors in response {response:#?}, expected logs {expected_logs:#?}"
     );
     let logs = response["log_lines"].as_array().unwrap();
     assert_eq!(

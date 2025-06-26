@@ -125,8 +125,7 @@ pub(crate) fn run_schedule_plugin(
     let plugin_type = trigger_definition.trigger.plugin_type();
     if !matches!(plugin_type, influxdb3_catalog::log::PluginType::Schedule) {
         return Err(PluginError::NonSchedulePluginWithScheduleTrigger(format!(
-            "{:?}",
-            trigger_definition
+            "{trigger_definition:?}"
         )));
     }
 
@@ -288,7 +287,7 @@ mod python_plugin {
                                 match result {
                                     PluginNextState::SuccessfulRun => {}
                                     PluginNextState::LogError(error_log) => {
-                                        error!("trigger failed with error {}", error_log);
+                                        error!("trigger failed with error {error_log}");
                                         self.logger.log(LogLevel::Error, error_log);
                                     },
                                     PluginNextState::Disable(_) => {
@@ -310,7 +309,7 @@ mod python_plugin {
                                 }
                             }
                             Err(err) => {
-                                error!(?self.trigger_definition, "error processing wal contents: {}", err);
+                                error!(?self.trigger_definition, "error processing wal contents: {err}");
                             }
                         }
                     }
@@ -364,8 +363,8 @@ mod python_plugin {
                                     match plugin_state {
                                         PluginNextState::SuccessfulRun => {}
                                         PluginNextState::LogError(err) => {
-                                            self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {}", err));
-                                            error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
+                                            self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {err}"));
+                                            error!(?self.trigger_definition, "error running scheduled plugin: {err}");
                                         }
                                         PluginNextState::Disable(trigger_definition) => {
                                             warn!("disabling trigger {} due to error", trigger_definition.trigger_name);
@@ -383,7 +382,7 @@ mod python_plugin {
                                     }
                                 }
                                 Err(err) => {
-                                    self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {}", err));
+                                    self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {err}"));
                                     error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
                                 }
                             }
@@ -405,15 +404,15 @@ mod python_plugin {
                     Some(result) = futures.next() => {
                         match result {
                             Err(e) => {
-                                self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", e));
-                                error!(?self.trigger_definition, "error running async scheduled plugin: {}", e);
+                                self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {e}"));
+                                error!(?self.trigger_definition, "error running async scheduled plugin: {e}");
                             }
                             Ok(result) => {
                                 match result {
                                     PluginNextState::SuccessfulRun => {}
                                     PluginNextState::LogError(err) => {
-                                        self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", err));
-                                        error!(?self.trigger_definition, "error running async scheduled plugin: {}", err);
+                                        self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {err}"));
+                                        error!(?self.trigger_definition, "error running async scheduled plugin: {err}");
                                     }
                                     PluginNextState::Disable(trigger_definition) => {
                                         warn!("disabling trigger {} due to error", trigger_definition.trigger_name);
@@ -496,9 +495,9 @@ mod python_plugin {
                                 for error in errors {
                                     self.logger.log(
                                         LogLevel::Error,
-                                        format!("error running request plugin: {}", error),
+                                        format!("error running request plugin: {error}"),
                                     );
-                                    error!(?self.trigger_definition, "error running request plugin: {}", error);
+                                    error!(?self.trigger_definition, "error running request plugin: {error}");
                                 }
 
                                 let response_status = StatusCode::from_u16(response_code)
@@ -521,9 +520,9 @@ mod python_plugin {
                                 // build json string with the error with serde so that it is {"error": "error message"}
                                 self.logger.log(
                                     LogLevel::Error,
-                                    format!("error running request plugin: {}", e),
+                                    format!("error running request plugin: {e}"),
                                 );
-                                error!(?self.trigger_definition, "error running request plugin: {}", e);
+                                error!(?self.trigger_definition, "error running request plugin: {e}");
                                 let body = serde_json::json!({"error": e.to_string()}).to_string();
                                 ResponseBuilder::new()
                                     .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -629,9 +628,9 @@ mod python_plugin {
                                     for error in errors {
                                         self.logger.log(
                                             LogLevel::Error,
-                                            format!("error running wal plugin: {}", error),
+                                            format!("error running wal plugin: {error}"),
                                         );
-                                        error!(?self.trigger_definition, "error running wal plugin: {}", error);
+                                        error!(?self.trigger_definition, "error running wal plugin: {error}");
                                     }
                                     break;
                                 }
@@ -640,9 +639,9 @@ mod python_plugin {
                                         ErrorBehavior::Log => {
                                             self.logger.log(
                                                 LogLevel::Error,
-                                                format!("error executing against batch {}", err),
+                                                format!("error executing against batch {err}"),
                                             );
-                                            error!(?self.trigger_definition, "error running against batch: {}", err);
+                                            error!(?self.trigger_definition, "error running against batch: {err}");
                                         }
                                         ErrorBehavior::Retry => {
                                             info!(
@@ -688,13 +687,13 @@ mod python_plugin {
                     )
                     .await
                 {
-                    errors.push(format!("error writing back lines: {}", e));
+                    errors.push(format!("error writing back lines: {e}"));
                 }
             }
 
             for (db_name, lines) in plugin_return_state.write_db_lines {
                 let Ok(namespace_name) = NamespaceName::new(db_name.clone()) else {
-                    errors.push(format!("invalid database name: {}", db_name));
+                    errors.push(format!("invalid database name: {db_name}"));
                     continue;
                 };
 
@@ -710,7 +709,7 @@ mod python_plugin {
                     )
                     .await
                 {
-                    errors.push(format!("error writing back lines to {}: {}", db_name, e));
+                    errors.push(format!("error writing back lines to {db_name}: {e}"));
                 }
             }
 
@@ -826,7 +825,7 @@ mod python_plugin {
                         let errors = plugin.handle_return_state(result).await;
                         // TODO: here is one spot we'll pick up errors to put into the plugin system table
                         for error in errors {
-                            error!(?plugin.trigger_definition, "error running schedule plugin: {}", error);
+                            error!(?plugin.trigger_definition, "error running schedule plugin: {error}");
                         }
                         return Ok(PluginNextState::SuccessfulRun);
                     }
@@ -947,8 +946,7 @@ impl TestWriteHandler {
                 Ok(v) => v,
                 Err(e) => {
                     errors.push(format!(
-                        "Failed to initialize validator for db {}: {}",
-                        db_name, e
+                        "Failed to initialize validator for db {db_name}: {e}"
                     ));
                     return errors;
                 }
@@ -965,19 +963,17 @@ impl TestWriteHandler {
                 let data =
                     data.ignore_catalog_changes_and_convert_lines_to_buffer(Gen1Duration::new_1m());
                 for err in data.errors {
-                    errors.push(format!("{:?}", err));
+                    errors.push(format!("{err:?}"));
                 }
             }
             Err(write_buffer::Error::ParseError(e)) => {
                 errors.push(format!(
-                    "line protocol parse error on write to db {}: {:?}",
-                    db_name, e
+                    "line protocol parse error on write to db {db_name}: {e:?}"
                 ));
             }
             Err(e) => {
                 errors.push(format!(
-                    "Failed to validate output lines to db {}: {}",
-                    db_name, e
+                    "Failed to validate output lines to db {db_name}: {e}"
                 ));
             }
         }
@@ -990,7 +986,7 @@ impl TestWriteHandler {
             let namespace = match NamespaceName::new(db_name.to_string()) {
                 Ok(namespace) => namespace,
                 Err(e) => {
-                    all_errors.push(format!("database name {} is invalid: {}", db_name, e));
+                    all_errors.push(format!("database name {db_name} is invalid: {e}"));
                     continue;
                 }
             };

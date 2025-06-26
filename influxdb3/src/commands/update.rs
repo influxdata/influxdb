@@ -59,7 +59,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     .api_v3_configure_db_update(&database_name, retention)
                     .await?;
 
-                println!("Database \"{}\" updated successfully", database_name);
+                println!("Database \"{database_name}\" updated successfully");
             } else {
                 return Err("--retention-period is required for update database".into());
             }

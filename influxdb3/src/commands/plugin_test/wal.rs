@@ -65,7 +65,7 @@ pub(super) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         .expect("serialize wal plugin test response as JSON");
 
     // pretty print the response
-    println!("{}", res);
+    println!("{res}");
 
     Ok(())
 }
