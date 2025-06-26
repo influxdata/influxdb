@@ -608,7 +608,7 @@ mod tests {
         let parquet_files: Vec<ParquetFile> = (0..num_files)
             .map(|i| ParquetFile {
                 id: ParquetFileId::new(),
-                path: format!("/random/path/{prefix}_{}.parquet", i),
+                path: format!("/random/path/{prefix}_{i}.parquet"),
                 size_bytes: 50_000,
                 row_count: 10,
                 chunk_time: 10,
