@@ -130,7 +130,7 @@ generate-sources: protoc tmpl stringer goimports
 generate: generate-web-assets generate-sources
 
 protoc:
-	$(GO_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.1
+	$(GO_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.5
 
 tmpl:
 	$(GO_INSTALL) github.com/benbjohnson/tmpl
