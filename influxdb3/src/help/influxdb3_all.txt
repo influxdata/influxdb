@@ -9,6 +9,7 @@ InfluxDB 3 Core Server and Command Line Tools
   {}     Run the InfluxDB 3 Core server
   {}  Perform a query against a running InfluxDB 3 Core server
   {}  Perform a set of writes to a running InfluxDB 3 Core server
+  {}    Update resources on the InfluxDB 3 Core server
 
 {}
   {}    Create a resource such as a database or auth token
