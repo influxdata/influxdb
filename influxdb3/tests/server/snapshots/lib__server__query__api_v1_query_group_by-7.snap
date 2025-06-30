@@ -2,6 +2,7 @@
 source: influxdb3/tests/server/query.rs
 description: "query: select * from bar group by /t[1]/, chunked: false"
 expression: values
+snapshot_kind: text
 ---
 [
   {
@@ -19,11 +20,11 @@ expression: values
             },
             "values": [
               [
-                "2065-01-07T17:28:52Z",
+                "2998574932000000000",
                 2.0
               ],
               [
-                "2065-01-07T17:28:54Z",
+                "2998574934000000000",
                 4.0
               ]
             ]
@@ -39,11 +40,11 @@ expression: values
             },
             "values": [
               [
-                "2065-01-07T17:28:51Z",
+                "2998574931000000000",
                 1.0
               ],
               [
-                "2065-01-07T17:28:53Z",
+                "2998574933000000000",
                 3.0
               ]
             ]

@@ -19,7 +19,6 @@ use arrow::{
 };
 use arrow_schema::{Field, SchemaRef};
 use bytes::Bytes;
-use chrono::{DateTime, format::SecondsFormat};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{Stream, StreamExt, TryStreamExt, ready, stream::Fuse};
 use hyper::http::HeaderValue;
@@ -827,41 +826,29 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
             }
             _ => Value::Null,
         },
-        DataType::Timestamp(TimeUnit::Nanosecond, None) => Value::String(
-            DateTime::from_timestamp_nanos(
-                column
-                    .as_primitive::<TimestampNanosecondType>()
-                    .value(row_index),
-            )
-            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        DataType::Timestamp(TimeUnit::Nanosecond, _) => Value::String(
+            column
+                .as_primitive::<TimestampNanosecondType>()
+                .value(row_index)
+                .to_string(),
         ),
-        DataType::Timestamp(TimeUnit::Microsecond, None) => Value::String(
-            DateTime::from_timestamp_micros(
-                column
-                    .as_primitive::<TimestampMicrosecondType>()
-                    .value(row_index),
-            )
-            .context("failed to downcast TimestampMicrosecondType column")?
-            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        DataType::Timestamp(TimeUnit::Microsecond, _) => Value::String(
+            column
+                .as_primitive::<TimestampMicrosecondType>()
+                .value(row_index)
+                .to_string(),
         ),
-        DataType::Timestamp(TimeUnit::Millisecond, None) => Value::String(
-            DateTime::from_timestamp_millis(
-                column
-                    .as_primitive::<TimestampMillisecondType>()
-                    .value(row_index),
-            )
-            .context("failed to downcast TimestampNillisecondType column")?
-            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        DataType::Timestamp(TimeUnit::Millisecond, _) => Value::String(
+            column
+                .as_primitive::<TimestampMillisecondType>()
+                .value(row_index)
+                .to_string(),
         ),
-        DataType::Timestamp(TimeUnit::Second, None) => Value::String(
-            DateTime::from_timestamp(
-                column
-                    .as_primitive::<TimestampSecondType>()
-                    .value(row_index),
-                0,
-            )
-            .context("failed to downcast TimestampSecondType column")?
-            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        DataType::Timestamp(TimeUnit::Second, _) => Value::String(
+            column
+                .as_primitive::<TimestampSecondType>()
+                .value(row_index)
+                .to_string(),
         ),
         t => bail!("Unsupported data type: {:?}", t),
     };
