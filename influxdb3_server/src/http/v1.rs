@@ -826,30 +826,22 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
             }
             _ => Value::Null,
         },
-        DataType::Timestamp(TimeUnit::Nanosecond, _) => Value::String(
-            column
-                .as_primitive::<TimestampNanosecondType>()
-                .value(row_index)
-                .to_string(),
-        ),
-        DataType::Timestamp(TimeUnit::Microsecond, _) => Value::String(
-            column
-                .as_primitive::<TimestampMicrosecondType>()
-                .value(row_index)
-                .to_string(),
-        ),
-        DataType::Timestamp(TimeUnit::Millisecond, _) => Value::String(
-            column
-                .as_primitive::<TimestampMillisecondType>()
-                .value(row_index)
-                .to_string(),
-        ),
-        DataType::Timestamp(TimeUnit::Second, _) => Value::String(
-            column
-                .as_primitive::<TimestampSecondType>()
-                .value(row_index)
-                .to_string(),
-        ),
+        DataType::Timestamp(TimeUnit::Nanosecond, _) => column
+            .as_primitive::<TimestampNanosecondType>()
+            .value(row_index)
+            .into(),
+        DataType::Timestamp(TimeUnit::Microsecond, _) => column
+            .as_primitive::<TimestampMicrosecondType>()
+            .value(row_index)
+            .into(),
+        DataType::Timestamp(TimeUnit::Millisecond, _) => column
+            .as_primitive::<TimestampMillisecondType>()
+            .value(row_index)
+            .into(),
+        DataType::Timestamp(TimeUnit::Second, _) => column
+            .as_primitive::<TimestampSecondType>()
+            .value(row_index)
+            .into(),
         t => bail!("Unsupported data type: {:?}", t),
     };
     Ok(value)
