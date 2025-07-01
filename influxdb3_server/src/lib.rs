@@ -696,7 +696,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delete_table_defaults_to_hard_delete_never() {
+    async fn delete_table_defaults_to_hard_delete_default() {
         let start_time = 0;
         let (server, shutdown, write_buffer) = setup_server(start_time).await;
 
@@ -737,11 +737,12 @@ mod tests {
             .find(|table| table.deleted && table.table_name.starts_with(table_name))
             .expect("deleted table should exist");
 
-        // Verify the table is marked as deleted and hard_delete_time is None (Never)
+        // Verify the table is marked as deleted and hard_delete_time is set to default duration
         assert!(deleted_table.deleted, "table should be marked as deleted");
-        assert!(
-            deleted_table.hard_delete_time.is_none(),
-            "hard_delete_time should be None (Never) when hard_delete_at is omitted"
+        assert_eq!(
+            deleted_table.hard_delete_time.unwrap().timestamp_nanos(),
+            start_time + Catalog::DEFAULT_HARD_DELETE_DURATION.as_nanos() as i64,
+            "hard_delete_time should be set to default duration when hard_delete_at is omitted"
         );
 
         shutdown.cancel();
@@ -1021,7 +1022,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delete_database_defaults_to_hard_delete_never() {
+    async fn delete_database_defaults_to_hard_delete_default() {
         let start_time = 0;
         let (server, shutdown, write_buffer) = setup_server(start_time).await;
 
@@ -1058,11 +1059,12 @@ mod tests {
             .find(|db| db.deleted && db.name.starts_with(db_name))
             .expect("deleted database should exist");
 
-        // Verify the database is marked as deleted and hard_delete_time is None (Never)
+        // Verify the database is marked as deleted and hard_delete_time is set to default duration
         assert!(deleted_db.deleted, "database should be marked as deleted");
-        assert!(
-            deleted_db.hard_delete_time.is_none(),
-            "hard_delete_time should be None (Never) when hard_delete_at is omitted"
+        assert_eq!(
+            deleted_db.hard_delete_time.unwrap().timestamp_nanos(),
+            start_time + Catalog::DEFAULT_HARD_DELETE_DURATION.as_nanos() as i64,
+            "hard_delete_time should be set to default duration when hard_delete_at is omitted"
         );
 
         shutdown.cancel();
