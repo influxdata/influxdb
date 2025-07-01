@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use arrow::array::{StringViewBuilder, UInt64Builder};
 use arrow_array::{ArrayRef, RecordBatch};
-use arrow_schema::{DataType, Field, Schema, SchemaRef};
+use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
 use iox_system_tables::IoxSystemTable;
@@ -31,6 +31,11 @@ fn tables_schema() -> SchemaRef {
         Field::new("last_cache_count", DataType::UInt64, false),
         Field::new("distinct_cache_count", DataType::UInt64, false),
         Field::new("deleted", DataType::Boolean, false),
+        Field::new(
+            "hard_deletion_date",
+            DataType::Timestamp(TimeUnit::Second, None),
+            true,
+        ),
     ];
     Arc::new(Schema::new(columns))
 }
@@ -61,6 +66,8 @@ impl IoxSystemTable for TablesTable {
         let mut last_cache_count_arr = UInt64Builder::with_capacity(total_tables);
         let mut distinct_cache_count_arr = UInt64Builder::with_capacity(total_tables);
         let mut deleted_arr = arrow::array::BooleanBuilder::with_capacity(total_tables);
+        let mut hard_deletion_date_arr =
+            arrow::array::TimestampSecondBuilder::with_capacity(total_tables);
 
         for db in databases {
             for table in db.tables.resource_iter() {
@@ -76,6 +83,12 @@ impl IoxSystemTable for TablesTable {
                 distinct_cache_count_arr
                     .append_value(table.distinct_caches.resource_iter().count() as u64);
                 deleted_arr.append_value(table.deleted);
+
+                if let Some(hard_delete_time) = &table.hard_delete_time {
+                    hard_deletion_date_arr.append_value(hard_delete_time.timestamp())
+                } else {
+                    hard_deletion_date_arr.append_null()
+                }
             }
         }
 
@@ -87,6 +100,7 @@ impl IoxSystemTable for TablesTable {
             Arc::new(last_cache_count_arr.finish()),
             Arc::new(distinct_cache_count_arr.finish()),
             Arc::new(deleted_arr.finish()),
+            Arc::new(hard_deletion_date_arr.finish()),
         ];
 
         RecordBatch::try_new(self.schema(), columns).map_err(DataFusionError::from)
