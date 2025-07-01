@@ -1800,10 +1800,14 @@ impl UpdateDatabaseSchema for SoftDeleteDatabaseLog {
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
         let owned = schema.to_mut();
-        owned.name = make_new_name_using_deleted_time(&self.database_name, deletion_time);
-        owned.deleted = true;
+        // If it isn't already deleted, then we must generate a "deleted" name for the schema,
+        // based on the deletion_time
+        if !owned.deleted {
+            let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
+            owned.name = make_new_name_using_deleted_time(&self.database_name, deletion_time);
+            owned.deleted = true;
+        }
         owned.hard_delete_time = self.hard_deletion_time.map(Time::from_timestamp_nanos);
         Ok(schema)
     }
@@ -1820,13 +1824,17 @@ impl UpdateDatabaseSchema for SoftDeleteTableLog {
         }
         let mut_schema = schema.to_mut();
         if let Some(mut deleted_table) = mut_schema.tables.get_by_id(&self.table_id) {
-            let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
-            let table_name = make_new_name_using_deleted_time(&self.table_name, deletion_time);
             let new_table_def = Arc::make_mut(&mut deleted_table);
-            new_table_def.deleted = true;
+            // If it isn't already deleted, then we must generate a "deleted" name for the schema,
+            // based on the deletion_time
+            if !new_table_def.deleted {
+                let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
+                let table_name = make_new_name_using_deleted_time(&self.table_name, deletion_time);
+                new_table_def.deleted = true;
+                new_table_def.table_name = table_name;
+            }
             new_table_def.hard_delete_time =
                 self.hard_deletion_time.map(Time::from_timestamp_nanos);
-            new_table_def.table_name = table_name;
             mut_schema
                 .tables
                 .update(new_table_def.table_id, deleted_table)

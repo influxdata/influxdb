@@ -258,9 +258,21 @@ pub enum DatabaseCatalogOp {
 impl DatabaseCatalogOp {
     pub fn to_create_last_cache(self) -> Option<LastCacheDefinition> {
         match self {
-            DatabaseCatalogOp::CreateLastCache(create_last_cache_log) => {
-                Some(create_last_cache_log)
-            }
+            Self::CreateLastCache(create_last_cache_log) => Some(create_last_cache_log),
+            _ => None,
+        }
+    }
+
+    pub fn as_soft_delete_database(&self) -> Option<&SoftDeleteDatabaseLog> {
+        match self {
+            Self::SoftDeleteDatabase(log) => Some(log),
+            _ => None,
+        }
+    }
+
+    pub fn as_soft_delete_table(&self) -> Option<&SoftDeleteTableLog> {
+        match self {
+            Self::SoftDeleteTable(log) => Some(log),
             _ => None,
         }
     }
