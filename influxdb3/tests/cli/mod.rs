@@ -508,7 +508,7 @@ async fn test_delete_database_without_hard_delete_option() {
         format!("Database \"{db_name}\" deleted successfully")
     );
 
-    // Query system.databases to verify hard_deletion_date is NULL (default behavior)
+    // Query system.databases to verify hard_deletion_date follows default behavior
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
@@ -520,8 +520,8 @@ async fn test_delete_database_without_hard_delete_option() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be null when no option specified
-    assert!(data[0]["hard_deletion_date"].is_null());
+    // hard_deletion_date should be set to a future time (default retention) when no option specified
+    assert!(data[0]["hard_deletion_date"].is_string());
 }
 
 #[test_log::test(tokio::test)]
@@ -831,6 +831,252 @@ async fn test_delete_missing_table() {
 
     debug!(result = ?err, "delete missing table");
     assert_contains!(err.to_string(), "404");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_hard_delete_now() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_table_now";
+    let table_name = "cpu";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},host=a temp=1.0 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete with hard-delete now
+    let result = server
+        .delete_table(db_name, table_name)
+        .with_hard_delete("now")
+        .run()
+        .expect("delete table with hard-delete now");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify hard_deletion_date is set
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_date should be set (not null) and close to current time
+    assert!(data[0]["hard_deletion_date"].is_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_hard_delete_never() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_table_never";
+    let table_name = "memory";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},host=b used=100 2000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete with hard-delete never
+    let result = server
+        .delete_table(db_name, table_name)
+        .with_hard_delete("never")
+        .run()
+        .expect("delete table with hard-delete never");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify hard_deletion_date is NULL
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_date should be null
+    assert!(data[0]["hard_deletion_date"].is_null());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_hard_delete_default() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_table_default";
+    let table_name = "disk";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},device=sda used=500 3000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete with hard-delete default
+    let result = server
+        .delete_table(db_name, table_name)
+        .with_hard_delete("default")
+        .run()
+        .expect("delete table with hard-delete default");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify hard_deletion_date is set to future time
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_date should be set to a future time (default retention)
+    assert!(data[0]["hard_deletion_date"].is_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_hard_delete_timestamp() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_table_timestamp";
+    let table_name = "network";
+    let timestamp = "2025-12-31T23:59:59Z";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},interface=eth0 bytes=1000 4000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete with hard-delete timestamp
+    let result = server
+        .delete_table(db_name, table_name)
+        .with_hard_delete(timestamp)
+        .run()
+        .expect("delete table with hard-delete timestamp");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify hard_deletion_date matches timestamp
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_date should match the specified timestamp (may be without Z suffix)
+    let hard_deletion_date = data[0]["hard_deletion_date"].as_str().unwrap();
+    assert!(hard_deletion_date == timestamp || hard_deletion_date == "2025-12-31T23:59:59");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_without_hard_delete_option() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_delete_table_no_option";
+    let table_name = "sensors";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},sensor=temp1 value=22.5 5000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete without hard-delete option
+    let result = server
+        .delete_table(db_name, table_name)
+        .run()
+        .expect("delete table without hard-delete option");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify default behavior
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_date should be set to a future time (default retention) when no option specified
+    assert!(data[0]["hard_deletion_date"].is_string());
 }
 
 #[tokio::test]
