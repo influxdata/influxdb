@@ -443,7 +443,6 @@ async fn test_delete_database_with_hard_delete_default() {
     assert_eq!(data[0]["deleted"], true);
     // hard_deletion_date should be set and in the future
     assert!(data[0]["hard_deletion_date"].is_string());
-    // TODO: Could verify it's in the future if we parse the timestamp
 }
 
 #[test_log::test(tokio::test)]
