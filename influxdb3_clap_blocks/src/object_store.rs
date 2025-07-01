@@ -49,9 +49,6 @@ pub enum ParseError {
         missing: String,
     },
 
-    #[snafu(display("Object store not specified"))]
-    UnspecifiedObjectStore,
-
     // Creating a new S3 object store can fail if the region is *specified* but
     // not *parseable* as a rusoto `Region`. The other object store constructors
     // don't return `Result`.
@@ -347,11 +344,11 @@ macro_rules! object_store_config_inner {
             /// CLI config for object stores.
             #[derive(Debug, Clone, clap::Parser)]
             pub struct [<$prefix:camel ObjectStoreConfig>] {
-                /// Which object storage to use. If not specified, defaults to memory.
+                /// Which object storage to use.
                 ///
                 /// Possible values (case insensitive):
                 ///
-                /// * memory (default): Effectively no object persistence.
+                /// * memory: Effectively no object persistence.
                 /// * memorythrottled: Like `memory` but with latency and throughput that somewhat resamble a cloud
                 ///   object store. Useful for testing and benchmarking.
                 /// * file: Stores objects in the local filesystem. Must also set `--data-dir`.
@@ -367,9 +364,10 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE"),
                     ignore_case = true,
                     action,
+                    required = true,
                     verbatim_doc_comment
                 )]
-                pub object_store: Option<ObjectStoreType>,
+                pub object_store: ObjectStoreType,
 
                 /// Name of the bucket to use for the object store. Must also set
                 /// `--object-store` to a cloud object storage to have any effect.
@@ -658,17 +656,21 @@ macro_rules! object_store_config_inner {
 
                 /// Create a new instance for all-in-one mode, only allowing some arguments.
                 pub fn new(database_directory: Option<PathBuf>) -> Self {
-                    match &database_directory {
-                        Some(dir) => info!("Object store: File-based in `{}`", dir.display()),
-                        None => info!("Object store: In-memory"),
-                    }
-
-                    let object_store = database_directory.as_ref().map(|_| ObjectStoreType::File);
+                    let object_store = match &database_directory {
+                        Some(dir) => {
+                            info!("Object store: File-based in `{}`", dir.display());
+                            ObjectStoreType::File
+                        }
+                        None => {
+                            info!("Object store: In-memory");
+                            ObjectStoreType::Memory
+                        }
+                    };
 
                     Self {
                         aws_access_key_id: Default::default(),
                         aws_allow_http: Default::default(),
-                        aws_default_region: Default::default(),
+                        aws_default_region: FALLBACK_AWS_REGION.to_string(),
                         aws_endpoint: Default::default(),
                         aws_secret_access_key: Default::default(),
                         aws_session_token: Default::default(),
@@ -912,19 +914,18 @@ macro_rules! object_store_config_inner {
                 /// Create config-dependant object store.
                 pub fn make_object_store(&self) -> Result<Arc<DynObjectStore>, ParseError> {
                     if let Some(data_dir) = &self.database_directory {
-                        if !matches!(&self.object_store, Some(ObjectStoreType::File)) {
+                        if !matches!(&self.object_store, ObjectStoreType::File) {
                             warn!(?data_dir, object_store_type=?self.object_store,
                                   "--data-dir / `INFLUXDB3_DB_DIR` ignored. It only affects 'file' object stores");
                         }
                     }
 
                     let object_store: Arc<DynObjectStore> = match &self.object_store {
-                        None => return Err(ParseError::UnspecifiedObjectStore),
-                        Some(ObjectStoreType::Memory) => {
+                        ObjectStoreType::Memory => {
                             info!(object_store_type = "Memory", "Object Store");
                             Arc::new(InMemory::new())
                         }
-                        Some(ObjectStoreType::MemoryThrottled) => {
+                        ObjectStoreType::MemoryThrottled => {
                             let config = ThrottleConfig {
                                 // for every call: assume a 100ms latency
                                 wait_delete_per_call: Duration::from_millis(100),
@@ -945,10 +946,10 @@ macro_rules! object_store_config_inner {
                             Arc::new(ThrottledStore::new(InMemory::new(), config))
                         }
 
-                        Some(ObjectStoreType::Google) => self.new_gcs()?,
-                        Some(ObjectStoreType::S3) => self.new_s3()?,
-                        Some(ObjectStoreType::Azure) => self.new_azure()?,
-                        Some(ObjectStoreType::File) => self.new_local_file_system()?,
+                        ObjectStoreType::Google => self.new_gcs()?,
+                        ObjectStoreType::S3 => self.new_s3()?,
+                        ObjectStoreType::Azure => self.new_azure()?,
+                        ObjectStoreType::File => self.new_local_file_system()?,
                     };
 
                     Ok(object_store)
@@ -1024,8 +1025,8 @@ pub fn make_presigned_url_signer(
     config: &ObjectStoreConfig,
 ) -> Result<Option<Arc<dyn object_store::signer::Signer>>, ParseError> {
     match &config.object_store {
-        Some(ObjectStoreType::S3) => Ok(Some(Arc::new(config.build_s3_signer()?))),
-        Some(ObjectStoreType::File) => Ok(Some(Arc::new(LocalUploadSigner::new(config)?))),
+        ObjectStoreType::S3 => Ok(Some(Arc::new(config.build_s3_signer()?))),
+        ObjectStoreType::File => Ok(Some(Arc::new(LocalUploadSigner::new(config)?))),
         _ => Ok(None),
     }
 }
@@ -1037,7 +1038,7 @@ pub fn make_presigned_url_signer(
     config: &ObjectStoreConfig,
 ) -> Result<Option<Arc<dyn object_store::signer::Signer>>, ParseError> {
     match &config.object_store {
-        Some(ObjectStoreType::File) => Ok(Some(Arc::new(LocalUploadSigner::new(config)?))),
+        ObjectStoreType::File => Ok(Some(Arc::new(LocalUploadSigner::new(config)?))),
         _ => Ok(None),
     }
 }
@@ -1372,15 +1373,10 @@ mod tests {
 
     #[test]
     fn object_store_flag_is_required() {
-        let configs = vec![
-            StoreConfigs::Base(ObjectStoreConfig::try_parse_from(["server"]).unwrap()),
-            StoreConfigs::Source(SourceObjectStoreConfig::try_parse_from(["server"]).unwrap()),
-            StoreConfigs::Sink(SinkObjectStoreConfig::try_parse_from(["server"]).unwrap()),
-        ];
-        for config in configs {
-            let err = config.make_object_store().unwrap_err().to_string();
-            assert_eq!(err, "Object store not specified");
-        }
+        // Since object-store is now required, parsing should fail without it
+        assert!(ObjectStoreConfig::try_parse_from(["server"]).is_err());
+        assert!(SourceObjectStoreConfig::try_parse_from(["server"]).is_err());
+        assert!(SinkObjectStoreConfig::try_parse_from(["server"]).is_err());
     }
 
     #[test]
@@ -1410,7 +1406,8 @@ mod tests {
 
     #[test]
     fn default_url_signer_is_none() {
-        let config = ObjectStoreConfig::try_parse_from(["server"]).unwrap();
+        let config =
+            ObjectStoreConfig::try_parse_from(["server", "--object-store", "memory"]).unwrap();
 
         let signer = make_presigned_url_signer(&config).unwrap();
         assert!(signer.is_none(), "Expected None, got {signer:?}");
@@ -1476,8 +1473,14 @@ mod tests {
     #[test]
     #[cfg(feature = "aws")]
     fn valid_s3_endpoint_url() {
-        ObjectStoreConfig::try_parse_from(["server", "--aws-endpoint", "http://whatever.com"])
-            .expect("must successfully parse config with absolute AWS endpoint URL");
+        ObjectStoreConfig::try_parse_from([
+            "server",
+            "--aws-endpoint",
+            "http://whatever.com",
+            "--object-store",
+            "s3",
+        ])
+        .expect("must successfully parse config with absolute AWS endpoint URL");
     }
 
     #[test]
