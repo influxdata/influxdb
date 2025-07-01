@@ -67,6 +67,11 @@ impl HttpApi {
             query,
         } = qualified_params;
 
+        let epoch = epoch.or(match format {
+            QueryFormat::Csv => Some(Precision::Nanoseconds),
+            _ => None,
+        });
+
         if pretty {
             format = format.to_pretty();
         }
