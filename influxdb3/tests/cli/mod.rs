@@ -349,12 +349,12 @@ async fn test_delete_database_with_hard_delete_now() {
         format!("Database \"{db_name}\" deleted successfully")
     );
 
-    // Query system.databases to verify hard_deletion_date is set
+    // Query system.databases to verify hard_deletion_time is set
     // Note: deleted databases have their names changed to include the deletion timestamp
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT database_name, deleted, hard_deletion_date FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
         ))
         .run()
         .expect("query system.databases");
@@ -363,8 +363,8 @@ async fn test_delete_database_with_hard_delete_now() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be set (not null) and close to current time
-    assert!(data[0]["hard_deletion_date"].is_string());
+    // hard_deletion_time should be set (not null) and close to current time
+    assert!(data[0]["hard_deletion_time"].is_string());
 }
 
 #[test_log::test(tokio::test)]
@@ -390,11 +390,11 @@ async fn test_delete_database_with_hard_delete_never() {
         format!("Database \"{db_name}\" deleted successfully")
     );
 
-    // Query system.databases to verify hard_deletion_date is NULL
+    // Query system.databases to verify hard_deletion_time is NULL
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT database_name, deleted, hard_deletion_date FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
         ))
         .run()
         .expect("query system.databases");
@@ -402,8 +402,8 @@ async fn test_delete_database_with_hard_delete_never() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be null for "never"
-    assert!(data[0]["hard_deletion_date"].is_null());
+    // hard_deletion_time should be null for "never"
+    assert!(data[0]["hard_deletion_time"].is_null());
 }
 
 #[test_log::test(tokio::test)]
@@ -429,11 +429,11 @@ async fn test_delete_database_with_hard_delete_default() {
         format!("Database \"{db_name}\" deleted successfully")
     );
 
-    // Query system.databases to verify hard_deletion_date is set to a future time
+    // Query system.databases to verify hard_deletion_time is set to a future time
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT database_name, deleted, hard_deletion_date FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
         ))
         .run()
         .expect("query system.databases");
@@ -441,8 +441,8 @@ async fn test_delete_database_with_hard_delete_default() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be set and in the future
-    assert!(data[0]["hard_deletion_date"].is_string());
+    // hard_deletion_time should be set and in the future
+    assert!(data[0]["hard_deletion_time"].is_string());
 }
 
 #[test_log::test(tokio::test)]
@@ -469,11 +469,11 @@ async fn test_delete_database_with_hard_delete_timestamp() {
         format!("Database \"{db_name}\" deleted successfully")
     );
 
-    // Query system.databases to verify hard_deletion_date matches the timestamp
+    // Query system.databases to verify hard_deletion_time matches the timestamp
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT database_name, deleted, hard_deletion_date FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
         ))
         .run()
         .expect("query system.databases");
@@ -481,8 +481,8 @@ async fn test_delete_database_with_hard_delete_timestamp() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should match our timestamp
-    assert_eq!(data[0]["hard_deletion_date"], "2025-12-31T23:59:59");
+    // hard_deletion_time should match our timestamp
+    assert_eq!(data[0]["hard_deletion_time"], timestamp);
 }
 
 #[test_log::test(tokio::test)]
@@ -507,11 +507,11 @@ async fn test_delete_database_without_hard_delete_option() {
         format!("Database \"{db_name}\" deleted successfully")
     );
 
-    // Query system.databases to verify hard_deletion_date follows default behavior
+    // Query system.databases to verify hard_deletion_time follows default behavior
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT database_name, deleted, hard_deletion_date FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
         ))
         .run()
         .expect("query system.databases");
@@ -519,8 +519,8 @@ async fn test_delete_database_without_hard_delete_option() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be set to a future time (default retention) when no option specified
-    assert!(data[0]["hard_deletion_date"].is_string());
+    // hard_deletion_time should be set to a future time when no option specified
+    assert!(data[0]["hard_deletion_time"].is_string());
 }
 
 #[test_log::test(tokio::test)]
@@ -550,14 +550,14 @@ async fn test_update_hard_delete_time_on_deleted_database() {
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT database_name, deleted, hard_deletion_date FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
         ))
         .run()
         .expect("query system.databases");
 
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
-    assert!(data[0]["hard_deletion_date"].is_null());
+    assert!(data[0]["hard_deletion_time"].is_null());
 
     // Get the renamed database name
     let renamed_db_name = data[0]["database_name"]
@@ -576,11 +576,11 @@ async fn test_update_hard_delete_time_on_deleted_database() {
         format!("Database \"{renamed_db_name}\" deleted successfully")
     );
 
-    // Verify hard_deletion_date is now set
+    // Verify hard_deletion_time is now set
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT database_name, deleted, hard_deletion_date FROM system.databases WHERE database_name = '{renamed_db_name}'"
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name = '{renamed_db_name}'"
         ))
         .run()
         .expect("query system.databases after update");
@@ -588,8 +588,8 @@ async fn test_update_hard_delete_time_on_deleted_database() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should now be set
-    assert!(data[0]["hard_deletion_date"].is_string());
+    // hard_deletion_time should now be set
+    assert!(data[0]["hard_deletion_time"].is_string());
 }
 
 #[test_log::test(tokio::test)]
@@ -865,11 +865,11 @@ async fn test_delete_table_with_hard_delete_now() {
         format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
     );
 
-    // Query system.tables to verify hard_deletion_date is set
+    // Query system.tables to verify hard_deletion_time is set
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
         ))
         .run()
         .expect("query system.tables");
@@ -877,8 +877,8 @@ async fn test_delete_table_with_hard_delete_now() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be set (not null) and close to current time
-    assert!(data[0]["hard_deletion_date"].is_string());
+    // hard_deletion_time should be set (not null) and close to current time
+    assert!(data[0]["hard_deletion_time"].is_string());
 }
 
 #[test_log::test(tokio::test)]
@@ -914,11 +914,11 @@ async fn test_delete_table_with_hard_delete_never() {
         format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
     );
 
-    // Query system.tables to verify hard_deletion_date is NULL
+    // Query system.tables to verify hard_deletion_time is NULL
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
         ))
         .run()
         .expect("query system.tables");
@@ -926,8 +926,8 @@ async fn test_delete_table_with_hard_delete_never() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be null
-    assert!(data[0]["hard_deletion_date"].is_null());
+    // hard_deletion_time should be null
+    assert!(data[0]["hard_deletion_time"].is_null());
 }
 
 #[test_log::test(tokio::test)]
@@ -963,11 +963,11 @@ async fn test_delete_table_with_hard_delete_default() {
         format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
     );
 
-    // Query system.tables to verify hard_deletion_date is set to future time
+    // Query system.tables to verify hard_deletion_time is set to future time
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
         ))
         .run()
         .expect("query system.tables");
@@ -975,8 +975,8 @@ async fn test_delete_table_with_hard_delete_default() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be set to a future time (default retention)
-    assert!(data[0]["hard_deletion_date"].is_string());
+    // hard_deletion_time should be set to a future time
+    assert!(data[0]["hard_deletion_time"].is_string());
 }
 
 #[test_log::test(tokio::test)]
@@ -1013,11 +1013,11 @@ async fn test_delete_table_with_hard_delete_timestamp() {
         format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
     );
 
-    // Query system.tables to verify hard_deletion_date matches timestamp
+    // Query system.tables to verify hard_deletion_time matches timestamp
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
         ))
         .run()
         .expect("query system.tables");
@@ -1025,9 +1025,8 @@ async fn test_delete_table_with_hard_delete_timestamp() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should match the specified timestamp (may be without Z suffix)
-    let hard_deletion_date = data[0]["hard_deletion_date"].as_str().unwrap();
-    assert!(hard_deletion_date == timestamp || hard_deletion_date == "2025-12-31T23:59:59");
+    // hard_deletion_time should match the specified timestamp
+    assert_eq!(data[0]["hard_deletion_time"], timestamp);
 }
 
 #[test_log::test(tokio::test)]
@@ -1066,7 +1065,7 @@ async fn test_delete_table_without_hard_delete_option() {
     let result = server
         .query_sql("_internal")
         .with_sql(format!(
-            "SELECT table_name, deleted, hard_deletion_date FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
         ))
         .run()
         .expect("query system.tables");
@@ -1074,8 +1073,8 @@ async fn test_delete_table_without_hard_delete_option() {
     let data = result.as_array().expect("result should be an array");
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["deleted"], true);
-    // hard_deletion_date should be set to a future time (default retention) when no option specified
-    assert!(data[0]["hard_deletion_date"].is_string());
+    // hard_deletion_time should be set to a future time (default retention) when no option specified
+    assert!(data[0]["hard_deletion_time"].is_string());
 }
 
 #[tokio::test]

@@ -63,6 +63,10 @@ impl HardDeletionTime {
             HardDeletionTime::Now => Some(time_provider.now()),
         }
     }
+
+    fn is_default(self) -> bool {
+        matches!(self, HardDeletionTime::Default)
+    }
 }
 
 impl std::fmt::Display for HardDeletionTime {
@@ -309,10 +313,15 @@ impl Catalog {
                 return Err(CatalogError::NotFound);
             };
 
-            let hard_deletion_time =
-                hard_delete_time.as_time(&self.time_provider, self.default_hard_delete_duration());
+            // If the request specifies the default hard-delete time, and the schema has an existing hard_delete_time,
+            // use that for the default, so the DELETE operation is idempotent.
+            let resolved_hard_delete_time = if hard_delete_time.is_default() && let Some(existing) = db.hard_delete_time {
+                Some(existing)
+            } else {
+                hard_delete_time.as_time(&self.time_provider, self.default_hard_delete_duration())
+            };
 
-            let hard_delete_changed = db.hard_delete_time != hard_deletion_time;
+            let hard_delete_changed = db.hard_delete_time != resolved_hard_delete_time;
             if db.deleted && !hard_delete_changed {
                 return Err(CatalogError::AlreadyDeleted);
             }
@@ -327,7 +336,7 @@ impl Catalog {
                         database_id,
                         database_name: db.name(),
                         deletion_time,
-                        hard_deletion_time: hard_deletion_time.map(|t|t.timestamp_nanos()),
+                        hard_deletion_time: resolved_hard_delete_time.map(|t|t.timestamp_nanos()),
                     },
                 )],
             ))
@@ -377,10 +386,15 @@ impl Catalog {
                 return Err(CatalogError::NotFound);
             };
 
-            let hard_deletion_time =
-                hard_delete_time.as_time(&self.time_provider, self.default_hard_delete_duration());
+            // If the request specifies the default hard-delete time, and the schema has an existing hard_delete_time,
+            // use that for the default, so the DELETE operation is idempotent.
+            let resolved_hard_delete_time = if hard_delete_time.is_default() && let Some(existing) = tbl_def.hard_delete_time {
+                Some(existing)
+            } else {
+                hard_delete_time.as_time(&self.time_provider, self.default_hard_delete_duration())
+            };
 
-            let hard_delete_changed = db.hard_delete_time != hard_deletion_time;
+            let hard_delete_changed = tbl_def.hard_delete_time != resolved_hard_delete_time;
             if tbl_def.deleted && !hard_delete_changed {
                 return Err(CatalogError::AlreadyDeleted);
             }
@@ -395,7 +409,7 @@ impl Catalog {
                     table_id: tbl_def.table_id,
                     table_name: Arc::clone(&tbl_def.table_name),
                     deletion_time,
-                    hard_deletion_time: hard_deletion_time.map(|t|t.timestamp_nanos()),
+                    hard_deletion_time: resolved_hard_delete_time.map(|t|t.timestamp_nanos()),
                 })],
             ))
         })
