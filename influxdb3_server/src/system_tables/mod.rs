@@ -45,6 +45,8 @@ pub(crate) const TOKENS_TABLE_NAME: &str = "tokens";
 pub(crate) const DATABASES_TABLE_NAME: &str = "databases";
 pub(crate) const TABLES_TABLE_NAME: &str = "tables";
 pub(crate) const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
+/// The default timezone used in the system schema.
+pub(crate) const DEFAULT_TIMEZONE: &str = "UTC";
 
 const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
 

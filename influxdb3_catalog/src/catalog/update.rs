@@ -51,12 +51,31 @@ pub enum HardDeletionTime {
 }
 
 impl HardDeletionTime {
-    fn value(self, time_provider: &dyn TimeProvider, default: Duration) -> Option<i64> {
+    fn as_time(
+        self,
+        time_provider: &dyn TimeProvider,
+        default: Duration,
+    ) -> Option<iox_time::Time> {
         match self {
             HardDeletionTime::Never => None,
-            HardDeletionTime::Default => Some(time_provider.now().add(default).timestamp_nanos()),
-            HardDeletionTime::Timestamp(time) => Some(time.timestamp_nanos()),
-            HardDeletionTime::Now => Some(time_provider.now().timestamp_nanos()),
+            HardDeletionTime::Default => Some(time_provider.now().add(default)),
+            HardDeletionTime::Timestamp(time) => Some(time),
+            HardDeletionTime::Now => Some(time_provider.now()),
+        }
+    }
+
+    fn is_default(self) -> bool {
+        matches!(self, HardDeletionTime::Default)
+    }
+}
+
+impl std::fmt::Display for HardDeletionTime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HardDeletionTime::Never => write!(f, "never"),
+            HardDeletionTime::Default => write!(f, "default"),
+            HardDeletionTime::Timestamp(time) => write!(f, "{time}"),
+            HardDeletionTime::Now => write!(f, "now"),
         }
     }
 }
@@ -285,7 +304,6 @@ impl Catalog {
         name: &str,
         hard_delete_time: HardDeletionTime,
     ) -> Result<OrderedCatalogBatch> {
-        info!(name, "soft delete database");
         self.catalog_update_with_retry(|| {
             if name == INTERNAL_DB_NAME {
                 return Err(CatalogError::CannotDeleteInternalDatabase);
@@ -294,7 +312,17 @@ impl Catalog {
             let Some(db) = self.db_schema(name) else {
                 return Err(CatalogError::NotFound);
             };
-            if db.deleted {
+
+            // If the request specifies the default hard-delete time, and the schema has an existing hard_delete_time,
+            // use that for the default, so the DELETE operation is idempotent.
+            let resolved_hard_delete_time = if hard_delete_time.is_default() && let Some(existing) = db.hard_delete_time {
+                Some(existing)
+            } else {
+                hard_delete_time.as_time(&self.time_provider, self.default_hard_delete_duration())
+            };
+
+            let hard_delete_changed = db.hard_delete_time != resolved_hard_delete_time;
+            if db.deleted && !hard_delete_changed {
                 return Err(CatalogError::AlreadyDeleted);
             }
             let deletion_time = self.time_provider.now().timestamp_nanos();
@@ -308,13 +336,24 @@ impl Catalog {
                         database_id,
                         database_name: db.name(),
                         deletion_time,
-                        hard_deletion_time: hard_delete_time
-                            .value(&self.time_provider, self.default_hard_delete_duration()),
+                        hard_deletion_time: resolved_hard_delete_time.map(|t|t.timestamp_nanos()),
                     },
                 )],
             ))
         })
         .await
+        .inspect(|batch| {
+            let Some(op) = batch
+                .catalog_batch
+                .as_database()
+                .and_then(|db| db.ops.first())
+                .and_then(|op| op.as_soft_delete_database())
+            else {
+                return;
+            };
+
+            info!(db_name = %op.database_name, db_id = %op.database_id, %hard_delete_time, "Delete database.");
+        })
     }
 
     pub async fn create_table(
@@ -339,7 +378,6 @@ impl Catalog {
         table_name: &str,
         hard_delete_time: HardDeletionTime,
     ) -> Result<OrderedCatalogBatch> {
-        info!(db_name, table_name, "soft delete database");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
@@ -347,6 +385,19 @@ impl Catalog {
             let Some(tbl_def) = db.table_definition(table_name) else {
                 return Err(CatalogError::NotFound);
             };
+
+            // If the request specifies the default hard-delete time, and the schema has an existing hard_delete_time,
+            // use that for the default, so the DELETE operation is idempotent.
+            let resolved_hard_delete_time = if hard_delete_time.is_default() && let Some(existing) = tbl_def.hard_delete_time {
+                Some(existing)
+            } else {
+                hard_delete_time.as_time(&self.time_provider, self.default_hard_delete_duration())
+            };
+
+            let hard_delete_changed = tbl_def.hard_delete_time != resolved_hard_delete_time;
+            if tbl_def.deleted && !hard_delete_changed {
+                return Err(CatalogError::AlreadyDeleted);
+            }
             let deletion_time = self.time_provider.now().timestamp_nanos();
             Ok(CatalogBatch::database(
                 deletion_time,
@@ -358,12 +409,23 @@ impl Catalog {
                     table_id: tbl_def.table_id,
                     table_name: Arc::clone(&tbl_def.table_name),
                     deletion_time,
-                    hard_deletion_time: hard_delete_time
-                        .value(&self.time_provider, self.default_hard_delete_duration()),
+                    hard_deletion_time: resolved_hard_delete_time.map(|t|t.timestamp_nanos()),
                 })],
             ))
         })
         .await
+            .inspect(|batch| {
+                let Some(op) = batch
+                    .catalog_batch
+                    .as_database()
+                    .and_then(|db| db.ops.first())
+                    .and_then(|op| op.as_soft_delete_table())
+                else {
+                    return;
+                };
+
+                info!(db_name = %op.database_name, db_id = %op.database_id, table_name = %op.table_name, table_id = %op.table_id, %hard_delete_time, "Delete table.")
+            })
     }
 
     /// Permanently delete a table from the catalog.

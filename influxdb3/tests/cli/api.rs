@@ -255,6 +255,7 @@ impl ShowDatabasesQuery<'_> {
 pub struct DeleteDatabaseQuery<'a> {
     server: &'a TestServer,
     name: String,
+    hard_delete: Option<String>,
 }
 
 impl TestServer {
@@ -262,12 +263,25 @@ impl TestServer {
         DeleteDatabaseQuery {
             server: self,
             name: name.into(),
+            hard_delete: None,
         }
     }
 }
 
 impl DeleteDatabaseQuery<'_> {
+    pub fn with_hard_delete(mut self, when: impl Into<String>) -> Self {
+        self.hard_delete = Some(when.into());
+        self
+    }
+
     pub fn run(self) -> Result<String> {
+        let mut args = vec![self.name.as_str()];
+
+        if let Some(hard_delete) = &self.hard_delete {
+            args.push("--hard-delete");
+            args.push(hard_delete);
+        }
+
         self.server.run_with_confirmation(
             vec![
                 "delete",
@@ -275,7 +289,7 @@ impl DeleteDatabaseQuery<'_> {
                 "--tls-ca",
                 "../testing-certs/rootCA.pem",
             ],
-            &[self.name.as_str()],
+            &args,
         )
     }
 }
@@ -364,6 +378,7 @@ pub struct DeleteTableQuery<'a> {
     server: &'a TestServer,
     db_name: String,
     table_name: String,
+    hard_delete: Option<String>,
 }
 
 impl TestServer {
@@ -376,19 +391,31 @@ impl TestServer {
             server: self,
             db_name: db_name.into(),
             table_name: table_name.into(),
+            hard_delete: None,
         }
     }
 }
 
 impl DeleteTableQuery<'_> {
+    pub fn with_hard_delete(mut self, when: impl Into<String>) -> Self {
+        self.hard_delete = Some(when.into());
+        self
+    }
+
     pub fn run(self) -> Result<String> {
-        let args = vec![
+        let mut args = vec![
             self.table_name.as_str(),
             "--database",
             self.db_name.as_str(),
-            "--tls-ca",
-            "../testing-certs/rootCA.pem",
         ];
+
+        if let Some(hard_delete) = &self.hard_delete {
+            args.push("--hard-delete");
+            args.push(hard_delete);
+        }
+
+        args.push("--tls-ca");
+        args.push("../testing-certs/rootCA.pem");
 
         self.server
             .run_with_confirmation(vec!["delete", "table"], &args)

@@ -1800,10 +1800,14 @@ impl UpdateDatabaseSchema for SoftDeleteDatabaseLog {
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
         let owned = schema.to_mut();
-        owned.name = make_new_name_using_deleted_time(&self.database_name, deletion_time);
-        owned.deleted = true;
+        // If it isn't already deleted, then we must generate a "deleted" name for the schema,
+        // based on the deletion_time
+        if !owned.deleted {
+            let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
+            owned.name = make_new_name_using_deleted_time(&self.database_name, deletion_time);
+            owned.deleted = true;
+        }
         owned.hard_delete_time = self.hard_deletion_time.map(Time::from_timestamp_nanos);
         Ok(schema)
     }
@@ -1820,13 +1824,17 @@ impl UpdateDatabaseSchema for SoftDeleteTableLog {
         }
         let mut_schema = schema.to_mut();
         if let Some(mut deleted_table) = mut_schema.tables.get_by_id(&self.table_id) {
-            let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
-            let table_name = make_new_name_using_deleted_time(&self.table_name, deletion_time);
             let new_table_def = Arc::make_mut(&mut deleted_table);
-            new_table_def.deleted = true;
+            // If it isn't already deleted, then we must generate a "deleted" name for the schema,
+            // based on the deletion_time
+            if !new_table_def.deleted {
+                let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
+                let table_name = make_new_name_using_deleted_time(&self.table_name, deletion_time);
+                new_table_def.deleted = true;
+                new_table_def.table_name = table_name;
+            }
             new_table_def.hard_delete_time =
                 self.hard_deletion_time.map(Time::from_timestamp_nanos);
-            new_table_def.table_name = table_name;
             mut_schema
                 .tables
                 .update(new_table_def.table_id, deleted_table)
@@ -5265,5 +5273,462 @@ mod tests {
             }
             other => panic!("Expected Hard deletion status for table3, got {other:?}"),
         }
+    }
+
+    // Tests for idempotent default hard deletion behavior
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_soft_delete_default_preserves_existing_hard_delete_time() {
+        // Test that soft deleting a database with Default preserves existing hard_delete_time
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // First soft delete with a specific timestamp
+        let specific_time = Time::from_timestamp_nanos(5000000000);
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Timestamp(specific_time))
+            .await
+            .unwrap();
+
+        // Verify the database is soft deleted with the specific hard_delete_time
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(specific_time));
+
+        // Get the renamed database name using the ID
+        let renamed_db_name = catalog
+            .db_schema_by_id(&db_id)
+            .expect("soft-deleted database should exist")
+            .name();
+
+        // Now soft delete again with Default using the renamed name
+        // This should return AlreadyDeleted since nothing changes
+        let result = catalog
+            .soft_delete_database(&renamed_db_name, HardDeletionTime::Default)
+            .await;
+
+        // Should get AlreadyDeleted error since hard_delete_time doesn't change
+        assert!(
+            matches!(result, Err(CatalogError::AlreadyDeleted)),
+            "Expected AlreadyDeleted error, got {result:?}"
+        );
+
+        // Verify hard_delete_time is unchanged
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(specific_time));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_soft_delete_default_sets_new_when_none_exists() {
+        // Test that soft deleting a database with Default sets new hard_delete_time when none exists
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // Soft delete with Default - should set new hard_delete_time
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Default)
+            .await
+            .unwrap();
+
+        // Verify hard_delete_time is set to now + default duration
+        let expected_time = now + Catalog::DEFAULT_HARD_DELETE_DURATION;
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(expected_time));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_soft_delete_default_multiple_calls_idempotent() {
+        // Test that multiple soft delete calls with Default are idempotent
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // First soft delete with a specific timestamp
+        let specific_time = Time::from_timestamp_nanos(5000000000);
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Timestamp(specific_time))
+            .await
+            .unwrap();
+
+        // Verify initial state
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(specific_time));
+
+        // Get the renamed database name using the ID
+        let renamed_db_name = catalog
+            .db_schema_by_id(&db_id)
+            .expect("soft-deleted database should exist")
+            .name();
+
+        // Call soft delete with Default multiple times - all should be idempotent
+        for i in 1..=3 {
+            let result = catalog
+                .soft_delete_database(&renamed_db_name, HardDeletionTime::Default)
+                .await;
+
+            // Should always get AlreadyDeleted since nothing changes
+            assert!(
+                matches!(result, Err(CatalogError::AlreadyDeleted)),
+                "Call {i} expected AlreadyDeleted error, got {result:?}"
+            );
+
+            // Verify hard_delete_time remains unchanged
+            let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+            assert!(db_schema.deleted);
+            assert_eq!(
+                db_schema.hard_delete_time,
+                Some(specific_time),
+                "hard_delete_time should remain unchanged after call {}",
+                i
+            );
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_database_soft_delete_override_existing_with_specific_time() {
+        // Test that soft deleting with specific time overrides existing hard_delete_time
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+
+        // Get database ID before soft delete
+        let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+        // First soft delete with Default
+        catalog
+            .soft_delete_database("test_db", HardDeletionTime::Default)
+            .await
+            .unwrap();
+
+        // Verify initial state with default hard_delete_time
+        let expected_default_time = now + Catalog::DEFAULT_HARD_DELETE_DURATION;
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(expected_default_time));
+
+        // Get the renamed database name using the ID
+        let renamed_db_name = catalog
+            .db_schema_by_id(&db_id)
+            .expect("soft-deleted database should exist")
+            .name();
+
+        // Now soft delete again with a specific timestamp - should update the hard_delete_time
+        let new_specific_time = Time::from_timestamp_nanos(7000000000);
+        catalog
+            .soft_delete_database(
+                &renamed_db_name,
+                HardDeletionTime::Timestamp(new_specific_time),
+            )
+            .await
+            .unwrap();
+
+        // Verify hard_delete_time was updated to the new specific time
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert!(db_schema.deleted);
+        assert_eq!(db_schema.hard_delete_time, Some(new_specific_time));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_soft_delete_default_preserves_existing_hard_delete_time() {
+        // Test that soft deleting a table with Default preserves existing hard_delete_time
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1", "tag2"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        // Get the table ID before soft delete
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+        // First soft delete with a specific timestamp
+        let specific_time = Time::from_timestamp_nanos(5000000000);
+        catalog
+            .soft_delete_table(
+                "test_db",
+                "test_table",
+                HardDeletionTime::Timestamp(specific_time),
+            )
+            .await
+            .unwrap();
+
+        // Get the renamed table using the table ID
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_def = db_schema
+            .table_definition_by_id(&table_id)
+            .expect("soft-deleted table should exist");
+        let renamed_table_name = Arc::<str>::clone(&table_def.table_name);
+
+        // Verify the table is soft deleted with the specific hard_delete_time
+        assert!(table_def.deleted);
+        assert_eq!(table_def.hard_delete_time, Some(specific_time));
+
+        // Now soft delete again with Default using the renamed name
+        // This should return AlreadyDeleted since nothing changes
+        let result = catalog
+            .soft_delete_table("test_db", &renamed_table_name, HardDeletionTime::Default)
+            .await;
+
+        // Should get AlreadyDeleted error since hard_delete_time doesn't change
+        assert!(
+            matches!(result, Err(CatalogError::AlreadyDeleted)),
+            "Expected AlreadyDeleted error, got {result:?}"
+        );
+
+        // Verify hard_delete_time is unchanged
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_def = db_schema.table_definition(&renamed_table_name).unwrap();
+        assert!(table_def.deleted);
+        assert_eq!(table_def.hard_delete_time, Some(specific_time));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_soft_delete_default_sets_new_when_none_exists() {
+        // Test that soft deleting a table with Default sets new hard_delete_time when none exists
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+
+        // Get the table ID before soft delete
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+        // Soft delete with Default - should set new hard_delete_time
+        catalog
+            .soft_delete_table("test_db", "test_table", HardDeletionTime::Default)
+            .await
+            .unwrap();
+
+        // Get the table using the table ID
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_def = db_schema
+            .table_definition_by_id(&table_id)
+            .expect("soft-deleted table should exist");
+
+        // Verify hard_delete_time is set to now + default duration
+        let expected_time = now + Catalog::DEFAULT_HARD_DELETE_DURATION;
+        assert!(table_def.deleted);
+        assert_eq!(table_def.hard_delete_time, Some(expected_time));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_soft_delete_default_multiple_calls_idempotent() {
+        // Test that multiple soft delete calls with Default are idempotent
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1", "tag2"],
+                &[("field1", FieldDataType::Integer)],
+            )
+            .await
+            .unwrap();
+
+        // Get the table ID before soft delete
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+        // First soft delete with a specific timestamp
+        let specific_time = Time::from_timestamp_nanos(5000000000);
+        catalog
+            .soft_delete_table(
+                "test_db",
+                "test_table",
+                HardDeletionTime::Timestamp(specific_time),
+            )
+            .await
+            .unwrap();
+
+        // Get the renamed table name using the table ID
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_def = db_schema
+            .table_definition_by_id(&table_id)
+            .expect("soft-deleted table should exist");
+        let renamed_table_name = Arc::<str>::clone(&table_def.table_name);
+
+        // Call soft delete with Default multiple times - all should be idempotent
+        for i in 1..=3 {
+            let result = catalog
+                .soft_delete_table("test_db", &renamed_table_name, HardDeletionTime::Default)
+                .await;
+
+            // Should always get AlreadyDeleted since nothing changes
+            assert!(
+                matches!(result, Err(CatalogError::AlreadyDeleted)),
+                "Call {i} expected AlreadyDeleted error, got {result:?}"
+            );
+
+            // Verify hard_delete_time remains unchanged
+            let db_schema = catalog.db_schema("test_db").unwrap();
+            let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
+            assert!(table_def.deleted);
+            assert_eq!(
+                table_def.hard_delete_time,
+                Some(specific_time),
+                "hard_delete_time should remain unchanged after call {}",
+                i
+            );
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_table_soft_delete_override_existing_with_specific_time() {
+        // Test that soft deleting with specific time overrides existing hard_delete_time
+        use iox_time::MockProvider;
+        let now = Time::from_timestamp_nanos(1000000000);
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::UInteger)],
+            )
+            .await
+            .unwrap();
+
+        // Get the table ID before soft delete
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+        // First soft delete with Default
+        catalog
+            .soft_delete_table("test_db", "test_table", HardDeletionTime::Default)
+            .await
+            .unwrap();
+
+        // Get the renamed table and verify initial state
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_def = db_schema
+            .table_definition_by_id(&table_id)
+            .expect("soft-deleted table should exist");
+        let renamed_table_name = Arc::<str>::clone(&table_def.table_name);
+
+        // Verify initial state with default hard_delete_time
+        let expected_default_time = now + Catalog::DEFAULT_HARD_DELETE_DURATION;
+        assert!(table_def.deleted);
+        assert_eq!(table_def.hard_delete_time, Some(expected_default_time));
+
+        // Now soft delete again with a specific timestamp - should update the hard_delete_time
+        let new_specific_time = Time::from_timestamp_nanos(7000000000);
+        catalog
+            .soft_delete_table(
+                "test_db",
+                &renamed_table_name,
+                HardDeletionTime::Timestamp(new_specific_time),
+            )
+            .await
+            .unwrap();
+
+        // Verify hard_delete_time was updated to the new specific time
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
+        assert!(table_def.deleted);
+        assert_eq!(table_def.hard_delete_time, Some(new_specific_time));
     }
 }
