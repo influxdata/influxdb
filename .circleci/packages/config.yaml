@@ -113,6 +113,4 @@ packages:
         target: usr/share/influxdb3/LICENSE-APACHE
       - source: LICENSE-MIT
         target: usr/share/influxdb3/LICENSE-MIT
-      - source: README.md
-        target: usr/share/influxdb3/README.md
     source: .circleci/packages/influxdb3
