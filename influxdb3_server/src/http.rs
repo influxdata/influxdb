@@ -1266,7 +1266,7 @@ impl HttpApi {
         let uri = req.uri();
         let query_str = uri.query().unwrap_or("");
 
-        let parsed_url = url::Url::parse(&format!("http://influxdata.com?{}", query_str)).unwrap();
+        let parsed_url = url::Url::parse(&format!("http://influxdata.com?{query_str}")).unwrap();
         let params: HashMap<String, String> = parsed_url
             .query_pairs()
             .map(|(k, v)| (k.to_string(), v.to_string()))

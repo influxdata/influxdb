@@ -1022,9 +1022,9 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM cpu",
             expected: "name,tags,time,host,usage\n\
-            cpu,,2065-01-07T17:28:51Z,a,0.9\n\
-            cpu,,2065-01-07T17:28:52Z,a,0.89\n\
-            cpu,,2065-01-07T17:28:53Z,a,0.85\n\r\n",
+            cpu,,2998574931000000000,a,0.9\n\
+            cpu,,2998574932000000000,a,0.89\n\
+            cpu,,2998574933000000000,a,0.85\n\r\n",
         },
         // Basic Query with multiple measurements:
         TestCase {
@@ -1032,12 +1032,12 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM cpu, mem",
             expected: "name,tags,time,host,usage\n\
-            mem,,2065-01-07T17:28:54Z,a,0.5\n\
-            mem,,2065-01-07T17:28:55Z,a,0.6\n\
-            mem,,2065-01-07T17:28:56Z,a,0.7\n\
-            cpu,,2065-01-07T17:28:51Z,a,0.9\n\
-            cpu,,2065-01-07T17:28:52Z,a,0.89\n\
-            cpu,,2065-01-07T17:28:53Z,a,0.85\n\r\n",
+            mem,,2998574934000000000,a,0.5\n\
+            mem,,2998574935000000000,a,0.6\n\
+            mem,,2998574936000000000,a,0.7\n\
+            cpu,,2998574931000000000,a,0.9\n\
+            cpu,,2998574932000000000,a,0.89\n\
+            cpu,,2998574933000000000,a,0.85\n\r\n",
         },
         // Basic Query with db in query string:
         TestCase {
@@ -1045,9 +1045,9 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM foo.autogen.cpu",
             expected: "name,tags,time,host,usage\n\
-          cpu,,2065-01-07T17:28:51Z,a,0.9\n\
-          cpu,,2065-01-07T17:28:52Z,a,0.89\n\
-          cpu,,2065-01-07T17:28:53Z,a,0.85\n\r\n",
+          cpu,,2998574931000000000,a,0.9\n\
+          cpu,,2998574932000000000,a,0.89\n\
+          cpu,,2998574933000000000,a,0.85\n\r\n",
         },
         // Basic Query epoch parameter set:
         TestCase {

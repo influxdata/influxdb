@@ -17,7 +17,7 @@ Examples:
 {}
   --node-id <NODE_ID>              Node identifier used as prefix in object store file paths
                                   [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
-  --object-store <STORE>           Object storage to use [default: memory]
+  --object-store <STORE>           Object storage to use
                                   [possible values: memory, memory-throttled, file, s3, google, azure]
 
 {}

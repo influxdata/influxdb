@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use crate::system_tables::DEFAULT_TIMEZONE;
 use arrow::array::{StringViewBuilder, UInt64Builder};
 use arrow_array::{ArrayRef, RecordBatch};
-use arrow_schema::{DataType, Field, Schema, SchemaRef};
+use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::{Catalog, RetentionPeriod};
 use iox_system_tables::IoxSystemTable;
@@ -27,6 +28,11 @@ fn databases_schema() -> SchemaRef {
         Field::new("database_name", DataType::Utf8View, false),
         Field::new("retention_period_ns", DataType::UInt64, true),
         Field::new("deleted", DataType::Boolean, false),
+        Field::new(
+            "hard_deletion_time",
+            DataType::Timestamp(TimeUnit::Second, Some(DEFAULT_TIMEZONE.into())),
+            true,
+        ),
     ];
     Arc::new(Schema::new(columns))
 }
@@ -47,6 +53,10 @@ impl IoxSystemTable for DatabasesTable {
         let mut database_name_arr = StringViewBuilder::with_capacity(databases.len());
         let mut retention_period_arr = UInt64Builder::with_capacity(databases.len());
         let mut deleted_arr = arrow::array::BooleanBuilder::with_capacity(databases.len());
+        let mut hard_deletion_time_arr =
+            arrow::array::TimestampSecondBuilder::with_capacity(databases.len()).with_data_type(
+                DataType::Timestamp(TimeUnit::Second, Some(DEFAULT_TIMEZONE.into())),
+            );
 
         for db in databases {
             database_name_arr.append_value(&db.name);
@@ -59,12 +69,19 @@ impl IoxSystemTable for DatabasesTable {
             }
 
             deleted_arr.append_value(db.deleted);
+
+            if let Some(hard_delete_time) = &db.hard_delete_time {
+                hard_deletion_time_arr.append_value(hard_delete_time.timestamp())
+            } else {
+                hard_deletion_time_arr.append_null()
+            }
         }
 
         let columns: Vec<ArrayRef> = vec![
             Arc::new(database_name_arr.finish()),
             Arc::new(retention_period_arr.finish()),
             Arc::new(deleted_arr.finish()),
+            Arc::new(hard_deletion_time_arr.finish()),
         ];
 
         RecordBatch::try_new(self.schema(), columns).map_err(DataFusionError::from)

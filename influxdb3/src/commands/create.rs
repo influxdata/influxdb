@@ -400,7 +400,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                         let json = json!({"token": response.token, "help_msg": help_msg});
                         let stringified = serde_json::to_string_pretty(&json)
                             .expect("token details to be parseable");
-                        println!("{}", stringified);
+                        println!("{stringified}");
                     }
                     token::TokenOutputFormat::Text => {
                         let token = response.token;
@@ -419,7 +419,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     }
                 },
                 Err(err) => {
-                    println!("Failed to create token, error: {:?}", err);
+                    println!("Failed to create token, error: {err:?}");
                 }
             }
         }
@@ -458,10 +458,10 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 .await
             {
                 Err(e) => {
-                    eprintln!("Failed to create trigger: {}", e);
+                    eprintln!("Failed to create trigger: {e}");
                     return Err(e.into());
                 }
-                Ok(_) => println!("Trigger {} created successfully", trigger_name),
+                Ok(_) => println!("Trigger {trigger_name} created successfully"),
             }
         }
     }

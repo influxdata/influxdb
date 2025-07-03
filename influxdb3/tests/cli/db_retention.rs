@@ -121,7 +121,7 @@ async fn test_update_db_retention_period() {
 
     assert_contains!(
         &result,
-        format!("Database \"{}\" created successfully", db_name)
+        format!("Database \"{db_name}\" created successfully")
     );
 
     // Update database retention period
@@ -141,7 +141,7 @@ async fn test_update_db_retention_period() {
 
     assert_contains!(
         &result,
-        format!("Database \"{}\" updated successfully", db_name)
+        format!("Database \"{db_name}\" updated successfully")
     );
 
     // Verify the updated retention period
@@ -158,7 +158,7 @@ async fn test_update_db_retention_period() {
                 "query",
                 "-d",
                 "_internal",
-                &format!("SELECT retention_period_ns FROM system.databases WHERE system.databases.database_name='{}'", db_name),
+                &format!("SELECT retention_period_ns FROM system.databases WHERE system.databases.database_name='{db_name}'"),
             ],
             args,
         )
@@ -183,7 +183,7 @@ async fn test_clear_db_retention_period() {
 
     assert_contains!(
         &result,
-        format!("Database \"{}\" created successfully", db_name)
+        format!("Database \"{db_name}\" created successfully")
     );
 
     // Clear database retention period (set to none)
@@ -203,7 +203,7 @@ async fn test_clear_db_retention_period() {
 
     assert_contains!(
         &result,
-        format!("Database \"{}\" updated successfully", db_name)
+        format!("Database \"{db_name}\" updated successfully")
     );
 
     // Verify the retention period is now none (cleared)
@@ -220,7 +220,7 @@ async fn test_clear_db_retention_period() {
                 "query",
                 "-d",
                 "_internal",
-                &format!("SELECT retention_period_ns FROM system.databases WHERE system.databases.database_name='{}'", db_name),
+                &format!("SELECT retention_period_ns FROM system.databases WHERE system.databases.database_name='{db_name}'"),
             ],
             args,
         )

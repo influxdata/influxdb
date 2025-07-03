@@ -258,9 +258,21 @@ pub enum DatabaseCatalogOp {
 impl DatabaseCatalogOp {
     pub fn to_create_last_cache(self) -> Option<LastCacheDefinition> {
         match self {
-            DatabaseCatalogOp::CreateLastCache(create_last_cache_log) => {
-                Some(create_last_cache_log)
-            }
+            Self::CreateLastCache(create_last_cache_log) => Some(create_last_cache_log),
+            _ => None,
+        }
+    }
+
+    pub fn as_soft_delete_database(&self) -> Option<&SoftDeleteDatabaseLog> {
+        match self {
+            Self::SoftDeleteDatabase(log) => Some(log),
+            _ => None,
+        }
+    }
+
+    pub fn as_soft_delete_table(&self) -> Option<&SoftDeleteTableLog> {
+        match self {
+            Self::SoftDeleteTable(log) => Some(log),
             _ => None,
         }
     }
@@ -886,17 +898,17 @@ impl TriggerSpecificationDefinition {
     pub fn string_rep(&self) -> String {
         match self {
             TriggerSpecificationDefinition::SingleTableWalWrite { table_name } => {
-                format!("table:{}", table_name)
+                format!("table:{table_name}")
             }
             TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
             TriggerSpecificationDefinition::Schedule { schedule } => {
-                format!("cron:{}", schedule)
+                format!("cron:{schedule}")
             }
             TriggerSpecificationDefinition::Every { duration } => {
                 format!("every:{}", format_duration(*duration))
             }
             TriggerSpecificationDefinition::RequestPath { path } => {
-                format!("request:{}", path)
+                format!("request:{path}")
             }
         }
     }
