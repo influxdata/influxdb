@@ -185,7 +185,7 @@ impl SystemCommandRunner {
         };
 
         let mut clauses = vec![format!(
-            "SELECT {select_expr} FROM system.{system_table_name}"
+            "SELECT {select_expr} FROM system.\"{system_table_name}\""
         )];
 
         if let Some(default_filter) = default_filter(&system_table_name) {
@@ -264,7 +264,7 @@ impl SystemCommandRunner {
 
     async fn summarize_table(&self, table_name: &str, limit: u16, format: Format) -> Result<()> {
         let Self { db, client } = self;
-        let mut clauses = vec![format!("SELECT * FROM system.{table_name}")];
+        let mut clauses = vec![format!("SELECT * FROM system.\"{table_name}\"")];
 
         if let Some(default_filter) = default_filter(table_name) {
             clauses.push(format!("WHERE {default_filter}"));
