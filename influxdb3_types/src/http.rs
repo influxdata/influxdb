@@ -18,10 +18,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default)]
 pub enum HardDeletionTime {
-    #[default]
     Never,
     Timestamp(String),
     Now,
+    #[default]
     Default,
 }
 

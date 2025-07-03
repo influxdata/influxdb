@@ -16,7 +16,7 @@ async fn test_create_admin_token() {
     let result = server
         .run(vec!["create", "token", "--admin"], args)
         .unwrap();
-    println!("{:?}", result);
+    println!("{result:?}");
     assert_contains!(&result, "New token created successfully!");
 }
 

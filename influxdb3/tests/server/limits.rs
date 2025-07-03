@@ -59,7 +59,7 @@ async fn limits() -> Result<(), Error> {
     let mut lp_500 = String::from("cpu,host=foo,region=bar usage=2");
     let mut lp_501 = String::from("cpu,host=foo,region=bar usage=2");
     for i in 5..=500 {
-        let column = format!(",column{}=1", i);
+        let column = format!(",column{i}=1");
         lp_500.push_str(&column);
         lp_501.push_str(&column);
     }

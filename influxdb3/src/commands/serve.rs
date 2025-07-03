@@ -11,11 +11,8 @@ use influxdb3_cache::{
 use influxdb3_catalog::{CatalogError, catalog::Catalog};
 use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
-    datafusion::IoxQueryDatafusionConfig,
-    memory_size::MemorySize,
-    object_store::{ObjectStoreConfig, ObjectStoreType},
-    socket_addr::SocketAddr,
-    tokio::TokioDatafusionConfig,
+    datafusion::IoxQueryDatafusionConfig, memory_size::MemorySize, object_store::ObjectStoreConfig,
+    socket_addr::SocketAddr, tokio::TokioDatafusionConfig,
 };
 use influxdb3_process::{
     INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_START_TIME, PROCESS_UUID_STR, ProcessUuidGetter,
@@ -1111,10 +1108,8 @@ async fn setup_telemetry_store(
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
     let influxdb_pkg_name = env!("CARGO_PKG_NAME");
     // Following should show influxdb3-0.1.0
-    let influx_version = format!("{}-{}", influxdb_pkg_name, influxdb_pkg_version);
-    let obj_store_type = object_store_config
-        .object_store
-        .unwrap_or(ObjectStoreType::Memory);
+    let influx_version = format!("{influxdb_pkg_name}-{influxdb_pkg_version}");
+    let obj_store_type = object_store_config.object_store;
     let storage_type = obj_store_type.as_str();
 
     if disable_upload {

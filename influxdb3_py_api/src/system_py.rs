@@ -105,9 +105,9 @@ pub enum LogLine {
 impl std::fmt::Display for LogLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LogLine::Info(s) => write!(f, "INFO: {}", s),
-            LogLine::Warn(s) => write!(f, "WARN: {}", s),
-            LogLine::Error(s) => write!(f, "ERROR: {}", s),
+            LogLine::Info(s) => write!(f, "INFO: {s}"),
+            LogLine::Warn(s) => write!(f, "WARN: {s}"),
+            LogLine::Error(s) => write!(f, "ERROR: {s}"),
         }
     }
 }
@@ -212,20 +212,18 @@ impl PyPluginCallApi {
             let res = query_executor
                 .query_sql(db_schema_name.as_ref(), &query, params, None, None)
                 .await
-                .map_err(|e| {
-                    QueryError::new_err(format!("error: {} executing query: {}", e, query))
-                })?;
+                .map_err(|e| QueryError::new_err(format!("error: {e} executing query: {query}")))?;
 
-            res.try_collect().await.map_err(|e| {
-                QueryError::new_err(format!("error: {} executing query: {}", e, query))
-            })
+            res.try_collect()
+                .await
+                .map_err(|e| QueryError::new_err(format!("error: {e} executing query: {query}")))
         });
 
         // Block the current thread until the async task completes
         let res =
             tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(handle));
 
-        let res = res.map_err(|e| QueryError::new_err(format!("join error: {}", e)))?;
+        let res = res.map_err(|e| QueryError::new_err(format!("join error: {e}")))?;
 
         let batches: Vec<RecordBatch> = res?;
 
@@ -644,7 +642,7 @@ pub fn execute_schedule_trigger(
     let start_time = if let Some(logger) = &logger {
         logger.log(
             LogLevel::Info,
-            format!("starting execution with scheduled time {}", schedule_time),
+            format!("starting execution with scheduled time {schedule_time}"),
         );
         Some(logger.sys_event_store.time_provider().now())
     } else {

@@ -1,5 +1,5 @@
 #syntax=docker/dockerfile:1.2
-ARG RUST_VERSION=1.85
+ARG RUST_VERSION=1.88
 FROM rust:${RUST_VERSION}-slim-bookworm as build
 
 # cache mounts below may already exist and owned by root
@@ -92,9 +92,6 @@ COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 
 EXPOSE 8181
 
-# By default, uses a file-based object store:
-ENV INFLUXDB3_OBJECT_STORE=file
-ENV INFLUXDB3_DB_DIR=/var/lib/influxdb3
 ENV LOG_FILTER=info
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]

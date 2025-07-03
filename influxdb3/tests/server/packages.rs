@@ -108,7 +108,7 @@ async fn test_python_venv_pip_install() -> Result<()> {
     // Install specific version
     server
         .install_package()
-        .add_package(format!("{}=={}", TEST_PACKAGE, TEST_VERSION))
+        .add_package(format!("{TEST_PACKAGE}=={TEST_VERSION}"))
         .run()?;
 
     // Verify correct version installed
@@ -169,7 +169,7 @@ async fn test_venv_requirements_install() -> Result<()> {
 
     // Create requirements.txt
     let mut requirements_file = NamedTempFile::new()?;
-    writeln!(requirements_file, "{}=={}", TEST_PACKAGE, TEST_VERSION)?;
+    writeln!(requirements_file, "{TEST_PACKAGE}=={TEST_VERSION}")?;
 
     // Install from requirements
     server
@@ -238,7 +238,7 @@ async fn test_auto_venv_pip_install() -> Result<()> {
     // Install specific version
     server
         .install_package()
-        .add_package(format!("{}=={}", TEST_PACKAGE, TEST_VERSION))
+        .add_package(format!("{TEST_PACKAGE}=={TEST_VERSION}"))
         .with_package_manager("pip")
         .run()?;
 

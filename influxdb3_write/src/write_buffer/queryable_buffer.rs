@@ -114,7 +114,7 @@ impl QueryableBuffer {
 
         Ok(table_buffer
             .partitioned_record_batches(Arc::clone(&table_def), buffer_filter)
-            .map_err(|e| DataFusionError::Execution(format!("error getting batches {}", e)))?
+            .map_err(|e| DataFusionError::Execution(format!("error getting batches {e}")))?
             .into_iter()
             .map(|(gen_time, (ts_min_max, batches))| {
                 let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();

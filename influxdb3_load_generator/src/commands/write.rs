@@ -153,10 +153,7 @@ pub(crate) async fn run_write_load(
         ..
     } = config;
 
-    println!(
-        "creating generators for {} concurrent writers",
-        writer_count
-    );
+    println!("creating generators for {writer_count} concurrent writers");
     println!("each writer will send a write request every {sampling_interval}");
 
     let mut generators =
@@ -177,9 +174,8 @@ pub(crate) async fn run_write_load(
     let start_time = if let Some(start_time) = start_time {
         let start_time = parse_time_offset(&start_time, Local::now());
         println!(
-            "starting writers from a start time of {:?}. Historical replay will happen as \
-            fast as possible until catching up to now or hitting the end time.",
-            start_time
+            "starting writers from a start time of {start_time:?}. Historical replay will happen as \
+            fast as possible until catching up to now or hitting the end time."
         );
         Some(start_time)
     } else {

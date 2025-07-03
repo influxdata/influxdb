@@ -62,7 +62,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             client
                 .api_v3_configure_processing_engine_trigger_disable(database_name, &trigger_name)
                 .await?;
-            println!("Trigger {} disabled successfully", trigger_name);
+            println!("Trigger {trigger_name} disabled successfully");
         }
     }
     Ok(())

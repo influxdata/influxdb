@@ -187,7 +187,7 @@ pub fn init_pyo3() {
                     } else {
                         venv_dir
                             .join("lib")
-                            .join(format!("python{}.{}", major, minor))
+                            .join(format!("python{major}.{minor}"))
                             .join("site-packages")
                     };
 
@@ -217,7 +217,7 @@ pub fn init_pyo3() {
     } else {
         match orig_pyhome_env {
             Some(v) => {
-                debug!("Restoring previous PYTHONHOME to: {}", v);
+                debug!("Restoring previous PYTHONHOME to: {v}");
                 unsafe { env::set_var("PYTHONHOME", v) }
             }
             None => {
@@ -239,8 +239,7 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
 
     if !activate_script.exists() {
         return Err(VenvError::InitError(format!(
-            "Activation script not found at {:?}",
-            activate_script
+            "Activation script not found at {activate_script:?}"
         )));
     }
 
@@ -279,7 +278,7 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
         });
 
     if let Ok(v) = env::var("VIRTUAL_ENV") {
-        debug!("VIRTUAL_ENV set to: {}", v);
+        debug!("VIRTUAL_ENV set to: {v}");
     }
 
     Ok(())

@@ -50,7 +50,7 @@ fn write_plugin_to_temp_dir(temp_dir: &TempDir, name: &str, code: &str) -> PathB
 
     // Write the code to the file
     let mut file = File::create(&file_path).unwrap();
-    writeln!(file, "{}", code).unwrap();
+    writeln!(file, "{code}").unwrap();
     file_path
 }
 
@@ -325,6 +325,325 @@ async fn test_delete_missing_database() {
     debug!(err = ?err, "delete missing database");
     assert_contains!(&err, "404");
 }
+
+#[test_log::test(tokio::test)]
+async fn test_delete_database_with_hard_delete_now() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_now";
+
+    // Create database first
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    // Delete with hard-delete now
+    let result = server
+        .delete_database(db_name)
+        .with_hard_delete("now")
+        .run()
+        .expect("delete database with hard-delete now");
+
+    assert_contains!(
+        &result,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Query system.databases to verify hard_deletion_time is set
+    // Note: deleted databases have their names changed to include the deletion timestamp
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+        ))
+        .run()
+        .expect("query system.databases");
+
+    // The result is already a serde_json::Value
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should be set (not null) and close to current time
+    assert!(data[0]["hard_deletion_time"].is_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_database_with_hard_delete_never() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_never";
+
+    // Create database first
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    // Delete with hard-delete never
+    let result = server
+        .delete_database(db_name)
+        .with_hard_delete("never")
+        .run()
+        .expect("delete database with hard-delete never");
+
+    assert_contains!(
+        &result,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Query system.databases to verify hard_deletion_time is NULL
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+        ))
+        .run()
+        .expect("query system.databases");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should be null for "never"
+    assert!(data[0]["hard_deletion_time"].is_null());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_database_with_hard_delete_default() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_default";
+
+    // Create database first
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    // Delete with hard-delete default
+    let result = server
+        .delete_database(db_name)
+        .with_hard_delete("default")
+        .run()
+        .expect("delete database with hard-delete default");
+
+    assert_contains!(
+        &result,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Query system.databases to verify hard_deletion_time is set to a future time
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+        ))
+        .run()
+        .expect("query system.databases");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should be set and in the future
+    assert!(data[0]["hard_deletion_time"].is_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_database_with_hard_delete_timestamp() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_timestamp";
+
+    // Create database first
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    // Delete with a specific timestamp
+    let timestamp = "2025-12-31T23:59:59Z";
+    let result = server
+        .delete_database(db_name)
+        .with_hard_delete(timestamp)
+        .run()
+        .expect("delete database with hard-delete timestamp");
+
+    assert_contains!(
+        &result,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Query system.databases to verify hard_deletion_time matches the timestamp
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+        ))
+        .run()
+        .expect("query system.databases");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should match our timestamp
+    assert_eq!(data[0]["hard_deletion_time"], timestamp);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_database_without_hard_delete_option() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_delete_no_hard_delete";
+
+    // Create database first
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    // Delete without hard-delete option
+    let result = server
+        .delete_database(db_name)
+        .run()
+        .expect("delete database without hard-delete option");
+
+    assert_contains!(
+        &result,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Query system.databases to verify hard_deletion_time follows default behavior
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+        ))
+        .run()
+        .expect("query system.databases");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should be set to a future time when no option specified
+    assert!(data[0]["hard_deletion_time"].is_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_update_hard_delete_time_on_deleted_database() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_update_hard_delete";
+
+    // Create database first
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    // Delete with hard-delete never
+    let result = server
+        .delete_database(db_name)
+        .with_hard_delete("never")
+        .run()
+        .expect("delete database with hard-delete never");
+
+    assert_contains!(
+        &result,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Query to find the renamed database
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+        ))
+        .run()
+        .expect("query system.databases");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert!(data[0]["hard_deletion_time"].is_null());
+
+    // Get the renamed database name
+    let renamed_db_name = data[0]["database_name"]
+        .as_str()
+        .expect("database_name should be a string");
+
+    // Delete again with hard-delete now to update the time
+    let result = server
+        .delete_database(renamed_db_name)
+        .with_hard_delete("now")
+        .run()
+        .expect("update hard-delete time");
+
+    assert_contains!(
+        &result,
+        format!("Database \"{renamed_db_name}\" deleted successfully")
+    );
+
+    // Verify hard_deletion_time is now set
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT database_name, deleted, hard_deletion_time FROM system.databases WHERE database_name = '{renamed_db_name}'"
+        ))
+        .run()
+        .expect("query system.databases after update");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should now be set
+    assert!(data[0]["hard_deletion_time"].is_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_already_deleted_database_same_hard_delete() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_already_deleted";
+
+    // Create database first
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    // Delete with hard-delete never
+    let result = server
+        .delete_database(db_name)
+        .with_hard_delete("never")
+        .run()
+        .expect("delete database with hard-delete never");
+
+    assert_contains!(
+        &result,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Query to find the renamed database
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT database_name FROM system.databases WHERE database_name LIKE '{db_name}-%' AND deleted = true"
+        ))
+        .run()
+        .expect("query system.databases");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+
+    // Get the renamed database name
+    let renamed_db_name = data[0]["database_name"]
+        .as_str()
+        .expect("database_name should be a string");
+
+    // Try to delete again with same hard-delete option
+    let result = server
+        .delete_database(renamed_db_name)
+        .with_hard_delete("never")
+        .run();
+
+    // Should get an error for already deleted
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert_contains!(&err, "409"); // Conflict - already deleted
+}
+
 #[test_log::test(tokio::test)]
 async fn test_create_table() {
     let server = TestServer::spawn().await;
@@ -513,6 +832,251 @@ async fn test_delete_missing_table() {
     assert_contains!(err.to_string(), "404");
 }
 
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_hard_delete_now() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_table_now";
+    let table_name = "cpu";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},host=a temp=1.0 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete with hard-delete now
+    let result = server
+        .delete_table(db_name, table_name)
+        .with_hard_delete("now")
+        .run()
+        .expect("delete table with hard-delete now");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify hard_deletion_time is set
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should be set (not null) and close to current time
+    assert!(data[0]["hard_deletion_time"].is_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_hard_delete_never() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_table_never";
+    let table_name = "memory";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},host=b used=100 2000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete with hard-delete never
+    let result = server
+        .delete_table(db_name, table_name)
+        .with_hard_delete("never")
+        .run()
+        .expect("delete table with hard-delete never");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify hard_deletion_time is NULL
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should be null
+    assert!(data[0]["hard_deletion_time"].is_null());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_hard_delete_default() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_table_default";
+    let table_name = "disk";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},device=sda used=500 3000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete with hard-delete default
+    let result = server
+        .delete_table(db_name, table_name)
+        .with_hard_delete("default")
+        .run()
+        .expect("delete table with hard-delete default");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify hard_deletion_time is set to future time
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should be set to a future time
+    assert!(data[0]["hard_deletion_time"].is_string());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_hard_delete_timestamp() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_hard_delete_table_timestamp";
+    let table_name = "network";
+    let timestamp = "2025-12-31T23:59:59Z";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},interface=eth0 bytes=1000 4000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete with hard-delete timestamp
+    let result = server
+        .delete_table(db_name, table_name)
+        .with_hard_delete(timestamp)
+        .run()
+        .expect("delete table with hard-delete timestamp");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify hard_deletion_time matches timestamp
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should match the specified timestamp
+    assert_eq!(data[0]["hard_deletion_time"], timestamp);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_without_hard_delete_option() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_delete_table_no_option";
+    let table_name = "sensors";
+
+    // Create database and write data to create table
+    server
+        .create_database(db_name)
+        .run()
+        .expect("create database");
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},sensor=temp1 value=22.5 5000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete without hard-delete option
+    let result = server
+        .delete_table(db_name, table_name)
+        .run()
+        .expect("delete table without hard-delete option");
+
+    assert_contains!(
+        &result,
+        format!("Table \"{db_name}\".\"{table_name}\" deleted successfully")
+    );
+
+    // Query system.tables to verify default behavior
+    let result = server
+        .query_sql("_internal")
+        .with_sql(format!(
+            "SELECT table_name, deleted, hard_deletion_time FROM system.tables WHERE table_name LIKE '{table_name}-%' AND deleted = true AND database_name = '{db_name}'"
+        ))
+        .run()
+        .expect("query system.tables");
+
+    let data = result.as_array().expect("result should be an array");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["deleted"], true);
+    // hard_deletion_time should be set to a future time (default retention) when no option specified
+    assert!(data[0]["hard_deletion_time"].is_string());
+}
+
 #[tokio::test]
 async fn test_create_delete_distinct_cache() {
     let server = TestServer::spawn().await;
@@ -628,16 +1192,13 @@ async fn test_create_trigger_and_run() {
                 }
                 check_count += 1;
                 if check_count > 10 {
-                    panic!(
-                        "Unexpected query result, got: {:#?}, expected {:#?}",
-                        value, expected
-                    );
+                    panic!("Unexpected query result, got: {value:#?}, expected {expected:#?}");
                 }
             }
             Err(e) => {
                 check_count += 1;
                 if check_count > 10 {
-                    panic!("Failed to query processed data: {}", e);
+                    panic!("Failed to query processed data: {e}");
                 }
                 tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
             }
@@ -722,16 +1283,13 @@ async fn test_triggers_are_started() {
                 }
                 check_count += 1;
                 if check_count > 10 {
-                    panic!(
-                        "Unexpected query result, got: {:#?}, expected {:#?}",
-                        value, expected
-                    );
+                    panic!("Unexpected query result, got: {value:#?}, expected {expected:#?}");
                 }
             }
             Err(e) => {
                 check_count += 1;
                 if check_count > 10 {
-                    panic!("Failed to query processed data: {}", e);
+                    panic!("Failed to query processed data: {e}");
                 }
                 tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
             }
@@ -894,7 +1452,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             db_name,
             trigger_name,
             plugin_filename,
-            format!("table:{}", table_name),
+            format!("table:{table_name}"),
         )
         .run()
         .unwrap();
@@ -2165,9 +2723,7 @@ async fn test_trigger_create_validates_file_present() {
 fn check_logs(response: &Value, expected_logs: &[&str]) {
     assert!(
         response["errors"].as_array().unwrap().is_empty(),
-        "Unexpected errors in response {:#?}, expected logs {:#?}",
-        response,
-        expected_logs
+        "Unexpected errors in response {response:#?}, expected logs {expected_logs:#?}"
     );
     let logs = response["log_lines"].as_array().unwrap();
     assert_eq!(
@@ -2993,5 +3549,31 @@ async fn test_db_name_cannot_start_with_underscore_on_create_table() {
     assert_contains!(
         result.to_string(),
         "db name did not start with a number or letter"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_serve_command_error_msg() {
+    let output = assert_cmd::Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(["serve", "--node-id", "node-1"])
+        .output()
+        .unwrap()
+        .stderr
+        .clone();
+
+    let full_cmd =
+        "influxdb3 serve --object-store <object-store> --node-id <NODE_IDENTIFIER_PREFIX>";
+    assert_object_store_error_msg(output, full_cmd);
+}
+
+fn assert_object_store_error_msg(error_output: Vec<u8>, full_command: &str) {
+    let str_msg = String::from_utf8(error_output).unwrap();
+    assert_contains!(&str_msg, full_command);
+
+    assert_contains!(
+        &str_msg,
+        "error: the following required arguments were not provided:
+  --object-store <object-store>"
     );
 }

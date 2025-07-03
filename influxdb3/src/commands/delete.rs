@@ -242,10 +242,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             hard_delete,
             ..
         }) => {
-            println!(
-                "Are you sure you want to delete {:?}? Enter 'yes' to confirm",
-                database_name
-            );
+            println!("Are you sure you want to delete {database_name:?}? Enter 'yes' to confirm");
             let mut confirmation = String::new();
             let _ = io::stdin().read_line(&mut confirmation);
             if confirmation.trim() != "yes" {
@@ -341,7 +338,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     force,
                 )
                 .await?;
-            println!("Trigger {} deleted successfully", trigger_name);
+            println!("Trigger {trigger_name} deleted successfully");
         }
         SubCommand::Token(TokenConfig { token_name, .. }) => {
             if token_name == "_admin" {
@@ -351,17 +348,14 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 return Ok(());
             }
 
-            println!(
-                "Are you sure you want to delete {:?}? Enter 'yes' to confirm",
-                token_name
-            );
+            println!("Are you sure you want to delete {token_name:?}? Enter 'yes' to confirm");
             let mut confirmation = String::new();
             let _ = io::stdin().read_line(&mut confirmation);
             if confirmation.trim() != "yes" {
                 println!("Cannot delete token without confirmation");
             } else {
                 client.api_v3_configure_token_delete(&token_name).await?;
-                println!("Token {:?} deleted successfully", &token_name);
+                println!("Token {token_name:?} deleted successfully");
             }
         }
     }

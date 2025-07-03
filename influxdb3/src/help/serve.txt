@@ -18,7 +18,7 @@ Examples
 {}
   --node-id <NODE_ID>              Node identifier used as prefix in object store file paths
                                   [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
-  --object-store <OBJECT_STORE>    Which object storage to use. If not specified, defaults to memory.
+  --object-store <OBJECT_STORE>    Which object storage to use.
                                   [env: INFLUXDB3_OBJECT_STORE=]
                                   [possible values: memory, memory-throttled, file, s3, google, azure]
 
