@@ -510,7 +510,7 @@ pub fn parquet_chunk_from_file(
         &NoColumnRanges,
     );
 
-    let location = ObjPath::from(parquet_file.path.clone());
+    let location = ObjPath::parse(&parquet_file.path).expect("path should be parseable");
 
     let parquet_exec = ParquetExecInput {
         object_store_url,
