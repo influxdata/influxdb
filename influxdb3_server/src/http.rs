@@ -545,7 +545,7 @@ impl IntoResponse for Error {
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-pub(crate) struct HttpApi {
+pub struct HttpApi {
     common_state: CommonServerState,
     write_buffer: Arc<dyn WriteBuffer>,
     processing_engine: Arc<ProcessingEngineManagerImpl>,
@@ -557,7 +557,7 @@ pub(crate) struct HttpApi {
 }
 
 impl HttpApi {
-    pub(crate) fn new(
+    pub fn new(
         common_state: CommonServerState,
         time_provider: Arc<dyn TimeProvider>,
         write_buffer: Arc<dyn WriteBuffer>,

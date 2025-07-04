@@ -12,9 +12,8 @@ clippy::future_not_send
 )]
 
 pub mod all_paths;
-pub mod builder;
 mod grpc;
-mod http;
+pub mod http;
 pub mod query_executor;
 mod query_planner;
 mod service;
@@ -29,7 +28,6 @@ use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
-use influxdb3_write::persister::Persister;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
 use rustls::ServerConfig;
@@ -124,12 +122,21 @@ impl CommonServerState {
     }
 }
 
-#[allow(dead_code)]
+#[derive(Debug)]
+pub struct CreateServerArgs<'a> {
+    pub common_state: CommonServerState,
+    pub http: Arc<HttpApi>,
+    pub authorizer: Arc<dyn AuthProvider>,
+    pub listener: TcpListener,
+    pub cert_file: Option<PathBuf>,
+    pub key_file: Option<PathBuf>,
+    pub tls_minimum_version: &'a [&'static SupportedProtocolVersion],
+}
+
 #[derive(Debug)]
 pub struct Server<'a> {
     common_state: CommonServerState,
     http: Arc<HttpApi>,
-    persister: Arc<Persister>,
     authorizer: Arc<dyn AuthProvider>,
     listener: TcpListener,
     key_file: Option<PathBuf>,
@@ -137,7 +144,29 @@ pub struct Server<'a> {
     tls_minimum_version: &'a [&'static SupportedProtocolVersion],
 }
 
-impl Server<'_> {
+impl<'a> Server<'a> {
+    pub fn new(
+        CreateServerArgs {
+            common_state,
+            http,
+            authorizer,
+            listener,
+            cert_file,
+            key_file,
+            tls_minimum_version,
+        }: CreateServerArgs<'a>,
+    ) -> Self {
+        Self {
+            common_state,
+            http,
+            authorizer,
+            listener,
+            key_file,
+            cert_file,
+            tls_minimum_version,
+        }
+    }
+
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer.upcast())
     }
@@ -282,9 +311,9 @@ pub async fn serve(
 
 #[cfg(test)]
 mod tests {
-    use crate::builder::ServerBuilder;
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
-    use crate::serve;
+    use crate::{CreateServerArgs, serve};
+    use crate::{Server, http::HttpApi};
     use chrono::DateTime;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{Client, StatusCode};
@@ -1487,16 +1516,36 @@ mod tests {
         static TLS_MIN_VERSION: &[&rustls::SupportedProtocolVersion] =
             &[&rustls::version::TLS12, &rustls::version::TLS13];
 
-        let server = ServerBuilder::new(common_state)
-            .write_buffer(Arc::clone(&write_buffer))
-            .query_executor(query_executor)
-            .persister(persister)
-            .authorizer(Arc::new(NoAuthAuthenticator))
-            .time_provider(Arc::clone(&time_provider) as _)
-            .tcp_listener(listener)
-            .processing_engine(processing_engine)
-            .build(None, None, TLS_MIN_VERSION)
-            .await;
+        // Start processing engine triggers
+        Arc::clone(&processing_engine)
+            .start_triggers()
+            .await
+            .expect("failed to start processing engine triggers");
+
+        write_buffer
+            .wal()
+            .add_file_notifier(Arc::clone(&processing_engine) as _);
+
+        let authorizer = Arc::new(NoAuthAuthenticator);
+        let http = Arc::new(HttpApi::new(
+            common_state.clone(),
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&write_buffer),
+            Arc::clone(&query_executor) as _,
+            Arc::clone(&processing_engine),
+            usize::MAX,
+            Arc::clone(&authorizer) as _,
+        ));
+
+        let server = Server::new(CreateServerArgs {
+            common_state,
+            http,
+            authorizer: authorizer as _,
+            listener,
+            cert_file: None,
+            key_file: None,
+            tls_minimum_version: TLS_MIN_VERSION,
+        });
         let shutdown = frontend_shutdown.clone();
         let paths = EMPTY_PATHS.get_or_init(std::vec::Vec::new);
         tokio::spawn(async move {

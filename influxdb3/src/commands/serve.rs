@@ -25,8 +25,8 @@ use influxdb3_processing_engine::environment::{
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::virtualenv::find_python;
 use influxdb3_server::{
-    CommonServerState,
-    builder::ServerBuilder,
+    CommonServerState, CreateServerArgs, Server,
+    http::HttpApi,
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
     serve,
 };
@@ -913,31 +913,47 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await;
 
-    let builder = ServerBuilder::new(common_state)
-        .max_request_size(config.max_http_request_size)
-        .write_buffer(write_buffer)
-        .query_executor(query_executor)
-        .time_provider(Arc::clone(&time_provider) as _)
-        .persister(persister)
-        .tcp_listener(listener)
-        .processing_engine(processing_engine);
-
     let cert_file = config.cert_file;
     let key_file = config.key_file;
-    let server = if config.without_auth {
-        builder
-            .build(cert_file, key_file, config.tls_minimum_version.into())
-            .await
+
+    // Start processing engine triggers
+    Arc::clone(&processing_engine)
+        .start_triggers()
+        .await
+        .expect("failed to start processing engine triggers");
+
+    write_buffer
+        .wal()
+        .add_file_notifier(Arc::clone(&processing_engine) as _);
+
+    let authorizer: Arc<dyn influxdb3_authz::AuthProvider> = if config.without_auth {
+        Arc::new(influxdb3_authz::NoAuthAuthenticator)
     } else {
-        let authentication_provider = Arc::new(TokenAuthenticator::new(
+        Arc::new(TokenAuthenticator::new(
             Arc::clone(&catalog) as _,
             Arc::clone(&time_provider) as _,
-        ));
-        builder
-            .authorizer(authentication_provider as _)
-            .build(cert_file, key_file, config.tls_minimum_version.into())
-            .await
+        ))
     };
+
+    let http = Arc::new(HttpApi::new(
+        common_state.clone(),
+        Arc::clone(&time_provider) as _,
+        Arc::clone(&write_buffer),
+        Arc::clone(&query_executor) as _,
+        Arc::clone(&processing_engine),
+        config.max_http_request_size,
+        Arc::clone(&authorizer),
+    ));
+
+    let server = Server::new(CreateServerArgs {
+        common_state,
+        http,
+        authorizer,
+        listener,
+        cert_file,
+        key_file,
+        tls_minimum_version: config.tls_minimum_version.into(),
+    });
 
     // There are two different select! macros - tokio::select and futures::select
     //
