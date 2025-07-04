@@ -19,7 +19,7 @@
 - Open a branch off of the `3.0` branch before proceeding, we will cherry pick the commits for this
   release onto the new branch:
   ```
-  git checkout -b 3.0/my-branch-name
+  git checkout -b chore/3.0/my-branch-name
   ```
 
 - You need to cherry pick commits from the `main` branch that will go into the `3.0.2` point release,
@@ -105,13 +105,13 @@ _At some point this should be scripted so that versions etc are in sync between 
 
 - Create a new branch that will be used to update the version in `Cargo.toml`:
   ```sh
-  git checkout -b 3.1/three-one-zero
+  git checkout -b chore/3.1/three-one-zero
   ```
 
 - Update the `version` in `Cargo.toml` by removing the `-nightly`, to change it from `3.1.0-nightly`
   to `3.1.0`.
 
-- Commit those changes, push, and open a PR from `3.1/three-one-zero` into `3.1`
+- Commit those changes, push, and open a PR from `chore/3.1/three-one-zero` into `3.1`
 
 - Once that PR is merged, and CI is green on the `3.1` branch, then you can follow the same steps
   in the [Point Releases](#point-releases) including and following tagging the release. Some special
