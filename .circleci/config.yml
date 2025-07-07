@@ -34,9 +34,34 @@
 #       https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline
 version: 2.1
 
+# circle ci's runners are dedicated and ephemeral
+# our self-hosted runners are neither
+# as a result, we need to ensure that we're isolating the workspace each job uses,
+# so that multiple jobs don't use the same path accidentally.
+#
+# << pipeline.id >> and $CIRCLE_PIPELINE_ID are the same value, and are unique per circle's docs.
+# this means that when using the self-hosted runners, we can attach /tmp/workspace/<< pipeline.id >>
+# to guarantee we aren't using the same path across multiple jobs.
+#
+# in some instances it's better to NOT have a randomized path.
+# as long as those cases run in containers or on circle's runners, that's fine and
+# we can continue using only /tmp/workspace
+#
+# any instances of using a docker run command from the self-hosted runners
+# mount /tmp/workspace/<< pipeline.id>> on the host to /tmp/workspace in the container:
+# docker run -v /tmp/workspace/<< pipeline.id >>:/tmp/workspace
+executors:
+  self-hosted-amd:
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm
+    working_directory: /tmp/workspace/<< pipeline.id >>
+  self-hosted-arm:
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm-arm
+    working_directory: /tmp/workspace/<< pipeline.id >>
+
 orbs:
-  aws-s3:    circleci/aws-s3@2.0.0
-  terraform: circleci/terraform@2.1.0
+  aws-s3: circleci/aws-s3@2.0.0
   rust: circleci/rust@1.6.1
 
 # Unlike when a commit is pushed to a branch, CircleCI does not automatically
@@ -100,11 +125,13 @@ parameters:
   persist_debug:
     type: boolean
     default: false
-
-# Consistent environment setup for Python Build Standalone
-pbs_config: &pbs_config
-  PBS_DATE: "20250612"
-  PBS_VERSION: "3.13.5"
+  # Consistent environment setup for Python Build Standalone
+  PBS_DATE:
+    type: string
+    default: "20250612"
+  PBS_VERSION:
+    type: string
+    default: "3.13.5"
 
 # Consistent Cargo environment configuration
 cargo_env: &cargo_env
@@ -279,25 +306,20 @@ jobs:
 
   # Fetch python-build-standalone for official builds
   fetch-python:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: medium
+    executor: self-hosted-amd
     environment:
-      <<: *pbs_config
+      PBS_DATE: << pipeline.parameters.PBS_DATE >>
+      PBS_VERSION: << pipeline.parameters.PBS_VERSION >>
     steps:
       - checkout
-      - run:
-          name: Record Python Build Standalone version for caching
-          command: |
-            echo "$PBS_VERSION-$PBS_DATE" | tee /tmp/pbs_version
       - restore_cache:
           name: Restore Python Build Standalone from cache
-          key: python-artifacts-{{ checksum "/tmp/pbs_version" }}
+          key: python-artifacts-<< pipeline.parameters.PBS_DATE >>-<< pipeline.parameters.PBS_VERSION >>
       - run:
           name: Pull Python Build Standalone
           command: |
             if [ -d "python-artifacts" ]; then
-              echo "Using cached python-artifacts for $(cat /tmp/pbs_version)"
+              echo "Using cached python-artifacts"
             else
               echo "PBS_DATE=$PBS_DATE"
               .circleci/scripts/fetch-python-standalone.bash \
@@ -313,7 +335,7 @@ jobs:
             - python-artifacts
       - save_cache:
           name: Save python-build-standalone to cache
-          key: python-artifacts-{{ checksum "/tmp/pbs_version" }}
+          key: python-artifacts-<< pipeline.parameters.PBS_DATE >>-<< pipeline.parameters.PBS_VERSION >>
           paths:
             - python-artifacts
 
@@ -501,51 +523,48 @@ jobs:
           path: artifacts/
 
   check_package_deb_amd64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: medium
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run:
           name: Validate Debian Package (AMD64)
           command: |
-            sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb3*amd64.deb
+            docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            .circleci/scripts/validate amd64 deb /tmp/workspace/artifacts
 
   check_package_deb_arm64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.medium
+    executor: self-hosted-arm
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run:
           name: Validate Debian Package (ARM64)
           command: |
-            sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb3*arm64.deb
+            docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            .circleci/scripts/validate arm64 deb /tmp/workspace/artifacts
 
-  check_package_rpm:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.medium
-    parameters:
-      arch:
-        type: string
+  check_package_rpm_amd64:
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - add_ssh_keys:
-          fingerprints:
-            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
-          AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
-          .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb3*.<< parameters.arch >>.rpm
+          docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          .circleci/scripts/validate x86_64 rpm /tmp/workspace/artifacts
+
+  check_package_rpm_arm64:
+    executor: self-hosted-arm
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
+      - run: |
+          docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          .circleci/scripts/validate aarch64 rpm /tmp/workspace/artifacts
 
   sign-packages:
     circleci_ip_ranges: true
@@ -632,9 +651,9 @@ jobs:
         type: string
         default: influxdb3-core
     environment:
-      <<: *pbs_config
-    machine:
-      image: default
+      PBS_DATE: << pipeline.parameters.PBS_DATE >>
+      PBS_VERSION: << pipeline.parameters.PBS_VERSION >>
+    machine: true
     resource_class: << parameters.resource_class >>
     steps:
       - checkout
@@ -659,10 +678,12 @@ jobs:
               "$DOCKER_PROFILE"
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 60m
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          docker save << parameters.image_name >>:latest-<< parameters.platform >> > << parameters.image_name >>-<< parameters.platform >>.tar
+          docker save << parameters.image_name >>:latest-<< parameters.platform >> > /tmp/workspace/<< pipeline.id >>/<< parameters.image_name >>-<< parameters.platform >>.tar
       - persist_to_workspace:
-          root: .
+          root: /tmp/workspace/<< pipeline.id >>
           paths:
             - << parameters.image_name >>-<< parameters.platform >>.tar
 
@@ -787,20 +808,24 @@ workflows:
           <<: *release_filter
           requires:
             - build-packages
-      - check_package_rpm:
+      - check_package_rpm_arm64:
           <<: *nofork_filter
           name:
-            check_package_rpm-<< matrix.arch >>
-          matrix:
-            parameters:
-              arch: [ x86_64, aarch64 ]
+            check_package_rpm_arm64
+          requires:
+            - build-packages
+      - check_package_rpm_amd64:
+          <<: *nofork_filter
+          name:
+            check_package_rpm_amd64
           requires:
             - build-packages
       - sign-packages:
           <<: *release_filter
           requires:
             - build-packages
-            - check_package_rpm
+            - check_package_rpm_arm64
+            - check_package_rpm_amd64
             - check_package_deb_arm64
             - check_package_deb_amd64
             - test
@@ -821,12 +846,12 @@ workflows:
           <<: *docker_filter
           name: build-docker-amd64
           platform: amd64
-          resource_class: 2xlarge+
+          resource_class: runner-ns/clustered-linux-vm
       - build-docker:
           <<: *docker_filter
           name: build-docker-arm64
           platform: arm64
-          resource_class: arm.2xlarge
+          resource_class: runner-ns/clustered-linux-vm-arm
       - publish-docker:
           <<: *docker_filter
           requires:
