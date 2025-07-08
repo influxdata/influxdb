@@ -20,14 +20,14 @@ executors:
       # in the edge repo, then update the version here to match.
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     resource_class: large
-  linux-amd64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: large
-  linux-arm64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.large
+  self-hosted-amd:
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm
+    working_directory: /tmp/workspace/<< pipeline.id >>
+  self-hosted-arm:
+    machine: true
+    resource_class: runner-ns/clustered-linux-vm-arm
+    working_directory: /tmp/workspace/<< pipeline.id >>
   darwin:
     resource_class: macos.m1.medium.gen1
     macos:
@@ -90,7 +90,7 @@ workflows:
       - test-prebuilt:
           <<: *any_filter
           name: test-linux-arm64
-          executor: linux-arm64
+          executor: self-hosted-arm
           requires:
             - test-build-linux-arm64
       - test-prebuilt:
@@ -135,13 +135,12 @@ workflows:
       - check_package_deb_arm64:
           requires:
             - build-packages
-      - check_package_rpm:
+      - check_package_rpm_amd64:
           <<: *nofork_filter
-          name:
-            check_package_rpm-<< matrix.arch >>
-          matrix:
-            parameters:
-              arch: [ x86_64, aarch64 ]
+          requires:
+            - build-packages
+      - check_package_rpm_arm64:
+          <<: *nofork_filter
           requires:
             - build-packages
       - test-downgrade:
@@ -250,7 +249,7 @@ workflows:
               - { os: linux,   arch: amd64 }
       - test-prebuilt:
           name: test-linux-arm64
-          executor: linux-arm64
+          executor: self-hosted-arm
           requires:
             - test-build-linux-arm64
       - test-prebuilt:
@@ -278,14 +277,14 @@ workflows:
               - { os: windows, arch: arm64 }
       - build-docker-nightly:
           name:           build-docker-nightly-arm64
-          resource_class: arm.medium
+          executor:       self-hosted-arm
           arch:           arm64
           arch_docker:    arm64v8
           requires:
             - build-nightly-linux-arm64
       - build-docker-nightly:
           name:           build-docker-nightly-amd64
-          resource_class: medium
+          executor:       self-hosted-amd
           arch:           amd64
           arch_docker:    amd64
           requires:
@@ -471,31 +470,25 @@ jobs:
             - bin
 
   build-packages:
-    machine:
-      image: ubuntu-2204:current
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo -E apt-get update
-          sudo -E apt-get install --no-install-recommends --yes \
+          docker run -v /tmp/workspace/${CIRCLE_PIPELINE_ID}:/tmp/workspace -e DEBIAN_FRONTEND=noninteractive ubuntu:latest \
+            apt-get update && \
+            apt-get install --no-install-recommends --yes \
             asciidoc        \
             build-essential \
             git             \
             python3         \
             rpm             \
             ruby-dev        \
-            xmlto
-
-          sudo gem install fpm
-
-          python3 -m pip install -r .circleci/scripts/package/requirements.txt
-
-          # Unfortunately, this must be executed as root. This is so permission
-          # modifying commands (chown, chmod, etc.) succeed.
-          sudo --preserve-env=CIRCLE_TAG,CIRCLE_SHA1 .circleci/scripts/package/build.py
+            xmlto        && \
+            gem install fpm && \
+            python3 -m pip install -r .circleci/scripts/package/requirements.txt && \
+            .circleci/scripts/package/build.py
       - store_artifacts:
           path: artifacts/
       - persist_to_workspace:
@@ -549,9 +542,9 @@ jobs:
     docker:
       - image: ubuntu:latest
     steps:
+      - checkout
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
       - run:
           name: Publish Packages to S3
           command: |
@@ -575,26 +568,18 @@ jobs:
 
   build-docker-nightly:
     parameters:
-      resource_class:
+      executor:
         type: string
       arch:
         type: string
       arch_docker:
         type: string
-    machine:
-      image: ubuntu-2004:current
-    resource_class: << parameters.resource_class >>
+    executor: << parameters.executor >>
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - quay_login
-      - run:
-          name: Install Dependencies
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get update
-            sudo apt-get install -y docker
       - run:
           name: Build Docker Container
           command: |
@@ -602,22 +587,15 @@ jobs:
             # is written into `/tmp/workspace/bin/` by `build-binaries`. For
             # the Dockerfile to build successfully, copy `influxd` to
             # the current directory.
-            cp /tmp/workspace/bin/influxd_linux_<< parameters.arch >>/influxd .
+            cp /tmp/workspace/${CIRCLE_PIPELINE_ID}/bin/influxd_linux_<< parameters.arch >>/influxd .
 
             docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly .
 
             docker push quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly
 
   docker-nightly-manifest:
-    machine:
-      image: ubuntu-2004:current
+    executor: self-hosted-amd
     steps:
-      - run:
-          name: Install Dependencies
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get update
-            sudo apt-get install -y docker
       - quay_login
       - run:
           name: Update Docker Manifests
@@ -632,9 +610,9 @@ jobs:
   test-linux-packages:
     executor: terraform/default
     steps:
+      - checkout
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
       - add_ssh_keys:
           fingerprints:
             - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
@@ -687,9 +665,9 @@ jobs:
       record_results:
         type: boolean
     steps:
+      - checkout
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
       # To ssh into aws without failing host key checks
       - add_ssh_keys:
           fingerprints:
@@ -724,11 +702,11 @@ jobs:
             fi
 
   aws-destroy-by-date:
-    executor: linux-amd64
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - add_ssh_keys:
           fingerprints:
             - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
@@ -783,31 +761,33 @@ jobs:
           destination: test_artifacts/results/shared
 
   litmus-smoke-test:
-    executor: linux-amd64
+    executor: self-hosted-amd
     steps:
       - attach_workspace:
-          at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=/Litmus/result/bin/influxd_linux_amd64/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+          at: /tmp/workspace/<< pipeline.id >>/project
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=/Litmus/result/bin/influxd_linux_amd64/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v /tmp/workspace/${CIRCLE_PIPELINE_ID}/project:/Litmus/result quay.io/influxdb/litmus:latest
       - store_artifacts:
-          path: ~/project
+          path: /tmp/workspace/<< pipeline.id >>/project
           destination: raw-daily-output
       - store_test_results:
-          path: ~/project
+          path: /tmp/workspace/<< pipeline.id >>/project
 
   litmus-full-test:
-    executor: linux-amd64
+    executor: self-hosted-amd
     steps:
       - attach_workspace:
-          at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e BINARYPATH=/Litmus/result/bin/influxd_linux_amd64/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+          at: /tmp/workspace/<< pipeline.id >>/project
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e BINARYPATH=/Litmus/result/bin/influxd_linux_amd64/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v /tmp/workspace/${CIRCLE_PIPELINE_ID}/project:/Litmus/result quay.io/influxdb/litmus:latest
       - store_artifacts:
-          path: ~/project
+          path: /tmp/workspace/<< pipeline.id >>/project
           destination: raw-daily-output
       - store_test_results:
-          path: ~/project
+          path: /tmp/workspace/<< pipeline.id >>/project
 
   grace-test:
-    executor: linux-amd64
+    machine:
+      image: ubuntu-2204:current
+      resource_class: large
     steps:
       - attach_workspace:
           at: ~/project
@@ -931,46 +911,45 @@ jobs:
                 from: /tmp/workspace/CHANGELOG.md
 
   check_package_deb_amd64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: medium
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run:
           name: Validate Debian Package (AMD64)
           command: |
-            sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb2*amd64.deb
+            docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            .circleci/scripts/validate amd64 deb /tmp/workspace/artifacts
 
   check_package_deb_arm64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.medium
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run:
           name: Validate Debian Package (ARM64)
           command: |
-            sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb2*arm64.deb
+            docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            .circleci/scripts/validate arm64 deb /tmp/workspace/artifacts
 
-  check_package_rpm:
-    executor: linux-amd64
-    parameters:
-      arch:
-        type: string
+  check_package_rpm_amd64:
+    executor: self-hosted-amd
     steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - add_ssh_keys:
-          fingerprints:
-            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
-          AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
-          .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb2*.<< parameters.arch >>.rpm
+          docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          .circleci/scripts/validate x86_64 rpm /tmp/workspace/artifacts
+
+  check_package_rpm_arm64:
+    executor: self-hosted-arm
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
+      - run: |
+          docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          .circleci/scripts/validate aarch64 rpm /tmp/workspace/artifacts
