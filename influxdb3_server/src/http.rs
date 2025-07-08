@@ -1857,6 +1857,43 @@ async fn record_batch_stream_to_body(
     }
 }
 
+pub(crate) async fn route_admin_token_recovery_request(
+    http_server: Arc<HttpApi>,
+    req: Request,
+) -> Result<Response, Infallible> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    trace!(request = ?req,"Processing request");
+    let content_length = req.headers().get("content-length").cloned();
+
+    let response = match (method.clone(), uri.path()) {
+        (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
+            http_server.regenerate_admin_token(req).await
+        }
+        _ => {
+            let body = bytes_to_response_body("not found");
+            Ok(ResponseBuilder::new()
+                .status(StatusCode::NOT_FOUND)
+                .body(body)
+                .unwrap())
+        }
+    };
+
+    match response {
+        Ok(mut response) => {
+            response
+                .headers_mut()
+                .insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
+            debug!(?response, "Successfully processed request");
+            Ok(response)
+        }
+        Err(error) => {
+            error!(%error, %method, path = uri.path(), ?content_length, "Error while handling request");
+            Ok(error.into_response())
+        }
+    }
+}
+
 pub(crate) async fn route_request(
     http_server: Arc<HttpApi>,
     mut req: Request,

@@ -23,6 +23,7 @@ use crate::grpc::make_flight_server;
 use crate::http::HttpApi;
 use crate::http::route_request;
 use authz::Authorizer;
+use http::route_admin_token_recovery_request;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::AddrStream;
 use hyper::server::conn::Http;
@@ -174,6 +175,101 @@ impl<'a> Server<'a> {
     }
 }
 
+/// Creates HTTP trace layer
+fn create_http_trace_layer(common_state: &CommonServerState) -> TraceLayer {
+    let http_metrics =
+        RequestMetrics::new(Arc::clone(&common_state.metrics), MetricFamily::HttpServer);
+    TraceLayer::new(
+        common_state.trace_header_parser.clone(),
+        Arc::new(http_metrics),
+        common_state.trace_collector().clone(),
+        TRACE_HTTP_SERVER_NAME,
+        trace_http::tower::ServiceProtocol::Http,
+    )
+}
+
+/// Creates gRPC trace layer
+fn create_grpc_trace_layer(common_state: &CommonServerState) -> TraceLayer {
+    let grpc_metrics =
+        RequestMetrics::new(Arc::clone(&common_state.metrics), MetricFamily::GrpcServer);
+    TraceLayer::new(
+        common_state.trace_header_parser.clone(),
+        Arc::new(grpc_metrics),
+        common_state.trace_collector().clone(),
+        TRACE_GRPC_SERVER_NAME,
+        trace_http::tower::ServiceProtocol::Grpc,
+    )
+}
+
+pub async fn serve_admin_token_regen_endpoint(
+    server: Server<'_>,
+    shutdown: CancellationToken,
+    tcp_listener_file_path: Option<PathBuf>,
+) -> Result<()> {
+    let http_trace_layer = create_http_trace_layer(&server.common_state);
+
+    if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
+        let listener = server.listener;
+        let tls_min = server.tls_minimum_version;
+        let http = Arc::clone(&server.http);
+
+        let (addr, certs, key) = setup_tls(listener, key_file, cert_file)?;
+        info!(
+            address = %addr.local_addr(),
+            "starting admin token recovery endpoint with TLS on",
+        );
+
+        let http_server = Arc::clone(&http);
+        let rest_service = hyper::service::make_service_fn(move |_| {
+            let http_server = Arc::clone(&http_server);
+            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+                route_admin_token_recovery_request(Arc::clone(&http_server), req)
+            });
+            let service = http_trace_layer.layer(service);
+            futures::future::ready(Ok::<_, Infallible>(service))
+        });
+
+        write_address_to_file(tcp_listener_file_path, &addr).await?;
+
+        let acceptor = hyper_rustls::TlsAcceptor::builder()
+            .with_tls_config(
+                ServerConfig::builder_with_protocol_versions(tls_min)
+                    .with_no_client_auth()
+                    .with_single_cert(certs, key)
+                    .unwrap(),
+            )
+            .with_all_versions_alpn()
+            .with_incoming(addr);
+
+        hyper::server::Server::builder(acceptor)
+            .serve(rest_service)
+            .with_graceful_shutdown(shutdown.cancelled())
+            .await?;
+    } else {
+        let rest_service = hyper::service::make_service_fn(|_| {
+            let http_server = Arc::clone(&server.http);
+            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+                route_admin_token_recovery_request(Arc::clone(&http_server), req)
+            });
+            let service = http_trace_layer.layer(service);
+            futures::future::ready(Ok::<_, Infallible>(service))
+        });
+
+        let addr = AddrIncoming::from_listener(server.listener)?;
+        info!(
+            address = %addr.local_addr(),
+            "starting admin token recovery endpoint on",
+        );
+        hyper::server::Builder::new(addr, Http::new())
+            .tcp_nodelay(true)
+            .serve(rest_service)
+            .with_graceful_shutdown(shutdown.cancelled())
+            .await?;
+    }
+
+    Ok(())
+}
+
 pub async fn serve(
     server: Server<'_>,
     shutdown: CancellationToken,
@@ -182,38 +278,24 @@ pub async fn serve(
     paths_without_authz: &'static Vec<&'static str>,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
-    let grpc_metrics = RequestMetrics::new(
-        Arc::clone(&server.common_state.metrics),
-        MetricFamily::GrpcServer,
-    );
-    let grpc_trace_layer = TraceLayer::new(
-        server.common_state.trace_header_parser.clone(),
-        Arc::new(grpc_metrics),
-        server.common_state.trace_collector().clone(),
-        TRACE_GRPC_SERVER_NAME,
-        trace_http::tower::ServiceProtocol::Grpc,
-    );
+    let grpc_trace_layer = create_grpc_trace_layer(&server.common_state);
     let grpc_service = grpc_trace_layer.layer(make_flight_server(
         Arc::clone(&server.http.query_executor),
         Some(server.authorizer()),
     ));
 
-    let http_metrics = RequestMetrics::new(
-        Arc::clone(&server.common_state.metrics),
-        MetricFamily::HttpServer,
-    );
-    let http_trace_layer = TraceLayer::new(
-        server.common_state.trace_header_parser.clone(),
-        Arc::new(http_metrics),
-        server.common_state.trace_collector().clone(),
-        TRACE_HTTP_SERVER_NAME,
-        trace_http::tower::ServiceProtocol::Http,
-    );
+    let http_trace_layer = create_http_trace_layer(&server.common_state);
 
-    if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
+    let key_file = server.key_file.clone();
+    let cert_file = server.cert_file.clone();
+
+    if let (Some(key_file), Some(cert_file)) = (key_file.as_ref(), cert_file.as_ref()) {
+        let listener = server.listener;
+        let tls_min = server.tls_minimum_version;
+        let http = Arc::clone(&server.http);
         let rest_service = hyper::service::make_service_fn(|conn: &TlsStream| {
             let remote_addr = conn.io().map(|conn| conn.remote_addr());
-            let http_server = Arc::clone(&server.http);
+            let http_server = Arc::clone(&http);
             let service = service_fn(move |mut req: hyper::Request<hyper::Body>| {
                 req.extensions_mut().insert(remote_addr);
                 route_request(
@@ -228,22 +310,7 @@ pub async fn serve(
         });
 
         let hybrid_make_service = hybrid(rest_service, grpc_service);
-        let mut addr = AddrIncoming::from_listener(server.listener)?;
-        addr.set_nodelay(true);
-        let certs = {
-            let cert_file = File::open(cert_file).unwrap();
-            let mut buf_reader = BufReader::new(cert_file);
-            rustls_pemfile::certs(&mut buf_reader)
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap()
-        };
-        let key = {
-            let key_file = File::open(key_file).unwrap();
-            let mut buf_reader = BufReader::new(key_file);
-            rustls_pemfile::private_key(&mut buf_reader)
-                .unwrap()
-                .unwrap()
-        };
+        let (addr, certs, key) = setup_tls(listener, key_file, cert_file)?;
 
         let timer_end = Instant::now();
         let startup_time = timer_end.duration_since(startup_timer);
@@ -253,21 +320,18 @@ pub async fn serve(
             startup_time.as_millis()
         );
 
-        if let Some(path) = tcp_listener_file_path {
-            let mut f = tokio::fs::File::create_new(path).await?;
-            let _ = f.write(addr.local_addr().to_string().as_bytes()).await?;
-            f.flush().await?;
-        }
+        write_address_to_file(tcp_listener_file_path, &addr).await?;
 
         let acceptor = hyper_rustls::TlsAcceptor::builder()
             .with_tls_config(
-                ServerConfig::builder_with_protocol_versions(server.tls_minimum_version)
+                ServerConfig::builder_with_protocol_versions(tls_min)
                     .with_no_client_auth()
                     .with_single_cert(certs, key)
                     .unwrap(),
             )
             .with_all_versions_alpn()
             .with_incoming(addr);
+
         hyper::server::Server::builder(acceptor)
             .serve(hybrid_make_service)
             .with_graceful_shutdown(shutdown.cancelled())
@@ -314,6 +378,52 @@ pub async fn serve(
     }
 
     Ok(())
+}
+
+// This function is only called when running tests to get hold of the server port details as the
+// tests start on arbitrary port by passing in 0 as port. This is also called when setting up TLS
+// as the tests seem to use TLS by default.
+async fn write_address_to_file(
+    tcp_listener_file_path: Option<PathBuf>,
+    addr: &AddrIncoming,
+) -> Result<(), Error> {
+    if let Some(path) = tcp_listener_file_path {
+        let mut f = tokio::fs::File::create_new(path).await?;
+        let _ = f.write(addr.local_addr().to_string().as_bytes()).await?;
+        f.flush().await?;
+    };
+    Ok(())
+}
+
+fn setup_tls(
+    tcp_listener: TcpListener,
+    key_file: &PathBuf,
+    cert_file: &PathBuf,
+) -> Result<
+    (
+        AddrIncoming,
+        Vec<rustls::pki_types::CertificateDer<'static>>,
+        rustls::pki_types::PrivateKeyDer<'static>,
+    ),
+    Error,
+> {
+    let mut addr = AddrIncoming::from_listener(tcp_listener)?;
+    addr.set_nodelay(true);
+    let certs = {
+        let cert_file = File::open(cert_file).unwrap();
+        let mut buf_reader = BufReader::new(cert_file);
+        rustls_pemfile::certs(&mut buf_reader)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    };
+    let key = {
+        let key_file = File::open(key_file).unwrap();
+        let mut buf_reader = BufReader::new(key_file);
+        rustls_pemfile::private_key(&mut buf_reader)
+            .unwrap()
+            .unwrap()
+    };
+    Ok((addr, certs, key))
 }
 
 #[cfg(test)]

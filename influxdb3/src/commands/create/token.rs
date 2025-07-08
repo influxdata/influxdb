@@ -75,12 +75,16 @@ pub enum TokenOutputFormat {
 
 #[derive(Parser, Clone, Debug)]
 pub struct InfluxDb3ServerConfig {
-    /// The host URL of the running InfluxDB 3 Core server
+    /// The host URL of the running InfluxDB 3 Core server.
+    ///
+    /// Note: When using --regenerate, the effective default changes to http://127.0.0.1:8182
+    /// (admin token recovery endpoint) unless a custom host is specified.
     #[clap(
         name = "host",
         long = "host",
         default_value = "http://127.0.0.1:8181",
-        env = "INFLUXDB3_HOST_URL"
+        env = "INFLUXDB3_HOST_URL",
+        help = "The host URL of the running InfluxDB 3 Core server (default: http://127.0.0.1:8181, or :8182 with --regenerate)"
     )]
     pub host_url: Url,
 
@@ -96,8 +100,15 @@ pub struct InfluxDb3ServerConfig {
 
 #[derive(Parser, Debug)]
 pub struct CreateAdminTokenConfig {
-    /// Operator token will be regenerated when this is set
-    #[clap(name = "regenerate", long = "regenerate")]
+    /// Operator token will be regenerated when this is set.
+    ///
+    /// When used without --host, connects to the admin token recovery endpoint (port 8182)
+    /// instead of the default server endpoint (port 8181).
+    #[clap(
+        name = "regenerate",
+        long = "regenerate",
+        help = "Regenerate the operator token (uses port 8182 by default instead of 8181)"
+    )]
     pub regenerate: bool,
 
     // for named admin and permission tokens this is mandatory but not for admin tokens
@@ -156,6 +167,31 @@ impl CreateTokenConfig {
         }
     }
 
+    /// Get the effective host URL for the operation.
+    ///
+    /// When `--regenerate` is used and no custom host is provided, this will return
+    /// the admin token recovery endpoint (port 8182) instead of the default (port 8181).
+    ///
+    /// # Examples
+    /// - `influxdb3 create token --admin` → uses http://127.0.0.1:8181
+    /// - `influxdb3 create token --admin --regenerate` → uses http://127.0.0.1:8182
+    /// - `influxdb3 create token --admin --regenerate --host http://custom:9999` → uses http://custom:9999
+    pub fn get_effective_host_url(&self, default_url: &Url) -> Url {
+        match &self.admin_config {
+            Some(admin_config) if admin_config.regenerate => {
+                // Check if the host URL is the default value (normalize by removing trailing slash)
+                if default_url.as_str().trim_end_matches('/') == "http://127.0.0.1:8181" {
+                    // Use the admin token recovery endpoint
+                    Url::parse("http://127.0.0.1:8182").expect("hardcoded URL should be valid")
+                } else {
+                    // User provided a custom URL, use it as-is
+                    default_url.clone()
+                }
+            }
+            _ => default_url.clone(),
+        }
+    }
+
     pub fn get_output_format(&self) -> Option<&TokenOutputFormat> {
         match &self.admin_config {
             Some(admin_config) => admin_config.format.as_ref(),
@@ -208,8 +244,15 @@ impl Args for CreateTokenConfig {
 
 impl CommandFactory for CreateTokenConfig {
     fn command() -> clap::Command {
-        let admin_sub_cmd =
-            ClapCommand::new("--admin").override_usage("influxdb3 create token --admin [OPTIONS]");
+        let admin_sub_cmd = ClapCommand::new("--admin")
+            .override_usage("influxdb3 create token --admin [OPTIONS]")
+            .about("Create or regenerate an admin token")
+            .long_about(
+                "Create or regenerate an admin token.\n\n\
+                            When using --regenerate without specifying --host, the command will \
+                            connect to the admin token recovery endpoint (http://127.0.0.1:8182) \
+                            instead of the default server endpoint (http://127.0.0.1:8181).",
+            );
         let all_args = CreateAdminTokenConfig::as_args();
         let admin_sub_cmd = admin_sub_cmd.args(all_args);
 
