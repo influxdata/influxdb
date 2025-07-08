@@ -594,6 +594,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 
 	epoch := strings.TrimSpace(r.FormValue("epoch"))
 
+	// timeFormat should default to "epoch"
+	timeFormat := strings.TrimSpace(r.FormValue("time_format"))
+	if timeFormat == "" {
+		timeFormat = "epoch"
+	}
+
 	p := influxql.NewParser(qr)
 	db := r.FormValue("db")
 
@@ -747,8 +753,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		}
 
 		// if requested, convert result timestamps to epoch
-		if epoch != "" {
+		if epoch != "" && timeFormat == "epoch" {
 			convertToEpoch(r, epoch)
+		}
+
+		if timeFormat == "rfc3339" {
+			convertToRfc3339(r)
 		}
 
 		// Write out result immediately if chunked.
@@ -1807,6 +1817,16 @@ func convertToEpoch(r *query.Result, epoch string) {
 		for _, v := range s.Values {
 			if ts, ok := v[0].(time.Time); ok {
 				v[0] = ts.UnixNano() / divisor
+			}
+		}
+	}
+}
+
+func convertToRfc3339(r *query.Result) {
+	for _, s := range r.Series {
+		for _, v := range s.Values {
+			if ts, ok := v[0].(time.Time); ok {
+				v[0] = ts.Format(time.RFC3339Nano)
 			}
 		}
 	}
