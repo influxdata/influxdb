@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime/pprof"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -166,6 +167,60 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 			t.Fatalf("series out of order: %d !< %d ", elem.SeriesID, prevSeriesID)
 		}
 		prevSeriesID = elem.SeriesID
+	}
+}
+
+// Issue: https://github.com/influxdata/influxdb/issues/26164
+// Data race test to check for contention between AddSeriesList, LogFile.TagValueIterator, and logTagKey.TagValueIterator
+func TestLogFile_AddSeries_TagValueIterator_Contention(t *testing.T) {
+	const TAG_COUNT = 10000
+	const ROUNDS = 100
+
+	sfile := MustOpenSeriesFile(t)
+	defer func(sfile *SeriesFile) {
+		err := sfile.Close()
+		require.NoError(t, err, "close series file")
+	}(sfile)
+
+	f := MustOpenLogFile(sfile.SeriesFile)
+	defer func(f *LogFile) {
+		err := f.Close()
+		require.NoError(t, err, "close log file")
+	}(f)
+
+	seriesSet := tsdb.NewSeriesIDSet()
+
+	newTags := make([]models.Tags, 0)
+	for i := 0; i < TAG_COUNT; i++ {
+		newTags = append(newTags, models.NewTags(map[string]string{"region": fmt.Sprintf("region-%d", i)}))
+		newTags = append(newTags, models.NewTags(map[string]string{"host": fmt.Sprintf("server-%d", i)}))
+	}
+
+	_, err := f.AddSeriesList(seriesSet,
+		slices.StringsToBytes("cpu", "mem"),
+		newTags,
+	)
+	require.NoError(t, err, "adding series data")
+
+	var wg sync.WaitGroup
+	for round := 0; round < ROUNDS; round++ {
+		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+		for round := 0; round < ROUNDS; round++ {
+			wg.Add(1)
+			go func() {
+				f.TagValueIterator([]byte("cpu"), []byte("region"))
+				wg.Done()
+			}()
+		}
+		for round := 0; round < ROUNDS; round++ {
+			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+			wg.Add(1)
+			go func() {
+				f.AddSeriesList(seriesSet, slices.StringsToBytes("cpu", "mem"), newTags)
+				wg.Done()
+			}()
+			wg.Wait()
+		}
 	}
 }
 
