@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	ErrNilAuthorization    = goerrors.New("authorization cannot be nil")
 	ErrHashedTokenMismatch = goerrors.New("HashedToken does not match Token")
 	ErrIncorrectToken      = goerrors.New("token is incorrect for authorization")
 	ErrNoTokenAvailable    = goerrors.New("no token available for authorization")
@@ -108,7 +109,7 @@ func (s *Store) transformToken(a *influxdb.Authorization) error {
 			// Note that even if a.HashedToken is set, we will regenerate it here. This ensures
 			// that a.HashedToken will be stored using the currently configured hashing algorithm.
 			if hashedToken, err := s.hasher.Hash(a.Token); err != nil {
-				return fmt.Errorf("error hashing token: %w", err)
+				return fmt.Errorf("error hashing token for token %d (%s): %w", a.ID, a.Description, err)
 			} else {
 				a.HashedToken = hashedToken
 			}
@@ -122,11 +123,17 @@ func (s *Store) transformToken(a *influxdb.Authorization) error {
 }
 
 // CreateAuthorization takes an Authorization object and saves it in storage using its token
-// using its token property as an index
+// using its token property as an index. The contents of a should be considered invalid if an
+// error occurs.
 func (s *Store) CreateAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.Authorization) (retErr error) {
 	defer func() {
 		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpCreateAuthorization))
 	}()
+
+	if a == nil {
+		return ErrNilAuthorization
+	}
+
 	// if the provided ID is invalid, or already maps to an existing Auth, then generate a new one
 	if !a.ID.Valid() {
 		id, err := s.generateSafeID(ctx, tx, authBucket)
@@ -193,7 +200,7 @@ func (s *Store) validateToken(auth *influxdb.Authorization, token string) (bool,
 	if auth.HashedToken != "" {
 		match, err := s.hasher.Match(auth.HashedToken, token)
 		if err != nil {
-			return false, fmt.Errorf("error matching hashed token for validation: %w", err)
+			return false, fmt.Errorf("error matching hashed token %d (%s) for validation: %w", auth.ID, auth.Description, err)
 		}
 		return match, nil
 	}
@@ -437,6 +444,10 @@ func (s *Store) UpdateAuthorization(ctx context.Context, tx kv.Tx, id platform.I
 		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpUpdateAuthorization))
 	}()
 
+	if a == nil {
+		return nil, ErrNilAuthorization
+	}
+
 	initialToken := a.Token
 	initialHashedToken := a.HashedToken
 
@@ -610,16 +621,28 @@ func (s *Store) authorizationsPredicateFn(f influxdb.AuthorizationFilter) kv.Cur
 			// but we'll still look at the unhashed Token if it is available.
 		}
 		return func(_, value []byte) bool {
-			// it is assumed that token never has escaped string data
+			// Check if "token" matches. It is assumed that token never has escaped string data.
 			if got, _, _, err := jsonparser.Get(value, "token"); err == nil {
-				return string(got) == token
+				if len(got) > 0 {
+					return string(got) == token
+				}
+			} else {
+				return true // predicate must return true on errors
 			}
+
+			// Check if "hashedToken" matches, if applicable.
 			if len(allHashes) > 0 {
 				if got, _, _, err := jsonparser.Get(value, "hashedToken"); err == nil {
-					return slices.Contains(allHashes, string(got))
+					if len(got) > 0 {
+						return slices.Contains(allHashes, string(got))
+					}
+				} else {
+					return true // predicate must return true on errors
 				}
 			}
-			return true
+
+			// No match on "token" or "hashedToken", do not include this record.
+			return false
 		}
 	}
 

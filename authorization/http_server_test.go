@@ -191,7 +191,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					require.Equal(t, tt.wants.contentType, contentType)
 				}
 				diff, err := jsonDiff(string(body), tt.wants.body)
-				require.NoError(t, err)
+				require.NoError(t, err, "jsonDiff failed")
 				require.Empty(t, diff, "authorization endpoint returned unexpected result")
 			})
 		}
@@ -355,7 +355,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				require.Equal(t, tt.wants.contentType, contentType)
 			}
 			diff, err := jsonDiff(string(body), tt.wants.body)
-			require.NoError(t, err)
+			require.NoError(t, err, "jsonDiff failed")
 			require.Empty(t, diff, "authorization endpoint returned unexpected result")
 		})
 	}
@@ -740,7 +740,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					require.Equal(t, tt.wants.contentType, contentType)
 				}
 				diff, err := jsonDiff(string(body), tt.wants.body)
-				require.NoError(t, err)
+				require.NoError(t, err, "jsonDiff failed")
 				require.Empty(t, diff, "authorization endpoint returned unexpected results")
 			})
 		}
@@ -840,7 +840,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 
 			if tt.wants.body != "" {
 				diff, err := jsonDiff(string(body), tt.wants.body)
-				require.NoError(t, err)
+				require.NoError(t, err, "jsonDiff failed")
 				require.Empty(t, diff, "authorization endpoint returned unexpected results")
 			}
 		})

@@ -69,7 +69,7 @@ func NewAuthorizationHasher(opts ...AuthorizationHasherOption) (*AuthorizationHa
 	// Create the hasher used for hashing new tokens before storage.
 	hasher, err := influxdb2_algo.New(influxdb2_algo.WithVariant(options.hasherVariant))
 	if err != nil {
-		return nil, fmt.Errorf("creating hasher for AuthorizationHasher: %w", err)
+		return nil, fmt.Errorf("creating hasher %s for AuthorizationHasher: %w", options.hasherVariant.Prefix(), err)
 	}
 
 	// Create decoder and register all requested decoder variants.

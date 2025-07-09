@@ -298,7 +298,7 @@ func (s *Store) hashedTokenMigration(ctx context.Context) error {
 			// Now update them. This really seems too simple, but s.UpdateAuthorization() is magical.
 			for _, a := range batch {
 				if _, err := s.UpdateAuthorization(ctx, tx, a.ID, a); err != nil {
-					return err
+					return fmt.Errorf("failed to update authorization for %d (%s): %w", a.ID, a.Description, err)
 				}
 			}
 			return nil

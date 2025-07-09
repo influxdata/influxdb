@@ -38,7 +38,7 @@ func TestOnboardingValidation(t *testing.T) {
 				Bucket:                 "holder",
 				RetentionPeriodSeconds: 1,
 			})
-			require.NoError(t, err)
+			require.NoError(t, err, "OnboardInitialUser failed")
 
 			ctx := pctx.SetAuthorizer(context.Background(), r.Auth)
 
@@ -142,18 +142,16 @@ func runTestValidations(useHashedTokens bool, t *testing.T) {
 		Bucket:                 "holder",
 		RetentionPeriodSeconds: 1,
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, "OnboardInitialUser failed")
 
-	err = svc.CreateOrganization(context.Background(), otherOrg)
-	require.NoError(t, err)
+	require.NoError(t, svc.CreateOrganization(context.Background(), otherOrg))
 
 	otherBucket := &influxdb.Bucket{
 		Name:  "other_bucket",
 		OrgID: otherOrg.ID,
 	}
 
-	err = svc.CreateBucket(context.Background(), otherBucket)
-	require.NoError(t, err)
+	require.NoError(t, svc.CreateBucket(context.Background(), otherBucket))
 
 	var (
 		orgID            = r.Org.ID
@@ -603,8 +601,7 @@ func newStore(t *testing.T) kv.Store {
 
 	store := inmem.NewKVStore()
 
-	err := all.Up(context.Background(), zaptest.NewLogger(t), store)
-	require.NoError(t, err)
+	require.NoError(t, all.Up(context.Background(), zaptest.NewLogger(t), store))
 
 	return store
 }

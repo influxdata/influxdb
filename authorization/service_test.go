@@ -64,7 +64,7 @@ func initAuthService(s kv.Store, f influxdbtesting.AuthorizationFields, useHashe
 
 func TestBoltAuthService(t *testing.T) {
 	t.Parallel()
-	for _, useHashedTokens := range []bool{true} {
+	for _, useHashedTokens := range []bool{false, true} {
 		init := func(f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
 			return initBoltAuthService(f, useHashedTokens, t)
 		}
