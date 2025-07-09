@@ -8,6 +8,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io"
 	"log"
 	"math"
@@ -594,10 +595,17 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 
 	epoch := strings.TrimSpace(r.FormValue("epoch"))
 
+	timeFormats := []string{
+		"rfc3339",
+		"epoch",
+	}
 	// timeFormat should default to "epoch"
 	timeFormat := strings.TrimSpace(r.FormValue("time_format"))
 	if timeFormat == "" {
 		timeFormat = "epoch"
+	} else if !slices.Contains(timeFormats, timeFormat) {
+		h.httpError(rw, `time format must be one of the following: "epoch", "rfc3339"`, http.StatusBadRequest)
+		return
 	}
 
 	p := influxql.NewParser(qr)
@@ -755,10 +763,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		// if requested, convert result timestamps to epoch
 		if epoch != "" && timeFormat == "epoch" {
 			convertToEpoch(r, epoch)
-		}
-
-		if timeFormat == "rfc3339" {
-			convertToRfc3339(r)
+		} else if timeFormat == "rfc3339" {
+			convertToRfc3339Nano(r)
 		}
 
 		// Write out result immediately if chunked.
@@ -1822,7 +1828,7 @@ func convertToEpoch(r *query.Result, epoch string) {
 	}
 }
 
-func convertToRfc3339(r *query.Result) {
+func convertToRfc3339Nano(r *query.Result) {
 	for _, s := range r.Series {
 		for _, v := range s.Values {
 			if ts, ok := v[0].(time.Time); ok {
