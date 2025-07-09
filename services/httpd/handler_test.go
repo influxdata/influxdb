@@ -599,119 +599,78 @@ func TestHandler_Query_CloseNotify(t *testing.T) {
 
 // Ensure the handler returns results with RFC3339 timestamp format when requested.
 func TestHandler_Query_RFC3339(t *testing.T) {
+	testTime1 := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
+	testTime2 := time.Date(2021, 1, 2, 12, 0, 0, 0, time.UTC)
+	testTimeNano := time.Date(2021, 1, 1, 12, 0, 0, 123456789, time.UTC)
+
 	tests := []struct {
-		name string
-		testFunc func(t *testing.T)
+		name           string
+		series         []*models.Row
+		expectedResult string
 	}{
 		{
 			name: "single series",
-			testFunc: func(t *testing.T) {
-				h := NewHandler(false)
-				testTime := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
-
-				h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
-					ctx.Results <- &query.Result{
-						StatementID: 1,
-						Series: []*models.Row{{
-							Name:    "series0",
-							Columns: []string{"time", "value"},
-							Values: [][]interface{}{
-								{testTime, 42},
-							},
-						}},
-					}
-					return nil
-				}
-
-				w := httptest.NewRecorder()
-				h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&time_format=rfc3339", nil))
-				require.Equal(t, w.Code, http.StatusOK, "response status")
-
-				expectedRFC3339 := testTime.Format(time.RFC3339Nano)
-				expectedBody := fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42]]}]}]}`, expectedRFC3339)
-
-				body := strings.TrimSpace(w.Body.String())
-				require.Equal(t, expectedBody, body, "response body")
-			},
+			series: []*models.Row{{
+				Name:    "series0",
+				Columns: []string{"time", "value"},
+				Values: [][]interface{}{
+					{testTime1, 42},
+				},
+			}},
+			expectedResult: fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42]]}]}]}`, testTime1.Format(time.RFC3339Nano)),
 		},
 		{
 			name: "multiple series",
-			testFunc: func(t *testing.T) {
-				h := NewHandler(false)
-				testTime1 := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
-				testTime2 := time.Date(2021, 1, 2, 12, 0, 0, 0, time.UTC)
-
-				h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
-					ctx.Results <- &query.Result{
-						StatementID: 1,
-						Series: []*models.Row{
-							{
-								Name:    "series0",
-								Columns: []string{"time", "value"},
-								Values: [][]interface{}{
-									{testTime1, 42},
-									{testTime2, 43},
-								},
-							},
-							{
-								Name:    "series1",
-								Columns: []string{"time", "value"},
-								Values: [][]interface{}{
-									{testTime1, 100},
-								},
-							},
-						},
-					}
-					return nil
-				}
-
-				w := httptest.NewRecorder()
-				h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&time_format=rfc3339", nil))
-				require.Equal(t, w.Code, http.StatusOK, "response code")
-
-				firstExpectedRFC3339 := testTime1.Format(time.RFC3339Nano)
-				secondExpectedRFC3339 := testTime2.Format(time.RFC3339Nano)
-				expectedBody := fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42],["%s",43]]},{"name":"series1","columns":["time","value"],"values":[["%s",100]]}]}]}`, firstExpectedRFC3339, secondExpectedRFC3339, firstExpectedRFC3339)
-
-				body := strings.TrimSpace(w.Body.String())
-				require.Equal(t, expectedBody, body, "response body")
+			series: []*models.Row{
+				{
+					Name:    "series0",
+					Columns: []string{"time", "value"},
+					Values: [][]interface{}{
+						{testTime1, 42},
+						{testTime2, 43},
+					},
+				},
+				{
+					Name:    "series1",
+					Columns: []string{"time", "value"},
+					Values: [][]interface{}{
+						{testTime1, 100},
+					},
+				},
 			},
+			expectedResult: fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42],["%s",43]]},{"name":"series1","columns":["time","value"],"values":[["%s",100]]}]}]}`, testTime1.Format(time.RFC3339Nano), testTime2.Format(time.RFC3339Nano), testTime1.Format(time.RFC3339Nano)),
 		},
 		{
 			name: "nanosecond precision",
-			testFunc: func(t *testing.T) {
-				h := NewHandler(false)
-				testTime := time.Date(2021, 1, 1, 12, 0, 0, 123456789, time.UTC)
-
-				h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
-					ctx.Results <- &query.Result{
-						StatementID: 1,
-						Series: []*models.Row{{
-							Name:    "series0",
-							Columns: []string{"time", "value"},
-							Values: [][]interface{}{
-								{testTime, 42},
-							},
-						}},
-					}
-					return nil
-				}
-
-				w := httptest.NewRecorder()
-				h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&time_format=rfc3339", nil))
-				require.Equal(t, w.Code, http.StatusOK, "response code")
-
-				expectedRFC3339 := testTime.Format(time.RFC3339Nano)
-				expectedBody := fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42]]}]}]}`, expectedRFC3339)
-
-				body := strings.TrimSpace(w.Body.String())
-				require.Equal(t, expectedBody, body, "response body")
-			},
+			series: []*models.Row{{
+				Name:    "series0",
+				Columns: []string{"time", "value"},
+				Values: [][]interface{}{
+					{testTimeNano, 42},
+				},
+			}},
+			expectedResult: fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42]]}]}]}`, testTimeNano.Format(time.RFC3339Nano)),
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, tt.testFunc)
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHandler(false)
+			h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				ctx.Results <- &query.Result{
+					StatementID: 1,
+					Series:      tt.series,
+				}
+				return nil
+			}
+
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&time_format=rfc3339", nil))
+			require.Equal(t, http.StatusOK, w.Code, "response status")
+
+			body := strings.TrimSpace(w.Body.String())
+			require.Equal(t, tt.expectedResult, body, "response body")
+		})
 	}
 }
 
