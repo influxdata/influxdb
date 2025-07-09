@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb/pkg/wg_timeout"
 	"github.com/influxdata/influxdb/query"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 	"github.com/influxdata/influxql"
@@ -1814,7 +1815,9 @@ func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int, log
 func (fscm *measurementFieldSetChangeMgr) Close() {
 	if fscm != nil {
 		close(fscm.writeRequests)
-		fscm.wg.Wait()
+		wg_timeout.WaitGroupTimeout(&fscm.wg, 24*time.Hour, func() {
+			fscm.logger.Debug("timed out waiting for measurementFieldSetChangeMgr to close", zap.String("changeFilePath", fscm.changeFilePath))
+		})
 	}
 }
 
