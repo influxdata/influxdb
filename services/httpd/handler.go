@@ -8,7 +8,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"io"
 	"log"
 	"math"
@@ -43,6 +42,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/prompb"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 )
 
 var ErrDiagnosticsValueMissing = errors.New("expected diagnostic value missing")
