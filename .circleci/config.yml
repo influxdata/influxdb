@@ -476,19 +476,7 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          docker run -v /tmp/workspace/${CIRCLE_PIPELINE_ID}:/tmp/workspace -e DEBIAN_FRONTEND=noninteractive ubuntu:latest \
-            apt-get update && \
-            apt-get install --no-install-recommends --yes \
-            asciidoc        \
-            build-essential \
-            git             \
-            python3         \
-            rpm             \
-            ruby-dev        \
-            xmlto        && \
-            gem install fpm && \
-            python3 -m pip install -r .circleci/scripts/package/requirements.txt && \
-            .circleci/scripts/package/build.py
+          docker run -v /tmp/workspace/${CIRCLE_PIPELINE_ID}:/tmp/workspace -w /tmp/workspace -e DEBIAN_FRONTEND=noninteractive ubuntu:latest .circleci/scripts/build-packages.bash
       - store_artifacts:
           path: artifacts/
       - persist_to_workspace:
@@ -771,6 +759,7 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: /tmp/workspace/<< pipeline.id >>/project
+      - run: find /tmp/workspace/$CIRCLE_PIPELINE_ID/project -type f -exec chmod +w {} \;
 
   litmus-full-test:
     executor: self-hosted-amd
@@ -783,6 +772,7 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: /tmp/workspace/<< pipeline.id >>/project
+      - run: find /tmp/workspace/$CIRCLE_PIPELINE_ID/project -type f -exec chmod +w {} \;
 
   grace-test:
     machine:
