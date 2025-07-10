@@ -11,7 +11,8 @@ python3-dev     \
 python3-venv    \
 rpm             \
 ruby-dev        \
-xmlto
+xmlto           \
+zip
 gem install fpm
 python3 -m venv /tmp/venv
 /tmp/venv/bin/pip install -r .circleci/scripts/package/requirements.txt

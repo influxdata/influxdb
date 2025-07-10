@@ -749,7 +749,7 @@ jobs:
           destination: test_artifacts/results/shared
 
   litmus-smoke-test:
-    executor: cross-builder
+    executor: self-hosted-amd
     steps:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>/project
@@ -759,10 +759,10 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: /tmp/workspace/<< pipeline.id >>/project
-      - run: find /tmp/workspace/$CIRCLE_PIPELINE_ID/project -type f -exec chmod +w {} \;
+      - run: rm -rf /tmp/workspace/<< pipeline.id>>/project
 
   litmus-full-test:
-    executor: cross-builder
+    executor: self-hosted-amd
     steps:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>/project
@@ -772,7 +772,7 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: /tmp/workspace/<< pipeline.id >>/project
-      - run: find /tmp/workspace/$CIRCLE_PIPELINE_ID/project -type f -exec chmod +w {} \;
+      - run: rm -rf /tmp/workspace/<< pipeline.id>>/project
 
   grace-test:
     machine:
