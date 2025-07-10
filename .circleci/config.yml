@@ -931,7 +931,7 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          docker run --privileged --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
           .circleci/scripts/validate x86_64 rpm /tmp/workspace/artifacts
 
   check_package_rpm_arm64:
@@ -941,5 +941,5 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          docker run --privileged --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
           .circleci/scripts/validate aarch64 rpm /tmp/workspace/artifacts

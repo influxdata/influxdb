@@ -31,12 +31,8 @@ PACKAGE_ARCH="${1}"
 PACKAGE_TYPE="${2}"
 PACKAGE_PATH="${3}"
 
-echo --- start find ---
-find $PACKAGE_PATH -name "*${PACKAGE_ARCH}.${PACKAGE_TYPE}"
-echo --- end find ---
-bin=$(find $PACKAGE_PATH -name "*${PACKAGE_ARCH}.${PACKAGE_TYPE}")
-[ ! -f $bin ] && echo "unable to find ${PACKAGE_TYPE} in ${PACKAGE_PATH}" && exit 1
-[[ "${bin}" == "" ]] && echo "no binary found" && exit 1
+bin=$(find $PACKAGE_PATH -name "*${PACKAGE_ARCH}.${PACKAGE_TYPE}" | head -1 | tr -d })
+[[ "${bin}" == "" ]] && echo "unable to find ${PACKAGE_TYPE} in ${PACKAGE_PATH}" && exit 1
 
 install_deb() {
   # When installing the package, ensure that the latest repository listings
