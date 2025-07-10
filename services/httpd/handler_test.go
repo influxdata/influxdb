@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"io"
 	"log"
 	"math"
@@ -593,6 +594,83 @@ func TestHandler_Query_CloseNotify(t *testing.T) {
 		timer.Stop()
 	case <-timer.C:
 		t.Fatal("timeout while waiting for query to abort")
+	}
+}
+
+// Ensure the handler returns results with RFC3339 timestamp format when requested.
+func TestHandler_Query_RFC3339(t *testing.T) {
+	testTime1 := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
+	testTime2 := time.Date(2021, 1, 2, 12, 0, 0, 0, time.UTC)
+	testTimeNano := time.Date(2021, 1, 1, 12, 0, 0, 123456789, time.UTC)
+
+	tests := []struct {
+		name           string
+		series         []*models.Row
+		expectedResult string
+	}{
+		{
+			name: "single series",
+			series: []*models.Row{{
+				Name:    "series0",
+				Columns: []string{"time", "value"},
+				Values: [][]interface{}{
+					{testTime1, 42},
+				},
+			}},
+			expectedResult: fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42]]}]}]}`, testTime1.Format(time.RFC3339Nano)),
+		},
+		{
+			name: "multiple series",
+			series: []*models.Row{
+				{
+					Name:    "series0",
+					Columns: []string{"time", "value"},
+					Values: [][]interface{}{
+						{testTime1, 42},
+						{testTime2, 43},
+					},
+				},
+				{
+					Name:    "series1",
+					Columns: []string{"time", "value"},
+					Values: [][]interface{}{
+						{testTime1, 100},
+					},
+				},
+			},
+			expectedResult: fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42],["%s",43]]},{"name":"series1","columns":["time","value"],"values":[["%s",100]]}]}]}`, testTime1.Format(time.RFC3339Nano), testTime2.Format(time.RFC3339Nano), testTime1.Format(time.RFC3339Nano)),
+		},
+		{
+			name: "nanosecond precision",
+			series: []*models.Row{{
+				Name:    "series0",
+				Columns: []string{"time", "value"},
+				Values: [][]interface{}{
+					{testTimeNano, 42},
+				},
+			}},
+			expectedResult: fmt.Sprintf(`{"results":[{"statement_id":1,"series":[{"name":"series0","columns":["time","value"],"values":[["%s",42]]}]}]}`, testTimeNano.Format(time.RFC3339Nano)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHandler(false)
+			h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				ctx.Results <- &query.Result{
+					StatementID: 1,
+					Series:      tt.series,
+				}
+				return nil
+			}
+
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&time_format=rfc3339", nil))
+			require.Equal(t, http.StatusOK, w.Code, "response status")
+
+			body := strings.TrimSpace(w.Body.String())
+			require.Equal(t, tt.expectedResult, body, "response body")
+		})
 	}
 }
 
