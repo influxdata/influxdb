@@ -1868,6 +1868,7 @@ pub(crate) async fn route_admin_token_recovery_request(
 
     let response = match (method.clone(), uri.path()) {
         (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
+            info!("Regenerating admin token without password through token recovery API request");
             http_server.regenerate_admin_token(req).await
         }
         _ => {

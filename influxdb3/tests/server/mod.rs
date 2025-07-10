@@ -329,7 +329,7 @@ impl TestServer {
             .arg("serve")
             .arg("--disable-telemetry-upload")
             .args(["--http-bind", "0.0.0.0:0"])
-            .args(["--admin-token-regen-bind", "0.0.0.0:0"])
+            .args(["--admin-token-recovery-http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
             .args(["--wal-snapshot-size", "1"])
             .args([
@@ -339,7 +339,7 @@ impl TestServer {
                     .expect("valid tcp listener file path"),
             ])
             .args([
-                "--admin-token-regen-tcp-listener-file-path",
+                "--admin-token-recovery-tcp-listener-file-path",
                 tcp_addr_file_2
                     .to_str()
                     .expect("valid tcp listener file path"),

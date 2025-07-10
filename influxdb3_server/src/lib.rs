@@ -55,6 +55,7 @@ use trace_http::metrics::RequestMetrics;
 use trace_http::tower::TraceLayer;
 
 const TRACE_HTTP_SERVER_NAME: &str = "influxdb3_http";
+const ADMIN_TOKEN_RECOVERY_TRACE_HTTP_SERVER_NAME: &str = "influxdb3_token_recovery_http";
 const TRACE_GRPC_SERVER_NAME: &str = "influxdb3_grpc";
 
 #[derive(Debug, Error)]
@@ -176,14 +177,14 @@ impl<'a> Server<'a> {
 }
 
 /// Creates HTTP trace layer
-fn create_http_trace_layer(common_state: &CommonServerState) -> TraceLayer {
+fn create_http_trace_layer(common_state: &CommonServerState, server_name: &str) -> TraceLayer {
     let http_metrics =
         RequestMetrics::new(Arc::clone(&common_state.metrics), MetricFamily::HttpServer);
     TraceLayer::new(
         common_state.trace_header_parser.clone(),
         Arc::new(http_metrics),
         common_state.trace_collector().clone(),
-        TRACE_HTTP_SERVER_NAME,
+        server_name,
         trace_http::tower::ServiceProtocol::Http,
     )
 }
@@ -201,12 +202,15 @@ fn create_grpc_trace_layer(common_state: &CommonServerState) -> TraceLayer {
     )
 }
 
-pub async fn serve_admin_token_regen_endpoint(
+pub async fn serve_admin_token_recovery_endpoint(
     server: Server<'_>,
     shutdown: CancellationToken,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
-    let http_trace_layer = create_http_trace_layer(&server.common_state);
+    let http_trace_layer = create_http_trace_layer(
+        &server.common_state,
+        ADMIN_TOKEN_RECOVERY_TRACE_HTTP_SERVER_NAME,
+    );
 
     if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
         let listener = server.listener;
@@ -284,7 +288,7 @@ pub async fn serve(
         Some(server.authorizer()),
     ));
 
-    let http_trace_layer = create_http_trace_layer(&server.common_state);
+    let http_trace_layer = create_http_trace_layer(&server.common_state, TRACE_HTTP_SERVER_NAME);
 
     let key_file = server.key_file.clone();
     let cert_file = server.cert_file.clone();

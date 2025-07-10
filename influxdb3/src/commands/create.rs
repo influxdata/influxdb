@@ -78,8 +78,7 @@ impl Config {
             }) => (host_url, auth_token, ca_cert),
             SubCommand::Token(create_token_config) => {
                 let host_settings = create_token_config.get_connection_settings()?;
-                let effective_host_url =
-                    create_token_config.get_effective_host_url(&host_settings.host_url);
+                let effective_host_url = create_token_config.get_effective_host_url();
                 // We need to return references, so we'll handle this differently
                 return Ok({
                     let mut client =

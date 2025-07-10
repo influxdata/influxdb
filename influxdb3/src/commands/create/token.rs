@@ -77,16 +77,16 @@ pub enum TokenOutputFormat {
 pub struct InfluxDb3ServerConfig {
     /// The host URL of the running InfluxDB 3 Core server.
     ///
-    /// Note: When using --regenerate, the effective default changes to http://127.0.0.1:8182
-    /// (admin token recovery endpoint) unless a custom host is specified.
+    /// If not specified:
+    /// - Default is http://127.0.0.1:8181
+    /// - With --regenerate, default is http://127.0.0.1:8182 (admin token recovery endpoint)
     #[clap(
         name = "host",
         long = "host",
-        default_value = "http://127.0.0.1:8181",
         env = "INFLUXDB3_HOST_URL",
-        help = "The host URL of the running InfluxDB 3 Core server (default: http://127.0.0.1:8181, or :8182 with --regenerate)"
+        help = "The host URL of the running InfluxDB 3 Core server"
     )]
-    pub host_url: Url,
+    pub host_url: Option<Url>,
 
     /// The token for authentication with the InfluxDB 3 Core server to create permissions.
     /// This will be the admin token to create tokens with permissions
@@ -169,26 +169,38 @@ impl CreateTokenConfig {
 
     /// Get the effective host URL for the operation.
     ///
-    /// When `--regenerate` is used and no custom host is provided, this will return
+    /// When `--regenerate` is used and no host is specified, this will return
     /// the admin token recovery endpoint (port 8182) instead of the default (port 8181).
     ///
     /// # Examples
     /// - `influxdb3 create token --admin` → uses http://127.0.0.1:8181
     /// - `influxdb3 create token --admin --regenerate` → uses http://127.0.0.1:8182
+    /// - `influxdb3 create token --admin --regenerate --host http://127.0.0.1:8181` → uses http://127.0.0.1:8181
     /// - `influxdb3 create token --admin --regenerate --host http://custom:9999` → uses http://custom:9999
-    pub fn get_effective_host_url(&self, default_url: &Url) -> Url {
+    pub fn get_effective_host_url(&self) -> Url {
         match &self.admin_config {
-            Some(admin_config) if admin_config.regenerate => {
-                // Check if the host URL is the default value (normalize by removing trailing slash)
-                if default_url.as_str().trim_end_matches('/') == "http://127.0.0.1:8181" {
-                    // Use the admin token recovery endpoint
-                    Url::parse("http://127.0.0.1:8182").expect("hardcoded URL should be valid")
-                } else {
-                    // User provided a custom URL, use it as-is
-                    default_url.clone()
+            Some(admin_config) => {
+                match &admin_config.host.host_url {
+                    Some(url) => {
+                        // User explicitly provided a host URL, use it as-is
+                        url.clone()
+                    }
+                    None => {
+                        // No host URL provided, use default based on regenerate flag
+                        if admin_config.regenerate {
+                            Url::parse("http://127.0.0.1:8182")
+                                .expect("hardcoded URL should be valid")
+                        } else {
+                            Url::parse("http://127.0.0.1:8181")
+                                .expect("hardcoded URL should be valid")
+                        }
+                    }
                 }
             }
-            _ => default_url.clone(),
+            None => {
+                // This shouldn't happen in practice, but provide a sensible default
+                Url::parse("http://127.0.0.1:8181").expect("hardcoded URL should be valid")
+            }
         }
     }
 

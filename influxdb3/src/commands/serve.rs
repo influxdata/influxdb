@@ -28,7 +28,7 @@ use influxdb3_server::{
     CommonServerState, CreateServerArgs, Server,
     http::HttpApi,
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
-    serve, serve_admin_token_regen_endpoint,
+    serve, serve_admin_token_recovery_endpoint,
 };
 use influxdb3_shutdown::{ShutdownManager, wait_for_signal};
 use influxdb3_sys_events::SysEventStore;
@@ -82,8 +82,8 @@ pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 /// The default bind address for the HTTP API.
 pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
-/// The default bind address for admin token regeneration HTTP API.
-pub const DEFAULT_ADMIN_TOKEN_REGENERATION_BIND_ADDR: &str = "127.0.0.1:8182";
+/// The default bind address for admin token recovery HTTP API.
+pub const DEFAULT_ADMIN_TOKEN_RECOVERY_BIND_ADDR: &str = "127.0.0.1:8182";
 
 pub const DEFAULT_TELEMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
 
@@ -128,8 +128,8 @@ pub enum Error {
     #[error("lost HTTP/gRPC service")]
     LostHttpGrpc,
 
-    #[error("lost admin token regen service")]
-    LostAdminTokenRegen,
+    #[error("lost admin token recovery service")]
+    LostAdminTokenRecovery,
 
     #[error("tls requires both a cert and a key file to be passed in to work")]
     NoCertOrKeyFile,
@@ -185,14 +185,14 @@ pub struct Config {
     )]
     pub http_bind_address: SocketAddr,
 
-    /// The address on which admin token regeration will be allowed
+    /// The HTTP bind address for the admin token recovery endpoint
     #[clap(
-    long = "admin-token-regen-bind",
-    env = "INFLUXDB3_ADMIN_TOKEN_REGEN_BIND_ADDR",
-    default_value = DEFAULT_ADMIN_TOKEN_REGENERATION_BIND_ADDR,
+    long = "admin-token-recovery-http-bind",
+    env = "INFLUXDB3_ADMIN_TOKEN_RECOVERY_HTTP_BIND_ADDR",
+    default_value = DEFAULT_ADMIN_TOKEN_RECOVERY_BIND_ADDR,
     action,
     )]
-    pub admin_token_regen_bind_address: SocketAddr,
+    pub admin_token_recovery_bind_address: SocketAddr,
 
     /// Size of memory pool used during query exec, in megabytes.
     ///
@@ -469,11 +469,11 @@ pub struct Config {
     ///
     /// This is mainly intended for testing purposes and is not considered stable.
     #[clap(
-        long = "admin-token-regen-tcp-listener-file-path",
-        env = "INFLUXDB3_ADMIN_TOKEN_REGEN_TCP_LISTENER_FILE_PATH",
+        long = "admin-token-recovery-tcp-listener-file-path",
+        env = "INFLUXDB3_ADMIN_TOKEN_RECOVERY_TCP_LISTENER_FILE_PATH",
         hide = true
     )]
-    pub admin_token_regen_tcp_listener_file_path: Option<PathBuf>,
+    pub admin_token_recovery_tcp_listener_file_path: Option<PathBuf>,
 
     #[clap(
         long = "wal-replay-concurrency-limit",
@@ -927,9 +927,10 @@ pub async fn command(config: Config) -> Result<()> {
         .await
         .map_err(Error::BindAddress)?;
 
-    let admin_token_regen_listener = TcpListener::bind(*config.admin_token_regen_bind_address)
-        .await
-        .map_err(Error::BindAddress)?;
+    let admin_token_recovery_listener =
+        TcpListener::bind(*config.admin_token_recovery_bind_address)
+            .await
+            .map_err(Error::BindAddress)?;
 
     let processing_engine = ProcessingEngineManagerImpl::new(
         setup_processing_engine_env_manager(&config.processing_engine_config),
@@ -974,11 +975,11 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&authorizer),
     ));
 
-    let admin_token_regen_server = Server::new(CreateServerArgs {
+    let admin_token_recovery_server = Server::new(CreateServerArgs {
         common_state: common_state.clone(),
         http: Arc::clone(&http),
         authorizer: Arc::clone(&authorizer),
-        listener: admin_token_regen_listener,
+        listener: admin_token_recovery_listener,
         cert_file: cert_file.clone(),
         key_file: key_file.clone(),
         tls_minimum_version: config.tls_minimum_version.into(),
@@ -1038,10 +1039,10 @@ pub async fn command(config: Config) -> Result<()> {
     .fuse();
     let backend = shutdown_manager.join().fuse();
 
-    let regen_frontend = serve_admin_token_regen_endpoint(
-        admin_token_regen_server,
+    let recovery_frontend = serve_admin_token_recovery_endpoint(
+        admin_token_recovery_server,
         frontend_shutdown.clone(),
-        config.admin_token_regen_tcp_listener_file_path,
+        config.admin_token_recovery_tcp_listener_file_path,
     )
     .fuse();
 
@@ -1050,7 +1051,7 @@ pub async fn command(config: Config) -> Result<()> {
     pin_mut!(signal);
     pin_mut!(frontend);
     pin_mut!(backend);
-    pin_mut!(regen_frontend);
+    pin_mut!(recovery_frontend);
 
     let mut res = Ok(());
 
@@ -1088,14 +1089,14 @@ pub async fn command(config: Config) -> Result<()> {
                     res = res.and(Err(Error::Server(error)));
                 }
             },
-            regen_result = regen_frontend => match regen_result {
-                Ok(_) if frontend_shutdown.is_cancelled() => info!("Admin token regeneration service shutdown"),
+            recovery_result = recovery_frontend => match recovery_result {
+                Ok(_) if frontend_shutdown.is_cancelled() => info!("Admin token recovery service shutdown"),
                 Ok(_) => {
-                    error!("early admin token regeneration service exit");
-                    res = res.and(Err(Error::LostAdminTokenRegen));
+                    error!("early admin token recovery service exit");
+                    res = res.and(Err(Error::LostAdminTokenRecovery));
                 }
                 Err(error) => {
-                    error!("admin token regeneration service error");
+                    error!("admin token recovery service error");
                     res = res.and(Err(Error::Server(error)));
                 }
             }
