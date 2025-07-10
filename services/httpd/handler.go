@@ -42,6 +42,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/prompb"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 )
 
 var ErrDiagnosticsValueMissing = errors.New("expected diagnostic value missing")
@@ -594,6 +595,19 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 
 	epoch := strings.TrimSpace(r.FormValue("epoch"))
 
+	timeFormats := []string{
+		"rfc3339",
+		"epoch",
+	}
+	// timeFormat should default to "epoch"
+	timeFormat := strings.TrimSpace(r.FormValue("time_format"))
+	if timeFormat == "" {
+		timeFormat = "epoch"
+	} else if !slices.Contains(timeFormats, timeFormat) {
+		h.httpError(rw, fmt.Sprintf("Time format must be one of the following: %s", strings.Join(timeFormats, ",")), http.StatusBadRequest)
+		return
+	}
+
 	p := influxql.NewParser(qr)
 	db := r.FormValue("db")
 
@@ -747,8 +761,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		}
 
 		// if requested, convert result timestamps to epoch
-		if epoch != "" {
+		if epoch != "" && timeFormat == "epoch" {
 			convertToEpoch(r, epoch)
+		} else if timeFormat == "rfc3339" {
+			if err := convertToTimeFormat(r, time.RFC3339Nano); err != nil {
+				h.httpError(rw, fmt.Sprintf("error converting time to RFC3339Nano: %s", err.Error()), http.StatusBadRequest)
+			}
 		}
 
 		// Write out result immediately if chunked.
@@ -1810,6 +1828,23 @@ func convertToEpoch(r *query.Result, epoch string) {
 			}
 		}
 	}
+}
+
+func convertToTimeFormat(r *query.Result, format string) error {
+	for _, s := range r.Series {
+		for _, v := range s.Values {
+			switch format {
+			case time.RFC3339Nano:
+				if ts, ok := v[0].(time.Time); ok {
+					v[0] = ts.Format(time.RFC3339Nano)
+				}
+			default:
+				return fmt.Errorf("unknown time format: %s", format)
+			}
+		}
+	}
+
+	return nil
 }
 
 // servePromWrite receives data in the Prometheus remote write protocol and writes it
