@@ -284,7 +284,7 @@ workflows:
             - build-nightly-linux-arm64
       - build-docker-nightly:
           name:           build-docker-nightly-amd64
-          executor:       self-hosted-amd
+          executor:       cross-builder
           arch:           amd64
           arch_docker:    amd64
           requires:
@@ -582,7 +582,7 @@ jobs:
             docker push quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly
 
   docker-nightly-manifest:
-    executor: self-hosted-amd
+    executor: cross-builder
     steps:
       - quay_login
       - run:
@@ -690,7 +690,7 @@ jobs:
             fi
 
   aws-destroy-by-date:
-    executor: self-hosted-amd
+    executor: cross-builder
     steps:
       - checkout
       - attach_workspace:
@@ -749,7 +749,7 @@ jobs:
           destination: test_artifacts/results/shared
 
   litmus-smoke-test:
-    executor: self-hosted-amd
+    executor: cross-builder
     steps:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>/project
@@ -762,7 +762,7 @@ jobs:
       - run: find /tmp/workspace/$CIRCLE_PIPELINE_ID/project -type f -exec chmod +w {} \;
 
   litmus-full-test:
-    executor: self-hosted-amd
+    executor: cross-builder
     steps:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>/project
