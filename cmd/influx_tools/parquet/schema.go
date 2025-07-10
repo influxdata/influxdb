@@ -141,10 +141,9 @@ func (s *schemaCreator) extractSchema(ctx context.Context) (err error) {
 	return nil
 }
 
-func (s *schemaCreator) validate() (bool, error) {
-	var hasConflicts bool
+func (s *schemaCreator) validate() (hasConflicts bool, errs []error) {
 
-	// Check for conflicting field types
+	// Check for unresolved conflicting field types
 	var typeConflicts []string
 	for field := range s.conflicts {
 		hasConflicts = true
@@ -152,11 +151,12 @@ func (s *schemaCreator) validate() (bool, error) {
 			typeConflicts = append(typeConflicts, field)
 		}
 	}
+
 	if len(typeConflicts) > 0 {
-		return true, fmt.Errorf("unresolved type conflicts for %q", strings.Join(typeConflicts, ","))
+		errs = append(errs, fmt.Errorf("unresolved type conflicts for %q", strings.Join(typeConflicts, ",")))
 	}
 
-	// Check for name clashes between tags and fields
+	// Check for unresolved name clashes between tags and fields
 	var nameConflicts []string
 	for _, field := range s.fieldKeys {
 		for _, tag := range s.tags {
@@ -168,8 +168,14 @@ func (s *schemaCreator) validate() (bool, error) {
 			}
 		}
 	}
+
 	if len(nameConflicts) > 0 {
-		return true, fmt.Errorf("unresolved name conflicts for %s", strings.Join(nameConflicts, ","))
+		errs = append(errs, fmt.Errorf("unresolved name conflicts for %q", strings.Join(nameConflicts, ",")))
+	}
+
+	if len(errs) > 0 {
+		// we have unresolved named or type conflicts; we cannot continue.
+		return hasConflicts, errs
 	}
 
 	// Check for name clashes after resolving field names
@@ -198,7 +204,7 @@ func (s *schemaCreator) validate() (bool, error) {
 		}
 	}
 	if len(resolvedConflicts) > 0 {
-		return true, fmt.Errorf("conflicts after field name resolution for %s", strings.Join(resolvedConflicts, ", "))
+		return hasConflicts, []error{fmt.Errorf("conflicts after field name resolution for %s", strings.Join(resolvedConflicts, ", "))}
 	}
 
 	return hasConflicts, nil
