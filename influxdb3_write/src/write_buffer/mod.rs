@@ -230,6 +230,7 @@ impl WriteBufferImpl {
         }
 
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
+            None,
             persisted_snapshots,
         ));
         let queryable_buffer = Arc::new(QueryableBuffer::new(QueryableBufferArgs {
@@ -761,7 +762,7 @@ mod tests {
             Arc::clone(&time_provider),
             Default::default(),
         );
-        let persister = Arc::new(Persister::new(
+        let persister = Arc::new(Persister::new_with_default_cache_config(
             catalog.object_store(),
             "test_host",
             Arc::clone(&time_provider),
@@ -3418,7 +3419,7 @@ mod tests {
         } else {
             (object_store, None)
         };
-        let persister = Arc::new(Persister::new(
+        let persister = Arc::new(Persister::new_with_default_cache_config(
             Arc::clone(&object_store),
             "test_host",
             Arc::clone(&time_provider) as _,

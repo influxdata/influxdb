@@ -66,6 +66,8 @@ thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
 uuid.workspace = true
+backon.workspace = true
+regex.workspace = true
 
 [dev-dependencies]
 # Core Crates
@@ -74,3 +76,4 @@ insta.workspace = true
 pretty_assertions.workspace = true
 test_helpers.workspace = true
 test-log.workspace = true
+rstest.workspace = true

@@ -1553,7 +1553,7 @@ mod tests {
             DedicatedExecutor::new_testing(),
         ));
         let node_identifier_prefix = "test_host";
-        let persister = Arc::new(Persister::new(
+        let persister = Arc::new(Persister::new_with_default_cache_config(
             Arc::clone(&object_store),
             node_identifier_prefix,
             Arc::clone(&time_provider) as _,
