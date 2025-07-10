@@ -7,6 +7,7 @@ asciidoc        \
 build-essential \
 git             \
 python3         \
+python3-dev     \
 python3-venv    \
 rpm             \
 ruby-dev        \
