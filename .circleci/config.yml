@@ -909,7 +909,13 @@ jobs:
       - run:
           name: Validate Debian Package (AMD64)
           command: |
-            docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo \
+            -v /run/systemd/system:/run/systemd/system \
+            -v /bin/systemctl:/bin/systemctl \
+            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
+            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu \
+            -v /lib/systemd:/lib/systemd \
+            ubuntu:latest \
             .circleci/scripts/validate amd64 deb /tmp/workspace/artifacts
 
   check_package_deb_arm64:
@@ -921,7 +927,13 @@ jobs:
       - run:
           name: Validate Debian Package (ARM64)
           command: |
-            docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo ubuntu:latest \
+            docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo \
+            -v /run/systemd/system:/run/systemd/system \
+            -v /bin/systemctl:/bin/systemctl \
+            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
+            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu \
+            -v /lib/systemd:/lib/systemd \
+            ubuntu:latest \
             .circleci/scripts/validate arm64 deb /tmp/workspace/artifacts
 
   check_package_rpm_amd64:
@@ -931,7 +943,13 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          sudo docker run --privileged --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          sudo docker run --privileged --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo \
+            -v /run/systemd/system:/run/systemd/system \
+            -v /bin/systemctl:/bin/systemctl \
+            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
+            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu \
+            -v /lib/systemd:/lib/systemd \
+            redhat/ubi10 \
           .circleci/scripts/validate x86_64 rpm /tmp/workspace/artifacts
 
   check_package_rpm_arm64:
@@ -941,5 +959,11 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          sudo docker run --privileged --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo redhat/ubi10 \
+          sudo docker run --privileged --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo \
+            -v /run/systemd/system:/run/systemd/system \
+            -v /bin/systemctl:/bin/systemctl \
+            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
+            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu \
+            -v /lib/systemd:/lib/systemd \
+            redhat/ubi10 \
           .circleci/scripts/validate aarch64 rpm /tmp/workspace/artifacts
