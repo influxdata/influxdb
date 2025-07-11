@@ -31,7 +31,7 @@ PACKAGE_ARCH="${1}"
 PACKAGE_TYPE="${2}"
 PACKAGE_PATH="${3}"
 
-bin=$(find $PACKAGE_PATH -name "*${PACKAGE_ARCH}.${PACKAGE_TYPE}" | head -1 | tr -d })
+bin=$(find $PACKAGE_PATH -name "*${PACKAGE_ARCH}.${PACKAGE_TYPE}" | head -1)
 [[ "${bin}" == "" ]] && echo "unable to find ${PACKAGE_TYPE} in ${PACKAGE_PATH}" && exit 1
 
 install_deb() {
@@ -44,7 +44,7 @@ install_deb() {
   # "apt-get install" should be used instead of "dpkg -i", because "dpkg"
   # does not resolve dependencies. "apt-get" requires that the package
   # path looks like a path (either fullpath or prefixed with "./").
-  apt-get install -y binutils "${1}}"
+  apt-get install -y binutils "${1}"
 }
 
 install_rpm() {
