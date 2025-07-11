@@ -759,7 +759,9 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: /tmp/workspace/<< pipeline.id >>/project
-      - run: rm -rf /tmp/workspace/<< pipeline.id>>/project
+      - run:
+          command: rm -rf /tmp/workspace/<< pipeline.id>>/project
+          when: always
 
   litmus-full-test:
     executor: self-hosted-amd
