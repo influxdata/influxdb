@@ -1217,6 +1217,17 @@ macro_rules! retry_if_unauthenticated {
     ($self:ident, $expression:expr) => {
         match $expression {
             Ok(v) => Ok(v),
+            Err(object_store::Error::Generic { store, source, }) => {
+                let msg = format!("{source:?}");
+                if msg.contains("ExpiredToken") {
+                    let path = $self.credential_reloader.path.display();
+                    warn!(error = ?source, "authentication with object store failed, attempting to reload credentials from {path}");
+                    let _ = $self.credential_reloader.check_and_update().await;
+                    $expression
+                } else {
+                    Err(object_store::Error::Generic{ store, source })
+                }
+            }
             Err(object_store::Error::Unauthenticated { source, .. }) => {
                 let path = $self.credential_reloader.path.display();
                 warn!(error = ?source, "authentication with object store failed, attempting to reload credentials from {path}");
@@ -2025,6 +2036,16 @@ mod tests {
         };
         let not_reauthable_fn = || object_store::Error::NotImplemented;
 
+        let generic_expired_token_fn = || object_store::Error::Generic {
+            store: "TestStore",
+            source: "ExpiredToken: The provided token has expired".into(),
+        };
+
+        let generic_other_error_fn = || object_store::Error::Generic {
+            store: "TestStore",
+            source: "Some other generic error".into(),
+        };
+
         let object_store = Arc::new(object_store::memory::InMemory::new()) as _;
         let test_inner = Arc::new(TestReloadingObjectStoreInner {
             inner: object_store,
@@ -2039,6 +2060,9 @@ mod tests {
                 $expression
                     .await
                     .expect("must succeed");
+
+                // ============================================================
+                // Test re-authable error (Error::Unauthenticated)
 
                 // set reauthable error on inner test object store
                 test_inner
@@ -2063,6 +2087,9 @@ mod tests {
                 // verify the next credentials have been loaded
                 assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
 
+                // ============================================================
+                // Test non-re-authable error
+
                 // write to the credentials file so we can verify it doesn't get updated
                 std::fs::write(&path, initial_file_credentials_serialized.clone())
                     .expect("must succeed writing");
@@ -2078,10 +2105,65 @@ mod tests {
                 // verify the credentials are unchanged
                 assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
 
-                // validate that expression still transparently works
+                // validate that we get an error
                 $expression
                     .await
                     .expect_err("must error");
+
+                // reset the credentials to the initial state for the next test
+                *reloader.current.write().await = Arc::new(initial_file_credentials.clone().into());
+
+                // ============================================================
+                // Test Generic error with ExpiredToken
+
+                // Set generic expired token error
+                test_inner
+                    .next_error
+                    .lock()
+                    .unwrap()
+                    .replace(generic_expired_token_fn());
+
+                // Verify initial credentials are set
+                assert_eq!(reloader.current.read().await.as_ref(), &initial_credentials);
+
+                // Write new credentials to file
+                std::fs::write(&path, next_file_credentials_serialized.clone())
+                    .expect("must succeed writing");
+
+                // This should trigger re-auth due to ExpiredToken in Generic error
+                $expression
+                    .await
+                    .expect("must succeed after reauth");
+
+                // Verify credentials were reloaded
+                assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
+
+                // ============================================================
+                // Test Generic error without ExpiredToken (should return Err)
+
+                // write to the credentials file so we can verify it doesn't get updated
+                std::fs::write(&path, initial_file_credentials_serialized.clone())
+                    .expect("must succeed writing");
+
+                // set non-reauthable error on inner test object store so we can validate no re-auth occurs
+                test_inner
+                    .as_ref()
+                    .next_error
+                    .lock()
+                    .unwrap()
+                    .replace(generic_other_error_fn());
+
+                // Write initial credentials to file (to see if they get loaded)
+                std::fs::write(&path, initial_file_credentials_serialized.clone())
+                    .expect("must succeed writing");
+
+                // This should NOT trigger re-auth since no ExpiredToken in error
+                $expression
+                    .await
+                    .expect_err("must return an error");
+
+                // The error gets consumed by the first call, so we might get success or error
+                assert_eq!(reloader.current.read().await.as_ref(), &next_credentials);
 
                 // reset the credentials to the initial state for the next test
                 *reloader.current.write().await = Arc::new(initial_file_credentials.clone().into());
