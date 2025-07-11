@@ -857,7 +857,7 @@ mod tests {
 
         // Verify the `iox::series::key` metadata is present in the parquet file
         {
-            let path = Path::from(files[0].path.as_str());
+            let path = Path::parse(&files[0].path).expect("path should be parseable");
             let res = object_store
                 .get(&path)
                 .await
