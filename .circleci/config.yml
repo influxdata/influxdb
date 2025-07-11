@@ -476,7 +476,7 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          docker run -v /tmp/workspace/${CIRCLE_PIPELINE_ID}:/tmp/workspace -w /tmp/workspace -e DEBIAN_FRONTEND=noninteractive ubuntu:latest .circleci/scripts/build-packages.bash
+          docker run --platform linux/amd64 -v /tmp/workspace/${CIRCLE_PIPELINE_ID}:/tmp/workspace -w /tmp/workspace -e DEBIAN_FRONTEND=noninteractive ubuntu:latest .circleci/scripts/build-packages.bash
       - store_artifacts:
           path: artifacts/
       - persist_to_workspace:
