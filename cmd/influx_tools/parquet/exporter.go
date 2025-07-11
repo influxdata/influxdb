@@ -254,8 +254,8 @@ func (e *exporter) printPlan(w io.Writer) {
 	fmt.Fprintf(w, "Creating the following schemata for %d measurement(s):\n", len(e.measurements))
 	for _, measurement := range e.measurements {
 		creator := e.schemata[measurement]
-		hasConflicts, err := creator.validate()
-		if err != nil {
+		hasConflicts, errs := creator.validate()
+		if len(errs) > 0 {
 			fmt.Fprintf(
 				w,
 				"! Measurement %q with conflict(s) in %d tag(s), %d field(s):\n",
@@ -305,7 +305,7 @@ func (e *exporter) printPlan(w io.Writer) {
 			}
 			fmt.Fprintf(tw, "    %s\tfield\t%s\n", fname, ftype)
 		}
-		if err != nil {
+		for _, err := range errs {
 			fmt.Fprintln(tw, " ", err)
 		}
 		fmt.Fprintln(tw)
@@ -317,7 +317,8 @@ func (e *exporter) printPlan(w io.Writer) {
 func (e *exporter) export(ctx context.Context) error {
 	// Check if the schema has unresolved conflicts
 	for m, s := range e.schemata {
-		if _, err := s.validate(); err != nil {
+		if _, errs := s.validate(); len(errs) > 0 {
+			err := errors.Join(errs...)
 			return fmt.Errorf("%w in schema of measurement %q", err, m)
 		}
 	}
