@@ -28,7 +28,9 @@ mod distinct_caches;
 mod generations;
 mod last_caches;
 mod parquet_files;
-use crate::system_tables::python_call::{ProcessingEngineLogsTable, ProcessingEngineTriggerTable};
+use crate::system_tables::python_call::{
+    ProcessingEngineLogsTable, ProcessingEngineTriggerArgumentsTable, ProcessingEngineTriggerTable,
+};
 mod python_call;
 mod queries;
 mod tables;
@@ -49,7 +51,7 @@ pub(crate) const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
 pub(crate) const DEFAULT_TIMEZONE: &str = "UTC";
 
 const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
-
+const PROCESSING_ENGINE_TRIGGER_ARGUMENTS_TABLE_NAME: &str = "processing_engine_trigger_arguments";
 const PROCESSING_ENGINE_LOGS_TABLE_NAME: &str = "processing_engine_logs";
 
 #[derive(Debug)]
@@ -127,6 +129,18 @@ impl AllSystemSchemaTablesProvider {
             PROCESSING_ENGINE_TRIGGERS_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(
                 ProcessingEngineTriggerTable::new(
+                    db_schema
+                        .processing_engine_triggers
+                        .resource_iter()
+                        .cloned()
+                        .collect(),
+                ),
+            ))),
+        );
+        tables.insert(
+            PROCESSING_ENGINE_TRIGGER_ARGUMENTS_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(
+                ProcessingEngineTriggerArgumentsTable::new(
                     db_schema
                         .processing_engine_triggers
                         .resource_iter()
