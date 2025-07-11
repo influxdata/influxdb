@@ -135,12 +135,13 @@ workflows:
       - check_package_deb_arm64:
           requires:
             - build-packages
-      - check_package_rpm_amd64:
+      - check_package_rpm:
           <<: *nofork_filter
-          requires:
-            - build-packages
-      - check_package_rpm_arm64:
-          <<: *nofork_filter
+          name:
+            check_package_rpm-<< matrix.arch >>
+          matrix:
+            parameters:
+              arch: [ x86_64, aarch64 ]
           requires:
             - build-packages
       - test-downgrade:
@@ -903,69 +904,46 @@ jobs:
                 from: /tmp/workspace/CHANGELOG.md
 
   check_package_deb_amd64:
-    executor: self-hosted-amd
+    machine:
+      image: ubuntu-2204:current
+      resource_class: medium
     steps:
-      - checkout
       - attach_workspace:
-          at: /tmp/workspace/<< pipeline.id >>
+          at: /tmp/workspace
+      - checkout
       - run:
           name: Validate Debian Package (AMD64)
           command: |
-            sudo docker run --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo \
-            -v /run/systemd/system:/run/systemd/system \
-            -v /bin/systemctl:/bin/systemctl \
-            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
-            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu \
-            -v /lib/systemd:/lib/systemd \
-            ubuntu:latest \
-            .circleci/scripts/validate amd64 deb /tmp/workspace/artifacts
+            sudo .circleci/scripts/package-validation/debian \
+              /tmp/workspace/artifacts/influxdb2*amd64.deb
 
   check_package_deb_arm64:
-    executor: self-hosted-amd
+    machine:
+      image: ubuntu-2204:current
+      resource_class: arm.medium
     steps:
-      - checkout
       - attach_workspace:
-          at: /tmp/workspace/<< pipeline.id >>
+          at: /tmp/workspace
+      - checkout
       - run:
           name: Validate Debian Package (ARM64)
           command: |
-            sudo docker run --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo \
-            -v /run/systemd/system:/run/systemd/system \
-            -v /bin/systemctl:/bin/systemctl \
-            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
-            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu \
-            -v /lib/systemd:/lib/systemd \
-            ubuntu:latest \
-            .circleci/scripts/validate arm64 deb /tmp/workspace/artifacts
+            sudo .circleci/scripts/package-validation/debian \
+              /tmp/workspace/artifacts/influxdb2*amd64.deb
 
-  check_package_rpm_amd64:
+  check_package_rpm:
     executor: self-hosted-amd
+    parameters:
+      arch:
+        type: string
     steps:
       - checkout
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>
+      - add_ssh_keys:
+          fingerprints:
+            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
       - run: |
-          sudo docker run --privileged --rm --platform linux/amd64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo \
-            -v /run/systemd/system:/run/systemd/system \
-            -v /bin/systemctl:/bin/systemctl \
-            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
-            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu \
-            -v /lib/systemd:/lib/systemd \
-            redhat/ubi10 \
-          .circleci/scripts/validate x86_64 rpm /tmp/workspace/artifacts
-
-  check_package_rpm_arm64:
-    executor: self-hosted-arm
-    steps:
-      - checkout
-      - attach_workspace:
-          at: /tmp/workspace/<< pipeline.id >>
-      - run: |
-          sudo docker run --privileged --rm --platform linux/arm64 -v /tmp/workspace/$CIRCLE_PIPELINE_ID:/tmp/workspace -v $(pwd):/repo -w /repo \
-            -v /run/systemd/system:/run/systemd/system \
-            -v /bin/systemctl:/bin/systemctl \
-            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
-            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu \
-            -v /lib/systemd:/lib/systemd \
-            redhat/ubi10 \
-          .circleci/scripts/validate aarch64 rpm /tmp/workspace/artifacts
+          AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
+          AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
+          .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/$CIRCLE_PIPELINE_ID/artifacts/influxdb2*.<< parameters.arch >>.rpm
