@@ -36,43 +36,66 @@ impl TestServer {
             command_args.push("--token");
             command_args.push(token);
         }
-        let mut child_process = Command::cargo_bin("influxdb3")?
-            .args(&command_args)
-            .args(args)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-
-        if let Some(input) = input {
-            let input = input.to_string();
-            let mut stdin = child_process.stdin.take().expect("failed to open stdin");
-            thread::spawn(move || {
-                stdin
-                    .write_all(input.as_bytes())
-                    .expect("cannot write confirmation msg to stdin");
-            });
-        }
-        let output = child_process.wait_with_output()?;
-
-        if !output.status.success() {
-            println!(
-                "failed to run influxdb3 {} {}",
-                command_args.join(" "),
-                args.join(" ")
-            );
-            bail!("{}", String::from_utf8_lossy(&output.stderr));
-        }
-
-        Ok(String::from_utf8(output.stdout)?.trim().into())
+        run_cmd_with_result(args, input, command_args)
     }
+
+    pub fn run_regenerate_with_confirmation(
+        &self,
+        commands: Vec<&str>,
+        args: &[&str],
+    ) -> Result<String> {
+        let client_addr = self.admin_token_recovery_client_addr();
+        let mut command_args = commands.clone();
+        command_args.push("--host");
+        command_args.push(client_addr.as_str());
+        run_cmd_with_result(args, Some("yes"), command_args)
+    }
+
     pub fn run(&self, commands: Vec<&str>, args: &[&str]) -> Result<String> {
         self.run_with_options(commands, args, None)
     }
+
     pub fn run_with_confirmation(&self, commands: Vec<&str>, args: &[&str]) -> Result<String> {
         self.run_with_options(commands, args, Some("yes"))
     }
 }
+
+fn run_cmd_with_result(
+    args: &[&str],
+    input: Option<&str>,
+    command_args: Vec<&str>,
+) -> std::result::Result<String, anyhow::Error> {
+    let mut child_process = Command::cargo_bin("influxdb3")?
+        .args(&command_args)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    if let Some(input) = input {
+        let input = input.to_string();
+        let mut stdin = child_process.stdin.take().expect("failed to open stdin");
+        thread::spawn(move || {
+            stdin
+                .write_all(input.as_bytes())
+                .expect("cannot write confirmation msg to stdin");
+        });
+    }
+    let output = child_process.wait_with_output()?;
+
+    if !output.status.success() {
+        println!(
+            "failed to run influxdb3 {} {}",
+            command_args.join(" "),
+            args.join(" ")
+        );
+        bail!("{}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    Ok(String::from_utf8(output.stdout)?.trim().into())
+}
+
 impl CreateDatabaseQuery<'_> {
     pub fn run(self) -> Result<String> {
         self.server.run(
