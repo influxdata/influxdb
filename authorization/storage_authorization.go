@@ -65,6 +65,9 @@ func (s *Store) encodeAuthorization(a *influxdb.Authorization) ([]byte, error) {
 	// raw tokens if hashing is enabled.
 	if s.useHashedTokens {
 		// Redact a copy, not the original. The raw Token value is still needed by the caller in some cases.
+		// Note that this is an empty string, not TokenRedactedMessage. TokenRedactedMessage is only used for
+		// user-facing output. The empty string signals that the plaintext token is not available and that
+		// the hashed token should be used instead.
 		redactedAuth := *a
 		redactedAuth.Token = ""
 		a = &redactedAuth
