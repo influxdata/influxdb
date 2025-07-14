@@ -221,9 +221,9 @@ func PrintAuth(ctx context.Context, w io.Writer, v []*influxdb.Authorization, us
 		if t.Token != "" {
 			token = t.Token
 		} else if t.HashedToken != "" {
-			token = "REDACTED"
+			token = authorization.TokenRedactedMessage
 		} else {
-			token = "N/A"
+			token = authorization.TokenNotAvailableMessage
 		}
 		row := map[string]interface{}{
 			"ID":          t.ID,

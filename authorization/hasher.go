@@ -27,6 +27,9 @@ type AuthorizationHasher struct {
 const (
 	DefaultHashVariant     = influxdb2_algo.VariantSHA256
 	DefaultHashVariantName = influxdb2_algo.VariantIdentifierSHA256
+
+	// HashVariantNameUnknown is the placeholder name used for unknown or unsupported hash variants.
+	HashVariantNameUnknown = "N/A"
 )
 
 type authorizationHasherOptions struct {
@@ -113,7 +116,7 @@ func (h *AuthorizationHasher) AllHashes(token string) ([]string, error) {
 	for idx, hasher := range h.allHashers {
 		digest, err := hasher.Hash(token)
 		if err != nil {
-			variantName := "N/A"
+			variantName := HashVariantNameUnknown
 			if influxdb_hasher, ok := hasher.(*influxdb2_algo.Hasher); ok {
 				variantName = influxdb_hasher.Variant().Prefix()
 			}

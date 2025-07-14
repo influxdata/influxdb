@@ -106,6 +106,14 @@ token value. Raw token values are returned as in previous versions.
 
 ---*/
 
+const (
+	// TokenRedactedMessage is the user facing message used when a hashed token is redacted.
+	TokenRedactedMessage = "REDACTED"
+
+	// TokenNotAvailableMessage is the user facing message when no token is available, plaintext or hashed.
+	TokenNotAvailableMessage = "N/A"
+)
+
 const MaxIDGenerationN = 100
 const ReservedIDs = 1000
 
