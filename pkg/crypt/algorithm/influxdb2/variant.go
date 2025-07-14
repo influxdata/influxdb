@@ -62,7 +62,7 @@ func (v Variant) RegisterDecoder(r algorithm.DecoderRegister) error {
 	case VariantSHA512:
 		return RegisterDecoderSHA512(r)
 	default:
-		return fmt.Errorf("RegisterDecoder with invalid variant %v", v)
+		return fmt.Errorf("RegisterDecoder with invalid variant %v: %w", v, algorithm.ErrParameterInvalid)
 	}
 }
 
