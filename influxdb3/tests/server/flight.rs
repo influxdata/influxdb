@@ -155,6 +155,47 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
     Ok(())
 }
 
+#[test_log::test(tokio::test)]
+async fn test_percentage_table_flight() -> Result<(), influxdb3_client::Error> {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "%,host=s1,region=us-east usage=0.9 2998574936\n\
+             %,host=s1,region=us-east usage=0.89 2998574937\n\
+             %,host=s1,region=us-east usage=0.85 2998574938",
+            Precision::Second,
+        )
+        .await?;
+
+    let mut client = server.flight_sql_client("foo").await;
+
+    // Ad-hoc Query:
+    {
+        let response = client
+            .query("SELECT host, region, time, usage FROM '%'")
+            .await
+            .unwrap();
+
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+------+---------+----------------------+-------+",
+                "| host | region  | time                 | usage |",
+                "+------+---------+----------------------+-------+",
+                "| s1   | us-east | 2065-01-07T17:28:56Z | 0.9   |",
+                "| s1   | us-east | 2065-01-07T17:28:57Z | 0.89  |",
+                "| s1   | us-east | 2065-01-07T17:28:58Z | 0.85  |",
+                "+------+---------+----------------------+-------+",
+            ],
+            &batches
+        );
+    }
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn flight_influxql() {
     let server = TestServer::spawn().await;
