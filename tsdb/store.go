@@ -778,6 +778,48 @@ func (s *Store) Shard(id uint64) *Shard {
 	return sh
 }
 
+// RefreshShardSizeAndModification walks the filesystem to calculate the actual disk size
+// and last modified time for the specified shard, then updates the shard's cached metadata.
+func (s *Store) RefreshShardSizeAndModification(shardID uint64) (int64, time.Time, error) {
+	sh := s.Shard(shardID)
+	if sh == nil {
+		return 0, time.Time{}, ErrShardNotFound
+	}
+
+	shardPath := sh.Path()
+
+	var totalSize int64
+	var lastModified time.Time
+
+	err := filepath.Walk(shardPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			totalSize += info.Size()
+			// Get the latest last modified time
+			if info.ModTime().After(lastModified) {
+				lastModified = info.ModTime()
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("failed to walk shard path %s: %w", shardPath, err)
+	}
+
+	// Update the shard's cached disk size
+	atomic.StoreInt64(&sh.stats.DiskBytes, totalSize)
+
+	// Update the shard's last modified time
+	if err := sh.SetLastModified(lastModified); err != nil {
+		return totalSize, lastModified, fmt.Errorf("failed to update last modified time for shard %d: %w", shardID, err)
+	}
+
+	return totalSize, lastModified, nil
+}
+
 // ClearBadShardList will remove all shards from the badShards cache
 // this will allow for lazy loading of bad shards if/when they are no
 // longer in a "bad" state. This method will return any shards that

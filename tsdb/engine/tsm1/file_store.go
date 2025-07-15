@@ -1056,6 +1056,16 @@ func (f *FileStore) LastModified() time.Time {
 	return f.lastModified
 }
 
+// SetLastModified updates the last modified time for the FileStore.
+func (f *FileStore) SetLastModified(t time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.lastModified = t
+	// Invalidate cached file stats to ensure they are recalculated
+	f.lastFileStats = nil
+}
+
 // We need to determine the possible files that may be accessed by this query given
 // the time range.
 func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {

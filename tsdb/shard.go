@@ -467,6 +467,15 @@ func (s *Shard) LastModified() time.Time {
 	return engine.LastModified()
 }
 
+// SetLastModified updates the last modified time for this shard.
+func (s *Shard) SetLastModified(t time.Time) error {
+	engine, err := s.Engine()
+	if err != nil {
+		return err
+	}
+	return engine.SetLastModified(t)
+}
+
 // Index returns a reference to the underlying index. It returns an error if
 // the index is nil.
 func (s *Shard) Index() (Index, error) {
