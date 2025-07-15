@@ -260,9 +260,10 @@ func TestUpgradeSecurity(t *testing.T) {
 				// command execution
 				n, err := upgradeUsers(ctx, v1, v2, &targetOptions, tc.db2ids, log)
 				if tc.wantErr != nil {
-					require.EqualError(t, err, tc.wantErr.Error())
+					require.Error(t, err, "upgradeUsers should return an error for this test case")
+					require.EqualError(t, err, tc.wantErr.Error(), "upgradeUsers returned the wrong error for this test case")
 				} else {
-					require.NoError(t, err)
+					require.NoError(t, err, "upgradeUsers should not return an error for this test case")
 				}
 				require.Equal(t, len(tc.want), n, "Upgraded count must match")
 
