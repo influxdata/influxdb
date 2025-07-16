@@ -53,6 +53,9 @@ pub trait ConfigProvider: Send + Sync + 'static {
     /// Get if logs should be captured
     fn capture_logs(&self) -> bool;
 
+    /// Get if recovery endpoint should be enabled
+    fn recovery_endpoint_enabled(&self) -> bool;
+
     /// Spawn a new [`TestServer`] with this configuration
     ///
     /// This will run the `influxdb3 serve` command and bind its HTTP address to a random port
@@ -82,6 +85,7 @@ pub struct TestConfig {
     disable_authz: Vec<String>,
     gen1_duration: Option<String>,
     capture_logs: bool,
+    enable_recovery_endpoint: bool,
 }
 
 impl TestConfig {
@@ -104,6 +108,12 @@ impl TestConfig {
     /// Set the auth token for this [`TestServer`]
     pub fn with_no_admin_token(mut self) -> Self {
         self.without_admin_token = true;
+        self
+    }
+
+    /// Enable the admin token recovery endpoint
+    pub fn with_recovery_endpoint(mut self) -> Self {
+        self.enable_recovery_endpoint = true;
         self
     }
 
@@ -247,6 +257,10 @@ impl ConfigProvider for TestConfig {
     fn capture_logs(&self) -> bool {
         self.capture_logs
     }
+
+    fn recovery_endpoint_enabled(&self) -> bool {
+        self.enable_recovery_endpoint
+    }
 }
 
 /// A running instance of the `influxdb3 serve` process
@@ -266,7 +280,7 @@ impl ConfigProvider for TestConfig {
 pub struct TestServer {
     auth_token: Option<String>,
     bind_addr: String,
-    admin_token_recovery_bind_addr: String,
+    admin_token_recovery_bind_addr: Option<String>,
     server_process: Child,
     http_client: reqwest::Client,
     stdout: Option<Arc<Mutex<String>>>,
@@ -325,11 +339,10 @@ impl TestServer {
         let tcp_addr_file_2 = admin_token_recover_tmp_dir_path.join("tcp-listener");
 
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
-        let command = command
+        let mut command = command
             .arg("serve")
             .arg("--disable-telemetry-upload")
             .args(["--http-bind", "0.0.0.0:0"])
-            .args(["--admin-token-recovery-http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
             .args(["--wal-snapshot-size", "1"])
             .args([
@@ -337,13 +350,21 @@ impl TestServer {
                 tcp_addr_file
                     .to_str()
                     .expect("valid tcp listener file path"),
-            ])
-            .args([
-                "--admin-token-recovery-tcp-listener-file-path",
-                tcp_addr_file_2
-                    .to_str()
-                    .expect("valid tcp listener file path"),
-            ])
+            ]);
+
+        // Only add recovery endpoint args if explicitly enabled
+        if config.recovery_endpoint_enabled() {
+            command = command
+                .args(["--admin-token-recovery-http-bind", "0.0.0.0:0"])
+                .args([
+                    "--admin-token-recovery-tcp-listener-file-path",
+                    tcp_addr_file_2
+                        .to_str()
+                        .expect("valid tcp listener file path"),
+                ]);
+        }
+
+        let command = command
             .args([
                 "--tls-cert",
                 if config.bad_tls() {
@@ -433,7 +454,11 @@ impl TestServer {
 
         let bind_addr = find_bind_addr(tcp_addr_file).await;
 
-        let admin_token_recovery_bind_addr = find_bind_addr(tcp_addr_file_2).await;
+        let admin_token_recovery_bind_addr = if config.recovery_endpoint_enabled() {
+            Some(find_bind_addr(tcp_addr_file_2).await)
+        } else {
+            None
+        };
 
         let http_client = reqwest::ClientBuilder::new()
             .min_tls_version(Version::TLS_1_3)
@@ -487,13 +512,17 @@ impl TestServer {
 
     /// Get the URL of admin token recovery service for use with an HTTP client
     pub fn admin_token_recovery_client_addr(&self) -> String {
-        format!(
-            "https://localhost:{}",
-            self.admin_token_recovery_bind_addr
-                .split(':')
-                .nth(1)
-                .unwrap()
-        )
+        match &self.admin_token_recovery_bind_addr {
+            Some(addr) => format!("https://localhost:{}", addr.split(':').nth(1).unwrap()),
+            None => panic!(
+                "admin_token_recovery_client_addr called on TestServer without recovery endpoint enabled. Use .with_recovery_endpoint() when configuring the test server."
+            ),
+        }
+    }
+
+    /// Check if the recovery endpoint is enabled
+    pub fn has_recovery_endpoint(&self) -> bool {
+        self.admin_token_recovery_bind_addr.is_some()
     }
 
     /// Get the token for the server

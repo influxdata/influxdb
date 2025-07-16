@@ -21,6 +21,7 @@ mod system_tables;
 
 use crate::grpc::make_flight_server;
 use crate::http::HttpApi;
+use crate::http::RecoveryHttpApi;
 use crate::http::route_request;
 use authz::Authorizer;
 use http::route_admin_token_recovery_request;
@@ -212,10 +213,19 @@ pub async fn serve_admin_token_recovery_endpoint(
         ADMIN_TOKEN_RECOVERY_TRACE_HTTP_SERVER_NAME,
     );
 
+    // Create a dedicated shutdown token for the recovery endpoint
+    // This allows us to shut down just the recovery endpoint after token regeneration
+    let recovery_shutdown = CancellationToken::new();
+
+    // Create the recovery API wrapper with the shutdown token
+    let recovery_api = Arc::new(RecoveryHttpApi::new(
+        Arc::clone(&server.http),
+        recovery_shutdown.clone(),
+    ));
+
     if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
         let listener = server.listener;
         let tls_min = server.tls_minimum_version;
-        let http = Arc::clone(&server.http);
 
         let (addr, certs, key) = setup_tls(listener, key_file, cert_file)?;
         info!(
@@ -223,11 +233,10 @@ pub async fn serve_admin_token_recovery_endpoint(
             "starting admin token recovery endpoint with TLS on",
         );
 
-        let http_server = Arc::clone(&http);
         let rest_service = hyper::service::make_service_fn(move |_| {
-            let http_server = Arc::clone(&http_server);
+            let recovery_api = Arc::clone(&recovery_api);
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_admin_token_recovery_request(Arc::clone(&http_server), req)
+                route_admin_token_recovery_request(Arc::clone(&recovery_api), req)
             });
             let service = http_trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
@@ -245,15 +254,19 @@ pub async fn serve_admin_token_recovery_endpoint(
             .with_all_versions_alpn()
             .with_incoming(addr);
 
-        hyper::server::Server::builder(acceptor)
-            .serve(rest_service)
-            .with_graceful_shutdown(shutdown.cancelled())
-            .await?;
+        // Use both the main shutdown and recovery shutdown tokens
+        tokio::select! {
+            res = hyper::server::Server::builder(acceptor).serve(rest_service) => res?,
+            _ = shutdown.cancelled() => {},
+            _ = recovery_shutdown.cancelled() => {
+                info!("Admin token recovery endpoint shutting down after token regeneration");
+            },
+        }
     } else {
         let rest_service = hyper::service::make_service_fn(|_| {
-            let http_server = Arc::clone(&server.http);
+            let recovery_api = Arc::clone(&recovery_api);
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_admin_token_recovery_request(Arc::clone(&http_server), req)
+                route_admin_token_recovery_request(Arc::clone(&recovery_api), req)
             });
             let service = http_trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
@@ -264,11 +277,17 @@ pub async fn serve_admin_token_recovery_endpoint(
             address = %addr.local_addr(),
             "starting admin token recovery endpoint on",
         );
-        hyper::server::Builder::new(addr, Http::new())
-            .tcp_nodelay(true)
-            .serve(rest_service)
-            .with_graceful_shutdown(shutdown.cancelled())
-            .await?;
+
+        // Use both the main shutdown and recovery shutdown tokens
+        tokio::select! {
+            res = hyper::server::Builder::new(addr, Http::new())
+                .tcp_nodelay(true)
+                .serve(rest_service) => res?,
+            _ = shutdown.cancelled() => {},
+            _ = recovery_shutdown.cancelled() => {
+                info!("Admin token recovery endpoint shutting down after token regeneration");
+            },
+        }
     }
 
     Ok(())
