@@ -13,7 +13,10 @@ set -euo pipefail
 # In this manner, build script can do something like:
 #   PYO3_CONFIG_FILE=/tmp/workspace/<dir>/pyo3_config_file.txt cargo build...
 
-readonly DOWNLOAD_DIR="$1"
+tmp=$(mktemp -d)
+pushd $tmp
+readonly INPUT_DIR="$1"
+readonly DOWNLOAD_DIR="${tmp}/$1"
 
 # URLs are constructed from this. Eg:
 # https://github.com/astral-sh/.../<PBS_DATE>/cpython-<PBS_VERSION>+<PBS_DATE>-<ARCH>...
@@ -156,7 +159,7 @@ EOM
     echo
 }
 
-mkdir "${DOWNLOAD_DIR}"
+mkdir -p "${DOWNLOAD_DIR}" # $(mktemp -d)/python-artifacts
 for t in $TARGETS ; do
     fetch "$t" "install_only_stripped.tar.gz"   # for runtime
     fetch "$t" "full.tar.zst"                   # for licenses
@@ -166,5 +169,7 @@ done
 echo "Creating '${DOWNLOAD_DIR}/all.tar.gz'"
 cd "${DOWNLOAD_DIR}"
 tar -zcf ./.all.tar.gz ./[a-z]*
-rm -rf ./[a-z]*
-mv ./.all.tar.gz ./all.tar.gz
+popd # /tmp/workspace/$CIRCLE_PIPELINE_ID
+mkdir -p $INPUT_DIR # /tmp/workspace/$CIRCLE_PIPELINE_ID/python-artifacts
+mv $DOWNLOAD_DIR/.all.tar.gz $INPUT_DIR/all.tar.gz
+rm -rf $tmp

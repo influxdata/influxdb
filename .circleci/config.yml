@@ -314,19 +314,25 @@ jobs:
       - checkout
       - restore_cache:
           name: Restore Python Build Standalone from cache
-          key: python-artifacts-<< pipeline.parameters.PBS_DATE >>-<< pipeline.parameters.PBS_VERSION >>
+          key: python-artifacts-<< pipeline.parameters.PBS_VERSION >>-<< pipeline.parameters.PBS_DATE >>
       - run:
           name: Pull Python Build Standalone
           command: |
-            if [ -d "python-artifacts" ]; then
+            cache_path="/tmp/python-artifacts/${PBS_VERSION}-${PBS_DATE}"
+            if [ -d ${cache_path} ]; then
               echo "Using cached python-artifacts"
+              mkdir -p python-artifacts
+              flock ${cache_path} cp ${cache_path}/* ./python-artifacts/
             else
               echo "PBS_DATE=$PBS_DATE"
               .circleci/scripts/fetch-python-standalone.bash \
                 "python-artifacts" \
                 "$PBS_DATE" \
                 "$PBS_VERSION"
+              mkdir -p ${cache_path}
+              flock ${cache_path} cp ./python-artifacts/* ${cache_path}/
             fi
+            chown -R circleci:circleci ./python-artifacts
       - store_artifacts:
           path: python-artifacts
       - persist_to_workspace:
@@ -335,9 +341,9 @@ jobs:
             - python-artifacts
       - save_cache:
           name: Save python-build-standalone to cache
-          key: python-artifacts-<< pipeline.parameters.PBS_DATE >>-<< pipeline.parameters.PBS_VERSION >>
+          key: python-artifacts-<< pipeline.parameters.PBS_VERSION >>-<< pipeline.parameters.PBS_DATE >>
           paths:
-            - python-artifacts
+            - /tmp/python-artifacts/<< pipeline.parameters.PBS_VERSION >>-<< pipeline.parameters.PBS_DATE >>
 
   # Build a dev binary with the default cargo profile
   build-dev:
@@ -681,9 +687,10 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace/<< pipeline.id >>
       - run: |
-          docker save << parameters.image_name >>:latest-<< parameters.platform >> > /tmp/workspace/<< pipeline.id >>/<< parameters.image_name >>-<< parameters.platform >>.tar
+          mkdir -p /tmp/docker/<< pipeline.id >>
+          docker save << parameters.image_name >>:latest-<< parameters.platform >> > /tmp/docker/<< pipeline.id >>/<< parameters.image_name >>-<< parameters.platform >>.tar
       - persist_to_workspace:
-          root: /tmp/workspace/<< pipeline.id >>
+          root: /tmp/docker/<< pipeline.id >>
           paths:
             - << parameters.image_name >>-<< parameters.platform >>.tar
 
