@@ -280,9 +280,7 @@ LOOP:
 	first.markRead(minT, maxT)
 
 	if c.col != nil {
-	    if !start.IsZero() {
-		    c.col.GetTimer({{.name}}BlocksMergeTimer).UpdateSinceAccumulate(start)
-		}
+		c.col.GetTimer({{.name}}BlocksMergeTimer).AddSince(start)
 		c.col.GetCounter({{.name}}BlocksMergeCount).Add(mergeCount)
 		c.col.GetCounter({{.name}}BlocksMergeValuesCount).Add(int64(mergeValuesCount))
 		if mergeCount > 4 {

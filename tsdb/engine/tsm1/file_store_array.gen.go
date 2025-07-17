@@ -193,9 +193,7 @@ LOOP:
 	first.markRead(minT, maxT)
 
 	if c.col != nil {
-		if !start.IsZero() {
-			c.col.GetTimer(floatBlocksMergeTimer).UpdateSinceAccumulate(start)
-		}
+		c.col.GetTimer(floatBlocksMergeTimer).AddSince(start)
 		c.col.GetCounter(floatBlocksMergeCount).Add(mergeCount)
 		c.col.GetCounter(floatBlocksMergeValuesCount).Add(int64(mergeValuesCount))
 		if mergeCount > 4 {
@@ -400,9 +398,7 @@ LOOP:
 	first.markRead(minT, maxT)
 
 	if c.col != nil {
-		if !start.IsZero() {
-			c.col.GetTimer(integerBlocksMergeTimer).UpdateSinceAccumulate(start)
-		}
+		c.col.GetTimer(integerBlocksMergeTimer).AddSince(start)
 		c.col.GetCounter(integerBlocksMergeCount).Add(mergeCount)
 		c.col.GetCounter(integerBlocksMergeValuesCount).Add(int64(mergeValuesCount))
 		if mergeCount > 4 {
@@ -607,9 +603,7 @@ LOOP:
 	first.markRead(minT, maxT)
 
 	if c.col != nil {
-		if !start.IsZero() {
-			c.col.GetTimer(unsignedBlocksMergeTimer).UpdateSinceAccumulate(start)
-		}
+		c.col.GetTimer(unsignedBlocksMergeTimer).AddSince(start)
 		c.col.GetCounter(unsignedBlocksMergeCount).Add(mergeCount)
 		c.col.GetCounter(unsignedBlocksMergeValuesCount).Add(int64(mergeValuesCount))
 		if mergeCount > 4 {
@@ -814,9 +808,7 @@ LOOP:
 	first.markRead(minT, maxT)
 
 	if c.col != nil {
-		if !start.IsZero() {
-			c.col.GetTimer(stringBlocksMergeTimer).UpdateSinceAccumulate(start)
-		}
+		c.col.GetTimer(stringBlocksMergeTimer).AddSince(start)
 		c.col.GetCounter(stringBlocksMergeCount).Add(mergeCount)
 		c.col.GetCounter(stringBlocksMergeValuesCount).Add(int64(mergeValuesCount))
 		if mergeCount > 4 {
@@ -1021,9 +1013,7 @@ LOOP:
 	first.markRead(minT, maxT)
 
 	if c.col != nil {
-		if !start.IsZero() {
-			c.col.GetTimer(booleanBlocksMergeTimer).UpdateSinceAccumulate(start)
-		}
+		c.col.GetTimer(booleanBlocksMergeTimer).AddSince(start)
 		c.col.GetCounter(booleanBlocksMergeCount).Add(mergeCount)
 		c.col.GetCounter(booleanBlocksMergeValuesCount).Add(int64(mergeValuesCount))
 		if mergeCount > 4 {
