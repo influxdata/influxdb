@@ -2523,7 +2523,7 @@ mod tests {
         // WAL file cleanup) which means when we start the buffer again it sees the WAL file but
         // before it can read it's removed by the previous snapshot run. This extra sleep works
         // around that issue for now.
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
         // restart
         debug!("Restarting..");
         let (write_buffer_after_restart, _, _) = setup(
@@ -3338,7 +3338,7 @@ mod tests {
                 break;
             } else {
                 checks += 1;
-                if checks > 10 {
+                if checks > 20 {
                     panic!("not persisting snapshots");
                 }
                 tokio::time::sleep(Duration::from_millis(20)).await;

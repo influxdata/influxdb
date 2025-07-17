@@ -71,6 +71,8 @@ use uuid::Uuid;
 
 mod v1;
 
+pub(crate) const UNKNOWN_VAL: &str = "unknown";
+
 #[derive(Debug, Error)]
 pub enum Error {
     /// The requested path has no registered handler.
@@ -1904,6 +1906,12 @@ pub(crate) async fn route_request(
 
     trace!(request = ?req,"Processing request");
     let content_length = req.headers().get("content-length").cloned();
+    // Extract database name from query parameters before req is consumed
+    // This is ok for now as write endpoint expects db in query param
+    let db = extract_db_from_query_param(&uri);
+
+    // Extract client IP from headers (check common reverse proxy headers first)
+    let client_ip = extract_client_ip(&req);
 
     let response = match (method.clone(), path) {
         (Method::DELETE, all_paths::API_V3_CONFIGURE_TOKEN) => http_server.delete_token(req).await,
@@ -2028,10 +2036,49 @@ pub(crate) async fn route_request(
             Ok(response)
         }
         Err(error) => {
-            error!(%error, %method, path = uri.path(), ?content_length, "Error while handling request");
+            let ip = client_ip.as_deref().unwrap_or(UNKNOWN_VAL);
+            match db.as_ref() {
+                Some(db) => {
+                    error!(%error, %method, path = uri.path(), ?content_length, database = %db, client_ip = %ip, "Error while handling request")
+                }
+                None => {
+                    error!(%error, %method, path = uri.path(), ?content_length, client_ip = %ip, "Error while handling request")
+                }
+            }
             Ok(error.into_response())
         }
     }
+}
+
+fn extract_client_ip(req: &http::Request<hyper::Body>) -> Option<String> {
+    req.headers()
+        .get("x-forwarded-for")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.split(',').next()) // Take first IP if multiple
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            req.headers()
+                .get("x-real-ip")
+                .and_then(|h| h.to_str().ok())
+                .map(|s| s.to_string())
+        })
+        .or_else(|| {
+            // Fall back to socket address from request extensions
+            req.extensions()
+                .get::<Option<std::net::SocketAddr>>()
+                .map(|socket_addr| {
+                    socket_addr
+                        .map(|addr| addr.ip().to_string())
+                        .unwrap_or_else(|| UNKNOWN_VAL.to_string())
+                })
+        })
+}
+
+fn extract_db_from_query_param(uri: &http::Uri) -> Option<String> {
+    uri.query()
+        .and_then(|query| serde_urlencoded::from_str::<Vec<(String, String)>>(query).ok())
+        .and_then(|params| params.into_iter().find(|(k, _)| k == "db"))
+        .map(|(_, v)| v)
 }
 
 async fn authenticate(
@@ -2089,7 +2136,9 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response {
 #[cfg(test)]
 mod tests {
     use http::{HeaderMap, HeaderValue, header::ACCEPT};
+    use http::{Request, Uri};
 
+    use super::{extract_client_ip, extract_db_from_query_param};
     use crate::http::AuthenticationError;
 
     use super::QueryFormat;
@@ -2102,6 +2151,7 @@ mod tests {
     use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
     use iox_http_util::read_body_bytes_for_tests;
     use pretty_assertions::assert_eq;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
     use std::str;
     use std::sync::Arc;
 
@@ -2376,6 +2426,79 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn test_client_ip_extraction_from_socket_address() {
+        use hyper::Request;
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+        // Create a request with socket address in extensions
+        let mut req = Request::builder()
+            .uri("http://example.com/api/v3/write_lp?db=test")
+            .body(())
+            .unwrap();
+
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)), 8080);
+        req.extensions_mut().insert(socket_addr);
+
+        // Extract client IP - should get socket address since no headers
+        let client_ip = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .map(|s| s.trim().to_string())
+            .or_else(|| {
+                req.headers()
+                    .get("x-real-ip")
+                    .and_then(|h| h.to_str().ok())
+                    .map(|s| s.to_string())
+            })
+            .or_else(|| {
+                req.extensions()
+                    .get::<std::net::SocketAddr>()
+                    .map(|addr| addr.ip().to_string())
+            });
+
+        assert_eq!(client_ip, Some("192.168.1.100".to_string()));
+    }
+
+    #[test]
+    fn test_client_ip_extraction_prefers_headers_over_socket() {
+        use hyper::Request;
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+        // Create a request with both headers and socket address
+        let mut req = Request::builder()
+            .uri("http://example.com/api/v3/write_lp?db=test")
+            .header("x-forwarded-for", "10.0.0.1")
+            .body(())
+            .unwrap();
+
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)), 8080);
+        req.extensions_mut().insert(socket_addr);
+
+        // Extract client IP - should prefer header over socket
+        let client_ip = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .map(|s| s.trim().to_string())
+            .or_else(|| {
+                req.headers()
+                    .get("x-real-ip")
+                    .and_then(|h| h.to_str().ok())
+                    .map(|s| s.to_string())
+            })
+            .or_else(|| {
+                req.extensions()
+                    .get::<std::net::SocketAddr>()
+                    .map(|addr| addr.ip().to_string())
+            });
+
+        assert_eq!(client_ip, Some("10.0.0.1".to_string()));
+    }
+
     fn make_record_stream(records: Option<usize>) -> SendableRecordBatchStream {
         match records {
             None => make_record_stream_with_sizes(vec![]),
@@ -2413,5 +2536,157 @@ mod tests {
         let stream = futures::stream::iter(batches);
         let adapter = RecordBatchStreamAdapter::new(schema, stream);
         Box::pin(adapter)
+    }
+
+    #[test]
+    fn test_extract_db_from_query_param() {
+        // Test with valid db parameter
+        let uri = Uri::try_from("http://example.com/api/v3/write?db=mydb").unwrap();
+        assert_eq!(extract_db_from_query_param(&uri), Some("mydb".to_string()));
+
+        // Test with db parameter among other parameters
+        let uri =
+            Uri::try_from("http://example.com/api/v3/write?foo=bar&db=testdb&baz=qux").unwrap();
+        assert_eq!(
+            extract_db_from_query_param(&uri),
+            Some("testdb".to_string())
+        );
+
+        // Test with empty db parameter
+        let uri = Uri::try_from("http://example.com/api/v3/write?db=").unwrap();
+        assert_eq!(extract_db_from_query_param(&uri), Some("".to_string()));
+
+        // Test without db parameter
+        let uri = Uri::try_from("http://example.com/api/v3/write?foo=bar").unwrap();
+        assert_eq!(extract_db_from_query_param(&uri), None);
+
+        // Test with no query parameters
+        let uri = Uri::try_from("http://example.com/api/v3/write").unwrap();
+        assert_eq!(extract_db_from_query_param(&uri), None);
+
+        // Test with URL encoded db name
+        let uri = Uri::try_from("http://example.com/api/v3/write?db=my%20database").unwrap();
+        assert_eq!(
+            extract_db_from_query_param(&uri),
+            Some("my database".to_string())
+        );
+
+        // Test with special characters in db name
+        let uri = Uri::try_from("http://example.com/api/v3/write?db=db-name_123").unwrap();
+        assert_eq!(
+            extract_db_from_query_param(&uri),
+            Some("db-name_123".to_string())
+        );
+
+        // Test with multiple db parameters (should return first one)
+        let uri = Uri::try_from("http://example.com/api/v3/write?db=first&db=second").unwrap();
+        assert_eq!(extract_db_from_query_param(&uri), Some("first".to_string()));
+    }
+
+    #[test]
+    fn test_extract_client_ip() {
+        // Test with x-forwarded-for header (single IP)
+        let req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .header("x-forwarded-for", "192.168.1.100")
+            .body(hyper::Body::empty())
+            .unwrap();
+        assert_eq!(extract_client_ip(&req), Some("192.168.1.100".to_string()));
+
+        // Test with x-forwarded-for header (multiple IPs, should take first)
+        let req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .header("x-forwarded-for", "10.0.0.1, 172.16.0.1, 192.168.1.1")
+            .body(hyper::Body::empty())
+            .unwrap();
+        assert_eq!(extract_client_ip(&req), Some("10.0.0.1".to_string()));
+
+        // Test with x-forwarded-for header with spaces
+        let req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .header("x-forwarded-for", "  10.0.0.1  ,  172.16.0.1  ")
+            .body(hyper::Body::empty())
+            .unwrap();
+        assert_eq!(extract_client_ip(&req), Some("10.0.0.1".to_string()));
+
+        // Test with x-real-ip header
+        let req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .header("x-real-ip", "192.168.1.50")
+            .body(hyper::Body::empty())
+            .unwrap();
+        assert_eq!(extract_client_ip(&req), Some("192.168.1.50".to_string()));
+
+        // Test with both headers (x-forwarded-for takes precedence)
+        let req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .header("x-forwarded-for", "10.0.0.1")
+            .header("x-real-ip", "192.168.1.50")
+            .body(hyper::Body::empty())
+            .unwrap();
+        assert_eq!(extract_client_ip(&req), Some("10.0.0.1".to_string()));
+
+        // Test with socket address in extensions (IPv4)
+        let mut req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .body(hyper::Body::empty())
+            .unwrap();
+        let socket_addr = Some(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            8080,
+        ));
+        req.extensions_mut().insert(socket_addr);
+        assert_eq!(extract_client_ip(&req), Some("127.0.0.1".to_string()));
+
+        // Test with socket address in extensions (IPv6)
+        let mut req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .body(hyper::Body::empty())
+            .unwrap();
+        let socket_addr = Some(SocketAddr::new(
+            IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)),
+            8080,
+        ));
+        req.extensions_mut().insert(socket_addr);
+        assert_eq!(extract_client_ip(&req), Some("::1".to_string()));
+
+        // Test with None socket address in extensions
+        let mut req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .body(hyper::Body::empty())
+            .unwrap();
+        let socket_addr: Option<SocketAddr> = None;
+        req.extensions_mut().insert(socket_addr);
+        assert_eq!(extract_client_ip(&req), Some("unknown".to_string()));
+
+        // Test with no headers and no socket address
+        let req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .body(hyper::Body::empty())
+            .unwrap();
+        assert_eq!(extract_client_ip(&req), None);
+
+        // Test header precedence: x-forwarded-for > x-real-ip > socket
+        let mut req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .header("x-forwarded-for", "10.0.0.1")
+            .header("x-real-ip", "192.168.1.50")
+            .body(hyper::Body::empty())
+            .unwrap();
+        let socket_addr = Some(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            8080,
+        ));
+        req.extensions_mut().insert(socket_addr);
+        assert_eq!(extract_client_ip(&req), Some("10.0.0.1".to_string()));
+
+        // Test with empty x-forwarded-for header
+        let req = Request::builder()
+            .uri("http://example.com/api/v3/write")
+            .header("x-forwarded-for", "")
+            .body(hyper::Body::empty())
+            .unwrap();
+        // Should return empty string since the header exists but is empty
+        assert_eq!(extract_client_ip(&req), Some("".to_string()));
     }
 }

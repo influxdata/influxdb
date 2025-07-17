@@ -24,8 +24,10 @@ use crate::http::HttpApi;
 use crate::http::route_request;
 use authz::Authorizer;
 use hyper::server::conn::AddrIncoming;
+use hyper::server::conn::AddrStream;
 use hyper::server::conn::Http;
-use hyper::service::service_fn;
+use hyper::service::{make_service_fn, service_fn};
+use hyper_rustls::acceptor::TlsStream;
 use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
 use observability_deps::tracing::error;
@@ -209,9 +211,11 @@ pub async fn serve(
     );
 
     if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
-        let rest_service = hyper::service::make_service_fn(|_| {
+        let rest_service = hyper::service::make_service_fn(|conn: &TlsStream| {
+            let remote_addr = conn.io().map(|conn| conn.remote_addr());
             let http_server = Arc::clone(&server.http);
-            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+            let service = service_fn(move |mut req: hyper::Request<hyper::Body>| {
+                req.extensions_mut().insert(remote_addr);
                 route_request(
                     Arc::clone(&http_server),
                     req,
@@ -274,9 +278,12 @@ pub async fn serve(
             Some(server.authorizer()),
         ));
 
-        let rest_service = hyper::service::make_service_fn(|_| {
+        let rest_service = make_service_fn(move |conn: &AddrStream| {
+            let remote_addr = conn.remote_addr();
             let http_server = Arc::clone(&server.http);
-            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+            let http_trace_layer = http_trace_layer.clone();
+            let service = service_fn(move |mut req: hyper::Request<hyper::Body>| {
+                req.extensions_mut().insert(Some(remote_addr));
                 route_request(
                     Arc::clone(&http_server),
                     req,
