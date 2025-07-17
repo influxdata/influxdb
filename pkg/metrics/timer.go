@@ -23,6 +23,9 @@ func (t *Timer) Update(d time.Duration) { atomic.StoreInt64(&t.val, int64(d)) }
 // UpdateSince sets the timer value to the difference between since and the current time.
 func (t *Timer) UpdateSince(since time.Time) { t.Update(time.Since(since)) }
 
+// UpdateSinceAccumulate adds to the timer's current value the difference between since and the current time.
+func (t *Timer) UpdateSinceAccumulate(since time.Time) { t.Update(time.Since(since) + t.Value()) }
+
 // String returns a string representation using the name and value of the timer.
 func (t *Timer) String() string { return t.desc.Name + ": " + time.Duration(t.val).String() }
 
