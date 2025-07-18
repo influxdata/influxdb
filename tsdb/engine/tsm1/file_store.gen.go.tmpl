@@ -2,18 +2,22 @@ package tsm1
 
 {{$isArray := .D.isArray}}
 {{$isNotArray := not $isArray}}
+import (
+	"time"
 
 {{if $isArray -}}
-import (
 	"github.com/influxdata/influxdb/tsdb"
-)
 {{end}}
-
+)
 
 {{range .In}}
 {{if $isArray -}}
 // Read{{.Name}}ArrayBlock reads the next block as a set of {{.name}} values.
 func (c *KeyCursor) Read{{.Name}}ArrayBlock(values *tsdb.{{.Name}}Array) (*tsdb.{{.Name}}Array, error) {
+		var start time.Time
+		var mergeCount int64 // the number of merge operations that occurred
+		var mergeValuesCount int // the number of values merged into the first block
+
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -24,6 +28,10 @@ LOOP:
 {{else}}
 // Read{{.Name}}Block reads the next block as a set of {{.name}} values.
 func (c *KeyCursor) Read{{.Name}}Block(buf *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
+	var start time.Time
+	var mergeCount int64 // the number of merge operations that occurred
+	var mergeValuesCount int // the number of values merged into the first block
+
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -115,6 +123,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -125,7 +134,7 @@ LOOP:
 
 {{if $isArray -}}
 			v := &tsdb.{{.Name}}Array{}
-            err := cur.r.Read{{.Name}}ArrayBlockAt(&cur.entry, v)
+			err := cur.r.Read{{.Name}}ArrayBlockAt(&cur.entry, v)
 {{else -}}
 			var a []{{.Name}}Value
 			var v {{.Name}}Values
@@ -151,7 +160,9 @@ LOOP:
 				// Only use values in the overlapping window
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount+=len(v.Timestamps)
 				values.Merge(v)
+				mergeCount++
 			}
 {{else -}}
 			// Remove any tombstoned values
@@ -164,12 +175,13 @@ LOOP:
 				// Only use values in the overlapping window
 				v = v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount+=len(v)
 				values = values.Merge(v)
+				mergeCount++
 			}
 {{end -}}
 			cur.markRead(minT, maxT)
 		}
-
 	} else {
 		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
 		// expand the window to include the max time range to ensure values are returned in descending
@@ -202,6 +214,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -238,7 +251,9 @@ LOOP:
 			if v.Len() > 0 {
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount+=len(v.Timestamps)
 				v.Merge(values)
+				mergeCount++
 				*values = *v
 			}
 {{else -}}
@@ -253,7 +268,9 @@ LOOP:
 			if v.Len() > 0 {
 				v = v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount+=len(v)
 				values = v.Merge(values)
+				mergeCount++
 			}
 {{end -}}
 			cur.markRead(minT, maxT)
@@ -261,6 +278,18 @@ LOOP:
 	}
 
 	first.markRead(minT, maxT)
+
+	if c.col != nil {
+		c.col.GetTimer({{.name}}BlocksMergeTimer).AddSince(start)
+		c.col.GetCounter({{.name}}BlocksMergeCount).Add(mergeCount)
+		c.col.GetCounter({{.name}}BlocksMergeValuesCount).Add(int64(mergeValuesCount))
+		if mergeCount > 4 {
+			// We want to know when there are "many" (over 4) merge operations in a single Read call.
+			// If we see this is high, doing a tree merge of blocks may be beneficial compared to the current sequential
+			// merge (n^2 versus nlogn in number of values).
+			c.col.GetCounter({{.name}}BlocksMergeOver4Count).Add(1)
+		}
+	}
 
 	return values, err
 }
