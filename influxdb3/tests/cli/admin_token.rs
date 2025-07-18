@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crate::cli::api::run_cmd_with_result;
 use crate::server::{ConfigProvider, TestServer, parse_token};
 use observability_deps::tracing::info;
 use serde_json::Value;
@@ -110,6 +111,72 @@ async fn test_regenerate_admin_token() {
 
     // old token cannot access
     let res = server
+        .create_database("sample_db")
+        .run()
+        .err()
+        .unwrap()
+        .to_string();
+    assert_contains!(&res, "401 Unauthorized");
+
+    // new token should allow
+    server.set_token(Some(new_token));
+    let res = server.create_database("sample_db").run().unwrap();
+    assert_contains!(&res, "Database \"sample_db\" created successfully");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_regenerate_admin_token_without_auth_using_token_recovery_service() {
+    let mut server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .with_recovery_endpoint()
+        .spawn()
+        .await;
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+    // create the token manually
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+
+    // already has admin token, so it cannot be created again
+    assert_contains!(&result, "New token created successfully!");
+
+    let admin_token = parse_token(result);
+
+    // regenerating token is not allowed without admin token going through the main http server
+    let result = server
+        .run_with_confirmation(
+            vec!["create", "token", "--admin"],
+            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
+        )
+        .unwrap();
+
+    assert_contains!(&result, "Failed to create token");
+
+    // regenerate token using the admin token recovery server
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+
+    let old_token = admin_token.clone();
+    let new_token = parse_token(result);
+    assert!(old_token != new_token);
+
+    // old token cannot access
+    let res = server
+        .set_token(Some(admin_token))
         .create_database("sample_db")
         .run()
         .err()
@@ -527,4 +594,332 @@ async fn test_check_named_admin_token_expiry_works() {
         .unwrap_err()
         .to_string();
     assert_contains!(&res, "[401 Unauthorized]");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_recovery_service_only_accepts_regenerate_endpoint() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .with_recovery_endpoint()
+        .spawn()
+        .await;
+
+    // First create an admin token
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+
+    // Try to use recovery service for other operations - should fail
+    // Test creating a database through recovery port
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = server
+        .run(
+            vec!["create", "database", "--host", &recovery_addr, "test_db"],
+            args,
+        )
+        .unwrap_err()
+        .to_string();
+    // Should fail because recovery port doesn't support database operations
+    assert!(result.contains("error") || result.contains("failed"));
+
+    // Test listing tokens through recovery port
+    let result = server
+        .run(vec!["show", "tokens", "--host", &recovery_addr], args)
+        .unwrap_err()
+        .to_string();
+    assert!(result.contains("error") || result.contains("failed"));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_recovery_service_with_auth_disabled() {
+    // Start server without auth
+    let server = TestServer::configure()
+        .with_recovery_endpoint()
+        .spawn()
+        .await;
+
+    // Try to use recovery service when auth is disabled - should fail
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
+
+    // Should get an error - recovery service runs but there's no admin token to regenerate
+    assert_contains!(&result, "missing admin token, cannot update");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_recovery_service_does_not_affect_named_admin_tokens() {
+    let mut server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .with_recovery_endpoint()
+        .spawn()
+        .await;
+
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+
+    // Create operator token
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let operator_token = parse_token(result);
+
+    // Create a named admin token
+    let result = server
+        .run(
+            vec![
+                "create",
+                "token",
+                "--admin",
+                "--name",
+                "test_admin",
+                "--token",
+                &operator_token,
+            ],
+            args,
+        )
+        .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let named_admin_token = parse_token(result);
+
+    // Regenerate operator token via recovery service
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let new_operator_token = parse_token(result);
+
+    // Verify old operator token is invalid
+    server.set_token(Some(operator_token));
+    let res = server
+        .create_database("test_db1")
+        .run()
+        .err()
+        .unwrap()
+        .to_string();
+    assert_contains!(&res, "401 Unauthorized");
+
+    // Verify named admin token still works
+    server.set_token(Some(named_admin_token.clone()));
+    let res = server.create_database("test_db2").run().unwrap();
+    assert_contains!(&res, "Database \"test_db2\" created successfully");
+
+    // Verify new operator token works
+    server.set_token(Some(new_operator_token));
+    let res = server.create_database("test_db3").run().unwrap();
+    assert_contains!(&res, "Database \"test_db3\" created successfully");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_recovery_service_cannot_create_new_admin_token() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .with_recovery_endpoint()
+        .spawn()
+        .await;
+
+    // Try to create admin token through recovery service (without --regenerate flag)
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = server
+        .run(
+            vec!["create", "token", "--admin", "--host", &recovery_addr],
+            &["--tls-ca", "../testing-certs/rootCA.pem"],
+        )
+        .unwrap_err()
+        .to_string();
+
+    // Should fail - recovery service only supports regeneration
+    assert!(result.contains("error") || result.contains("failed"));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_recovery_endpoint_disabled_by_default() {
+    // Start server without recovery endpoint enabled
+    let _server = TestServer::configure().with_capture_logs().spawn().await;
+
+    // Try to connect to the recovery endpoint on default port
+    let client = reqwest::Client::new();
+    let recovery_url = "http://127.0.0.1:8182/api/v3/configure/token/admin/regenerate";
+
+    // This should fail since the recovery endpoint is not enabled
+    let result = client.post(recovery_url).send().await;
+
+    // Expect connection refused or similar error
+    assert!(
+        result.is_err(),
+        "Recovery endpoint should not be accessible when not explicitly enabled"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_recovery_endpoint_auto_shutdown_after_regeneration() {
+    // This test verifies that the recovery endpoint works and the main server continues running
+    let mut server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .with_recovery_endpoint()
+        .spawn()
+        .await;
+
+    // Create the initial admin token
+    let result = server
+        .run(
+            vec!["create", "token", "--admin"],
+            &["--tls-ca", "../testing-certs/rootCA.pem"],
+        )
+        .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let initial_token = parse_token(result);
+
+    // Use the recovery endpoint to regenerate the token
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let new_token = parse_token(result);
+
+    // Use the recovery endpoint to regenerate the token again, recovery server should have been
+    // shutdown
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
+    assert_contains!(result, "ConnectError");
+
+    // Verify tokens are different
+    assert_ne!(
+        initial_token, new_token,
+        "Token should have been regenerated"
+    );
+
+    // Update the server's token to the new one
+    server.set_token(Some(new_token.clone()));
+
+    // Verify the main server is still running and new token works
+    let result = server.create_database("test_db").run();
+    assert!(
+        result.is_ok(),
+        "Main server should still be running with new token"
+    );
+
+    // Verify old token no longer works
+    server.set_token(Some(initial_token));
+    let result = server.create_database("test_db2").run();
+    assert!(result.is_err(), "Old token should no longer work");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_main_server_continues_after_recovery_endpoint_shutdown() {
+    // This test specifically verifies that the main server continues running
+    // after the recovery endpoint auto-shuts down
+    let mut server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .with_recovery_endpoint()
+        .spawn()
+        .await;
+
+    // Create the initial admin token
+    let result = server
+        .run(
+            vec!["create", "token", "--admin"],
+            &["--tls-ca", "../testing-certs/rootCA.pem"],
+        )
+        .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let initial_token = parse_token(result);
+
+    // Set the token for future operations
+    server.set_token(Some(initial_token.clone()));
+
+    // Create a database before using recovery endpoint
+    let result = server.create_database("before_recovery_db").run();
+    assert!(
+        result.is_ok(),
+        "Should be able to create database before recovery"
+    );
+
+    // Use the recovery endpoint to regenerate the token
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let new_token = parse_token(result);
+
+    // Verify tokens are different
+    assert_ne!(
+        initial_token, new_token,
+        "Token should have been regenerated"
+    );
+
+    // Update to new token
+    server.set_token(Some(new_token.clone()));
+
+    // Wait a bit to ensure recovery endpoint has shut down
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    // Simple check - verify server is still responding by creating one more database
+    let result = server.create_database("after_recovery_db").run();
+    assert!(
+        result.is_ok(),
+        "Main server should still be running after recovery endpoint shutdown"
+    );
 }

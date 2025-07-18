@@ -36,6 +36,11 @@ Examples:
                                    list of resources. Valid values are health, ping, and metrics.
                                    To disable auth for multiple resources pass in a list, eg.
                                    `--disable-authz health,ping`
+  --admin-token-recovery-http-bind <ADDR>
+                                   Address for HTTP API for admin token recovery requests [default: 127.0.0.1:8182]
+                                   WARNING: This endpoint allows unauthenticated admin token regeneration - use with caution!
+                                   [env: INFLUXDB3_ADMIN_TOKEN_RECOVERY_HTTP_BIND_ADDR]
+
 
 {}
   --data-dir <DIR>                 Location to store files locally [env: INFLUXDB3_DB_DIR=]

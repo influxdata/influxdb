@@ -558,6 +558,24 @@ pub struct HttpApi {
     legacy_write_param_unifier: SingleTenantRequestUnifier,
 }
 
+/// Wrapper for HttpApi used by the recovery endpoint that includes a shutdown token
+pub(crate) struct RecoveryHttpApi {
+    http_api: Arc<HttpApi>,
+    cancellation_token: tokio_util::sync::CancellationToken,
+}
+
+impl RecoveryHttpApi {
+    pub(crate) fn new(
+        http_api: Arc<HttpApi>,
+        cancellation_token: tokio_util::sync::CancellationToken,
+    ) -> Self {
+        Self {
+            http_api,
+            cancellation_token,
+        }
+    }
+}
+
 impl HttpApi {
     pub fn new(
         common_state: CommonServerState,
@@ -1853,6 +1871,78 @@ async fn record_batch_stream_to_body(
                 Poll::Pending => Poll::Pending,
             });
             Ok(stream_results_to_response_body(stream))
+        }
+    }
+}
+
+/// This is used to trigger a shutdown when it's dropped.
+struct ShutdownTrigger {
+    token: tokio_util::sync::CancellationToken,
+}
+
+impl ShutdownTrigger {
+    fn new(token: tokio_util::sync::CancellationToken) -> Self {
+        Self { token }
+    }
+}
+
+impl Drop for ShutdownTrigger {
+    fn drop(&mut self) {
+        self.token.cancel();
+    }
+}
+
+pub(crate) async fn route_admin_token_recovery_request(
+    recovery_api: Arc<RecoveryHttpApi>,
+    req: Request,
+) -> Result<Response, Infallible> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    trace!(request = ?req,"Processing request");
+    let content_length = req.headers().get("content-length").cloned();
+
+    let response = match (method.clone(), uri.path()) {
+        (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
+            info!("Regenerating admin token without password through token recovery API request");
+            let result = recovery_api.http_api.regenerate_admin_token(req).await;
+
+            // If token regeneration was successful, trigger shutdown of the recovery endpoint
+            if let Ok(response) = result {
+                info!("Admin token regenerated successfully, shutting down recovery endpoint");
+                let cancellation_token = recovery_api.cancellation_token.clone();
+                let mut res_builder = ResponseBuilder::new();
+                let extensions = res_builder.extensions_mut().unwrap();
+                let shutdown_trigger = ShutdownTrigger::new(cancellation_token);
+                extensions.insert(shutdown_trigger);
+
+                Ok(res_builder
+                    .status(response.status())
+                    .body(response.into_body())
+                    .unwrap())
+            } else {
+                result
+            }
+        }
+        _ => {
+            let body = bytes_to_response_body("not found");
+            Ok(ResponseBuilder::new()
+                .status(StatusCode::NOT_FOUND)
+                .body(body)
+                .unwrap())
+        }
+    };
+
+    match response {
+        Ok(mut response) => {
+            response
+                .headers_mut()
+                .insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
+            debug!(?response, "Successfully processed request");
+            Ok(response)
+        }
+        Err(error) => {
+            error!(%error, %method, path = uri.path(), ?content_length, "Error while handling request");
+            Ok(error.into_response())
         }
     }
 }

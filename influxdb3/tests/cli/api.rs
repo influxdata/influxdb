@@ -36,43 +36,54 @@ impl TestServer {
             command_args.push("--token");
             command_args.push(token);
         }
-        let mut child_process = Command::cargo_bin("influxdb3")?
-            .args(&command_args)
-            .args(args)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-
-        if let Some(input) = input {
-            let input = input.to_string();
-            let mut stdin = child_process.stdin.take().expect("failed to open stdin");
-            thread::spawn(move || {
-                stdin
-                    .write_all(input.as_bytes())
-                    .expect("cannot write confirmation msg to stdin");
-            });
-        }
-        let output = child_process.wait_with_output()?;
-
-        if !output.status.success() {
-            println!(
-                "failed to run influxdb3 {} {}",
-                command_args.join(" "),
-                args.join(" ")
-            );
-            bail!("{}", String::from_utf8_lossy(&output.stderr));
-        }
-
-        Ok(String::from_utf8(output.stdout)?.trim().into())
+        run_cmd_with_result(args, input, command_args)
     }
+
     pub fn run(&self, commands: Vec<&str>, args: &[&str]) -> Result<String> {
         self.run_with_options(commands, args, None)
     }
+
     pub fn run_with_confirmation(&self, commands: Vec<&str>, args: &[&str]) -> Result<String> {
         self.run_with_options(commands, args, Some("yes"))
     }
 }
+
+pub(super) fn run_cmd_with_result(
+    args: &[&str],
+    input: Option<&str>,
+    command_args: Vec<&str>,
+) -> std::result::Result<String, anyhow::Error> {
+    let mut child_process = Command::cargo_bin("influxdb3")?
+        .args(&command_args)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    if let Some(input) = input {
+        let input = input.to_string();
+        let mut stdin = child_process.stdin.take().expect("failed to open stdin");
+        thread::spawn(move || {
+            stdin
+                .write_all(input.as_bytes())
+                .expect("cannot write confirmation msg to stdin");
+        });
+    }
+    let output = child_process.wait_with_output()?;
+
+    if !output.status.success() {
+        println!(
+            "failed to run influxdb3 {} {}",
+            command_args.join(" "),
+            args.join(" ")
+        );
+        bail!("{}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    Ok(String::from_utf8(output.stdout)?.trim().into())
+}
+
 impl CreateDatabaseQuery<'_> {
     pub fn run(self) -> Result<String> {
         self.server.run(

@@ -75,12 +75,13 @@ pub enum TokenOutputFormat {
 
 #[derive(Parser, Clone, Debug)]
 pub struct InfluxDb3ServerConfig {
-    /// The host URL of the running InfluxDB 3 Core server
+    /// The host URL of the running InfluxDB 3 Core server.
     #[clap(
         name = "host",
+        short = 'H',
         long = "host",
-        default_value = "http://127.0.0.1:8181",
-        env = "INFLUXDB3_HOST_URL"
+        env = "INFLUXDB3_HOST_URL",
+        default_value = "http://127.0.0.1:8181"
     )]
     pub host_url: Url,
 
@@ -96,8 +97,16 @@ pub struct InfluxDb3ServerConfig {
 
 #[derive(Parser, Debug)]
 pub struct CreateAdminTokenConfig {
-    /// Operator token will be regenerated when this is set
-    #[clap(name = "regenerate", long = "regenerate")]
+    /// Operator token will be regenerated when this is set.
+    ///
+    /// When used without --host, connects to the default server endpoint (port 8181).
+    /// To use the admin token recovery endpoint, specify --host with the recovery endpoint address.
+    #[clap(
+        name = "regenerate",
+        long = "regenerate",
+        help = "Regenerate the operator token. By default connects to the main server (http://127.0.0.1:8181).
+                To use the admin token recovery endpoint, specify --host with the recovery endpoint address"
+    )]
     pub regenerate: bool,
 
     // for named admin and permission tokens this is mandatory but not for admin tokens
@@ -208,8 +217,16 @@ impl Args for CreateTokenConfig {
 
 impl CommandFactory for CreateTokenConfig {
     fn command() -> clap::Command {
-        let admin_sub_cmd =
-            ClapCommand::new("--admin").override_usage("influxdb3 create token --admin [OPTIONS]");
+        let admin_sub_cmd = ClapCommand::new("--admin")
+            .override_usage("influxdb3 create token --admin [OPTIONS]")
+            .about("Create or regenerate an admin token")
+            .long_about(
+                "Create or regenerate an admin token.\n\n\
+                            When using --regenerate, the command connects to the default server \
+                            endpoint (http://127.0.0.1:8181) unless you specify a different --host. \
+                            To use the admin token recovery endpoint, specify --host with the \
+                            recovery endpoint address configured via --admin-token-recovery-http-bind.",
+            );
         let all_args = CreateAdminTokenConfig::as_args();
         let admin_sub_cmd = admin_sub_cmd.args(all_args);
 
