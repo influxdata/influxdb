@@ -9,13 +9,13 @@ use influxdb3_catalog::catalog::{Catalog, RetentionPeriod};
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
-pub(super) struct DatabasesTable {
+pub(crate) struct DatabasesTable {
     catalog: Arc<Catalog>,
     schema: SchemaRef,
 }
 
 impl DatabasesTable {
-    pub(super) fn new(catalog: Arc<Catalog>) -> Self {
+    pub(crate) fn new(catalog: Arc<Catalog>) -> Self {
         Self {
             catalog,
             schema: databases_schema(),
