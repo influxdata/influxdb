@@ -1,6 +1,7 @@
 use std::{
     future::Future,
-    process::{Child, Command},
+    process::{Child, Command, Stdio},
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
 
@@ -15,7 +16,7 @@ use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Certificate, Response, tls::Version};
 use tempfile::TempDir;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tonic::transport::ClientTlsConfig;
 
 mod auth;
@@ -23,7 +24,7 @@ mod client;
 mod configure;
 mod flight;
 mod limits;
-
+mod logs;
 mod packages;
 mod ping;
 mod query;
@@ -48,6 +49,9 @@ pub trait ConfigProvider: Send + Sync + 'static {
 
     /// Get if admin token needs to be generated
     fn should_generate_admin_token(&self) -> bool;
+
+    /// Get if logs should be captured
+    fn capture_logs(&self) -> bool;
 
     /// Spawn a new [`TestServer`] with this configuration
     ///
@@ -77,6 +81,7 @@ pub struct TestConfig {
     object_store_dir: Option<String>,
     disable_authz: Vec<String>,
     gen1_duration: Option<String>,
+    capture_logs: bool,
 }
 
 impl TestConfig {
@@ -150,6 +155,12 @@ impl TestConfig {
 
     pub fn with_gen1_duration(mut self, gen1_duration: impl Into<String>) -> Self {
         self.gen1_duration = Some(gen1_duration.into());
+        self
+    }
+
+    /// Enable capturing of stdout/stderr logs for this [`TestServer`]
+    pub fn with_capture_logs(mut self) -> Self {
+        self.capture_logs = true;
         self
     }
 }
@@ -232,6 +243,10 @@ impl ConfigProvider for TestConfig {
     fn should_generate_admin_token(&self) -> bool {
         self.without_admin_token
     }
+
+    fn capture_logs(&self) -> bool {
+        self.capture_logs
+    }
 }
 
 /// A running instance of the `influxdb3 serve` process
@@ -253,6 +268,8 @@ pub struct TestServer {
     bind_addr: String,
     server_process: Child,
     http_client: reqwest::Client,
+    stdout: Option<Arc<Mutex<String>>>,
+    stderr: Option<Arc<Mutex<String>>>,
 }
 
 impl std::fmt::Debug for TestServer {
@@ -354,7 +371,52 @@ impl TestServer {
             (Err(_), _) => (),
         }
 
-        let server_process = command.spawn().expect("spawn the influxdb3 server process");
+        // Set up stdout/stderr capture if enabled
+        let (stdout_handle, stderr_handle) = if config.capture_logs() {
+            command.stdout(Stdio::piped()).stderr(Stdio::piped());
+            (
+                Some(Arc::new(Mutex::new(String::new()))),
+                Some(Arc::new(Mutex::new(String::new()))),
+            )
+        } else {
+            (None, None)
+        };
+
+        let mut server_process = command.spawn().expect("spawn the influxdb3 server process");
+
+        // If log capture is enabled, spawn tasks to read from stdout/stderr
+        if config.capture_logs() {
+            if let (Some(stdout), Some(stderr)) =
+                (server_process.stdout.take(), server_process.stderr.take())
+            {
+                let stdout_buffer = stdout_handle.clone().unwrap();
+                let stderr_buffer = stderr_handle.clone().unwrap();
+
+                // Spawn task to read stdout
+                tokio::spawn(async move {
+                    let reader =
+                        BufReader::new(tokio::process::ChildStdout::from_std(stdout).unwrap());
+                    let mut lines = reader.lines();
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        let mut buffer = stdout_buffer.lock().unwrap();
+                        buffer.push_str(&line);
+                        buffer.push('\n');
+                    }
+                });
+
+                // Spawn task to read stderr
+                tokio::spawn(async move {
+                    let reader =
+                        BufReader::new(tokio::process::ChildStderr::from_std(stderr).unwrap());
+                    let mut lines = reader.lines();
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        let mut buffer = stderr_buffer.lock().unwrap();
+                        buffer.push_str(&line);
+                        buffer.push('\n');
+                    }
+                });
+            }
+        }
 
         let bind_addr = loop {
             match tokio::fs::File::open(&tcp_addr_file).await {
@@ -395,6 +457,8 @@ impl TestServer {
             bind_addr,
             server_process,
             http_client,
+            stdout: stdout_handle,
+            stderr: stderr_handle,
         };
 
         server.wait_until_ready().await;
@@ -482,6 +546,70 @@ impl TestServer {
             .inspect_err(|error| println!("error when checking for stopped: {error:?}"))
             .expect("check process status")
             .is_some()
+    }
+
+    /// Get captured stdout as a string, if log capture was enabled
+    pub fn get_stdout(&self) -> Option<String> {
+        self.stdout.as_ref().map(|s| s.lock().unwrap().clone())
+    }
+
+    /// Get captured stderr as a string, if log capture was enabled
+    pub fn get_stderr(&self) -> Option<String> {
+        self.stderr.as_ref().map(|s| s.lock().unwrap().clone())
+    }
+
+    /// Get all captured logs (stdout and stderr combined), if log capture was enabled
+    pub fn get_logs(&self, last_n_lines: Option<usize>) -> Option<String> {
+        match (&self.stdout, &self.stderr) {
+            (Some(stdout), Some(stderr)) => {
+                let stdout_str = stdout.lock().unwrap();
+                let stderr_str = stderr.lock().unwrap();
+                let full_logs = format!("{stdout_str}{stderr_str}");
+
+                match last_n_lines {
+                    Some(n) => {
+                        let lines: Vec<&str> = full_logs.lines().collect();
+                        if lines.is_empty() {
+                            return Some(String::new());
+                        }
+                        let start = lines.len().saturating_sub(n);
+                        let result = lines[start..].join("\n");
+                        // If the original logs ended with a newline, preserve it
+                        if full_logs.ends_with('\n') && !result.is_empty() {
+                            Some(result + "\n")
+                        } else {
+                            Some(result)
+                        }
+                    }
+                    None => Some(full_logs),
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Assert that the captured logs contain a specific string
+    pub fn assert_log_contains(&self, pattern: &str) {
+        if let Some(logs) = self.get_logs(None) {
+            assert!(
+                logs.contains(pattern),
+                "Expected logs to match pattern '{pattern}', but got:\n{logs}",
+            );
+        } else {
+            panic!("Log capture was not enabled for this TestServer");
+        }
+    }
+
+    /// Assert that the captured logs match a regex pattern
+    pub fn assert_log_matches(&self, pattern: &Regex) {
+        if let Some(logs) = self.get_logs(None) {
+            assert!(
+                pattern.is_match(&logs),
+                "Expected logs to match pattern '{pattern}', but got:\n{logs}",
+            );
+        } else {
+            panic!("Log capture was not enabled for this TestServer");
+        }
     }
 
     async fn wait_until_ready(&self) {
