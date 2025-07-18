@@ -2050,7 +2050,7 @@ pub(crate) async fn route_request(
     }
 }
 
-fn extract_client_ip(req: &http::Request<hyper::Body>) -> Option<String> {
+fn extract_client_ip<T>(req: &http::Request<T>) -> Option<String> {
     req.headers()
         .get("x-forwarded-for")
         .and_then(|h| h.to_str().ok())
@@ -2438,26 +2438,10 @@ mod tests {
             .unwrap();
 
         let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)), 8080);
-        req.extensions_mut().insert(socket_addr);
+        req.extensions_mut().insert(Some(socket_addr));
 
         // Extract client IP - should get socket address since no headers
-        let client_ip = req
-            .headers()
-            .get("x-forwarded-for")
-            .and_then(|h| h.to_str().ok())
-            .and_then(|s| s.split(',').next())
-            .map(|s| s.trim().to_string())
-            .or_else(|| {
-                req.headers()
-                    .get("x-real-ip")
-                    .and_then(|h| h.to_str().ok())
-                    .map(|s| s.to_string())
-            })
-            .or_else(|| {
-                req.extensions()
-                    .get::<std::net::SocketAddr>()
-                    .map(|addr| addr.ip().to_string())
-            });
+        let client_ip = extract_client_ip(&req);
 
         assert_eq!(client_ip, Some("192.168.1.100".to_string()));
     }
@@ -2475,26 +2459,10 @@ mod tests {
             .unwrap();
 
         let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)), 8080);
-        req.extensions_mut().insert(socket_addr);
+        req.extensions_mut().insert(Some(socket_addr));
 
         // Extract client IP - should prefer header over socket
-        let client_ip = req
-            .headers()
-            .get("x-forwarded-for")
-            .and_then(|h| h.to_str().ok())
-            .and_then(|s| s.split(',').next())
-            .map(|s| s.trim().to_string())
-            .or_else(|| {
-                req.headers()
-                    .get("x-real-ip")
-                    .and_then(|h| h.to_str().ok())
-                    .map(|s| s.to_string())
-            })
-            .or_else(|| {
-                req.extensions()
-                    .get::<std::net::SocketAddr>()
-                    .map(|addr| addr.ip().to_string())
-            });
+        let client_ip = extract_client_ip(&req);
 
         assert_eq!(client_ip, Some("10.0.0.1".to_string()));
     }
