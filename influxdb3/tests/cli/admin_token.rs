@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crate::cli::api::run_cmd_with_result;
 use crate::server::{ConfigProvider, TestServer, parse_token};
 use observability_deps::tracing::info;
 use serde_json::Value;
@@ -153,12 +154,20 @@ async fn test_regenerate_admin_token_without_auth_using_token_recovery_service()
     assert_contains!(&result, "Failed to create token");
 
     // regenerate token using the admin token recovery server
-    let result = server
-        .run_regenerate_with_confirmation(
-            vec!["create", "token", "--admin"],
-            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
-        )
-        .unwrap();
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
     assert_contains!(&result, "New token created successfully!");
 
     let old_token = admin_token.clone();
@@ -633,12 +642,20 @@ async fn test_recovery_service_with_auth_disabled() {
         .await;
 
     // Try to use recovery service when auth is disabled - should fail
-    let result = server
-        .run_regenerate_with_confirmation(
-            vec!["create", "token", "--admin"],
-            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
-        )
-        .unwrap();
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
 
     // Should get an error - recovery service runs but there's no admin token to regenerate
     assert_contains!(&result, "missing admin token, cannot update");
@@ -681,12 +698,20 @@ async fn test_recovery_service_does_not_affect_named_admin_tokens() {
     let named_admin_token = parse_token(result);
 
     // Regenerate operator token via recovery service
-    let result = server
-        .run_regenerate_with_confirmation(
-            vec!["create", "token", "--admin"],
-            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
-        )
-        .unwrap();
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
     assert_contains!(&result, "New token created successfully!");
     let new_operator_token = parse_token(result);
 
@@ -737,11 +762,11 @@ async fn test_recovery_service_cannot_create_new_admin_token() {
 #[test_log::test(tokio::test)]
 async fn test_recovery_endpoint_disabled_by_default() {
     // Start server without recovery endpoint enabled
-    let _server = TestServer::configure().spawn().await;
+    let _server = TestServer::configure().with_capture_logs().spawn().await;
 
     // Try to connect to the recovery endpoint on default port
     let client = reqwest::Client::new();
-    let recovery_url = "http://127.0.0.1:8182/api/v3/configure/admin_token/regenerate";
+    let recovery_url = "http://127.0.0.1:8182/api/v3/configure/token/admin/regenerate";
 
     // This should fail since the recovery endpoint is not enabled
     let result = client.post(recovery_url).send().await;
@@ -774,23 +799,38 @@ async fn test_recovery_endpoint_auto_shutdown_after_regeneration() {
     let initial_token = parse_token(result);
 
     // Use the recovery endpoint to regenerate the token
-    let result = server
-        .run_regenerate_with_confirmation(
-            vec!["create", "token", "--admin"],
-            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
-        )
-        .unwrap();
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
     assert_contains!(&result, "New token created successfully!");
     let new_token = parse_token(result);
 
     // Use the recovery endpoint to regenerate the token again, recovery server should have been
     // shutdown
-    let result = server
-        .run_regenerate_with_confirmation(
-            vec!["create", "token", "--admin"],
-            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
-        )
-        .unwrap();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
     assert_contains!(result, "ConnectError");
 
     // Verify tokens are different
@@ -847,12 +887,20 @@ async fn test_main_server_continues_after_recovery_endpoint_shutdown() {
     );
 
     // Use the recovery endpoint to regenerate the token
-    let result = server
-        .run_regenerate_with_confirmation(
-            vec!["create", "token", "--admin"],
-            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
-        )
-        .unwrap();
+    let recovery_addr = server.admin_token_recovery_client_addr();
+    let result = run_cmd_with_result(
+        &["--tls-ca", "../testing-certs/rootCA.pem"],
+        Some("yes"),
+        vec![
+            "create",
+            "token",
+            "--admin",
+            "--regenerate",
+            "--host",
+            &recovery_addr,
+        ],
+    )
+    .unwrap();
     assert_contains!(&result, "New token created successfully!");
     let new_token = parse_token(result);
 

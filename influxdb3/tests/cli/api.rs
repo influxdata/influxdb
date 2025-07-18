@@ -39,18 +39,6 @@ impl TestServer {
         run_cmd_with_result(args, input, command_args)
     }
 
-    pub fn run_regenerate_with_confirmation(
-        &self,
-        commands: Vec<&str>,
-        args: &[&str],
-    ) -> Result<String> {
-        let client_addr = self.admin_token_recovery_client_addr();
-        let mut command_args = commands.clone();
-        command_args.push("--host");
-        command_args.push(client_addr.as_str());
-        run_cmd_with_result(args, Some("yes"), command_args)
-    }
-
     pub fn run(&self, commands: Vec<&str>, args: &[&str]) -> Result<String> {
         self.run_with_options(commands, args, None)
     }
@@ -60,7 +48,7 @@ impl TestServer {
     }
 }
 
-fn run_cmd_with_result(
+pub(super) fn run_cmd_with_result(
     args: &[&str],
     input: Option<&str>,
     command_args: Vec<&str>,
