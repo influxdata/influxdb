@@ -23,9 +23,9 @@ use self::{
     tables::TablesTable,
 };
 
-mod databases;
+pub(crate) mod databases;
 mod distinct_caches;
-mod generations;
+pub(crate) mod generations;
 mod last_caches;
 mod parquet_files;
 use crate::system_tables::python_call::{
@@ -33,8 +33,8 @@ use crate::system_tables::python_call::{
 };
 mod python_call;
 mod queries;
-mod tables;
-mod tokens;
+pub(crate) mod tables;
+pub(crate) mod tokens;
 
 pub(crate) const SYSTEM_SCHEMA_NAME: &str = "system";
 pub(crate) const TABLE_NAME_PREDICATE: &str = "table_name";
