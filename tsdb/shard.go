@@ -459,19 +459,14 @@ func (s *Shard) ready() error {
 }
 
 // LastModified returns the time when this shard was last modified.
+// On error and 0 TSM files this will return time.Time{} (0001-01-01 00:00:00 +0000 UTC)
 func (s *Shard) LastModified() time.Time {
-	t, err := s.LastModifiedOrErr()
-	if err != nil {
-		return time.Time{}
-	}
-
+	t, _ := s.LastModifiedWithErr()
 	return t
 }
 
-// LastModifiedOrErr returns the time when this shard was last modified or an error.
-// See: https://github.com/influxdata/plutonium/pull/4275#discussion_r2214077374
-// Previously we would throw away any error from Shard.LastModified
-func (s *Shard) LastModifiedOrErr() (time.Time, error) {
+// LastModifiedOrErr returns the time when this shard was last modified and an error.
+func (s *Shard) LastModifiedWithErr() (time.Time, error) {
 	engine, err := s.Engine()
 	if err != nil {
 		return time.Time{}, err
