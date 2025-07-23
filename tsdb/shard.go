@@ -460,11 +460,32 @@ func (s *Shard) ready() error {
 
 // LastModified returns the time when this shard was last modified.
 func (s *Shard) LastModified() time.Time {
-	engine, err := s.Engine()
+	t, err := s.LastModifiedOrErr()
 	if err != nil {
 		return time.Time{}
 	}
-	return engine.LastModified()
+
+	return t
+}
+
+// LastModifiedOrErr returns the time when this shard was last modified or an error.
+// See: https://github.com/influxdata/plutonium/pull/4275#discussion_r2214077374
+// Previously we would throw away any error from Shard.LastModified
+func (s *Shard) LastModifiedOrErr() (time.Time, error) {
+	engine, err := s.Engine()
+	if err != nil {
+		return time.Time{}, err
+	}
+	return engine.LastModified(), nil
+}
+
+// SetLastModified updates the last modified time for this shard.
+func (s *Shard) SetLastModified(t time.Time) error {
+	engine, err := s.Engine()
+	if err != nil {
+		return err
+	}
+	return engine.SetLastModified(t)
 }
 
 // Index returns a reference to the underlying index. It returns an error if
