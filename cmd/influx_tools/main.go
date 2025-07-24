@@ -137,7 +137,7 @@ func (s *ossServer) Close() {
 }
 
 func (s *ossServer) MetaClient() server.MetaClient { return s.mc }
-func (s *ossServer) TSDBConfig() *tsdb.Config      { return s.config.Data }
+func (s *ossServer) TSDBConfig() tsdb.Config       { return s.config.Data }
 func (s *ossServer) Logger() *zap.Logger           { return s.logger }
 func (s *ossServer) NodeID() uint64                { return 0 }
 
