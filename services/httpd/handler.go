@@ -36,6 +36,7 @@ import (
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
@@ -2298,6 +2299,26 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "\"cmdline\": %s", val)
 	}
 
+	if val := diags["config"]; val != nil {
+		jv, err := parseConfigDiagnostics(val)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		
+		data, err := json.Marshal(jv)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		
+		if !first {
+			fmt.Fprintln(w, ",")
+		}
+		first = false
+		fmt.Fprintf(w, "\"config\": %s", data)
+	}
+
 	// We're going to print some kind of crypto data, we just
 	// need to find the proper source for it.
 	{
@@ -2561,6 +2582,33 @@ func parseCryptoDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 		// If you're getting this error, you probably need to update enterprise.
 		return m, fmt.Errorf("parseCryptoDiagnostics: missing %s: %w", strings.Join(missing, ","), ErrDiagnosticsValueMissing)
 	}
+	return m, nil
+}
+
+// parseConfigDiagnostics converts the config diagnostics into proper format
+// for JSON marshaling, handling toml.Size and toml.Duration types properly.
+func parseConfigDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
+	if len(d.Rows) == 0 {
+		return nil, fmt.Errorf("no config diagnostic data available")
+	}
+
+	m := make(map[string]interface{})
+	for i, col := range d.Columns {
+		if i >= len(d.Rows[0]) {
+			continue
+		}
+		
+		val := d.Rows[0][i]
+		switch v := val.(type) {
+		case toml.Size:
+			m[col] = uint64(v)
+		case toml.Duration:
+			m[col] = time.Duration(v).String()
+		default:
+			m[col] = v
+		}
+	}
+	
 	return m, nil
 }
 
