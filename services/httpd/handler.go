@@ -2305,13 +2305,13 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 			h.httpError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		data, err := json.Marshal(jv)
 		if err != nil {
 			h.httpError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		if !first {
 			fmt.Fprintln(w, ",")
 		}
@@ -2597,7 +2597,7 @@ func parseConfigDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 		if i >= len(d.Rows[0]) {
 			continue
 		}
-		
+
 		val := d.Rows[0][i]
 		switch v := val.(type) {
 		case toml.Size:
@@ -2608,7 +2608,7 @@ func parseConfigDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 			m[col] = v
 		}
 	}
-	
+
 	return m, nil
 }
 
