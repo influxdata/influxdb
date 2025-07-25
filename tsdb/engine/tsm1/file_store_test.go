@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -3043,6 +3044,58 @@ func TestFileStore_Observer(t *testing.T) {
 	unlinks, finishes = nil, nil
 }
 
+func TestFileStore_PurgerContention(t *testing.T) {
+	t.Helper()
+
+	dir := MustTempDir()
+
+	// Create some TSM files...
+	data := make([]keyValues, 0, 10)
+	for i := 0; i < 1000; i++ {
+		data = append(data, keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}})
+	}
+
+	regFiles, err := newFileDir(dir, data...)
+	require.NoError(t, err)
+	tmpFiles, err := newTmpFileDir(dir, data...)
+	require.NoError(t, err)
+
+	fs := tsm1.NewFileStore(dir)
+	err = fs.Open()
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+
+	// Simulate a query that will call filestore.Apply to modify TSM files
+	go func() {
+		fs.Apply(func(r tsm1.TSMFile) error {
+			time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
+			return nil
+		})
+		done <- struct{}{}
+	}()
+	go func() {
+		err := fs.Replace(regFiles, tmpFiles)
+		require.NoError(t, err)
+		done <- struct{}{}
+	}()
+	// Simulate a query
+	go func() {
+		fs.Apply(func(r tsm1.TSMFile) error {
+			time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
+			return nil
+		})
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-done:
+		<-done
+	case <-time.After(10 * time.Second):
+		t.Fatalf("timed out after 10 seconds")
+	}
+}
+
 func newFileDir(dir string, values ...keyValues) ([]string, error) {
 	var files []string
 
@@ -3074,7 +3127,39 @@ func newFileDir(dir string, values ...keyValues) ([]string, error) {
 		files = append(files, newName)
 	}
 	return files, nil
+}
 
+func newTmpFileDir(dir string, values ...keyValues) ([]string, error) {
+	var files []string
+
+	id := 1
+	for _, v := range values {
+		f := MustTempFile(dir)
+		w, err := tsm1.NewTSMWriter(f)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := w.Write([]byte(v.key), v.values); err != nil {
+			return nil, err
+		}
+
+		if err := w.WriteIndex(); err != nil {
+			return nil, err
+		}
+
+		if err := w.Close(); err != nil {
+			return nil, err
+		}
+		newName := filepath.Join(filepath.Dir(f.Name()), tsm1.DefaultFormatFileName(id, 1)+".tsm.tmp")
+		if err := os.Rename(f.Name(), newName); err != nil {
+			return nil, err
+		}
+		id++
+
+		files = append(files, newName)
+	}
+	return files, nil
 }
 
 func newFiles(dir string, values ...keyValues) ([]string, error) {
