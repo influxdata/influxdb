@@ -54,6 +54,10 @@ Examples:
   --delete-grace-period <DURATION> Grace period for hard deleted databases and tables before they are
                                    removed permanently from the catalog [default: 24h]
                                    [env: INFLUXDB3_DELETE_GRACE_PERIOD=]
+  --retention-check-interval <INTERVAL>
+                                   The interval at which retention policies are checked and enforced.
+                                   Enter as a human-readable time, e.g., '30m', '1h', etc. [default: 30m]
+                                  [env: INFLUXDB3_RETENTION_CHECK_INTERVAL=]
 
 {}
   --aws-access-key-id <KEY>        S3 access key ID [env: AWS_ACCESS_KEY_ID=] [default: ]
@@ -131,7 +135,16 @@ Examples:
   --parquet-mem-cache-query-path-duration <DURATION>
                                   Duration to check for query path caching [default: 5h]
                                   [env: INFLUXDB3_PARQUET_MEM_CACHE_QUERY_PATH_DURATION=]
-  --disable-parquet-mem-cache      Disable in-memory Parquet cache [env: INFLUXDB3_DISABLE_PARQUET_MEM_CACHE=]
+  --disable-parquet-mem-cache     Disable in-memory Parquet cache [env: INFLUXDB3_DISABLE_PARQUET_MEM_CACHE=]
+  --table-index-cache-max-entries <N>
+                                  Maximum number of table indices to cache in
+                                  memory. Set to 0 for unlimited cache size. [default: 100]
+                                  [env: INFLUXDB3_TABLE_INDEX_CACHE_MAX_ENTRIES=]
+  --table-index-cache-concurrency-limit <N>
+                                  Maximum concurrent operations between table index cache and object store.
+                                  This limits how many parallel requests can be made to object storage
+                                  when loading or updating table indices. [default: 20]
+                                  [env: INFLUXDB3_TABLE_INDEX_CACHE_CONCURRENCY_LIMIT=]
 
 {}
   --wal-flush-interval <INTERVAL>  Interval to flush data to WAL file [default: 1s]

@@ -37,9 +37,12 @@ use influxdb3_telemetry::{
     store::{CreateTelemetryStoreArgs, TelemetryStore},
 };
 use influxdb3_wal::{Gen1Duration, WalConfig};
+use influxdb3_write::table_index_cache::TableIndexCache;
 use influxdb3_write::{
     WriteBuffer, deleter,
     persister::Persister,
+    retention_period_handler::RetentionPeriodHandler,
+    table_index_cache::TableIndexCacheConfig,
     write_buffer::{
         WriteBufferImpl, WriteBufferImplArgs, check_mem_and_force_snapshot_loop,
         persisted_files::PersistedFiles,
@@ -102,7 +105,7 @@ pub enum Error {
     BindAddress(#[source] std::io::Error),
 
     #[error("Server error: {0}")]
-    Server(#[from] influxdb3_server::Error),
+    Server(#[source] influxdb3_server::Error),
 
     #[error("Write buffer error: {0}")]
     WriteBuffer(#[from] influxdb3_write::write_buffer::Error),
@@ -133,6 +136,11 @@ pub enum Error {
 
     #[error("tls requires both a cert and a key file to be passed in to work")]
     NoCertOrKeyFile,
+
+    #[error("table cache index initialization failed: {0}")]
+    TableIndexCacheInitialization(
+        #[source] influxdb3_write::table_index_cache::TableIndexCacheError,
+    ),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -331,6 +339,40 @@ pub struct Config {
         action
     )]
     pub node_identifier_prefix: String,
+
+    /// Maximum number of table indices to cache in memory.
+    ///
+    /// Defaults to 100 entries. Set to 0 for unlimited cache size.
+    #[clap(
+        long = "table-index-cache-max-entries",
+        env = "INFLUXDB3_TABLE_INDEX_CACHE_MAX_ENTRIES",
+        default_value = "100",
+        action
+    )]
+    pub table_index_cache_max_entries: usize,
+
+    /// Maximum concurrent operations between table index cache and object store.
+    ///
+    /// This limits how many parallel requests can be made to object storage
+    /// when loading or updating table indices.
+    #[clap(
+        long = "table-index-cache-concurrency-limit",
+        env = "INFLUXDB3_TABLE_INDEX_CACHE_CONCURRENCY_LIMIT",
+        default_value = "20",
+        action
+    )]
+    pub table_index_cache_concurrency_limit: usize,
+
+    /// The interval at which retention policies are checked and enforced.
+    ///
+    /// Enter as a human-readable time, e.g., "30m", "1h", etc.
+    #[clap(
+        long = "retention-check-interval",
+        env = "INFLUXDB3_RETENTION_CHECK_INTERVAL",
+        default_value = "30m",
+        action
+    )]
+    pub retention_check_interval: humantime::Duration,
 
     /// The size of the in-memory Parquet cache in megabytes or percentage of total available mem.
     /// breaking: removed parquet-mem-cache-size-mb and env var INFLUXDB3_PARQUET_MEM_CACHE_SIZE_MB
@@ -765,11 +807,45 @@ pub async fn command(config: Config) -> Result<()> {
         )
         .with_jaeger_debug_name(config.tracing_config.traces_jaeger_debug_name);
 
+    // Create table index cache configuration from CLI arguments
+    let table_index_cache_config = TableIndexCacheConfig {
+        max_entries: if config.table_index_cache_max_entries == 0 {
+            None
+        } else {
+            Some(config.table_index_cache_max_entries)
+        },
+        concurrency_limit: config.table_index_cache_concurrency_limit,
+    };
+
+    let table_index_cache = TableIndexCache::new(
+        config.node_identifier_prefix.clone(),
+        table_index_cache_config,
+        Arc::clone(&object_store),
+    );
+
+    // Initialize table index cache from any existing snapshots
+    //
+    // This needs to happen before WAL snapshotting, retention handling, or hard deletion could
+    // begin executing so we have a quiescent time during which we can transform
+    // `PersistedSnapshot` to `TableIndexSnapshot` to `TableIndex` to completion.
+    table_index_cache
+        .initialize()
+        .await
+        .map_err(Error::TableIndexCacheInitialization)?;
+
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         config.node_identifier_prefix.as_str(),
         Arc::clone(&time_provider) as _,
+        table_index_cache,
     ));
+
+    // Retrieve the table index cache that will be shared between persister and retention handler
+    //
+    // We construct the `TableIndexCache` instance in the persister mostly for convenience at this
+    // point -- it avoids having to deal with updating a lot of `Persister` references throughout
+    // the code base with new `TableIndexCache` instances.
+    let table_index_cache = persister.get_table_index_cache().await;
 
     let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
     let catalog = Catalog::new_with_shutdown(
@@ -782,6 +858,22 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
+
+    // Create and start the retention period handler
+    let retention_handler = Arc::new(RetentionPeriodHandler::new(
+        table_index_cache,
+        Arc::clone(&catalog),
+        Arc::clone(&time_provider) as _,
+        config.retention_check_interval.into(),
+        config.node_identifier_prefix.clone(),
+    ));
+
+    let retention_handler_token = shutdown_manager.register();
+    tokio::spawn(async move {
+        retention_handler
+            .background_task(retention_handler_token)
+            .await
+    });
 
     let _ = catalog
         .register_node(
@@ -1150,7 +1242,7 @@ pub async fn command(config: Config) -> Result<()> {
     }
     // ensure that the frontend has fully terminated so we dont close the connection on any clients
     if !frontend.is_terminated() {
-        res = res.and(frontend.await.map_err(Into::into));
+        res = res.and(frontend.await.map_err(Error::Server));
     }
     info!("frontend shutdown completed");
 

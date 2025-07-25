@@ -705,7 +705,7 @@ mod tests {
             .await
             .unwrap(),
         );
-        let persister = Arc::new(Persister::new(
+        let persister = Arc::new(Persister::new_with_default_cache_config(
             Arc::clone(&object_store),
             "hosta",
             time_provider,
@@ -726,7 +726,7 @@ mod tests {
             )
             .await
             .unwrap(),
-            persisted_files: Arc::new(PersistedFiles::new()),
+            persisted_files: Arc::new(PersistedFiles::new(None)),
             parquet_cache: None,
         };
         let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
@@ -911,7 +911,7 @@ mod tests {
             .unwrap(),
         );
 
-        let persister = Arc::new(Persister::new(
+        let persister = Arc::new(Persister::new_with_default_cache_config(
             Arc::clone(&object_store),
             "hosta",
             Arc::clone(&time_provider) as _,
@@ -930,7 +930,7 @@ mod tests {
             )
             .await
             .unwrap(),
-            persisted_files: Arc::new(PersistedFiles::new()),
+            persisted_files: Arc::new(PersistedFiles::new(None)),
             parquet_cache: None,
         };
         let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);

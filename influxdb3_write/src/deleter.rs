@@ -13,11 +13,19 @@ use observability_deps::tracing::{error, info};
 use std::sync::Arc;
 
 /// Trait for clients to be notified when a database or table should be deleted.
+#[async_trait::async_trait]
 pub trait ObjectDeleter: std::fmt::Debug + Send + Sync {
     /// Deletes a database.
-    fn delete_database(&self, db_id: DbId);
+    async fn delete_database(
+        &self,
+        db_id: DbId,
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
     /// Deletes a table.
-    fn delete_table(&self, db_id: DbId, table_id: TableId);
+    async fn delete_table(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
 }
 
 #[derive(Debug)]
@@ -156,7 +164,12 @@ impl Task {
                 object_deleter,
             } => {
                 info!(?db_id, "Notify object_deleter to delete database.");
-                object_deleter.delete_database(db_id);
+                match object_deleter.delete_database(db_id).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error!(?db_id, ?err, "Failed to delete database from object store.");
+                    }
+                }
             }
             Task::NotifyDeleteTable {
                 db_id,
@@ -164,7 +177,17 @@ impl Task {
                 object_deleter,
             } => {
                 info!(?db_id, ?table_id, "Notify object_deleter to delete table.");
-                object_deleter.delete_table(db_id, table_id);
+                match object_deleter.delete_table(db_id, table_id).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error!(
+                            ?db_id,
+                            ?table_id,
+                            ?err,
+                            "Failed to delete table from object store."
+                        );
+                    }
+                }
             }
             Task::DeleteDatabase { db_id, catalog } => {
                 info!(?db_id, "Processing delete database task.");
@@ -323,12 +346,24 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
     impl ObjectDeleter for MockObjectDeleter {
-        fn delete_database(&self, db_id: DbId) {
-            let _ = self.db_sender.send(db_id);
+        async fn delete_database(
+            &self,
+            db_id: DbId,
+        ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+            self.db_sender
+                .send(db_id)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
         }
-        fn delete_table(&self, db_id: DbId, table_id: TableId) {
-            let _ = self.table_sender.send((db_id, table_id));
+        async fn delete_table(
+            &self,
+            db_id: DbId,
+            table_id: TableId,
+        ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+            self.table_sender
+                .send((db_id, table_id))
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
         }
     }
 

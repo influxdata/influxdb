@@ -9,6 +9,9 @@ pub mod chunk;
 pub mod deleter;
 pub mod paths;
 pub mod persister;
+pub mod retention_period_handler;
+pub mod table_index;
+pub mod table_index_cache;
 pub mod write_buffer;
 
 use anyhow::Context;
@@ -282,6 +285,25 @@ pub struct ParquetFile {
     pub min_time: i64,
     /// max time nanos; aka the time of the newest record in the file
     pub max_time: i64,
+}
+
+impl std::hash::Hash for ParquetFile {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.path.hash(state);
+    }
+}
+
+impl std::cmp::Ord for ParquetFile {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl std::cmp::PartialOrd for ParquetFile {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.id.cmp(&other.id))
+    }
 }
 
 impl ParquetFile {
@@ -592,7 +614,7 @@ pub mod test_helpers {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};

@@ -1,9 +1,13 @@
 //! This is the implementation of the `Persister` used to write data from the buffer to object
 //! storage.
+use std::io::Write;
+use std::sync::Arc;
 
 use crate::PersistedSnapshotVersion;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
+use crate::table_index_cache::TableIndexCache;
+use crate::table_index_cache::TableIndexCacheConfig;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
@@ -25,8 +29,6 @@ use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::format::FileMetaData;
-use std::io::Write;
-use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PersisterError {
@@ -50,6 +52,18 @@ pub enum PersisterError {
 
     #[error("unexpected persister error: {0:?}")]
     Unexpected(#[from] anyhow::Error),
+
+    #[error("table snapshot persistence task panicked: {0}")]
+    TableSnapshotPersistenceTaskFailed(#[source] tokio::task::JoinError),
+
+    #[error("table index error: {0}")]
+    TableIndexPathError(#[source] crate::paths::PathError),
+
+    #[error("object meta is missing filename")]
+    MissingFilename,
+
+    #[error("failed to parse snapshot sequence number from filename")]
+    InvalidSnapshotSequenceNumber,
 }
 
 impl From<PersisterError> for DataFusionError {
@@ -82,21 +96,47 @@ pub struct Persister {
     /// time provider
     time_provider: Arc<dyn TimeProvider>,
     pub(crate) mem_pool: Arc<dyn MemoryPool>,
+    /// Cache for table indices
+    table_index_cache: TableIndexCache,
 }
 
 impl Persister {
+    /// Create a new Persister with a specific TableIndexCacheConfig.
     pub fn new(
         object_store: Arc<dyn ObjectStore>,
         node_identifier_prefix: impl Into<String>,
         time_provider: Arc<dyn TimeProvider>,
+        table_index_cache: crate::table_index_cache::TableIndexCache,
     ) -> Self {
+        let nip = node_identifier_prefix.into();
         Self {
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
-            object_store,
-            node_identifier_prefix: node_identifier_prefix.into(),
+            object_store: Arc::clone(&object_store),
+            node_identifier_prefix: nip.clone(),
             time_provider,
             mem_pool: Arc::new(UnboundedMemoryPool::default()),
+            table_index_cache,
         }
+    }
+
+    /// This method is intended to support relatively simple test cases where we don't have to
+    /// worry about dealing with table index conversion.
+    pub fn new_with_default_cache_config(
+        object_store: Arc<dyn ObjectStore>,
+        node_identifier_prefix: impl Into<String>,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
+        let nip = node_identifier_prefix.into();
+        let table_index_cache = TableIndexCache::new(
+            nip.clone(),
+            TableIndexCacheConfig::default(),
+            Arc::clone(&object_store),
+        );
+        Self::new(object_store, nip.clone(), time_provider, table_index_cache)
+    }
+
+    pub async fn get_table_index_cache(&self) -> TableIndexCache {
+        self.table_index_cache.clone()
     }
 
     /// Get the Object Store URL
@@ -366,7 +406,11 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
+        let persister = Persister::new_with_default_cache_config(
+            Arc::new(local_disk),
+            "test_host",
+            time_provider,
+        );
         let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -389,7 +433,11 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
+        let persister = Persister::new_with_default_cache_config(
+            Arc::new(local_disk),
+            "test_host",
+            time_provider,
+        );
         let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -450,7 +498,11 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
+        let persister = Persister::new_with_default_cache_config(
+            Arc::new(local_disk),
+            "test_host",
+            time_provider,
+        );
         let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -477,7 +529,11 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
+        let persister = Persister::new_with_default_cache_config(
+            Arc::new(local_disk),
+            "test_host",
+            time_provider,
+        );
         for id in 0..1001 {
             let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
                 node_id: "test_host".to_string(),
@@ -516,7 +572,11 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
+        let persister = Persister::new_with_default_cache_config(
+            Arc::new(local_disk),
+            "test_host",
+            time_provider,
+        );
         let mut info_file = PersistedSnapshot::new(
             "test_host".to_string(),
             SnapshotSequenceNumber::new(0),
@@ -549,18 +609,26 @@ mod tests {
             .unwrap();
         let snapshots = persister.load_snapshots(10).await.unwrap();
         assert_eq!(snapshots.len(), 1);
-        // Should be the next available id after the largest number
-        assert_eq!(snapshots[0].v1_ref().next_file_id.as_u64(), 9877);
+
         assert_eq!(snapshots[0].v1_ref().wal_file_sequence_number.as_u64(), 0);
         assert_eq!(snapshots[0].v1_ref().snapshot_sequence_number.as_u64(), 0);
         assert_eq!(snapshots[0].v1_ref().catalog_sequence_number.get(), 0);
+
+        // Should be the next available id after the largest number
+        // NOTE(wayne): it's not reasonable to assert on the exact value of a shared process-wide,
+        // monotonically-increasing integer.
+        assert!(
+            snapshots[0].v1_ref().next_file_id.as_u64() >= 9877,
+            "parquet file id must be bigger than or equal to"
+        );
     }
 
     #[tokio::test]
     async fn load_snapshot_works_with_no_exising_snapshots() {
         let store = InMemory::new();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(store), "test_host", time_provider);
+        let persister =
+            Persister::new_with_default_cache_config(Arc::new(store), "test_host", time_provider);
 
         let snapshots = persister.load_snapshots(100).await.unwrap();
         assert!(snapshots.is_empty());
@@ -636,7 +704,11 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
+        let persister = Persister::new_with_default_cache_config(
+            Arc::new(local_disk),
+            "test_host",
+            time_provider,
+        );
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(Arc::clone(&schema), 5);
@@ -664,7 +736,11 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
+        let persister = Persister::new_with_default_cache_config(
+            Arc::new(local_disk),
+            "test_host",
+            time_provider,
+        );
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(Arc::clone(&schema), 5);
