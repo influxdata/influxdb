@@ -11,7 +11,7 @@ require (
 	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
 	github.com/apache/arrow-go/v18 v18.2.0
-	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
+	github.com/benbjohnson/clock v1.1.0
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -21,6 +21,7 @@ require (
 	github.com/editorconfig-checker/editorconfig-checker v0.0.0-20190819115812-1474bdeaf2a2
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/go-chi/chi v4.1.0+incompatible
+	github.com/go-crypt/crypt v0.3.2
 	github.com/go-stack/stack v1.8.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
@@ -35,7 +36,7 @@ require (
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
 	github.com/influxdata/flux v0.197.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
-	github.com/influxdata/influx-cli/v2 v2.2.1-0.20221028161653-3285a03e9e28
+	github.com/influxdata/influx-cli/v2 v2.7.1-0.20250130214939-76d1c4d9b777
 	github.com/influxdata/influxql v1.2.0
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839
 	github.com/influxdata/pkg-config v0.3.0
@@ -55,7 +56,7 @@ require (
 	github.com/prometheus/common v0.53.0
 	github.com/retailnext/hllpp v1.0.1-0.20180308014038-101a6d2f8b52
 	github.com/spf13/cast v1.3.0
-	github.com/spf13/cobra v1.0.0
+	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.6.1
 	github.com/stretchr/testify v1.10.0
@@ -65,7 +66,7 @@ require (
 	github.com/xlab/treeprint v1.0.0
 	github.com/yudai/gojsondiff v1.0.0
 	go.etcd.io/bbolt v1.3.6
-	go.uber.org/multierr v1.10.0
+	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.39.0
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
@@ -155,6 +156,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.4 // indirect
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
+	github.com/go-crypt/x v0.3.2 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
@@ -180,7 +182,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.1.8 // indirect
 	github.com/huandu/xstrings v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/influxdata/gosnowflake v1.9.0 // indirect
 	github.com/influxdata/influxdb-client-go/v2 v2.3.1-0.20210518120617-5d1fff431040 // indirect
 	github.com/influxdata/line-protocol/v2 v2.2.1 // indirect
@@ -241,8 +243,8 @@ require (
 	go.opentelemetry.io/otel/sdk v1.34.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	golang.org/x/exp/typeparams v0.0.0-20221208152030-732eee02a75a // indirect
+	go.uber.org/atomic v1.10.0 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
