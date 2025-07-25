@@ -47,7 +47,7 @@ jobs:
 
             mkdir -p ./tarball
             TARBALL_NAME="./tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz"
-            tar --exclude-vcs --exclude './tarball' --transform 'flags=r;s|^|influxdb/|' -vczf "${TARBALL_NAME}" .
+            tar --exclude-vcs --exclude './tarball' --transform 'flags=r;s|^|influxdb/|' -vcf - . | gzip > "${TARBALL_NAME}"
       - store_artifacts:
           path: tarball/
       - persist_to_workspace:
@@ -81,10 +81,10 @@ jobs:
             mkdir -p ./bins
 
             target="bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
-            tar -czf "${target}" \
+            tar -cf - \
               influx             \
               influx_inspect     \
-              influxd
+              influxd | gzip > "${target}"
             md5sum    "${target}" > "${target}.md5"
             sha256sum "${target}" > "${target}.sha256"
       - store_artifacts:
