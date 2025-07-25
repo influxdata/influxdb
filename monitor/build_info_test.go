@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestDiagnostics_BuildInfo(t *testing.T) {
-	s := monitor.New(nil, monitor.Config{})
+	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
 	s.Version = "1.2.0"
 	s.Commit = "b7bb7e8359642b6e071735b50ae41f5eb343fd42"
 	s.Branch = "1.2"
