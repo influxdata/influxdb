@@ -2313,10 +2313,18 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !first {
-			fmt.Fprintln(w, ",")
+			_, err := fmt.Fprintln(w, ",")
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		first = false
-		fmt.Fprintf(w, "\"config\": %s", data)
+		_, err = fmt.Fprintf(w, "\"config\": %s", data)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// We're going to print some kind of crypto data, we just
