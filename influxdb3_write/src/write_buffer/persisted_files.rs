@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use crate::deleter::ObjectDeleter;
+use crate::table_index_cache::TableIndexCache;
 use crate::{ChunkFilter, DatabaseTables};
 use crate::{ParquetFile, PersistedSnapshot};
 use hashbrown::{HashMap, HashSet};
@@ -20,6 +21,7 @@ type TableToFiles = HashMap<TableId, Vec<ParquetFile>>;
 #[derive(Debug, Default)]
 pub struct PersistedFiles {
     inner: RwLock<Inner>,
+    table_index_cache: Option<TableIndexCache>,
 }
 
 #[derive(Debug)]
@@ -30,38 +32,81 @@ enum DeletedTables {
     List(HashSet<TableId>),
 }
 
+#[async_trait::async_trait]
 impl ObjectDeleter for PersistedFiles {
-    fn delete_database(&self, db_id: DbId) {
-        let mut inner = self.inner.write();
-        inner.deleted_data.insert(db_id, DeletedTables::All);
+    async fn delete_database(
+        &self,
+        db_id: DbId,
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+        {
+            let mut inner = self.inner.write();
+            inner.deleted_data.insert(db_id, DeletedTables::All);
+        }
+
+        // Purge from table index cache if available
+        //
+        // NOTE(wayne): in theory we could just leave actual purging of tables to individual
+        // `delete_table` calls, but that would potentially removing data for tables that are
+        // already removed from the catalog and PersistedFiles but not yet removed from the
+        // object store, whereas explicitly purging by database through the TableIndexCache
+        // ensures that we are deleting all table data from the object store
+        if let Some(table_index_cache) = &self.table_index_cache {
+            table_index_cache
+                .purge_db(&db_id)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
+        }
+
+        Ok(())
     }
 
-    fn delete_table(&self, db_id: DbId, table_id: TableId) {
-        let mut inner = self.inner.write();
-        match inner.deleted_data.entry(db_id) {
-            hashbrown::hash_map::Entry::Occupied(mut entry) => {
-                match entry.get_mut() {
-                    DeletedTables::All => (), // already marked for deletion
-                    DeletedTables::List(tables) => {
-                        tables.insert(table_id);
+    async fn delete_table(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+        {
+            let mut inner = self.inner.write();
+            match inner.deleted_data.entry(db_id) {
+                hashbrown::hash_map::Entry::Occupied(mut entry) => {
+                    match entry.get_mut() {
+                        DeletedTables::All => (), // already marked for deletion
+                        DeletedTables::List(tables) => {
+                            tables.insert(table_id);
+                        }
                     }
                 }
-            }
-            hashbrown::hash_map::Entry::Vacant(entry) => {
-                entry.insert(DeletedTables::List(HashSet::from([table_id])));
+                hashbrown::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(DeletedTables::List(HashSet::from([table_id])));
+                }
             }
         }
+        if let Some(cache) = &self.table_index_cache {
+            cache
+                .purge_table(&db_id, &table_id)
+                .await
+                .map_err(Box::new)?
+        }
+        Ok(())
     }
 }
 
 impl PersistedFiles {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(table_index_cache: Option<TableIndexCache>) -> Self {
+        Self {
+            table_index_cache,
+            ..Default::default()
+        }
     }
+
     /// Create a new `PersistedFiles` from a list of persisted snapshots
-    pub fn new_from_persisted_snapshots(persisted_snapshots: Vec<PersistedSnapshot>) -> Self {
+    pub fn new_from_persisted_snapshots(
+        table_index_cache: Option<TableIndexCache>,
+        persisted_snapshots: Vec<PersistedSnapshot>,
+    ) -> Self {
         let inner = Inner::new_from_persisted_snapshots(persisted_snapshots);
         Self {
+            table_index_cache,
             inner: RwLock::new(inner),
         }
     }
@@ -391,7 +436,7 @@ mod tests {
     fn test_get_metrics_after_initial_load() {
         let all_persisted_snapshot_files = build_persisted_snapshots();
         let persisted_file =
-            PersistedFiles::new_from_persisted_snapshots(all_persisted_snapshot_files);
+            PersistedFiles::new_from_persisted_snapshots(None, all_persisted_snapshot_files);
 
         let (file_count, size_in_mb, row_count) = persisted_file.get_metrics();
 
@@ -405,7 +450,7 @@ mod tests {
     fn test_get_metrics_after_update() {
         let all_persisted_snapshot_files = build_persisted_snapshots();
         let persisted_file =
-            PersistedFiles::new_from_persisted_snapshots(all_persisted_snapshot_files);
+            PersistedFiles::new_from_persisted_snapshots(None, all_persisted_snapshot_files);
         let parquet_files = build_parquet_files("file_", 5);
         let new_snapshot = build_snapshot(parquet_files, 1, 1, 1);
         persisted_file.add_persisted_snapshot_files(new_snapshot);
@@ -435,7 +480,7 @@ mod tests {
             .unwrap();
 
         let persisted_file =
-            PersistedFiles::new_from_persisted_snapshots(all_persisted_snapshot_files);
+            PersistedFiles::new_from_persisted_snapshots(None, all_persisted_snapshot_files);
         let mut parquet_files = build_parquet_files("file_", 4);
         info!(all_persisted_files = ?persisted_file, "Full persisted file");
         info!(already_existing_file = ?already_existing_file, "Existing file");
@@ -475,7 +520,8 @@ mod tests {
             })
             .collect();
         let persisted_snapshots = vec![build_snapshot(parquet_files, 0, 0, 0)];
-        let persisted_files = PersistedFiles::new_from_persisted_snapshots(persisted_snapshots);
+        let persisted_files =
+            PersistedFiles::new_from_persisted_snapshots(None, persisted_snapshots);
 
         struct TestCase<'a> {
             filter: &'a [Expr],
@@ -632,10 +678,13 @@ mod tests {
             snapshot.add_parquet_file(db_id2, table_id2, file.clone());
         }
 
-        let persisted_files = PersistedFiles::new_from_persisted_snapshots(vec![snapshot]);
+        let persisted_files = PersistedFiles::new_from_persisted_snapshots(None, vec![snapshot]);
 
         // Delete the first database
-        persisted_files.delete_database(DbId::from(0));
+        persisted_files
+            .delete_database(DbId::from(0))
+            .await
+            .unwrap();
 
         // Create a mock catalog that returns no retention periods
         let catalog = Arc::new(Catalog::new_in_memory("test").await.unwrap());
@@ -681,11 +730,17 @@ mod tests {
             snapshot.add_parquet_file(db_id, table_id3, file.clone());
         }
 
-        let persisted_files = PersistedFiles::new_from_persisted_snapshots(vec![snapshot]);
+        let persisted_files = PersistedFiles::new_from_persisted_snapshots(None, vec![snapshot]);
 
         // Delete specific tables
-        persisted_files.delete_table(db_id, table_id1);
-        persisted_files.delete_table(db_id, table_id3);
+        persisted_files
+            .delete_table(db_id, table_id1)
+            .await
+            .unwrap();
+        persisted_files
+            .delete_table(db_id, table_id3)
+            .await
+            .unwrap();
 
         let catalog = Arc::new(Catalog::new_in_memory("test").await.unwrap());
 
@@ -717,10 +772,13 @@ mod tests {
     async fn test_remove_files_for_deletion_clears_deleted_data() {
         let parquet_files = build_parquet_files("file_", 3);
         let snapshot = build_snapshot(parquet_files.clone(), 1, 1, 1);
-        let persisted_files = PersistedFiles::new_from_persisted_snapshots(vec![snapshot]);
+        let persisted_files = PersistedFiles::new_from_persisted_snapshots(None, vec![snapshot]);
 
         // Delete a database
-        persisted_files.delete_database(DbId::from(0));
+        persisted_files
+            .delete_database(DbId::from(0))
+            .await
+            .unwrap();
 
         // Verify deleted_data is populated
         {

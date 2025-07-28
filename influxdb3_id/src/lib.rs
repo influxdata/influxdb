@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::num::ParseIntError;
@@ -120,5 +121,49 @@ impl From<u64> for ParquetFileId {
 impl Default for ParquetFileId {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Used for addressing into `TableIndex`-related collections.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TableIndexId {
+    node_id: String,
+    db_id: DbId,
+    table_id: TableId,
+}
+
+impl TableIndexId {
+    /// Create a new FullTableId
+    pub fn new(node_id: impl Into<String>, db_id: DbId, table_id: TableId) -> Self {
+        Self {
+            node_id: node_id.into(),
+            db_id,
+            table_id,
+        }
+    }
+
+    /// Get the node_id
+    pub fn node_id(&self) -> &str {
+        &self.node_id
+    }
+
+    /// Get the db_id
+    pub fn db_id(&self) -> DbId {
+        self.db_id
+    }
+
+    /// Get the table_id
+    pub fn table_id(&self) -> TableId {
+        self.table_id
+    }
+}
+
+impl fmt::Display for TableIndexId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "({}, {:?}, {:?})",
+            self.node_id, self.db_id, self.table_id
+        )
     }
 }

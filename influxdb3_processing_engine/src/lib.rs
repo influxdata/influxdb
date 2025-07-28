@@ -977,7 +977,7 @@ mod tests {
     ) -> (Arc<ProcessingEngineManagerImpl>, NamedTempFile) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let metric_registry = Arc::new(Registry::new());
-        let persister = Arc::new(Persister::new(
+        let persister = Arc::new(Persister::new_with_default_cache_config(
             Arc::clone(&object_store),
             "test_host",
             Arc::clone(&time_provider) as _,
