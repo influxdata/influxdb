@@ -13,6 +13,7 @@ expression: output
 | public        | iox                | table_009                           | BASE TABLE |
 | public        | iox                | xxx                                 | BASE TABLE |
 | public        | system             | distinct_caches                     | BASE TABLE |
+| public        | system             | influxdb_schema                     | BASE TABLE |
 | public        | system             | last_caches                         | BASE TABLE |
 | public        | system             | parquet_files                       | BASE TABLE |
 | public        | system             | processing_engine_logs              | BASE TABLE |

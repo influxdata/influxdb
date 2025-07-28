@@ -1,11 +1,12 @@
 ---
 source: influxdb3/tests/cli/mod.rs
-expression: output
+expression: table_list_output
 ---
 +-------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | table_name                          | column_names                                                                                                                                                                                                        |
 +-------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | distinct_caches                     | [table, name, column_ids, column_names, max_cardinality, max_age_seconds]                                                                                                                                           |
+| influxdb_schema                     | [measurement, key, data_type]                                                                                                                                                                                       |
 | last_caches                         | [table, name, key_column_ids, key_column_names, value_column_ids, value_column_names, count, ttl]                                                                                                                   |
 | parquet_files                       | [table_name, path, size_bytes, row_count, min_time, max_time]                                                                                                                                                       |
 | processing_engine_logs              | [event_time, trigger_name, log_level, log_text]                                                                                                                                                                     |
