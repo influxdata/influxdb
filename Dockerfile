@@ -1,6 +1,6 @@
 #syntax=docker/dockerfile:1.2
 ARG RUST_VERSION=1.88
-FROM rust:${RUST_VERSION}-slim-bookworm as build
+FROM rust:${RUST_VERSION}-slim-trixie as build
 
 # cache mounts below may already exist and owned by root
 USER root
@@ -61,7 +61,7 @@ RUN \
     du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb3/target
 
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt update \
     && apt install --yes ca-certificates gettext-base libssl3 wget curl --no-install-recommends \
