@@ -5,6 +5,20 @@ expression: summary_output
 distinct_caches summary:
 ++
 ++
+influxdb_schema summary:
++-------------+------+-----------+
+| measurement | key  | data_type |
++-------------+------+-----------+
+| cpu         | f1   | boolean   |
+| cpu         | f2   | string    |
+| cpu         | f3   | integer   |
+| cpu         | f4   | uinteger  |
+| cpu         | f5   | float     |
+| cpu         | t1   | tag       |
+| cpu         | t2   | tag       |
+| cpu         | t3   | tag       |
+| cpu         | time | time      |
++-------------+------+-----------+
 last_caches summary:
 ++
 ++

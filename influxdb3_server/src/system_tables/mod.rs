@@ -9,6 +9,7 @@ use datafusion::{
 };
 use distinct_caches::DistinctCachesTable;
 use generations::GenerationDurationsTable;
+use influxdb_schema::InfluxdbSchemaTable;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
@@ -26,6 +27,7 @@ use self::{
 mod databases;
 mod distinct_caches;
 mod generations;
+mod influxdb_schema;
 mod last_caches;
 mod parquet_files;
 use crate::system_tables::python_call::{
@@ -47,6 +49,7 @@ pub(crate) const TOKENS_TABLE_NAME: &str = "tokens";
 pub(crate) const DATABASES_TABLE_NAME: &str = "databases";
 pub(crate) const TABLES_TABLE_NAME: &str = "tables";
 pub(crate) const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
+pub(crate) const INFLUXDB_SCHEMA_TABLE_NAME: &str = "influxdb_schema";
 /// The default timezone used in the system schema.
 pub(crate) const DEFAULT_TIMEZONE: &str = "UTC";
 
@@ -154,6 +157,12 @@ impl AllSystemSchemaTablesProvider {
             ProcessingEngineLogsTable::new(sys_events_store),
         )));
         tables.insert(PROCESSING_ENGINE_LOGS_TABLE_NAME, logs_table);
+        tables.insert(
+            INFLUXDB_SCHEMA_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(
+                InfluxdbSchemaTable::new(Arc::clone(&db_schema)),
+            ))),
+        );
         if db_schema.name.as_ref() == INTERNAL_DB_NAME {
             tables.insert(
                 TOKENS_TABLE_NAME,
