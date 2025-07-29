@@ -1282,19 +1282,19 @@ impl DatabaseCatalogTransaction {
         if tags.len() + fields.len() > self.columns_per_table_limit - 1 {
             return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
         }
-        
+
         // Validate tag names using the same rules as the line protocol parser
         for tag in tags {
             let tag_name = tag.as_ref();
             validate_key(tag_name, "tag")?;
         }
-        
+
         // Validate field names using the same rules as the line protocol parser
         for (field_name, _) in fields {
             let field_name_str = field_name.as_ref();
             validate_key(field_name_str, "field")?;
         }
-        
+
         let db_schema = Arc::make_mut(&mut self.database_schema);
         let mut table_def_arc = db_schema.create_new_empty_table(table_name)?;
         let table_def = Arc::make_mut(&mut table_def_arc);
@@ -1387,36 +1387,13 @@ impl<S, R> Prompt<S, R> {
     }
 }
 
-/// Validate that a key (tag or field) follows line protocol rules.
-/// Keys cannot be empty, and cannot contain spaces, commas, or equals signs.
+/// Validate that a key (tag or field) is valid.
+/// The only restriction is that keys cannot be empty.
+/// All other characters are allowed since they can be represented in line protocol through escaping.
 fn validate_key(key: &str, key_type: &str) -> Result<()> {
     if key.is_empty() {
         return Err(CatalogError::InvalidConfiguration {
-            message: format!("{} key cannot be empty", key_type).into(),
-        });
-    }
-    if key.contains(' ') {
-        return Err(CatalogError::InvalidConfiguration {
-            message: format!(
-                "Invalid {} name: '{}'. {} names cannot contain spaces",
-                key_type, key, key_type
-            ).into(),
-        });
-    }
-    if key.contains(',') {
-        return Err(CatalogError::InvalidConfiguration {
-            message: format!(
-                "Invalid {} name: '{}'. {} names cannot contain commas", 
-                key_type, key, key_type
-            ).into(),
-        });
-    }
-    if key.contains('=') {
-        return Err(CatalogError::InvalidConfiguration {
-            message: format!(
-                "Invalid {} name: '{}'. {} names cannot contain equals signs",
-                key_type, key, key_type
-            ).into(),
+            message: format!("{key_type} key cannot be empty").into(),
         });
     }
     Ok(())

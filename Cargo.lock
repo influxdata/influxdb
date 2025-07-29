@@ -2960,6 +2960,7 @@ dependencies = [
  "parking_lot",
  "pretty_assertions",
  "rand 0.8.5",
+ "rstest",
  "schema",
  "serde",
  "serde_json",
