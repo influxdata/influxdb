@@ -1282,6 +1282,19 @@ impl DatabaseCatalogTransaction {
         if tags.len() + fields.len() > self.columns_per_table_limit - 1 {
             return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
         }
+
+        // Validate tag names using the same rules as the line protocol parser
+        for tag in tags {
+            let tag_name = tag.as_ref();
+            validate_key(tag_name, "tag")?;
+        }
+
+        // Validate field names using the same rules as the line protocol parser
+        for (field_name, _) in fields {
+            let field_name_str = field_name.as_ref();
+            validate_key(field_name_str, "field")?;
+        }
+
         let db_schema = Arc::make_mut(&mut self.database_schema);
         let mut table_def_arc = db_schema.create_new_empty_table(table_name)?;
         let table_def = Arc::make_mut(&mut table_def_arc);
@@ -1372,4 +1385,24 @@ impl<S, R> Prompt<S, R> {
         };
         s
     }
+}
+
+/// Validate that a key (tag or field) is valid.
+/// Keys cannot be empty and cannot contain control characters (ASCII 0x00-0x1F and 0x7F).
+/// This ensures compatibility with the line protocol parser.
+fn validate_key(key: &str, key_type: &str) -> Result<()> {
+    if key.is_empty() {
+        return Err(CatalogError::InvalidConfiguration {
+            message: format!("{key_type} key cannot be empty").into(),
+        });
+    }
+
+    // Check for control characters
+    if key.chars().any(|c| c.is_control()) {
+        return Err(CatalogError::InvalidConfiguration {
+            message: format!("{key_type} key cannot contain control characters").into(),
+        });
+    }
+
+    Ok(())
 }

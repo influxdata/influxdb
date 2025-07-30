@@ -2587,6 +2587,7 @@ mod tests {
     use iox_time::MockProvider;
     use object_store::{local::LocalFileSystem, memory::InMemory};
     use pretty_assertions::assert_eq;
+    use rstest::rstest;
     use test_helpers::assert_contains;
 
     #[test_log::test(tokio::test)]
@@ -5730,5 +5731,131 @@ mod tests {
         let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
         assert!(table_def.deleted);
         assert_eq!(table_def.hard_delete_time, Some(new_specific_time));
+    }
+
+    #[rstest]
+    #[case::empty_tag_name(&[""], &[("field1", FieldDataType::String)], "tag key cannot be empty")]
+    #[case::empty_field_name(&["tag1"], &[("", FieldDataType::String)], "field key cannot be empty")]
+    #[case::multiple_with_empty_tag(&["tag1", "", "tag3"], &[("field1", FieldDataType::String)], "tag key cannot be empty")]
+    #[case::multiple_with_empty_field(&["tag1"], &[("field1", FieldDataType::String), ("", FieldDataType::Integer)], "field key cannot be empty")]
+    #[case::tag_with_newline(&["tag\nname"], &[("field1", FieldDataType::String)], "tag key cannot contain control characters")]
+    #[case::field_with_newline(&["tag1"], &[("field\nname", FieldDataType::String)], "field key cannot contain control characters")]
+    #[case::tag_with_tab(&["tag\tname"], &[("field1", FieldDataType::String)], "tag key cannot contain control characters")]
+    #[case::field_with_tab(&["tag1"], &[("field\tname", FieldDataType::String)], "field key cannot contain control characters")]
+    #[case::tag_with_carriage_return(&["tag\rname"], &[("field1", FieldDataType::String)], "tag key cannot contain control characters")]
+    #[case::field_with_carriage_return(&["tag1"], &[("field\rname", FieldDataType::String)], "field key cannot contain control characters")]
+    #[case::tag_with_null(&["tag\0name"], &[("field1", FieldDataType::String)], "tag key cannot contain control characters")]
+    #[case::field_with_null(&["tag1"], &[("field\0name", FieldDataType::String)], "field key cannot contain control characters")]
+    #[case::tag_with_form_feed(&["tag\x0Cname"], &[("field1", FieldDataType::String)], "tag key cannot contain control characters")]
+    #[case::field_with_form_feed(&["tag1"], &[("field\x0Cname", FieldDataType::String)], "field key cannot contain control characters")]
+    #[case::tag_with_del(&["tag\x7Fname"], &[("field1", FieldDataType::String)], "tag key cannot contain control characters")]
+    #[case::field_with_del(&["tag1"], &[("field\x7Fname", FieldDataType::String)], "field key cannot contain control characters")]
+    #[test_log::test(tokio::test)]
+    async fn test_create_table_validates_tag_and_field_names(
+        #[case] tags: &[&str],
+        #[case] fields: &[(&str, FieldDataType)],
+        #[case] expected_error: &str,
+    ) {
+        let catalog = Catalog::new_in_memory("test-host").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+
+        let result = catalog
+            .create_table("test_db", "test_table", tags, fields)
+            .await;
+
+        assert!(result.is_err());
+        let err_string = result.unwrap_err().to_string();
+        assert_contains!(err_string, expected_error);
+    }
+
+    // Test valid tag and field names, including those that require escaping in line protocol.
+    #[rstest]
+    // Simple valid names
+    #[case::valid_simple(&["tag1"], &[("field1", FieldDataType::String)], &["tag1"], &["field1"])]
+    #[case::valid_multiple_tags(&["tag1", "tag2", "tag3"], &[("field1", FieldDataType::String)], &["tag1", "tag2", "tag3"], &["field1"])]
+    #[case::valid_multiple_fields(&["tag1"], &[("field1", FieldDataType::String), ("field2", FieldDataType::Integer), ("field3", FieldDataType::Float)], &["tag1"], &["field1", "field2", "field3"])]
+    #[case::valid_underscore(&["tag_1"], &[("field_1", FieldDataType::String)], &["tag_1"], &["field_1"])]
+    #[case::valid_numbers(&["tag123"], &[("field456", FieldDataType::String)], &["tag123"], &["field456"])]
+    #[case::valid_mixed(&["tag_123"], &[("field_456", FieldDataType::String)], &["tag_123"], &["field_456"])]
+    // Special characters that don't require escaping
+    #[case::valid_camelcase(&["tagName"], &[("fieldName", FieldDataType::String)], &["tagName"], &["fieldName"])]
+    #[case::valid_dots(&["tag.name"], &[("field.name", FieldDataType::String)], &["tag.name"], &["field.name"])]
+    #[case::valid_hyphens(&["tag-name"], &[("field-name", FieldDataType::String)], &["tag-name"], &["field-name"])]
+    #[case::valid_colons(&["tag:name"], &[("field:name", FieldDataType::String)], &["tag:name"], &["field:name"])]
+    #[case::valid_slashes(&["tag/name"], &[("field/name", FieldDataType::String)], &["tag/name"], &["field/name"])]
+    #[case::valid_brackets(&["tag[0]"], &[("field[0]", FieldDataType::String)], &["tag[0]"], &["field[0]"])]
+    #[case::valid_parentheses(&["tag(1)"], &[("field(1)", FieldDataType::String)], &["tag(1)"], &["field(1)"])]
+    #[case::valid_special_chars(&["tag@host"], &[("field#1", FieldDataType::String)], &["tag@host"], &["field#1"])]
+    #[case::valid_unicode(&["tag_名前"], &[("field_值", FieldDataType::String)], &["tag_名前"], &["field_值"])]
+    #[case::valid_long_names(&["this_is_a_very_long_tag_name_with_many_characters"], &[("this_is_a_very_long_field_name_with_many_characters", FieldDataType::String)], &["this_is_a_very_long_tag_name_with_many_characters"], &["this_is_a_very_long_field_name_with_many_characters"])]
+    // Names that require escaping in line protocol; the catalog stores the unescaped form of names:
+    // - "tag\ with\ space" in line protocol -> "tag with space" in catalog
+    // - "tag\,comma" in line protocol -> "tag,comma" in catalog
+    // - "tag\=equals" in line protocol -> "tag=equals" in catalog
+    // - "tag\\backslash" in line protocol -> "tag\backslash" in catalog
+    #[case::escaped_space(&["tag with space"], &[("field with space", FieldDataType::String)], &["tag with space"], &["field with space"])]
+    #[case::escaped_comma(&["tag,comma"], &[("field,comma", FieldDataType::String)], &["tag,comma"], &["field,comma"])]
+    #[case::escaped_equals(&["tag=equals"], &[("field=equals", FieldDataType::String)], &["tag=equals"], &["field=equals"])]
+    #[case::literal_backslash(&["tag\\backslash"], &[("field\\backslash", FieldDataType::String)], &["tag\\backslash"], &["field\\backslash"])]
+    #[case::multiple_special(&["tag with,comma=equals"], &[("field=with space,and=comma", FieldDataType::String)], &["tag with,comma=equals"], &["field=with space,and=comma"])]
+    #[test_log::test(tokio::test)]
+    async fn test_create_table_with_valid_names(
+        #[case] tags: &[&str],
+        #[case] fields: &[(&str, FieldDataType)],
+        #[case] expected_tag_names: &[&str],
+        #[case] expected_field_names: &[&str],
+    ) {
+        let catalog = Catalog::new_in_memory("test-host").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+
+        let result = catalog
+            .create_table("test_db", "test_table", tags, fields)
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Failed to create table with names that are valid in escaped line protocol: {result:?}"
+        );
+
+        // Verify the table was created correctly
+        let db_schema = catalog.db_schema("test_db").unwrap();
+        let table_def = db_schema.table_definition("test_table").unwrap();
+
+        // Verify tag names match expectations
+        let tag_columns: Vec<_> = table_def
+            .columns
+            .resource_iter()
+            .filter(|col| col.data_type == InfluxColumnType::Tag)
+            .collect();
+
+        assert_eq!(tag_columns.len(), expected_tag_names.len());
+        for (i, expected_name) in expected_tag_names.iter().enumerate() {
+            assert_eq!(
+                tag_columns[i].name.as_ref(),
+                *expected_name,
+                "Tag name mismatch at index {i}"
+            );
+        }
+
+        // Verify field names match expectations
+        let field_columns: Vec<_> = table_def
+            .columns
+            .resource_iter()
+            .filter(|col| {
+                !matches!(
+                    col.data_type,
+                    InfluxColumnType::Tag | InfluxColumnType::Timestamp
+                )
+            })
+            .collect();
+
+        assert_eq!(field_columns.len(), expected_field_names.len());
+        for (i, expected_name) in expected_field_names.iter().enumerate() {
+            assert_eq!(
+                field_columns[i].name.as_ref(),
+                *expected_name,
+                "Field name mismatch at index {i}"
+            );
+        }
     }
 }
