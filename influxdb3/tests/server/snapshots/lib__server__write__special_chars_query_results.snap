@@ -1,0 +1,26 @@
+---
+source: influxdb3/tests/server/write.rs
+expression: query_result
+---
+[
+  {
+    "field with all,special=chars": 100,
+    "field with spaces": 42,
+    "field,with,commas": "test",
+    "field=with=equals": true,
+    "normal_field": 1.0,
+    "normal_tag": "value1",
+    "tag with spaces": "value2",
+    "tag with spaces,and=all": "value5",
+    "tag,with,commas": "value3",
+    "tag=with=equals": "value4",
+    "time": "1970-01-01T00:00:01"
+  },
+  {
+    "field with spaces": 84,
+    "normal_field": 2.0,
+    "normal_tag": "value1",
+    "tag with spaces": "value with spaces",
+    "time": "1970-01-01T00:00:02"
+  }
+]

@@ -1,0 +1,94 @@
+---
+source: influxdb3/tests/server/write.rs
+expression: table_info
+---
+[
+  {
+    "column_name": "field with all,special=chars",
+    "data_type": "UInt64",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "field with spaces",
+    "data_type": "Int64",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "field,with,commas",
+    "data_type": "Utf8",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "field=with=equals",
+    "data_type": "Boolean",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "normal_field",
+    "data_type": "Float64",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "normal_tag",
+    "data_type": "Dictionary(Int32, Utf8)",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "tag with spaces",
+    "data_type": "Dictionary(Int32, Utf8)",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "tag with spaces,and=all",
+    "data_type": "Dictionary(Int32, Utf8)",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "tag,with,commas",
+    "data_type": "Dictionary(Int32, Utf8)",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "tag=with=equals",
+    "data_type": "Dictionary(Int32, Utf8)",
+    "is_nullable": "YES",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  },
+  {
+    "column_name": "time",
+    "data_type": "Timestamp(Nanosecond, None)",
+    "is_nullable": "NO",
+    "table_catalog": "public",
+    "table_name": "metrics",
+    "table_schema": "iox"
+  }
+]
