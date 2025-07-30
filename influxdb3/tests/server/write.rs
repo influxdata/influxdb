@@ -399,11 +399,11 @@ async fn test_table_creation_with_special_characters_line_protocol_compatibility
     let server = TestServer::spawn().await;
     let db_name = "test_special_chars";
     let table_name = "metrics";
-    
+
     // Create database
     let result = server.create_database(db_name).run().unwrap();
     assert!(result.contains(&format!("Database \"{db_name}\" created successfully")));
-    
+
     // Create table with tag and field names containing special characters that require escaping in line protocol
     // Using the API directly to avoid CLI parsing issues with special characters
     server
@@ -416,53 +416,53 @@ async fn test_table_creation_with_special_characters_line_protocol_compatibility
             "tag with spaces,and=all", // Tag with all special chars
         ])
         .with_fields([
-            ("normal_field", "float64"),        // Normal field name
-            ("field with spaces", "int64"),     // Field with spaces
-            ("field,with,commas", "utf8"),      // Field with commas
-            ("field=with=equals", "bool"),      // Field with equals signs
+            ("normal_field", "float64"),                // Normal field name
+            ("field with spaces", "int64"),             // Field with spaces
+            ("field,with,commas", "utf8"),              // Field with commas
+            ("field=with=equals", "bool"),              // Field with equals signs
             ("field with all,special=chars", "uint64"), // Field with all special chars
         ])
         .run_api()
         .await
         .unwrap();
-    
+
     // Now test writing to the table using valid line protocol with proper escaping
     // Line protocol format: measurement,tag_set field_set timestamp
     // Tag keys/values and field keys need escaping for spaces, commas, and equals signs
-    
+
     // Test 1: Write with all fields and tags using proper escaping
     let lp = r#"metrics,normal_tag=value1,tag\ with\ spaces=value2,tag\,with\,commas=value3,tag\=with\=equals=value4,tag\ with\ spaces\,and\=all=value5 normal_field=1.0,field\ with\ spaces=42i,field\,with\,commas="test",field\=with\=equals=true,field\ with\ all\,special\=chars=100u 1000000000"#;
-    
+
     server
         .write_lp_to_db(db_name, lp, Precision::Nanosecond)
         .await
         .expect("Failed to write first line protocol");
-    
+
     // Test 2: Write with subset of fields to verify partial writes work
     let lp2 = r#"metrics,normal_tag=value1,tag\ with\ spaces=value\ with\ spaces normal_field=2.0,field\ with\ spaces=84i 2000000000"#;
-    
+
     server
         .write_lp_to_db(db_name, lp2, Precision::Nanosecond)
         .await
         .expect("Failed to write second line protocol");
-    
+
     // Query the data to verify it was written correctly
     let query_result = server
         .query_sql(db_name)
         .with_sql(format!("SELECT * FROM {table_name} ORDER BY time"))
         .run()
         .unwrap();
-    
+
     // Use insta snapshot to verify the query results
     insta::assert_json_snapshot!("special_chars_query_results", query_result);
-    
+
     // Test 3: Verify table schema shows the correct column names
     let table_info = server
         .query_sql(db_name)
         .with_sql(format!("SHOW COLUMNS FROM {table_name}"))
         .run()
         .unwrap();
-    
+
     // Use insta snapshot to verify the table columns
     insta::assert_json_snapshot!("special_chars_table_columns", table_info);
 }

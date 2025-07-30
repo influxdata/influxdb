@@ -1388,13 +1388,21 @@ impl<S, R> Prompt<S, R> {
 }
 
 /// Validate that a key (tag or field) is valid.
-/// The only restriction is that keys cannot be empty.
-/// All other characters are allowed since they can be represented in line protocol through escaping.
+/// Keys cannot be empty and cannot contain control characters (ASCII 0x00-0x1F and 0x7F).
+/// This ensures compatibility with the line protocol parser.
 fn validate_key(key: &str, key_type: &str) -> Result<()> {
     if key.is_empty() {
         return Err(CatalogError::InvalidConfiguration {
             message: format!("{key_type} key cannot be empty").into(),
         });
     }
+
+    // Check for control characters
+    if key.chars().any(|c| c.is_control()) {
+        return Err(CatalogError::InvalidConfiguration {
+            message: format!("{key_type} key cannot contain control characters").into(),
+        });
+    }
+
     Ok(())
 }
