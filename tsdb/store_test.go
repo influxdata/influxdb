@@ -3063,10 +3063,6 @@ func TestStore_DeleteSeries_Deadlock(t *testing.T) {
 			}
 		}
 
-		// Phase 4: Test recovery after lock leak accumulation
-		t.Log("Phase 4: Testing system recovery...")
-
-		// Try a simple operation that should work if the system isn't completely deadlocked
 		start := time.Now()
 		testShard := s.Shard(1)
 		recoveryTime := time.Since(start)
@@ -3078,7 +3074,6 @@ func TestStore_DeleteSeries_Deadlock(t *testing.T) {
 		} else {
 			t.Logf("RECOVERY OK: %v - system still responsive", recoveryTime)
 		}
-
 	}
 
 	t.Run("inmem", func(t *testing.T) { test("inmem") })
