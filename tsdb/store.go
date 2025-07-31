@@ -1690,9 +1690,10 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	}
 
 	err, shards, epochs, sfile := getEpochsAndShards()
-	if err != nil && err != ErrNothingToDelete {
+	if err != nil && !errors.Is(err, ErrNothingToDelete) {
+		s.Logger.Error("DeleteSeries failed", zap.String("error", err.Error()))
 		return err
-	} else if err == ErrNothingToDelete {
+	} else if errors.Is(err, ErrNothingToDelete) {
 		return nil
 	}
 

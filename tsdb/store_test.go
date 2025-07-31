@@ -3015,8 +3015,6 @@ func TestStore_DeleteSeries_Deadlock(t *testing.T) {
 
 				if err != nil {
 					results <- fmt.Sprintf("CreateShard[%d]: ERROR after %v: %v", id, duration, err)
-				} else if duration > time.Millisecond*100 {
-					results <- fmt.Sprintf("CreateShard[%d]: SLOW (%v) - possible lock contention", id, duration)
 				} else {
 					results <- fmt.Sprintf("CreateShard[%d]: OK (%v)", id, duration)
 				}
@@ -3035,8 +3033,6 @@ func TestStore_DeleteSeries_Deadlock(t *testing.T) {
 
 				if shard == nil {
 					results <- fmt.Sprintf("Shard[%d]: ERROR after %v: shard not found", id, duration)
-				} else if duration > time.Millisecond*100 {
-					results <- fmt.Sprintf("Shard[%d]: SLOW (%v) - possible lock contention", id, duration)
 				} else {
 					results <- fmt.Sprintf("Shard[%d]: OK (%v)", id, duration)
 				}
@@ -3047,34 +3043,17 @@ func TestStore_DeleteSeries_Deadlock(t *testing.T) {
 		close(startSignal)
 
 		timeout := time.After(time.Second * 5)
-		slowOperations := 0
-		timeoutOperations := 0
 
 		for i := 0; i < writeOpsCount+readOpsCount; i++ {
 			select {
-			case result := <-results:
-				t.Log(result)
-				if strings.Contains(result, "SLOW") {
-					slowOperations++
-				}
+			case <-results:
 			case <-timeout:
-				timeoutOperations++
-				t.Log("Operation timed out - indicating severe lock contention")
+				t.Fatal("Operation timed out - indicating severe lock contention")
 			}
-		}
-
-		start := time.Now()
-		testShard := s.Shard(1)
-		recoveryTime := time.Since(start)
-
-		if testShard == nil {
-			t.Error("System appears to be in unrecoverable state - shard lookup failed")
-		} else if recoveryTime > time.Millisecond*500 {
-			t.Logf("SLOW RECOVERY: %v - system performance degraded", recoveryTime)
-		} else {
-			t.Logf("RECOVERY OK: %v - system still responsive", recoveryTime)
 		}
 	}
 
-	t.Run("inmem", func(t *testing.T) { test("inmem") })
+	for _, indexType := range tsdb.RegisteredIndexes() {
+		t.Run(indexType, func(t *testing.T) { test(indexType) })
+	}
 }
