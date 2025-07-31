@@ -29,6 +29,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 	tassert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var notrack = tsdb.NoopStatsTracker()
@@ -1378,20 +1379,21 @@ func TestEngine_DeleteSeriesRange_MultiTSMLocking(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 			e, err := NewEngine(index)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer e.Close()
+			require.NoError(t, e.Open())
+			defer func() {
+				require.NoError(t, e.Close())
+			}()
 
+			// In order to trigger potentially locking issues within DeleteSeriesRange, we must create much more
+			// TSM files than the number of CPUs. This combined with how the test data interleaves deleted and not
+			// deleted series within a TSM file triggers locking issues if they are present.
 			numTSMFiles := runtime.NumCPU() * 20
 			var ts int64
-			for tsmCount := 0; tsmCount < numTSMFiles; tsmCount++ {
+			for range numTSMFiles {
 				ts += 1000000000
 
 				// Create a few points.
@@ -1405,87 +1407,60 @@ func TestEngine_DeleteSeriesRange_MultiTSMLocking(t *testing.T) {
 				p8 := MustParsePointString(fmt.Sprintf("disk,host=C value=1.3 %d", ts)) // Should not be deleted
 
 				for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-					if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), notrack); err != nil {
-						t.Fatalf("create series index error: %v", err)
-					}
+					require.NoError(t, e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), notrack), "create series index error")
 				}
 
-				if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}, tsdb.NoopStatsTracker()); err != nil {
-					t.Fatalf("failed to write points: %s", err.Error())
-				}
-				if err := e.WriteSnapshot(); err != nil {
-					t.Fatalf("failed to snapshot: %s", err.Error())
-				}
+				require.NoError(t, e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}, tsdb.NoopStatsTracker()), "failed to write points")
+				require.NoError(t, e.WriteSnapshot(), "failed to snapshot")
 			}
 
 			keys := e.FileStore.Keys()
-			if exp, got := 6, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+			require.Len(t, keys, 6, "series count mismatch")
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, ts+2000000000); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+			require.NoError(t, e.DeleteSeriesRange(itr, 0, ts+2000000000), "failed to delete series")
 
 			keys = e.FileStore.Keys()
-			if exp, got := 4, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+			require.Len(t, keys, 4, "series count mismatch")
 
-			exp := "cpu,host=B#!~#value"
-			if _, ok := keys[exp]; !ok {
-				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
-			}
+			require.Contains(t, keys, "cpu,host=B#!~#value", "wrong series deleted")
 
 			// Check that the series still exists in the index
 			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
-			defer iter.Close()
+			require.NoError(t, err, "iterator error")
+			defer func() {
+				if iter != nil {
+					require.NoError(t, iter.Close())
+				}
+			}()
 
 			elem, err := iter.Next()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID == 0 {
-				t.Fatalf("series index mismatch: EOF, exp 2 series")
-			}
+			require.NoError(t, err)
+			require.NotEqual(t, uint64(0), elem.SeriesID, "series index mismatch: EOF, exp 2 series")
 
 			// Lookup series.
 			name, tags := e.sfile.Series(elem.SeriesID)
-			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
+			require.Equal(t, []byte("cpu"), name, "series mismatch")
 
-			if !tags.Equal(models.NewTags(map[string]string{"host": "0"})) && !tags.Equal(models.NewTags(map[string]string{"host": "B"})) {
-				t.Fatalf(`series mismatch: got %s, exp either "host=0" or "host=B"`, tags)
-			}
-			iter.Close()
+			require.True(t, tags.Equal(models.NewTags(map[string]string{"host": "0"})) || tags.Equal(models.NewTags(map[string]string{"host": "B"})),
+				`series mismatch: got %s, exp either "host=0" or "host=B"`, tags)
+			require.NoError(t, iter.Close())
 
 			// Deleting remaining series should remove them from the series.
 			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
-			if err := e.DeleteSeriesRange(itr, 0, ts+9000000000); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+			require.NoError(t, e.DeleteSeriesRange(itr, 0, ts+9000000000), "failed to delete series")
 
 			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
+			iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			require.NoError(t, err, "iterator error")
 			if iter == nil {
 				return
 			}
 
-			defer iter.Close()
-			if elem, err = iter.Next(); err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID != 0 {
-				t.Fatalf("got an undeleted series id, but series should be dropped from index")
-			}
+			elem, err = iter.Next()
+			require.NoError(t, err)
+			require.Equal(t, uint64(0), elem.SeriesID, "got an undeleted series id, but series should be dropped from index")
 		})
 	}
 }
