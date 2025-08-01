@@ -2366,6 +2366,7 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 		// We don't stop if level 4 is runnable because we need to continue on and check for group 4 to group 5 promotions if
 		// group 4 is the runnable group.
 		if runnable && level <= 3 {
+			e.traceLogger.Debug("Compaction planning is PT_SmartOptimize with level 1, 2, and 3 compactions", zap.Int("id", int(e.id)), zap.Int("l4", len(l4Groups)))
 			// We know that the compaction loop will pull a compaction group from levels 1-4, so no need to plan level 5.
 			return level1Groups, level2Groups, level3Groups, nil, nil
 		}
@@ -2407,11 +2408,13 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 	if planType == PT_NoOptimize {
 		// For PT_NoOptimize, throw away any promoted level 5 groups and return what we have for level 1 through 4.
 		// Our behavior changes depending what the plan type is.
+		e.traceLogger.Debug("Compaction planning is PT_NoOptimize", zap.Int("id", int(e.id)))
 		return level1Groups, level2Groups, level3Groups, level4Groups, nil
 	} else if planType == PT_SmartOptimize {
 		level, runnable := e.Scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(level4Groups), len(level5Groups)})
 		if runnable && level <= 5 {
 			// We know that the compaction loop will pull from something already planned, no need to go any further for smart optimize.
+			e.traceLogger.Debug("Compaction planning is PT_SmartOptimize", zap.Int("id", int(e.id)), zap.Int("l5", int(len(level5Groups))))
 			return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
 		}
 	}
@@ -2472,6 +2475,14 @@ func (e *Engine) PlanCompactions(planType PlanType) ([]PlannedCompactionGroup, [
 	atomic.StoreInt64(&e.Stats.TSMCompactionsQueue[2], int64(len(l3)))
 	atomic.StoreInt64(&e.Stats.TSMFullCompactionsQueue, int64(len(l4)))
 	atomic.StoreInt64(&e.Stats.TSMOptimizeCompactionsQueue, int64(len(l5)))
+	e.logger.Debug("Compactions currently planned",
+		zap.Int("id", int(e.id)),
+		zap.Int64("l1", e.Stats.TSMCompactionsQueue[0]),
+		zap.Int64("l2", e.Stats.TSMCompactionsQueue[1]),
+		zap.Int64("l3", e.Stats.TSMCompactionsQueue[2]),
+		zap.Int64("l4", e.Stats.TSMFullCompactionsQueue),
+		zap.Int64("l5", e.Stats.TSMOptimizeCompactionsQueue),
+	)
 	return l1, l2, l3, l4, l5
 }
 
