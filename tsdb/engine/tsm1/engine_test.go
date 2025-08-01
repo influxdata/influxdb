@@ -29,6 +29,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 	tassert "github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 var notrack = tsdb.NoopStatsTracker()
@@ -2903,8 +2904,9 @@ func (m *mockPlanner) Release(groups []tsm1.CompactionGroup) {}
 func (m *mockPlanner) FullyCompacted() (bool, string) {
 	return false, "not compacted"
 }
-func (m *mockPlanner) ForceFull()                      {}
-func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore) {}
+func (m *mockPlanner) ForceFull()                              {}
+func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore)         {}
+func (m *mockPlanner) WithTraceLogger(traceLogger *zap.Logger) {}
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.
 func ParseTags(s string) query.Tags {
