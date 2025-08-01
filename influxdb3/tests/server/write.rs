@@ -1,6 +1,6 @@
-use hyper::StatusCode;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
+use reqwest::StatusCode;
 
 use crate::server::TestServer;
 
