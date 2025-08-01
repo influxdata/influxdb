@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestDiagnostics_GoRuntime(t *testing.T) {
-	s := monitor.New(nil, monitor.Config{})
+	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

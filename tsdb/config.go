@@ -286,5 +286,8 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"max-index-log-file-size":                c.MaxIndexLogFileSize,
 		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,
 		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentSnapshotCompactions,
+		"aggressive-points-per-block":            c.AggressivePointsPerBlock,
+		"compact-throughput":                     c.CompactThroughput,
+		"compact-throughput-burst":               c.CompactThroughputBurst,
 	}), nil
 }
