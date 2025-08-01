@@ -356,6 +356,8 @@ func (p *Partition) CurrentCompactionN() int32 {
 // Wait will block until all compactions are finished.
 // Must only be called while they are disabled.
 func (p *Partition) Wait() {
+	start := time.Now()
+	duration := 24 * time.Hour
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -364,6 +366,11 @@ func (p *Partition) Wait() {
 	startTime := time.Now()
 
 	for {
+		if time.Since(start) > duration {
+			p.logger.Debug("timed out waiting for compaction to finish", zap.Duration("duration", duration), zap.String("path", p.path), zap.String("id", p.id))
+			// Reset start time to Now() so it will capture in the next 24 hours given this is still hanging
+			start = time.Now()
+		}
 		if p.CurrentCompactionN() == 0 {
 			return
 		}
