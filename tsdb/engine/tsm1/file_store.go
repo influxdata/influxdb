@@ -875,13 +875,12 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	for _, file := range newFiles {
 		if !strings.HasSuffix(file, tsmTmpExt) && !strings.HasSuffix(file, TSMFileExtension) {
 			// This isn't a .tsm or .tsm.tmp file.
-			f.logger.Debug("wrong file type for rename: not a TSM file", zap.String("file", file))
 			continue
 		}
 
 		// give the observer a chance to process the file first.
 		if err := f.obs.FileFinishing(file); err != nil {
-			return fmt.Errorf("error from observer on file rename of %s: %w", file, err)
+			return err
 		}
 
 		var oldName, newName = file, file
@@ -901,7 +900,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			err = fmt.Errorf("failed opening %s: %w", newName, err)
 			if newName != oldName {
 				if err1 := os.Rename(newName, oldName); err1 != nil {
-					return errors.Join(err, fmt.Errorf("failed renaming %s back to %s: %w", newName, oldName, err1))
+					return errors.Join(err, fmt.Errorf("failed renaming %s to %s: %w", oldName, newName, err1))
 				}
 			}
 			return err
@@ -919,7 +918,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			err = fmt.Errorf("failed creating TSMReader for %s: %w", newName, err)
 			if newName != oldName {
 				if err1 := os.Rename(newName, oldName); err1 != nil {
-					return errors.Join(err, fmt.Errorf("failed renaming %s back to %s: %w", newName, oldName, err1))
+					return errors.Join(err, fmt.Errorf("failed renaming %s to %s: %w", oldName, newName, err1))
 				}
 			}
 			return err
@@ -953,12 +952,12 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 				// give the observer a chance to process the file first.
 				if err := f.obs.FileUnlinking(file.Path()); err != nil {
-					return fmt.Errorf("error from observer on file unlinking %s: %w", file.Path(), err)
+					return err
 				}
 
 				if ts := file.TombstoneStats(); ts.TombstoneExists {
 					if err := f.obs.FileUnlinking(ts.Path); err != nil {
-						return fmt.Errorf("error from observer on tombstone file unlinking %s: %w", ts.Path, err)
+						return err
 					}
 				}
 
@@ -982,7 +981,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 					// Rename the TSM file used by this reader
 					tempPath := fmt.Sprintf("%s.%s", file.Path(), TmpTSMFileExtension)
 					if err := file.Rename(tempPath); err != nil {
-						return fmt.Errorf("failed renaming open TSM file %s to %s: %w", file.Path(), tempPath, err)
+						return fmt.Errorf("failed renaming open TSM file to %s: %w", tempPath, err)
 					}
 
 					// Remove the old file and tombstones.  We can't use the normal TSMReader.Remove()
