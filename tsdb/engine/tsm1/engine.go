@@ -2220,57 +2220,39 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			e.Scheduler.SetDepth(4, len(level4Groups))
 			e.Scheduler.SetDepth(5, len(level5Groups))
 
-			debugCompactLevelWithFullAvailable := func(level int) {
-				if len(level4Groups) > 0 {
-					e.traceLogger.Debug(fmt.Sprintf("Compacted level %d while compactFull available", level),
-						zap.Int("level1Goups", len(level1Groups)),
-						zap.Int("level2Goups", len(level2Groups)),
-						zap.Int("level3Goups", len(level3Groups)),
-						zap.Int("level4Goups", len(level4Groups)),
-						zap.Int("level5Goups", len(level5Groups)),
-					)
-				}
-			}
 
 			// Find the next compaction that can run and try to kick it off
 			if level, runnable := e.Scheduler.next(); runnable {
+				if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(level4Groups)+len(level5Groups) > 0 {
+					e.traceLogger.Debug("Starting compaction", zap.Int("id", int(e.id)),
+						zap.Int("level", level),
+						zap.Int("level1Groups", len(level1Groups)),
+						zap.Int("level2Groups", len(level2Groups)),
+						zap.Int("level3Groups", len(level3Groups)),
+						zap.Int("level4Groups", len(level4Groups)),
+						zap.Int("level5Groups", len(level5Groups)),
+					)
+				}
 				switch level {
 				case 1:
 					if e.compactHiPriorityLevel(level1Groups[0].Group, 1, false, wg) {
 						level1Groups = level1Groups[1:]
-						debugCompactLevelWithFullAvailable(1)
+						e.traceLogger.Debug("Compacted level 1")
 					}
 				case 2:
 					if e.compactHiPriorityLevel(level2Groups[0].Group, 2, false, wg) {
 						level2Groups = level2Groups[1:]
-						debugCompactLevelWithFullAvailable(2)
+						e.traceLogger.Debug("Compacted level 2")
 					}
 				case 3:
 					if e.compactLoPriorityLevel(level3Groups[0].Group, 3, true, wg) {
 						level3Groups = level3Groups[1:]
-						debugCompactLevelWithFullAvailable(3)
+						e.traceLogger.Debug("Compacted level 3")
 					}
 				case 4:
-					if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(level4Groups)+len(level5Groups) > 0 {
-						e.traceLogger.Debug("Beginning compactFull", zap.Int("id", int(e.id)),
-							zap.Int("level1Goups", len(level1Groups)),
-							zap.Int("level2Goups", len(level2Groups)),
-							zap.Int("level3Goups", len(level3Groups)),
-							zap.Int("level4Goups", len(level4Groups)),
-							zap.Int("level5Goups", len(level5Groups)),
-						)
-					}
 					if e.compactFull(level4Groups[0].Group, wg) {
 						level4Groups = level4Groups[1:]
-						if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(level4Groups)+len(level5Groups) > 0 {
-							e.traceLogger.Debug("Finished compactFull", zap.Int("id", int(e.id)),
-								zap.Int("level1Goups", len(level1Groups)),
-								zap.Int("level2Goups", len(level2Groups)),
-								zap.Int("level3Goups", len(level3Groups)),
-								zap.Int("level4Goups", len(level4Groups)),
-								zap.Int("level5Goups", len(level5Groups)),
-							)
-						}
+						e.traceLogger.Debug("Finished compactFull")
 					}
 				case 5:
 					theGroup := level5Groups[0].Group
