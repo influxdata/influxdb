@@ -299,6 +299,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		if e.WALEnabled {
 			e.WAL.enableTraceLogging(true)
 		}
+		e.Scheduler.WithLogger(e.logger)
 	}
 
 	return e
@@ -839,6 +840,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 
 	if e.traceLogging {
 		e.traceLogger = e.logger
+		e.Scheduler.WithLogger(e.logger)
 	}
 
 	if e.WALEnabled {
