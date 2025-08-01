@@ -2648,21 +2648,21 @@ func (s *compactionStrategy) compactGroup() {
 
 	if err != nil {
 		defer func(fs []string) {
-			if removeErr := removeTmpFiles(fs); removeErr != nil {
-				log.Error("Unable to remove temporary file(s)", zap.Error(removeErr), zap.Strings("files", fs))
+			if removeErr := s.compactor.RemoveTmpFiles(fs); removeErr != nil {
+				log.Warn("Unable to remove temporary file(s)", zap.Error(removeErr))
 			}
 		}(files)
-		inProgress := errors.Is(err, errCompactionInProgress{})
-		if errors.Is(err, errCompactionsDisabled) || inProgress {
+		_, inProgress := err.(errCompactionInProgress)
+		if err == errCompactionsDisabled || inProgress {
 			log.Info("Aborted compaction", zap.Error(err))
 
-			if inProgress {
+			if _, ok := err.(errCompactionInProgress); ok {
 				time.Sleep(time.Second)
 			}
 			return
 		}
 
-		log.Error("Error compacting TSM files", zap.Error(err))
+		log.Warn("Error compacting TSM files", zap.Error(err))
 
 		MoveTsmOnReadErr(err, log, s.fileStore.Replace)
 
@@ -2685,7 +2685,11 @@ func (s *compactionStrategy) compactGroup() {
 		return
 	}
 
-	log.Info("Finished compacting and renaming files", zap.Int("count", len(files)), zap.Strings("files", files))
+	for i, f := range files {
+		log.Info("Compacted file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
+	}
+	log.Info("Finished compacting files",
+		zap.Int("tsm1_files_n", len(files)))
 	atomic.AddInt64(s.successStat, 1)
 }
 
@@ -2696,9 +2700,9 @@ func MoveTsmOnReadErr(err error, log *zap.Logger, replaceFn func([]string, []str
 		path := blockReadErr.file
 		log.Info("Renaming a corrupt TSM file due to compaction error", zap.String("file", path), zap.Error(err))
 		if err := replaceFn([]string{path}, nil); err != nil {
-			log.Error("Failed removing bad TSM file", zap.String("file", path), zap.Error(err))
+			log.Info("Error removing bad TSM file", zap.String("file", path), zap.Error(err))
 		} else if e := os.Rename(path, path+"."+BadTSMFileExtension); e != nil {
-			log.Error("Failed renaming corrupt TSM file", zap.String("file", path), zap.Error(err))
+			log.Info("Error renaming corrupt TSM file", zap.String("file", path), zap.Error(err))
 		}
 	}
 }
