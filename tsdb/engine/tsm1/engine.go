@@ -847,6 +847,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 		e.WAL.WithLogger(e.logger)
 	}
 	e.FileStore.WithLogger(e.logger)
+	e.CompactionPlan.WithTraceLogger(e.traceLogger.With(logger.Shard(e.id)))
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
