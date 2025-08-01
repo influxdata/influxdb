@@ -23,3 +23,17 @@ rustflags = [
     # Enable framepointers because profiling and debugging is a nightmare w/o it and it is generally not considered a performance advantage on modern x86_64 CPUs.
     "-C", "force-frame-pointers=yes",
 ]
+
+# Platform-specific crypto backend configuration
+# These targets will have a flag set to indicate ring crypto should be used
+[target.'cfg(windows)']
+rustflags = [
+    "--cfg", "tokio_unstable",
+    "--cfg", "influxdb_force_ring_crypto",
+]
+
+[target.'cfg(target_os = "macos")']
+rustflags = [
+    "--cfg", "tokio_unstable", 
+    "--cfg", "influxdb_force_ring_crypto",
+]

@@ -366,6 +366,10 @@ jobs:
       - setup_pyo3_env:
           target: << parameters.target >>
       - run:
+          name: Apply platform-specific crypto patches
+          command: |
+            .circleci/scripts/apply-crypto-patch.sh << parameters.target >>
+      - run:
           name: Cargo build
           command: |
             target-env cargo build --target=<< parameters.target >> --workspace
@@ -438,6 +442,10 @@ jobs:
           at: /tmp/workspace
       - setup_pyo3_env:
           target: << parameters.target >>
+      - run:
+          name: Apply platform-specific crypto patches
+          command: |
+            .circleci/scripts/apply-crypto-patch.sh << parameters.target >>
       - run:
           name: Cargo release build
           command: |
