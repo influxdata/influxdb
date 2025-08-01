@@ -2270,7 +2270,22 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			}
 
 			// Release all the plans we didn't start.
+			e.traceLogger.Debug("Releasing compaction plans",
+				zap.Int("level1Groups", len(level1Groups)),
+				zap.Int("level2Groups", len(level2Groups)),
+				zap.Int("level3Groups", len(level3Groups)),
+				zap.Int("level4Groups", len(level4Groups)),
+				zap.Int("level5Groups", len(level5Groups)),
+			)
 			e.releaseCompactionPlans(level1Groups, level2Groups, level3Groups, level4Groups, level5Groups)
+			e.traceLogger.Debug("Finished releasing compaction plans",
+				zap.Int("level1Groups", len(level1Groups)),
+				zap.Int("level2Groups", len(level2Groups)),
+				zap.Int("level3Groups", len(level3Groups)),
+				zap.Int("level4Groups", len(level4Groups)),
+				zap.Int("level5Groups", len(level5Groups)),
+			)
+
 		}
 	}
 }
