@@ -1333,7 +1333,7 @@ impl object_store::ObjectStore for ReauthingObjectStore {
 impl object_store::signer::Signer for LocalUploadSigner {
     async fn signed_url(
         &self,
-        _method: http_1::Method,
+        _method: http::Method,
         path: &Path,
         _expires_in: Duration,
     ) -> Result<Url, object_store::Error> {
@@ -1772,7 +1772,7 @@ mod tests {
         let object_store_parquet_file_path = Path::parse(parquet_file_path).unwrap();
         let upload_url = signer
             .signed_url(
-                http_1::Method::PUT,
+                http::Method::PUT,
                 &object_store_parquet_file_path,
                 Duration::from_secs(100),
             )

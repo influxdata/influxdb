@@ -15,8 +15,6 @@ async-trait.workspace = true
 clap.workspace = true
 datafusion.workspace = true
 http.workspace = true
-# object store crate uses the new version of the http crate
-http_1 = { version = "1.1", package = "http" }
 humantime.workspace = true
 iox_time.workspace = true
 itertools.workspace = true
