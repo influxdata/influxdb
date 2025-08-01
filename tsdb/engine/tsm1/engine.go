@@ -2615,8 +2615,10 @@ func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer e.traceLogger.Debug("Compaction limiter released for compactFull")
 			defer atomic.AddInt64(&e.Stats.TSMFullCompactionsActive, -1)
 			defer e.compactionLimiter.Release()
+			e.traceLogger.Debug("Compaction limiter applying compactFull")
 			s.Apply()
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
@@ -2650,9 +2652,11 @@ func (e *Engine) compactOptimize(grp CompactionGroup, pointsPerBlock int, wg *sy
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer e.traceLogger.Debug("Compaction limiter released for compactOptimize")
 			defer atomic.AddInt64(&e.Stats.TSMOptimizeCompactionsActive, -1)
 			defer e.compactionLimiter.Release()          // Happens second
 			defer e.optimizedCompactionLimiter.Release() // Happens first
+			e.traceLogger.Debug("Compaction limiter applying compactOptimize")
 			s.Apply()
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
