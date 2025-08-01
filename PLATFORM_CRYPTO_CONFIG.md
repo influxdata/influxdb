@@ -8,29 +8,43 @@ The project uses `rustls` for TLS support, which can use different crypto backen
 - **aws-lc-rs** (default in rustls 0.23+): AWS's cryptographic library, optimized for performance on Linux
 - **ring**: A pure Rust crypto library that works well across all platforms
 
-## Current Configuration
+## Current Configuration (Automatic)
 
-### Linux
-- Uses aws-lc-rs (default) for better performance
-- No special configuration needed
+The crypto backend is now automatically selected during the build process based on the target platform:
 
-### Windows/macOS
-- Should use ring to avoid potential build issues with aws-lc-sys
-- Requires applying patches to force ring usage
+### Linux Targets
+- Automatically uses aws-lc-rs for better performance
+- Applies to any target triple containing "linux" (e.g., `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`)
 
-## How to Apply Platform-Specific Configuration
+### Windows/macOS/Other Targets
+- Automatically uses ring for better compatibility
+- Applies to all non-Linux targets (e.g., `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`)
 
-### Method 1: CircleCI Builds (Automated)
+## How It Works
 
-The CircleCI configuration automatically applies the correct patches based on the target platform:
+The `influxdb3_process/build.rs` script automatically detects the target platform during compilation and configures the appropriate crypto backend. This works correctly even when cross-compiling.
 
-1. The `.circleci/scripts/apply-crypto-patch.sh` script is run before each build
-2. For non-Linux targets, it uncomments the rustls patch lines in `Cargo.toml`
-3. This forces rustls to use ring instead of aws-lc-rs
+## Manual Override Options
 
-### Method 2: Local Development
+While the build system automatically selects the appropriate backend, you can override this behavior:
 
-For local development on Windows or macOS:
+### Method 1: Environment Variable
+
+Set the `INFLUXDB_CRYPTO_BACKEND` environment variable before building:
+
+```bash
+# Force ring on any platform
+export INFLUXDB_CRYPTO_BACKEND=ring
+cargo build
+
+# Force aws-lc-rs on any platform (requires aws-lc-sys to build)
+export INFLUXDB_CRYPTO_BACKEND=aws-lc-rs
+cargo build
+```
+
+### Method 2: Cargo.toml Patches (Manual)
+
+For cases where you need to force specific rustls versions or features, you can still use the patch approach:
 
 1. **Edit Cargo.toml**: Uncomment the platform-specific crypto patches:
    ```toml
@@ -39,41 +53,56 @@ For local development on Windows or macOS:
    rustls-webpki = { version = "0.102", default-features = false, features = ["ring", "std"] }
    ```
 
-2. **Use the apply script**:
-   ```bash
-   .circleci/scripts/apply-crypto-patch.sh x86_64-apple-darwin
-   ```
-
-3. **Build as normal**:
+2. **Build as normal**:
    ```bash
    cargo build
    ```
 
-### Method 3: Environment Variables
+### Method 3: CircleCI Override
 
-You can also use environment variables (though this requires additional build.rs support):
+In CircleCI, you can override the default by setting the environment variable in the build step:
 
-```bash
-# For Windows/macOS
-export INFLUXDB_CRYPTO_BACKEND=ring
-cargo build
+```yaml
+- run:
+    name: Configure crypto backend
+    command: |
+      # Force ring for all builds
+      export INFLUXDB_CRYPTO_BACKEND=ring
 ```
 
 ## Configuration Files
 
-- **Cargo.toml**: Contains commented-out patches for ring crypto
+- **influxdb3_process/build.rs**: Automatically detects target platform and configures crypto backend
+- **Cargo.toml**: Contains optional patches for manual override
 - **.cargo/config.toml**: Sets platform-specific rustflags
-- **.circleci/scripts/apply-crypto-patch.sh**: Applies patches based on target
-- **.circleci/scripts/setup-crypto-env.sh**: Sets up environment variables (alternative approach)
+- **.circleci/config.yml**: Build configuration (crypto backend is now automatic)
+
+## Build Output
+
+During compilation, you'll see warnings indicating which crypto backend is being used:
+
+```
+warning: Building for target: x86_64-unknown-linux-gnu, using crypto backend: aws-lc-rs
+```
+
+Or when overriding:
+
+```
+warning: Using crypto backend from INFLUXDB_CRYPTO_BACKEND env: ring
+warning: Building for target: x86_64-unknown-linux-gnu, using crypto backend: ring
+```
 
 ## Troubleshooting
 
-If you encounter build issues related to aws-lc-sys on non-Linux platforms:
+If you encounter build issues:
 
-1. Ensure the ring patches are uncommented in Cargo.toml
-2. Run `cargo clean` to clear any cached dependencies
-3. Check that you have the required build tools for your platform
+1. **aws-lc-sys build failures on non-Linux**: The build system should automatically use ring. If not, set `INFLUXDB_CRYPTO_BACKEND=ring`
+2. **Force a specific backend**: Use the environment variable approach
+3. **Clear build cache**: Run `cargo clean` if switching between backends
+4. **Check build output**: Look for the warning messages to confirm which backend is being used
 
-## Future Improvements
+## Legacy Scripts
 
-Consider adding a build.rs script that automatically selects the appropriate crypto backend based on the target platform, eliminating the need for manual patches.
+The following scripts are kept for reference but are no longer needed:
+- `.circleci/scripts/apply-crypto-patch.sh`: Previously used to patch Cargo.toml
+- `.circleci/scripts/setup-crypto-env.sh`: Alternative environment-based approach

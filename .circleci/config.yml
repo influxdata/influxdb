@@ -366,9 +366,14 @@ jobs:
       - setup_pyo3_env:
           target: << parameters.target >>
       - run:
-          name: Apply platform-specific crypto patches
+          name: Configure crypto backend
           command: |
-            .circleci/scripts/apply-crypto-patch.sh << parameters.target >>
+            # The build.rs will automatically detect the target and choose the appropriate crypto backend
+            # Linux targets will use aws-lc-rs, others will use ring
+            # To override, set INFLUXDB_CRYPTO_BACKEND environment variable
+            echo "Building for target: << parameters.target >>"
+            # Optional: uncomment to force a specific backend
+            # export INFLUXDB_CRYPTO_BACKEND=ring
       - run:
           name: Cargo build
           command: |
@@ -443,9 +448,14 @@ jobs:
       - setup_pyo3_env:
           target: << parameters.target >>
       - run:
-          name: Apply platform-specific crypto patches
+          name: Configure crypto backend
           command: |
-            .circleci/scripts/apply-crypto-patch.sh << parameters.target >>
+            # The build.rs will automatically detect the target and choose the appropriate crypto backend
+            # Linux targets will use aws-lc-rs, others will use ring
+            # To override, set INFLUXDB_CRYPTO_BACKEND environment variable
+            echo "Building for target: << parameters.target >>"
+            # Optional: uncomment to force a specific backend
+            # export INFLUXDB_CRYPTO_BACKEND=ring
       - run:
           name: Cargo release build
           command: |

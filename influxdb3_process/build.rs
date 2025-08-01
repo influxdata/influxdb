@@ -3,6 +3,7 @@
 //
 // https://stackoverflow.com/questions/43753491/include-git-commit-hash-as-string-into-rust-program
 use cargo_metadata::MetadataCommand;
+use std::env;
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,6 +28,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or("Core");
     println!("cargo:rerun-if-env-changed=INFLUXDB3_BUILD_VERSION");
     println!("cargo:rustc-env=INFLUXDB3_BUILD_VERSION={build}");
+
+    // Configure crypto backend based on target platform
+    configure_crypto_backend()?;
 
     Ok(())
 }
@@ -68,4 +72,53 @@ fn get_git_hash_short() -> String {
 
     assert!(!out.is_empty(), "attempting to embed empty git hash");
     out
+}
+
+fn configure_crypto_backend() -> Result<(), Box<dyn std::error::Error>> {
+    // Get the target triple from environment (set by Cargo during build)
+    let target = env::var("TARGET").unwrap_or_else(|_| {
+        panic!("TARGET environment variable not set by Cargo");
+    });
+
+    // Check if crypto backend is overridden via environment variable
+    println!("cargo:rerun-if-env-changed=INFLUXDB_CRYPTO_BACKEND");
+    let crypto_backend = if let Ok(backend) = env::var("INFLUXDB_CRYPTO_BACKEND") {
+        println!(
+            "cargo:warning=Using crypto backend from INFLUXDB_CRYPTO_BACKEND env: {}",
+            backend
+        );
+        backend
+    } else {
+        // Determine based on target OS
+        // Linux targets use aws-lc-rs for better performance
+        // All other platforms use ring for better compatibility
+        if target.contains("linux") {
+            "aws-lc-rs".to_string()
+        } else {
+            "ring".to_string()
+        }
+    };
+
+    println!(
+        "cargo:warning=Building for target: {}, using crypto backend: {}",
+        target, crypto_backend
+    );
+
+    // Set rustc-cfg flags that can be used in the code with #[cfg(...)]
+    println!(
+        "cargo:rustc-cfg=influxdb_crypto_backend=\"{}\"",
+        crypto_backend
+    );
+
+    // Set specific flags for conditional compilation
+    if crypto_backend == "ring" {
+        println!("cargo:rustc-cfg=use_ring_crypto");
+    } else if crypto_backend == "aws-lc-rs" {
+        println!("cargo:rustc-cfg=use_aws_lc_rs_crypto");
+    }
+
+    // Also set as environment variable for other build scripts if needed
+    println!("cargo:rustc-env=INFLUXDB_CRYPTO_BACKEND={}", crypto_backend);
+
+    Ok(())
 }
