@@ -2978,3 +2978,82 @@ func (m *mockStartupLogger) Tracked() []string {
 	copy(tracked, m._shardTracker)
 	return tracked
 }
+
+// TestStore_DeleteSeries_Deadlock tests the complete lock contention scenario
+// where leaked read locks from DeleteSeries block write operations like CreateShard
+func TestStore_DeleteSeries_Deadlock(t *testing.T) {
+	test := func(index string) {
+		s := MustOpenStore(t, index)
+		defer s.CloseStore(t, index)
+
+		err := s.CreateShard("db0", "rp0", 1, true)
+		require.NoError(t, err, "Create shard failure")
+
+		mixedSources := []influxql.Source{
+			&influxql.Measurement{Name: "measurement1", RetentionPolicy: "rp1"},
+			&influxql.Measurement{Name: "measurement2", RetentionPolicy: "rp2"},
+		}
+
+		leakCount := 10
+		for i := 0; i < leakCount; i++ {
+			err := s.DeleteSeries("db0", mixedSources, nil)
+			require.Contains(t, err.Error(), "mixed retention policies not supported")
+		}
+
+		results := make(chan string, 20)
+		startSignal := make(chan struct{})
+
+		writeOpsCount := 5
+		for i := 0; i < writeOpsCount; i++ {
+			go func(id int) {
+				<-startSignal
+
+				// Try CreateShard this needs s.mu.Lock() and should be blocked by RLocks
+				start := time.Now()
+				err := s.CreateShard("db0", "rp0", uint64(100+id), true)
+				duration := time.Since(start)
+
+				if err != nil {
+					results <- fmt.Sprintf("CreateShard[%d]: ERROR after %v: %v", id, duration, err)
+				} else {
+					results <- fmt.Sprintf("CreateShard[%d]: OK (%v)", id, duration)
+				}
+			}(i)
+		}
+
+		readOpsCount := 10
+		for i := 0; i < readOpsCount; i++ {
+			go func(id int) {
+				<-startSignal
+
+				// Try Shard() this needs s.mu.RLock()
+				start := time.Now()
+				shard := s.Shard(1)
+				duration := time.Since(start)
+
+				if shard == nil {
+					results <- fmt.Sprintf("Shard[%d]: ERROR after %v: shard not found", id, duration)
+				} else {
+					results <- fmt.Sprintf("Shard[%d]: OK (%v)", id, duration)
+				}
+			}(i)
+		}
+
+		// Start all operations simultaneously to create maximum contention
+		close(startSignal)
+
+		timeout := time.After(time.Second * 5)
+
+		for i := 0; i < writeOpsCount+readOpsCount; i++ {
+			select {
+			case <-results:
+			case <-timeout:
+				t.Fatal("Operation timed out - indicating severe lock contention")
+			}
+		}
+	}
+
+	for _, indexType := range tsdb.RegisteredIndexes() {
+		t.Run(indexType, func(t *testing.T) { test(indexType) })
+	}
+}
