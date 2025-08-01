@@ -2220,7 +2220,6 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			e.Scheduler.SetDepth(4, len(level4Groups))
 			e.Scheduler.SetDepth(5, len(level5Groups))
 
-
 			// Find the next compaction that can run and try to kick it off
 			if level, runnable := e.Scheduler.next(); runnable {
 				if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(level4Groups)+len(level5Groups) > 0 {
