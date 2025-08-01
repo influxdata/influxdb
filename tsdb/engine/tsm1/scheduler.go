@@ -1,8 +1,9 @@
 package tsm1
 
 import (
-	"go.uber.org/zap"
 	"sync/atomic"
+
+	"go.uber.org/zap"
 )
 
 // Level 5 (optimize) is set so much lower because level 5 compactions take so much longer.
