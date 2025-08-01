@@ -74,6 +74,7 @@ serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-rustls = "0.25"
 tokio-util.workspace = true
 url.workspace = true
 uuid.workspace = true
@@ -123,7 +124,6 @@ pretty_assertions.workspace = true
 rcgen.workspace = true
 regex.workspace = true
 reqwest.workspace = true
-rustls-0-23 = { package = "rustls", version = "0.23" }
 serde.workspace = true
 serde_json.workspace = true
 serde_urlencoded.workspace = true

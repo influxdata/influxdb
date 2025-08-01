@@ -26,7 +26,7 @@ fn init_rustls() {
     INIT.call_once(|| {
         // Install the default rustls crypto provider (ring)
         // This is required for rustls 0.23+ used by tonic 0.12
-        let _ = rustls_0_23::crypto::ring::default_provider().install_default();
+        let _ = rustls::crypto::ring::default_provider().install_default();
     });
 }
 

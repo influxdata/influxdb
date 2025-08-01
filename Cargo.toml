@@ -94,7 +94,7 @@ http-body = {version = "1"}
 http-body-util = {version = "0.1"}
 humantime = "2.1.0"
 humantime-serde = "1.1.1"
-hyper-rustls = { version = "0.25", features = ["http1", "http2", "ring", "rustls-native-certs"] }
+hyper-rustls = { version = "0.27.7", features = ["ring", "http1", "http2", "rustls-native-certs"] }
 hyper = {version = "1"}
 hyper-util = {version = "0.1"}
 insta = { version = "1.39", features = ["json", "redactions", "yaml"] }
@@ -125,7 +125,8 @@ rcgen = "0.13.2"
 regex = "1.11.1"
 reqwest = { version = "0.11.27", default-features = false, features = ["rustls-tls", "stream", "json"] }
 rstest = "0.18"
-rustls = "0.22.1"
+rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+rustls-webpki = { version = "0.103", default-features = false, features = ["ring", "std"] }
 rustls-pemfile = "2.2.0"
 secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -275,11 +276,3 @@ opt-level = 3
 # parquet = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
 # object_store = { git = "https://github.com/influxdata/arrow-rs.git", rev = "c946cd81fa12e6588a3be33be08e3d8e9a2770e7" }
 
-# Platform-specific crypto backend configuration
-# 
-# On Linux: Keep aws-lc-rs (default) for better performance
-# On Windows/macOS: Uncomment the lines below to use ring instead of aws-lc-rs
-#
-# To use ring on non-Linux platforms, uncomment these lines:
-# rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
-# rustls-webpki = { version = "0.102", default-features = false, features = ["ring", "std"] }

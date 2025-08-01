@@ -34,8 +34,6 @@ use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
-use rustls::ServerConfig;
-use rustls::SupportedProtocolVersion;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufReader;
@@ -46,6 +44,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
 use tokio_rustls::TlsAcceptor;
+use tokio_rustls::rustls::{ServerConfig, SupportedProtocolVersion};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 use trace_http::ctx::TraceHeaderParser;
@@ -79,7 +78,7 @@ pub enum Error {
     TlsConfig(String),
 
     #[error("rustls error: {0}")]
-    Rustls(#[from] rustls::Error),
+    Rustls(#[from] tokio_rustls::rustls::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -564,8 +563,8 @@ fn setup_tls_new(
 ) -> Result<
     (
         TcpListener,
-        Vec<rustls::pki_types::CertificateDer<'static>>,
-        rustls::pki_types::PrivateKeyDer<'static>,
+        Vec<tokio_rustls::rustls::pki_types::CertificateDer<'static>>,
+        tokio_rustls::rustls::pki_types::PrivateKeyDer<'static>,
     ),
     Error,
 > {
@@ -1796,8 +1795,10 @@ mod tests {
 
         // We declare this as a static so that the lifetimes workout here and that
         // it lives long enough.
-        static TLS_MIN_VERSION: &[&rustls::SupportedProtocolVersion] =
-            &[&rustls::version::TLS12, &rustls::version::TLS13];
+        static TLS_MIN_VERSION: &[&tokio_rustls::rustls::SupportedProtocolVersion] = &[
+            &tokio_rustls::rustls::version::TLS12,
+            &tokio_rustls::rustls::version::TLS13,
+        ];
 
         // Start processing engine triggers
         Arc::clone(&processing_engine)
