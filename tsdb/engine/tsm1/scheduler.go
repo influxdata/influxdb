@@ -81,6 +81,7 @@ func (s *Scheduler) nextByQueueDepths(depths [TotalCompactionLevels]int) (int, b
 	var weight float64
 	for i := 0; i < end; i++ {
 		if float64(depths[i])*s.weights[i] > weight {
+			s.traceLogger.Debug("evaluating compaction level", zap.Int("level", i+1), zap.Int("depth", depths[i]), zap.Float64("weight", float64(depths[i])*s.weights[i]))
 			level, runnable = i+1, true
 			weight = float64(depths[i]) * s.weights[i]
 		}
