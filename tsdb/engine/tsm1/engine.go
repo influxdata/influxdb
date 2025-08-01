@@ -1720,16 +1720,22 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
 
 			// Skip over any deleted keys that are less than our tsm key
-			seriesKeysLock.RLock()
-			cmp := bytes.Compare(seriesKeys[j], seriesKey)
-			for j < len(seriesKeys) && cmp < 0 {
-				j++
-				if j >= len(seriesKeys) {
-					return nil
+			cmp, cont := func() (int, bool) {
+				seriesKeysLock.RLock()
+				defer seriesKeysLock.RUnlock()
+				cmp := bytes.Compare(seriesKeys[j], seriesKey)
+				for j < len(seriesKeys) && cmp < 0 {
+					j++
+					if j >= len(seriesKeys) {
+						return 0, false // don't continue processing seriesKeys.
+					}
+					cmp = bytes.Compare(seriesKeys[j], seriesKey)
 				}
-				cmp = bytes.Compare(seriesKeys[j], seriesKey)
+				return cmp, true // continue processing seriesKeys.
+			}()
+			if !cont {
+				return nil
 			}
-			seriesKeysLock.RUnlock()
 
 			// We've found a matching key, cross it out so we do not remove it from the index.
 			if j < len(seriesKeys) && cmp == 0 {
