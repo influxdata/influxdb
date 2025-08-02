@@ -1,6 +1,6 @@
-use hyper::StatusCode;
 use observability_deps::tracing::{debug, info};
 use pretty_assertions::assert_eq;
+use reqwest::StatusCode;
 use serde_json::{Value, json};
 use test_helpers::assert_contains;
 
@@ -792,7 +792,7 @@ async fn api_v3_configure_db_delete() {
         .send()
         .await
         .expect("delete database call succeed");
-    assert_eq!(200, resp.status());
+    assert_eq!(StatusCode::OK, resp.status());
 
     // check foo db is now foo-YYYYMMDD..
     let result = server
@@ -1212,7 +1212,7 @@ async fn api_v3_configure_table_delete() {
         .send()
         .await
         .expect("delete table call succeed");
-    assert_eq!(200, resp.status());
+    assert_eq!(StatusCode::OK, resp.status());
 
     // check foo db has table with name in tbl-YYYYMMDD.. format
     let result = server
@@ -1336,7 +1336,7 @@ async fn api_v3_configure_table_delete_with_hard_delete_at_never() {
         .send()
         .await
         .expect("delete table call succeed");
-    assert_eq!(200, resp.status());
+    assert_eq!(StatusCode::OK, resp.status());
 }
 
 #[tokio::test]
@@ -1365,7 +1365,7 @@ async fn api_v3_configure_table_delete_with_hard_delete_at_timestamp() {
         .await
         .expect("delete table call succeed");
 
-    assert_eq!(200, resp.status());
+    assert_eq!(StatusCode::OK, resp.status());
 }
 
 #[tokio::test]
@@ -1422,7 +1422,7 @@ async fn api_v3_configure_table_delete_with_past_timestamp_becomes_now() {
         .await
         .expect("delete table call succeed");
 
-    assert_eq!(200, resp.status());
+    assert_eq!(StatusCode::OK, resp.status());
 }
 
 #[tokio::test]

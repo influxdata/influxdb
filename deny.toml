@@ -26,6 +26,7 @@ allow = [
     "MIT",
     "Unicode-3.0",
     "Zlib",
+    "OpenSSL",
 ]
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
