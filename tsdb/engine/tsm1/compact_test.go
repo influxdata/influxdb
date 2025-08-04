@@ -3050,7 +3050,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 		{
 			name: "Small group size with single generation",
-			/* These files are supposed to have 0 block counts */
+			// These files are supposed to have 0 block counts
 			files: []tsm1.ExtFileStat{
 				{
 					FileStat: tsm1.FileStat{
@@ -3103,7 +3103,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 		},
 		{
 			name: "Small group size with single generation and levels under 4",
-			/* These files are supposed to have block counts of 0 */
+			// These files are supposed to have block counts of 0
 			files: tsm1.FileStats{
 				{
 					Path: "01-02.tsm1",
@@ -3328,7 +3328,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// TestDefaultPlanner_FullyCompacted_SmallSingleGeneration
 			// will need to ensure that once we have single TSM file under 2 GB we stop
 			name: "Single TSM file",
-			/* These files are supposed to have 0 blocks */
+			// These files are supposed to have 0 blocks
 			files: tsm1.FileStats{
 				{
 					Path: "01-09.tsm1",
@@ -4654,25 +4654,39 @@ func TestEnginePlanCompactions(t *testing.T) {
 
 				// Arbitrary group length to use in Scheduler.SetDepth
 				mockGroupLen := 5
-				// Set the scheduler depth for our lower level groups.
-				// During PT_Standard this should still plan a level5 compaction group
-				// but during PT_SmartOptimize this should not.
-				e.Scheduler.SetDepth(1, mockGroupLen)
-				e.Scheduler.SetDepth(2, mockGroupLen)
 
-				// Normally this is called within PlanCompactions but because we want to simulate already running
-				// some compactions we will set them manually here.
-				atomic.StoreInt64(&e.Stats.TSMCompactionsActive[0], int64(mockGroupLen))
-				atomic.StoreInt64(&e.Stats.TSMCompactionsActive[1], int64(mockGroupLen))
+				// Run the compaction planner twice and verify we get the same results each time. This checks for issues
+				// with releasing TSM files so they are eligible to be planned again. If the first run succeeds but the
+				// second run fails, its an issue with releasing TSM files back to the compactor.
+				for run := range 2 {
+					runDisplay := run + 1
 
-				// Should use PlanType 0 (PT_Standard), 1(PT_SmartOptimize), 2(PT_NoOptimize)
-				planType := tsm1.PlanType(i)
-				level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions(planType)
-				compareLevelGroups(t, test.getResultByPlanType(planType).level1Groups, level1Groups, "unexpected level 1 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level2Groups, level2Groups, "unexpected level 2 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level3Groups, Level3Groups, "unexpected level 3 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level4Groups, Level4Groups, "unexpected level 4 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level5Groups, Level5Groups, "unexpected level 5 Group")
+					e.Stats = &tsm1.EngineStatistics{}
+
+					// Set the scheduler depth for our lower level groups.
+					// During PT_Standard this should still plan a level5 compaction group
+					// but during PT_SmartOptimize this should not.
+					e.Scheduler.SetDepth(1, mockGroupLen)
+					e.Scheduler.SetDepth(2, mockGroupLen)
+
+					// Normally this is called within PlanCompactions but because we want to simulate already running
+					// some compactions we will set them manually here.
+					atomic.StoreInt64(&e.Stats.TSMCompactionsActive[0], int64(mockGroupLen))
+					atomic.StoreInt64(&e.Stats.TSMCompactionsActive[1], int64(mockGroupLen))
+
+					// Should use PlanType 0 (PT_Standard), 1(PT_SmartOptimize), 2(PT_NoOptimize)
+					planType := tsm1.PlanType(i)
+					// Calling PlanCompactions is normally done by e.compact.
+					level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions(planType)
+					compareLevelGroups(t, test.getResultByPlanType(planType).level1Groups, level1Groups, fmt.Sprintf("unexpected level 1 Group on run %d", runDisplay))
+					compareLevelGroups(t, test.getResultByPlanType(planType).level2Groups, level2Groups, fmt.Sprintf("unexpected level 2 Group on run %d", runDisplay))
+					compareLevelGroups(t, test.getResultByPlanType(planType).level3Groups, Level3Groups, fmt.Sprintf("unexpected level 3 Group on run %d", runDisplay))
+					compareLevelGroups(t, test.getResultByPlanType(planType).level4Groups, Level4Groups, fmt.Sprintf("unexpected level 4 Group on run %d", runDisplay))
+					compareLevelGroups(t, test.getResultByPlanType(planType).level5Groups, Level5Groups, fmt.Sprintf("unexpected level 5 Group on run %d", runDisplay))
+
+					// Calling ReleaseCompactionPlans is normally done by e.compact.
+					e.ReleaseCompactionPlans(level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups)
+				}
 			})
 		}
 	}
