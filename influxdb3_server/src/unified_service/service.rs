@@ -70,15 +70,23 @@ where
                 let response = match grpc_service.call(req).await {
                     Ok(response) => response,
                     Err(e) => {
-                        // Convert gRPC error to HTTP response
-                        return Ok(http::Response::builder()
-                            .status(http::StatusCode::INTERNAL_SERVER_ERROR)
-                            .body(UnifiedBody::Http {
-                                body: iox_http_util::bytes_to_response_body(format!(
-                                    "gRPC service error: {}",
-                                    e.into()
-                                )),
-                            })
+                        // BEHAVIORAL DIFFERENCE FROM MAIN BRANCH:
+                        // Main branch propagates infrastructure errors which causes connection drops.
+                        // We convert them to proper gRPC error responses for better client experience.
+                        // This avoids connection drops and allows clients to handle errors gracefully.
+                        let error_message = format!("{}", e.into());
+
+                        // Create an empty body with error headers
+                        let body = http_body_util::Empty::new()
+                            .map_err(|_: std::convert::Infallible| unreachable!())
+                            .boxed_unsync();
+
+                        return Ok(Response::builder()
+                            .status(http::StatusCode::OK) // gRPC uses 200 OK even for errors
+                            .header("content-type", "application/grpc")
+                            .header("grpc-status", "13") // Internal error
+                            .header("grpc-message", error_message)
+                            .body(UnifiedBody::Grpc { body })
                             .unwrap());
                     }
                 };

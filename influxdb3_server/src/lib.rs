@@ -12,6 +12,7 @@ clippy::future_not_send
 )]
 
 pub mod all_paths;
+mod connection_handler;
 mod grpc;
 pub mod http;
 pub mod query_executor;
@@ -19,12 +20,12 @@ mod query_planner;
 mod system_tables;
 mod unified_service;
 
+use crate::connection_handler::ConnectionHandler;
 use crate::grpc::make_flight_server;
 use crate::http::HttpApi;
 use crate::http::RecoveryHttpApi;
 use authz::Authorizer;
 use http::route_admin_token_recovery_request;
-use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnectionBuilder;
 use hyper_util::service::TowerToHyperService;
@@ -392,63 +393,18 @@ pub async fn serve(
                     let tls_acceptor = tls_acceptor.clone();
                     let grpc_service = grpc_service.clone();
                     let http_api = Arc::clone(&http_api);
-                    let http_trace_layer = http_trace_layer.clone();
-                    let grpc_trace_layer = grpc_trace_layer.clone();
+                    let handler = ConnectionHandler::new(
+                        http_api,
+                        grpc_service,
+                        http_trace_layer.clone(),
+                        grpc_trace_layer.clone(),
+                        without_auth,
+                        paths_without_authz,
+                    );
 
                     tokio::spawn(async move {
-                        let tls_stream = match tls_acceptor.accept(stream).await {
-                            Ok(stream) => stream,
-                            Err(e) => {
-                                error!("TLS handshake failed: {}", e);
-                                return;
-                            }
-                        };
-
-                        let io = TokioIo::new(tls_stream);
-
-                        // Create unified service
-                        let unified_service = unified_service::UnifiedService::new(
-                            http_api,
-                            grpc_service,
-                            without_auth,
-                            paths_without_authz,
-                        );
-
-                        // Create a service function that adds remote address
-                        let service_fn = tower::service_fn(move |mut req: hyper::Request<Incoming>| {
-                            req.extensions_mut().insert(Some(remote_addr));
-
-                            // Determine protocol based on request
-                            let is_grpc = req.version() == hyper::Version::HTTP_2
-                                && req
-                                    .headers()
-                                    .get(hyper::header::CONTENT_TYPE)
-                                    .and_then(|ct| ct.to_str().ok())
-                                    .map(|ct| ct.starts_with("application/grpc"))
-                                    .unwrap_or(false);
-
-                            let trace_layer = if is_grpc {
-                                grpc_trace_layer.clone()
-                            } else {
-                                http_trace_layer.clone()
-                            };
-
-                            let mut service = tower::ServiceBuilder::new()
-                                .layer(trace_layer)
-                                .service(unified_service.clone());
-
-                            async move {
-                                tower::Service::call(&mut service, req).await
-                            }
-                        });
-
-                        let service = TowerToHyperService::new(service_fn);
-
-                        if let Err(err) = ConnectionBuilder::new(TokioExecutor::new())
-                            .serve_connection(io, service)
-                            .await
-                        {
-                            error!("Error serving connection: {:?}", err);
+                        if let Err(e) = handler.handle_tls_connection(stream, remote_addr, tls_acceptor).await {
+                            error!("Error handling TLS connection: {:?}", e);
                         }
                     });
                 }
@@ -474,56 +430,18 @@ pub async fn serve(
             tokio::select! {
                 res = tcp_listener.accept() => {
                     let (stream, remote_addr) = res?;
-                    let io = TokioIo::new(stream);
-                    let grpc_service = grpc_service.clone();
-                    let http_api = Arc::clone(&http_api);
-                    let http_trace_layer = http_trace_layer.clone();
-                    let grpc_trace_layer = grpc_trace_layer.clone();
+                    let handler = ConnectionHandler::new(
+                        Arc::clone(&http_api),
+                        grpc_service.clone(),
+                        http_trace_layer.clone(),
+                        grpc_trace_layer.clone(),
+                        without_auth,
+                        paths_without_authz,
+                    );
 
                     tokio::spawn(async move {
-                        // Create unified service
-                        let unified_service = unified_service::UnifiedService::new(
-                            http_api,
-                            grpc_service,
-                            without_auth,
-                            paths_without_authz,
-                        );
-
-                        // Create a service function that adds remote address
-                        let service_fn = tower::service_fn(move |mut req: hyper::Request<Incoming>| {
-                            req.extensions_mut().insert(Some(remote_addr));
-
-                            // Determine protocol based on request
-                            let is_grpc = req.version() == hyper::Version::HTTP_2
-                                && req
-                                    .headers()
-                                    .get(hyper::header::CONTENT_TYPE)
-                                    .and_then(|ct| ct.to_str().ok())
-                                    .map(|ct| ct.starts_with("application/grpc"))
-                                    .unwrap_or(false);
-
-                            let trace_layer = if is_grpc {
-                                grpc_trace_layer.clone()
-                            } else {
-                                http_trace_layer.clone()
-                            };
-
-                            let mut service = tower::ServiceBuilder::new()
-                                .layer(trace_layer)
-                                .service(unified_service.clone());
-
-                            async move {
-                                tower::Service::call(&mut service, req).await
-                            }
-                        });
-
-                        let service = TowerToHyperService::new(service_fn);
-
-                        if let Err(err) = ConnectionBuilder::new(TokioExecutor::new())
-                            .serve_connection(io, service)
-                            .await
-                        {
-                            error!("Error serving connection: {:?}", err);
+                        if let Err(e) = handler.handle_connection(stream, remote_addr).await {
+                            error!("Error handling connection: {:?}", e);
                         }
                     });
                 }
