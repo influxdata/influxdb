@@ -2302,7 +2302,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 					zap.Int("level5Groups", len(level5Groups)),
 				)
 			}
-			e.releaseCompactionPlans(level1Groups, level2Groups, level3Groups, level4Groups, level5Groups)
+			e.ReleaseCompactionPlans(level1Groups, level2Groups, level3Groups, level4Groups, level5Groups)
 			if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(level4Groups)+len(level5Groups) > 0 {
 				e.traceLogger.Debug("Finished releasing compaction plans",
 					zap.Int("level1Groups", len(level1Groups)),
@@ -2317,7 +2317,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 	}
 }
 
-func (e *Engine) releaseCompactionPlans(
+func (e *Engine) ReleaseCompactionPlans(
 	level1Groups []PlannedCompactionGroup,
 	level2Groups []PlannedCompactionGroup,
 	level3Groups []PlannedCompactionGroup,
@@ -2408,12 +2408,17 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 		// We don't stop if level 4 is runnable because we need to continue on and check for group 4 to group 5 promotions if
 		// group 4 is the runnable group.
 		if runnable && level <= 3 {
+			// We don't expect run any level 4 groups, but to avoid a potential race condition that could downgrade the points-per-block
+			// on a level 4 group, we don't return the level 4 groups here. If we don't return them, we must release them here so
+			// they are elligible for future compaction plannings.
+			e.traceLogger.Debug("releasing any level 4 groups due to PT_SmartOptimize and level <= 3", zap.Int("level", level), zap.Int("level4Groups", len(l4Groups)))
+			e.CompactionPlan.Release(l4Groups)
+
 			if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(l4Groups) > 0 {
 				e.traceLogger.Debug("Compaction planning is PT_SmartOptimize with level 1, 2, and 3 compactions", zap.Int("id", int(e.id)),
 					zap.Int("level1Groups", len(level1Groups)),
 					zap.Int("level2Groups", len(level2Groups)),
 					zap.Int("level3Groups", len(level3Groups)),
-					zap.Int("level4Groups", len(l4Groups)),
 				)
 			}
 			// We know that the compaction loop will pull a compaction group from levels 1-4, so no need to plan level 5.
@@ -2456,14 +2461,19 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 
 	if planType == PT_NoOptimize {
 		// For PT_NoOptimize, throw away any promoted level 5 groups and return what we have for level 1 through 4.
-		// Our behavior changes depending what the plan type is.
-		if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(l4Groups)+len(level5Groups) > 0 {
+		// Since we can't return the level 5 groups to avoid them getting scheduled, we must release all the groups
+		// in level 5 first. If we did not do this, then the groups in level5Groups would no longer be elligible for
+		// any compactions.
+		e.traceLogger.Debug("releasing any level 5 groups due to PT_NoOptimize", zap.Int("level5Groups", len(level5Groups)))
+		for _, compactGroup := range level5Groups {
+			e.CompactionPlan.Release([]CompactionGroup{compactGroup.Group})
+		}
+		if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(l4Groups) > 0 {
 			e.traceLogger.Debug("Compaction planning is PT_NoOptimize", zap.Int("id", int(e.id)),
 				zap.Int("level1Groups", len(level1Groups)),
 				zap.Int("level2Groups", len(level2Groups)),
 				zap.Int("level3Groups", len(level3Groups)),
 				zap.Int("level4Groups", len(l4Groups)),
-				zap.Int("level5Groups", len(level5Groups)),
 			)
 		}
 		return level1Groups, level2Groups, level3Groups, level4Groups, nil
