@@ -2366,8 +2366,15 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 		// We don't stop if level 4 is runnable because we need to continue on and check for group 4 to group 5 promotions if
 		// group 4 is the runnable group.
 		if runnable && level <= 3 {
+			level4Groups := make([]PlannedCompactionGroup, 0, len(l4Groups))
+			for _, group := range l4Groups {
+				level4Groups = append(level4Groups, PlannedCompactionGroup{
+					Group:          group,
+					PointsPerBlock: tsdb.DefaultMaxPointsPerBlock,
+				})
+			}
 			// We know that the compaction loop will pull a compaction group from levels 1-4, so no need to plan level 5.
-			return level1Groups, level2Groups, level3Groups, nil, nil
+			return level1Groups, level2Groups, level3Groups, level4Groups, nil
 		}
 	}
 
@@ -2407,7 +2414,7 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 	if planType == PT_NoOptimize {
 		// For PT_NoOptimize, throw away any promoted level 5 groups and return what we have for level 1 through 4.
 		// Our behavior changes depending what the plan type is.
-		return level1Groups, level2Groups, level3Groups, level4Groups, nil
+		return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
 	} else if planType == PT_SmartOptimize {
 		level, runnable := e.Scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(level4Groups), len(level5Groups)})
 		if runnable && level <= 5 {
