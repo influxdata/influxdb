@@ -1900,7 +1900,7 @@ impl Drop for ShutdownTrigger {
 pub(crate) async fn route_admin_token_recovery_request(
     recovery_api: Arc<RecoveryHttpApi>,
     req: hyper::Request<hyper::body::Incoming>,
-) -> Result<Response, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Response, Infallible> {
     let method = req.method().clone();
     let uri = req.uri().clone();
     trace!(request = ?req,"Processing request");
@@ -1908,7 +1908,16 @@ pub(crate) async fn route_admin_token_recovery_request(
 
     // Convert incoming request to iox_http_util request
     let (parts, body) = req.into_parts();
-    let collected = http_body_util::BodyExt::collect(body).await?;
+    let collected = match http_body_util::BodyExt::collect(body).await {
+        Ok(collected) => collected,
+        Err(e) => {
+            error!("Failed to collect request body: {}", e);
+            return Ok(ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body("Failed to read request body"))
+                .unwrap());
+        }
+    };
     let bytes = collected.to_bytes();
     let iox_body = iox_http_util::bytes_to_request_body(bytes);
     let req = iox_http_util::Request::from_parts(parts, iox_body);

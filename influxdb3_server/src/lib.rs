@@ -12,7 +12,6 @@ clippy::future_not_send
 )]
 
 pub mod all_paths;
-mod errors;
 mod grpc;
 pub mod http;
 pub mod query_executor;
@@ -20,7 +19,6 @@ mod query_planner;
 mod system_tables;
 mod unified_service;
 
-use crate::errors::ServiceError;
 use crate::grpc::make_flight_server;
 use crate::http::HttpApi;
 use crate::http::RecoveryHttpApi;
@@ -265,9 +263,7 @@ pub async fn serve_admin_token_recovery_endpoint(
                         let service_fn = tower::service_fn(move |req| {
                             let recovery_api = Arc::clone(&recovery_api);
                             async move {
-                                route_admin_token_recovery_request(recovery_api, req)
-                                    .await
-                                    .map_err(|e| ServiceError(e.to_string()))
+                                route_admin_token_recovery_request(recovery_api, req).await
                             }
                         });
                         let service = tower::ServiceBuilder::new()
@@ -314,9 +310,7 @@ pub async fn serve_admin_token_recovery_endpoint(
                         let service_fn = tower::service_fn(move |req| {
                             let recovery_api = Arc::clone(&recovery_api);
                             async move {
-                                route_admin_token_recovery_request(recovery_api, req)
-                                    .await
-                                    .map_err(|e| ServiceError(e.to_string()))
+                                route_admin_token_recovery_request(recovery_api, req).await
                             }
                         });
                         let service = tower::ServiceBuilder::new()

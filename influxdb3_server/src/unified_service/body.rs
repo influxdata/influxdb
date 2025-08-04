@@ -5,7 +5,7 @@ use pin_project_lite::pin_project;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use crate::errors::ServiceError;
+type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 pin_project! {
     #[project = UnifiedBodyProj]
@@ -16,23 +16,21 @@ pin_project! {
         },
         Grpc {
             #[pin]
-            body: UnsyncBoxBody<Bytes, ServiceError>
+            body: UnsyncBoxBody<Bytes, BoxError>
         },
     }
 }
 
 impl HttpBody for UnifiedBody {
     type Data = Bytes;
-    type Error = ServiceError;
+    type Error = BoxError;
 
     fn poll_frame(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match self.project() {
-            UnifiedBodyProj::Http { body } => {
-                body.poll_frame(cx).map_err(|e| ServiceError(e.to_string()))
-            }
+            UnifiedBodyProj::Http { body } => body.poll_frame(cx),
             UnifiedBodyProj::Grpc { body } => body.poll_frame(cx),
         }
     }
