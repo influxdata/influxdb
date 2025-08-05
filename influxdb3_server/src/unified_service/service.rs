@@ -3,12 +3,14 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use http::{Request, Response, Version, header};
+use http::{Request, Response};
 use http_body_util::BodyExt;
 use hyper::body::Incoming;
+use observability_deps::tracing::error;
 use tower::Service;
 
 use crate::http::{HttpApi, route_request};
+use crate::is_grpc_request;
 use crate::unified_service::body::UnifiedBody;
 
 #[derive(Clone)]
@@ -47,47 +49,32 @@ where
     type Error = std::convert::Infallible;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // We can't propagate errors with Infallible, so we always report ready
-        // The actual error handling happens in the call method
-        let _ = self.grpc_service.poll_ready(cx);
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: Request<Incoming>) -> Self::Future {
         // Check if this is a gRPC request
-        let is_grpc = req.version() == Version::HTTP_2
-            && req
-                .headers()
-                .get(header::CONTENT_TYPE)
-                .and_then(|ct| ct.to_str().ok())
-                .map(|ct| ct.starts_with("application/grpc"))
-                .unwrap_or(false);
+        let is_grpc = is_grpc_request(&req);
 
         if is_grpc {
             let mut grpc_service = self.grpc_service.clone();
             Box::pin(async move {
+                // Call the gRPC service
                 let response = match grpc_service.call(req).await {
                     Ok(response) => response,
-                    Err(e) => {
-                        // BEHAVIORAL DIFFERENCE FROM MAIN BRANCH:
-                        // Main branch propagates infrastructure errors which causes connection drops.
-                        // We convert them to proper gRPC error responses for better client experience.
-                        // This avoids connection drops and allows clients to handle errors gracefully.
-                        let error_message = format!("{}", e.into());
+                    Err(_e) => {
+                        // Log the error for observability
+                        error!("gRPC service error occurred");
 
-                        // Create an empty body with error headers
-                        let body = http_body_util::Empty::new()
-                            .map_err(|_: std::convert::Infallible| unreachable!())
-                            .boxed_unsync();
-
-                        return Ok(Response::builder()
-                            .status(http::StatusCode::OK) // gRPC uses 200 OK even for errors
-                            .header("content-type", "application/grpc")
-                            .header("grpc-status", "13") // Internal error
-                            .header("grpc-message", error_message)
-                            .body(UnifiedBody::Grpc { body })
-                            .unwrap());
+                        // Convert service errors to gRPC responses
+                        // This maintains the connection instead of dropping it
+                        use tonic::Code;
+                        let status = tonic::Status::new(Code::Internal, "Service error");
+                        let response = status.into_http();
+                        let (parts, body) = response.into_parts();
+                        let body = BodyExt::map_err(body, |e| e.into()).boxed_unsync();
+                        return Ok(Response::from_parts(parts, UnifiedBody::Grpc { body }));
                     }
                 };
 

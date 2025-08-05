@@ -12,7 +12,6 @@ clippy::future_not_send
 )]
 
 pub mod all_paths;
-mod connection_handler;
 mod grpc;
 pub mod http;
 pub mod query_executor;
@@ -20,19 +19,22 @@ mod query_planner;
 mod system_tables;
 mod unified_service;
 
-use crate::connection_handler::ConnectionHandler;
 use crate::grpc::make_flight_server;
 use crate::http::HttpApi;
 use crate::http::RecoveryHttpApi;
 use authz::Authorizer;
 use http::route_admin_token_recovery_request;
+use hyper::Request;
+use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnectionBuilder;
+use hyper_util::server::graceful::GracefulShutdown;
 use hyper_util::service::TowerToHyperService;
 use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
+use observability_deps::tracing::warn;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufReader;
@@ -43,6 +45,9 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
 use tokio_rustls::TlsAcceptor;
+use tokio_rustls::rustls;
+use tokio_rustls::rustls::pki_types::CertificateDer;
+use tokio_rustls::rustls::pki_types::PrivateKeyDer;
 use tokio_rustls::rustls::{ServerConfig, SupportedProtocolVersion};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
@@ -77,7 +82,7 @@ pub enum Error {
     TlsConfig(String),
 
     #[error("rustls error: {0}")]
-    Rustls(#[from] tokio_rustls::rustls::Error),
+    Rustls(#[from] rustls::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -224,7 +229,7 @@ pub async fn serve_admin_token_recovery_endpoint(
         let listener = server.listener;
         let tls_min = server.tls_minimum_version;
 
-        let (tcp_listener, certs, key) = setup_tls_new(listener, key_file, cert_file)?;
+        let (tcp_listener, certs, key) = setup_tls(listener, key_file, cert_file)?;
         let addr = tcp_listener.local_addr()?;
         info!(
             address = %addr,
@@ -245,6 +250,9 @@ pub async fn serve_admin_token_recovery_endpoint(
             tokio::select! {
                 res = tcp_listener.accept() => {
                     let (stream, _) = res?;
+                    if let Err(e) = stream.set_nodelay(true) {
+                        warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
+                    }
                     let tls_acceptor = tls_acceptor.clone();
                     let recovery_api = Arc::clone(&recovery_api);
                     let http_trace_layer = http_trace_layer.clone();
@@ -302,6 +310,9 @@ pub async fn serve_admin_token_recovery_endpoint(
             tokio::select! {
                 res = tcp_listener.accept() => {
                     let (stream, _) = res?;
+                    if let Err(e) = stream.set_nodelay(true) {
+                        warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
+                    }
                     let io = TokioIo::new(stream);
                     let recovery_api = Arc::clone(&recovery_api);
                     let http_trace_layer = http_trace_layer.clone();
@@ -339,6 +350,30 @@ pub async fn serve_admin_token_recovery_endpoint(
     Ok(())
 }
 
+/// Determines if an HTTP request is a gRPC request based on version and content-type
+pub(crate) fn is_grpc_request(req: &Request<Incoming>) -> bool {
+    req.version() == hyper::Version::HTTP_2
+        && req
+            .headers()
+            .get(hyper::header::CONTENT_TYPE)
+            .and_then(|ct| ct.to_str().ok())
+            .map(|ct| ct.starts_with("application/grpc"))
+            .unwrap_or(false)
+}
+
+/// Selects the appropriate trace layer based on whether the request is gRPC or HTTP
+fn select_trace_layer(
+    is_grpc: bool,
+    http_trace_layer: &TraceLayer,
+    grpc_trace_layer: &TraceLayer,
+) -> TraceLayer {
+    if is_grpc {
+        grpc_trace_layer.clone()
+    } else {
+        http_trace_layer.clone()
+    }
+}
+
 pub async fn serve(
     server: Server<'_>,
     shutdown: CancellationToken,
@@ -361,11 +396,14 @@ pub async fn serve(
     let cert_file = server.cert_file.clone();
     let http_api = Arc::clone(&server.http);
 
+    // Create graceful shutdown handler
+    let graceful = GracefulShutdown::new();
+
     if let (Some(key_file), Some(cert_file)) = (key_file.as_ref(), cert_file.as_ref()) {
         let listener = server.listener;
         let tls_min = server.tls_minimum_version;
 
-        let (tcp_listener, certs, key) = setup_tls_new(listener, key_file, cert_file)?;
+        let (tcp_listener, certs, key) = setup_tls(listener, key_file, cert_file)?;
         let addr = tcp_listener.local_addr()?;
 
         let timer_end = Instant::now();
@@ -390,21 +428,64 @@ pub async fn serve(
             tokio::select! {
                 res = tcp_listener.accept() => {
                     let (stream, remote_addr) = res?;
+                    if let Err(e) = stream.set_nodelay(true) {
+                        warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
+                    }
                     let tls_acceptor = tls_acceptor.clone();
                     let grpc_service = grpc_service.clone();
                     let http_api = Arc::clone(&http_api);
-                    let handler = ConnectionHandler::new(
-                        http_api,
-                        grpc_service,
-                        http_trace_layer.clone(),
-                        grpc_trace_layer.clone(),
-                        without_auth,
-                        paths_without_authz,
-                    );
+                    let http_trace_layer = http_trace_layer.clone();
+                    let grpc_trace_layer = grpc_trace_layer.clone();
+                    let graceful_watcher = graceful.watcher();
 
                     tokio::spawn(async move {
-                        if let Err(e) = handler.handle_tls_connection(stream, remote_addr, tls_acceptor).await {
-                            error!("Error handling TLS connection: {:?}", e);
+                        // Perform TLS handshake
+                        let tls_stream = match tls_acceptor.accept(stream).await {
+                            Ok(stream) => stream,
+                            Err(e) => {
+                                error!("TLS handshake failed: {}", e);
+                                return;
+                            }
+                        };
+
+                        let io = TokioIo::new(tls_stream);
+
+                        // Create unified service
+                        let unified_service = crate::unified_service::UnifiedService::new(
+                            http_api,
+                            grpc_service,
+                            without_auth,
+                            paths_without_authz,
+                        );
+
+                        // Create service with tracing
+                        let service_fn = tower::service_fn(move |mut req: Request<Incoming>| {
+                            req.extensions_mut().insert(Some(remote_addr));
+
+                            // Determine protocol based on request
+                            let is_grpc = is_grpc_request(&req);
+                            let trace_layer = select_trace_layer(is_grpc, &http_trace_layer, &grpc_trace_layer);
+
+                            let mut service = tower::ServiceBuilder::new()
+                                .layer(trace_layer)
+                                .service(unified_service.clone());
+
+                            async move { tower::Service::call(&mut service, req).await }
+                        });
+
+                        let service = TowerToHyperService::new(service_fn);
+
+                        // Create connection
+                        let conn = ConnectionBuilder::new(TokioExecutor::new())
+                            .serve_connection(io, service)
+                            .into_owned();
+
+                        // Watch with graceful
+                        let conn = graceful_watcher.watch(conn);
+
+                        // Handle connection
+                        if let Err(e) = conn.await {
+                            error!("Error serving TLS connection: {:?}", e);
                         }
                     });
                 }
@@ -430,23 +511,71 @@ pub async fn serve(
             tokio::select! {
                 res = tcp_listener.accept() => {
                     let (stream, remote_addr) = res?;
-                    let handler = ConnectionHandler::new(
-                        Arc::clone(&http_api),
-                        grpc_service.clone(),
-                        http_trace_layer.clone(),
-                        grpc_trace_layer.clone(),
-                        without_auth,
-                        paths_without_authz,
-                    );
+                    if let Err(e) = stream.set_nodelay(true) {
+                        warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
+                    }
+                    let grpc_service = grpc_service.clone();
+                    let http_api = Arc::clone(&http_api);
+                    let http_trace_layer = http_trace_layer.clone();
+                    let grpc_trace_layer = grpc_trace_layer.clone();
+                    let graceful_watcher = graceful.watcher();
 
                     tokio::spawn(async move {
-                        if let Err(e) = handler.handle_connection(stream, remote_addr).await {
-                            error!("Error handling connection: {:?}", e);
+                        let io = TokioIo::new(stream);
+
+                        // Create unified service
+                        let unified_service = crate::unified_service::UnifiedService::new(
+                            http_api,
+                            grpc_service,
+                            without_auth,
+                            paths_without_authz,
+                        );
+
+                        // Create service with tracing
+                        let service_fn = tower::service_fn(move |mut req: Request<Incoming>| {
+                            req.extensions_mut().insert(Some(remote_addr));
+
+                            // Determine protocol based on request
+                            let is_grpc = is_grpc_request(&req);
+                            let trace_layer = select_trace_layer(is_grpc, &http_trace_layer, &grpc_trace_layer);
+
+                            let mut service = tower::ServiceBuilder::new()
+                                .layer(trace_layer)
+                                .service(unified_service.clone());
+
+                            async move { tower::Service::call(&mut service, req).await }
+                        });
+
+                        let service = TowerToHyperService::new(service_fn);
+
+                        // Create connection
+                        let conn = ConnectionBuilder::new(TokioExecutor::new())
+                            .serve_connection(io, service)
+                            .into_owned();
+
+                        // Watch with graceful
+                        let conn = graceful_watcher.watch(conn);
+
+                        // Handle connection
+                        if let Err(e) = conn.await {
+                            error!("Error serving connection: {:?}", e);
                         }
                     });
                 }
                 _ = shutdown.cancelled() => break,
             }
+        }
+    }
+
+    // Graceful shutdown: wait for all connections to close
+    info!("Starting graceful shutdown, waiting for connections to close");
+
+    tokio::select! {
+        _ = graceful.shutdown() => {
+            info!("All connections closed gracefully");
+        }
+        _ = tokio::time::sleep(tokio::time::Duration::from_secs(30)) => {
+            info!("Graceful shutdown timed out after 30 seconds");
         }
     }
 
@@ -468,15 +597,15 @@ async fn write_address_to_file(
     Ok(())
 }
 
-fn setup_tls_new(
+fn setup_tls(
     tcp_listener: TcpListener,
     key_file: &PathBuf,
     cert_file: &PathBuf,
 ) -> Result<
     (
         TcpListener,
-        Vec<tokio_rustls::rustls::pki_types::CertificateDer<'static>>,
-        tokio_rustls::rustls::pki_types::PrivateKeyDer<'static>,
+        Vec<CertificateDer<'static>>,
+        PrivateKeyDer<'static>,
     ),
     Error,
 > {
@@ -496,9 +625,6 @@ fn setup_tls_new(
     };
     Ok((tcp_listener, certs, key))
 }
-
-// Keep the old setup_tls function for compatibility if needed elsewhere
-// This function is being phased out in favor of setup_tls_new
 
 #[cfg(test)]
 mod tests {
