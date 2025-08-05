@@ -4514,8 +4514,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// Arbitrary group length to use in Scheduler.SetDepth
 			mockGroupLen := 5
 			// Set the scheduler depth for our lower level groups.
-			// During PT_Standard this should still plan a level5 compaction group
-			// but during PT_SmartOptimize this should not.
 			e.Scheduler.SetDepth(1, mockGroupLen)
 			e.Scheduler.SetDepth(2, mockGroupLen)
 
