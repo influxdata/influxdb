@@ -2912,7 +2912,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 		// so we can simulate the passage of time in tests
 		testShardTime time.Duration
 		// Each result is for the different plantypes
-		getResultByPlanType func(planType tsm1.PlanType) testLevelResults
+		expectedResult func() testLevelResults
 	}
 
 	tests := []testEnginePlanCompactionsRunner{
@@ -2949,8 +2949,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
@@ -2958,13 +2958,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -3042,8 +3035,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1", "01-06.tsm1", "01-07.tsm1", "01-08.tsm1", "02-05.tsm1", "02-06.tsm1", "02-07.tsm1", "02-08.tsm1", "03-04.tsm1", "03-05.tsm1"},
@@ -3051,14 +3044,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -3091,8 +3076,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1",
@@ -3104,14 +3089,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -3132,8 +3109,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			}.ToExtFileStats(),
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-02.tsm1",
@@ -3144,14 +3121,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -3176,8 +3145,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			}.ToExtFileStats(),
 			defaultBlockCount: tsdb.DefaultMaxPointsPerBlock,
 			testShardTime:     -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1",
@@ -3189,14 +3158,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -3260,8 +3221,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1",
@@ -3277,14 +3238,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -3314,8 +3267,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-13.tsm1",
@@ -3326,14 +3279,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -3349,7 +3294,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			}.ToExtFileStats(),
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+			expectedResult: func() testLevelResults {
 				return testLevelResults{}
 			},
 		},
@@ -3370,7 +3315,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			}.ToExtFileStats(),
 			defaultBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 			testShardTime:     -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+			expectedResult: func() testLevelResults {
 				return testLevelResults{}
 			},
 		},
@@ -3397,7 +3342,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+			expectedResult: func() testLevelResults {
 				return testLevelResults{}
 			},
 		},
@@ -3421,7 +3366,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			}.ToExtFileStats(),
 			defaultBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 			testShardTime:     -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
+			expectedResult: func() testLevelResults {
 				return testLevelResults{}
 			},
 		},
@@ -3479,8 +3424,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			}.ToExtFileStats(),
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1",
@@ -3499,14 +3444,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -3602,8 +3539,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
@@ -3622,14 +3559,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 							}, tsdb.DefaultAggressiveMaxPointsPerBlock},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -4123,8 +4052,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 			defaultBlockCount: tsdb.DefaultMaxPointsPerBlock,
 			testShardTime:     -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				common := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
@@ -4213,14 +4142,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				switch planType {
-				case tsm1.PT_Standard, tsm1.PT_SmartOptimize:
-					return common
-				case tsm1.PT_NoOptimize:
-					return testLevelResults{}
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -4326,8 +4247,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				standard := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level1Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
@@ -4341,23 +4262,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				common := testLevelResults{
-					level1Groups: []tsm1.PlannedCompactionGroup{
-						{
-							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
-							tsdb.DefaultMaxPointsPerBlock,
-						},
-					},
-				}
-
-				switch planType {
-				case tsm1.PT_Standard:
-					return standard
-				case tsm1.PT_SmartOptimize, tsm1.PT_NoOptimize:
-					return common
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -4463,8 +4367,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				standard := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level1Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
@@ -4478,23 +4382,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				common := testLevelResults{
-					level1Groups: []tsm1.PlannedCompactionGroup{
-						{
-							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
-							tsdb.DefaultMaxPointsPerBlock,
-						},
-					},
-				}
-
-				switch planType {
-				case tsm1.PT_Standard:
-					return standard
-				case tsm1.PT_SmartOptimize, tsm1.PT_NoOptimize:
-					return common
-				}
-				return testLevelResults{}
 			},
 		},
 		{
@@ -4601,8 +4488,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			getResultByPlanType: func(planType tsm1.PlanType) testLevelResults {
-				standard := testLevelResults{
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
 					level1Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
@@ -4616,23 +4503,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 					},
 				}
-
-				common := testLevelResults{
-					level1Groups: []tsm1.PlannedCompactionGroup{
-						{
-							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
-							tsdb.DefaultMaxPointsPerBlock,
-						},
-					},
-				}
-
-				switch planType {
-				case tsm1.PT_Standard:
-					return standard
-				case tsm1.PT_SmartOptimize, tsm1.PT_NoOptimize:
-					return common
-				}
-				return testLevelResults{}
 			},
 		},
 	}
@@ -4644,49 +4514,41 @@ func TestEnginePlanCompactions(t *testing.T) {
 	e.Compactor = tsm1.NewCompactor()
 	defer e.Compactor.Close()
 
-	for i := 0; i < 3; i++ {
-		for _, test := range tests {
-			var testName string
-			switch i {
-			case 0:
-				testName = test.name + "_PT_Standard"
-			case 1:
-				testName = test.name + "_PT_SmartOptimize"
-			case 2:
-				testName = test.name + "_PT_NoOptimize"
-			}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ffs := newFakeFileStore(withExtFileStats(test.files), withDefaultBlockCount(test.defaultBlockCount))
+			cp := tsm1.NewDefaultPlanner(ffs, test.testShardTime)
 
-			t.Run(testName, func(t *testing.T) {
-				ffs := newFakeFileStore(withExtFileStats(test.files), withDefaultBlockCount(test.defaultBlockCount))
-				cp := tsm1.NewDefaultPlanner(ffs, test.testShardTime)
+			e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
+			e.CompactionPlan = cp
+			e.Compactor.FileStore = ffs
 
-				e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
-				e.CompactionPlan = cp
-				e.Compactor.FileStore = ffs
-
-				// Arbitrary group length to use in Scheduler.SetDepth
-				mockGroupLen := 5
-				// Set the scheduler depth for our lower level groups.
-				// During PT_Standard this should still plan a level5 compaction group
-				// but during PT_SmartOptimize this should not.
-				e.Scheduler.SetDepth(1, mockGroupLen)
-				e.Scheduler.SetDepth(2, mockGroupLen)
+			// Arbitrary group length to use in Scheduler.SetDepth
+			mockGroupLen := 5
+			// Set the scheduler depth for our lower level groups.
+			e.Scheduler.SetDepth(1, mockGroupLen)
+			e.Scheduler.SetDepth(2, mockGroupLen)
 
 				// Normally this is called within PlanCompactions but because we want to simulate already running
 				// some compactions we will set them manually here.
 				e.Scheduler.SetActive(1, int64(mockGroupLen))
 				e.Scheduler.SetActive(2, int64(mockGroupLen))
 
-				// Should use PlanType 0 (PT_Standard), 1(PT_SmartOptimize), 2(PT_NoOptimize)
-				planType := tsm1.PlanType(i)
-				level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions(planType)
-				compareLevelGroups(t, test.getResultByPlanType(planType).level1Groups, level1Groups, "unexpected level 1 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level2Groups, level2Groups, "unexpected level 2 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level3Groups, Level3Groups, "unexpected level 3 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level4Groups, Level4Groups, "unexpected level 4 Group")
-				compareLevelGroups(t, test.getResultByPlanType(planType).level5Groups, Level5Groups, "unexpected level 5 Group")
-			})
-		}
+			// Plan and check results.
+			level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions()
+			results := test.expectedResult()
+			compareLevelGroups(t, results.level1Groups, level1Groups, "unexpected level 1 Group")
+			compareLevelGroups(t, results.level2Groups, level2Groups, "unexpected level 2 Group")
+			compareLevelGroups(t, results.level3Groups, Level3Groups, "unexpected level 3 Group")
+			compareLevelGroups(t, results.level4Groups, Level4Groups, "unexpected level 4 Group")
+			compareLevelGroups(t, results.level5Groups, Level5Groups, "unexpected level 5 Group")
+
+			// Remove all the returned compaction levels and verify that no TSM files are marked as in-use.
+			// Calling e.PlanCompactions followed by e.ReleaseCompactionPlans replicates the code structure
+			// of the e.compact loop.
+			e.ReleaseCompactionPlans(level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups)
+			require.Zero(t, cp.InUseCount(), "some TSM files were not released properly")
+		})
 	}
 }
 
