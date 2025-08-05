@@ -299,7 +299,6 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		if e.WALEnabled {
 			e.WAL.enableTraceLogging(true)
 		}
-		e.Scheduler.WithLogger(e.logger)
 	}
 
 	return e
@@ -840,14 +839,12 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 
 	if e.traceLogging {
 		e.traceLogger = e.logger
-		e.Scheduler.WithLogger(e.logger)
 	}
 
 	if e.WALEnabled {
 		e.WAL.WithLogger(e.logger)
 	}
 	e.FileStore.WithLogger(e.logger)
-	e.CompactionPlan.WithTraceLogger(e.traceLogger.With(logger.Shard(e.id)))
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
@@ -2231,36 +2228,22 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 
 			// Find the next compaction that can run and try to kick it off
 			if level, runnable := e.Scheduler.next(); runnable {
-				if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(level4Groups)+len(level5Groups) > 0 {
-					e.traceLogger.Debug("Starting compaction", zap.Int("id", int(e.id)),
-						zap.Int("level", level),
-						zap.Int("level1Groups", len(level1Groups)),
-						zap.Int("level2Groups", len(level2Groups)),
-						zap.Int("level3Groups", len(level3Groups)),
-						zap.Int("level4Groups", len(level4Groups)),
-						zap.Int("level5Groups", len(level5Groups)),
-					)
-				}
 				switch level {
 				case 1:
 					if e.compactHiPriorityLevel(level1Groups[0].Group, 1, false, wg) {
 						level1Groups = level1Groups[1:]
-						e.traceLogger.Debug("Compacted level 1")
 					}
 				case 2:
 					if e.compactHiPriorityLevel(level2Groups[0].Group, 2, false, wg) {
 						level2Groups = level2Groups[1:]
-						e.traceLogger.Debug("Compacted level 2")
 					}
 				case 3:
 					if e.compactLoPriorityLevel(level3Groups[0].Group, 3, true, wg) {
 						level3Groups = level3Groups[1:]
-						e.traceLogger.Debug("Compacted level 3")
 					}
 				case 4:
 					if e.compactFull(level4Groups[0].Group, wg) {
 						level4Groups = level4Groups[1:]
-						e.traceLogger.Debug("Finished compactFull")
 					}
 				case 5:
 					theGroup := level5Groups[0].Group
@@ -2293,26 +2276,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			}
 
 			// Release all the plans we didn't start.
-			if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(level4Groups)+len(level5Groups) > 0 {
-				e.traceLogger.Debug("Releasing compaction plans",
-					zap.Int("level1Groups", len(level1Groups)),
-					zap.Int("level2Groups", len(level2Groups)),
-					zap.Int("level3Groups", len(level3Groups)),
-					zap.Int("level4Groups", len(level4Groups)),
-					zap.Int("level5Groups", len(level5Groups)),
-				)
-			}
 			e.releaseCompactionPlans(level1Groups, level2Groups, level3Groups, level4Groups, level5Groups)
-			if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(level4Groups)+len(level5Groups) > 0 {
-				e.traceLogger.Debug("Finished releasing compaction plans",
-					zap.Int("level1Groups", len(level1Groups)),
-					zap.Int("level2Groups", len(level2Groups)),
-					zap.Int("level3Groups", len(level3Groups)),
-					zap.Int("level4Groups", len(level4Groups)),
-					zap.Int("level5Groups", len(level5Groups)),
-				)
-			}
-
 		}
 	}
 }
@@ -2408,14 +2372,6 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 		// We don't stop if level 4 is runnable because we need to continue on and check for group 4 to group 5 promotions if
 		// group 4 is the runnable group.
 		if runnable && level <= 3 {
-			if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(l4Groups) > 0 {
-				e.traceLogger.Debug("Compaction planning is PT_SmartOptimize with level 1, 2, and 3 compactions", zap.Int("id", int(e.id)),
-					zap.Int("level1Groups", len(level1Groups)),
-					zap.Int("level2Groups", len(level2Groups)),
-					zap.Int("level3Groups", len(level3Groups)),
-					zap.Int("level4Groups", len(l4Groups)),
-				)
-			}
 			// We know that the compaction loop will pull a compaction group from levels 1-4, so no need to plan level 5.
 			return level1Groups, level2Groups, level3Groups, nil, nil
 		}
@@ -2457,29 +2413,11 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 	if planType == PT_NoOptimize {
 		// For PT_NoOptimize, throw away any promoted level 5 groups and return what we have for level 1 through 4.
 		// Our behavior changes depending what the plan type is.
-		if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(l4Groups)+len(level5Groups) > 0 {
-			e.traceLogger.Debug("Compaction planning is PT_NoOptimize", zap.Int("id", int(e.id)),
-				zap.Int("level1Groups", len(level1Groups)),
-				zap.Int("level2Groups", len(level2Groups)),
-				zap.Int("level3Groups", len(level3Groups)),
-				zap.Int("level4Groups", len(l4Groups)),
-				zap.Int("level5Groups", len(level5Groups)),
-			)
-		}
 		return level1Groups, level2Groups, level3Groups, level4Groups, nil
 	} else if planType == PT_SmartOptimize {
 		level, runnable := e.Scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(level4Groups), len(level5Groups)})
 		if runnable && level <= 5 {
 			// We know that the compaction loop will pull from something already planned, no need to go any further for smart optimize.
-			if len(level1Groups)+len(level2Groups)+len(level3Groups)+len(l4Groups)+len(level5Groups) > 0 {
-				e.traceLogger.Debug("Compaction planning is PT_SmartOptimize", zap.Int("id", int(e.id)),
-					zap.Int("level1Groups", len(level1Groups)),
-					zap.Int("level2Groups", len(level2Groups)),
-					zap.Int("level3Groups", len(level3Groups)),
-					zap.Int("level4Groups", len(l4Groups)),
-					zap.Int("level5Groups", len(level5Groups)),
-				)
-			}
 			return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
 		}
 	}
@@ -2540,16 +2478,6 @@ func (e *Engine) PlanCompactions(planType PlanType) ([]PlannedCompactionGroup, [
 	atomic.StoreInt64(&e.Stats.TSMCompactionsQueue[2], int64(len(l3)))
 	atomic.StoreInt64(&e.Stats.TSMFullCompactionsQueue, int64(len(l4)))
 	atomic.StoreInt64(&e.Stats.TSMOptimizeCompactionsQueue, int64(len(l5)))
-	if e.Stats.TSMCompactionsQueue[0]+e.Stats.TSMCompactionsQueue[1]+e.Stats.TSMCompactionsQueue[2]+e.Stats.TSMFullCompactionsQueue+e.Stats.TSMOptimizeCompactionsQueue > 0 {
-		e.traceLogger.Debug("Compactions currently planned",
-			zap.Int("id", int(e.id)),
-			zap.Int64("l1", e.Stats.TSMCompactionsQueue[0]),
-			zap.Int64("l2", e.Stats.TSMCompactionsQueue[1]),
-			zap.Int64("l3", e.Stats.TSMCompactionsQueue[2]),
-			zap.Int64("l4", e.Stats.TSMFullCompactionsQueue),
-			zap.Int64("l5", e.Stats.TSMOptimizeCompactionsQueue),
-		)
-	}
 	return l1, l2, l3, l4, l5
 }
 
@@ -2621,10 +2549,8 @@ func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer e.traceLogger.Debug("Compaction limiter released for compactFull")
 			defer atomic.AddInt64(&e.Stats.TSMFullCompactionsActive, -1)
 			defer e.compactionLimiter.Release()
-			e.traceLogger.Debug("Compaction limiter applying compactFull")
 			s.Apply()
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
@@ -2658,11 +2584,9 @@ func (e *Engine) compactOptimize(grp CompactionGroup, pointsPerBlock int, wg *sy
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer e.traceLogger.Debug("Compaction limiter released for compactOptimize")
 			defer atomic.AddInt64(&e.Stats.TSMOptimizeCompactionsActive, -1)
 			defer e.compactionLimiter.Release()          // Happens second
 			defer e.optimizedCompactionLimiter.Release() // Happens first
-			e.traceLogger.Debug("Compaction limiter applying compactOptimize")
 			s.Apply()
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
