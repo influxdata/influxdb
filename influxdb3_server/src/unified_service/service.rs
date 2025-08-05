@@ -6,7 +6,9 @@ use std::task::{Context, Poll};
 use http::{Request, Response};
 use http_body_util::BodyExt;
 use hyper::body::Incoming;
+use iox_http_util::BoxError;
 use observability_deps::tracing::error;
+use tonic::{Code, Status};
 use tower::Service;
 
 use crate::http::{HttpApi, route_request};
@@ -46,7 +48,7 @@ where
     S::Future: Send,
 {
     type Response = Response<UnifiedBody>;
-    type Error = std::convert::Infallible;
+    type Error = BoxError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -63,17 +65,16 @@ where
                 // Call the gRPC service
                 let response = match grpc_service.call(req).await {
                     Ok(response) => response,
-                    Err(_e) => {
+                    Err(_) => {
                         // Log the error for observability
                         error!("gRPC service error occurred");
 
-                        // Convert service errors to gRPC responses
-                        // This maintains the connection instead of dropping it
-                        use tonic::Code;
-                        let status = tonic::Status::new(Code::Internal, "Service error");
+                        // Convert service errors to gRPC responses, this maintains
+                        // the connection instead of dropping it
+                        let status = Status::new(Code::Internal, "Service error");
                         let response = status.into_http();
                         let (parts, body) = response.into_parts();
-                        let body = BodyExt::map_err(body, |e| e.into()).boxed_unsync();
+                        let body = BodyExt::map_err(body, |err| err.into()).boxed_unsync();
                         return Ok(Response::from_parts(parts, UnifiedBody::Grpc { body }));
                     }
                 };
@@ -83,7 +84,6 @@ where
 
                 // Convert BoxBody to UnsyncBoxBody, need to use http_body_util to convert
                 // the tonic BoxBody to our UnsyncBoxBody
-                // Pass through the grpc body errors directly
                 let body = BodyExt::map_err(grpc_body, |e| e.into()).boxed_unsync();
                 let unified_body = UnifiedBody::Grpc { body };
 
@@ -120,7 +120,12 @@ where
                 let iox_body = iox_http_util::bytes_to_request_body(bytes);
                 let iox_request = iox_http_util::Request::from_parts(parts, iox_body);
 
-                // Route the request - route_request returns Result<_, Infallible> so unwrap is safe
+                // NB: We haven't created another tower service to wrap the HTTP 1 handler function
+                //     and then tried to multiplex with GRPC (HTTP 2). Instead the routing happens
+                //     directly here
+                //
+                //     Route the request - route_request returns Result<_, Infallible> so unwrap is
+                //     safe
                 let response =
                     route_request(http_api, iox_request, without_auth, paths_without_authz)
                         .await

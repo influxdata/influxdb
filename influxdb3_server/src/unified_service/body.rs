@@ -1,11 +1,9 @@
 use bytes::Bytes;
 use http_body::{Body as HttpBody, Frame, SizeHint};
-use http_body_util::combinators::UnsyncBoxBody;
+use iox_http_util::BoxError;
 use pin_project_lite::pin_project;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-
-type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 pin_project! {
     #[project = UnifiedBodyProj]
@@ -16,7 +14,7 @@ pin_project! {
         },
         Grpc {
             #[pin]
-            body: UnsyncBoxBody<Bytes, BoxError>
+            body: iox_http_util::ResponseBody
         },
     }
 }

@@ -54,6 +54,7 @@ use trace::TraceCollector;
 use trace_http::ctx::TraceHeaderParser;
 use trace_http::metrics::{MetricFamily, RequestMetrics};
 use trace_http::tower::{ServiceProtocol, TraceLayer};
+use unified_service::{RemoteAddrLayer, UnifiedService};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -361,19 +362,6 @@ pub(crate) fn is_grpc_request(req: &Request<Incoming>) -> bool {
             .unwrap_or(false)
 }
 
-/// Selects the appropriate trace layer based on whether the request is gRPC or HTTP
-fn select_trace_layer(
-    is_grpc: bool,
-    http_trace_layer: &TraceLayer,
-    grpc_trace_layer: &TraceLayer,
-) -> TraceLayer {
-    if is_grpc {
-        grpc_trace_layer.clone()
-    } else {
-        http_trace_layer.clone()
-    }
-}
-
 pub async fn serve(
     server: Server<'_>,
     shutdown: CancellationToken,
@@ -398,6 +386,14 @@ pub async fn serve(
 
     // Create graceful shutdown handler
     let graceful = GracefulShutdown::new();
+
+    // Create unified service once and wrap in Arc for sharing across connections
+    let unified_service = Arc::new(UnifiedService::new(
+        Arc::clone(&http_api),
+        grpc_service,
+        without_auth,
+        paths_without_authz,
+    ));
 
     if let (Some(key_file), Some(cert_file)) = (key_file.as_ref(), cert_file.as_ref()) {
         let listener = server.listener;
@@ -432,8 +428,7 @@ pub async fn serve(
                         warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
                     }
                     let tls_acceptor = tls_acceptor.clone();
-                    let grpc_service = grpc_service.clone();
-                    let http_api = Arc::clone(&http_api);
+                    let unified_service = Arc::clone(&unified_service);
                     let http_trace_layer = http_trace_layer.clone();
                     let grpc_trace_layer = grpc_trace_layer.clone();
                     let graceful_watcher = graceful.watcher();
@@ -450,30 +445,14 @@ pub async fn serve(
 
                         let io = TokioIo::new(tls_stream);
 
-                        // Create unified service
-                        let unified_service = crate::unified_service::UnifiedService::new(
-                            http_api,
-                            grpc_service,
-                            without_auth,
-                            paths_without_authz,
-                        );
+                        // Build the service stack with both trace layers
+                        let service = tower::ServiceBuilder::new()
+                            .layer(RemoteAddrLayer::new(remote_addr))
+                            .layer(http_trace_layer)
+                            .layer(grpc_trace_layer)
+                            .service(unified_service.as_ref().clone());
 
-                        // Create service with tracing
-                        let service_fn = tower::service_fn(move |mut req: Request<Incoming>| {
-                            req.extensions_mut().insert(Some(remote_addr));
-
-                            // Determine protocol based on request
-                            let is_grpc = is_grpc_request(&req);
-                            let trace_layer = select_trace_layer(is_grpc, &http_trace_layer, &grpc_trace_layer);
-
-                            let mut service = tower::ServiceBuilder::new()
-                                .layer(trace_layer)
-                                .service(unified_service.clone());
-
-                            async move { tower::Service::call(&mut service, req).await }
-                        });
-
-                        let service = TowerToHyperService::new(service_fn);
+                        let service = TowerToHyperService::new(service);
 
                         // Create connection
                         let conn = ConnectionBuilder::new(TokioExecutor::new())
@@ -514,8 +493,7 @@ pub async fn serve(
                     if let Err(e) = stream.set_nodelay(true) {
                         warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
                     }
-                    let grpc_service = grpc_service.clone();
-                    let http_api = Arc::clone(&http_api);
+                    let unified_service = Arc::clone(&unified_service);
                     let http_trace_layer = http_trace_layer.clone();
                     let grpc_trace_layer = grpc_trace_layer.clone();
                     let graceful_watcher = graceful.watcher();
@@ -523,30 +501,14 @@ pub async fn serve(
                     tokio::spawn(async move {
                         let io = TokioIo::new(stream);
 
-                        // Create unified service
-                        let unified_service = crate::unified_service::UnifiedService::new(
-                            http_api,
-                            grpc_service,
-                            without_auth,
-                            paths_without_authz,
-                        );
+                        // Build the service stack with both trace layers
+                        let service = tower::ServiceBuilder::new()
+                            .layer(RemoteAddrLayer::new(remote_addr))
+                            .layer(http_trace_layer)
+                            .layer(grpc_trace_layer)
+                            .service(unified_service.as_ref().clone());
 
-                        // Create service with tracing
-                        let service_fn = tower::service_fn(move |mut req: Request<Incoming>| {
-                            req.extensions_mut().insert(Some(remote_addr));
-
-                            // Determine protocol based on request
-                            let is_grpc = is_grpc_request(&req);
-                            let trace_layer = select_trace_layer(is_grpc, &http_trace_layer, &grpc_trace_layer);
-
-                            let mut service = tower::ServiceBuilder::new()
-                                .layer(trace_layer)
-                                .service(unified_service.clone());
-
-                            async move { tower::Service::call(&mut service, req).await }
-                        });
-
-                        let service = TowerToHyperService::new(service_fn);
+                        let service = TowerToHyperService::new(service);
 
                         // Create connection
                         let conn = ConnectionBuilder::new(TokioExecutor::new())
