@@ -781,6 +781,14 @@ func (c *DefaultPlanner) Release(groups []CompactionGroup) {
 	}
 }
 
+// InUseCount returns the number of files currently locked as in-use.
+// This method is primarily useful for test validation.
+func (c *DefaultPlanner) InUseCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.filesInUse)
+}
+
 // Compactor merges multiple TSM files into new files or
 // writes a Cache into 1 or more TSM files.
 type Compactor struct {
