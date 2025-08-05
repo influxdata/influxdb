@@ -2169,14 +2169,6 @@ const optimizationHoldoff = 5 * time.Minute
 // tickPeriod is the interval between successive compaction loops.
 const tickPeriod = time.Second
 
-func (e *Engine) GetPlanTypeBasedOnHoldOff(start time.Time, dur time.Duration) PlanType {
-	planType := PT_SmartOptimize
-	if time.Since(start) < dur {
-		planType = PT_NoOptimize
-	}
-	return planType
-}
-
 func (e *Engine) compact(wg *sync.WaitGroup) {
 	t := time.NewTicker(tickPeriod)
 	defer t.Stop()
@@ -2213,18 +2205,26 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 				continue
 			}
 
-			// Determine if we should do a smart optimized plan or skip optimizations in the plan.
-			planType := e.GetPlanTypeBasedOnHoldOff(optHoldoffStart, optHoldoffDuration)
+			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions()
 
-			level1Groups, level2Groups, level3Groups, level4Groups, level5Groups := e.PlanCompactions(planType)
 			// Set the queue depths on the scheduler
 			// Use the real queue depth, dependent on acquiring
 			// the file locks.
+
+			// If we are in the optimize holdoff period, do not look at anything in level 5.
+			// Using 0 for the level 5 depth will make Scheduler.next() not pick level 5.
+			// level5Groups will still be available for cleanup later to avoid blocking TSM
+			// files from compaction.
+			var l5GroupCount int
+			if time.Since(optHoldoffStart) >= optHoldoffDuration {
+				l5GroupCount = len(level5Groups)
+			}
+
 			e.Scheduler.SetDepth(1, len(level1Groups))
 			e.Scheduler.SetDepth(2, len(level2Groups))
 			e.Scheduler.SetDepth(3, len(level3Groups))
 			e.Scheduler.SetDepth(4, len(level4Groups))
-			e.Scheduler.SetDepth(5, len(level5Groups))
+			e.Scheduler.SetDepth(5, l5GroupCount)
 
 			// Find the next compaction that can run and try to kick it off
 			if level, runnable := e.Scheduler.next(); runnable {
@@ -2276,12 +2276,12 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			}
 
 			// Release all the plans we didn't start.
-			e.releaseCompactionPlans(level1Groups, level2Groups, level3Groups, level4Groups, level5Groups)
+			e.ReleaseCompactionPlans(level1Groups, level2Groups, level3Groups, level4Groups, level5Groups)
 		}
 	}
 }
 
-func (e *Engine) releaseCompactionPlans(
+func (e *Engine) ReleaseCompactionPlans(
 	level1Groups []PlannedCompactionGroup,
 	level2Groups []PlannedCompactionGroup,
 	level3Groups []PlannedCompactionGroup,
@@ -2332,18 +2332,6 @@ type PlannedCompactionGroup struct {
 // PlanType modifies how PlanCompactions operates.
 type PlanType int
 
-const (
-	// PT_Standard indicates the classic planner that plans all levels all the the time.
-	PT_Standard PlanType = iota
-
-	// PT_SmartOptimize follows a few basic rules to avoid planning optimized compactions unless
-	// they will be used.
-	PT_SmartOptimize
-
-	// PT_NotOptimized indicates that optimized compactions should not planned.
-	PT_NoOptimize
-)
-
 func makePlannedCompactionGroup(groups []CompactionGroup, pointsPerBlock int) []PlannedCompactionGroup {
 	planned := make([]PlannedCompactionGroup, 0, len(groups))
 	for _, g := range groups {
@@ -2360,34 +2348,22 @@ func (e *Engine) planCompactionsLevel(level int) []PlannedCompactionGroup {
 	return makePlannedCompactionGroup(groups, tsdb.DefaultMaxPointsPerBlock)
 }
 
-func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
+func (e *Engine) planCompactionsInner() ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
 	// Find our compaction plans
 	level1Groups := e.planCompactionsLevel(1)
 	level2Groups := e.planCompactionsLevel(2)
 	level3Groups := e.planCompactionsLevel(3)
 	l4Groups, _ := e.CompactionPlan.Plan(e.LastModified())
-
-	if planType == PT_SmartOptimize {
-		level, runnable := e.Scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(l4Groups), 0})
-		// We don't stop if level 4 is runnable because we need to continue on and check for group 4 to group 5 promotions if
-		// group 4 is the runnable group.
-		if runnable && level <= 3 {
-			// We know that the compaction loop will pull a compaction group from levels 1-4, so no need to plan level 5.
-			return level1Groups, level2Groups, level3Groups, nil, nil
-		}
-	}
+	l5Groups, _, l5GenCount := e.CompactionPlan.PlanOptimize(e.LastModified())
 
 	// Some groups in level 4 may contain already optimized files. In these cases, it is
 	// desireable to maintain optimization for the entire group to avoid "going backwards" on the
 	// optimization level. For instance, if an optimized cold shard had back-fill data
 	// added to it, we should maintain the optimization to avoid unoptimizing the bulk of
 	// the shards only to need to reoptimize them later.
-	// However, the work to promote level4's to level 5's created issues in 1.12.1rc0, so the promotion logic
-	// has been removed. Re-enabling the promotion logic efficiently probably requires some caching of whether a
-	// compaction group is already optimized so we don't have to determine that every time through the compaction loop.
 	// In an ideal world, CompactionPlan.Plan and CompactionPlan.PlanOptimize might handle this.
 	level4Groups := make([]PlannedCompactionGroup, 0, len(l4Groups))
-	level5Groups := make([]PlannedCompactionGroup, 0, len(l4Groups)) // All level 4 groups could be promoted to level 5.
+	level5Groups := make([]PlannedCompactionGroup, 0, len(l4Groups)+len(l5Groups)) // All level 4 groups could be promoted to level 5.
 	for _, group := range l4Groups {
 		if isOpt, filename, heur := e.IsGroupOptimized(group); isOpt {
 			// Info level logging would be too noisy.
@@ -2410,28 +2386,11 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 		}
 	}
 
-	if planType == PT_NoOptimize {
-		// For PT_NoOptimize, throw away any promoted level 5 groups and return what we have for level 1 through 4.
-		// Our behavior changes depending what the plan type is.
-		return level1Groups, level2Groups, level3Groups, level4Groups, nil
-	} else if planType == PT_SmartOptimize {
-		level, runnable := e.Scheduler.nextByQueueDepths([TotalCompactionLevels]int{len(level1Groups), len(level2Groups), len(level3Groups), len(level4Groups), len(level5Groups)})
-		if runnable && level <= 5 {
-			// We know that the compaction loop will pull from something already planned, no need to go any further for smart optimize.
-			return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
-		}
-	}
-
-	// At this point, we are either planning PT_Standard or we are planning PT_SmartOptimize and haven't found anything to run yet. Look
-	// for level 5s using PlanOptimize.
-	// There is potential to limit the number of compaction groups returned by PlanOptimize when planType == PT_SmartOptimized, but
-	// the win is probably small compared to other optimizations that have already been added for PT_SmartOptimize.
-	plannedLevel5Groups, _, genCount := e.CompactionPlan.PlanOptimize(e.LastModified())
-
-	for _, group := range plannedLevel5Groups {
+	// Now append all the groups that started as level 5 so they will get picked after promoted level 4 groups. Also determine they're points-per-block.
+	for _, group := range l5Groups {
 		// If a level5 optimized compaction group is a single generation. We will need to rewrite
 		// the files at a higher points per block count in order to fully compact them in to a single TSM file.
-		if genCount == 1 {
+		if l5GenCount == 1 {
 			e.logger.Debug("Planned optimized level 5 compactions belong to single generation. All groups will use aggressive points per block.")
 			level5Groups = append(level5Groups, PlannedCompactionGroup{
 				Group:          group,
@@ -2456,19 +2415,14 @@ func (e *Engine) planCompactionsInner(planType PlanType) ([]PlannedCompactionGro
 				})
 
 			}
-
-			if planType == PT_SmartOptimize && len(level5Groups) >= 1 {
-				// We know the optimization loop will only look at 1 compaction group in level 5.
-				break
-			}
 		}
 	}
 
 	return level1Groups, level2Groups, level3Groups, level4Groups, level5Groups
 }
 
-func (e *Engine) PlanCompactions(planType PlanType) ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
-	l1, l2, l3, l4, l5 := e.planCompactionsInner(planType)
+func (e *Engine) PlanCompactions() ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
+	l1, l2, l3, l4, l5 := e.planCompactionsInner()
 
 	// Update the level plan queue stats
 	// For stats, use the length needed, even if the lock was
