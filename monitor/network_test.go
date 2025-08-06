@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestDiagnostics_Network(t *testing.T) {
@@ -14,7 +15,7 @@ func TestDiagnostics_Network(t *testing.T) {
 		t.Fatalf("unexpected error retrieving hostname: %s", err)
 	}
 
-	s := monitor.New(nil, monitor.Config{})
+	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

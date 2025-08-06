@@ -199,7 +199,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		config: c,
 	}
-	s.Monitor = monitor.New(s, c.Monitor)
+	s.Monitor = monitor.New(s, c.Monitor, &c.Data)
 	s.config.registerDiagnostics(s.Monitor)
 
 	if err := s.MetaClient.Open(); err != nil {

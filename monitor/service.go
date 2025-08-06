@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -96,6 +97,9 @@ type Monitor struct {
 	// Writer for pushing stats back into the database.
 	PointsWriter PointsWriter
 
+	// TSDB configuration for diagnostics
+	TSDBConfig *tsdb.Config
+
 	Logger *zap.Logger
 }
 
@@ -105,7 +109,7 @@ type PointsWriter interface {
 }
 
 // New returns a new instance of the monitor system.
-func New(r Reporter, c Config) *Monitor {
+func New(r Reporter, c Config, tsdbConfig *tsdb.Config) *Monitor {
 	return &Monitor{
 		globalTags:           newTags(),
 		diagRegistrations:    make(map[string]diagnostics.Client),
@@ -114,6 +118,7 @@ func New(r Reporter, c Config) *Monitor {
 		storeDatabase:        c.StoreDatabase,
 		storeInterval:        time.Duration(c.StoreInterval),
 		storeRetentionPolicy: MonitorRetentionPolicy,
+		TSDBConfig:           tsdbConfig,
 		Logger:               zap.NewNop(),
 	}
 }
@@ -145,6 +150,9 @@ func (m *Monitor) Open() error {
 	m.RegisterDiagnosticsClient("runtime", &goRuntime{})
 	m.RegisterDiagnosticsClient("network", &network{})
 	m.RegisterDiagnosticsClient("system", &system{})
+	if m.TSDBConfig != nil {
+		m.RegisterDiagnosticsClient("config", m.TSDBConfig)
+	}
 
 	m.mu.Lock()
 	m.done = make(chan struct{})

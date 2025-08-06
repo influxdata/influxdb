@@ -15,12 +15,13 @@ import (
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestMonitor_Open(t *testing.T) {
-	s := monitor.New(nil, monitor.Config{})
+	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
@@ -48,7 +49,7 @@ func TestMonitor_SetPointsWriter_StoreEnabled(t *testing.T) {
 	}
 
 	config := monitor.NewConfig()
-	s := monitor.New(nil, config)
+	s := monitor.New(nil, config, &tsdb.Config{})
 	s.MetaClient = &mc
 	core, logs := observer.New(zap.DebugLevel)
 	s.WithLogger(zap.New(core))
@@ -67,7 +68,7 @@ func TestMonitor_SetPointsWriter_StoreEnabled(t *testing.T) {
 }
 
 func TestMonitor_SetPointsWriter_StoreDisabled(t *testing.T) {
-	s := monitor.New(nil, monitor.Config{})
+	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
 	core, logs := observer.New(zap.DebugLevel)
 	s.WithLogger(zap.New(core))
 
@@ -134,7 +135,7 @@ func TestMonitor_StoreStatistics(t *testing.T) {
 
 	config := monitor.NewConfig()
 	config.StoreInterval = toml.Duration(10 * time.Millisecond)
-	s := monitor.New(nil, config)
+	s := monitor.New(nil, config, &tsdb.Config{})
 	s.MetaClient = &mc
 	s.PointsWriter = &pw
 
@@ -210,7 +211,7 @@ func TestMonitor_Reporter(t *testing.T) {
 
 	config := monitor.NewConfig()
 	config.StoreInterval = toml.Duration(10 * time.Millisecond)
-	s := monitor.New(reporter, config)
+	s := monitor.New(reporter, config, &tsdb.Config{})
 	s.MetaClient = &mc
 	s.PointsWriter = &pw
 
@@ -306,7 +307,7 @@ func TestMonitor_Expvar(t *testing.T) {
 
 	config := monitor.NewConfig()
 	config.StoreInterval = toml.Duration(10 * time.Millisecond)
-	s := monitor.New(nil, config)
+	s := monitor.New(nil, config, &tsdb.Config{})
 	s.MetaClient = &mc
 	s.PointsWriter = &pw
 
@@ -400,7 +401,7 @@ func TestMonitor_QuickClose(t *testing.T) {
 	var pw PointsWriter
 	config := monitor.NewConfig()
 	config.StoreInterval = toml.Duration(24 * time.Hour)
-	s := monitor.New(nil, config)
+	s := monitor.New(nil, config, &tsdb.Config{})
 	s.MetaClient = &mc
 	s.PointsWriter = &pw
 
