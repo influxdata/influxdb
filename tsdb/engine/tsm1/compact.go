@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -128,6 +129,9 @@ type CompactionPlanner interface {
 	SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int)
 
 	GetAggressiveCompactionPointsPerBlock() int
+
+	// WithTraceLogger sets a trace logger for the planner.
+	WithTraceLogger(logger *zap.Logger)
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -145,6 +149,9 @@ type DefaultPlanner struct {
 
 	// lastPlanCheck is the last time Plan was called
 	lastPlanCheck time.Time
+
+	// traceLogger logs detailed debug information when [data] trace-logging-enabled = true.
+	traceLogger *zap.Logger
 
 	mu sync.RWMutex
 	// lastFindGenerations is the last time findGenerations was run
@@ -179,9 +186,14 @@ func NewDefaultPlanner(fs fileStore, writeColdDuration time.Duration) *DefaultPl
 	return &DefaultPlanner{
 		FileStore:                          fs,
 		compactFullWriteColdDuration:       writeColdDuration,
+		traceLogger:                        zap.NewNop(),
 		filesInUse:                         make(map[string]struct{}),
 		aggressiveCompactionPointsPerBlock: tsdb.DefaultAggressiveMaxPointsPerBlock,
 	}
+}
+
+func (p *DefaultPlanner) WithTraceLogger(logger *zap.Logger) {
+	p.traceLogger = logger.With(zap.String("service", "compaction_planner"))
 }
 
 // tsmGeneration represents the TSM files within a generation.
@@ -309,10 +321,14 @@ func (c *DefaultPlanner) ForceFull() {
 
 // PlanLevel returns a set of TSM files to rewrite for a specific level.
 func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
+	traceLogger, logEnd := logger.NewOperation(c.traceLogger, "Starting PlanLevel", "PlanLevel", zap.Int("level", level))
+	defer logEnd()
+
 	// If a full plan has been requested, don't plan any levels which will prevent
 	// the full plan from acquiring them.
 	c.mu.RLock()
 	if c.forceFull {
+		traceLogger.Debug("skipping level plan because full plan requested")
 		c.mu.RUnlock()
 		return nil, 0
 	}
@@ -322,10 +338,12 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
 	generations := c.findGenerations(true)
+	traceLogger.Debug("found generations", zap.Int("count", len(generations)))
 
 	// If there is only one generation and no tombstones, then there's nothing to
 	// do.
 	if len(generations) <= 1 && !generations.hasTombstones() {
+		traceLogger.Debug("skipping level plan")
 		return nil, 0
 	}
 
@@ -394,7 +412,12 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 		}
 	}
 
+	for groupIdx, groupFiles := range cGroups {
+		traceLogger.Debug("group files", zap.Int("group_idx", groupIdx), zap.Strings("group_files", groupFiles))
+	}
+
 	if !c.acquire(cGroups) {
+		traceLogger.Debug("acquire failed for groups")
 		return nil, int64(len(cGroups))
 	}
 
@@ -405,10 +428,14 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 // to optimize the index across TSM files.  Each returned compaction group can be
 // compacted concurrently.
 func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
+	traceLogger, logEnd := logger.NewOperation(c.traceLogger, "Starting PlanOptimize", "PlanOptimize")
+	defer logEnd()
+
 	// If a full plan has been requested, don't plan any levels which will prevent
 	// the full plan from acquiring them.
 	c.mu.RLock()
 	if c.forceFull {
+		traceLogger.Debug("skipping optimize plan because full plan requested")
 		c.mu.RUnlock()
 		return nil, 0, 0
 	}
@@ -419,8 +446,10 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 	// split across several files in sequence.
 	generations := c.findGenerations(true)
 	fullyCompacted, _ := c.generationsFullyCompacted(generations)
+	traceLogger.Debug("found generations", zap.Int("count", len(generations)), zap.Bool("fullyCompacted", fullyCompacted))
 
 	if fullyCompacted || time.Since(lastWrite) < c.compactFullWriteColdDuration {
+		traceLogger.Debug("skipping optimize plan", zap.Bool("fullyCompacted", fullyCompacted), zap.Time("now", time.Now()), zap.Time("lastWrite", lastWrite))
 		return nil, 0, 0
 	}
 
@@ -480,7 +509,12 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 		cGroups = append(cGroups, cGroup)
 	}
 
+	for groupIdx, groupFiles := range cGroups {
+		traceLogger.Debug("group files", zap.Int("group_idx", groupIdx), zap.Strings("group_files", groupFiles))
+	}
+
 	if !c.acquire(cGroups) {
+		traceLogger.Debug("acquire failed for groups")
 		return nil, int64(len(cGroups)), int64(len(generations))
 	}
 
@@ -490,14 +524,21 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 // Plan returns a set of TSM files to rewrite for level 4 or higher.  The planning returns
 // multiple groups if possible to allow compactions to run concurrently.
 func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
+	traceLogger, opEnd := logger.NewOperation(c.traceLogger, "Starting Plan", "PlanFull")
+	defer opEnd()
+
 	generations := c.findGenerations(true)
 
 	c.mu.RLock()
 	forceFull := c.forceFull
 	c.mu.RUnlock()
 
+	traceLogger.Debug("checking if full compaction is needed", zap.Bool("forceFull", forceFull), zap.Int("generations", len(generations)),
+		zap.Time("lastWrite", lastWrite), zap.Duration("compactFullWriteColdDuration", c.compactFullWriteColdDuration))
+
 	// first check if we should be doing a full compaction because nothing has been written in a long time
 	if forceFull || c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
+		traceLogger.Debug("planning full compaction")
 
 		// Reset the full schedule if we planned because of it.
 		if forceFull {
@@ -513,6 +554,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
 			if len(generations) > 2 && group.size() > uint64(tsdb.MaxTSMFileSize) && group.files[0].FirstBlockCount >= tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+				traceLogger.Debug("skipping group", zap.Int("index", i), zap.Int("generations", len(generations)), zap.Uint64("size", group.size()), zap.Int("firstBlockCount", group.files[0].FirstBlockCount), zap.Bool("tombstones", group.hasTombstones()))
 				skip = true
 			}
 
@@ -522,6 +564,9 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			// compressed files.
 			if i < len(generations)-1 {
 				if generations[i+1].level() <= 3 {
+					if skip {
+						traceLogger.Debug("unskipping group", zap.Int("index", i), zap.Int("nextGroupLevel", generations[i+1].level()))
+					}
 					skip = false
 				}
 			}
@@ -530,20 +575,24 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 				continue
 			}
 
+			startTsmFile := len(tsmFiles)
 			for _, f := range group.files {
 				tsmFiles = append(tsmFiles, f.Path)
 			}
 			genCount += 1
+			traceLogger.Debug("added group files", zap.Int("index", i), zap.Int("genCount", genCount), zap.Int("totalFiles", len(tsmFiles)), zap.Strings("tsmFiles", tsmFiles[startTsmFile:]))
 		}
 		sort.Strings(tsmFiles)
 
 		// Make sure we have more than 1 file and more than 1 generation
 		if len(tsmFiles) <= 1 || genCount <= 1 {
+			traceLogger.Debug("skipping due to small file or generation count")
 			return nil, 0
 		}
 
 		group := []CompactionGroup{tsmFiles}
 		if !c.acquire(group) {
+			traceLogger.Debug("failed to acquire group")
 			return nil, int64(len(group))
 		}
 		return group, int64(len(group))
@@ -551,6 +600,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 	// don't plan if nothing has changed in the filestore
 	if c.lastPlanCheck.After(c.FileStore.LastModified()) && !generations.hasTombstones() {
+		traceLogger.Debug("skipping plan, nothing change", zap.Time("lastPlanCheck", c.lastPlanCheck), zap.Time("LastModified", c.FileStore.LastModified()),
+			zap.Bool("tombstones", generations.hasTombstones()))
 		return nil, 0
 	}
 
@@ -559,6 +610,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	// If there is only one generation, return early to avoid re-compacting the same file
 	// over and over again.
 	if len(generations) <= 1 && !generations.hasTombstones() {
+		traceLogger.Debug("skipping plan, only one generation and no tombstones")
 		return nil, 0
 	}
 
@@ -572,6 +624,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		}
 		end = i + 1
 	}
+	traceLogger.Debug("found level 4 end", zap.Int("end", end), zap.Int("generations", len(generations)))
 
 	// As compactions run, the oldest files get bigger.  We don't want to re-compact them during
 	// this planning if they are maxed out so skip over any we see.
@@ -590,6 +643,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		// the 2GB limit.
 		if g.size() > uint64(tsdb.MaxTSMFileSize) && g.files[0].FirstBlockCount >= tsdb.DefaultMaxPointsPerBlock {
 			start = i + 1
+			traceLogger.Debug("updating level 4 start", zap.Int("index", i), zap.Int("start", start), zap.Uint64("size", g.size()), zap.Int("firstBlockCount", g.files[0].FirstBlockCount))
+
 		}
 
 		// This is an edge case that can happen after multiple compactions run.  The files at the beginning
@@ -598,6 +653,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		if i > 0 {
 			if g.size()*2 < generations[i-1].size() {
 				start = i
+				traceLogger.Debug("forcing level 4 start based on edge case", zap.Int("index", i), zap.Int("start", start), zap.Uint64("size", g.size()), zap.Uint64("lastGenSize", generations[i-1].size()))
 				break
 			}
 		}
@@ -609,6 +665,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	if step > end {
 		step = end
 	}
+
+	traceLogger.Debug("found index parameters", zap.Int("start", start), zap.Int("end", end), zap.Int("step", step))
 
 	// slice off the generations that we'll examine
 	generations = generations[start:end]
@@ -627,12 +685,14 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			// Skip compacting this group if there happens to be any lower level files in the
 			// middle.  These will get picked up by the level compactors.
 			if lvl <= 3 {
+				traceLogger.Debug("skipping group due to lower level file", zap.Int("level", lvl))
 				skipGroup = true
 				break
 			}
 
 			// Skip the file if it's over the max size and it contains a full block
 			if gen.size() >= uint64(tsdb.MaxTSMFileSize) && gen.files[0].FirstBlockCount >= tsdb.DefaultMaxPointsPerBlock && !gen.hasTombstones() {
+				traceLogger.Debug("skipping file because of size and block count", zap.Uint64("size", gen.size()), zap.Int("firstBlockCount", gen.files[0].FirstBlockCount))
 				startIndex++
 				continue
 			}
@@ -647,11 +707,13 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			endIndex = len(generations)
 		}
 		if endIndex-startIndex > 0 {
+			traceLogger.Debug("identified group", zap.Int("startIndex", startIndex), zap.Int("endIndex", endIndex))
 			groups = append(groups, generations[startIndex:endIndex])
 		}
 	}
 
 	if len(groups) == 0 {
+		traceLogger.Debug("no groups identified")
 		return nil, 0
 	}
 
@@ -679,7 +741,12 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		tsmFiles = append(tsmFiles, cGroup)
 	}
 
+	for groupIdx, groupFiles := range tsmFiles {
+		traceLogger.Debug("group files", zap.Int("group_idx", groupIdx), zap.Strings("group_files", groupFiles))
+	}
+
 	if !c.acquire(tsmFiles) {
+		traceLogger.Debug("failed to acquire files")
 		return nil, int64(len(tsmFiles))
 	}
 	return tsmFiles, int64(len(tsmFiles))
@@ -785,6 +852,7 @@ type Compactor struct {
 	// RateLimit is the limit for disk writes for all concurrent compactions.
 	RateLimit limiter.Rate
 
+	traceLogger    *zap.Logger
 	formatFileName FormatFileNameFunc
 	parseFileName  ParseFileNameFunc
 
@@ -810,6 +878,7 @@ func NewCompactor() *Compactor {
 	return &Compactor{
 		formatFileName: DefaultFormatFileName,
 		parseFileName:  DefaultParseFileName,
+		traceLogger:    zap.NewNop(),
 	}
 }
 
@@ -819,6 +888,10 @@ func (c *Compactor) WithFormatFileNameFunc(formatFileNameFunc FormatFileNameFunc
 
 func (c *Compactor) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	c.parseFileName = parseFileNameFunc
+}
+
+func (c *Compactor) WithTraceLogger(logger *zap.Logger) {
+	c.traceLogger = logger.With(zap.String("module", "compactor"), zap.String("path", c.Dir))
 }
 
 // Open initializes the Compactor.
@@ -840,9 +913,11 @@ func (c *Compactor) Open() {
 
 // Close disables the Compactor.
 func (c *Compactor) Close() {
+	c.traceLogger.Debug("closing compactor")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !(c.snapshotsEnabled || c.compactionsEnabled) {
+		c.traceLogger.Debug("compactor already closed")
 		return
 	}
 	c.snapshotsEnabled = false
@@ -858,8 +933,10 @@ func (c *Compactor) Close() {
 // DisableSnapshots disables the compactor from performing snapshots.
 func (c *Compactor) DisableSnapshots() {
 	c.mu.Lock()
+	c.traceLogger.Debug("disabling snapshots")
 	c.snapshotsEnabled = false
 	if c.snapshotsInterrupt != nil {
+		c.traceLogger.Debug("interrupting snapshots")
 		close(c.snapshotsInterrupt)
 		c.snapshotsInterrupt = nil
 	}
@@ -869,6 +946,7 @@ func (c *Compactor) DisableSnapshots() {
 // EnableSnapshots allows the compactor to perform snapshots.
 func (c *Compactor) EnableSnapshots() {
 	c.mu.Lock()
+	c.traceLogger.Debug("enabling snapshots")
 	c.snapshotsEnabled = true
 	if c.snapshotsInterrupt == nil {
 		c.snapshotsInterrupt = make(chan struct{})
@@ -879,8 +957,10 @@ func (c *Compactor) EnableSnapshots() {
 // DisableSnapshots disables the compactor from performing compactions.
 func (c *Compactor) DisableCompactions() {
 	c.mu.Lock()
+	c.traceLogger.Debug("disabling compactions")
 	c.compactionsEnabled = false
 	if c.compactionsInterrupt != nil {
+		c.traceLogger.Debug("interrupting compactions")
 		close(c.compactionsInterrupt)
 		c.compactionsInterrupt = nil
 	}
@@ -890,6 +970,7 @@ func (c *Compactor) DisableCompactions() {
 // EnableCompactions allows the compactor to perform compactions.
 func (c *Compactor) EnableCompactions() {
 	c.mu.Lock()
+	c.traceLogger.Debug("enabling compactions")
 	c.compactionsEnabled = true
 	if c.compactionsInterrupt == nil {
 		c.compactionsInterrupt = make(chan struct{})
