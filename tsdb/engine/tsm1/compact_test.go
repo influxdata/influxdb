@@ -1571,11 +1571,14 @@ func TestCacheKeyIterator_Abort(t *testing.T) {
 	}
 }
 
-func normalizeExtFileStat(efs []tsm1.ExtFileStat, defaultBlockCount int) []tsm1.ExtFileStat {
+func normalizeExtFileStat(efs []tsm1.ExtFileStat, defaultBlockCount int, lastModified time.Time) []tsm1.ExtFileStat {
 	efsNorm := make([]tsm1.ExtFileStat, 0, len(efs))
 	for _, f := range efs {
 		if f.FirstBlockCount == 0 {
 			f.FirstBlockCount = defaultBlockCount
+		}
+		if f.LastModified == 0 {
+			f.LastModified = int64(lastModified.Nanosecond())
 		}
 		efsNorm = append(efsNorm, f)
 	}
@@ -1587,7 +1590,9 @@ type ffsOpt func(ffs *fakeFileStore)
 
 func withExtFileStats(efs []tsm1.ExtFileStat) ffsOpt {
 	return func(ffs *fakeFileStore) {
-		ffs.PathsFn = func() []tsm1.ExtFileStat { return normalizeExtFileStat(efs, ffs.defaultBlockCount) }
+		ffs.PathsFn = func() []tsm1.ExtFileStat {
+			return normalizeExtFileStat(efs, ffs.defaultBlockCount, ffs.defaultStatLastModified)
+		}
 	}
 }
 
@@ -1598,6 +1603,18 @@ func withFileStats(fs []tsm1.FileStat) ffsOpt {
 func withDefaultBlockCount(blockCount int) ffsOpt {
 	return func(ffs *fakeFileStore) {
 		ffs.defaultBlockCount = blockCount
+	}
+}
+
+func withDefaultStatLastModified(t time.Time) ffsOpt {
+	return func(ffs *fakeFileStore) {
+		ffs.defaultStatLastModified = t
+	}
+}
+
+func withLastModified(t time.Time) ffsOpt {
+	return func(ffs *fakeFileStore) {
+		ffs.lastModified = t
 	}
 }
 
@@ -4504,7 +4521,13 @@ func TestEnginePlanCompactions(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ffs := newFakeFileStore(withExtFileStats(test.files), withDefaultBlockCount(test.defaultBlockCount))
+			lastModified := time.Now().Add(-24 * time.Hour)
+			ffs := newFakeFileStore(
+				withLastModified(lastModified),
+				withExtFileStats(test.files),
+				withDefaultBlockCount(test.defaultBlockCount),
+				withDefaultStatLastModified(lastModified),
+			)
 			cp := tsm1.NewDefaultPlanner(ffs, test.testShardTime)
 
 			e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
@@ -4630,8 +4653,9 @@ func MustOpenTSMReader(name string) *tsm1.TSMReader {
 }
 
 type fakeFileStore struct {
-	PathsFn           func() []tsm1.ExtFileStat
-	defaultBlockCount int
+	PathsFn                 func() []tsm1.ExtFileStat
+	defaultBlockCount       int
+	defaultStatLastModified time.Time
 
 	lastModified time.Time
 	// fakeFileStore blockCount holds a map of file paths from

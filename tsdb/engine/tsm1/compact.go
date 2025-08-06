@@ -755,6 +755,7 @@ func (c *DefaultPlanner) acquire(groups []CompactionGroup) bool {
 	for _, g := range groups {
 		for _, f := range g {
 			if _, ok := c.filesInUse[f]; ok {
+				panic("this shouldn't happen")
 				return false
 			}
 		}
