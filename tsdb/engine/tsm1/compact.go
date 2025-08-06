@@ -764,7 +764,7 @@ func (c *DefaultPlanner) findGenerations(skipInUse bool) tsmGenerations {
 	lastGen := c.lastGenerations
 
 	if !last.IsZero() && c.FileStore.LastModified().Equal(last) {
-		c.traceLogger.Debug("Using cached findGenerations", zap.Time("last", last), zap.Int("level", lastGen.level()))
+		c.traceLogger.Debug("Using cached findGenerations", zap.Time("last", last))
 		return lastGen
 	}
 
