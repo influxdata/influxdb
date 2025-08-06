@@ -13,7 +13,6 @@ use tower::Service;
 
 use crate::http::{HttpApi, route_request};
 use crate::is_grpc_request;
-use crate::unified_service::body::UnifiedBody;
 
 #[derive(Clone)]
 pub(crate) struct UnifiedService<S> {
@@ -47,7 +46,7 @@ where
     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     S::Future: Send,
 {
-    type Response = Response<UnifiedBody>;
+    type Response = Response<iox_http_util::ResponseBody>;
     type Error = BoxError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -66,7 +65,6 @@ where
                 let response = match grpc_service.call(req).await {
                     Ok(response) => response,
                     Err(_) => {
-                        // Log the error for observability
                         error!("gRPC service error occurred");
 
                         // Convert service errors to gRPC responses, this maintains
@@ -75,7 +73,7 @@ where
                         let response = status.into_http();
                         let (parts, body) = response.into_parts();
                         let body = BodyExt::map_err(body, |err| err.into()).boxed_unsync();
-                        return Ok(Response::from_parts(parts, UnifiedBody::Grpc { body }));
+                        return Ok(Response::from_parts(parts, body));
                     }
                 };
 
@@ -85,9 +83,8 @@ where
                 // Convert BoxBody to UnsyncBoxBody, need to use http_body_util to convert
                 // the tonic BoxBody to our UnsyncBoxBody
                 let body = BodyExt::map_err(grpc_body, |e| e.into()).boxed_unsync();
-                let unified_body = UnifiedBody::Grpc { body };
 
-                Ok(Response::from_parts(parts, unified_body))
+                Ok(Response::from_parts(parts, body))
             })
         } else {
             // Convert Incoming body to iox_http_util Request
@@ -106,11 +103,9 @@ where
                         // Convert body collection error to HTTP response
                         return Ok(http::Response::builder()
                             .status(http::StatusCode::BAD_REQUEST)
-                            .body(UnifiedBody::Http {
-                                body: iox_http_util::bytes_to_response_body(format!(
-                                    "Failed to read request body: {e}"
-                                )),
-                            })
+                            .body(iox_http_util::bytes_to_response_body(format!(
+                                "Failed to read request body: {e}"
+                            )))
                             .unwrap());
                     }
                 };
@@ -124,14 +119,14 @@ where
                 //     and then tried to multiplex with GRPC (HTTP 2). Instead the routing happens
                 //     directly here
                 //
-                //     Route the request - route_request returns Result<_, Infallible> so unwrap is
+                //     route_request returns Result<_, Infallible> so unwrap is
                 //     safe
                 let response =
                     route_request(http_api, iox_request, without_auth, paths_without_authz)
                         .await
                         .unwrap();
 
-                Ok(response.map(|body| UnifiedBody::Http { body }))
+                Ok(response)
             })
         }
     }

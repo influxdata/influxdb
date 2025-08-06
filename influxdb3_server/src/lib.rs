@@ -34,6 +34,7 @@ use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
+use observability_deps::tracing::trace;
 use observability_deps::tracing::warn;
 use std::fmt::Debug;
 use std::fs::File;
@@ -422,6 +423,7 @@ pub async fn serve(
         // Connection handling loop
         loop {
             tokio::select! {
+                _ = shutdown.cancelled() => break,
                 res = tcp_listener.accept() => {
                     let (stream, remote_addr) = res?;
                     if let Err(e) = stream.set_nodelay(true) {
@@ -468,7 +470,6 @@ pub async fn serve(
                         }
                     });
                 }
-                _ = shutdown.cancelled() => break,
             }
         }
     } else {
@@ -488,6 +489,7 @@ pub async fn serve(
         // Connection handling loop
         loop {
             tokio::select! {
+                _ = shutdown.cancelled() => break,
                 res = tcp_listener.accept() => {
                     let (stream, remote_addr) = res?;
                     if let Err(e) = stream.set_nodelay(true) {
@@ -524,14 +526,12 @@ pub async fn serve(
                         }
                     });
                 }
-                _ = shutdown.cancelled() => break,
             }
         }
     }
 
-    // Graceful shutdown: wait for all connections to close
-    info!("Starting graceful shutdown, waiting for connections to close");
-
+    // This explicit select! is needed for gracefule shutdown
+    trace!("Starting graceful shutdown, waiting for connections to close");
     tokio::select! {
         _ = graceful.shutdown() => {
             info!("All connections closed gracefully");
