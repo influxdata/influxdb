@@ -63,7 +63,7 @@ pub enum Error {
     Hyper(#[from] hyper::Error),
 
     #[error("http error: {0}")]
-    Http(#[from] http::Error),
+    Http(#[from] Box<http::Error>),
 
     #[error("database not found {db_name}")]
     DatabaseNotFound { db_name: String },
@@ -1795,10 +1795,10 @@ mod tests {
 
         // We declare this as a static so that the lifetimes workout here and that
         // it lives long enough.
-        static TLS_MIN_VERSION: &[&tokio_rustls::rustls::SupportedProtocolVersion] = &[
-            &tokio_rustls::rustls::version::TLS12,
-            &tokio_rustls::rustls::version::TLS13,
-        ];
+        // Note: TLS12 is not available without the tls12 feature in rustls 0.22
+        // Using TLS13 only, which is more secure and widely supported
+        static TLS_MIN_VERSION: &[&tokio_rustls::rustls::SupportedProtocolVersion] =
+            &[&tokio_rustls::rustls::version::TLS13];
 
         // Start processing engine triggers
         Arc::clone(&processing_engine)
