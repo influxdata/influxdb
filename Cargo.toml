@@ -145,6 +145,7 @@ test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
 tokio = { version = "1.45", features = ["full"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 tonic = { version = "0.12.3", features = ["tls", "tls-roots"] }
 tonic-build = "0.12.3"
 tonic-health = "0.12.3"
@@ -308,4 +309,3 @@ opt-level = 3
 # arrow-flight = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
 # parquet = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
 # object_store = { git = "https://github.com/influxdata/arrow-rs.git", rev = "c946cd81fa12e6588a3be33be08e3d8e9a2770e7" }
-
