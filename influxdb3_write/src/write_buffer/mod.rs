@@ -55,7 +55,7 @@ use metric::Registry;
 use metrics::WriteMetrics;
 use object_store::{ObjectMeta, ObjectStore, path::Path as ObjPath};
 use observability_deps::tracing::{debug, error, warn};
-use parquet_file::storage::ParquetExecInput;
+use parquet_file::storage::DataSourceExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
 use std::{borrow::Borrow, sync::Arc, time::Duration};
@@ -513,12 +513,12 @@ pub fn parquet_chunk_from_file(
 
     let location = ObjPath::parse(&parquet_file.path).expect("path should be parseable");
 
-    let parquet_exec = ParquetExecInput {
+    let parquet_exec = DataSourceExecInput {
         object_store_url,
         object_meta: ObjectMeta {
             location,
             last_modified: Default::default(),
-            size: parquet_file.size_bytes as usize,
+            size: parquet_file.size_bytes,
             e_tag: None,
             version: None,
         },
