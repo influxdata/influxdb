@@ -235,6 +235,7 @@ pub(crate) fn find_table_name_in_filter(filters: Option<Vec<Expr>>) -> Option<Ar
                             ScalarValue::Utf8(Some(s))
                             | ScalarValue::LargeUtf8(Some(s))
                             | ScalarValue::Utf8View(Some(s)),
+                            _,
                         ) => Some(s.as_str().into()),
                         _ => None,
                     }

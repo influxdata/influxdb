@@ -100,7 +100,7 @@ impl QueryExecutorImpl {
         ));
         let query_execution_semaphore =
             Arc::new(semaphore_metrics.new_semaphore(Semaphore::MAX_PERMITS));
-        let query_log = Arc::new(QueryLog::new(query_log_size, time_provider, &metrics));
+        let query_log = Arc::new(QueryLog::new(query_log_size, time_provider, &metrics, None));
         Self {
             catalog,
             write_buffer,
@@ -814,13 +814,17 @@ mod tests {
             Arc::clone(&object_store),
             StorageId::from("test_exec_storage"),
         );
+
+        // Register the object store with both the StorageId and the URL used by DataSourceExecInput
+        let mut object_stores =
+            vec![(parquet_store.id(), Arc::clone(parquet_store.object_store()))];
+        // Also register with the URL scheme that DataSourceExecInput uses
+        object_stores.push((StorageId::from("influxdb3"), Arc::clone(&object_store)));
+
         Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
                 target_query_partitions: NonZeroUsize::new(1).unwrap(),
-                object_stores: [&parquet_store]
-                    .into_iter()
-                    .map(|store| (store.id(), Arc::clone(store.object_store())))
-                    .collect(),
+                object_stores: object_stores.into_iter().collect(),
                 metric_registry: Arc::clone(&metrics),
                 // Default to 1gb
                 mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
@@ -987,9 +991,9 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| cpu        | 2061       | 3         | 0        | 20       |",
-                    "| cpu        | 2061       | 3         | 30       | 50       |",
-                    "| cpu        | 2061       | 3         | 60       | 80       |",
+                    "| cpu        | 2181       | 3         | 0        | 20       |",
+                    "| cpu        | 2181       | 3         | 30       | 50       |",
+                    "| cpu        | 2181       | 3         | 60       | 80       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -1002,9 +1006,9 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| mem        | 2061       | 3         | 0        | 20       |",
-                    "| mem        | 2061       | 3         | 30       | 50       |",
-                    "| mem        | 2061       | 3         | 60       | 80       |",
+                    "| mem        | 2181       | 3         | 0        | 20       |",
+                    "| mem        | 2181       | 3         | 30       | 50       |",
+                    "| mem        | 2181       | 3         | 60       | 80       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -1016,12 +1020,12 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| cpu        | 2061       | 3         | 0        | 20       |",
-                    "| cpu        | 2061       | 3         | 30       | 50       |",
-                    "| cpu        | 2061       | 3         | 60       | 80       |",
-                    "| mem        | 2061       | 3         | 0        | 20       |",
-                    "| mem        | 2061       | 3         | 30       | 50       |",
-                    "| mem        | 2061       | 3         | 60       | 80       |",
+                    "| cpu        | 2181       | 3         | 0        | 20       |",
+                    "| cpu        | 2181       | 3         | 30       | 50       |",
+                    "| cpu        | 2181       | 3         | 60       | 80       |",
+                    "| mem        | 2181       | 3         | 0        | 20       |",
+                    "| mem        | 2181       | 3         | 30       | 50       |",
+                    "| mem        | 2181       | 3         | 60       | 80       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -1034,10 +1038,10 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| cpu        | 2061       | 3         | 0        | 20       |",
-                    "| cpu        | 2061       | 3         | 30       | 50       |",
-                    "| cpu        | 2061       | 3         | 60       | 80       |",
-                    "| mem        | 2061       | 3         | 60       | 80       |",
+                    "| cpu        | 2181       | 3         | 0        | 20       |",
+                    "| cpu        | 2181       | 3         | 30       | 50       |",
+                    "| cpu        | 2181       | 3         | 60       | 80       |",
+                    "| mem        | 2181       | 3         | 60       | 80       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },

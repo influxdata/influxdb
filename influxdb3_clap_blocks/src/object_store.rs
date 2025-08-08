@@ -7,7 +7,7 @@ use iox_time::{SystemProvider, TimeProvider};
 use non_empty_string::NonEmptyString;
 use object_store::{
     CredentialProvider, DynObjectStore, GetOptions, GetResult, ListResult, MultipartUpload,
-    ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
+    ObjectMeta, ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult,
     aws::AwsCredential,
     local::LocalFileSystem,
     memory::InMemory,
@@ -161,7 +161,7 @@ impl ObjectStore for LocalFileSystemWithSortedListOp {
     async fn put_multipart_opts(
         &self,
         location: &Path,
-        opts: PutMultipartOpts,
+        opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         self.inner.put_multipart_opts(location, opts).await
     }
@@ -178,14 +178,14 @@ impl ObjectStore for LocalFileSystemWithSortedListOp {
         self.inner.get_opts(location, options).await
     }
 
-    async fn get_range(&self, location: &Path, range: Range<usize>) -> object_store::Result<Bytes> {
+    async fn get_range(&self, location: &Path, range: Range<u64>) -> object_store::Result<Bytes> {
         self.inner.get_range(location, range).await
     }
 
     async fn get_ranges(
         &self,
         location: &Path,
-        ranges: &[Range<usize>],
+        ranges: &[Range<u64>],
     ) -> object_store::Result<Vec<Bytes>> {
         self.inner.get_ranges(location, ranges).await
     }
@@ -207,7 +207,7 @@ impl ObjectStore for LocalFileSystemWithSortedListOp {
 
     /// Collect results from inner object store into a vec, sort them, then return a new boxed
     /// stream that iterates over the new vec.
-    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         if tokio::runtime::Handle::try_current().is_err() {
             // We should never reach this branch, but if we do then warn and return let the
             // inner implementation deal with it.
@@ -239,7 +239,7 @@ impl ObjectStore for LocalFileSystemWithSortedListOp {
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         if tokio::runtime::Handle::try_current().is_err() {
             // We should never reach this branch, but if we do then warn and return let the
             // inner implementation deal with it.
@@ -1302,7 +1302,7 @@ impl object_store::ObjectStore for ReauthingObjectStore {
     async fn put_multipart_opts(
         &self,
         location: &Path,
-        opts: PutMultipartOpts,
+        opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         retry_if_unauthenticated!(
             self,
@@ -1333,7 +1333,7 @@ impl object_store::ObjectStore for ReauthingObjectStore {
 impl object_store::signer::Signer for LocalUploadSigner {
     async fn signed_url(
         &self,
-        _method: http_1::Method,
+        _method: http::Method,
         path: &Path,
         _expires_in: Duration,
     ) -> Result<Url, object_store::Error> {
@@ -1772,7 +1772,7 @@ mod tests {
         let object_store_parquet_file_path = Path::parse(parquet_file_path).unwrap();
         let upload_url = signer
             .signed_url(
-                http_1::Method::PUT,
+                http::Method::PUT,
                 &object_store_parquet_file_path,
                 Duration::from_secs(100),
             )
@@ -1965,7 +1965,7 @@ mod tests {
         async fn put_multipart_opts(
             &self,
             location: &Path,
-            opts: PutMultipartOpts,
+            opts: PutMultipartOptions,
         ) -> object_store::Result<Box<dyn MultipartUpload>> {
             if let Some(e) = self.next_error() {
                 Err(e)
@@ -2178,7 +2178,7 @@ mod tests {
             PutOptions::default()
         ));
         validate_endpoint!(
-            reloading_object_store.put_multipart_opts(&obj_path, PutMultipartOpts::default())
+            reloading_object_store.put_multipart_opts(&obj_path, PutMultipartOptions::default())
         );
         validate_endpoint!(reloading_object_store.get(&obj_path));
         validate_endpoint!(reloading_object_store.get_opts(&obj_path, GetOptions::default()));

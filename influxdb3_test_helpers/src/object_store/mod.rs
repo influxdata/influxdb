@@ -5,8 +5,8 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use hashbrown::HashMap;
 use object_store::{
-    GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore, PutMultipartOpts,
-    PutOptions, PutPayload, PutResult, path::Path,
+    GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
+    PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path,
 };
 use parking_lot::RwLock;
 use tokio::sync::Notify;
@@ -98,7 +98,7 @@ impl ObjectStore for RequestCountedObjectStore {
     async fn put_multipart_opts(
         &self,
         location: &Path,
-        opts: PutMultipartOpts,
+        opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         self.inner.put_multipart_opts(location, opts).await
     }
@@ -117,7 +117,7 @@ impl ObjectStore for RequestCountedObjectStore {
         self.inner.get_opts(location, options).await
     }
 
-    async fn get_range(&self, location: &Path, range: Range<usize>) -> object_store::Result<Bytes> {
+    async fn get_range(&self, location: &Path, range: Range<u64>) -> object_store::Result<Bytes> {
         *self.get_range.write().entry(location.clone()).or_insert(0) += 1;
         self.inner.get_range(location, range).await
     }
@@ -125,7 +125,7 @@ impl ObjectStore for RequestCountedObjectStore {
     async fn get_ranges(
         &self,
         location: &Path,
-        ranges: &[Range<usize>],
+        ranges: &[Range<u64>],
     ) -> object_store::Result<Vec<Bytes>> {
         *self.get_ranges.write().entry(location.clone()).or_insert(0) += 1;
         self.inner.get_ranges(location, ranges).await
@@ -148,7 +148,7 @@ impl ObjectStore for RequestCountedObjectStore {
         self.inner.delete_stream(locations)
     }
 
-    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         self.inner.list(prefix)
     }
 
@@ -156,7 +156,7 @@ impl ObjectStore for RequestCountedObjectStore {
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         self.inner.list_with_offset(prefix, offset)
     }
 
@@ -258,7 +258,7 @@ impl ObjectStore for SynchronizedObjectStore {
     async fn put_multipart_opts(
         &self,
         location: &Path,
-        opts: PutMultipartOpts,
+        opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         self.inner.put_multipart_opts(location, opts).await
     }
@@ -283,14 +283,14 @@ impl ObjectStore for SynchronizedObjectStore {
         self.inner.get_opts(location, options).await
     }
 
-    async fn get_range(&self, location: &Path, range: Range<usize>) -> object_store::Result<Bytes> {
+    async fn get_range(&self, location: &Path, range: Range<u64>) -> object_store::Result<Bytes> {
         self.inner.get_range(location, range).await
     }
 
     async fn get_ranges(
         &self,
         location: &Path,
-        ranges: &[Range<usize>],
+        ranges: &[Range<u64>],
     ) -> object_store::Result<Vec<Bytes>> {
         self.inner.get_ranges(location, ranges).await
     }
@@ -311,7 +311,7 @@ impl ObjectStore for SynchronizedObjectStore {
         self.inner.delete_stream(locations)
     }
 
-    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         self.inner.list(prefix)
     }
 
@@ -319,7 +319,7 @@ impl ObjectStore for SynchronizedObjectStore {
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         self.inner.list_with_offset(prefix, offset)
     }
 

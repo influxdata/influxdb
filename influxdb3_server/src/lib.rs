@@ -16,28 +16,26 @@ mod grpc;
 pub mod http;
 pub mod query_executor;
 mod query_planner;
-mod service;
 mod system_tables;
+mod unified_service;
 
 use crate::grpc::make_flight_server;
 use crate::http::HttpApi;
 use crate::http::RecoveryHttpApi;
-use crate::http::route_request;
 use authz::Authorizer;
 use http::route_admin_token_recovery_request;
-use hyper::server::conn::AddrIncoming;
-use hyper::server::conn::AddrStream;
-use hyper::server::conn::Http;
-use hyper::service::{make_service_fn, service_fn};
-use hyper_rustls::acceptor::TlsStream;
+use hyper::Request;
+use hyper::body::Incoming;
+use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::server::conn::auto::Builder as ConnectionBuilder;
+use hyper_util::server::graceful::GracefulShutdown;
+use hyper_util::service::TowerToHyperService;
 use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
-use rustls::ServerConfig;
-use rustls::SupportedProtocolVersion;
-use service::hybrid;
-use std::convert::Infallible;
+use observability_deps::tracing::trace;
+use observability_deps::tracing::warn;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufReader;
@@ -47,17 +45,17 @@ use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
+use tokio_rustls::TlsAcceptor;
+use tokio_rustls::rustls;
+use tokio_rustls::rustls::pki_types::CertificateDer;
+use tokio_rustls::rustls::pki_types::PrivateKeyDer;
+use tokio_rustls::rustls::{ServerConfig, SupportedProtocolVersion};
 use tokio_util::sync::CancellationToken;
-use tower::Layer;
 use trace::TraceCollector;
 use trace_http::ctx::TraceHeaderParser;
-use trace_http::metrics::MetricFamily;
-use trace_http::metrics::RequestMetrics;
-use trace_http::tower::TraceLayer;
-
-const TRACE_HTTP_SERVER_NAME: &str = "influxdb3_http";
-const ADMIN_TOKEN_RECOVERY_TRACE_HTTP_SERVER_NAME: &str = "influxdb3_token_recovery_http";
-const TRACE_GRPC_SERVER_NAME: &str = "influxdb3_grpc";
+use trace_http::metrics::{MetricFamily, RequestMetrics};
+use trace_http::tower::{ServiceProtocol, TraceLayer};
+use unified_service::{RemoteAddrLayer, UnifiedService};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -65,7 +63,7 @@ pub enum Error {
     Hyper(#[from] hyper::Error),
 
     #[error("http error: {0}")]
-    Http(#[from] http::Error),
+    Http(#[from] Box<http::Error>),
 
     #[error("database not found {db_name}")]
     DatabaseNotFound { db_name: String },
@@ -81,6 +79,12 @@ pub enum Error {
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("tls config error: {0}")]
+    TlsConfig(String),
+
+    #[error("rustls error: {0}")]
+    Rustls(#[from] rustls::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -175,32 +179,34 @@ impl<'a> Server<'a> {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer.upcast())
     }
-}
 
-/// Creates HTTP trace layer
-fn create_http_trace_layer(common_state: &CommonServerState, server_name: &str) -> TraceLayer {
-    let http_metrics =
-        RequestMetrics::new(Arc::clone(&common_state.metrics), MetricFamily::HttpServer);
-    TraceLayer::new(
-        common_state.trace_header_parser.clone(),
-        Arc::new(http_metrics),
-        common_state.trace_collector().clone(),
-        server_name,
-        trace_http::tower::ServiceProtocol::Http,
-    )
-}
+    /// Create an HTTP trace layer for request monitoring and metrics
+    fn create_http_trace_layer(&self) -> TraceLayer {
+        TraceLayer::new(
+            self.common_state.trace_header_parser(),
+            Arc::new(RequestMetrics::new(
+                self.common_state.metric_registry(),
+                MetricFamily::HttpServer,
+            )),
+            self.common_state.trace_collector(),
+            "influxdb3_server_http",
+            ServiceProtocol::Http,
+        )
+    }
 
-/// Creates gRPC trace layer
-fn create_grpc_trace_layer(common_state: &CommonServerState) -> TraceLayer {
-    let grpc_metrics =
-        RequestMetrics::new(Arc::clone(&common_state.metrics), MetricFamily::GrpcServer);
-    TraceLayer::new(
-        common_state.trace_header_parser.clone(),
-        Arc::new(grpc_metrics),
-        common_state.trace_collector().clone(),
-        TRACE_GRPC_SERVER_NAME,
-        trace_http::tower::ServiceProtocol::Grpc,
-    )
+    /// Create a gRPC trace layer for request monitoring and metrics
+    fn create_grpc_trace_layer(&self) -> TraceLayer {
+        TraceLayer::new(
+            self.common_state.trace_header_parser(),
+            Arc::new(RequestMetrics::new(
+                self.common_state.metric_registry(),
+                MetricFamily::GrpcServer,
+            )),
+            self.common_state.trace_collector(),
+            "influxdb3_server_grpc",
+            ServiceProtocol::Grpc,
+        )
+    }
 }
 
 pub async fn serve_admin_token_recovery_endpoint(
@@ -208,10 +214,8 @@ pub async fn serve_admin_token_recovery_endpoint(
     shutdown: CancellationToken,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
-    let http_trace_layer = create_http_trace_layer(
-        &server.common_state,
-        ADMIN_TOKEN_RECOVERY_TRACE_HTTP_SERVER_NAME,
-    );
+    // Create HTTP trace layer for monitoring and metrics
+    let http_trace_layer = server.create_http_trace_layer();
 
     // Create a dedicated shutdown token for the recovery endpoint
     // This allows us to shut down just the recovery endpoint after token regeneration
@@ -227,70 +231,136 @@ pub async fn serve_admin_token_recovery_endpoint(
         let listener = server.listener;
         let tls_min = server.tls_minimum_version;
 
-        let (addr, certs, key) = setup_tls(listener, key_file, cert_file)?;
+        let (tcp_listener, certs, key) = setup_tls(listener, key_file, cert_file)?;
+        let addr = tcp_listener.local_addr()?;
         info!(
-            address = %addr.local_addr(),
+            address = %addr,
             "starting admin token recovery endpoint with TLS on",
         );
 
-        let rest_service = hyper::service::make_service_fn(move |_| {
-            let recovery_api = Arc::clone(&recovery_api);
-            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_admin_token_recovery_request(Arc::clone(&recovery_api), req)
-            });
-            let service = http_trace_layer.layer(service);
-            futures::future::ready(Ok::<_, Infallible>(service))
-        });
-
         write_address_to_file(tcp_listener_file_path, &addr).await?;
 
-        let acceptor = hyper_rustls::TlsAcceptor::builder()
-            .with_tls_config(
-                ServerConfig::builder_with_protocol_versions(tls_min)
-                    .with_no_client_auth()
-                    .with_single_cert(certs, key)
-                    .unwrap(),
-            )
-            .with_all_versions_alpn()
-            .with_incoming(addr);
+        // Configure TLS
+        let mut tls_config = ServerConfig::builder_with_protocol_versions(tls_min)
+            .with_no_client_auth()
+            .with_single_cert(certs, key)?;
+        tls_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_config));
 
-        // Use both the main shutdown and recovery shutdown tokens
-        tokio::select! {
-            res = hyper::server::Server::builder(acceptor).serve(rest_service) => res?,
-            _ = shutdown.cancelled() => {},
-            _ = recovery_shutdown.cancelled() => {
-                info!("Admin token recovery endpoint shutting down after token regeneration");
-            },
+        // Connection handling loop
+        loop {
+            tokio::select! {
+                res = tcp_listener.accept() => {
+                    let (stream, _) = res?;
+                    if let Err(e) = stream.set_nodelay(true) {
+                        warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
+                    }
+                    let tls_acceptor = tls_acceptor.clone();
+                    let recovery_api = Arc::clone(&recovery_api);
+                    let http_trace_layer = http_trace_layer.clone();
+
+                    tokio::spawn(async move {
+                        let tls_stream = match tls_acceptor.accept(stream).await {
+                            Ok(stream) => stream,
+                            Err(e) => {
+                                error!("TLS handshake failed: {}", e);
+                                return;
+                            }
+                        };
+
+                        let io = TokioIo::new(tls_stream);
+
+                        // Create service with trace layer
+                        let service_fn = tower::service_fn(move |req| {
+                            let recovery_api = Arc::clone(&recovery_api);
+                            async move {
+                                route_admin_token_recovery_request(recovery_api, req).await
+                            }
+                        });
+                        let service = tower::ServiceBuilder::new()
+                            .layer(http_trace_layer.clone())
+                            .service(service_fn);
+                        let service = TowerToHyperService::new(service);
+
+                        if let Err(err) = ConnectionBuilder::new(TokioExecutor::new())
+                            .serve_connection(io, service)
+                            .await
+                        {
+                            error!("Error serving connection: {:?}", err);
+                        }
+                    });
+                }
+                _ = shutdown.cancelled() => break,
+                _ = recovery_shutdown.cancelled() => {
+                    info!("Admin token recovery endpoint shutting down after token regeneration");
+                    break;
+                },
+            }
         }
     } else {
-        let rest_service = hyper::service::make_service_fn(|_| {
-            let recovery_api = Arc::clone(&recovery_api);
-            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_admin_token_recovery_request(Arc::clone(&recovery_api), req)
-            });
-            let service = http_trace_layer.layer(service);
-            futures::future::ready(Ok::<_, Infallible>(service))
-        });
-
-        let addr = AddrIncoming::from_listener(server.listener)?;
+        let tcp_listener = server.listener;
+        let addr = tcp_listener.local_addr()?;
         info!(
-            address = %addr.local_addr(),
+            address = %addr,
             "starting admin token recovery endpoint on",
         );
 
-        // Use both the main shutdown and recovery shutdown tokens
-        tokio::select! {
-            res = hyper::server::Builder::new(addr, Http::new())
-                .tcp_nodelay(true)
-                .serve(rest_service) => res?,
-            _ = shutdown.cancelled() => {},
-            _ = recovery_shutdown.cancelled() => {
-                info!("Admin token recovery endpoint shutting down after token regeneration");
-            },
+        write_address_to_file(tcp_listener_file_path, &addr).await?;
+
+        // Connection handling loop
+        loop {
+            tokio::select! {
+                res = tcp_listener.accept() => {
+                    let (stream, _) = res?;
+                    if let Err(e) = stream.set_nodelay(true) {
+                        warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
+                    }
+                    let io = TokioIo::new(stream);
+                    let recovery_api = Arc::clone(&recovery_api);
+                    let http_trace_layer = http_trace_layer.clone();
+
+                    tokio::spawn(async move {
+                        // Create service with trace layer
+                        let service_fn = tower::service_fn(move |req| {
+                            let recovery_api = Arc::clone(&recovery_api);
+                            async move {
+                                route_admin_token_recovery_request(recovery_api, req).await
+                            }
+                        });
+                        let service = tower::ServiceBuilder::new()
+                            .layer(http_trace_layer.clone())
+                            .service(service_fn);
+                        let service = TowerToHyperService::new(service);
+
+                        if let Err(err) = ConnectionBuilder::new(TokioExecutor::new())
+                            .serve_connection(io, service)
+                            .await
+                        {
+                            error!("Error serving connection: {:?}", err);
+                        }
+                    });
+                }
+                _ = shutdown.cancelled() => break,
+                _ = recovery_shutdown.cancelled() => {
+                    info!("Admin token recovery endpoint shutting down after token regeneration");
+                    break;
+                },
+            }
         }
     }
 
     Ok(())
+}
+
+/// Determines if an HTTP request is a gRPC request based on version and content-type
+pub(crate) fn is_grpc_request(req: &Request<Incoming>) -> bool {
+    req.version() == hyper::Version::HTTP_2
+        && req
+            .headers()
+            .get(hyper::header::CONTENT_TYPE)
+            .and_then(|ct| ct.to_str().ok())
+            .map(|ct| ct.starts_with("application/grpc"))
+            .unwrap_or(false)
 }
 
 pub async fn serve(
@@ -301,103 +371,174 @@ pub async fn serve(
     paths_without_authz: &'static Vec<&'static str>,
     tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
-    let grpc_trace_layer = create_grpc_trace_layer(&server.common_state);
-    let grpc_service = grpc_trace_layer.layer(make_flight_server(
+    // Create trace layers for HTTP and gRPC
+    let http_trace_layer = server.create_http_trace_layer();
+    let grpc_trace_layer = server.create_grpc_trace_layer();
+
+    // Create gRPC service with trace layer
+    let grpc_service = make_flight_server(
         Arc::clone(&server.http.query_executor),
         Some(server.authorizer()),
-    ));
-
-    let http_trace_layer = create_http_trace_layer(&server.common_state, TRACE_HTTP_SERVER_NAME);
+    );
 
     let key_file = server.key_file.clone();
     let cert_file = server.cert_file.clone();
+    let http_api = Arc::clone(&server.http);
+
+    // Create graceful shutdown handler
+    let graceful = GracefulShutdown::new();
+
+    // Create unified service once and wrap in Arc for sharing across connections
+    let unified_service = Arc::new(UnifiedService::new(
+        Arc::clone(&http_api),
+        grpc_service,
+        without_auth,
+        paths_without_authz,
+    ));
 
     if let (Some(key_file), Some(cert_file)) = (key_file.as_ref(), cert_file.as_ref()) {
         let listener = server.listener;
         let tls_min = server.tls_minimum_version;
-        let http = Arc::clone(&server.http);
-        let rest_service = hyper::service::make_service_fn(|conn: &TlsStream| {
-            let remote_addr = conn.io().map(|conn| conn.remote_addr());
-            let http_server = Arc::clone(&http);
-            let service = service_fn(move |mut req: hyper::Request<hyper::Body>| {
-                req.extensions_mut().insert(remote_addr);
-                route_request(
-                    Arc::clone(&http_server),
-                    req,
-                    without_auth,
-                    paths_without_authz,
-                )
-            });
-            let service = http_trace_layer.layer(service);
-            futures::future::ready(Ok::<_, Infallible>(service))
-        });
 
-        let hybrid_make_service = hybrid(rest_service, grpc_service);
-        let (addr, certs, key) = setup_tls(listener, key_file, cert_file)?;
+        let (tcp_listener, certs, key) = setup_tls(listener, key_file, cert_file)?;
+        let addr = tcp_listener.local_addr()?;
 
         let timer_end = Instant::now();
         let startup_time = timer_end.duration_since(startup_timer);
         info!(
-            address = %addr.local_addr(),
+            address = %addr,
             "startup time: {}ms",
             startup_time.as_millis()
         );
 
         write_address_to_file(tcp_listener_file_path, &addr).await?;
 
-        let acceptor = hyper_rustls::TlsAcceptor::builder()
-            .with_tls_config(
-                ServerConfig::builder_with_protocol_versions(tls_min)
-                    .with_no_client_auth()
-                    .with_single_cert(certs, key)
-                    .unwrap(),
-            )
-            .with_all_versions_alpn()
-            .with_incoming(addr);
+        // Configure TLS
+        let mut tls_config = ServerConfig::builder_with_protocol_versions(tls_min)
+            .with_no_client_auth()
+            .with_single_cert(certs, key)?;
+        tls_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
 
-        hyper::server::Server::builder(acceptor)
-            .serve(hybrid_make_service)
-            .with_graceful_shutdown(shutdown.cancelled())
-            .await?;
+        // Connection handling loop
+        loop {
+            tokio::select! {
+                _ = shutdown.cancelled() => break,
+                res = tcp_listener.accept() => {
+                    let (stream, remote_addr) = res?;
+                    if let Err(e) = stream.set_nodelay(true) {
+                        warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
+                    }
+                    let tls_acceptor = tls_acceptor.clone();
+                    let unified_service = Arc::clone(&unified_service);
+                    let http_trace_layer = http_trace_layer.clone();
+                    let grpc_trace_layer = grpc_trace_layer.clone();
+                    let graceful_watcher = graceful.watcher();
+
+                    tokio::spawn(async move {
+                        // Perform TLS handshake
+                        let tls_stream = match tls_acceptor.accept(stream).await {
+                            Ok(stream) => stream,
+                            Err(e) => {
+                                error!("TLS handshake failed: {}", e);
+                                return;
+                            }
+                        };
+
+                        let io = TokioIo::new(tls_stream);
+
+                        // Build the service stack with both trace layers
+                        let service = tower::ServiceBuilder::new()
+                            .layer(RemoteAddrLayer::new(remote_addr))
+                            .layer(http_trace_layer)
+                            .layer(grpc_trace_layer)
+                            .service(unified_service.as_ref().clone());
+
+                        let service = TowerToHyperService::new(service);
+
+                        // Create connection
+                        let conn = ConnectionBuilder::new(TokioExecutor::new())
+                            .serve_connection(io, service)
+                            .into_owned();
+
+                        // Watch with graceful
+                        let conn = graceful_watcher.watch(conn);
+
+                        // Handle connection
+                        if let Err(e) = conn.await {
+                            error!("Error serving TLS connection: {:?}", e);
+                        }
+                    });
+                }
+            }
+        }
     } else {
-        let grpc_service = grpc_trace_layer.layer(make_flight_server(
-            Arc::clone(&server.http.query_executor),
-            Some(server.authorizer()),
-        ));
-
-        let rest_service = make_service_fn(move |conn: &AddrStream| {
-            let remote_addr = conn.remote_addr();
-            let http_server = Arc::clone(&server.http);
-            let http_trace_layer = http_trace_layer.clone();
-            let service = service_fn(move |mut req: hyper::Request<hyper::Body>| {
-                req.extensions_mut().insert(Some(remote_addr));
-                route_request(
-                    Arc::clone(&http_server),
-                    req,
-                    without_auth,
-                    paths_without_authz,
-                )
-            });
-            let service = http_trace_layer.layer(service);
-            futures::future::ready(Ok::<_, Infallible>(service))
-        });
-
-        let hybrid_make_service = hybrid(rest_service, grpc_service);
-        let addr = AddrIncoming::from_listener(server.listener)?;
+        let tcp_listener = server.listener;
+        let addr = tcp_listener.local_addr()?;
 
         let timer_end = Instant::now();
         let startup_time = timer_end.duration_since(startup_timer);
         info!(
-            address = %addr.local_addr(),
+            address = %addr,
             "startup time: {}ms",
             startup_time.as_millis()
         );
 
-        hyper::server::Builder::new(addr, Http::new())
-            .tcp_nodelay(true)
-            .serve(hybrid_make_service)
-            .with_graceful_shutdown(shutdown.cancelled())
-            .await?;
+        write_address_to_file(tcp_listener_file_path, &addr).await?;
+
+        // Connection handling loop
+        loop {
+            tokio::select! {
+                _ = shutdown.cancelled() => break,
+                res = tcp_listener.accept() => {
+                    let (stream, remote_addr) = res?;
+                    if let Err(e) = stream.set_nodelay(true) {
+                        warn!(err = %e, "cannot set TCP_NODELAY on the incoming socket");
+                    }
+                    let unified_service = Arc::clone(&unified_service);
+                    let http_trace_layer = http_trace_layer.clone();
+                    let grpc_trace_layer = grpc_trace_layer.clone();
+                    let graceful_watcher = graceful.watcher();
+
+                    tokio::spawn(async move {
+                        let io = TokioIo::new(stream);
+
+                        // Build the service stack with both trace layers
+                        let service = tower::ServiceBuilder::new()
+                            .layer(RemoteAddrLayer::new(remote_addr))
+                            .layer(http_trace_layer)
+                            .layer(grpc_trace_layer)
+                            .service(unified_service.as_ref().clone());
+
+                        let service = TowerToHyperService::new(service);
+
+                        // Create connection
+                        let conn = ConnectionBuilder::new(TokioExecutor::new())
+                            .serve_connection(io, service)
+                            .into_owned();
+
+                        // Watch with graceful
+                        let conn = graceful_watcher.watch(conn);
+
+                        // Handle connection
+                        if let Err(e) = conn.await {
+                            error!("Error serving connection: {:?}", e);
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    // This explicit select! is needed for gracefule shutdown
+    trace!("Starting graceful shutdown, waiting for connections to close");
+    tokio::select! {
+        _ = graceful.shutdown() => {
+            info!("All connections closed gracefully");
+        }
+        _ = tokio::time::sleep(tokio::time::Duration::from_secs(30)) => {
+            info!("Graceful shutdown timed out after 30 seconds");
+        }
     }
 
     Ok(())
@@ -408,11 +549,11 @@ pub async fn serve(
 // as the tests seem to use TLS by default.
 async fn write_address_to_file(
     tcp_listener_file_path: Option<PathBuf>,
-    addr: &AddrIncoming,
+    addr: &std::net::SocketAddr,
 ) -> Result<(), Error> {
     if let Some(path) = tcp_listener_file_path {
         let mut f = tokio::fs::File::create_new(path).await?;
-        let _ = f.write(addr.local_addr().to_string().as_bytes()).await?;
+        let _ = f.write(addr.to_string().as_bytes()).await?;
         f.flush().await?;
     };
     Ok(())
@@ -424,29 +565,27 @@ fn setup_tls(
     cert_file: &PathBuf,
 ) -> Result<
     (
-        AddrIncoming,
-        Vec<rustls::pki_types::CertificateDer<'static>>,
-        rustls::pki_types::PrivateKeyDer<'static>,
+        TcpListener,
+        Vec<CertificateDer<'static>>,
+        PrivateKeyDer<'static>,
     ),
     Error,
 > {
-    let mut addr = AddrIncoming::from_listener(tcp_listener)?;
-    addr.set_nodelay(true);
     let certs = {
-        let cert_file = File::open(cert_file).unwrap();
+        let cert_file = File::open(cert_file)?;
         let mut buf_reader = BufReader::new(cert_file);
         rustls_pemfile::certs(&mut buf_reader)
             .collect::<Result<Vec<_>, _>>()
-            .unwrap()
+            .map_err(|e| Error::TlsConfig(format!("Error reading certs: {e}")))?
     };
     let key = {
-        let key_file = File::open(key_file).unwrap();
+        let key_file = File::open(key_file)?;
         let mut buf_reader = BufReader::new(key_file);
         rustls_pemfile::private_key(&mut buf_reader)
-            .unwrap()
-            .unwrap()
+            .map_err(|e| Error::TlsConfig(format!("Error reading private key: {e}")))?
+            .ok_or_else(|| Error::TlsConfig("No private key found".to_string()))?
     };
-    Ok((addr, certs, key))
+    Ok((tcp_listener, certs, key))
 }
 
 #[cfg(test)]
@@ -456,7 +595,10 @@ mod tests {
     use crate::{Server, http::HttpApi};
     use chrono::DateTime;
     use datafusion::parquet::data_type::AsBytes;
-    use hyper::{Client, StatusCode};
+    use http_body_util::BodyExt;
+    use hyper::StatusCode;
+    use hyper_util::client::legacy::{Client, connect::HttpConnector};
+    use hyper_util::rt::TokioExecutor;
     use influxdb3_authz::NoAuthAuthenticator;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
@@ -474,8 +616,8 @@ mod tests {
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
     use iox_http_util::{
-        RequestBuilder, Response, bytes_to_request_body, empty_request_body,
-        read_body_bytes_for_tests,
+        RequestBuilder, Response, bytes_to_request_body, bytes_to_response_body,
+        empty_request_body, read_body_bytes_for_tests,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
@@ -884,7 +1026,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the table without hard_delete_at parameter
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!("{server}/api/v3/configure/table?db={db_name}&table={table_name}");
 
         let request = RequestBuilder::new()
@@ -937,7 +1079,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the table with explicit hard_delete_at=never parameter
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!(
             "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=never"
         );
@@ -991,7 +1133,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the table with explicit hard_delete_at=now parameter
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!(
             "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=now"
         );
@@ -1053,7 +1195,7 @@ mod tests {
         );
 
         // Make a DELETE request to delete the table with explicit hard_delete_at timestamp
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!(
             "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at={future_timestamp}"
         );
@@ -1108,7 +1250,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the table with explicit hard_delete_at=default parameter
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!(
             "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=default"
         );
@@ -1161,7 +1303,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=never parameter
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=never");
 
         let request = RequestBuilder::new()
@@ -1209,7 +1351,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the database without hard_delete_at parameter
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!("{server}/api/v3/configure/database?db={db_name}");
 
         let request = RequestBuilder::new()
@@ -1258,7 +1400,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=now parameter
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=now");
 
         let request = RequestBuilder::new()
@@ -1306,7 +1448,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=default parameter
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=default");
 
         let request = RequestBuilder::new()
@@ -1362,7 +1504,7 @@ mod tests {
         );
 
         // Make a DELETE request to delete the database with explicit hard_delete_at timestamp
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!(
             "{server}/api/v3/configure/database?db={db_name}&hard_delete_at={future_timestamp}"
         );
@@ -1653,8 +1795,10 @@ mod tests {
 
         // We declare this as a static so that the lifetimes workout here and that
         // it lives long enough.
-        static TLS_MIN_VERSION: &[&rustls::SupportedProtocolVersion] =
-            &[&rustls::version::TLS12, &rustls::version::TLS13];
+        // Note: TLS12 is not available without the tls12 feature in rustls 0.22
+        // Using TLS13 only, which is more secure and widely supported
+        static TLS_MIN_VERSION: &[&tokio_rustls::rustls::SupportedProtocolVersion] =
+            &[&tokio_rustls::rustls::version::TLS13];
 
         // Start processing engine triggers
         Arc::clone(&processing_engine)
@@ -1712,7 +1856,7 @@ mod tests {
         precision: impl Into<String> + Send,
     ) -> Response {
         let server = server.into();
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         let url = format!(
             "{}/api/v3/write_lp?db={}&accept_partial={accept_partial}&precision={}",
             server,
@@ -1729,10 +1873,20 @@ mod tests {
             .body(bytes_to_request_body(lp.into()))
             .expect("failed to construct HTTP request");
 
-        client
+        let hyper_response = client
             .request(request)
             .await
-            .expect("http error sending write")
+            .expect("http error sending write");
+
+        // Convert hyper response to expected Response type
+        let (parts, body) = hyper_response.into_parts();
+        let body_bytes = body
+            .collect()
+            .await
+            .expect("Failed to read body")
+            .to_bytes();
+        let response_body = bytes_to_response_body(body_bytes);
+        http::Response::from_parts(parts, response_body)
     }
 
     pub(crate) async fn query(
@@ -1742,7 +1896,7 @@ mod tests {
         format: impl Into<String> + Send,
         authorization: Option<&str>,
     ) -> Response {
-        let client = Client::new();
+        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
         // query escaped for uri
         let query = urlencoding::encode(&query.into());
         let url = format!(
@@ -1762,9 +1916,19 @@ mod tests {
             .body(empty_request_body())
             .expect("failed to construct HTTP request");
 
-        client
+        let hyper_response = client
             .request(request)
             .await
-            .expect("http error sending query")
+            .expect("http error sending query");
+
+        // Convert hyper response to expected Response type
+        let (parts, body) = hyper_response.into_parts();
+        let body_bytes = body
+            .collect()
+            .await
+            .expect("Failed to read body")
+            .to_bytes();
+        let response_body = bytes_to_response_body(body_bytes);
+        http::Response::from_parts(parts, response_body)
     }
 }

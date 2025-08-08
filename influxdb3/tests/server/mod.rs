@@ -1,7 +1,7 @@
 use std::{
     future::Future,
     process::{Child, Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Once},
     time::{Duration, SystemTime},
 };
 
@@ -18,6 +18,17 @@ use reqwest::{Certificate, Response, tls::Version};
 use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tonic::transport::ClientTlsConfig;
+
+// Initialize rustls CryptoProvider once for all tests
+static INIT: Once = Once::new();
+
+fn init_rustls() {
+    INIT.call_once(|| {
+        // Install the default rustls crypto provider (ring)
+        // This is required for rustls 0.23+ used by tonic 0.12
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
 
 mod auth;
 mod client;
@@ -321,6 +332,7 @@ impl TestServer {
     }
 
     async fn spawn_inner(config: &impl ConfigProvider) -> Self {
+        init_rustls();
         create_certs().await;
         // Create a temporary file for storing the TCP Listener address. We start the server with
         // a bind address of 0.0.0.0:0, which will have the OS assign a randomly available port.

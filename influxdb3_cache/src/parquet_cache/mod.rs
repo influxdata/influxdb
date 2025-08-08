@@ -26,7 +26,7 @@ use metric::Registry;
 use metrics::{AccessMetrics, SizeMetrics};
 use object_store::{
     Error, GetOptions, GetRange, GetResult, GetResultPayload, ListResult, MultipartUpload,
-    ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult, path::Path,
+    ObjectMeta, ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path,
 };
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use tokio::sync::{
@@ -59,7 +59,7 @@ impl ParquetFileDataToCache {
             // one time cost
             location: path.clone(),
             last_modified,
-            size: bytes.len(),
+            size: bytes.len() as u64,
             e_tag: put_result.e_tag,
             version: put_result.version,
         };
@@ -666,7 +666,7 @@ impl std::fmt::Display for MemCachedObjectStore {
 }
 
 /// Check that the given [`Range`] is valid with respect to a given `object_size`.
-fn check_range(range: Range<usize>, object_size: usize) -> object_store::Result<Range<usize>> {
+fn check_range(range: Range<u64>, object_size: u64) -> object_store::Result<Range<u64>> {
     let Range { start, end } = range;
     if end > object_size {
         return Err(Error::Generic {
@@ -723,7 +723,7 @@ impl ObjectStore for MemCachedObjectStore {
     async fn put_multipart_opts(
         &self,
         location: &Path,
-        opts: PutMultipartOpts,
+        opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         self.inner.put_multipart_opts(location, opts).await
     }
@@ -747,16 +747,22 @@ impl ObjectStore for MemCachedObjectStore {
             let bytes = range
                 .map(|r| match r {
                     GetRange::Bounded(range) => range,
-                    GetRange::Offset(start) => start..v.data.len(),
+                    GetRange::Offset(start) => start..v.data.len() as u64,
                     GetRange::Suffix(end) => 0..end,
                 })
-                .map(|r| check_range(r, v.data.len()))
+                .map(|r| check_range(r, v.data.len() as u64))
                 .transpose()?
-                .map_or_else(|| v.data.clone(), |r| v.data.slice(r));
+                .map_or_else(
+                    || v.data.clone(),
+                    |r| {
+                        let r_usize = (r.start as usize)..(r.end as usize);
+                        v.data.slice(r_usize)
+                    },
+                );
             Ok(GetResult {
                 payload: GetResultPayload::Stream(futures::stream::iter([Ok(bytes)]).boxed()),
                 meta: v.meta.clone(),
-                range: 0..v.data.len(),
+                range: 0..v.data.len() as u64,
                 attributes: Default::default(),
             })
         } else {
@@ -764,7 +770,7 @@ impl ObjectStore for MemCachedObjectStore {
         }
     }
 
-    async fn get_range(&self, location: &Path, range: Range<usize>) -> object_store::Result<Bytes> {
+    async fn get_range(&self, location: &Path, range: Range<u64>) -> object_store::Result<Bytes> {
         Ok(self
             .get_ranges(location, &[range])
             .await?
@@ -778,15 +784,16 @@ impl ObjectStore for MemCachedObjectStore {
     async fn get_ranges(
         &self,
         location: &Path,
-        ranges: &[Range<usize>],
+        ranges: &[Range<u64>],
     ) -> object_store::Result<Vec<Bytes>> {
         if let Some(state) = self.cache.get(location) {
             let v = state.value().await?;
             ranges
                 .iter()
                 .map(|range| {
-                    Ok(v.data
-                        .slice(check_range(range.clone(), v.data.len())?.clone()))
+                    let checked_range = check_range(range.clone(), v.data.len() as u64)?;
+                    let r_usize = (checked_range.start as usize)..(checked_range.end as usize);
+                    Ok(v.data.slice(r_usize))
                 })
                 .collect()
         } else {
@@ -819,7 +826,7 @@ impl ObjectStore for MemCachedObjectStore {
             .boxed()
     }
 
-    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         self.inner.list(prefix)
     }
 
@@ -827,7 +834,7 @@ impl ObjectStore for MemCachedObjectStore {
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         self.inner.list_with_offset(prefix, offset)
     }
 

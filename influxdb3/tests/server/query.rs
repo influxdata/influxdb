@@ -2,12 +2,10 @@ use core::str;
 
 use crate::server::TestServer;
 use futures::StreamExt;
-use hyper::{
-    HeaderMap, StatusCode,
-    header::{ACCEPT, HeaderValue},
-};
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
+use reqwest::StatusCode;
+use reqwest::header::{ACCEPT, HeaderMap, HeaderValue};
 use serde::Serialize;
 use serde_json::{Value, json};
 use test_helpers::assert_contains;
