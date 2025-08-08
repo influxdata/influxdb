@@ -145,7 +145,6 @@ test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
 tokio = { version = "1.45", features = ["full"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 tonic = { version = "0.12.3", features = ["tls", "tls-roots"] }
 tonic-build = "0.12.3"
 tonic-health = "0.12.3"
