@@ -3,9 +3,9 @@ use std::{any::Any, sync::Arc};
 use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use async_trait::async_trait;
 use datafusion::{
-    catalog::{Session, TableFunctionImpl, TableProvider},
-    common::{DFSchema, internal_err, plan_err},
-    datasource::TableType,
+    catalog::{memory::DataSourceExec, Session, TableFunctionImpl, TableProvider},
+    common::{internal_err, plan_err, DFSchema},
+    datasource::{source::DataSource, TableType},
     error::DataFusionError,
     execution::context::ExecutionProps,
     logical_expr::TableProviderFilterPushDown,
@@ -13,7 +13,7 @@ use datafusion::{
         create_physical_expr,
         utils::{Guarantee, LiteralGuarantee},
     },
-    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, memory::MemoryExec},
+    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan},
     prelude::Expr,
     scalar::ScalarValue,
 };
@@ -304,12 +304,12 @@ impl LastCacheFunction {
 
 impl TableFunctionImpl for LastCacheFunction {
     fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>, DataFusionError> {
-        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)))) = args.first() else {
+        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)), _)) = args.first() else {
             return plan_err!("first argument must be the table name as a string");
         };
 
         let cache_name = match args.get(1) {
-            Some(Expr::Literal(ScalarValue::Utf8(Some(name)))) => Some(name),
+            Some(Expr::Literal(ScalarValue::Utf8(Some(name)), _)) => Some(name),
             Some(_) => {
                 return plan_err!("second argument, if passed, must be the cache name as a string");
             }
@@ -407,7 +407,7 @@ impl LastCacheExec {
 impl DisplayAs for LastCacheExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+            DisplayFormatType::Default | DisplayFormatType::Verbose | DisplayFormatType::TreeRender => {
                 write!(f, "LastCacheExec:")?;
                 if let Some(predicates) = self.predicates.as_ref() {
                     write!(f, " predicates=[")?;

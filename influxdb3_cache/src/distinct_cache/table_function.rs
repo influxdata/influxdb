@@ -230,11 +230,11 @@ impl DistinctCacheFunction {
 
 impl TableFunctionImpl for DistinctCacheFunction {
     fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>> {
-        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)))) = args.first() else {
+        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)), _)) = args.first() else {
             return plan_err!("first argument must be the table name as a string");
         };
         let cache_name = match args.get(1) {
-            Some(Expr::Literal(ScalarValue::Utf8(Some(name)))) => Some(name),
+            Some(Expr::Literal(ScalarValue::Utf8(Some(name)), _)) => Some(name),
             Some(_) => {
                 return plan_err!("second argument, if passed, must be the cache name as a string");
             }
@@ -338,7 +338,7 @@ impl DistinctCacheExec {
 impl DisplayAs for DistinctCacheExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+            DisplayFormatType::Default | DisplayFormatType::Verbose | DisplayFormatType::TreeRender => {
                 write!(f, "DistinctCacheExec:")?;
                 if self.is_projected {
                     write!(f, " projection=[")?;

@@ -25,8 +25,7 @@ use iox_time::TimeProvider;
 use metric::Registry;
 use metrics::{AccessMetrics, SizeMetrics};
 use object_store::{
-    Error, GetOptions, GetRange, GetResult, GetResultPayload, ListResult, MultipartUpload,
-    ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult, path::Path,
+    path::Path, Error, GetOptions, GetRange, GetResult, GetResultPayload, ListResult, MultipartUpload, ObjectMeta, ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult
 };
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use tokio::sync::{
@@ -666,7 +665,7 @@ impl std::fmt::Display for MemCachedObjectStore {
 }
 
 /// Check that the given [`Range`] is valid with respect to a given `object_size`.
-fn check_range(range: Range<usize>, object_size: usize) -> object_store::Result<Range<usize>> {
+fn check_range(range: Range<u64>, object_size: u64) -> object_store::Result<Range<u64>> {
     let Range { start, end } = range;
     if end > object_size {
         return Err(Error::Generic {
@@ -723,7 +722,7 @@ impl ObjectStore for MemCachedObjectStore {
     async fn put_multipart_opts(
         &self,
         location: &Path,
-        opts: PutMultipartOpts,
+        opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         self.inner.put_multipart_opts(location, opts).await
     }
@@ -750,7 +749,7 @@ impl ObjectStore for MemCachedObjectStore {
                     GetRange::Offset(start) => start..v.data.len(),
                     GetRange::Suffix(end) => 0..end,
                 })
-                .map(|r| check_range(r, v.data.len()))
+                .map(|r| check_range(r, v.data.len() as u64))
                 .transpose()?
                 .map_or_else(|| v.data.clone(), |r| v.data.slice(r));
             Ok(GetResult {
@@ -764,7 +763,7 @@ impl ObjectStore for MemCachedObjectStore {
         }
     }
 
-    async fn get_range(&self, location: &Path, range: Range<usize>) -> object_store::Result<Bytes> {
+    async fn get_range(&self, location: &Path, range: Range<u64>) -> object_store::Result<Bytes> {
         Ok(self
             .get_ranges(location, &[range])
             .await?
@@ -778,7 +777,7 @@ impl ObjectStore for MemCachedObjectStore {
     async fn get_ranges(
         &self,
         location: &Path,
-        ranges: &[Range<usize>],
+        ranges: &[Range<u64>],
     ) -> object_store::Result<Vec<Bytes>> {
         if let Some(state) = self.cache.get(location) {
             let v = state.value().await?;
@@ -819,7 +818,7 @@ impl ObjectStore for MemCachedObjectStore {
             .boxed()
     }
 
-    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         self.inner.list(prefix)
     }
 
@@ -827,7 +826,7 @@ impl ObjectStore for MemCachedObjectStore {
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         self.inner.list_with_offset(prefix, offset)
     }
 
