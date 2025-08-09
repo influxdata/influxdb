@@ -988,7 +988,7 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
     pub(crate) fn update(&mut self, id: I, resource: impl Into<Arc<R>>) -> Result<()> {
         let resource = resource.into();
         if !self.id_exists(&id) {
-            return Err(CatalogError::NotFound);
+            return Err(CatalogError::not_found(R::KIND, resource.name()));
         }
         self.id_name_map.insert(id, resource.name());
         self.repo.insert(id, resource);
@@ -2540,7 +2540,7 @@ impl TokenRepository {
         let token_id = self
             .repo
             .name_to_id(&token_name)
-            .ok_or_else(|| CatalogError::NotFound)?;
+            .ok_or_else(|| CatalogError::not_found("token", token_name))?;
         self.repo.remove(&token_id);
         self.hash_lookup_map.remove_by_left(&token_id);
         Ok(())
