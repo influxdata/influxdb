@@ -603,7 +603,7 @@ impl PartialEq for PruneHeapItem {
 
 impl PartialOrd for PruneHeapItem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.hit_time.cmp(&other.hit_time))
+        Some(self.cmp(other))
     }
 }
 

@@ -674,8 +674,8 @@ mod python_plugin {
 
             let mut errors = Vec::new();
 
-            if !plugin_return_state.write_back_lines.is_empty() {
-                if let Err(e) = self
+            if !plugin_return_state.write_back_lines.is_empty()
+                && let Err(e) = self
                     .write_buffer
                     .write_lp(
                         NamespaceName::new(self.db_name.clone()).unwrap(),
@@ -686,9 +686,8 @@ mod python_plugin {
                         false,
                     )
                     .await
-                {
-                    errors.push(format!("error writing back lines: {e}"));
-                }
+            {
+                errors.push(format!("error writing back lines: {e}"));
             }
 
             for (db_name, lines) in plugin_return_state.write_db_lines {

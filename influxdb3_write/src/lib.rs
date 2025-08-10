@@ -302,7 +302,7 @@ impl std::cmp::Ord for ParquetFile {
 
 impl std::cmp::PartialOrd for ParquetFile {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.id.cmp(&other.id))
+        Some(self.cmp(other))
     }
 }
 

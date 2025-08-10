@@ -413,15 +413,16 @@ impl Node {
                         }
                     }
                     total_count += count;
-                } else if next_predicates.is_empty() && next_builders.is_empty() {
-                    if let Some(builder) = builder {
-                        if let Some(value) = value {
-                            builder.append_value(value.0);
-                        } else {
-                            builder.append_null();
-                        }
-                        total_count += 1;
+                } else if next_predicates.is_empty()
+                    && next_builders.is_empty()
+                    && let Some(builder) = builder
+                {
+                    if let Some(value) = value {
+                        builder.append_value(value.0);
+                    } else {
+                        builder.append_null();
                     }
+                    total_count += 1;
                 }
                 if let Some(new_limit) = limit.checked_sub(count) {
                     limit = new_limit;

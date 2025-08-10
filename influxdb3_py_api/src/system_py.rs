@@ -504,10 +504,10 @@ pub fn execute_python_with_batch(
         let mut table_batches = Vec::with_capacity(write_batch.table_chunks.len());
 
         for (table_id, table_chunks) in &write_batch.table_chunks {
-            if let Some(table_filter) = table_filter {
-                if table_id != &table_filter {
-                    continue;
-                }
+            if let Some(table_filter) = table_filter
+                && table_id != &table_filter
+            {
+                continue;
             }
             let table_def = schema
                 .tables
@@ -995,13 +995,13 @@ impl ExpiringCache {
         // if key has a ttl, record its expiration.
         let expiration = entry.expires_at;
         // if this was an overwrite, remove from expirations
-        if let Some(old_entry) = self.entries.insert(key.clone(), entry) {
-            if let Some(old_expiration) = old_entry.expires_at {
-                self.expirations
-                    .get_mut(&old_expiration)
-                    .unwrap()
-                    .remove(&key);
-            }
+        if let Some(old_entry) = self.entries.insert(key.clone(), entry)
+            && let Some(old_expiration) = old_entry.expires_at
+        {
+            self.expirations
+                .get_mut(&old_expiration)
+                .unwrap()
+                .remove(&key);
         }
         if let Some(expiration) = expiration {
             self.expirations.entry(expiration).or_default().insert(key);
@@ -1010,11 +1010,11 @@ impl ExpiringCache {
 
     fn get(&mut self, key: &str, py: Python<'_>) -> Option<Py<PyAny>> {
         let entry = self.entries.get(key)?;
-        if let Some(expiration) = entry.expires_at {
-            if expiration <= self.time_provider.now() {
-                self.remove(key);
-                return None;
-            }
+        if let Some(expiration) = entry.expires_at
+            && expiration <= self.time_provider.now()
+        {
+            self.remove(key);
+            return None;
         }
         Some(entry.value.clone_ref(py))
     }

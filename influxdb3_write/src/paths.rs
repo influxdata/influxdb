@@ -261,13 +261,13 @@ impl TryFrom<ObjPath> for TableIndexSnapshotPath {
             .ok_or_else(|| PathError::InvalidTableId(path_str.to_string()))?;
 
         // Validate sequence number
-        if let Some(filename) = path_str.split('/').next_back() {
-            if TableIndexSnapshotPath::parse_sequence_number(filename).is_none() {
-                return Err(PathError::InvalidSequenceNumber {
-                    context: "table snapshot".to_string(),
-                    filename: filename.to_string(),
-                });
-            }
+        if let Some(filename) = path_str.split('/').next_back()
+            && TableIndexSnapshotPath::parse_sequence_number(filename).is_none()
+        {
+            return Err(PathError::InvalidSequenceNumber {
+                context: "table snapshot".to_string(),
+                filename: filename.to_string(),
+            });
         }
 
         Ok(Self(path))
@@ -448,13 +448,13 @@ impl TryFrom<ObjPath> for SnapshotInfoFilePath {
         }
 
         // Additional validation: ensure we can parse the sequence number
-        if let Some(filename) = path_str.split('/').next_back() {
-            if SnapshotInfoFilePath::parse_sequence_number(filename).is_none() {
-                return Err(PathError::InvalidSequenceNumber {
-                    context: "snapshot".to_string(),
-                    filename: filename.to_string(),
-                });
-            }
+        if let Some(filename) = path_str.split('/').next_back()
+            && SnapshotInfoFilePath::parse_sequence_number(filename).is_none()
+        {
+            return Err(PathError::InvalidSequenceNumber {
+                context: "snapshot".to_string(),
+                filename: filename.to_string(),
+            });
         }
 
         Ok(Self(path))
