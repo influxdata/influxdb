@@ -3,11 +3,17 @@
 package tsm1
 
 import (
+	"time"
+
 	"github.com/influxdata/influxdb/tsdb"
 )
 
 // ReadFloatArrayBlock reads the next block as a set of float values.
 func (c *KeyCursor) ReadFloatArrayBlock(values *tsdb.FloatArray) (*tsdb.FloatArray, error) {
+	var start time.Time
+	var mergeCount int64     // the number of merge operations that occurred
+	var mergeValuesCount int // the number of values merged into the first block
+
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -81,6 +87,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -110,11 +117,12 @@ LOOP:
 				// Only use values in the overlapping window
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				values.Merge(v)
+				mergeCount++
 			}
 			cur.markRead(minT, maxT)
 		}
-
 	} else {
 		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
 		// expand the window to include the max time range to ensure values are returned in descending
@@ -143,6 +151,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -172,7 +181,9 @@ LOOP:
 			if v.Len() > 0 {
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				v.Merge(values)
+				mergeCount++
 				*values = *v
 			}
 			cur.markRead(minT, maxT)
@@ -180,6 +191,18 @@ LOOP:
 	}
 
 	first.markRead(minT, maxT)
+
+	if c.col != nil {
+		c.col.GetTimer(floatBlocksMergeTimer).AddSince(start)
+		c.col.GetCounter(floatBlocksMergeCount).Add(mergeCount)
+		c.col.GetCounter(floatBlocksMergeValuesCount).Add(int64(mergeValuesCount))
+		if mergeCount > 4 {
+			// We want to know when there are "many" (over 4) merge operations in a single Read call.
+			// If we see this is high, doing a tree merge of blocks may be beneficial compared to the current sequential
+			// merge (n^2 versus nlogn in number of values).
+			c.col.GetCounter(floatBlocksMergeOver4Count).Add(1)
+		}
+	}
 
 	return values, err
 }
@@ -192,6 +215,10 @@ func excludeTombstonesFloatArray(t []TimeRange, values *tsdb.FloatArray) {
 
 // ReadIntegerArrayBlock reads the next block as a set of integer values.
 func (c *KeyCursor) ReadIntegerArrayBlock(values *tsdb.IntegerArray) (*tsdb.IntegerArray, error) {
+	var start time.Time
+	var mergeCount int64     // the number of merge operations that occurred
+	var mergeValuesCount int // the number of values merged into the first block
+
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -265,6 +292,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -294,11 +322,12 @@ LOOP:
 				// Only use values in the overlapping window
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				values.Merge(v)
+				mergeCount++
 			}
 			cur.markRead(minT, maxT)
 		}
-
 	} else {
 		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
 		// expand the window to include the max time range to ensure values are returned in descending
@@ -327,6 +356,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -356,7 +386,9 @@ LOOP:
 			if v.Len() > 0 {
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				v.Merge(values)
+				mergeCount++
 				*values = *v
 			}
 			cur.markRead(minT, maxT)
@@ -364,6 +396,18 @@ LOOP:
 	}
 
 	first.markRead(minT, maxT)
+
+	if c.col != nil {
+		c.col.GetTimer(integerBlocksMergeTimer).AddSince(start)
+		c.col.GetCounter(integerBlocksMergeCount).Add(mergeCount)
+		c.col.GetCounter(integerBlocksMergeValuesCount).Add(int64(mergeValuesCount))
+		if mergeCount > 4 {
+			// We want to know when there are "many" (over 4) merge operations in a single Read call.
+			// If we see this is high, doing a tree merge of blocks may be beneficial compared to the current sequential
+			// merge (n^2 versus nlogn in number of values).
+			c.col.GetCounter(integerBlocksMergeOver4Count).Add(1)
+		}
+	}
 
 	return values, err
 }
@@ -376,6 +420,10 @@ func excludeTombstonesIntegerArray(t []TimeRange, values *tsdb.IntegerArray) {
 
 // ReadUnsignedArrayBlock reads the next block as a set of unsigned values.
 func (c *KeyCursor) ReadUnsignedArrayBlock(values *tsdb.UnsignedArray) (*tsdb.UnsignedArray, error) {
+	var start time.Time
+	var mergeCount int64     // the number of merge operations that occurred
+	var mergeValuesCount int // the number of values merged into the first block
+
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -449,6 +497,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -478,11 +527,12 @@ LOOP:
 				// Only use values in the overlapping window
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				values.Merge(v)
+				mergeCount++
 			}
 			cur.markRead(minT, maxT)
 		}
-
 	} else {
 		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
 		// expand the window to include the max time range to ensure values are returned in descending
@@ -511,6 +561,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -540,7 +591,9 @@ LOOP:
 			if v.Len() > 0 {
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				v.Merge(values)
+				mergeCount++
 				*values = *v
 			}
 			cur.markRead(minT, maxT)
@@ -548,6 +601,18 @@ LOOP:
 	}
 
 	first.markRead(minT, maxT)
+
+	if c.col != nil {
+		c.col.GetTimer(unsignedBlocksMergeTimer).AddSince(start)
+		c.col.GetCounter(unsignedBlocksMergeCount).Add(mergeCount)
+		c.col.GetCounter(unsignedBlocksMergeValuesCount).Add(int64(mergeValuesCount))
+		if mergeCount > 4 {
+			// We want to know when there are "many" (over 4) merge operations in a single Read call.
+			// If we see this is high, doing a tree merge of blocks may be beneficial compared to the current sequential
+			// merge (n^2 versus nlogn in number of values).
+			c.col.GetCounter(unsignedBlocksMergeOver4Count).Add(1)
+		}
+	}
 
 	return values, err
 }
@@ -560,6 +625,10 @@ func excludeTombstonesUnsignedArray(t []TimeRange, values *tsdb.UnsignedArray) {
 
 // ReadStringArrayBlock reads the next block as a set of string values.
 func (c *KeyCursor) ReadStringArrayBlock(values *tsdb.StringArray) (*tsdb.StringArray, error) {
+	var start time.Time
+	var mergeCount int64     // the number of merge operations that occurred
+	var mergeValuesCount int // the number of values merged into the first block
+
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -633,6 +702,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -662,11 +732,12 @@ LOOP:
 				// Only use values in the overlapping window
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				values.Merge(v)
+				mergeCount++
 			}
 			cur.markRead(minT, maxT)
 		}
-
 	} else {
 		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
 		// expand the window to include the max time range to ensure values are returned in descending
@@ -695,6 +766,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -724,7 +796,9 @@ LOOP:
 			if v.Len() > 0 {
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				v.Merge(values)
+				mergeCount++
 				*values = *v
 			}
 			cur.markRead(minT, maxT)
@@ -732,6 +806,18 @@ LOOP:
 	}
 
 	first.markRead(minT, maxT)
+
+	if c.col != nil {
+		c.col.GetTimer(stringBlocksMergeTimer).AddSince(start)
+		c.col.GetCounter(stringBlocksMergeCount).Add(mergeCount)
+		c.col.GetCounter(stringBlocksMergeValuesCount).Add(int64(mergeValuesCount))
+		if mergeCount > 4 {
+			// We want to know when there are "many" (over 4) merge operations in a single Read call.
+			// If we see this is high, doing a tree merge of blocks may be beneficial compared to the current sequential
+			// merge (n^2 versus nlogn in number of values).
+			c.col.GetCounter(stringBlocksMergeOver4Count).Add(1)
+		}
+	}
 
 	return values, err
 }
@@ -744,6 +830,10 @@ func excludeTombstonesStringArray(t []TimeRange, values *tsdb.StringArray) {
 
 // ReadBooleanArrayBlock reads the next block as a set of boolean values.
 func (c *KeyCursor) ReadBooleanArrayBlock(values *tsdb.BooleanArray) (*tsdb.BooleanArray, error) {
+	var start time.Time
+	var mergeCount int64     // the number of merge operations that occurred
+	var mergeValuesCount int // the number of values merged into the first block
+
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -817,6 +907,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -846,11 +937,12 @@ LOOP:
 				// Only use values in the overlapping window
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				values.Merge(v)
+				mergeCount++
 			}
 			cur.markRead(minT, maxT)
 		}
-
 	} else {
 		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
 		// expand the window to include the max time range to ensure values are returned in descending
@@ -879,6 +971,7 @@ LOOP:
 
 		// Search the remaining blocks that overlap our window and append their values so we can
 		// merge them.
+		start = time.Now()
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
@@ -908,7 +1001,9 @@ LOOP:
 			if v.Len() > 0 {
 				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
+				mergeValuesCount += len(v.Timestamps)
 				v.Merge(values)
+				mergeCount++
 				*values = *v
 			}
 			cur.markRead(minT, maxT)
@@ -916,6 +1011,18 @@ LOOP:
 	}
 
 	first.markRead(minT, maxT)
+
+	if c.col != nil {
+		c.col.GetTimer(booleanBlocksMergeTimer).AddSince(start)
+		c.col.GetCounter(booleanBlocksMergeCount).Add(mergeCount)
+		c.col.GetCounter(booleanBlocksMergeValuesCount).Add(int64(mergeValuesCount))
+		if mergeCount > 4 {
+			// We want to know when there are "many" (over 4) merge operations in a single Read call.
+			// If we see this is high, doing a tree merge of blocks may be beneficial compared to the current sequential
+			// merge (n^2 versus nlogn in number of values).
+			c.col.GetCounter(booleanBlocksMergeOver4Count).Add(1)
+		}
+	}
 
 	return values, err
 }
