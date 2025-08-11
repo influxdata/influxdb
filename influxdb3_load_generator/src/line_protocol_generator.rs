@@ -664,16 +664,16 @@ impl GeneratorRunner {
         loop {
             interval.tick().await;
             let now = Local::now();
-            if let Some(end_time) = self.end_time {
-                if now > end_time {
-                    println!(
-                        "writer {} completed at {}",
-                        self.generator.writer_id, end_time
-                    );
-                    return Output {
-                        measurements: self.generator.into(),
-                    };
-                }
+            if let Some(end_time) = self.end_time
+                && now > end_time
+            {
+                println!(
+                    "writer {} completed at {}",
+                    self.generator.writer_id, end_time
+                );
+                return Output {
+                    measurements: self.generator.into(),
+                };
             }
 
             sample_buffer = Vec::with_capacity(sample_len);

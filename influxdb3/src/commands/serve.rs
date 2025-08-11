@@ -1277,17 +1277,16 @@ fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
     if let Ok(output) = Command::new(&python_exe)
         .args(["-m", "pip", "--version"])
         .output()
+        && output.status.success()
     {
-        if output.status.success() {
-            return Arc::new(PipManager);
-        }
+        return Arc::new(PipManager);
     }
 
     // Check for uv second (ie, prefer python standalone pip)
-    if let Ok(output) = Command::new("uv").arg("--version").output() {
-        if output.status.success() {
-            return Arc::new(UVManager);
-        }
+    if let Ok(output) = Command::new("uv").arg("--version").output()
+        && output.status.success()
+    {
+        return Arc::new(UVManager);
     }
 
     // If neither is available, return DisabledManager

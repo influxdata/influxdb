@@ -296,10 +296,10 @@ impl From<QueryResponse> for Bytes {
                 .from_writer(vec![]);
             // Extract column names dynamically from the first series
             let mut headers = vec!["name", "tags"];
-            if let Some(first_statement) = s.results.first() {
-                if let Some(first_series) = first_statement.series.first() {
-                    headers.extend(first_series.columns.iter().map(|s| s.as_str()));
-                }
+            if let Some(first_statement) = s.results.first()
+                && let Some(first_series) = first_statement.series.first()
+            {
+                headers.extend(first_series.columns.iter().map(|s| s.as_str()));
             }
             // Write the header
             wtr.write_record(&headers)
@@ -647,25 +647,24 @@ impl QueryResponseStream {
 
                 // Handle the special case for the measurement column
                 if column_name == INFLUXQL_MEASUREMENT_COLUMN_NAME {
-                    if let Value::String(ref measurement_name) = cell_value {
-                        if self.buffer.current_measurement_name().is_none()
+                    if let Value::String(ref measurement_name) = cell_value
+                        && (self.buffer.current_measurement_name().is_none()
                             || self
                                 .buffer
                                 .current_measurement_name()
-                                .is_some_and(|n| n != measurement_name)
-                        {
-                            // we are on the "iox::measurement" column, which gives the name of the time series
-                            // if we are on the first row, or if the measurement changes, we push into the
-                            // buffer queue
-                            self.buffer.push_next_measurement(measurement_name);
-                        }
+                                .is_some_and(|n| n != measurement_name))
+                    {
+                        // we are on the "iox::measurement" column, which gives the name of the time series
+                        // if we are on the first row, or if the measurement changes, we push into the
+                        // buffer queue
+                        self.buffer.push_next_measurement(measurement_name);
                     }
                     continue;
                 }
-                if column_name == TIME_COLUMN_NAME {
-                    if let Some(precision) = self.epoch {
-                        cell_value = convert_ns_epoch(cell_value, precision)?
-                    }
+                if column_name == TIME_COLUMN_NAME
+                    && let Some(precision) = self.epoch
+                {
+                    cell_value = convert_ns_epoch(cell_value, precision)?
                 }
                 if let Some(index) = column_map.as_row_index(column_name) {
                     row[index] = cell_value;

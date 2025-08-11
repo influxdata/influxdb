@@ -354,10 +354,10 @@ impl QueryableBuffer {
                         // add file first
                         persisted_files.add_persisted_file(&database_id, &table_id, &parquet_file);
                         // then clear the buffer
-                        if let Some(db) = buffer.db_to_table.get_mut(&database_id) {
-                            if let Some(table) = db.get_mut(&table_id) {
-                                table.clear_snapshots();
-                            }
+                        if let Some(db) = buffer.db_to_table.get_mut(&database_id)
+                            && let Some(table) = db.get_mut(&table_id)
+                        {
+                            table.clear_snapshots();
                         }
                     }
 

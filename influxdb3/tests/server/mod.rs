@@ -419,37 +419,34 @@ impl TestServer {
         let mut server_process = command.spawn().expect("spawn the influxdb3 server process");
 
         // If log capture is enabled, spawn tasks to read from stdout/stderr
-        if config.capture_logs() {
-            if let (Some(stdout), Some(stderr)) =
+        if config.capture_logs()
+            && let (Some(stdout), Some(stderr)) =
                 (server_process.stdout.take(), server_process.stderr.take())
-            {
-                let stdout_buffer = stdout_handle.clone().unwrap();
-                let stderr_buffer = stderr_handle.clone().unwrap();
+        {
+            let stdout_buffer = stdout_handle.clone().unwrap();
+            let stderr_buffer = stderr_handle.clone().unwrap();
 
-                // Spawn task to read stdout
-                tokio::spawn(async move {
-                    let reader =
-                        BufReader::new(tokio::process::ChildStdout::from_std(stdout).unwrap());
-                    let mut lines = reader.lines();
-                    while let Ok(Some(line)) = lines.next_line().await {
-                        let mut buffer = stdout_buffer.lock().unwrap();
-                        buffer.push_str(&line);
-                        buffer.push('\n');
-                    }
-                });
+            // Spawn task to read stdout
+            tokio::spawn(async move {
+                let reader = BufReader::new(tokio::process::ChildStdout::from_std(stdout).unwrap());
+                let mut lines = reader.lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let mut buffer = stdout_buffer.lock().unwrap();
+                    buffer.push_str(&line);
+                    buffer.push('\n');
+                }
+            });
 
-                // Spawn task to read stderr
-                tokio::spawn(async move {
-                    let reader =
-                        BufReader::new(tokio::process::ChildStderr::from_std(stderr).unwrap());
-                    let mut lines = reader.lines();
-                    while let Ok(Some(line)) = lines.next_line().await {
-                        let mut buffer = stderr_buffer.lock().unwrap();
-                        buffer.push_str(&line);
-                        buffer.push('\n');
-                    }
-                });
-            }
+            // Spawn task to read stderr
+            tokio::spawn(async move {
+                let reader = BufReader::new(tokio::process::ChildStderr::from_std(stderr).unwrap());
+                let mut lines = reader.lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let mut buffer = stderr_buffer.lock().unwrap();
+                    buffer.push_str(&line);
+                    buffer.push('\n');
+                }
+            });
         }
 
         let bind_addr = find_bind_addr(tcp_addr_file).await;

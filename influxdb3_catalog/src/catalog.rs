@@ -1243,12 +1243,12 @@ impl InnerCatalog {
                 }
                 DeleteOp::DeleteTable(db_id, table_id) => {
                     // Remove the table from the database schema
-                    if let Some(mut db_schema) = self.databases.get_by_id(db_id) {
-                        if db_schema.tables.get_by_id(table_id).is_some() {
-                            Arc::make_mut(&mut db_schema).tables.remove(table_id);
-                            self.databases.update(*db_id, db_schema)?;
-                            updated = true;
-                        }
+                    if let Some(mut db_schema) = self.databases.get_by_id(db_id)
+                        && db_schema.tables.get_by_id(table_id).is_some()
+                    {
+                        Arc::make_mut(&mut db_schema).tables.remove(table_id);
+                        self.databases.update(*db_id, db_schema)?;
+                        updated = true;
                     }
                 }
             }

@@ -75,34 +75,34 @@ impl PluginChannels {
         match trigger_spec {
             TriggerSpecificationDefinition::SingleTableWalWrite { .. }
             | TriggerSpecificationDefinition::AllTablesWalWrite => {
-                if let Some(trigger_map) = self.wal_triggers.get(&db) {
-                    if let Some(sender) = trigger_map.get(&trigger) {
-                        // create a one shot to wait for the shutdown to complete
-                        let (tx, rx) = oneshot::channel();
-                        if sender.send(WalEvent::Shutdown(tx)).await.is_err() {
-                            return Err(ProcessingEngineError::TriggerShutdownError {
-                                database: db,
-                                trigger_name: trigger,
-                            });
-                        }
-                        return Ok(Some(rx));
+                if let Some(trigger_map) = self.wal_triggers.get(&db)
+                    && let Some(sender) = trigger_map.get(&trigger)
+                {
+                    // create a one shot to wait for the shutdown to complete
+                    let (tx, rx) = oneshot::channel();
+                    if sender.send(WalEvent::Shutdown(tx)).await.is_err() {
+                        return Err(ProcessingEngineError::TriggerShutdownError {
+                            database: db,
+                            trigger_name: trigger,
+                        });
                     }
+                    return Ok(Some(rx));
                 }
             }
             TriggerSpecificationDefinition::Schedule { .. }
             | TriggerSpecificationDefinition::Every { .. } => {
-                if let Some(trigger_map) = self.schedule_triggers.get(&db) {
-                    if let Some(sender) = trigger_map.get(&trigger) {
-                        // create a one shot to wait for the shutdown to complete
-                        let (tx, rx) = oneshot::channel();
-                        if sender.send(ScheduleEvent::Shutdown(tx)).await.is_err() {
-                            return Err(ProcessingEngineError::TriggerShutdownError {
-                                database: db,
-                                trigger_name: trigger,
-                            });
-                        }
-                        return Ok(Some(rx));
+                if let Some(trigger_map) = self.schedule_triggers.get(&db)
+                    && let Some(sender) = trigger_map.get(&trigger)
+                {
+                    // create a one shot to wait for the shutdown to complete
+                    let (tx, rx) = oneshot::channel();
+                    if sender.send(ScheduleEvent::Shutdown(tx)).await.is_err() {
+                        return Err(ProcessingEngineError::TriggerShutdownError {
+                            database: db,
+                            trigger_name: trigger,
+                        });
                     }
+                    return Ok(Some(rx));
                 }
             }
             TriggerSpecificationDefinition::RequestPath { .. } => {
@@ -684,13 +684,12 @@ fn background_catalog_update(
                             disabled,
                             ..
                         }) => {
-                            if !disabled {
-                                if let Err(error) = processing_engine_manager
+                            if !disabled
+                                && let Err(error) = processing_engine_manager
                                     .run_trigger(database_name, trigger_name)
                                     .await
-                                {
-                                    error!(?error, "failed to run the created trigger");
-                                }
+                            {
+                                error!(?error, "failed to run the created trigger");
                             }
                         }
                         DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {

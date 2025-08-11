@@ -578,12 +578,12 @@ impl TableIndexCache {
         // First check if we have a cached entry (read lock)
         {
             let indices = self.inner.indices.read().await;
-            if let Some(db_map) = indices.get(&(table_id.node_id().to_string(), table_id.db_id())) {
-                if let Some(cached) = db_map.get(&table_id.table_id()) {
-                    debug!(table_id = %table_id, "Cache hit for table index");
-                    // Return Arc<CachedTableIndex> as Arc<dyn TableIndex>
-                    return Ok(Arc::new(cached.clone()) as Arc<dyn TableIndex>);
-                }
+            if let Some(db_map) = indices.get(&(table_id.node_id().to_string(), table_id.db_id()))
+                && let Some(cached) = db_map.get(&table_id.table_id())
+            {
+                debug!(table_id = %table_id, "Cache hit for table index");
+                // Return Arc<CachedTableIndex> as Arc<dyn TableIndex>
+                return Ok(Arc::new(cached.clone()) as Arc<dyn TableIndex>);
             }
         }
 
