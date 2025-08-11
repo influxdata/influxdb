@@ -55,6 +55,15 @@ readonly TARGETS="aarch64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-
 fetch() {
     target="$1"
     suffix="${2}"
+
+    # As of 20250708, the SHA256s are in the SHA256SUMS file, not individual
+    # .sha256 files
+    if [ ! -e "${DOWNLOAD_DIR}/SHA256SUMS" ]; then
+        echo "Downloading SHA256SUMS"
+        curl --proto '=https' --tlsv1.2 -sS -L "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_DATE}/SHA256SUMS" -o "${DOWNLOAD_DIR}/SHA256SUMS"
+        echo
+    fi
+
     if [ "${suffix}" = "full.tar.zst" ]; then
         if [ "${target}" = "x86_64-pc-windows-msvc" ]; then
             suffix="pgo-${2}"
@@ -68,11 +77,9 @@ fetch() {
     echo "Downloading ${binary}"
     curl --proto '=https' --tlsv1.2 -sS -L "$url" -o "${DOWNLOAD_DIR}/${binary}"
 
-    echo "Downloading ${binary}.sha256"
-    curl --proto '=https' --tlsv1.2 -sS -L "${url}.sha256" -o "${DOWNLOAD_DIR}/${binary}.sha256"
-    dl_sha=$(cut -d ' ' -f 1 "${DOWNLOAD_DIR}/${binary}.sha256")
+    dl_sha=$(grep "$binary" "${DOWNLOAD_DIR}/SHA256SUMS" | cut -d ' ' -f 1)
     if [ -z "$dl_sha" ]; then
-        echo "Could not find properly formatted SHA256 in '${DOWNLOAD_DIR}/${binary}.sha256'"
+        echo "Could not find properly formatted SHA256 in '${DOWNLOAD_DIR}/SHA256SUMS'"
         exit 1
     fi
 
