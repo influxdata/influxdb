@@ -420,20 +420,34 @@ fn install_crash_handler() {
 }
 
 #[cfg(unix)]
-unsafe extern "C" fn signal_handler(sig: i32) {
-    use backtrace::Backtrace;
-    use std::process::abort;
-    let name = std::thread::current()
-        .name()
-        .map(|n| format!(" for thread \"{n}\""))
-        .unwrap_or_else(|| "".to_owned());
-    eprintln!(
-        "Signal {}, Stack trace{}\n{:?}",
-        sig,
-        name,
-        Backtrace::new()
-    );
-    abort();
+unsafe extern "C" fn signal_handler(_sig: i32) {
+    // The commented out code is *not* async signal safe and only a small set of libc functions
+    // can be used. See https://man7.org/linux/man-pages/man7/signal-safety.7.html for more
+    // information
+    //
+    // From https://github.com/influxdata/influxdb_pro/issues/971:
+    // > The signal_handler implementation calls high-level Rust routines (e.g.
+    // > thread name resolution, heap allocation via format!, buffered I/O with
+    // > eprintln! and unwinding through backtrace::Backtrace::new()) from within a
+    // > POSIX signal context. These operations are not guaranteed to be reentrant
+    // > or async-signal-safe, risking corruption of allocator metadata, I/O buffers,
+    // > and mutexes if a signal interrupts their internal execution.
+    // Until we find a safe way to do this, we will simply abort like we had been
+    // doing, but without the extra context.
+    //
+    // use backtrace::Backtrace;
+    // let name = std::thread::current()
+    //     .name()
+    //     .map(|n| format!(" for thread \"{n}\""))
+    //     .unwrap_or_else(|| "".to_owned());
+    // eprintln!(
+    //     "Signal {}, Stack trace{}\n{:?}",
+    //     sig,
+    //     name,
+    //     Backtrace::new()
+    // );
+
+    std::process::abort();
 }
 
 // based on https://github.com/adjivas/sig/blob/master/src/lib.rs#L34-L52
