@@ -1367,7 +1367,7 @@ mod tests {
                     "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains: "LastCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[12]",
+                explain_contains: "LastCacheExec: inner=DataSourceExec: partitions=1, partition_sizes=[12]",
             },
             TestCase {
                 _desc: "eq predicate on region",
@@ -1380,7 +1380,7 @@ mod tests {
                     "| us-east | b    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east')]] inner=MemoryExec: partitions=1, partition_sizes=[2]",
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east')]] inner=DataSourceExec: partitions=1, partition_sizes=[2]",
             },
             TestCase {
                 _desc: "not eq predicate on region",
@@ -1401,7 +1401,7 @@ mod tests {
                     "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains: "LastCacheExec: predicates=[[region@0 NOT IN ('us-east')]] inner=MemoryExec: partitions=1, partition_sizes=[10]",
+                explain_contains: "LastCacheExec: predicates=[[region@0 NOT IN ('us-east')]] inner=DataSourceExec: partitions=1, partition_sizes=[10]",
             },
             TestCase {
                 _desc: "double eq predicate on region",
@@ -1418,7 +1418,7 @@ mod tests {
                     "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east','us-west')]] inner=MemoryExec: partitions=1, partition_sizes=[4]",
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east','us-west')]] inner=DataSourceExec: partitions=1, partition_sizes=[4]",
             },
             TestCase {
                 _desc: "triple eq predicate on region",
@@ -1438,7 +1438,7 @@ mod tests {
                     "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('ca-west','us-east','us-west')]] inner=MemoryExec: partitions=1, partition_sizes=[6]",
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('ca-west','us-east','us-west')]] inner=DataSourceExec: partitions=1, partition_sizes=[6]",
             },
             TestCase {
                 _desc: "eq predicate on region AND eq predicate on host",
@@ -1453,7 +1453,7 @@ mod tests {
                     "| us-west | c    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east','us-west')], [host@1 IN ('a','c')]] inner=MemoryExec: partitions=1, partition_sizes=[2]",
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east','us-west')], [host@1 IN ('a','c')]] inner=DataSourceExec: partitions=1, partition_sizes=[2]",
             },
             TestCase {
                 _desc: "in predicate on region",
@@ -1468,7 +1468,7 @@ mod tests {
                     "| ca-west | h    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('ca-east','ca-west')]] inner=MemoryExec: partitions=1, partition_sizes=[3]",
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('ca-east','ca-west')]] inner=DataSourceExec: partitions=1, partition_sizes=[3]",
             },
             TestCase {
                 _desc: "not in predicate on region",
@@ -1489,7 +1489,7 @@ mod tests {
                     "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains: "LastCacheExec: predicates=[[region@0 NOT IN ('ca-east','ca-west')]] inner=MemoryExec: partitions=1, partition_sizes=[9]",
+                explain_contains: "LastCacheExec: predicates=[[region@0 NOT IN ('ca-east','ca-west')]] inner=DataSourceExec: partitions=1, partition_sizes=[9]",
             },
         ];
 

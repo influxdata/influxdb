@@ -557,7 +557,7 @@ cpu,host=n usage=300
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -571,7 +571,7 @@ cpu,host=n usage=300
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -585,7 +585,7 @@ cpu,host=n usage=300
                     "| us-east | a    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)], [host@1 IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)], [host@1 IN (a)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -600,7 +600,7 @@ cpu,host=n usage=300
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -614,7 +614,7 @@ cpu,host=n usage=300
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)], [host@1 NOT IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)], [host@1 NOT IN (a)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -633,7 +633,7 @@ cpu,host=n usage=300
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (ca-cent,ca-east,us-east,us-west)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -652,7 +652,7 @@ cpu,host=n usage=300
                     "| eu-west | l    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 NOT IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 NOT IN (ca-cent,ca-east,us-east,us-west)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -668,7 +668,7 @@ cpu,host=n usage=300
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (ca-east,us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (ca-east,us-east)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -683,7 +683,7 @@ cpu,host=n usage=300
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[host@1 IN (d,e)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[host@1 IN (d,e)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -698,7 +698,7 @@ cpu,host=n usage=300
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -713,7 +713,7 @@ cpu,host=n usage=300
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -732,7 +732,7 @@ cpu,host=n usage=300
                     "| us-west |",
                     "+---------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -751,7 +751,7 @@ cpu,host=n usage=300
                     "| us-west |",
                     "+---------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region] inner=MemoryExec: partitions=1, partition_sizes=[1",
+                explain_contains: "DistinctCacheExec: projection=[region] inner=DataSourceExec: partitions=1, partition_sizes=[1",
                 // it seems that DISTINCT changes around the order of results
                 use_sorted_assert: true,
             },
@@ -776,7 +776,7 @@ cpu,host=n usage=300
                     "| l    |", // commenting for no new line
                     "+------+", // commenting for no new line
                 ],
-                explain_contains: "DistinctCacheExec: projection=[host] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[host] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 // this column will not be sorted since the order of elements depends on the next level
                 // up in the cache, so the `region` column is iterated over in order, but the nested
                 // `host` values, although sorted within `region`s, will not be globally sorted.
@@ -792,7 +792,7 @@ cpu,host=n usage=300
                     "| f    |", // commenting for no new line
                     "+------+", // commenting for no new line
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (ca-cent)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[region@0 IN (ca-cent)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -812,7 +812,7 @@ cpu,host=n usage=300
                     "| eu-west | l    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] limit=8 inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] limit=8 inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -828,7 +828,7 @@ cpu,host=n usage=300
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] limit=16 inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] limit=16 inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -845,7 +845,7 @@ cpu,host=n usage=300
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
         ];

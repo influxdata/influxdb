@@ -3,9 +3,9 @@ use std::{any::Any, sync::Arc};
 use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use async_trait::async_trait;
 use datafusion::{
-    catalog::{Session, TableFunctionImpl, TableProvider},
+    catalog::{Session, TableFunctionImpl, TableProvider, memory::DataSourceExec},
     common::{DFSchema, internal_err, plan_err},
-    datasource::TableType,
+    datasource::{TableType, memory::MemorySourceConfig},
     error::DataFusionError,
     execution::context::ExecutionProps,
     logical_expr::TableProviderFilterPushDown,
@@ -13,7 +13,7 @@ use datafusion::{
         create_physical_expr,
         utils::{Guarantee, LiteralGuarantee},
     },
-    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, memory::MemoryExec},
+    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan},
     prelude::Expr,
     scalar::ScalarValue,
 };
@@ -99,17 +99,16 @@ impl TableProvider for LastCacheFunctionProvider {
             (None, vec![])
         };
         drop(read);
-        let mut exec = LastCacheExec::try_new(
+        let show_sizes = ctx.config_options().explain.show_sizes;
+        let exec = LastCacheExec::try_new(
             predicates,
             Arc::clone(&self.table_def),
             &[batches],
             self.schema(),
             projection.cloned(),
+            show_sizes,
         )?;
         recorder.set_success();
-
-        let show_sizes = ctx.config_options().explain.show_sizes;
-        exec = exec.with_show_sizes(show_sizes);
 
         Ok(Arc::new(exec))
     }
@@ -304,12 +303,12 @@ impl LastCacheFunction {
 
 impl TableFunctionImpl for LastCacheFunction {
     fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>, DataFusionError> {
-        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)))) = args.first() else {
+        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)), _)) = args.first() else {
             return plan_err!("first argument must be the table name as a string");
         };
 
         let cache_name = match args.get(1) {
-            Some(Expr::Literal(ScalarValue::Utf8(Some(name)))) => Some(name),
+            Some(Expr::Literal(ScalarValue::Utf8(Some(name)), _)) => Some(name),
             Some(_) => {
                 return plan_err!("second argument, if passed, must be the cache name as a string");
             }
@@ -355,7 +354,7 @@ impl TableFunctionImpl for LastCacheFunction {
 
 /// Custom implementor of the [`ExecutionPlan`] trait for use by the last cache
 ///
-/// Wraps a [`MemoryExec`] from DataFusion which it relies on for the actual implementation of the
+/// Wraps a [`DataSourceExec`] from DataFusion which it relies on for the actual implementation of the
 /// [`ExecutionPlan`] trait. The additional functionality provided by this type is that it tracks
 /// the predicates that are pushed down to the underlying cache during query planning/execution.
 ///
@@ -363,10 +362,10 @@ impl TableFunctionImpl for LastCacheFunction {
 ///
 /// For a query that does not provide any predicates, or one that does provide predicates, but they
 /// do not get pushed down, the `EXPLAIN` for said query will contain a line for the `LastCacheExec`
-/// with no predicates, as well as the info emitted for the inner `MemoryExec`, e.g.,
+/// with no predicates, as well as the info emitted for the inner `DataSourceExec`, e.g.,
 ///
 /// ```text
-/// LastCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[12]
+/// LastCacheExec: inner=DataSourceExec: partitions=1, partition_sizes=[12]
 /// ```
 ///
 /// For queries that do have predicates that get pushed down, the output will include them, e.g.,
@@ -376,7 +375,7 @@ impl TableFunctionImpl for LastCacheFunction {
 /// ```
 #[derive(Debug)]
 struct LastCacheExec {
-    inner: MemoryExec,
+    inner: Arc<DataSourceExec>,
     table_def: Arc<TableDefinition>,
     predicates: Option<IndexMap<ColumnId, Predicate>>,
 }
@@ -388,26 +387,25 @@ impl LastCacheExec {
         partitions: &[Vec<RecordBatch>],
         cache_schema: SchemaRef,
         projection: Option<Vec<usize>>,
+        show_sizes: bool,
     ) -> Result<Self, DataFusionError> {
+        let data_source = MemorySourceConfig::try_new(partitions, cache_schema, projection)?
+            .with_show_sizes(show_sizes);
+        let inner = DataSourceExec::from_data_source(data_source);
         Ok(Self {
-            inner: MemoryExec::try_new(partitions, cache_schema, projection)?,
+            inner,
             table_def,
             predicates,
         })
-    }
-
-    fn with_show_sizes(self, show_sizes: bool) -> Self {
-        Self {
-            inner: self.inner.with_show_sizes(show_sizes),
-            ..self
-        }
     }
 }
 
 impl DisplayAs for LastCacheExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+            DisplayFormatType::Default
+            | DisplayFormatType::Verbose
+            | DisplayFormatType::TreeRender => {
                 write!(f, "LastCacheExec:")?;
                 if let Some(predicates) = self.predicates.as_ref() {
                     write!(f, " predicates=[")?;
@@ -449,8 +447,8 @@ impl ExecutionPlan for LastCacheExec {
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
-        // (copied from MemoryExec):
-        // MemoryExec has no children
+        // (copied from DataSourceExec):
+        // DataSourceExec has no children
         if children.is_empty() {
             Ok(self)
         } else {

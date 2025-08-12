@@ -426,17 +426,19 @@ impl<'a> ChunkFilter<'a> {
             // - the derived intervals do not intersect, this should be a user
             //   error, i.e., a poorly formed query or querying outside of a
             //   retention policy for the table
-            if let Some(ExprBoundaries { interval, .. }) = (time_col_index
-                < analysis.boundaries.len())
-            .then_some(analysis.boundaries.remove(time_col_index))
+            if let Some(ExprBoundaries {
+                interval: Some(new_interval),
+                ..
+            }) = (time_col_index < analysis.boundaries.len())
+                .then_some(analysis.boundaries.remove(time_col_index))
             {
                 if let Some(existing) = time_interval.take() {
-                    let intersection = existing.intersect(interval).context(
+                    let intersection = existing.intersect(new_interval).context(
                                 "failed to derive a time interval from provided filters",
                             )?.context("provided filters on time column did not produce a valid set of boundaries")?;
-                    time_interval.replace(intersection);
+                    time_interval = Some(intersection);
                 } else {
-                    time_interval.replace(interval);
+                    time_interval = Some(new_interval);
                 }
             }
         }

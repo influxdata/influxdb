@@ -1,7 +1,7 @@
 use crate::server::TestServer;
-use hyper::StatusCode;
 use influxdb3_client::Error;
 use influxdb3_client::Precision;
+use reqwest::StatusCode;
 
 #[tokio::test]
 async fn limits() -> Result<(), Error> {

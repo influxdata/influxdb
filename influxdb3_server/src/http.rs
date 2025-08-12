@@ -16,6 +16,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::FutureExt;
 use futures::{StreamExt, TryStreamExt};
 use http::header::ACCESS_CONTROL_ALLOW_ORIGIN;
+use http_body_util::BodyExt;
 use hyper::HeaderMap;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
@@ -56,6 +57,7 @@ use observability_deps::tracing::{debug, error, info, trace};
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
@@ -101,7 +103,7 @@ pub enum Error {
 
     /// The client disconnected.
     #[error("client disconnected")]
-    ClientHangup(hyper::Error),
+    ClientHangup(Box<dyn StdError + Send + Sync>),
 
     /// The client sent a request body that exceeds the configured maximum.
     #[error("max request size ({0} bytes) exceeded")]
@@ -803,13 +805,15 @@ impl HttpApi {
         let mut payload = req.into_body();
 
         let mut body = BytesMut::new();
-        while let Some(chunk) = payload.next().await {
-            let chunk = chunk.map_err(Error::ClientHangup)?;
-            // limit max size of in-memory payload
-            if (body.len() + chunk.len()) > self.max_request_bytes {
-                return Err(Error::RequestSizeExceeded(self.max_request_bytes));
+        while let Some(frame) = payload.frame().await {
+            let frame = frame.map_err(Error::ClientHangup)?;
+            if let Some(chunk) = frame.data_ref() {
+                // limit max size of in-memory payload
+                if (body.len() + chunk.len()) > self.max_request_bytes {
+                    return Err(Error::RequestSizeExceeded(self.max_request_bytes));
+                }
+                body.extend_from_slice(chunk);
             }
-            body.extend_from_slice(&chunk);
         }
         let body = body.freeze();
 
@@ -1876,6 +1880,7 @@ async fn record_batch_stream_to_body(
 }
 
 /// This is used to trigger a shutdown when it's dropped.
+#[derive(Clone)]
 struct ShutdownTrigger {
     token: tokio_util::sync::CancellationToken,
 }
@@ -1894,12 +1899,28 @@ impl Drop for ShutdownTrigger {
 
 pub(crate) async fn route_admin_token_recovery_request(
     recovery_api: Arc<RecoveryHttpApi>,
-    req: Request,
+    req: hyper::Request<hyper::body::Incoming>,
 ) -> Result<Response, Infallible> {
     let method = req.method().clone();
     let uri = req.uri().clone();
     trace!(request = ?req,"Processing request");
     let content_length = req.headers().get("content-length").cloned();
+
+    // Convert incoming request to iox_http_util request
+    let (parts, body) = req.into_parts();
+    let collected = match http_body_util::BodyExt::collect(body).await {
+        Ok(collected) => collected,
+        Err(e) => {
+            error!("Failed to collect request body: {}", e);
+            return Ok(ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body("Failed to read request body"))
+                .unwrap());
+        }
+    };
+    let bytes = collected.to_bytes();
+    let iox_body = iox_http_util::bytes_to_request_body(bytes);
+    let req = iox_http_util::Request::from_parts(parts, iox_body);
 
     let response = match (method.clone(), uri.path()) {
         (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
@@ -1978,7 +1999,9 @@ pub(crate) async fn route_request(
     if started_without_auth && uri.path().starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
         return Ok(ResponseBuilder::new()
             .status(StatusCode::METHOD_NOT_ALLOWED)
-            .body("endpoint disabled, started without auth".into())
+            .body(bytes_to_response_body(Bytes::from(
+                "endpoint disabled, started without auth",
+            )))
             .unwrap());
     }
 
@@ -2647,7 +2670,7 @@ mod tests {
         let req = Request::builder()
             .uri("http://example.com/api/v3/write")
             .header("x-forwarded-for", "192.168.1.100")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         assert_eq!(extract_client_ip(&req), Some("192.168.1.100".to_string()));
 
@@ -2655,7 +2678,7 @@ mod tests {
         let req = Request::builder()
             .uri("http://example.com/api/v3/write")
             .header("x-forwarded-for", "10.0.0.1, 172.16.0.1, 192.168.1.1")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         assert_eq!(extract_client_ip(&req), Some("10.0.0.1".to_string()));
 
@@ -2663,7 +2686,7 @@ mod tests {
         let req = Request::builder()
             .uri("http://example.com/api/v3/write")
             .header("x-forwarded-for", "  10.0.0.1  ,  172.16.0.1  ")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         assert_eq!(extract_client_ip(&req), Some("10.0.0.1".to_string()));
 
@@ -2671,7 +2694,7 @@ mod tests {
         let req = Request::builder()
             .uri("http://example.com/api/v3/write")
             .header("x-real-ip", "192.168.1.50")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         assert_eq!(extract_client_ip(&req), Some("192.168.1.50".to_string()));
 
@@ -2680,14 +2703,14 @@ mod tests {
             .uri("http://example.com/api/v3/write")
             .header("x-forwarded-for", "10.0.0.1")
             .header("x-real-ip", "192.168.1.50")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         assert_eq!(extract_client_ip(&req), Some("10.0.0.1".to_string()));
 
         // Test with socket address in extensions (IPv4)
         let mut req = Request::builder()
             .uri("http://example.com/api/v3/write")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         let socket_addr = Some(SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
@@ -2699,7 +2722,7 @@ mod tests {
         // Test with socket address in extensions (IPv6)
         let mut req = Request::builder()
             .uri("http://example.com/api/v3/write")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         let socket_addr = Some(SocketAddr::new(
             IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)),
@@ -2711,7 +2734,7 @@ mod tests {
         // Test with None socket address in extensions
         let mut req = Request::builder()
             .uri("http://example.com/api/v3/write")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         let socket_addr: Option<SocketAddr> = None;
         req.extensions_mut().insert(socket_addr);
@@ -2720,7 +2743,7 @@ mod tests {
         // Test with no headers and no socket address
         let req = Request::builder()
             .uri("http://example.com/api/v3/write")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         assert_eq!(extract_client_ip(&req), None);
 
@@ -2729,7 +2752,7 @@ mod tests {
             .uri("http://example.com/api/v3/write")
             .header("x-forwarded-for", "10.0.0.1")
             .header("x-real-ip", "192.168.1.50")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         let socket_addr = Some(SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
@@ -2742,7 +2765,7 @@ mod tests {
         let req = Request::builder()
             .uri("http://example.com/api/v3/write")
             .header("x-forwarded-for", "")
-            .body(hyper::Body::empty())
+            .body("")
             .unwrap();
         // Should return empty string since the header exists but is empty
         assert_eq!(extract_client_ip(&req), Some("".to_string()));

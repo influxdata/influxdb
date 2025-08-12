@@ -6,6 +6,7 @@ use crate::server::{ConfigProvider, TestServer};
 use assert_cmd::Command as AssertCmd;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
+use reqwest::StatusCode;
 use serde_json::{Value, json};
 use std::fs::File;
 use std::path::PathBuf;
@@ -2204,7 +2205,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .send()
         .await
         .unwrap();
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), StatusCode::OK);
     let body = response.text().await.unwrap();
     let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
 
@@ -2291,7 +2292,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers().get("content-type").unwrap(), "text/html");
     let body = response.text().await.unwrap();
     assert_eq!(body, "Hello, World!");
@@ -2335,7 +2336,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         response.headers().get("content-type").unwrap(),
         "application/json"
@@ -2385,7 +2386,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 201);
+    assert_eq!(response.status(), StatusCode::CREATED);
     assert_eq!(response.headers().get("content-type").unwrap(), "text/html");
     let body = response.text().await.unwrap();
     assert_eq!(body, "Created successfully");
@@ -2429,7 +2430,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         response.headers().get("content-type").unwrap(),
         "text/plain"
@@ -2480,7 +2481,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 404);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(
         response.headers().get("content-type").unwrap(),
         "text/plain"
@@ -2528,7 +2529,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         response.headers().get("content-type").unwrap(),
         "application/json"
@@ -2580,7 +2581,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers().get("content-type").unwrap(), "text/html");
     let body = response.text().await.unwrap();
     assert_eq!(body, "Line 1\nLine 2\nLine 3\n");
@@ -2638,7 +2639,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 202);
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
     assert_eq!(
         response.headers().get("content-type").unwrap(),
         "text/custom"
@@ -2686,7 +2687,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 404);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(
         response.headers().get("content-type").unwrap(),
         "application/json"

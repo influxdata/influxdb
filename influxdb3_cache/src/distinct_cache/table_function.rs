@@ -3,16 +3,16 @@ use std::{any::Any, sync::Arc};
 use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use async_trait::async_trait;
 use datafusion::{
-    catalog::{Session, TableFunctionImpl, TableProvider},
+    catalog::{Session, TableFunctionImpl, TableProvider, memory::DataSourceExec},
     common::{DFSchema, Result, internal_err, plan_err},
-    datasource::TableType,
+    datasource::{TableType, memory::MemorySourceConfig},
     execution::context::ExecutionProps,
     logical_expr::TableProviderFilterPushDown,
     physical_expr::{
         create_physical_expr,
         utils::{Guarantee, LiteralGuarantee},
     },
-    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, memory::MemoryExec},
+    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan},
     prelude::Expr,
     scalar::ScalarValue,
 };
@@ -98,17 +98,16 @@ impl TableProvider for DistinctCacheFunctionProvider {
             (vec![], None)
         };
 
-        let mut distinct_exec = DistinctCacheExec::try_new(
+        let show_sizes = ctx.config_options().explain.show_sizes;
+        let distinct_exec = DistinctCacheExec::try_new(
             predicates,
             Arc::clone(&self.table_def),
             &[batches],
             schema,
             projection.is_some(),
             limit,
+            show_sizes,
         )?;
-
-        let show_sizes = ctx.config_options().explain.show_sizes;
-        distinct_exec = distinct_exec.with_show_sizes(show_sizes);
 
         Ok(Arc::new(distinct_exec))
     }
@@ -230,11 +229,11 @@ impl DistinctCacheFunction {
 
 impl TableFunctionImpl for DistinctCacheFunction {
     fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>> {
-        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)))) = args.first() else {
+        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)), _)) = args.first() else {
             return plan_err!("first argument must be the table name as a string");
         };
         let cache_name = match args.get(1) {
-            Some(Expr::Literal(ScalarValue::Utf8(Some(name)))) => Some(name),
+            Some(Expr::Literal(ScalarValue::Utf8(Some(name)), _)) => Some(name),
             Some(_) => {
                 return plan_err!("second argument, if passed, must be the cache name as a string");
             }
@@ -280,7 +279,7 @@ impl TableFunctionImpl for DistinctCacheFunction {
 
 /// Custom implementor of the [`ExecutionPlan`] trait for use by the distinct value cache
 ///
-/// Wraps a [`MemoryExec`] from DataFusion, and mostly re-uses that. The special functionality
+/// Wraps a [`DataSourceExec`] from DataFusion, and mostly re-uses that. The special functionality
 /// provided by this type is to track the predicates that are pushed down to the underlying cache
 /// during query planning/execution.
 ///
@@ -288,20 +287,20 @@ impl TableFunctionImpl for DistinctCacheFunction {
 ///
 /// For a query that does not provide any predicates, or one that does provide predicates, but they
 /// do no get pushed down, the `EXPLAIN` for said query will contain a line for the `DistinctCacheExec`
-/// with no predicates, including what is emitted by the inner `MemoryExec`:
+/// with no predicates, including what is emitted by the inner `DataSourceExec`:
 ///
 /// ```text
-/// DistinctCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]
+/// DistinctCacheExec: inner=DataSourceExec: partitions=1, partition_sizes=[1]
 /// ```
 ///
 /// For queries that do have predicates that get pushed down, the output will include them, e.g.:
 ///
 /// ```text
-/// DistinctCacheExec: predicates=[[0 IN (us-east)], [1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]
+/// DistinctCacheExec: predicates=[[0 IN (us-east)], [1 IN (a,b)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]
 /// ```
 #[derive(Debug)]
 struct DistinctCacheExec {
-    inner: MemoryExec,
+    inner: Arc<DataSourceExec>,
     table_def: Arc<TableDefinition>,
     predicates: Option<IndexMap<ColumnId, Predicate>>,
     is_projected: bool,
@@ -316,29 +315,27 @@ impl DistinctCacheExec {
         schema: SchemaRef,
         is_projected: bool,
         limit: Option<usize>,
+        show_sizes: bool,
     ) -> Result<Self> {
+        let data_source =
+            MemorySourceConfig::try_new(partitions, schema, None)?.with_show_sizes(show_sizes);
+        let inner = DataSourceExec::from_data_source(data_source);
         Ok(Self {
-            // projection is handled prior, so we don't forward it down to the MemoryExec:
-            inner: MemoryExec::try_new(partitions, schema, None)?,
+            inner,
             predicates,
             table_def,
             is_projected,
             limit,
         })
     }
-
-    fn with_show_sizes(self, show_sizes: bool) -> Self {
-        Self {
-            inner: self.inner.with_show_sizes(show_sizes),
-            ..self
-        }
-    }
 }
 
 impl DisplayAs for DistinctCacheExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+            DisplayFormatType::Default
+            | DisplayFormatType::Verbose
+            | DisplayFormatType::TreeRender => {
                 write!(f, "DistinctCacheExec:")?;
                 if self.is_projected {
                     write!(f, " projection=[")?;
@@ -395,8 +392,8 @@ impl ExecutionPlan for DistinctCacheExec {
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // (copied from MemoryExec):
-        // MemoryExec has no children
+        // (copied from DataSourceExec):
+        // DataSourceExec has no children
         if children.is_empty() {
             Ok(self)
         } else {

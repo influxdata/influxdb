@@ -3,7 +3,7 @@ use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::common::Statistics;
 use iox_query::chunk_statistics::ChunkStatistics;
 use iox_query::{QueryChunk, QueryChunkData};
-use parquet_file::storage::ParquetExecInput;
+use parquet_file::storage::DataSourceExecInput;
 use schema::Schema;
 use schema::sort::SortKey;
 use std::any::Any;
@@ -70,7 +70,7 @@ pub struct ParquetChunk {
     pub sort_key: Option<SortKey>,
     pub id: ChunkId,
     pub chunk_order: ChunkOrder,
-    pub parquet_exec: ParquetExecInput,
+    pub parquet_exec: DataSourceExecInput,
 }
 
 impl QueryChunk for ParquetChunk {
