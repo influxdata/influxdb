@@ -71,9 +71,11 @@ regex.workspace = true
 
 [dev-dependencies]
 # Core Crates
+arrow-schema.workspace = true
 arrow_util.workspace = true
 insta.workspace = true
 pretty_assertions.workspace = true
+query_functions.workspace = true
 test_helpers.workspace = true
 test-log.workspace = true
 rstest.workspace = true
