@@ -98,17 +98,16 @@ impl TableProvider for DistinctCacheFunctionProvider {
             (vec![], None)
         };
 
-        let mut distinct_exec = DistinctCacheExec::try_new(
+        let show_sizes = ctx.config_options().explain.show_sizes;
+        let distinct_exec = DistinctCacheExec::try_new(
             predicates,
             Arc::clone(&self.table_def),
             &[batches],
             schema,
             projection.is_some(),
             limit,
+            show_sizes,
         )?;
-
-        let show_sizes = ctx.config_options().explain.show_sizes;
-        distinct_exec = distinct_exec.with_show_sizes(show_sizes);
 
         Ok(Arc::new(distinct_exec))
     }
@@ -316,21 +315,18 @@ impl DistinctCacheExec {
         schema: SchemaRef,
         is_projected: bool,
         limit: Option<usize>,
+        show_sizes: bool,
     ) -> Result<Self> {
+        let data_source =
+            MemorySourceConfig::try_new(partitions, schema, None)?.with_show_sizes(show_sizes);
+        let inner = DataSourceExec::from_data_source(data_source);
         Ok(Self {
-            // projection is handled prior, so we don't forward it down to the DataSourceExec:
-            inner: MemorySourceConfig::try_new_exec(partitions, schema, None)?,
+            inner,
             predicates,
             table_def,
             is_projected,
             limit,
         })
-    }
-
-    fn with_show_sizes(self, _show_sizes: bool) -> Self {
-        // TODO: DataSourceExec doesn't have with_show_sizes method
-        // Previously: self.inner.with_show_sizes(show_sizes)
-        self
     }
 }
 

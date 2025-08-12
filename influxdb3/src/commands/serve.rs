@@ -62,7 +62,7 @@ use std::{path::PathBuf, process::Command};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
-use tokio_rustls::rustls::{SupportedProtocolVersion, version::TLS13};
+use tokio_rustls::rustls::{SupportedProtocolVersion, version::TLS12, version::TLS13};
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
@@ -564,25 +564,12 @@ impl FromStr for TlsMinimumVersion {
     }
 }
 
-impl From<TlsMinimumVersion> for &'static [&'static SupportedProtocolVersion] {
-    fn from(val: TlsMinimumVersion) -> Self {
-        // Note: TLS12 is not available without the tls12 feature in rustls 0.22
-        // Both Tls1_2 and Tls1_3 options will use TLS 1.3 only
-        static TLS1_3: &[&SupportedProtocolVersion] = &[&TLS13];
-        match val {
-            TlsMinimumVersion::Tls1_2 => TLS1_3, // TLS 1.2 not available, using TLS 1.3
-            TlsMinimumVersion::Tls1_3 => TLS1_3,
-        }
-    }
-}
-
 impl From<&TlsMinimumVersion> for &'static [&'static SupportedProtocolVersion] {
     fn from(val: &TlsMinimumVersion) -> Self {
-        // Note: TLS12 is not available without the tls12 feature in rustls 0.22
-        // Both Tls1_2 and Tls1_3 options will use TLS 1.3 only
+        static TLS1_2: &[&SupportedProtocolVersion] = &[&TLS12, &TLS13];
         static TLS1_3: &[&SupportedProtocolVersion] = &[&TLS13];
         match val {
-            TlsMinimumVersion::Tls1_2 => TLS1_3, // TLS 1.2 not available, using TLS 1.3
+            TlsMinimumVersion::Tls1_2 => TLS1_2,
             TlsMinimumVersion::Tls1_3 => TLS1_3,
         }
     }

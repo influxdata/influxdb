@@ -146,7 +146,7 @@ tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
 tokio = { version = "1.45", features = ["full"] }
-tokio-rustls = { version = "0.25", default-features = false, features = ["ring"] }
+tokio-rustls = { version = "0.25", default-features = false, features = ["ring", "tls12"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 tonic = { version = "0.12.3", features = ["tls", "tls-roots"] }
 tonic-build = "0.12.3"
@@ -192,39 +192,6 @@ trace_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev = 
 trace_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "a4220c80e6699470ff0c1d223dc9c4c4244cdef0" }
 tracker = { git = "https://github.com/influxdata/influxdb3_core", rev = "a4220c80e6699470ff0c1d223dc9c4c4244cdef0" }
 trogging = { git = "https://github.com/influxdata/influxdb3_core", rev = "a4220c80e6699470ff0c1d223dc9c4c4244cdef0", features = ["clap"] }
-#
-# # Using local path to influxdb3_core to avoid aws-lc-sys dependency
-# arrow_util = { path = "../influxdb3_core/arrow_util" }
-# authz = { path = "../influxdb3_core/authz" }
-# data_types = { path = "../influxdb3_core/data_types" }
-# datafusion_util = { path = "../influxdb3_core/datafusion_util" }
-# executor = { path = "../influxdb3_core/executor" }
-# influxdb-line-protocol = { path = "../influxdb3_core/influxdb_line_protocol" }
-# influxdb_influxql_parser = { path = "../influxdb3_core/influxdb_influxql_parser" }
-# influxdb_iox_client = { path = "../influxdb3_core/influxdb_iox_client" }
-# iox_http = { path = "../influxdb3_core/iox_http" }
-# iox_http_util = { path = "../influxdb3_core/iox_http_util" }
-# iox_query = { path = "../influxdb3_core/iox_query" }
-# iox_query_params = { path = "../influxdb3_core/iox_query_params" }
-# iox_query_influxql = { path = "../influxdb3_core/iox_query_influxql" }
-# iox_system_tables = { path = "../influxdb3_core/iox_system_tables" }
-# iox_time = { path = "../influxdb3_core/iox_time" }
-# metric = { path = "../influxdb3_core/metric" }
-# metric_exporters = { path = "../influxdb3_core/metric_exporters" }
-# object_store_metrics = { path = "../influxdb3_core/object_store_metrics" }
-# observability_deps = { path = "../influxdb3_core/observability_deps" }
-# panic_logging = { path = "../influxdb3_core/panic_logging" }
-# parquet_file = { path = "../influxdb3_core/parquet_file" }
-# schema = { path = "../influxdb3_core/schema", features = ["v3"] }
-# service_common = { path = "../influxdb3_core/service_common" }
-# service_grpc_flight = { path = "../influxdb3_core/service_grpc_flight" }
-# test_helpers = { path = "../influxdb3_core/test_helpers" }
-# tokio_metrics_bridge = { path = "../influxdb3_core/tokio_metrics_bridge" }
-# trace = { path = "../influxdb3_core/trace" }
-# trace_exporters = { path = "../influxdb3_core/trace_exporters" }
-# trace_http = { path = "../influxdb3_core/trace_http" }
-# tracker = { path = "../influxdb3_core/tracker" }
-# trogging = { path = "../influxdb3_core/trogging", features = ["clap"] }
 
 [workspace.lints.rust]
 missing_copy_implementations = "deny"

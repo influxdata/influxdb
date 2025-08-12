@@ -99,17 +99,16 @@ impl TableProvider for LastCacheFunctionProvider {
             (None, vec![])
         };
         drop(read);
-        let mut exec = LastCacheExec::try_new(
+        let show_sizes = ctx.config_options().explain.show_sizes;
+        let exec = LastCacheExec::try_new(
             predicates,
             Arc::clone(&self.table_def),
             &[batches],
             self.schema(),
             projection.cloned(),
+            show_sizes,
         )?;
         recorder.set_success();
-
-        let show_sizes = ctx.config_options().explain.show_sizes;
-        exec = exec.with_show_sizes(show_sizes);
 
         Ok(Arc::new(exec))
     }
@@ -388,18 +387,16 @@ impl LastCacheExec {
         partitions: &[Vec<RecordBatch>],
         cache_schema: SchemaRef,
         projection: Option<Vec<usize>>,
+        show_sizes: bool,
     ) -> Result<Self, DataFusionError> {
+        let data_source = MemorySourceConfig::try_new(partitions, cache_schema, projection)?
+            .with_show_sizes(show_sizes);
+        let inner = DataSourceExec::from_data_source(data_source);
         Ok(Self {
-            inner: MemorySourceConfig::try_new_exec(partitions, cache_schema, projection)?,
+            inner,
             table_def,
             predicates,
         })
-    }
-
-    fn with_show_sizes(self, _show_sizes: bool) -> Self {
-        // TODO: DataSourceExec doesn't have with_show_sizes method
-        // Previously: self.inner.with_show_sizes(show_sizes)
-        self
     }
 }
 
