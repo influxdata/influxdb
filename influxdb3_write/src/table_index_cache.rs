@@ -310,7 +310,7 @@ impl TableIndexCache {
         // initialize table index cache start time
         let _ = *TABLE_INDEX_CACHE_START_TIME;
 
-        info!(
+        debug!(
             node_id = %node_identifier_prefix,
             max_entries = ?config.max_entries,
             concurrency_limit = config.concurrency_limit,
