@@ -489,6 +489,7 @@ pub mod test_helpers {
     use crate::WriteBuffer;
     use crate::write_buffer::validator::WriteValidator;
     use arrow::array::RecordBatch;
+    use data_types::NamespaceName;
     use datafusion::prelude::Expr;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
     use influxdb3_wal::{Gen1Duration, WriteBatch};
@@ -562,6 +563,20 @@ pub mod test_helpers {
             self.get_record_batches_filtered_unchecked(database_name, table_name, &[], ctx)
                 .await
         }
+    }
+
+    pub async fn do_write(wb: &dyn WriteBuffer, db: &str, lp: &str, time: Time) {
+        let db_name = NamespaceName::new(db.to_owned()).expect("valid namespace name for database");
+        wb.write_lp(
+            db_name,
+            lp,
+            time,
+            false,
+            influxdb3_types::write::Precision::Auto,
+            false,
+        )
+        .await
+        .expect("valid write operation");
     }
 
     #[derive(Debug)]
