@@ -1,15 +1,28 @@
-use std::{error::Error, io, path::PathBuf};
+use std::{error::Error, io, path::PathBuf, sync::Arc};
 
 use clap::{
     Arg, Args, Command as ClapCommand, CommandFactory, Error as ClapError, FromArgMatches, Parser,
     ValueEnum, error::ErrorKind,
 };
+use influxdb3_authz::TokenInfo;
+use influxdb3_catalog::catalog::{compute_token_hash, create_token_and_hash};
 use influxdb3_client::Client;
 use influxdb3_types::http::CreateTokenWithPermissionsResponse;
 use owo_colors::OwoColorize;
 use secrecy::Secret;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct AdminTokenFile {
+    /// The raw token string
+    pub token: String,
+    /// The token name
+    pub name: String,
+    /// Optional expiry timestamp in milliseconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expiry_millis: Option<i64>,
+}
 pub(crate) async fn handle_token_creation_with_config(
     client: Client,
     config: CreateTokenConfig,
@@ -32,39 +45,129 @@ pub(crate) async fn handle_admin_token_creation(
     client: Client,
     config: CreateAdminTokenConfig,
 ) -> Result<CreateTokenWithPermissionsResponse, Box<dyn Error>> {
-    let json_body = if config.regenerate {
-        println!("Are you sure you want to regenerate admin token? Enter 'yes' to confirm",);
-        let mut confirmation = String::new();
-        let _ = io::stdin().read_line(&mut confirmation);
-        if confirmation.trim() == "yes" {
+    if config.offline {
+        // Generate token without server
+        let token = generate_offline_token();
+
+        let output_file = config
+            .output_file
+            .ok_or("--output-file is required with --offline")?;
+
+        // Create admin token file with metadata
+        let token_file = AdminTokenFile {
+            token: token.clone(),
+            name: "_admin".to_string(),
+            expiry_millis: None,
+        };
+
+        let json = serde_json::to_string_pretty(&token_file)?;
+
+        // Write token atomically with correct permissions
+        write_file_atomically(&output_file, &json)?;
+
+        println!("Token saved to: {}", output_file.display());
+
+        // For offline mode, we return a mock success response
+        let hash = compute_token_hash(&token);
+        let token_info = Arc::new(TokenInfo {
+            id: 0.into(),
+            name: Arc::from("_admin"),
+            hash,
+            description: None,
+            created_by: None,
+            created_at: chrono::Utc::now().timestamp_millis(),
+            updated_at: None,
+            updated_by: None,
+            expiry_millis: i64::MAX,
+            permissions: vec![], // Admin tokens don't need explicit permissions
+        });
+
+        CreateTokenWithPermissionsResponse::from_token_info(token_info, token)
+            .ok_or_else(|| "Failed to create token response".into())
+    } else {
+        let json_body = if config.regenerate {
+            println!("Are you sure you want to regenerate admin token? Enter 'yes' to confirm",);
+            let mut confirmation = String::new();
+            io::stdin().read_line(&mut confirmation)?;
+            if confirmation.trim() == "yes" {
+                client
+                    .api_v3_configure_regenerate_admin_token()
+                    .await?
+                    .expect("token creation to return full token info")
+            } else {
+                return Err("Cannot regenerate token without confirmation".into());
+            }
+        } else {
             client
-                .api_v3_configure_regenerate_admin_token()
+                .api_v3_configure_create_admin_token()
                 .await?
                 .expect("token creation to return full token info")
-        } else {
-            return Err("Cannot regenerate token without confirmation".into());
-        }
-    } else {
-        client
-            .api_v3_configure_create_admin_token()
-            .await?
-            .expect("token creation to return full token info")
-    };
-    Ok(json_body)
+        };
+        Ok(json_body)
+    }
+}
+
+fn generate_offline_token() -> String {
+    create_token_and_hash().0
 }
 
 pub(crate) async fn handle_named_admin_token_creation(
     client: Client,
     config: CreateAdminTokenConfig,
 ) -> Result<CreateTokenWithPermissionsResponse, Box<dyn Error>> {
-    let json_body = client
-        .api_v3_configure_create_named_admin_token(
-            config.name.expect("token name to be present"),
-            config.expiry.map(|expiry| expiry.as_secs()),
-        )
-        .await?
-        .expect("token creation to return full token info");
-    Ok(json_body)
+    if config.offline {
+        // Generate token without server
+        let token = generate_offline_token();
+
+        let output_file = config
+            .output_file
+            .ok_or("--output-file is required with --offline")?;
+
+        let token_name = config.name.expect("token name to be present");
+
+        let expiry_millis = config
+            .expiry
+            .map(|expiry| chrono::Utc::now().timestamp_millis() + (expiry.as_secs() as i64 * 1000));
+        let token_file = AdminTokenFile {
+            token: token.clone(),
+            name: token_name.clone(),
+            expiry_millis,
+        };
+
+        let json = serde_json::to_string_pretty(&token_file)?;
+
+        // Write token atomically with correct permissions
+        write_file_atomically(&output_file, &json)?;
+
+        println!("Token saved to: {}", output_file.display());
+
+        // For offline mode, we return a mock success response
+        let hash = compute_token_hash(&token);
+        let token_info = Arc::new(TokenInfo {
+            id: 0.into(),
+            name: Arc::from(token_name.as_str()),
+            hash,
+            description: None,
+            created_by: None,
+            created_at: chrono::Utc::now().timestamp_millis(),
+            updated_at: None,
+            updated_by: None,
+            expiry_millis: expiry_millis.unwrap_or(i64::MAX),
+            permissions: vec![], // Admin tokens don't need explicit permissions
+        });
+
+        CreateTokenWithPermissionsResponse::from_token_info(token_info, token)
+            .ok_or_else(|| "Failed to create token response".into())
+    } else {
+        let json_body = client
+            .api_v3_configure_create_named_admin_token(
+                config.name.expect("token name to be present"),
+                config.expiry.map(|expiry| expiry.as_secs()),
+            )
+            .await?
+            .expect("token creation to return full token info");
+        Ok(json_body)
+    }
 }
 
 #[derive(Debug, ValueEnum, Clone, Copy)]
@@ -131,6 +234,14 @@ pub struct CreateAdminTokenConfig {
     /// Output format for token, supports just json or text
     #[clap(long)]
     pub format: Option<TokenOutputFormat>,
+
+    /// Generate token without connecting to server (enterprise feature)
+    #[clap(long, requires = "output_file")]
+    pub offline: bool,
+
+    /// File path to save the token (required with --offline)
+    #[clap(long, value_name = "FILE")]
+    pub output_file: Option<PathBuf>,
 }
 
 impl CreateAdminTokenConfig {
@@ -244,4 +355,61 @@ impl CommandFactory for CreateTokenConfig {
     fn command_for_update() -> clap::Command {
         Self::command()
     }
+}
+
+/// Write a file atomically by writing to a temporary file and moving it into place
+/// This ensures the file either exists with correct permissions or doesn't exist at all
+pub(crate) fn write_file_atomically(path: &PathBuf, content: &str) -> Result<(), Box<dyn Error>> {
+    use std::io::Write;
+
+    // Ensure content ends with a newline
+    let content_with_newline = if content.ends_with('\n') {
+        content.to_string()
+    } else {
+        format!("{content}\n")
+    };
+
+    // Create a temporary file in the same directory as the target
+    let parent = path.parent().ok_or("Invalid file path")?;
+    let file_name = path.file_name().ok_or("Invalid file name")?;
+    let temp_path = parent.join(format!(".{}.tmp", file_name.to_string_lossy()));
+
+    // Write to temporary file with proper error handling
+    if let Err(e) = || -> Result<(), Box<dyn Error>> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600) // Set permissions atomically during creation
+                .open(&temp_path)?;
+
+            file.write_all(content_with_newline.as_bytes())?;
+            file.sync_all()?; // Ensure data is written to disk
+        }
+
+        #[cfg(not(unix))]
+        {
+            use std::fs::File;
+            let mut file = File::create(&temp_path)?;
+            file.write_all(content_with_newline.as_bytes())?;
+            file.sync_all()?;
+        }
+
+        Ok(())
+    }() {
+        // Clean up temp file on error
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(e);
+    }
+
+    std::fs::rename(&temp_path, path).map_err(|e| -> Box<dyn Error> {
+        // Clean up temp file on rename error
+        let _ = std::fs::remove_file(&temp_path);
+        format!("Failed to atomically rename temporary file: {e}").into()
+    })?;
+
+    Ok(())
 }

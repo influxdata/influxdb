@@ -402,7 +402,13 @@ impl CatalogResource for TokenInfo {
     }
 }
 
-fn create_token_and_hash() -> (String, Vec<u8>) {
+/// Compute the SHA512 hash of a token string
+/// This is the canonical way to hash tokens across the codebase
+pub fn compute_token_hash(token: &str) -> Vec<u8> {
+    Sha512::digest(token).to_vec()
+}
+
+pub fn create_token_and_hash() -> (String, Vec<u8>) {
     let token = {
         let mut token = String::from("apiv3_");
         let mut key = [0u8; 64];
@@ -410,5 +416,5 @@ fn create_token_and_hash() -> (String, Vec<u8>) {
         token.push_str(&B64.encode(key));
         token
     };
-    (token.clone(), Sha512::digest(&token).to_vec())
+    (token.clone(), compute_token_hash(&token))
 }

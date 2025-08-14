@@ -47,6 +47,9 @@ Examples:
                                    Address for HTTP API for admin token recovery requests [default: 127.0.0.1:8182]
                                    WARNING: This endpoint allows unauthenticated admin token regeneration - use with caution!
                                    [env: INFLUXDB3_ADMIN_TOKEN_RECOVERY_HTTP_BIND_ADDR]
+  --admin-token-file <FILE>        File containing offline admin tokens. Used for automated
+                                   deployments where the admin token is pre-generated and loaded at startup.
+                                   [env: INFLUXDB3_ADMIN_TOKEN_FILE=]
 
 
 {}

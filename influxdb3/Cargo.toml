@@ -54,6 +54,7 @@ influxdb3_write = { path = "../influxdb3_write" }
 anyhow.workspace = true
 backtrace.workspace = true
 base64.workspace = true
+chrono.workspace = true
 clap.workspace = true
 owo-colors.workspace = true
 dotenvy.workspace = true
