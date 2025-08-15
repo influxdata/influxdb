@@ -762,7 +762,7 @@ mod tests {
             Arc::clone(&time_provider),
             Default::default(),
         );
-        let persister = Arc::new(Persister::new_with_default_cache_config(
+        let persister = Arc::new(Persister::new(
             catalog.object_store(),
             "test_host",
             Arc::clone(&time_provider),
@@ -3419,7 +3419,7 @@ mod tests {
         } else {
             (object_store, None)
         };
-        let persister = Arc::new(Persister::new_with_default_cache_config(
+        let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             "test_host",
             Arc::clone(&time_provider) as _,

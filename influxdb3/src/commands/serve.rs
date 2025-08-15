@@ -834,15 +834,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&object_store),
         config.node_identifier_prefix.as_str(),
         Arc::clone(&time_provider) as _,
-        table_index_cache,
     ));
-
-    // Retrieve the table index cache that will be shared between persister and retention handler
-    //
-    // We construct the `TableIndexCache` instance in the persister mostly for convenience at this
-    // point -- it avoids having to deal with updating a lot of `Persister` references throughout
-    // the code base with new `TableIndexCache` instances.
-    let table_index_cache = persister.get_table_index_cache().await;
 
     let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
     let catalog = Catalog::new_with_shutdown(
