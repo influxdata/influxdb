@@ -237,7 +237,7 @@ impl TestService {
             },
             DedicatedExecutor::new_testing(),
         ));
-        let persister = Arc::new(Persister::new_with_default_cache_config(
+        let persister = Arc::new(Persister::new(
             Arc::clone(&object_store) as _,
             node_id,
             Arc::clone(&time_provider) as _,

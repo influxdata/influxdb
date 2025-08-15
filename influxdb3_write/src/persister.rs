@@ -6,8 +6,6 @@ use std::sync::Arc;
 use crate::PersistedSnapshotVersion;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
-use crate::table_index_cache::TableIndexCache;
-use crate::table_index_cache::TableIndexCacheConfig;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
@@ -96,8 +94,6 @@ pub struct Persister {
     /// time provider
     time_provider: Arc<dyn TimeProvider>,
     pub(crate) mem_pool: Arc<dyn MemoryPool>,
-    /// Cache for table indices
-    table_index_cache: TableIndexCache,
 }
 
 impl Persister {
@@ -106,7 +102,6 @@ impl Persister {
         object_store: Arc<dyn ObjectStore>,
         node_identifier_prefix: impl Into<String>,
         time_provider: Arc<dyn TimeProvider>,
-        table_index_cache: crate::table_index_cache::TableIndexCache,
     ) -> Self {
         let nip = node_identifier_prefix.into();
         Self {
@@ -115,28 +110,7 @@ impl Persister {
             node_identifier_prefix: nip.clone(),
             time_provider,
             mem_pool: Arc::new(UnboundedMemoryPool::default()),
-            table_index_cache,
         }
-    }
-
-    /// This method is intended to support relatively simple test cases where we don't have to
-    /// worry about dealing with table index conversion.
-    pub fn new_with_default_cache_config(
-        object_store: Arc<dyn ObjectStore>,
-        node_identifier_prefix: impl Into<String>,
-        time_provider: Arc<dyn TimeProvider>,
-    ) -> Self {
-        let nip = node_identifier_prefix.into();
-        let table_index_cache = TableIndexCache::new(
-            nip.clone(),
-            TableIndexCacheConfig::default(),
-            Arc::clone(&object_store),
-        );
-        Self::new(object_store, nip.clone(), time_provider, table_index_cache)
-    }
-
-    pub async fn get_table_index_cache(&self) -> TableIndexCache {
-        self.table_index_cache.clone()
     }
 
     /// Get the Object Store URL
@@ -406,11 +380,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new_with_default_cache_config(
-            Arc::new(local_disk),
-            "test_host",
-            time_provider,
-        );
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -433,11 +403,7 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new_with_default_cache_config(
-            Arc::new(local_disk),
-            "test_host",
-            time_provider,
-        );
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -498,11 +464,7 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new_with_default_cache_config(
-            Arc::new(local_disk),
-            "test_host",
-            time_provider,
-        );
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -529,11 +491,7 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new_with_default_cache_config(
-            Arc::new(local_disk),
-            "test_host",
-            time_provider,
-        );
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         for id in 0..1001 {
             let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
                 node_id: "test_host".to_string(),
@@ -572,11 +530,7 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new_with_default_cache_config(
-            Arc::new(local_disk),
-            "test_host",
-            time_provider,
-        );
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let mut info_file = PersistedSnapshot::new(
             "test_host".to_string(),
             SnapshotSequenceNumber::new(0),
@@ -627,8 +581,7 @@ mod tests {
     async fn load_snapshot_works_with_no_exising_snapshots() {
         let store = InMemory::new();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister =
-            Persister::new_with_default_cache_config(Arc::new(store), "test_host", time_provider);
+        let persister = Persister::new(Arc::new(store), "test_host", time_provider);
 
         let snapshots = persister.load_snapshots(100).await.unwrap();
         assert!(snapshots.is_empty());
@@ -704,11 +657,7 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new_with_default_cache_config(
-            Arc::new(local_disk),
-            "test_host",
-            time_provider,
-        );
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(Arc::clone(&schema), 5);
@@ -736,11 +685,7 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new_with_default_cache_config(
-            Arc::new(local_disk),
-            "test_host",
-            time_provider,
-        );
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(Arc::clone(&schema), 5);

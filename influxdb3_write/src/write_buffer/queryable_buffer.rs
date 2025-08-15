@@ -705,7 +705,7 @@ mod tests {
             .await
             .unwrap(),
         );
-        let persister = Arc::new(Persister::new_with_default_cache_config(
+        let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             "hosta",
             time_provider,
@@ -911,7 +911,7 @@ mod tests {
             .unwrap(),
         );
 
-        let persister = Arc::new(Persister::new_with_default_cache_config(
+        let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             "hosta",
             Arc::clone(&time_provider) as _,
