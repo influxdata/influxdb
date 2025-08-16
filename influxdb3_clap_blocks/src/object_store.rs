@@ -574,6 +574,20 @@ macro_rules! object_store_config_inner {
                 )]
                 pub azure_storage_access_key: Option<String>,
 
+                /// When using Microsoft Azure blob storage, you can set a custom endpoint.
+                ///
+                /// Useful for local development with Azure storage emulators like Azurite.
+                ///
+                /// Must also set `--object-store=azure`, `--bucket`, `--azure-storage-account`,
+                /// and `--azure-storage-access-key`.
+                #[clap(
+                    id = gen_name!($prefix, "azure-endpoint"),
+                    long = gen_name!($prefix, "azure-endpoint"),
+                    env = gen_env!($prefix, "AZURE_ENDPOINT"),
+                    action
+                )]
+                pub azure_endpoint: Option<Endpoint>,
+
                 /// When using a network-based object store, limit the number of connection to this value.
                 #[clap(
                     id = gen_name!($prefix, "object-store-connection-limit"),
@@ -678,6 +692,7 @@ macro_rules! object_store_config_inner {
                         aws_credentials_file: Default::default(),
                         azure_storage_access_key: Default::default(),
                         azure_storage_account: Default::default(),
+                        azure_endpoint: Default::default(),
                         bucket: Default::default(),
                         database_directory,
                         google_service_account: Default::default(),
@@ -843,7 +858,7 @@ macro_rules! object_store_config_inner {
                     use object_store::limit::LimitStore;
 
                     info!(bucket=?self.bucket, account=?self.azure_storage_account,
-                          object_store_type="Azure", "Object Store");
+                          endpoint=?self.azure_endpoint, object_store_type="Azure", "Object Store");
 
                     let mut builder = MicrosoftAzureBuilder::new().with_client_options(self.client_options());
 
@@ -851,10 +866,14 @@ macro_rules! object_store_config_inner {
                         builder = builder.with_container_name(bucket);
                     }
                     if let Some(account) = &self.azure_storage_account {
-                        builder = builder.with_account(account)
+                        builder = builder.with_account(account);
                     }
                     if let Some(key) = &self.azure_storage_access_key {
-                        builder = builder.with_access_key(key)
+                        builder = builder.with_access_key(key);
+                    }
+                    if let Some(endpoint) = &self.azure_endpoint {
+                        builder = builder.with_allow_http(true);
+                        builder = builder.with_endpoint(endpoint.to_string());
                     }
 
                     Ok(Arc::new(LimitStore::new(
