@@ -155,12 +155,12 @@ function start() {
     WAL_DIR="$(  influxd_config data wal-dir )"
     if [[ ( -d "${DATA_DIR}" ) && ( -d "${WAL_DIR}" ) ]]
     then
-        # If this daemon is configured to run as root, influx_inspect hangs
-        # waiting for confirmation before executing. Supplying "yes" allows
-        # the service to continue without interruption.
-        sudo -u influxdb /usr/bin/influx_inspect buildtsi -compact-series-file \
+        # buildtsi prompts with a warning it is is run as root as the files it makes will be owned by root.
+        # In that case, it awaits an interactive Yes but that can't be supplied. All around, best to run it
+        # as the influxdb user. sudo is also an option but not as available as su
+        su - influxdb -c "/usr/bin/influx_inspect buildtsi -compact-series-file \
             -datadir "${DATA_DIR}"                                  \
-            -waldir  "${WAL_DIR}"
+            -waldir  "${WAL_DIR}""
     fi
 
     # Launch process
