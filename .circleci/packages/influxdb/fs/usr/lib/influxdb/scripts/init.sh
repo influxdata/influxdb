@@ -158,9 +158,10 @@ function start() {
         # buildtsi prompts with a warning it is is run as root as the files it makes will be owned by root.
         # In that case, it awaits an interactive Yes but that can't be supplied. All around, best to run it
         # as the influxdb user. sudo is also an option but not as available as su
-        su - influxdb -c "/usr/bin/influx_inspect buildtsi -compact-series-file \
-            -datadir "${DATA_DIR}"                                  \
-            -waldir  "${WAL_DIR}""
+        echo "Building tsi with influxd_inspect buildtsi."
+        runuser -u influxdb -- /usr/bin/influx_inspect buildtsi -compact-series-file \
+            -datadir "${DATA_DIR}"                                                   \
+            -waldir  "${WAL_DIR}"
     fi
 
     # Launch process
