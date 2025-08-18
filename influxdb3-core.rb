@@ -1,5 +1,5 @@
 class Influxdb3Core < Formula
-  desc "Fast, columnar time series database"
+  desc "Fast, open source, edge data collector optimized for real-time analytics"
   homepage "https://www.influxdata.com/products/influxdb/"
   version "3.3.0"
   license any_of: ["Apache-2.0", "MIT"]
@@ -35,6 +35,7 @@ class Influxdb3Core < Formula
       (bin/"python/lib/libpython3.13.dylib").make_symlink(python_lib) if python_lib.exist?
     end
 
+    # Create necessary directories for storing data, plugins, and the config
     data_dir = var/"lib/influxdb3"
     data_dir.mkpath
 
