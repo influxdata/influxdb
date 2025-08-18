@@ -158,7 +158,7 @@ function start() {
         # If this daemon is configured to run as root, influx_inspect hangs
         # waiting for confirmation before executing. Supplying "yes" allows
         # the service to continue without interruption.
-        yes | /usr/bin/influx_inspect buildtsi -compact-series-file \
+        sudo -u influxdb /usr/bin/influx_inspect buildtsi -compact-series-file \
             -datadir "${DATA_DIR}"                                  \
             -waldir  "${WAL_DIR}"
     fi
