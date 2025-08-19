@@ -53,10 +53,16 @@ pub struct Config {
     #[clap(long = "accept-partial")]
     accept_partial_writes: bool,
 
+    /// Flag to request the server not wait for sync before ACK'ing
+    ///
+    /// This option returns a success before a write is durable.
+    #[clap(long = "no-sync")]
+    no_sync_writes: bool,
+
     /// Give a quoted line protocol line via the command line
     line_protocol: Option<Vec<String>>,
 
-    /// Specify a supported precision (eg: ns, us, ms, s).
+    /// Specify a supported precision (eg: auto, ns, us, ms, s).
     #[clap(short = 'p', long = "precision")]
     precision: Option<Precision>,
 
@@ -98,6 +104,9 @@ pub(crate) async fn command(config: Config) -> Result<()> {
     }
     if config.accept_partial_writes {
         req = req.accept_partial(true);
+    }
+    if config.no_sync_writes {
+        req = req.no_sync(true);
     }
     req.body(writes).send().await?;
 

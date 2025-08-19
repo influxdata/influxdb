@@ -33,6 +33,7 @@ impl std::str::FromStr for Precision {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let p = match s {
+            "auto" => Self::Auto,
             "s" => Self::Second,
             "ms" => Self::Millisecond,
             "us" => Self::Microsecond,

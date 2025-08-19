@@ -982,6 +982,12 @@ impl<B> WriteRequestBuilder<'_, B> {
         self.params.accept_partial = Some(set_to);
         self
     }
+
+    /// Set the `no_sync` parameter
+    pub fn no_sync(mut self, set_to: bool) -> Self {
+        self.params.no_sync = Some(set_to);
+        self
+    }
 }
 
 impl<'c> WriteRequestBuilder<'c, NoBody> {

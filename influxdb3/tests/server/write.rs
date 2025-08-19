@@ -345,7 +345,7 @@ async fn writes_with_different_schema_should_fail() {
 #[tokio::test]
 /// Check that the no_sync param can be used on any endpoint. However, this only means that serde
 /// will parse it just fine. It is only able to be used in the v3 endpoint and will
-/// default to requiring the WAL to synce before returning.
+/// default to requiring the WAL to sync before returning.
 async fn api_no_sync_param() {
     let server = TestServer::spawn().await;
     let client = server.http_client();
