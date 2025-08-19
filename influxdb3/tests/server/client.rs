@@ -108,7 +108,7 @@ async fn write_with_no_sync() {
         Some("../testing-certs/rootCA.pem".into()),
     )
     .unwrap();
-    
+
     // Test with no_sync(true) - should succeed without waiting for fsync
     client
         .api_v3_write_lp(db_name)
@@ -119,7 +119,7 @@ async fn write_with_no_sync() {
         .send()
         .await
         .expect("write with no_sync(true)");
-    
+
     // Test with no_sync(false) - default behavior, waits for fsync
     client
         .api_v3_write_lp(db_name)
@@ -130,7 +130,7 @@ async fn write_with_no_sync() {
         .send()
         .await
         .expect("write with no_sync(false)");
-    
+
     // Verify both writes were successful by querying
     let result = client
         .api_v3_query_sql(db_name, format!("SELECT COUNT(*) FROM {tbl_name}"))
