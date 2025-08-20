@@ -4,7 +4,6 @@ class Influxdb3Core < Formula
   version "3.3.0"
   license any_of: ["Apache-2.0", "MIT"]
 
-  depends_on "python@3.13" => :recommended
 
   on_macos do
     if Hardware::CPU.arm?
@@ -20,19 +19,10 @@ class Influxdb3Core < Formula
     bin.install "influxdb3"
 
     if File.directory?("python")
-      (bin/"python").install Dir["python/*"]
-    elsif File.directory?("plugins")
-      (bin/"plugins").install Dir["plugins/*"]
-    end
-
-    # If no bundled Python, create symlinks to system Python
-    unless (bin/"python").exist?
-      python_prefix = Formula["python@3.13"].opt_prefix
-      (bin/"python").mkpath
-      (bin/"python/lib").mkpath
-
-      python_lib = python_prefix/"lib/libpython3.13.dylib"
-      (bin/"python/lib/libpython3.13.dylib").make_symlink(python_lib) if python_lib.exist?
+      (lib/"python").install Dir["python/*"]
+      (bin/"python").make_symlink(lib/"python")
+    else
+      odie "Python runtime not found in bundle. InfluxDB 3 Core requires bundled Python."
     end
 
     # Create necessary directories for storing data, plugins, and the config
