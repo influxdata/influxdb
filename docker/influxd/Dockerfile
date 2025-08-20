@@ -1,4 +1,4 @@
-FROM debian:buster-slim AS dependency-base
+FROM debian:bookworm-slim AS dependency-base
 
 ENV DEBIAN_FRONTEND noninteractive
 
