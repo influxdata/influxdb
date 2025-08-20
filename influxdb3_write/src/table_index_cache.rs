@@ -1346,10 +1346,10 @@ impl TableIndexCache {
             match res.map_err(TableIndexCacheError::UpdateTaskFailed)? {
                 Ok((table_id, was_update)) => {
                     if was_update {
-                        info!("updated table index for {:?}", table_id);
+                        debug!("updated table index for {:?}", table_id);
                         updated_count += 1;
                     } else {
-                        info!("created new table index for {:?}", table_id);
+                        debug!("created new table index for {:?}", table_id);
                         created_count += 1;
                     }
                     trace!(
