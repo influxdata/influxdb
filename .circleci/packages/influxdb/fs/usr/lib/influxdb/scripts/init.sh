@@ -155,11 +155,12 @@ function start() {
     WAL_DIR="$(  influxd_config data wal-dir )"
     if [[ ( -d "${DATA_DIR}" ) && ( -d "${WAL_DIR}" ) ]]
     then
-        # If this daemon is configured to run as root, influx_inspect hangs
-        # waiting for confirmation before executing. Supplying "yes" allows
-        # the service to continue without interruption.
-        yes | /usr/bin/influx_inspect buildtsi -compact-series-file \
-            -datadir "${DATA_DIR}"                                  \
+        # buildtsi prompts with a warning if it is run as root as the files it creates will be owned by root which
+        # influxd won't be able to read. Best to run it as the influxdb user instead. sudo and su are options but
+        # difficult to use; setpriv is more direct and available in the util-linux package
+        echo "Building tsi with influxd_inspect buildtsi."
+        setpriv --reuid influxdb --regid influxdb --clear-groups /usr/bin/influx_inspect buildtsi -compact-series-file \
+            -datadir "${DATA_DIR}"                                                   \
             -waldir  "${WAL_DIR}"
     fi
 
