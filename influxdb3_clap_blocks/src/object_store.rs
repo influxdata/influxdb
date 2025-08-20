@@ -588,6 +588,15 @@ macro_rules! object_store_config_inner {
                 )]
                 pub azure_endpoint: Option<Endpoint>,
 
+                /// Allow unencrypted HTTP connection to Azure.
+                #[clap(
+                    id = gen_name!($prefix, "azure-allow-http"),
+                    long = gen_name!($prefix, "azure-allow-http"),
+                    env = gen_env!($prefix, "AZURE_ALLOW_HTTP"),
+                    action
+                )]
+                pub azure_allow_http: bool,
+
                 /// When using a network-based object store, limit the number of connection to this value.
                 #[clap(
                     id = gen_name!($prefix, "object-store-connection-limit"),
@@ -693,6 +702,7 @@ macro_rules! object_store_config_inner {
                         azure_storage_access_key: Default::default(),
                         azure_storage_account: Default::default(),
                         azure_endpoint: Default::default(),
+                        azure_allow_http: Default::default(),
                         bucket: Default::default(),
                         database_directory,
                         google_service_account: Default::default(),
@@ -871,8 +881,10 @@ macro_rules! object_store_config_inner {
                     if let Some(key) = &self.azure_storage_access_key {
                         builder = builder.with_access_key(key);
                     }
+
+                    builder = builder.with_allow_http(self.azure_allow_http);
+
                     if let Some(endpoint) = &self.azure_endpoint {
-                        builder = builder.with_allow_http(true);
                         builder = builder.with_endpoint(endpoint.to_string());
                     }
 
