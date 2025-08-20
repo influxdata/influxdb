@@ -97,3 +97,48 @@ async fn configure_last_caches() {
         .await
         .expect("should delete the cache");
 }
+
+#[tokio::test]
+async fn write_with_no_sync() {
+    let server = TestServer::spawn().await;
+    let db_name = "foo";
+    let tbl_name = "bar";
+    let client = influxdb3_client::Client::new(
+        server.client_addr(),
+        Some("../testing-certs/rootCA.pem".into()),
+    )
+    .unwrap();
+
+    // Test with no_sync(true) - should succeed without waiting for fsync
+    client
+        .api_v3_write_lp(db_name)
+        .precision(Precision::Nanosecond)
+        .accept_partial(false)
+        .no_sync(true)
+        .body(format!("{tbl_name},t1=a,t2=aa f1=123 1000"))
+        .send()
+        .await
+        .expect("write with no_sync(true)");
+
+    // Test with no_sync(false) - default behavior, waits for fsync
+    client
+        .api_v3_write_lp(db_name)
+        .precision(Precision::Nanosecond)
+        .accept_partial(false)
+        .no_sync(false)
+        .body(format!("{tbl_name},t1=b,t2=bb f1=456 2000"))
+        .send()
+        .await
+        .expect("write with no_sync(false)");
+
+    // Verify both writes were successful by querying
+    let result = client
+        .api_v3_query_sql(db_name, format!("SELECT COUNT(*) FROM {tbl_name}"))
+        .format(Format::Csv)
+        .send()
+        .await
+        .expect("query to verify writes");
+    let s = String::from_utf8(result.as_ref().to_vec()).unwrap();
+    // Both writes should be present
+    assert_eq!(s, "count(*)\n2\n", "Expected query results");
+}
