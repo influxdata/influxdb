@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestAscendingCursorDuplicateDataBug demonstrates the real bug that existed
@@ -19,6 +21,8 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	fs := NewFileStore(dir)
+	assert := assert.New(t)
+	require := require.New(t)
 
 	tsmMinTime := 10
 	tsmMaxTime := 70000
@@ -40,14 +44,10 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 	}
 
 	files, err := newFiles(dir, tsmData...)
-	if err != nil {
-		t.Fatalf("unexpected error creating files: %v", err)
-	}
+	require.NoError(err, "error creating files")
 
 	err = fs.Replace(nil, files)
-	if err != nil {
-		t.Fatalf("unexpected error updating filestore: %v", err)
-	}
+	require.NoError(err, "error updating filestore")
 
 	// Create cache data that triggers the bug scenario:
 	// Cache fills most of the buffer, TSM provides remaining data
@@ -67,20 +67,14 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 	}
 
 	for _, cv := range cacheValues {
-		if tsmTimestamps[cv.UnixNano()] {
-			t.Fatalf("Test precondition failed: TSM and cache data share timestamp %d. This will interfere with test results.", cv.UnixNano())
-		}
+		require.Falsef(tsmTimestamps[cv.UnixNano()], "Test precondition failed: TSM and cache data share timestamp %d. This will interfere with test results.", cv.UnixNano())
 	}
 	// Verify the cache fills most but not all of the buffer
-	if len(cacheValues) >= bufferSize {
-		t.Fatalf("Test precondition failed: Cache must not fill entire buffer (size %d), has %d values", bufferSize, len(cacheValues))
-	}
+	require.Lessf(len(cacheValues), bufferSize, "Test precondition failed: Cache must not fill entire buffer (size %d), has %d values", bufferSize, len(cacheValues))
 
 	// Verify cache has sufficient data to trigger the bug
 	minCacheSize := bufferSize - 10 // Leave room for at least some TSM data
-	if len(cacheValues) < minCacheSize {
-		t.Fatalf("Test precondition failed: Cache must have at least %d values to trigger bug, has %d", minCacheSize, len(cacheValues))
-	}
+	require.GreaterOrEqualf(len(cacheValues), minCacheSize, "Test precondition failed: Cache must have at least %d values to trigger bug, has %d", minCacheSize, len(cacheValues))
 
 	// Verify TSM has data both before and after cache range
 	var tsmBeforeCache, tsmAfterCache int
@@ -92,9 +86,7 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 			tsmAfterCache++
 		}
 	}
-	if tsmAfterCache < 2 {
-		t.Fatalf("Test precondition failed: Need at least 2 TSM points after cache range to trigger bug, has %d", tsmAfterCache)
-	}
+	require.GreaterOrEqualf(tsmAfterCache, 2, "Test precondition failed: Need at least 2 TSM points after cache range to trigger bug, has %d", tsmAfterCache)
 
 	kc := fs.KeyCursor(context.Background(), []byte("measurement,field=value#!~#value"), 0, true)
 	defer kc.Close()
@@ -121,9 +113,7 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 
 	// search over the whole time range, ascending
 	err = cursor.reset(minTime, maxTime, cacheValues, kc)
-	if err != nil {
-		t.Fatalf("unexpected error resetting cursor: %v", err)
-	}
+	require.NoError(err, "error resetting cursor")
 
 	// Collect all timestamps and values from all Next() calls
 	var allTimestamps []int64
@@ -139,14 +129,12 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 		callNum++
 
 		// Verify timestamp/value counts match
-		if len(result.Timestamps) != len(result.Values) {
-			t.Errorf("Call %d: Timestamp/value count mismatch: %d timestamps, %d values",
-				callNum, len(result.Timestamps), len(result.Values))
-		}
+		assert.Equalf(len(result.Timestamps), len(result.Values), "Call %d: Timestamp/value count mismatch: %d timestamps, %d values",
+			callNum, len(result.Timestamps), len(result.Values))
 
 		for i, ts := range result.Timestamps {
 			if seenTimestamps[ts] {
-				t.Errorf("DUPLICATE DATA BUG at call %d, position %d: Timestamp %d returned multiple times",
+				assert.Failf("DUPLICATE DATA BUG", "at call %d, position %d: Timestamp %d returned multiple times",
 					callNum, i, ts)
 				// Print first few timestamps from this batch for debugging
 				if len(result.Timestamps) > 0 {
@@ -166,20 +154,13 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 	}
 
 	// Verify no duplicates were found
-	if len(allTimestamps) != len(seenTimestamps) {
-		t.Errorf("Found duplicate timestamps! Total: %d, Unique: %d", len(allTimestamps), len(seenTimestamps))
-	}
+	assert.Equalf(len(seenTimestamps), len(allTimestamps), "Found duplicate timestamps! Total: %d, Unique: %d", len(allTimestamps), len(seenTimestamps))
 
 	// Verify we got all expected data (cache + TSM)
-	expectedCount := len(cacheValues) + len(tsmData[0].values)
-	if len(allTimestamps) != expectedCount {
-		t.Errorf("Expected %d total timestamps, got %d", expectedCount, len(allTimestamps))
-	}
+	assert.Equalf(len(cacheValues)+len(tsmData[0].values), len(allTimestamps), "total timestamps")
 
 	// Verify data is in ascending order
 	for i := 1; i < len(allTimestamps); i++ {
-		if allTimestamps[i] <= allTimestamps[i-1] {
-			t.Errorf("Timestamps not in ascending order: %d followed by %d", allTimestamps[i-1], allTimestamps[i])
-		}
+		assert.Greaterf(allTimestamps[i], allTimestamps[i-1], "Timestamps not in ascending order: %d followed by %d", allTimestamps[i-1], allTimestamps[i])
 	}
 }
