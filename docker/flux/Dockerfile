@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 COPY fluxd /usr/bin/fluxd
 
 EXPOSE 8093
