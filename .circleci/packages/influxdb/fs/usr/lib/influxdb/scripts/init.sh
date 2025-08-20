@@ -159,7 +159,7 @@ function start() {
         # In that case, it awaits an interactive Yes but that can't be supplied. All around, best to run it
         # as the influxdb user. sudo is also an option but not as available as su
         echo "Building tsi with influxd_inspect buildtsi."
-        runuser -u influxdb -- /usr/bin/influx_inspect buildtsi -compact-series-file \
+        setpriv --reuid influxdb --regid influxdb --clear-groups /usr/bin/influx_inspect buildtsi -compact-series-file \
             -datadir "${DATA_DIR}"                                                   \
             -waldir  "${WAL_DIR}"
     fi
