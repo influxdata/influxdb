@@ -12,6 +12,13 @@ Examples:
   2. influxdb3 create token --admin
   3. Write and query with unhashed token
 
+  # Run with Azure Blob Storage:
+  1. influxdb3 serve --node-id node1 --object-store azure --bucket influxdb-data \
+    --azure-storage-account STORAGE_ACCOUNT \
+    --azure-storage-access-key STORAGE_ACCESS_KEY
+  2. influxdb3 create token --admin
+  3. Write and query with unhashed token
+
 {} [OPTIONS] --node-id <NODE_IDENTIFIER_PREFIX> --object-store <OBJECT_STORE_TYPE>
 
 {}
@@ -95,6 +102,8 @@ Examples:
 {}
   --azure-storage-account <ACCT>   Azure storage account name [env: AZURE_STORAGE_ACCOUNT=]
   --azure-storage-access-key <KEY> Azure storage access key [env: AZURE_STORAGE_ACCESS_KEY=]
+  --azure-endpoint <ENDPOINT>      Azure blob storage endpoint [env: AZURE_ENDPOINT=]
+  --azure-allow-http                Allow unencrypted HTTP to Azure [env: AZURE_ALLOW_HTTP=]
 
 {}
   --plugin-dir <DIR>               Location of plugins [env: INFLUXDB3_PLUGIN_DIR=]
