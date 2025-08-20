@@ -229,9 +229,9 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 		return cur, nil
 	}
 
-	rs := reads.NewGroupResultSet(ctx, req, newCursor)
-	if rs == nil {
-		return nil, nil
+	rs, err := reads.NewGroupResultSet(ctx, req, newCursor)
+	if err != nil {
+		return nil, err
 	}
 
 	return rs, nil
@@ -256,11 +256,15 @@ func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *metaquer
 	m := make(map[string]struct{})
 	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
 	for rs.Next() {
-		func() {
-			c := rs.Cursor()
+		if err := func() error {
+			c, err := rs.Cursor()
+			if err != nil {
+				s.Logger.Error("failed to get next cursor during iteration", zap.Error(err))
+				return err
+			}
 			if c == nil {
 				// no data for series key + field combination
-				return
+				return nil
 			}
 			defer c.Close()
 			if cursorHasData(c) {
@@ -269,7 +273,10 @@ func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *metaquer
 					m[string(tags[i].Key)] = struct{}{}
 				}
 			}
-		}()
+			return nil
+		}(); err != nil {
+			return nil, err
+		}
 	}
 
 	arr := make([]string, 0, len(m))
@@ -622,15 +629,19 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes,
 
 	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
 	for rs.Next() {
-		func() {
-			c := rs.Cursor()
+		if err := func() error {
+			c, err := rs.Cursor()
+			if err != nil {
+				s.Logger.Error("failed to get next cursor during iteration", zap.Error(err))
+				return err
+			}
 			if c == nil {
 				// no data for series key + field combination?
 				// It seems that even when there is no data for this series key + field
 				// combo that the cursor may be not nil. We need to
 				// request invoke an array cursor to be sure.
 				// This is the reason for the call to cursorHasData below.
-				return
+				return nil
 			}
 			defer c.Close()
 
@@ -638,7 +649,10 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes,
 				f := rs.Tags().Get([]byte(tagKey))
 				m[string(f)] = struct{}{}
 			}
-		}()
+			return nil
+		}(); err != nil {
+			return nil, err
+		}
 	}
 
 	names := make([]string, 0, len(m))
@@ -763,11 +777,15 @@ func (s *Store) seriesCardinalityWithPredicateAndTime(ctx context.Context, shard
 	buf := make([]byte, 1024)
 	rs := reads.NewFilteredResultSet(ctx, start, end, cur)
 	for rs.Next() {
-		func() {
-			c := rs.Cursor()
+		if err := func() error {
+			c, err := rs.Cursor()
+			if err != nil {
+				s.Logger.Error("failed to get next cursor during iteration", zap.Error(err))
+				return err
+			}
 			if c == nil {
 				// no data for series key + field combination
-				return
+				return nil
 			}
 			defer c.Close()
 
@@ -776,7 +794,10 @@ func (s *Store) seriesCardinalityWithPredicateAndTime(ctx context.Context, shard
 				skey := sfile.SeriesID(r.Name, r.SeriesTags, buf)
 				ss.Add(skey)
 			}
-		}()
+			return nil
+		}(); err != nil {
+			return nil, err
+		}
 	}
 
 	return ss, nil
