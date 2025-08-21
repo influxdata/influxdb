@@ -164,7 +164,7 @@ Examples:
                                   Max write requests in buffer [default: 100000]
                                   [env: INFLUXDB3_WAL_MAX_WRITE_BUFFER_SIZE=]
   --wal-replay-concurrency-limit <LIMIT>
-                                  Concurrency limit during WAL replay [default: no_limit]
+                                  Concurrency limit during WAL replay [default: max(num_cpus, 10)]
                                   If replay runs into OOM, set this to a lower number eg. 10
                                   [env: INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT=]
   --snapshotted-wal-files-to-keep <N>
