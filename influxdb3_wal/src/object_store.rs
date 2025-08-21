@@ -180,7 +180,11 @@ impl WalObjectStore {
         // of N files. Since replaying has to happen _in order_ only loading the files part is
         // concurrent, replaying the WAL file itself is done sequentially based on the original
         // order (i.e paths, which is already sorted)
-        for batched in paths.chunks(concurrency_limit.unwrap_or(usize::MAX)) {
+        const MIN_REPLAY_PRELOAD_CONCURRENCY: usize = 10; // the min number of files that will be held in memory
+        for batched in paths.chunks(concurrency_limit.unwrap_or(std::cmp::max(
+            num_cpus::get(),
+            MIN_REPLAY_PRELOAD_CONCURRENCY,
+        ))) {
             let batched_start = Instant::now();
             let mut results = Vec::with_capacity(batched.len());
             for path in batched {
