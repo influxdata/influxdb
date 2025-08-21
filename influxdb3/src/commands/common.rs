@@ -23,7 +23,7 @@ pub struct InfluxDb3Config {
     pub database_name: String,
 
     /// The token for authentication with the InfluxDB 3 Core server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     pub auth_token: Option<Secret<String>>,
 }
 

@@ -38,7 +38,7 @@ pub struct ShowTokensConfig {
     host_url: Url,
 
     /// The token for authentication with the InfluxDB 3 Enterprise server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     auth_token: Option<Secret<String>>,
 
     /// The format in which to output the list of databases
@@ -62,7 +62,7 @@ pub struct DatabaseConfig {
     host_url: Url,
 
     /// The token for authentication with the InfluxDB 3 Core server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     auth_token: Option<Secret<String>>,
 
     /// Include databases that were marked as deleted in the output

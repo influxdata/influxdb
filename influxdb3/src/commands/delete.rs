@@ -109,7 +109,7 @@ pub struct DatabaseConfig {
     pub host_url: Url,
 
     /// The token for authentication with the InfluxDB 3 Core server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     pub auth_token: Option<Secret<String>>,
 
     /// The name of the database to be deleted
@@ -210,7 +210,7 @@ pub struct TokenConfig {
     pub host_url: Url,
 
     /// The token for authentication with the InfluxDB 3 Core server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     pub auth_token: Option<Secret<String>>,
 
     /// The name of the token to be deleted

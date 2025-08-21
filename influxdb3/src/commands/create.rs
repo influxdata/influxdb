@@ -130,7 +130,7 @@ pub struct DatabaseConfig {
     pub host_url: Url,
 
     /// The token for authentication with the InfluxDB 3 Core server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     pub auth_token: Option<Secret<String>>,
 
     /// The name of the database to create. Valid database names are
