@@ -418,32 +418,32 @@ func TestData_TruncateShardGroups_FutureOverlappingShards(t *testing.T) {
 	// Step 1: Insert a data point in the future (this creates a shard)
 	futureTime := time.Unix(0, 0).Add(365 * 24 * time.Hour) // 1 year in future
 	must(data.CreateShardGroup("db", "rp", futureTime))
-	
+
 	initialShardCount := len(data.Databases[0].RetentionPolicies[0].ShardGroups)
 	t.Logf("After initial shard creation: %d shards", initialShardCount)
-	
+
 	// Step 2: Run truncate-shards
 	truncateTime := time.Now().UTC()
 	data.TruncateShardGroups(truncateTime)
-	
+
 	afterTruncateCount := len(data.Databases[0].RetentionPolicies[0].ShardGroups)
 	t.Logf("After truncate-shards: %d shards", afterTruncateCount)
-	
+
 	// Step 3: Insert the same datapoint again into the future
 	// This should NOT create a new overlapping shard
 	must(data.CreateShardGroup("db", "rp", futureTime))
-	
+
 	finalShardCount := len(data.Databases[0].RetentionPolicies[0].ShardGroups)
 	t.Logf("After re-inserting same future timestamp: %d shards", finalShardCount)
-	
+
 	// The bug would manifest as creating a second shard for the same time range
 	if finalShardCount > afterTruncateCount {
 		t.Errorf("BUG REPRODUCED: Additional shard was created for same future timestamp after truncation")
 	}
-	
+
 	// Step 4: Verify no overlapping shards exist
 	groups := data.Databases[0].RetentionPolicies[0].ShardGroups
-	
+
 	// Debug: Print all shard groups
 	t.Logf("Total shard groups after operations: %d", len(groups))
 	for i, group := range groups {
@@ -451,29 +451,29 @@ func TestData_TruncateShardGroups_FutureOverlappingShards(t *testing.T) {
 		if group.Truncated() {
 			effectiveEnd = group.TruncatedAt
 		}
-		t.Logf("Shard %d: [%v - %v) effective [%v - %v) truncated=%v deleted=%v", 
-			i, group.StartTime, group.EndTime, group.StartTime, effectiveEnd, 
+		t.Logf("Shard %d: [%v - %v) effective [%v - %v) truncated=%v deleted=%v",
+			i, group.StartTime, group.EndTime, group.StartTime, effectiveEnd,
 			group.Truncated(), group.Deleted())
 	}
-	
+
 	// Check that we don't have overlapping time coverage for the same time range
 	for i := 0; i < len(groups); i++ {
 		for j := i + 1; j < len(groups); j++ {
 			if groups[i].Deleted() || groups[j].Deleted() {
 				continue
 			}
-			
+
 			// Calculate effective ranges considering truncation
 			startI, endI := groups[i].StartTime, groups[i].EndTime
 			if groups[i].Truncated() {
 				endI = groups[i].TruncatedAt
 			}
-			
+
 			startJ, endJ := groups[j].StartTime, groups[j].EndTime
 			if groups[j].Truncated() {
 				endJ = groups[j].TruncatedAt
 			}
-			
+
 			// Check for overlapping coverage - ranges [a,b) and [c,d) overlap if a < d && c < b
 			if startI.Before(endJ) && startJ.Before(endI) {
 				t.Fatalf("Found overlapping shard groups after truncate-shards:\n"+
@@ -484,27 +484,27 @@ func TestData_TruncateShardGroups_FutureOverlappingShards(t *testing.T) {
 			}
 		}
 	}
-	
+
 	// Additional check: ensure the future timestamp has exactly one covering shard
 	coveringShards := 0
 	for _, group := range groups {
 		if group.Deleted() {
 			continue
 		}
-		
+
 		effectiveEnd := group.EndTime
 		if group.Truncated() {
 			effectiveEnd = group.TruncatedAt
 		}
-		
+
 		// Check if this shard covers our future time
 		if !futureTime.Before(group.StartTime) && futureTime.Before(effectiveEnd) {
 			coveringShards++
 		}
 	}
-	
+
 	if coveringShards != 1 {
-		t.Fatalf("Expected exactly 1 shard to cover future time %v, but found %d covering shards", 
+		t.Fatalf("Expected exactly 1 shard to cover future time %v, but found %d covering shards",
 			futureTime, coveringShards)
 	}
 }
@@ -532,21 +532,21 @@ func TestData_TruncateShardGroups_ActualOverlapBug(t *testing.T) {
 	// Step 1: Insert a data point in the future (creates a shard)
 	futureTime := time.Unix(0, 0).Add(365 * 24 * time.Hour) // 1 year in future
 	must(data.CreateShardGroup("db", "rp", futureTime))
-	
+
 	// Get the created shard group to understand its time range
 	sg, err := data.ShardGroupByTimestamp("db", "rp", futureTime)
 	if err != nil || sg == nil {
 		t.Fatal("Failed to create or find future shard group")
 	}
-	
+
 	t.Logf("Created future shard: [%v - %v)", sg.StartTime, sg.EndTime)
-	
+
 	// Step 2: Run truncate-shards with a time that's WITHIN the future shard's range
 	// This should truncate the future shard
 	truncateTime := sg.StartTime.Add(24 * time.Hour) // 24 hours into the 72-hour shard
 	t.Logf("Truncating at: %v", truncateTime)
 	data.TruncateShardGroups(truncateTime)
-	
+
 	// Refresh the shard group reference after truncation
 	groups := data.Databases[0].RetentionPolicies[0].ShardGroups
 	for i := range groups {
@@ -555,19 +555,19 @@ func TestData_TruncateShardGroups_ActualOverlapBug(t *testing.T) {
 			break
 		}
 	}
-	
-	t.Logf("After truncation - Shard: [%v - %v), truncated=%v, truncatedAt=%v", 
+
+	t.Logf("After truncation - Shard: [%v - %v), truncated=%v, truncatedAt=%v",
 		sg.StartTime, sg.EndTime, sg.Truncated(), sg.TruncatedAt)
-	
+
 	// Step 3: Try to insert data at a time that falls in the truncated portion  
 	// This is the critical test - timestamp after truncation but within original shard range
 	timeInTruncatedRange := sg.StartTime.Add(48 * time.Hour) // Beyond truncation but within original range
 	beforeCount := len(data.Databases[0].RetentionPolicies[0].ShardGroups)
 	must(data.CreateShardGroup("db", "rp", timeInTruncatedRange))
 	afterCount := len(data.Databases[0].RetentionPolicies[0].ShardGroups)
-	
+
 	t.Logf("Shard count before: %d, after creating shard for truncated range: %d", beforeCount, afterCount)
-	
+
 	// Print all shards for debugging
 	groups = data.Databases[0].RetentionPolicies[0].ShardGroups
 	for i, group := range groups {
@@ -575,40 +575,40 @@ func TestData_TruncateShardGroups_ActualOverlapBug(t *testing.T) {
 		if group.Truncated() {
 			effectiveEnd = group.TruncatedAt
 		}
-		t.Logf("Shard %d: [%v - %v) effective [%v - %v) truncated=%v", 
+		t.Logf("Shard %d: [%v - %v) effective [%v - %v) truncated=%v",
 			i, group.StartTime, group.EndTime, group.StartTime, effectiveEnd, group.Truncated())
 	}
-	
+
 	// Check for the bug: ensure timestamp coverage is not duplicated
 	testTimestamp := timeInTruncatedRange
 	coveringShards := 0
 	var coveringShardDetails []string
-	
+
 	for i, group := range groups {
 		if group.Deleted() {
 			continue
 		}
-		
+
 		effectiveEnd := group.EndTime
 		if group.Truncated() {
 			effectiveEnd = group.TruncatedAt
 		}
-		
+
 		// Check if this shard covers our test timestamp
 		if !testTimestamp.Before(group.StartTime) && testTimestamp.Before(effectiveEnd) {
 			coveringShards++
-			coveringShardDetails = append(coveringShardDetails, 
+			coveringShardDetails = append(coveringShardDetails,
 				fmt.Sprintf("Shard %d [%v - %v)", i, group.StartTime, effectiveEnd))
 		}
 	}
-	
+
 	t.Logf("Timestamp %v coverage:", testTimestamp)
 	for _, detail := range coveringShardDetails {
 		t.Logf("  %s", detail)
 	}
-	
+
 	if coveringShards > 1 {
-		t.Errorf("BUG REPRODUCED: Timestamp %v is covered by %d shards (should be 1)", 
+		t.Errorf("BUG REPRODUCED: Timestamp %v is covered by %d shards (should be 1)",
 			testTimestamp, coveringShards)
 	} else if coveringShards == 0 {
 		t.Errorf("COVERAGE GAP: Timestamp %v is not covered by any shard", testTimestamp)
@@ -617,8 +617,6 @@ func TestData_TruncateShardGroups_ActualOverlapBug(t *testing.T) {
 	}
 }
 
-// TestData_ShardGroupsByTimeRange_TruncatedShardsBug demonstrates the bug where
-// truncated shards are incorrectly included in time range queries
 func TestData_ShardGroupsByTimeRange_TruncatedShardsBug(t *testing.T) {
 	data := &meta.Data{}
 
@@ -633,62 +631,55 @@ func TestData_ShardGroupsByTimeRange_TruncatedShardsBug(t *testing.T) {
 	rp.ShardGroupDuration = 72 * time.Hour
 	must(data.CreateRetentionPolicy("db", rp, true))
 
-	// Create future shard
 	futureTime := time.Unix(0, 0).Add(365 * 24 * time.Hour)
 	must(data.CreateShardGroup("db", "rp", futureTime))
-	
+
 	sg, err := data.ShardGroupByTimestamp("db", "rp", futureTime)
 	if err != nil || sg == nil {
 		t.Fatal("Failed to create future shard group")
 	}
-	
+
 	t.Logf("Created shard: [%v - %v)", sg.StartTime, sg.EndTime)
-	
-	// Truncate the shard partway through
+
 	truncateTime := sg.StartTime.Add(24 * time.Hour)
 	data.TruncateShardGroups(truncateTime)
-	
-	// Create a new shard for the truncated range
+
 	timeInTruncatedRange := sg.StartTime.Add(48 * time.Hour)
 	must(data.CreateShardGroup("db", "rp", timeInTruncatedRange))
-	
-	// BUG: Query for time range that should only hit the new shard
-	// but will incorrectly include the truncated shard due to Overlaps() bug
-	queryStart := truncateTime.Add(12 * time.Hour) // After truncation
-	queryEnd := queryStart.Add(6 * time.Hour)      // Well after truncation
-	
+
+	queryStart := truncateTime.Add(12 * time.Hour)
+	queryEnd := queryStart.Add(6 * time.Hour)
+
 	shards, err := data.ShardGroupsByTimeRange("db", "rp", queryStart, queryEnd)
 	if err != nil {
 		t.Fatal("Failed to get shards by time range:", err)
 	}
-	
+
 	t.Logf("Query range: [%v - %v)", queryStart, queryEnd)
 	t.Logf("ShardGroupsByTimeRange returned %d shards:", len(shards))
-	
+
 	for i, shard := range shards {
 		effectiveEnd := shard.EndTime
 		if shard.Truncated() {
 			effectiveEnd = shard.TruncatedAt
 		}
-		t.Logf("  Shard %d: [%v - %v) effective [%v - %v) truncated=%v", 
+		t.Logf("  Shard %d: [%v - %v) effective [%v - %v) truncated=%v",
 			i, shard.StartTime, shard.EndTime, shard.StartTime, effectiveEnd, shard.Truncated())
-		
-		// Check if this shard should actually be included
+
 		shouldBeIncluded := !queryStart.Before(shard.StartTime) && !queryEnd.Before(shard.StartTime) ||
-			                 !shard.StartTime.After(queryEnd) && effectiveEnd.After(queryStart)
-		
+			!shard.StartTime.After(queryEnd) && effectiveEnd.After(queryStart)
+
 		actuallyIncluded := !shard.StartTime.After(queryEnd) && shard.EndTime.After(queryStart)
-		
+
 		if actuallyIncluded && !shouldBeIncluded {
 			t.Errorf("BUG DETECTED: Truncated shard incorrectly included in query results")
 			t.Errorf("  Shard effective range: [%v - %v)", shard.StartTime, effectiveEnd)
 			t.Errorf("  Query range: [%v - %v)", queryStart, queryEnd)
-			t.Errorf("  Shard should NOT be included because effective end %v <= query start %v", 
+			t.Errorf("  Shard should NOT be included because effective end %v <= query start %v",
 				effectiveEnd, queryStart)
 		}
 	}
-	
-	// Verify the fix: only the correct shard should be returned
+
 	if len(shards) != 1 {
 		t.Errorf("Expected exactly 1 shard for query range, got %d", len(shards))
 		if len(shards) > 1 {
@@ -723,16 +714,16 @@ func TestShardGroupInfo_Contains_TruncatedShards(t *testing.T) {
 	// Create and truncate a shard group
 	futureTime := time.Unix(0, 0).Add(365 * 24 * time.Hour)
 	must(data.CreateShardGroup("db", "rp", futureTime))
-	
+
 	sg, err := data.ShardGroupByTimestamp("db", "rp", futureTime)
 	if err != nil || sg == nil {
 		t.Fatal("Failed to create future shard group")
 	}
-	
+
 	// Truncate the shard partway through
 	truncateTime := sg.StartTime.Add(24 * time.Hour)
 	data.TruncateShardGroups(truncateTime)
-	
+
 	// Refresh the shard group reference
 	groups := data.Databases[0].RetentionPolicies[0].ShardGroups
 	for i := range groups {
@@ -741,7 +732,7 @@ func TestShardGroupInfo_Contains_TruncatedShards(t *testing.T) {
 			break
 		}
 	}
-	
+
 	// Test timestamps
 	beforeStart := sg.StartTime.Add(-1 * time.Hour)
 	atStart := sg.StartTime
@@ -750,7 +741,7 @@ func TestShardGroupInfo_Contains_TruncatedShards(t *testing.T) {
 	afterTruncation := sg.StartTime.Add(36 * time.Hour)
 	beforeOriginalEnd := sg.EndTime.Add(-1 * time.Hour)
 	atOriginalEnd := sg.EndTime
-	
+
 	testCases := []struct {
 		name      string
 		timestamp time.Time
@@ -764,7 +755,7 @@ func TestShardGroupInfo_Contains_TruncatedShards(t *testing.T) {
 		{"before original end", beforeOriginalEnd, false},
 		{"at original end", atOriginalEnd, false},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := sg.Contains(tc.timestamp)
