@@ -1,6 +1,7 @@
 #!/bin/sh -e
 
 readonly GREEN='\033[0;32m'
+readonly BLUE='\033[0;34m'
 readonly BOLD='\033[1m'
 readonly BOLDGREEN='\033[1;32m'
 readonly DIM='\033[2m'
@@ -74,10 +75,8 @@ printf "└───────────────────────
 echo
 printf "${BOLD}Select Installation Type${NC}\n"
 echo
-printf "1) ${GREEN}Docker Image${NC}\n"
-printf "   └─ Requires knowledge of Docker and Docker management\n"
-printf "2) ${GREEN}Simple Download${NC}\n"
-printf "   └─ No external dependencies required\n"
+printf "1) ${GREEN}Docker Image${NC}    ${DIM}(The official Docker image)${NC}\n"
+printf "2) ${GREEN}Simple Download${NC} ${DIM}(No dependencies required)${NC}\n"
 echo
 printf "Enter your choice (1-2): "
 read -r INSTALL_TYPE
@@ -94,27 +93,22 @@ case "$INSTALL_TYPE" in
         docker tag influxdb:3-${EDITION_TAG} influxdb3-${EDITION_TAG}
         # Exit script after Docker installation
         echo
+        printf "${BOLDGREEN}✓ InfluxDB 3 ${EDITION} successfully pulled. Nice!${NC}\n\n"
         printf "${BOLD}NEXT STEPS${NC}\n"
         printf "1) Run the Docker image:\n"
-        printf "   ├─ ${BOLD}mkdir plugins${NC} ${DIM}(To store and access plugins)${NC}\n"
-        if [ "${EDITION}" = "Core" ]; then
-            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} influxdb3 serve --object-store memory --node-id node0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
-        else
-            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} influxdb3 serve --object-store memory --node-id node0 --cluster-id cluster0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
+        printf "   └─ ${BOLD}docker run -it -p 8181:8181 --name influxdb3-container \\"
+        printf "\n      --volume ~/.influxdb3_data:/.data --volume ~/.influxdb3_plugins:/plugins influxdb:3-${EDITION_TAG} \\"
+        printf "\n      influxdb3 serve"
+        if [ "${EDITION}" = "Enterprise" ]; then
+            printf " --cluster-id c0"
         fi
-        printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
-
-        END_TIME=$(date +%s)
-        DURATION=$((END_TIME - START_TIME))
-
-        out=" Time is everything. This process took $DURATION seconds. "
-        mid=""
-        for _ in $(seq 1 ${#out}); do
-            mid="${mid}─"
-        done
-        printf "┌%s┐\n" "$mid"
-        printf "│%s│\n" "$out"
-        printf "└%s┘\n" "$mid"
+        printf " --node-id node0 --object-store file --data-dir /.data --plugin-dir /plugins${NC}\n\n"
+        printf "2) ${NC}Create a token: ${BOLD}docker exec -it influxdb3-container influxdb3 create token --admin${NC} \n\n"
+        printf "3) Begin writing data! Learn more at https://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/write/\n\n"
+        printf "┌────────────────────────────────────────────────────────────────────────────────────────┐\n"
+        printf "│ Looking to use a UI for querying, plugins, management, and more?                       │\n"
+        printf "│ Get InfluxDB 3 Explorer at ${BLUE}https://docs.influxdata.com/influxdb3/explorer/#quick-start${NC} │\n"
+        printf "└────────────────────────────────────────────────────────────────────────────────────────┘\n\n"
         exit 0
         ;;
     2)
@@ -373,13 +367,13 @@ fi
 
 ### SUCCESS INFORMATION ###
 echo
-printf "${BOLD}Further Info${NC}\n"
+printf "${BOLD}Next Steps${NC}\n"
 if [ -n "$shellrc" ]; then
     printf "├─ Run ${BOLD}source '%s'${NC}, then access InfluxDB with ${BOLD}influxdb3${NC} command.\n" "$shellrc"
 else
     printf "├─ Access InfluxDB with the ${BOLD}%s${NC} command.\n" "$INSTALL_LOC/$BINARY_NAME"
 fi
-printf "├─ View the Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
+printf "├─ View the Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/${NC}.\n"
 printf "└─ Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
 echo
 
