@@ -617,11 +617,18 @@ pub mod test_helpers {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use influxdb3_catalog::catalog::CatalogSequenceNumber;
+    use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
     use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
+    use std::sync::Arc;
 
-    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot};
+    use data_types::NamespaceName;
+    use influxdb3_types::write::Precision;
+    use iox_time::Time;
+
+    use crate::{
+        DatabaseTables, ParquetFile, PersistedSnapshot, write_buffer::validator::WriteValidator,
+    };
 
     #[test]
     fn test_overall_counts() {
@@ -780,5 +787,34 @@ pub(crate) mod tests {
         // add dbs_2 to snapshot
         let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&[]);
         assert_eq!((0, 0, 0), overall_counts);
+    }
+
+    #[tokio::test]
+    async fn test_series_key_columns_with_slashes() {
+        let catalog = Catalog::new_in_memory("test-catalog")
+            .await
+            .map(Arc::new)
+            .unwrap();
+        let db_name = NamespaceName::new("test-db").unwrap();
+        let writer = WriteValidator::initialize(db_name, Arc::clone(&catalog)).unwrap();
+        // write and commit the catalog changes:
+        let _ = writer
+            .v1_parse_lines_and_catalog_updates(
+                "foo,a/b=bar value=1",
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Auto,
+            )
+            .unwrap()
+            .commit_catalog_changes()
+            .await
+            .unwrap()
+            .unwrap_success();
+        let schema = catalog
+            .db_schema("test-db")
+            .and_then(|db| db.table_definition("foo"))
+            .map(|tbl| tbl.influx_schema().clone())
+            .unwrap();
+        assert_eq!(["a/b", "time"], schema.primary_key().as_slice());
     }
 }
