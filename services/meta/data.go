@@ -1438,14 +1438,22 @@ func (a ShardGroupInfos) Less(i, j int) bool {
 	return iEnd.Before(jEnd)
 }
 
-// Contains returns true iif StartTime ≤ t < EndTime.
+// Contains returns true iif StartTime ≤ t < EndTime (or TruncatedAt if truncated).
 func (sgi *ShardGroupInfo) Contains(t time.Time) bool {
-	return !t.Before(sgi.StartTime) && t.Before(sgi.EndTime)
+	effectiveEnd := sgi.EndTime
+	if sgi.Truncated() {
+		effectiveEnd = sgi.TruncatedAt
+	}
+	return !t.Before(sgi.StartTime) && t.Before(effectiveEnd)
 }
 
 // Overlaps returns whether the shard group contains data for the time range between min and max
 func (sgi *ShardGroupInfo) Overlaps(min, max time.Time) bool {
-	return !sgi.StartTime.After(max) && sgi.EndTime.After(min)
+	effectiveEnd := sgi.EndTime
+	if sgi.Truncated() {
+		effectiveEnd = sgi.TruncatedAt
+	}
+	return !sgi.StartTime.After(max) && effectiveEnd.After(min)
 }
 
 // Deleted returns whether this ShardGroup has been deleted.
