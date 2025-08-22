@@ -349,7 +349,7 @@ fn maybe_print_help() {
                     "install".bold(),
                     "test".bold(),
                     "Configuration Options:".bold().underline(),
-                    "Aditional Options:".bold().underline(),
+                    "Additional Options:".bold().underline(),
                 );
                 std::process::exit(0);
             }
