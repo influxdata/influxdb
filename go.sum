@@ -514,8 +514,8 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe h1:7j4SdN/BvQwN6WoUq7mv0kg5U9NhnFBxPGMafYRKym0=
 github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
-github.com/influxdata/flux v0.197.0 h1:PCcwQc9e2FSLe0LWt9NxZQDB3o6F23WY1+yboGd8rbk=
-github.com/influxdata/flux v0.197.0/go.mod h1:Pb9c+RxvmIKv7S0cbshgoU4sgFldq7/GYe4FXIgKheg=
+github.com/influxdata/flux v0.198.0 h1:ycZqWWTb4Ht9dllXTUVFFBvqrpqMVU1x5l0TsN5/1Mc=
+github.com/influxdata/flux v0.198.0/go.mod h1:YDwN/Dz2aDJV4gVWwaqGETPAP3jkBasM06t67kKF+Mk=
 github.com/influxdata/gosnowflake v1.9.0 h1:fw6peFfTfJK+jbI98RzEEbte8F1SNBX8a91cqzGFcaE=
 github.com/influxdata/gosnowflake v1.9.0/go.mod h1:VYPoQhZtz3I1zh+YIMG4axm/iUxoKCTbTEQl/SYvUNM=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
