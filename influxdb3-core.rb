@@ -14,16 +14,83 @@ class Influxdb3Core < Formula
     end
   end
 
-  # Install the pre-compiled binary and configure the system
   def install
-    bin.install "influxdb3"
-
+    # install influxdb3 binary and python/ in the libexec dir
+    libexec.install "influxdb3"
     if File.directory?("python")
-      (lib/"python").install Dir["python/*"]
-      (bin/"python").make_symlink(lib/"python")
+      (libexec/"python").install Dir["python/*"]
     else
       odie "Python runtime not found in bundle. InfluxDB 3 Core requires bundled Python."
     end
+
+    # Create a wrapper to call influxdb3 from the unversioned libexec dir. Use
+    # the unversioned #{HOMEBREW_PREFIX}/opt/influxdb3-core/libexec/influxdb3 to
+    # help with upgrades. #{HOMEBREW_PREFIX}/opt/influxdb3-core is a symlink
+    # into ../Cellar/influxdb3-core/<VERSION> created automatically by brew.
+    (bin/"influxdb3").write <<~EOS
+      #!/bin/bash
+
+      # '#{HOMEBREW_PREFIX}/opt/influxdb3-core/libexec/python/bin/python -m venv'
+      # unfortunately resolves symlinks for the 'executable' within pyvenv.cfg.
+      # Find the venv and then modify pyvenv.cfg before server startup.
+      if [ "$1" = "serve" ]; then
+        pyvenv_cfg=
+
+        # Priority 1: VIRTUAL_ENV
+        if [ -n "$VIRTUAL_ENV" ]; then
+          pyvenv_cfg="$VIRTUAL_ENV/pyvenv.cfg"
+        else
+          # Priority 2: --virtual-env-location
+          for ((i=1; i<=$#; i++)); do
+            arg="${!i}"
+            next_idx=$((i+1))
+            next_arg="${!next_idx}"
+
+            if [[ "$arg" == "--virtual-env-location" ]] && [[ -n "$next_arg" ]]; then
+              # --virtual-env-location /path/to/foo
+              pyvenv_cfg="$next_arg/pyvenv.cfg"
+              break
+            elif [[ "$arg" == --virtual-env-location=* ]]; then
+              # --virtual-env-location=/path/to/foo
+              pyvenv_cfg="${arg#*=}/pyvenv.cfg"
+              break
+            fi
+          done
+
+          # Priority 3: INFLUXDB3_PLUGIN_DIR
+          if [ -z "$pyvenv_cfg" ] && [ -n "$INFLUXDB3_PLUGIN_DIR" ]; then
+            pyvenv_cfg="$INFLUXDB3_PLUGIN_DIR/.venv/pyvenv.cfg"
+          fi
+
+          # Priority 4: --plugin-dir
+          if [ -z "$pyvenv_cfg" ]; then
+            for ((i=1; i<=$#; i++)); do
+              arg="${!i}"
+              next_idx=$((i+1))
+              next_arg="${!next_idx}"
+
+              if [[ "$arg" == "--plugin-dir" ]] && [[ -n "$next_arg" ]]; then
+                # --plugin-dir /path/to/bar
+                pyvenv_cfg="$next_arg/.venv/pyvenv.cfg"
+                break
+              elif [[ "$arg" == --plugin-dir=* ]]; then
+                # --plugin-dir=/path/to/bar
+                pyvenv_cfg="${arg#*=}/.venv/pyvenv.cfg"
+                break
+              fi
+            done
+          fi
+        fi
+
+        # Update the pyvenv.cfg file
+        if [ -e "$pyvenv_cfg" ]; then
+          sed -i '' 's|/Cellar/influxdb3-core/[^/]*/|/opt/influxdb3-core/|g' "$pyvenv_cfg"
+        fi
+      fi
+
+      exec "#{HOMEBREW_PREFIX}/opt/influxdb3-core/libexec/influxdb3" "$@"
+    EOS
+    (bin/"influxdb3").chmod(0755)
 
     # Create necessary directories for storing data, plugins, and the config
     data_dir = var/"lib/influxdb3"
@@ -141,7 +208,7 @@ class Influxdb3Core < Formula
       PLUGIN_DIR="${INFLUXDB3_PLUGIN_DIR:-$(read_config "PLUGIN_DIR" "/opt/homebrew/lib/influxdb3/plugins")}"
 
       # Start building command
-      ARGS=("#{opt_bin}/influxdb3" "serve" "--node-id" "$NODE_ID" "--object-store" "$OBJECT_STORE")
+      ARGS=("#{HOMEBREW_PREFIX}/bin/influxdb3" "serve" "--node-id" "$NODE_ID" "--object-store" "$OBJECT_STORE")
 
       # Add object store specific arguments
       case "$OBJECT_STORE" in
@@ -249,23 +316,34 @@ class Influxdb3Core < Formula
   end
 
   test do
+    # Test wrapper script exists and is executable
     assert_path_exists bin/"influxdb3"
     assert_predicate bin/"influxdb3", :executable?
 
+    # Test actual binary exists in libexec
+    assert_path_exists libexec/"influxdb3"
+    assert_predicate libexec/"influxdb3", :executable?
+
+    # Test bundled Python exists in libexec
+    assert_path_exists libexec/"python"
+
+    # Test startup script exists
     assert_path_exists bin/"influxdb3-core"
     assert_predicate bin/"influxdb3-core", :executable?
 
+    # Test wrapper script forwards help command
     output = shell_output("#{bin}/influxdb3 --help")
     assert_match "InfluxDB 3", output
 
+    # Test configuration file
     assert_path_exists etc/"influxdb3/influxdb3.conf"
     config_content = (etc/"influxdb3/influxdb3.conf").read
     assert_match "NODE_ID=", config_content
     assert_match "OBJECT_STORE_TYPE=", config_content
 
+    # Test directory structure
     assert_path_exists var/"lib/influxdb3"
     assert_path_exists var/"lib/influxdb3/README.txt"
-
     assert_path_exists var/"log/influxdb3"
 
     # Test that we can start the server briefly (memory mode for testing)
