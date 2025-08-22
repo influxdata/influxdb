@@ -1615,7 +1615,7 @@ impl From<authz::Error> for AuthenticationError {
 /// - Starts with a letter or a number
 /// - Is ASCII not UTF-8
 /// - Contains only letters, numbers, underscores or hyphens
-/// - if `accept_rp` is true, then a single slash ('/') is allowed, separating the
+/// - if `accept_rp` is true, then a single slash ('/') is allowed, separating
 ///   the database name from the retention policy name, e.g., '<db_name>/<rp_name>'
 fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameError> {
     if name.is_empty() {
