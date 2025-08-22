@@ -186,7 +186,7 @@ pub struct WriteBufferImplArgs {
     pub query_file_limit: Option<usize>,
     pub n_snapshots_to_load_on_start: usize,
     pub shutdown: ShutdownToken,
-    pub wal_replay_concurrency_limit: Option<usize>,
+    pub wal_replay_concurrency_limit: usize,
 }
 
 impl WriteBufferImpl {
@@ -790,7 +790,7 @@ mod tests {
             query_file_limit: None,
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
-            wal_replay_concurrency_limit: Some(1),
+            wal_replay_concurrency_limit: 1,
         })
         .await
         .unwrap();
@@ -901,7 +901,7 @@ mod tests {
             query_file_limit: None,
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
-            wal_replay_concurrency_limit: Some(1),
+            wal_replay_concurrency_limit: 1,
         })
         .await
         .unwrap();
@@ -997,7 +997,7 @@ mod tests {
                 query_file_limit: None,
                 n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
                 shutdown: ShutdownManager::new_testing().register(),
-                wal_replay_concurrency_limit: Some(1),
+                wal_replay_concurrency_limit: 1,
             })
             .await
             .unwrap()
@@ -1260,7 +1260,7 @@ mod tests {
             query_file_limit: None,
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
-            wal_replay_concurrency_limit: Some(1),
+            wal_replay_concurrency_limit: 1,
         })
         .await
         .unwrap();
@@ -3457,7 +3457,7 @@ mod tests {
             query_file_limit: None,
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
-            wal_replay_concurrency_limit: None,
+            wal_replay_concurrency_limit: 1,
         })
         .await
         .unwrap();

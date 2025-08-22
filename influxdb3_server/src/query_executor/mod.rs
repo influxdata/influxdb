@@ -898,7 +898,7 @@ mod tests {
             query_file_limit,
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: shutdown.register(),
-            wal_replay_concurrency_limit: Some(1),
+            wal_replay_concurrency_limit: 1,
         })
         .await
         .unwrap();
