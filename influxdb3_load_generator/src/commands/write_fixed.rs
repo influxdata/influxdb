@@ -31,7 +31,7 @@ pub struct WriteFixedConfig {
     pub(crate) host_url: Url,
 
     /// The token for authentication with the InfluxDB 3 Enterprise server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     pub(crate) auth_token: Option<Secret<String>>,
 
     /// Write-specific config:

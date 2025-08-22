@@ -87,7 +87,12 @@ pub struct InfluxDb3ServerConfig {
 
     /// The token for authentication with the InfluxDB 3 Core server to create permissions.
     /// This will be the admin token to create tokens with permissions
-    #[clap(name = "token", long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(
+        name = "token",
+        long = "token",
+        env = "INFLUXDB3_AUTH_TOKEN",
+        hide_env_values = true
+    )]
     pub auth_token: Option<Secret<String>>,
 
     /// An optional arg to use a custom ca for useful for testing with self signed certs

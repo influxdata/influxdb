@@ -33,7 +33,7 @@ pub(crate) struct InfluxDb3Config {
     pub(crate) database_name: String,
 
     /// The token for authentication with the InfluxDB 3 Core server
-    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     pub(crate) auth_token: Option<Secret<String>>,
 
     /// The name of the builtin spec to run. Use this instead of spec_path if you want to run
