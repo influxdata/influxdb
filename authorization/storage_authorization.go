@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
@@ -197,7 +198,7 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 // the comparison fails.
 func (s *Store) validateToken(auth *influxdb.Authorization, token string) (bool, error) {
 	if auth.Token != "" {
-		return auth.Token == token, nil
+		return subtle.ConstantTimeCompare([]byte(auth.Token), []byte(token)) == 1, nil
 	}
 
 	if auth.HashedToken != "" {
