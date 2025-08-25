@@ -81,18 +81,14 @@ into BoltDB. Raw tokens are not stored.
 To verify tokens when hashed tokens are enabled, the presented token's hash is calculated and used
 for token index lookup. The rest of the authorization flow is unchanged.
 
-To verify tokens when hashed tokens are disabled, the an attempt is made to parse the presented token as
-PHC. If the parse succeeds, the access is denied. This prevents an attack described below. After this check,
-the presented raw token is used to lookup the token in the raw token index. If found, authorization proceeds
-as normal. Otherwise, the token hash is calculated and used to lookup the token in the hashed token index.
-A second check is then done on the authorization record token or token hash matches the presented token.
-If found, authorization proceeds as normal.
-
 The hashed token index is separate from the raw token index. Newer versions also verify that the token
 is not a valid PHC string before starting authorization. This prevents the following attack:
 1. Hashed token is extracted from BoltDB.
 2. Token hashing is disabled.
 3. The hashed token is presented to the API, which will misinterpret it as a raw token and allow access.
+This attack is not possible due to the independent indices for raw and hashed tokens. When the hashed token
+is presented, it will not match any tokens in the raw index. The hashed token will then be hashed again
+before lookup in the hashed index, and will not match any tokens.
 
 The token hashing algorithm is SHA-512. This provides a good level of security and is allowed by FIPS 140-2.
 Because the token hashes must be useable as index lookups, salted password hashes (e.g. bcrypt, PBKDF2, Argon)
