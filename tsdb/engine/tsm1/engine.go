@@ -677,6 +677,11 @@ func (e *Engine) LastModified() time.Time {
 	return fsTime
 }
 
+// TimeRange returns the min and max time range for this shard
+func (e *Engine) TimeRange() (int64, int64) {
+	return e.FileStore.TimeRange()
+}
+
 // EngineStatistics maintains statistics for the engine.
 type EngineStatistics struct {
 	CacheCompactions        int64 // Counter of cache compactions that have ever run.
