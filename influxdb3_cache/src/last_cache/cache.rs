@@ -17,9 +17,10 @@ use arrow::{
     error::ArrowError,
 };
 use indexmap::{IndexMap, IndexSet};
+use influxdb3_catalog::catalog::legacy;
 use influxdb3_catalog::{
-    catalog::{ColumnDefinition, TIME_COLUMN_NAME, TableDefinition},
-    log::{LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef},
+    catalog::{TIME_COLUMN_NAME, TableDefinition},
+    log::{LastCacheSize, LastCacheTtl},
 };
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{Field, FieldData, Row};
@@ -128,10 +129,12 @@ impl LastCache {
             value_columns,
         }: CreateLastCacheArgs,
     ) -> Result<Self, Error> {
+        let table_def = legacy::TableDefinition::new(table_def);
+
         let mut seen = HashSet::new();
         let mut schema_builder = ArrowSchemaBuilder::new();
         // handle key columns:
-        let key_column_definitions: Vec<Arc<ColumnDefinition>> = match &key_columns {
+        let key_column_definitions: Vec<legacy::ColumnDefinition> = match &key_columns {
             LastCacheKeyColumnsArg::SeriesKey => table_def.series_key.iter(),
             LastCacheKeyColumnsArg::Explicit(col_ids) => col_ids.iter(),
         }
@@ -143,7 +146,6 @@ impl LastCache {
         })
         .collect::<Result<Vec<_>, Error>>()?;
         let mut key_column_ids = IndexSet::new();
-        let mut key_column_name_to_ids = HashMap::new();
         for col_def in key_column_definitions {
             use InfluxFieldType::*;
             match col_def.data_type {
@@ -167,17 +169,15 @@ impl LastCache {
                 column_type => return Err(Error::InvalidKeyColumn { column_type }),
             }
             key_column_ids.insert(col_def.id);
-            key_column_name_to_ids.insert(Arc::clone(&col_def.name), col_def.id);
         }
 
         // handle value columns:
-        let value_column_definitions: Vec<Arc<ColumnDefinition>> = match &value_columns {
+        let value_column_definitions: Vec<legacy::ColumnDefinition> = match &value_columns {
             LastCacheValueColumnsArg::AcceptNew => table_def
                 .columns
                 .iter()
                 .filter(|(id, _)| !key_column_ids.contains(*id))
                 .map(|(_, def)| def)
-                .cloned()
                 .collect(),
             LastCacheValueColumnsArg::Explicit(col_ids) => col_ids
                 .iter()
@@ -199,7 +199,7 @@ impl LastCache {
                         .columns
                         .iter()
                         .filter(|(_, def)| def.name.as_ref() == TIME_COLUMN_NAME)
-                        .map(|(_, def)| Ok(Arc::clone(def))),
+                        .map(|(_, def)| Ok(def)),
                 )
                 .collect::<Result<Vec<_>, Error>>()?,
         };
@@ -269,6 +269,8 @@ impl LastCache {
     /// This will panic if the internal cache state's keys are out-of-order with respect to the
     /// order of the `key_columns` on this [`LastCache`]
     pub(crate) fn push(&mut self, row: &Row, table_def: Arc<TableDefinition>) {
+        let legacy_def = legacy::TableDefinition::new(Arc::clone(&table_def));
+
         let mut values = Vec::with_capacity(self.key_column_ids.len());
         for id in self.key_column_ids.iter() {
             let Some(value) = row
@@ -306,7 +308,7 @@ impl LastCache {
                     LastCacheState::Store(LastCacheStore::new(
                         self.count.into(),
                         self.ttl,
-                        Arc::clone(&table_def),
+                        &legacy_def,
                         Arc::clone(&self.key_column_ids),
                         &self.value_columns,
                     ))
@@ -318,7 +320,7 @@ impl LastCache {
             *target = LastCacheState::Store(LastCacheStore::new(
                 self.count.into(),
                 self.ttl,
-                Arc::clone(&table_def),
+                &legacy_def,
                 Arc::clone(&self.key_column_ids),
                 &self.value_columns,
             ));
@@ -329,7 +331,7 @@ impl LastCache {
         store.push(row);
         if self.should_update_schema_from_row(row) {
             let (schema, seen) = update_last_cache_schema_for_new_fields(
-                table_def,
+                &legacy_def,
                 self.key_column_ids.iter().copied().collect(),
             );
             self.schema = schema;
@@ -389,9 +391,11 @@ impl LastCache {
             caches = new_caches;
         }
 
+        let table_def = legacy::TableDefinition::new(table_def);
+
         caches
             .into_iter()
-            .map(|c| c.to_record_batch(Arc::clone(&table_def), Arc::clone(&self.schema)))
+            .map(|c| c.to_record_batch(&table_def, Arc::clone(&self.schema)))
             .collect()
     }
 
@@ -402,7 +406,7 @@ impl LastCache {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ValueColumnType {
+pub(crate) enum ValueColumnType {
     /// Accept new fields and store them in the cache when received in incoming writes.
     ///
     /// Tracks the columns that have been _seen_ so it can check incoming writes for new columns.
@@ -410,17 +414,6 @@ pub enum ValueColumnType {
     /// The cache uses an explicit set of columns to store as values. This is the more optimal
     /// configuration as it allows the cache to use a static schema that never changes.
     Explicit { columns: Vec<ColumnId> },
-}
-
-impl From<&ValueColumnType> for LastCacheValueColumnsDef {
-    fn from(t: &ValueColumnType) -> Self {
-        match t {
-            ValueColumnType::AcceptNew { .. } => Self::AllNonKeyColumns,
-            ValueColumnType::Explicit { columns } => Self::Explicit {
-                columns: columns.to_vec(),
-            },
-        }
-    }
 }
 
 /// Extend a [`LastCacheState`] with additional columns
@@ -444,7 +437,7 @@ impl ExtendedLastCacheState<'_> {
     /// This assumes that the `state` is a [`LastCacheStore`] and will panic otherwise.
     fn to_record_batch(
         &self,
-        table_def: Arc<TableDefinition>,
+        table_def: &legacy::TableDefinition,
         schema: ArrowSchemaRef,
     ) -> Result<RecordBatch, ArrowError> {
         let store = self
@@ -719,7 +712,7 @@ impl LastCacheStore {
     pub(crate) fn new(
         count: usize,
         ttl: Duration,
-        table_def: Arc<TableDefinition>,
+        table_def: &legacy::TableDefinition,
         key_column_ids: Arc<IndexSet<ColumnId>>,
         value_columns: &ValueColumnType,
     ) -> Self {
@@ -840,7 +833,7 @@ impl LastCacheStore {
     /// calling function, and calling it here _could_ produce a different result.
     fn to_record_batch(
         &self,
-        table_def: Arc<TableDefinition>,
+        table_def: &legacy::TableDefinition,
         schema: ArrowSchemaRef,
         extended: Option<Vec<ArrayRef>>,
         n_non_expired: usize,
@@ -901,7 +894,7 @@ impl LastCacheStore {
 /// For caches that accept new fields, this is used when new fields are encountered and the cache
 /// schema needs to be updated.
 fn update_last_cache_schema_for_new_fields(
-    table_def: Arc<TableDefinition>,
+    table_def: &legacy::TableDefinition,
     key_columns: Vec<ColumnId>,
 ) -> (ArrowSchemaRef, HashSet<ColumnId>) {
     let mut seen = HashSet::new();
@@ -962,14 +955,14 @@ impl CacheColumn {
     }
 
     /// Push [`FieldData`] from the buffer into this column
-    fn push(&mut self, field_data: &FieldData) {
+    pub(crate) fn push(&mut self, field_data: &FieldData) {
         self.data.push_front(field_data);
         if self.data.len() > self.size {
             self.data.truncate(self.size);
         }
     }
 
-    fn push_null(&mut self) {
+    pub(crate) fn push_null(&mut self) {
         self.data.push_front_null();
         if self.data.len() > self.size {
             self.data.truncate(self.size);

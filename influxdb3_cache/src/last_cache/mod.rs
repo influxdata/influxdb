@@ -83,9 +83,10 @@ mod tests {
             .write_lp_to_rows("cpu,host=a,region=us usage=120", 1_000)
             .await;
 
-        let table_def = writer.db_schema().table_definition("cpu").unwrap();
+        let table_def = writer.db_schema().legacy_table_definition("cpu").unwrap();
         let key_columns = column_ids_for_names(["host"], &table_def);
         let col_id = table_def.column_name_to_id("host").unwrap();
+        let table_def = table_def.inner();
 
         let mut cache = LastCache::new(CreateLastCacheArgs {
             table_def: Arc::clone(&table_def),
@@ -166,9 +167,10 @@ mod tests {
             .write_lp_to_rows("cpu,region=us,host=a usage=1", 500)
             .await;
 
-        let table_def = writer.db_schema().table_definition("cpu").unwrap();
+        let table_def = writer.db_schema().legacy_table_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
         let region_col_id = table_def.column_name_to_id("region").unwrap();
+        let table_def = table_def.inner();
 
         // Create the last cache with keys on all tag columns:
         let mut cache = LastCache::new(CreateLastCacheArgs {
@@ -393,9 +395,10 @@ mod tests {
             .write_lp_to_rows("cpu,region=us,host=a usage=1", 500)
             .await;
 
-        let table_def = writer.db_schema().table_definition("cpu").unwrap();
+        let table_def = writer.db_schema().legacy_table_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
         let region_col_id = table_def.column_name_to_id("region").unwrap();
+        let table_def = table_def.inner();
 
         // Create the last cache with keys on all tag columns and a count of 10:
         let mut cache = LastCache::new(CreateLastCacheArgs {
@@ -545,9 +548,10 @@ mod tests {
             .write_lp_to_rows("cpu,region=us,host=a usage=1", 500)
             .await;
 
-        let table_def = writer.db_schema().table_definition("cpu").unwrap();
+        let table_def = writer.db_schema().legacy_table_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
         let region_col_id = table_def.column_name_to_id("region").unwrap();
+        let table_def = table_def.inner();
 
         // create the last cache with default columns and a non-default TTL/count
         let mut cache = LastCache::new(CreateLastCacheArgs {
@@ -651,11 +655,12 @@ mod tests {
             )
             .await;
 
-        let table_def = writer.db_schema().table_definition("temp").unwrap();
+        let table_def = writer.db_schema().legacy_table_definition("temp").unwrap();
         let component_id_col_id = table_def.column_name_to_id("component_id").unwrap();
         let active_col_id = table_def.column_name_to_id("active").unwrap();
         let type_col_id = table_def.column_name_to_id("type").unwrap();
         let loc_col_id = table_def.column_name_to_id("loc").unwrap();
+        let table_def = table_def.inner();
 
         // Create the last cache with keys on some field columns:
         let mut cache = LastCache::new(CreateLastCacheArgs {
@@ -769,10 +774,14 @@ mod tests {
             .write_lp_to_rows("wind_speed,state=ca,county=napa,farm=10-01 speed=60", 500)
             .await;
 
-        let table_def = writer.db_schema().table_definition("wind_speed").unwrap();
+        let table_def = writer
+            .db_schema()
+            .legacy_table_definition("wind_speed")
+            .unwrap();
         let state_col_id = table_def.column_name_to_id("state").unwrap();
         let county_col_id = table_def.column_name_to_id("county").unwrap();
         let farm_col_id = table_def.column_name_to_id("farm").unwrap();
+        let table_def = table_def.inner();
 
         let mut cache = LastCache::new(CreateLastCacheArgs {
             table_def: Arc::clone(&table_def),
@@ -966,8 +975,9 @@ mod tests {
             .write_lp_to_rows(r#"plays,game_id=1 type="shot",player="kessel""#, 500)
             .await;
 
-        let table_def = writer.db_schema().table_definition("plays").unwrap();
+        let table_def = writer.db_schema().legacy_table_definition("plays").unwrap();
         let game_id_col_id = table_def.column_name_to_id("game_id").unwrap();
+        let table_def = table_def.inner();
 
         // Create the last cache using default tags as keys
         let mut cache = LastCache::new(CreateLastCacheArgs {
@@ -1062,8 +1072,9 @@ mod tests {
         let writer = TestWriter::new().await;
         let _ = writer.write_lp_to_rows("tbl,t1=a f1=1", 500).await;
 
-        let table_def = writer.db_schema().table_definition("tbl").unwrap();
+        let table_def = writer.db_schema().legacy_table_definition("tbl").unwrap();
         let t1_col_id = table_def.column_name_to_id("t1").unwrap();
+        let table_def = table_def.inner();
 
         // Create the last cache using the single `t1` tag column as key
         // and using the default for fields, so that new fields will get added
@@ -1290,11 +1301,6 @@ mod tests {
             )
             .await
             .unwrap();
-
-        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
-        // broadcast should be acknowledged and this would not be necessary... see
-        // https://github.com/influxdata/influxdb_pro/issues/556
-        tokio::time::sleep(Duration::from_millis(100)).await;
 
         // make some writes into the cache:
         let write_batch = writer
@@ -1547,11 +1553,6 @@ mod tests {
             )
             .await
             .unwrap();
-
-        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
-        // broadcast should be acknowledged and this would not be necessary... see
-        // https://github.com/influxdata/influxdb_pro/issues/556
-        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let write_batch = writer
             .write_lp_to_write_batch(

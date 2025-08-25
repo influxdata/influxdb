@@ -422,12 +422,10 @@ mod tests {
     use datafusion::prelude::col;
     use datafusion::prelude::lit_timestamp_nano;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
-    use influxdb3_catalog::catalog::TableDefinition;
-    use influxdb3_id::ColumnId;
+    use influxdb3_catalog::catalog::{ColumnDefinition, FieldFamilyMode, TableDefinition};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
-    use schema::InfluxColumnType;
     use std::sync::Arc;
 
     use super::*;
@@ -595,12 +593,10 @@ mod tests {
             TableDefinition::new(
                 TableId::from(0),
                 "test-tbl".into(),
-                vec![(
-                    ColumnId::from(0),
-                    "time".into(),
-                    InfluxColumnType::Timestamp,
-                )],
+                vec![ColumnDefinition::timestamp(0)],
                 vec![],
+                vec![],
+                FieldFamilyMode::Aware,
             )
             .unwrap(),
         );
