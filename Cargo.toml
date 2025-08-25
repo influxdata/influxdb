@@ -116,7 +116,7 @@ pbjson = "0.6.0"
 pbjson-build = "0.6.2"
 pbjson-types = "0.6.0"
 pin-project-lite = "0.2"
-pretty_assertions = "1.4.0"
+pretty_assertions = { version = "1.4.0", features = ["unstable"] }
 prost = "0.12.6"
 prost-build = "0.12.6"
 prost-types = "0.12.6"

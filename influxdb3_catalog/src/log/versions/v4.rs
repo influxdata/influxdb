@@ -1,7 +1,7 @@
-mod conversion;
-/// The v3 changes are _only_ done for token permission mapping `v2`s `db:*:write[,read]` is mapped
-/// to `v3`s `db:*:write,create[,read]` permission. There are no structural changes in the catalog
-/// log files.
+#![allow(unreachable_pub, dead_code, clippy::wrong_self_convention)]
+
+// Enterprise module removed during port
+
 use std::{
     cmp::{Ord, PartialOrd},
     num::NonZeroUsize,
@@ -13,16 +13,21 @@ use std::{
 
 use anyhow::Context;
 use cron::Schedule;
+// Enterprise import removed - CreateTokenDetails
 use hashbrown::HashMap;
 use humantime::{format_duration, parse_duration};
-use influxdb_line_protocol::FieldValue;
 use influxdb3_id::{
-    ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId, TokenId, TriggerId,
+    ColumnId, ColumnIdentifier, DbId, DistinctCacheId, FieldFamilyId, FieldIdentifier, LastCacheId,
+    NodeId, TableId, TagId, TokenId, TriggerId,
 };
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::catalog::versions::v2::{
+    ColumnDefinition, FieldColumn, FieldFamilyDefinition, FieldFamilyMode, FieldFamilyName,
+    TagColumn, TimestampColumn,
+};
 use crate::{CatalogError, Result, catalog::CatalogSequenceNumber, serialize::VersionedFileType};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -209,7 +214,7 @@ impl OrderedCatalogBatch {
 }
 
 impl VersionedFileType for OrderedCatalogBatch {
-    const VERSION_ID: [u8; 10] = *b"idb3.003.l";
+    const VERSION_ID: [u8; 10] = *b"idb3.004.l";
 }
 
 impl PartialOrd for OrderedCatalogBatch {
@@ -238,7 +243,7 @@ pub enum DatabaseCatalogOp {
     // Table ops:
     CreateTable(CreateTableLog),
     SoftDeleteTable(SoftDeleteTableLog),
-    AddFields(AddFieldsLog),
+    AddColumns(AddColumnsLog),
     // Distinct cache ops:
     CreateDistinctCache(DistinctCacheDefinition),
     DeleteDistinctCache(DeleteDistinctCacheLog),
@@ -344,8 +349,7 @@ pub struct CreateTableLog {
     pub database_name: Arc<str>,
     pub table_name: Arc<str>,
     pub table_id: TableId,
-    pub field_definitions: Vec<FieldDefinition>,
-    pub key: Vec<ColumnId>,
+    pub field_family_mode: FieldFamilyMode,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -362,31 +366,156 @@ pub struct ClearRetentionPeriodLog {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AddFieldsLog {
+pub struct AddColumnsLog {
     pub database_name: Arc<str>,
     pub database_id: DbId,
     pub table_name: Arc<str>,
     pub table_id: TableId,
-    pub field_definitions: Vec<FieldDefinition>,
+    pub column_definitions: Vec<ColumnDefinitionLog>,
+    pub field_family_definitions: Vec<FieldFamilyDefinitionLog>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct FieldDefinition {
+#[serde(rename_all = "snake_case")]
+pub enum ColumnDefinitionLog {
+    Timestamp(TimestampColumnLog),
+    Tag(TagColumnLog),
+    Field(FieldColumnLog),
+}
+
+impl ColumnDefinitionLog {
+    pub fn id(&self) -> ColumnIdentifier {
+        match self {
+            ColumnDefinitionLog::Timestamp(_) => ColumnIdentifier::Timestamp,
+            ColumnDefinitionLog::Tag(tag_log) => ColumnIdentifier::Tag(tag_log.id),
+            ColumnDefinitionLog::Field(field_log) => ColumnIdentifier::Field(field_log.id),
+        }
+    }
+
+    pub fn column_id(&self) -> ColumnId {
+        match self {
+            ColumnDefinitionLog::Timestamp(log) => log.column_id,
+            ColumnDefinitionLog::Tag(log) => log.column_id,
+            ColumnDefinitionLog::Field(log) => log.column_id,
+        }
+    }
+
+    pub fn name(&self) -> Arc<str> {
+        match self {
+            ColumnDefinitionLog::Timestamp(log) => Arc::clone(&log.name),
+            ColumnDefinitionLog::Tag(log) => Arc::clone(&log.name),
+            ColumnDefinitionLog::Field(log) => Arc::clone(&log.name),
+        }
+    }
+
+    pub fn column_type(&self) -> InfluxColumnType {
+        match self {
+            ColumnDefinitionLog::Timestamp(_) => InfluxColumnType::Timestamp,
+            ColumnDefinitionLog::Tag(_) => InfluxColumnType::Tag,
+            ColumnDefinitionLog::Field(v) => InfluxColumnType::Field(v.data_type.into()),
+        }
+    }
+}
+
+impl From<ColumnDefinitionLog> for ColumnDefinition {
+    fn from(value: ColumnDefinitionLog) -> Self {
+        match value {
+            ColumnDefinitionLog::Timestamp(v) => ColumnDefinition::Timestamp(Arc::new(v.into())),
+            ColumnDefinitionLog::Tag(v) => ColumnDefinition::Tag(Arc::new(v.into())),
+            ColumnDefinitionLog::Field(v) => ColumnDefinition::Field(Arc::new(v.into())),
+        }
+    }
+}
+
+impl From<ColumnDefinition> for ColumnDefinitionLog {
+    fn from(value: ColumnDefinition) -> Self {
+        match value {
+            ColumnDefinition::Timestamp(v) => {
+                ColumnDefinitionLog::Timestamp(v.as_ref().clone().into())
+            }
+            ColumnDefinition::Tag(v) => ColumnDefinitionLog::Tag(v.as_ref().clone().into()),
+            ColumnDefinition::Field(v) => ColumnDefinitionLog::Field(v.as_ref().clone().into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TimestampColumnLog {
+    pub column_id: ColumnId,
     pub name: Arc<str>,
-    pub id: ColumnId,
+}
+
+impl From<TimestampColumnLog> for TimestampColumn {
+    fn from(value: TimestampColumnLog) -> Self {
+        TimestampColumn {
+            column_id: value.column_id,
+            name: Arc::clone(&value.name),
+        }
+    }
+}
+
+impl From<TimestampColumn> for TimestampColumnLog {
+    fn from(value: TimestampColumn) -> Self {
+        TimestampColumnLog {
+            column_id: value.column_id,
+            name: Arc::clone(&value.name),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TagColumnLog {
+    pub id: TagId,
+    pub column_id: ColumnId,
+    pub name: Arc<str>,
+}
+
+impl From<TagColumnLog> for TagColumn {
+    fn from(value: TagColumnLog) -> Self {
+        TagColumn {
+            id: value.id,
+            column_id: value.column_id,
+            name: value.name,
+        }
+    }
+}
+
+impl From<TagColumn> for TagColumnLog {
+    fn from(value: TagColumn) -> Self {
+        TagColumnLog {
+            id: value.id,
+            column_id: value.column_id,
+            name: Arc::clone(&value.name),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FieldColumnLog {
+    pub id: FieldIdentifier,
+    pub column_id: ColumnId,
+    pub name: Arc<str>,
     pub data_type: FieldDataType,
 }
 
-impl FieldDefinition {
-    pub fn new(
-        id: ColumnId,
-        name: impl Into<Arc<str>>,
-        data_type: impl Into<FieldDataType>,
-    ) -> Self {
-        Self {
-            id,
-            name: name.into(),
-            data_type: data_type.into(),
+impl From<FieldColumnLog> for FieldColumn {
+    fn from(value: FieldColumnLog) -> Self {
+        FieldColumn {
+            id: value.id,
+            column_id: value.column_id,
+            name: value.name,
+            data_type: value.data_type.into(),
+        }
+    }
+}
+
+impl From<FieldColumn> for FieldColumnLog {
+    fn from(value: FieldColumn) -> Self {
+        FieldColumnLog {
+            id: value.id,
+            column_id: value.column_id,
+            name: Arc::clone(&value.name),
+            data_type: value.data_type.into(),
         }
     }
 }
@@ -398,47 +527,43 @@ pub enum FieldDataType {
     UInteger,
     Float,
     Boolean,
-    Timestamp,
-    Tag,
 }
 
-// FieldDataType from an InfluxColumnType
-impl From<&InfluxColumnType> for FieldDataType {
-    fn from(influx_column_type: &InfluxColumnType) -> Self {
-        match influx_column_type {
-            InfluxColumnType::Tag => FieldDataType::Tag,
-            InfluxColumnType::Timestamp => FieldDataType::Timestamp,
-            InfluxColumnType::Field(InfluxFieldType::String) => FieldDataType::String,
-            InfluxColumnType::Field(InfluxFieldType::Integer) => FieldDataType::Integer,
-            InfluxColumnType::Field(InfluxFieldType::UInteger) => FieldDataType::UInteger,
-            InfluxColumnType::Field(InfluxFieldType::Float) => FieldDataType::Float,
-            InfluxColumnType::Field(InfluxFieldType::Boolean) => FieldDataType::Boolean,
-        }
-    }
-}
-
-impl From<FieldDataType> for InfluxColumnType {
-    fn from(field_data_type: FieldDataType) -> Self {
-        match field_data_type {
-            FieldDataType::Tag => InfluxColumnType::Tag,
-            FieldDataType::Timestamp => InfluxColumnType::Timestamp,
-            FieldDataType::String => InfluxColumnType::Field(InfluxFieldType::String),
-            FieldDataType::Integer => InfluxColumnType::Field(InfluxFieldType::Integer),
-            FieldDataType::UInteger => InfluxColumnType::Field(InfluxFieldType::UInteger),
-            FieldDataType::Float => InfluxColumnType::Field(InfluxFieldType::Float),
-            FieldDataType::Boolean => InfluxColumnType::Field(InfluxFieldType::Boolean),
-        }
-    }
-}
-
-impl<'a> From<&FieldValue<'a>> for FieldDataType {
-    fn from(value: &FieldValue<'a>) -> Self {
+impl From<FieldDataType> for InfluxFieldType {
+    fn from(value: FieldDataType) -> Self {
         match value {
-            FieldValue::I64(_) => Self::Integer,
-            FieldValue::U64(_) => Self::UInteger,
-            FieldValue::F64(_) => Self::Float,
-            FieldValue::String(_) => Self::String,
-            FieldValue::Boolean(_) => Self::Boolean,
+            FieldDataType::String => Self::String,
+            FieldDataType::Integer => Self::Integer,
+            FieldDataType::UInteger => Self::UInteger,
+            FieldDataType::Float => Self::Float,
+            FieldDataType::Boolean => Self::Boolean,
+        }
+    }
+}
+
+impl From<InfluxFieldType> for FieldDataType {
+    fn from(value: InfluxFieldType) -> Self {
+        match value {
+            InfluxFieldType::String => Self::String,
+            InfluxFieldType::Integer => Self::Integer,
+            InfluxFieldType::UInteger => Self::UInteger,
+            InfluxFieldType::Float => Self::Float,
+            InfluxFieldType::Boolean => Self::Boolean,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FieldFamilyDefinitionLog {
+    pub id: FieldFamilyId,
+    pub name: FieldFamilyName,
+}
+
+impl From<&FieldFamilyDefinition> for FieldFamilyDefinitionLog {
+    fn from(value: &FieldFamilyDefinition) -> Self {
+        Self {
+            id: value.id,
+            name: value.name.clone(),
         }
     }
 }
@@ -455,7 +580,7 @@ pub struct LastCacheDefinition {
     /// Given name of the cache
     pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<ColumnId>,
+    pub key_columns: Vec<ColumnIdentifier>,
     /// Columns that store values in the cache
     pub value_columns: LastCacheValueColumnsDef,
     /// The number of last values to hold in the cache
@@ -470,7 +595,7 @@ pub struct LastCacheDefinition {
 #[serde(rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
-    Explicit { columns: Vec<ColumnId> },
+    Explicit { columns: Vec<ColumnIdentifier> },
     /// Stores all non-key columns
     #[default]
     AllNonKeyColumns,
@@ -635,7 +760,7 @@ pub struct DistinctCacheDefinition {
     /// The name of the cache, is unique within the associated table
     pub cache_name: Arc<str>,
     /// The ids of columns tracked by this distinct value cache, in the defined order
-    pub column_ids: Vec<ColumnId>,
+    pub column_ids: Vec<ColumnIdentifier>,
     /// The maximum number of distinct value combintions the cache will hold
     pub max_cardinality: MaxCardinality,
     /// The maximum age in seconds, similar to a time-to-live (TTL), for entries in the cache

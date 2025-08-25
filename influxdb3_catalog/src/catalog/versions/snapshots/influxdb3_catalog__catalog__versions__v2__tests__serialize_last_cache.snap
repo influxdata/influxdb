@@ -1,5 +1,5 @@
 ---
-source: influxdb3_catalog/src/catalog.rs
+source: influxdb3_catalog/src/catalog/versions/v2.rs
 description: catalog serialization to help catch breaking changes
 expression: snapshot
 ---
@@ -50,78 +50,60 @@ expression: snapshot
                   ],
                   "columns": {
                     "repo": [
-                      [
-                        3,
-                        {
-                          "name": "field",
-                          "id": 3,
-                          "type": "str",
-                          "influx_type": "field",
-                          "nullable": true
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "tag_1"
                         }
-                      ],
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 1,
+                          "name": "tag_2"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 2,
+                          "column_id": 2,
+                          "name": "tag_3"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 3,
+                          "name": "field",
+                          "data_type": "String"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 4,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 5
+                  },
+                  "field_families": {
+                    "repo": [
                       [
                         0,
                         {
-                          "name": "tag_1",
-                          "id": 0,
-                          "type": {
-                            "dict": [
-                              "i32",
-                              "str"
-                            ]
+                          "name": {
+                            "auto": 0
                           },
-                          "influx_type": "tag",
-                          "nullable": true
-                        }
-                      ],
-                      [
-                        1,
-                        {
-                          "name": "tag_2",
-                          "id": 1,
-                          "type": {
-                            "dict": [
-                              "i32",
-                              "str"
-                            ]
-                          },
-                          "influx_type": "tag",
-                          "nullable": true
-                        }
-                      ],
-                      [
-                        2,
-                        {
-                          "name": "tag_3",
-                          "id": 2,
-                          "type": {
-                            "dict": [
-                              "i32",
-                              "str"
-                            ]
-                          },
-                          "influx_type": "tag",
-                          "nullable": true
-                        }
-                      ],
-                      [
-                        4,
-                        {
-                          "name": "time",
-                          "id": 4,
-                          "type": {
-                            "time": [
-                              "ns",
-                              null
-                            ]
-                          },
-                          "influx_type": "time",
-                          "nullable": false
+                          "id": 0
                         }
                       ]
                     ],
-                    "next_id": 5
+                    "next_id": 1
                   },
                   "last_caches": {
                     "repo": [
@@ -133,11 +115,20 @@ expression: snapshot
                           "id": 0,
                           "name": "test_table_last_cache",
                           "keys": [
-                            0,
-                            2
+                            {
+                              "tag": 0
+                            },
+                            {
+                              "tag": 2
+                            }
                           ],
                           "vals": [
-                            3
+                            {
+                              "field": [
+                                0,
+                                0
+                              ]
+                            }
                           ],
                           "n": 1,
                           "ttl": 600
@@ -150,7 +141,9 @@ expression: snapshot
                     "repo": [],
                     "next_id": 0
                   },
-                  "deleted": false
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
                 }
               ]
             ],
