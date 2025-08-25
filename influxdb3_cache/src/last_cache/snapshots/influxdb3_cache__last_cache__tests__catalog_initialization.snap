@@ -49,88 +49,71 @@ expression: catalog.snapshot()
                   ],
                   "columns": {
                     "repo": [
-                      [
-                        3,
-                        {
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "t1"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 1,
+                          "name": "t2"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 2,
+                          "column_id": 2,
+                          "name": "t3"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 3,
                           "name": "f1",
-                          "id": 3,
-                          "type": "str",
-                          "influx_type": "field",
-                          "nullable": true
+                          "data_type": "String"
                         }
-                      ],
-                      [
-                        4,
-                        {
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 4,
                           "name": "f2",
-                          "id": 4,
-                          "type": "f64",
-                          "influx_type": "field",
-                          "nullable": true
+                          "data_type": "Float"
                         }
-                      ],
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 5,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 6
+                  },
+                  "field_families": {
+                    "repo": [
                       [
                         0,
                         {
-                          "name": "t1",
-                          "id": 0,
-                          "type": {
-                            "dict": [
-                              "i32",
-                              "str"
-                            ]
+                          "name": {
+                            "auto": 0
                           },
-                          "influx_type": "tag",
-                          "nullable": true
-                        }
-                      ],
-                      [
-                        1,
-                        {
-                          "name": "t2",
-                          "id": 1,
-                          "type": {
-                            "dict": [
-                              "i32",
-                              "str"
-                            ]
-                          },
-                          "influx_type": "tag",
-                          "nullable": true
-                        }
-                      ],
-                      [
-                        2,
-                        {
-                          "name": "t3",
-                          "id": 2,
-                          "type": {
-                            "dict": [
-                              "i32",
-                              "str"
-                            ]
-                          },
-                          "influx_type": "tag",
-                          "nullable": true
-                        }
-                      ],
-                      [
-                        5,
-                        {
-                          "name": "time",
-                          "id": 5,
-                          "type": {
-                            "time": [
-                              "ns",
-                              null
-                            ]
-                          },
-                          "influx_type": "time",
-                          "nullable": false
+                          "id": 0
                         }
                       ]
                     ],
-                    "next_id": 6
+                    "next_id": 1
                   },
                   "last_caches": {
                     "repo": [
@@ -142,7 +125,9 @@ expression: catalog.snapshot()
                           "id": 0,
                           "name": "test_cache_1",
                           "keys": [
-                            0
+                            {
+                              "tag": 0
+                            }
                           ],
                           "vals": null,
                           "n": 1,
@@ -156,7 +141,9 @@ expression: catalog.snapshot()
                     "repo": [],
                     "next_id": 0
                   },
-                  "deleted": false
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
                 }
               ],
               [
@@ -169,58 +156,57 @@ expression: catalog.snapshot()
                   ],
                   "columns": {
                     "repo": [
-                      [
-                        1,
-                        {
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "t1"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 1,
                           "name": "f1",
-                          "id": 1,
-                          "type": "str",
-                          "influx_type": "field",
-                          "nullable": true
+                          "data_type": "String"
                         }
-                      ],
-                      [
-                        2,
-                        {
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 2,
                           "name": "f2",
-                          "id": 2,
-                          "type": "f64",
-                          "influx_type": "field",
-                          "nullable": true
+                          "data_type": "Float"
                         }
-                      ],
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 3,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 4
+                  },
+                  "field_families": {
+                    "repo": [
                       [
                         0,
                         {
-                          "name": "t1",
-                          "id": 0,
-                          "type": {
-                            "dict": [
-                              "i32",
-                              "str"
-                            ]
+                          "name": {
+                            "auto": 0
                           },
-                          "influx_type": "tag",
-                          "nullable": true
-                        }
-                      ],
-                      [
-                        3,
-                        {
-                          "name": "time",
-                          "id": 3,
-                          "type": {
-                            "time": [
-                              "ns",
-                              null
-                            ]
-                          },
-                          "influx_type": "time",
-                          "nullable": false
+                          "id": 0
                         }
                       ]
                     ],
-                    "next_id": 4
+                    "next_id": 1
                   },
                   "last_caches": {
                     "repo": [
@@ -232,11 +218,18 @@ expression: catalog.snapshot()
                           "id": 0,
                           "name": "test_cache_2",
                           "keys": [
-                            0
+                            {
+                              "tag": 0
+                            }
                           ],
                           "vals": [
-                            1,
-                            3
+                            {
+                              "field": [
+                                0,
+                                0
+                              ]
+                            },
+                            "timestamp"
                           ],
                           "n": 5,
                           "ttl": 60
@@ -251,8 +244,13 @@ expression: catalog.snapshot()
                           "name": "test_cache_3",
                           "keys": [],
                           "vals": [
-                            2,
-                            3
+                            {
+                              "field": [
+                                0,
+                                1
+                              ]
+                            },
+                            "timestamp"
                           ],
                           "n": 100,
                           "ttl": 500
@@ -265,7 +263,9 @@ expression: catalog.snapshot()
                     "repo": [],
                     "next_id": 0
                   },
-                  "deleted": false
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
                 }
               ]
             ],

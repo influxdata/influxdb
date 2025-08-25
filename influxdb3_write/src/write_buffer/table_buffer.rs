@@ -8,7 +8,7 @@ use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
 use data_types::TimestampMinMax;
 use hashbrown::{HashMap, HashSet};
-use influxdb3_catalog::catalog::TableDefinition;
+use influxdb3_catalog::catalog::{TableDefinition, legacy};
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
@@ -347,6 +347,7 @@ impl MutableTableChunk {
 
     fn record_batch(&self, table_def: Arc<TableDefinition>) -> Result<RecordBatch> {
         let schema = table_def.schema.as_arrow();
+        let table_def = legacy::TableDefinition::new(table_def);
 
         let mut cols = Vec::with_capacity(schema.fields().len());
 
@@ -366,6 +367,7 @@ impl MutableTableChunk {
     }
 
     fn into_schema_record_batch(self, table_def: Arc<TableDefinition>) -> (Schema, RecordBatch) {
+        let table_def = legacy::TableDefinition::new(table_def);
         let mut cols = Vec::with_capacity(self.data.len());
         let mut schema_builder = SchemaBuilder::new();
         let mut cols_in_batch = HashSet::new();
@@ -380,7 +382,7 @@ impl MutableTableChunk {
                 col_type,
             );
             cols.push(col);
-            schema_builder.with_series_key(&table_def.series_key_names);
+            schema_builder.with_series_key(&table_def.inner().series_key_names);
         }
 
         // ensure that every field column is present in the batch

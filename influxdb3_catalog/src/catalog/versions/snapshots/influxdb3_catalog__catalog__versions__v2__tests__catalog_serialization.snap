@@ -1,0 +1,311 @@
+---
+source: influxdb3_catalog/src/catalog/versions/v2.rs
+description: catalog serialization to help catch breaking changes
+expression: snapshot
+---
+{
+  "generation_config": {
+    "generation_durations": []
+  },
+  "nodes": {
+    "repo": [],
+    "next_id": 0
+  },
+  "databases": {
+    "repo": [
+      [
+        0,
+        {
+          "id": 0,
+          "name": "_internal",
+          "tables": {
+            "repo": [],
+            "next_id": 0
+          },
+          "retention_period": "Indefinite",
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false,
+          "hard_delete_time": null
+        }
+      ],
+      [
+        1,
+        {
+          "id": 1,
+          "name": "test_db",
+          "tables": {
+            "repo": [
+              [
+                0,
+                {
+                  "table_id": 0,
+                  "table_name": "test_table_1",
+                  "key": [
+                    0,
+                    1,
+                    2
+                  ],
+                  "columns": {
+                    "repo": [
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "tag_1"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 1,
+                          "name": "tag_2"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 2,
+                          "column_id": 2,
+                          "name": "tag_3"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 3,
+                          "name": "string_field",
+                          "data_type": "String"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 4,
+                          "name": "bool_field",
+                          "data_type": "Boolean"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            2
+                          ],
+                          "column_id": 5,
+                          "name": "i64_field",
+                          "data_type": "Integer"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            3
+                          ],
+                          "column_id": 6,
+                          "name": "u64_field",
+                          "data_type": "UInteger"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            4
+                          ],
+                          "column_id": 7,
+                          "name": "float_field",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 8,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 9
+                  },
+                  "field_families": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 0
+                        }
+                      ]
+                    ],
+                    "next_id": 1
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
+                }
+              ],
+              [
+                1,
+                {
+                  "table_id": 1,
+                  "table_name": "test_table_2",
+                  "key": [
+                    0,
+                    1,
+                    2
+                  ],
+                  "columns": {
+                    "repo": [
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "tag_1"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 1,
+                          "name": "tag_2"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 2,
+                          "column_id": 2,
+                          "name": "tag_3"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 3,
+                          "name": "string_field",
+                          "data_type": "String"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 4,
+                          "name": "bool_field",
+                          "data_type": "Boolean"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            2
+                          ],
+                          "column_id": 5,
+                          "name": "i64_field",
+                          "data_type": "Integer"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            3
+                          ],
+                          "column_id": 6,
+                          "name": "u64_field",
+                          "data_type": "UInteger"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            4
+                          ],
+                          "column_id": 7,
+                          "name": "float_field",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 8,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 9
+                  },
+                  "field_families": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 0
+                        }
+                      ]
+                    ],
+                    "next_id": 1
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
+                }
+              ]
+            ],
+            "next_id": 2
+          },
+          "retention_period": "Indefinite",
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false,
+          "hard_delete_time": null
+        }
+      ]
+    ],
+    "next_id": 2
+  },
+  "sequence": 4,
+  "tokens": {
+    "repo": [],
+    "next_id": 0
+  },
+  "catalog_id": "sample-host-id",
+  "catalog_uuid": "[uuid]"
+}

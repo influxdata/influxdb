@@ -47,48 +47,46 @@ expression: catalog_json
                   ],
                   "columns": {
                     "repo": [
-                      [
-                        1,
-                        {
-                          "name": "f1",
-                          "id": 1,
-                          "type": "bool",
-                          "influx_type": "field",
-                          "nullable": true
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "t1"
                         }
-                      ],
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 1,
+                          "name": "f1",
+                          "data_type": "Boolean"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 2,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 3
+                  },
+                  "field_families": {
+                    "repo": [
                       [
                         0,
                         {
-                          "name": "t1",
-                          "id": 0,
-                          "type": {
-                            "dict": [
-                              "i32",
-                              "str"
-                            ]
+                          "name": {
+                            "auto": 0
                           },
-                          "influx_type": "tag",
-                          "nullable": true
-                        }
-                      ],
-                      [
-                        2,
-                        {
-                          "name": "time",
-                          "id": 2,
-                          "type": {
-                            "time": [
-                              "ns",
-                              null
-                            ]
-                          },
-                          "influx_type": "time",
-                          "nullable": false
+                          "id": 0
                         }
                       ]
                     ],
-                    "next_id": 3
+                    "next_id": 1
                   },
                   "last_caches": {
                     "repo": [
@@ -100,7 +98,9 @@ expression: catalog_json
                           "id": 0,
                           "name": "cache",
                           "keys": [
-                            0
+                            {
+                              "tag": 0
+                            }
                           ],
                           "vals": null,
                           "n": 1,
@@ -114,7 +114,9 @@ expression: catalog_json
                     "repo": [],
                     "next_id": 0
                   },
-                  "deleted": false
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
                 }
               ]
             ],

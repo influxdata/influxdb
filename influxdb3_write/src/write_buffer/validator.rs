@@ -7,13 +7,12 @@ use influxdb3_catalog::catalog::{
     Catalog, CatalogSequenceNumber, DatabaseCatalogTransaction, Prompt,
 };
 
-use influxdb_line_protocol::{ParsedLine, parse_lines};
+use influxdb_line_protocol::{FieldValue, ParsedLine, parse_lines};
 use influxdb3_id::{DbId, TableId};
-use influxdb3_types::http::FieldDataType;
 use influxdb3_wal::{Field, FieldData, Gen1Duration, Row, TableChunks, WriteBatch};
 use iox_time::Time;
 use observability_deps::tracing::trace;
-use schema::TIME_COLUMN_NAME;
+use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
 
 use super::Error;
 
@@ -190,7 +189,7 @@ fn validate_and_qualify_v1_line(
     let mut fields = Vec::with_capacity(line.column_count());
     let mut index_count = 0;
     let mut field_count = 0;
-    let table_def = txn
+    let table_id = txn
         .table_or_create(table_name)
         .map_err(|error| WriteLineError {
             original_line: line.to_string(),
@@ -200,37 +199,52 @@ fn validate_and_qualify_v1_line(
 
     if let Some(tag_set) = &line.series.tag_set {
         for (tag_key, tag_val) in tag_set {
-            let col_id = txn
-                .column_or_create(table_name, tag_key.as_str(), FieldDataType::Tag)
+            let col = txn
+                .column_or_create(table_name, tag_key.as_str(), InfluxColumnType::Tag)
                 .map_err(|error| WriteLineError {
                     original_line: line.to_string(),
                     line_number: line_number + 1,
                     error_message: error.to_string(),
                 })?;
-            fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
+            fields.push(Field::new(
+                col.ord_id(),
+                FieldData::Tag(tag_val.to_string()),
+            ));
             index_count += 1;
         }
     }
 
     for (field_name, field_val) in line.field_set.iter() {
         let col_id = txn
-            .column_or_create(table_name, field_name, field_val.into())
+            .column_or_create(
+                table_name,
+                field_name,
+                InfluxColumnType::Field(match field_val {
+                    FieldValue::I64(_) => InfluxFieldType::Integer,
+                    FieldValue::U64(_) => InfluxFieldType::UInteger,
+                    FieldValue::F64(_) => InfluxFieldType::Float,
+                    FieldValue::String(_) => InfluxFieldType::String,
+                    FieldValue::Boolean(_) => InfluxFieldType::Boolean,
+                }),
+            )
             .map_err(|error| WriteLineError {
                 original_line: line.to_string(),
                 line_number: line_number + 1,
                 error_message: error.to_string(),
-            })?;
+            })?
+            .ord_id();
         fields.push(Field::new(col_id, field_val));
         field_count += 1;
     }
 
     let time_col_id = txn
-        .column_or_create(table_name, TIME_COLUMN_NAME, FieldDataType::Timestamp)
+        .column_or_create(table_name, TIME_COLUMN_NAME, InfluxColumnType::Timestamp)
         .map_err(|error| WriteLineError {
             original_line: line.to_string(),
             line_number: line_number + 1,
             error_message: error.to_string(),
-        })?;
+        })?
+        .ord_id();
     let timestamp_ns = line
         .timestamp
         .map(|ts| apply_precision_to_timestamp(precision, ts))
@@ -238,7 +252,7 @@ fn validate_and_qualify_v1_line(
     fields.push(Field::new(time_col_id, FieldData::Timestamp(timestamp_ns)));
 
     Ok(QualifiedLine {
-        table_id: table_def.table_id,
+        table_id,
         row: Row {
             time: timestamp_ns,
             fields,

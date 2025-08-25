@@ -123,7 +123,7 @@ impl IoxSystemTable for InfluxdbSchemaTable {
             .db_schema
             .tables
             .resource_iter()
-            .map(|table| table.columns.resource_iter().count())
+            .map(|table| table.columns.len())
             .sum();
 
         let mut measurement_arr = StringViewBuilder::with_capacity(total_columns);
@@ -133,9 +133,9 @@ impl IoxSystemTable for InfluxdbSchemaTable {
         for table in self.db_schema.tables.resource_iter() {
             for column in table.columns.resource_iter() {
                 measurement_arr.append_value(&table.table_name);
-                key_arr.append_value(&column.name);
+                key_arr.append_value(column.name());
 
-                let column_type = column_type_to_influxdb_type(&column.data_type);
+                let column_type = column_type_to_influxdb_type(&column.column_type());
                 data_type_array.append_value(column_type);
             }
         }

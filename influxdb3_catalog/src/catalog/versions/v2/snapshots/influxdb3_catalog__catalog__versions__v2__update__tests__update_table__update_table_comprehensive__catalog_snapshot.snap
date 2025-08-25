@@ -1,0 +1,357 @@
+---
+source: influxdb3_catalog/src/catalog/versions/v2/update.rs
+expression: catalog.snapshot()
+---
+{
+  "generation_config": {
+    "generation_durations": []
+  },
+  "nodes": {
+    "repo": [],
+    "next_id": 0
+  },
+  "databases": {
+    "repo": [
+      [
+        0,
+        {
+          "id": 0,
+          "name": "_internal",
+          "tables": {
+            "repo": [],
+            "next_id": 0
+          },
+          "retention_period": "Indefinite",
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false,
+          "hard_delete_time": null
+        }
+      ],
+      [
+        1,
+        {
+          "id": 1,
+          "name": "test_db",
+          "tables": {
+            "repo": [
+              [
+                0,
+                {
+                  "table_id": 0,
+                  "table_name": "sensors",
+                  "key": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ],
+                  "columns": {
+                    "repo": [
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "location"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 1,
+                          "name": "sensor_type"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 2,
+                          "name": "temperature",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 3,
+                          "name": "humidity",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 4,
+                          "name": "time"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 2,
+                          "column_id": 5,
+                          "name": "building"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 3,
+                          "column_id": 6,
+                          "name": "floor"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            1,
+                            0
+                          ],
+                          "column_id": 7,
+                          "name": "pressure",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            1,
+                            1
+                          ],
+                          "column_id": 8,
+                          "name": "light_level",
+                          "data_type": "Integer"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            1,
+                            2
+                          ],
+                          "column_id": 9,
+                          "name": "motion_detected",
+                          "data_type": "Boolean"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            2,
+                            0
+                          ],
+                          "column_id": 10,
+                          "name": "environmental::co2_level",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            2,
+                            1
+                          ],
+                          "column_id": 11,
+                          "name": "environmental::air_quality",
+                          "data_type": "UInteger"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            3,
+                            0
+                          ],
+                          "column_id": 12,
+                          "name": "metadata::firmware_version",
+                          "data_type": "String"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            3,
+                            1
+                          ],
+                          "column_id": 13,
+                          "name": "metadata::last_calibration",
+                          "data_type": "String"
+                        }
+                      }
+                    ],
+                    "next_id": 14
+                  },
+                  "field_families": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 0
+                        }
+                      ],
+                      [
+                        1,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 1
+                        }
+                      ],
+                      [
+                        2,
+                        {
+                          "name": {
+                            "user": "environmental"
+                          },
+                          "id": 2
+                        }
+                      ],
+                      [
+                        3,
+                        {
+                          "name": {
+                            "user": "metadata"
+                          },
+                          "id": 3
+                        }
+                      ]
+                    ],
+                    "next_id": 4
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
+                }
+              ],
+              [
+                1,
+                {
+                  "table_id": 1,
+                  "table_name": "events",
+                  "key": [
+                    0,
+                    1
+                  ],
+                  "columns": {
+                    "repo": [
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "event_type"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 1,
+                          "name": "value",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 2,
+                          "name": "time"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 3,
+                          "name": "severity"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            1,
+                            0
+                          ],
+                          "column_id": 4,
+                          "name": "message",
+                          "data_type": "String"
+                        }
+                      }
+                    ],
+                    "next_id": 5
+                  },
+                  "field_families": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 0
+                        }
+                      ],
+                      [
+                        1,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 1
+                        }
+                      ]
+                    ],
+                    "next_id": 2
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
+                }
+              ]
+            ],
+            "next_id": 2
+          },
+          "retention_period": "Indefinite",
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false,
+          "hard_delete_time": null
+        }
+      ]
+    ],
+    "next_id": 2
+  },
+  "sequence": 8,
+  "tokens": {
+    "repo": [],
+    "next_id": 0
+  },
+  "catalog_id": "test",
+  "catalog_uuid": "[uuid]"
+}

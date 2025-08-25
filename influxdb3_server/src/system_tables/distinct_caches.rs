@@ -91,7 +91,11 @@ fn from_distinct_cache_definitions(
 
         // loop to create the list of column id and name values for their respective columns
         for col in &cache.column_ids {
-            col_id_arr.values().append_value(col.get());
+            let col_id = table_def
+                .columns
+                .id_to_ord_id(col)
+                .expect("column should exist");
+            col_id_arr.values().append_value(col_id.get());
             let col_name = table_def
                 .column_id_to_name(col)
                 .expect("column id should have associated name");

@@ -114,7 +114,11 @@ fn from_last_cache_definitions(
         cache_name_arr.append_value(&cache_defn.name);
 
         for key_col in &cache_defn.key_columns {
-            key_col_ids_arr.values().append_value(key_col.get());
+            let key_col_id = table_defn
+                .columns
+                .id_to_ord_id(key_col)
+                .expect("key column should exist");
+            key_col_ids_arr.values().append_value(key_col_id.get());
             let col_name = table_defn
                 .column_id_to_name(key_col)
                 .expect("column id should have name associated to it");
@@ -126,10 +130,14 @@ fn from_last_cache_definitions(
         match &cache_defn.value_columns {
             LastCacheValueColumnsDef::Explicit { columns } => {
                 for col in columns {
+                    let col_id = table_defn
+                        .columns
+                        .id_to_ord_id(col)
+                        .expect("value column should exist");
                     let col_name = table_defn
                         .column_id_to_name(col)
                         .expect("column id should have name associated to it");
-                    value_col_ids_arr.values().append_value(col.get());
+                    value_col_ids_arr.values().append_value(col_id.get());
                     value_col_names_arr.values().append_value(col_name);
                 }
                 value_col_ids_arr.append(true);

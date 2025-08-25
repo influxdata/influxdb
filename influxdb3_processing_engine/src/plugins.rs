@@ -26,6 +26,7 @@ use observability_deps::tracing::error;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
+use anyhow::Context;
 use parking_lot::Mutex;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -885,7 +886,12 @@ pub(crate) fn run_test_wal_plugin(
         now_time,
         Precision::Nanosecond,
     )?;
-    let db = parsed.inner().txn().db_schema_cloned();
+    let mut inner = catalog.clone_inner();
+    let db = parsed
+        .inner()
+        .txn()
+        .apply_to_inner(&mut inner)
+        .context("apply_to_inner failed")?;
     let data = parsed.ignore_catalog_changes_and_convert_lines_to_buffer(Gen1Duration::new_1m());
 
     let plugin_return_state = influxdb3_py_api::system_py::execute_python_with_batch(

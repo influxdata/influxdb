@@ -11,7 +11,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha512};
 use std::fmt::Debug;
 
-#[derive(Debug, Copy, Clone, Serialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub struct DatabaseActions(u16);
 
 impl From<u16> for DatabaseActions {
@@ -20,7 +20,7 @@ impl From<u16> for DatabaseActions {
     }
 }
 
-#[derive(Debug, Copy, Clone, Serialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub struct CrudActions(u16);
 
 impl From<u16> for CrudActions {
@@ -227,7 +227,7 @@ impl AuthProvider for NoAuthAuthenticator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TokenInfo {
     pub id: TokenId,
     pub name: Arc<str>,
@@ -296,7 +296,7 @@ impl TokenInfo {
 /// itself. The wildcards at each level makes the setup harder to model everything within a single
 /// enum for example. So, once we add few more resources this should be fairly straightforward to
 /// refine to make certain combinations impossible to set
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Permission {
     pub resource_type: ResourceType,
     pub resource_identifier: ResourceIdentifier,
@@ -317,7 +317,7 @@ pub enum ResourceIdentifier {
     Wildcard,
 }
 
-#[derive(Debug, Copy, Clone, Serialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub enum Actions {
     Database(DatabaseActions),
     Token(CrudActions),

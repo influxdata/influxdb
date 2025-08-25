@@ -11,11 +11,12 @@ use arrow::{
     error::ArrowError,
 };
 use indexmap::IndexMap;
+use influxdb3_catalog::catalog::legacy;
 use influxdb3_catalog::{
     catalog::TableDefinition,
     log::{MaxAge, MaxCardinality},
 };
-use influxdb3_id::ColumnId;
+use influxdb3_id::{ColumnId, ColumnIdentifier};
 use influxdb3_wal::{FieldData, Row};
 use iox_time::TimeProvider;
 use observability_deps::tracing::debug;
@@ -67,13 +68,13 @@ pub struct CreateDistinctCacheArgs {
     pub table_def: Arc<TableDefinition>,
     pub max_cardinality: MaxCardinality,
     pub max_age: MaxAge,
-    pub column_ids: Vec<ColumnId>,
+    pub column_ids: Vec<ColumnIdentifier>,
 }
 
 impl DistinctCache {
     /// Create a new [`DistinctCache`]
     ///
-    /// Must pass a non-empty set of [`ColumnId`]s which correspond to valid columns in the provided
+    /// Must pass a non-empty set of [`ColumnIdentifier`]s which correspond to valid columns in the provided
     /// [`TableDefinition`].
     pub(crate) fn new(
         time_provider: Arc<dyn TimeProvider>,
@@ -87,6 +88,8 @@ impl DistinctCache {
         if column_ids.is_empty() {
             return Err(CacheError::EmptyColumnSet);
         }
+        let table_def = legacy::TableDefinition::new(Arc::clone(&table_def));
+        let column_ids = table_def.ids_to_column_ids(&column_ids).copied().collect();
         let mut builder = SchemaBuilder::new();
         for id in &column_ids {
             let col = table_def.columns.get_by_id(id).with_context(|| {

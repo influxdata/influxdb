@@ -3164,6 +3164,7 @@ version = "3.4.0-nightly"
 dependencies = [
  "anyhow",
  "arrow",
+ "backon",
  "base64 0.21.7",
  "bimap",
  "bitcode",
@@ -3188,6 +3189,7 @@ dependencies = [
  "influxdb3_wal",
  "insta",
  "iox_time",
+ "itertools 0.13.0",
  "metric",
  "object_store",
  "observability_deps",

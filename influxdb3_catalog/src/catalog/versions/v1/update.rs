@@ -5,38 +5,27 @@ use hashbrown::HashMap;
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_process::ProcessUuidGetter;
 use iox_time::{Time, TimeProvider};
-use observability_deps::tracing::{debug, error, info, trace};
+use observability_deps::tracing::{debug, info};
 use schema::{InfluxColumnType, InfluxFieldType};
 use std::time::Duration;
-use uuid::Uuid;
 
 use super::{
-    CATALOG_WRITE_PERMIT, Catalog, CatalogSequenceNumber, CatalogWritePermit, ColumnDefinition,
-    DatabaseSchema, NodeState, TIME_COLUMN_NAME, TableDefinition,
+    Catalog, CatalogSequenceNumber, ColumnDefinition, DatabaseSchema, NUM_TAG_COLUMNS_LIMIT,
+    NodeState, TIME_COLUMN_NAME, TableDefinition,
 };
+use crate::catalog::key;
 use crate::{
     CatalogError, Result,
-    catalog::{
-        DEFAULT_OPERATOR_TOKEN_NAME, INTERNAL_DB_NAME, NUM_TAG_COLUMNS_LIMIT, RetentionPeriod,
+    catalog::INTERNAL_DB_NAME,
+    log::versions::v3::{
+        AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp, DeleteOp,
+        DistinctCacheDefinition, FieldDataType, FieldDefinition, LastCacheDefinition,
+        LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge, MaxCardinality,
+        NodeCatalogOp, NodeMode, OrderedCatalogBatch, RegisterNodeLog, RetentionPeriod,
+        SetRetentionPeriodLog, SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog,
+        TriggerDefinition, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
     },
-    log::{
-        AddFieldsLog, CatalogBatch, ClearRetentionPeriodLog, CreateDatabaseLog, CreateTableLog,
-        DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteOp,
-        DeleteTokenDetails, DeleteTriggerLog, DistinctCacheDefinition, FieldDataType,
-        FieldDefinition, GenerationOp, LastCacheDefinition, LastCacheSize, LastCacheTtl,
-        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
-        OrderedCatalogBatch, RegisterNodeLog, SetGenerationDurationLog, SetRetentionPeriodLog,
-        SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog, TokenBatch, TokenCatalogOp,
-        TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition,
-        ValidPluginFilename,
-    },
-    object_store::PersistCatalogResult,
 };
-
-#[derive(Default, Debug, Clone, Copy)]
-pub struct CreateDatabaseOptions {
-    pub retention_period: Option<Duration>,
-}
 
 #[derive(Clone, Copy, Debug)]
 pub enum HardDeletionTime {
@@ -78,6 +67,16 @@ impl std::fmt::Display for HardDeletionTime {
             HardDeletionTime::Now => write!(f, "now"),
         }
     }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct CreateDatabaseOptions {
+    pub retention_period: Option<Duration>,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct CreateTableOptions {
+    pub retention_period: Option<Duration>,
 }
 
 impl Catalog {
@@ -135,51 +134,10 @@ impl Catalog {
             return Ok(Prompt::Success(txn.sequence_number()));
         }
 
-        match self
-            .get_permit_and_verify_catalog_batch(txn.catalog_batch(), txn.sequence_number())
-            .await
-        {
-            Prompt::Success((ordered_batch, permit)) => {
-                match self
-                    .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
-                    .await?
-                {
-                    UpdatePrompt::Retry => Ok(Prompt::Retry(())),
-                    UpdatePrompt::Applied => {
-                        self.apply_ordered_catalog_batch(&ordered_batch, &permit);
-                        self.background_checkpoint(&ordered_batch);
-                        self.broadcast_update(ordered_batch.into_batch()).await?;
-                        Ok(Prompt::Success(self.sequence_number()))
-                    }
-                }
-            }
-            Prompt::Retry(_) => Ok(Prompt::Retry(())),
-        }
-    }
-
-    pub async fn set_gen1_duration(&self, duration: Duration) -> Result<OrderedCatalogBatch> {
-        info!(duration_ns = duration.as_nanos(), "set gen1 duration");
-        self.catalog_update_with_retry(|| {
-            let time_ns = self.time_provider.now().timestamp_nanos();
-            if let Some(existing) = self.get_generation_duration(1) {
-                if duration != existing {
-                    return Err(CatalogError::CannotChangeGenerationDuration {
-                        level: 1,
-                        existing: existing.into(),
-                        attempted: duration.into(),
-                    });
-                } else {
-                    return Err(CatalogError::AlreadyExists);
-                }
-            }
-            Ok(CatalogBatch::generation(
-                time_ns,
-                vec![GenerationOp::SetGenerationDuration(
-                    SetGenerationDurationLog { level: 1, duration },
-                )],
-            ))
-        })
-        .await
+        let ordered_batch =
+            OrderedCatalogBatch::new(txn.catalog_batch(), txn.sequence_number().next());
+        self.apply_ordered_catalog_batch(&ordered_batch);
+        Ok(Prompt::Success(self.sequence_number()))
     }
 
     pub async fn register_node(
@@ -188,6 +146,7 @@ impl Catalog {
         core_count: u64,
         mode: Vec<NodeMode>,
         process_uuid_getter: Arc<dyn ProcessUuidGetter>,
+        instance_id: Arc<str>,
     ) -> Result<OrderedCatalogBatch> {
         info!(node_id, core_count, mode = ?mode, "register node");
         let process_uuid = *process_uuid_getter.get_process_uuid();
@@ -212,7 +171,6 @@ impl Catalog {
                     Arc::clone(&node.instance_id),
                 )
             } else {
-                let instance_id = Arc::<str>::from(Uuid::new_v4().to_string().as_str());
                 info!(
                     node_id,
                     instance_id = instance_id.as_ref(),
@@ -220,7 +178,7 @@ impl Catalog {
                 );
                 let mut inner = self.inner.write();
                 let node_catalog_id = inner.nodes.get_and_increment_next_id();
-                (node_catalog_id, node_id.into(), instance_id)
+                (node_catalog_id, node_id.into(), Arc::clone(&instance_id))
             };
             Ok(CatalogBatch::node(
                 time_ns,
@@ -490,6 +448,7 @@ impl Catalog {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_distinct_cache(
         &self,
         db_name: &str,
@@ -566,40 +525,6 @@ impl Catalog {
                         column_ids,
                         max_cardinality,
                         max_age_seconds,
-                    },
-                )],
-            ))
-        })
-        .await
-    }
-
-    pub async fn delete_distinct_cache(
-        &self,
-        db_name: &str,
-        table_name: &str,
-        cache_name: &str,
-    ) -> Result<OrderedCatalogBatch> {
-        info!(db_name, table_name, cache_name, "delete distinct cache");
-        self.catalog_update_with_retry(|| {
-            let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            let Some(tbl) = db.table_definition(table_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            let Some(cache) = tbl.distinct_caches.get_by_name(cache_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            Ok(CatalogBatch::database(
-                self.time_provider.now().timestamp_nanos(),
-                db.id,
-                db.name(),
-                vec![DatabaseCatalogOp::DeleteDistinctCache(
-                    DeleteDistinctCacheLog {
-                        table_id: tbl.table_id,
-                        table_name: Arc::clone(&tbl.table_name),
-                        cache_id: cache.cache_id,
-                        cache_name: Arc::clone(&cache.cache_name),
                     },
                 )],
             ))
@@ -726,46 +651,14 @@ impl Catalog {
         .await
     }
 
-    pub async fn delete_last_cache(
-        &self,
-        db_name: &str,
-        table_name: &str,
-        cache_name: &str,
-    ) -> Result<OrderedCatalogBatch> {
-        info!(db_name, table_name, cache_name, "delete last cache");
-        self.catalog_update_with_retry(|| {
-            let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            let Some(tbl) = db.table_definition(table_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            let Some(cache) = tbl.last_caches.get_by_name(cache_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            Ok(CatalogBatch::database(
-                self.time_provider.now().timestamp_nanos(),
-                db.id,
-                db.name(),
-                vec![DatabaseCatalogOp::DeleteLastCache(DeleteLastCacheLog {
-                    table_id: tbl.table_id,
-                    table_name: Arc::clone(&tbl.table_name),
-                    id: cache.id,
-                    name: Arc::clone(&cache.name),
-                })],
-            ))
-        })
-        .await
-    }
-
     /// Insert a new trigger for the processing engine
     #[allow(clippy::too_many_arguments)]
     pub async fn create_processing_engine_trigger(
         &self,
         db_name: &str,
         trigger_name: &str,
-        node_id: Arc<str>,
         plugin_filename: ValidPluginFilename<'_>,
+        node_id: Arc<str>,
         trigger_specification: &str,
         trigger_settings: TriggerSettings,
         trigger_arguments: &Option<HashMap<String, String>>,
@@ -780,9 +673,11 @@ impl Catalog {
             if db.processing_engine_triggers.contains_name(trigger_name) {
                 return Err(CatalogError::AlreadyExists);
             }
+
             let trigger_id = Arc::make_mut(&mut db)
                 .processing_engine_triggers
                 .get_and_increment_next_id();
+
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
                 db.id,
@@ -793,130 +688,12 @@ impl Catalog {
                     plugin_filename: plugin_filename.to_string(),
                     database_name: Arc::clone(&db.name),
                     node_id: Arc::clone(&node_id),
-                    trigger,
+                    trigger: trigger.clone(),
                     trigger_settings,
                     trigger_arguments: trigger_arguments.clone(),
                     disabled,
                 })],
             ))
-        })
-        .await
-    }
-
-    pub async fn delete_processing_engine_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-        force: bool,
-    ) -> Result<OrderedCatalogBatch> {
-        info!(db_name, trigger_name, "delete processing engine trigger");
-        self.catalog_update_with_retry(|| {
-            let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            let Some(trigger) = db.processing_engine_triggers.get_by_name(trigger_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            if !trigger.disabled && !force {
-                return Err(CatalogError::ProcessingEngineTriggerRunning {
-                    trigger_name: trigger.trigger_name.to_string(),
-                });
-            }
-            Ok(CatalogBatch::database(
-                self.time_provider.now().timestamp_nanos(),
-                db.id,
-                db.name(),
-                vec![DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
-                    trigger_id: trigger.trigger_id,
-                    trigger_name: Arc::clone(&trigger.trigger_name),
-                    force,
-                })],
-            ))
-        })
-        .await
-    }
-
-    pub async fn enable_processing_engine_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<OrderedCatalogBatch> {
-        info!(db_name, trigger_name, "enable processing engine trigger");
-        self.catalog_update_with_retry(|| {
-            let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            let Some(trigger) = db.processing_engine_triggers.get_by_name(trigger_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            if !trigger.disabled {
-                return Err(CatalogError::TriggerAlreadyEnabled);
-            }
-            Ok(CatalogBatch::database(
-                self.time_provider.now().timestamp_nanos(),
-                db.id,
-                db.name(),
-                vec![DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
-                    db_id: db.id,
-                    db_name: Arc::clone(&db.name),
-                    trigger_id: trigger.trigger_id,
-                    trigger_name: Arc::clone(&trigger.trigger_name),
-                })],
-            ))
-        })
-        .await
-    }
-
-    pub async fn disable_processing_engine_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<OrderedCatalogBatch> {
-        info!(db_name, trigger_name, "disable processing engine trigger");
-        self.catalog_update_with_retry(|| {
-            let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            let Some(trigger) = db.processing_engine_triggers.get_by_name(trigger_name) else {
-                return Err(CatalogError::NotFound);
-            };
-            if trigger.disabled {
-                return Err(CatalogError::TriggerAlreadyDisabled);
-            }
-            Ok(CatalogBatch::database(
-                self.time_provider.now().timestamp_nanos(),
-                db.id,
-                db.name(),
-                vec![DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
-                    db_id: db.id,
-                    db_name: Arc::clone(&db.name),
-                    trigger_id: trigger.trigger_id,
-                    trigger_name: Arc::clone(&trigger.trigger_name),
-                })],
-            ))
-        })
-        .await
-    }
-
-    pub async fn delete_token(&self, token_name: &str) -> Result<OrderedCatalogBatch> {
-        info!(token_name, "delete token");
-
-        if token_name == DEFAULT_OPERATOR_TOKEN_NAME {
-            return Err(CatalogError::CannotDeleteOperatorToken);
-        }
-
-        self.catalog_update_with_retry(|| {
-            if !self.inner.read().tokens.repo().contains_name(token_name) {
-                // maybe deleted by another node or genuinely not present
-                return Err(CatalogError::NotFound);
-            }
-
-            Ok(CatalogBatch::Token(TokenBatch {
-                time_ns: self.time_provider.now().timestamp_nanos(),
-                ops: vec![TokenCatalogOp::DeleteToken(DeleteTokenDetails {
-                    token_name: token_name.to_owned(),
-                })],
-            }))
         })
         .await
     }
@@ -951,30 +728,6 @@ impl Catalog {
         .await
     }
 
-    pub async fn clear_retention_period_for_database(
-        &self,
-        db_name: &str,
-    ) -> Result<OrderedCatalogBatch> {
-        info!(db_name, "delete retention policy");
-        let Some(db) = self.db_schema(db_name) else {
-            return Err(CatalogError::NotFound);
-        };
-        self.catalog_update_with_retry(|| {
-            Ok(CatalogBatch::database(
-                self.time_provider.now().timestamp_nanos(),
-                db.id,
-                db.name(),
-                vec![DatabaseCatalogOp::ClearRetentionPeriod(
-                    ClearRetentionPeriodLog {
-                        database_name: db.name(),
-                        database_id: db.id,
-                    },
-                )],
-            ))
-        })
-        .await
-    }
-
     /// Perform a catalog update and retry if the catalog has been updated elsewhere until the
     /// operation succeeds or fails
     pub(crate) async fn catalog_update_with_retry<F>(
@@ -984,164 +737,10 @@ impl Catalog {
     where
         F: Fn() -> Result<CatalogBatch>,
     {
-        // NOTE(trevor/catalog-refactor): should there be a limit number of retries, or use a
-        // timeout somewhere?
-        loop {
-            let sequence = self.sequence_number();
-            let batch = batch_creator_fn()?;
-            match self
-                .get_permit_and_verify_catalog_batch(batch, sequence)
-                .await
-            {
-                Prompt::Success((ordered_batch, permit)) => {
-                    match self
-                        .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
-                        .await?
-                    {
-                        UpdatePrompt::Retry => continue,
-                        UpdatePrompt::Applied => {
-                            self.apply_ordered_catalog_batch(&ordered_batch, &permit);
-                            self.background_checkpoint(&ordered_batch);
-                            self.broadcast_update(ordered_batch.clone().into_batch())
-                                .await?;
-                            return Ok(ordered_batch);
-                        }
-                    }
-                }
-                Prompt::Retry(_) => continue,
-            }
-        }
-    }
-
-    pub async fn update_to_sequence_number(&self, update_to: CatalogSequenceNumber) -> Result<()> {
-        let permit = CATALOG_WRITE_PERMIT.lock().await;
-        let start_sequence_number = self.sequence_number().next();
-        if start_sequence_number > update_to {
-            return Ok(());
-        }
-        self.load_and_update_from_object_store(start_sequence_number, Some(update_to), &permit)
-            .await
-    }
-
-    /// Persist an `OrderedCatalogBatch` to the object store catalog. This handles broadcast of
-    /// catalog updates for any unseen catalog files that need to be fetched as part of this
-    /// operation, as well as the update applied by the ordered batch itself, if successful.
-    async fn persist_ordered_batch_to_object_store(
-        &self,
-        ordered_batch: &OrderedCatalogBatch,
-        permit: &CatalogWritePermit,
-    ) -> Result<UpdatePrompt> {
-        trace!(?ordered_batch, "persisting ordered batch to store");
-        // TODO: maybe just an error?
-        assert_eq!(
-            ordered_batch.sequence_number(),
-            **permit,
-            "tried to update catalog with invalid sequence"
-        );
-
-        match self
-            .store
-            .persist_catalog_sequenced_log(ordered_batch)
-            .await
-            .inspect_err(|error| debug!(?error, "failed on persist of next catalog sequence"))?
-        {
-            PersistCatalogResult::Success => Ok(UpdatePrompt::Applied),
-            PersistCatalogResult::AlreadyExists => {
-                self.load_and_update_from_object_store(
-                    ordered_batch.sequence_number(),
-                    None,
-                    permit,
-                )
-                .await?;
-                self.metrics.catalog_operation_retries.inc(1);
-                Ok(UpdatePrompt::Retry)
-            }
-        }
-    }
-
-    /// Load catalog updates from the object store, starting from `sequence_number`, and going until
-    /// `update_until`, or if None is provided, will update until a NOT_FOUND is received from the
-    /// object store.
-    async fn load_and_update_from_object_store(
-        &self,
-        mut sequence_number: CatalogSequenceNumber,
-        update_until: Option<CatalogSequenceNumber>,
-        permit: &CatalogWritePermit,
-    ) -> Result<()> {
-        while let Some(ordered_catalog_batch) = self
-            .store
-            .load_catalog_sequenced_log(sequence_number)
-            .await
-            .inspect_err(|error| debug!(?error, "failed to fetch next catalog sequence"))?
-        {
-            let batch = self.apply_ordered_catalog_batch(&ordered_catalog_batch, permit);
-            self.broadcast_update(batch).await?;
-            sequence_number = sequence_number.next();
-            if update_until.is_some_and(|max_sequence| sequence_number > max_sequence) {
-                break;
-            }
-            if self.state.lock().is_shutdown() {
-                break;
-            }
-        }
-        Ok(())
-    }
-
-    /// Broadcast a `CatalogUpdate` to all subscribed components in the system.
-    async fn broadcast_update(&self, update: impl Into<CatalogUpdate>) -> Result<()> {
-        self.subscriptions
-            .write()
-            .await
-            .send_update(Arc::new(update.into()))
-            .await?;
-        Ok(())
-    }
-
-    /// Persist the catalog as a checkpoint in the background if we are at the _n_th sequence
-    /// number.
-    fn background_checkpoint(&self, ordered_batch: &OrderedCatalogBatch) {
-        if ordered_batch.sequence_number().get() % self.store.checkpoint_interval != 0 {
-            return;
-        }
-        let snapshot = self.snapshot();
-        let Err(error) = self.store.background_persist_catalog_checkpoint(&snapshot) else {
-            return;
-        };
-        error!(
-            ?error,
-            "failed to serialize the catalog to a checkpoint and persist it to \
-            object store in the background"
-        );
-    }
-}
-
-impl From<Vec<CatalogBatch>> for CatalogUpdate {
-    fn from(batches: Vec<CatalogBatch>) -> Self {
-        Self { batches }
-    }
-}
-
-impl From<CatalogBatch> for CatalogUpdate {
-    fn from(batch: CatalogBatch) -> Self {
-        Self {
-            batches: vec![batch],
-        }
-    }
-}
-
-enum UpdatePrompt {
-    Retry,
-    Applied,
-}
-
-#[derive(Debug)]
-pub struct CatalogUpdate {
-    batches: Vec<CatalogBatch>,
-}
-
-impl CatalogUpdate {
-    pub(crate) fn batches(&self) -> impl Iterator<Item = &CatalogBatch> {
-        self.batches.iter()
+        let batch = batch_creator_fn()?;
+        let ordered_batch = OrderedCatalogBatch::new(batch, self.sequence_number().next());
+        self.apply_ordered_catalog_batch(&ordered_batch);
+        Ok(ordered_batch)
     }
 }
 
@@ -1231,7 +830,7 @@ impl DatabaseCatalogTransaction {
                 if matches!(column_type, FieldDataType::Tag)
                     && table_def.num_tag_columns() >= NUM_TAG_COLUMNS_LIMIT
                 {
-                    return Err(CatalogError::TooManyTagColumns);
+                    return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
                 }
                 let database_id = self.database_schema.id;
                 let database_name = Arc::clone(&self.database_schema.name);
@@ -1277,23 +876,20 @@ impl DatabaseCatalogTransaction {
             return Err(CatalogError::TooManyTables(self.table_limit));
         }
         if tags.len() > NUM_TAG_COLUMNS_LIMIT {
-            return Err(CatalogError::TooManyTagColumns);
+            return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
         }
         if tags.len() + fields.len() > self.columns_per_table_limit - 1 {
             return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
         }
 
-        // Validate tag names using the same rules as the line protocol parser
-        for tag in tags {
-            let tag_name = tag.as_ref();
-            validate_key(tag_name, "tag")?;
-        }
-
+        // Validate tag and field names using the same rules as the line protocol parser
+        tags.iter()
+            .try_for_each(key::is_valid_for(key::Type::Tag))?;
         // Validate field names using the same rules as the line protocol parser
-        for (field_name, _) in fields {
-            let field_name_str = field_name.as_ref();
-            validate_key(field_name_str, "field")?;
-        }
+        fields
+            .iter()
+            .map(|(f, _)| f)
+            .try_for_each(key::is_valid_for(key::Type::Field))?;
 
         let db_schema = Arc::make_mut(&mut self.database_schema);
         let mut table_def_arc = db_schema.create_new_empty_table(table_name)?;
@@ -1385,24 +981,4 @@ impl<S, R> Prompt<S, R> {
         };
         s
     }
-}
-
-/// Validate that a key (tag or field) is valid.
-/// Keys cannot be empty and cannot contain control characters (ASCII 0x00-0x1F and 0x7F).
-/// This ensures compatibility with the line protocol parser.
-fn validate_key(key: &str, key_type: &str) -> Result<()> {
-    if key.is_empty() {
-        return Err(CatalogError::InvalidConfiguration {
-            message: format!("{key_type} key cannot be empty").into(),
-        });
-    }
-
-    // Check for control characters
-    if key.chars().any(|c| c.is_control()) {
-        return Err(CatalogError::InvalidConfiguration {
-            message: format!("{key_type} key cannot contain control characters").into(),
-        });
-    }
-
-    Ok(())
 }

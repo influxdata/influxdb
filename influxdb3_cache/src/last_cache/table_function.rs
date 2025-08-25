@@ -18,7 +18,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use indexmap::{IndexMap, IndexSet};
-use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition};
+use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition, legacy};
 use influxdb3_id::{ColumnId, DbId, LastCacheId};
 use schema::{InfluxColumnType, InfluxFieldType};
 
@@ -75,6 +75,7 @@ impl TableProvider for LastCacheFunctionProvider {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        let table_def = legacy::TableDefinition::new(Arc::clone(&self.table_def));
         let mut recorder = self
             .provider
             .metrics
@@ -86,7 +87,7 @@ impl TableProvider for LastCacheFunctionProvider {
             .and_then(|tbl| tbl.get(&self.cache_id))
         {
             let predicates = convert_filter_exprs(
-                self.table_def.as_ref(),
+                &table_def,
                 cache.key_column_ids.as_ref(),
                 Arc::clone(&self.schema),
                 filters,
@@ -119,7 +120,7 @@ impl TableProvider for LastCacheFunctionProvider {
 /// The resulting map is an [`IndexMap`] to ensure consistent ordering of entries in the map, which
 /// makes testing the filter conversions easier via `EXPLAIN` query plans.
 fn convert_filter_exprs(
-    table_def: &TableDefinition,
+    table_def: &legacy::TableDefinition,
     cache_key_column_ids: &IndexSet<ColumnId>,
     cache_schema: SchemaRef,
     filters: &[Expr],
@@ -362,10 +363,10 @@ impl TableFunctionImpl for LastCacheFunction {
 ///
 /// For a query that does not provide any predicates, or one that does provide predicates, but they
 /// do not get pushed down, the `EXPLAIN` for said query will contain a line for the `LastCacheExec`
-/// with no predicates, as well as the info emitted for the inner `DataSourceExec`, e.g.,
+/// with no predicates, as well as the info emitted for the inner `MemoryExec`, e.g.,
 ///
 /// ```text
-/// LastCacheExec: inner=DataSourceExec: partitions=1, partition_sizes=[12]
+/// LastCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[12]
 /// ```
 ///
 /// For queries that do have predicates that get pushed down, the output will include them, e.g.,
@@ -391,9 +392,8 @@ impl LastCacheExec {
     ) -> Result<Self, DataFusionError> {
         let data_source = MemorySourceConfig::try_new(partitions, cache_schema, projection)?
             .with_show_sizes(show_sizes);
-        let inner = DataSourceExec::from_data_source(data_source);
         Ok(Self {
-            inner,
+            inner: DataSourceExec::from_data_source(data_source),
             table_def,
             predicates,
         })
@@ -410,8 +410,9 @@ impl DisplayAs for LastCacheExec {
                 if let Some(predicates) = self.predicates.as_ref() {
                     write!(f, " predicates=[")?;
                     let mut p_iter = predicates.iter();
+                    let table_def = legacy::TableDefinition::new(Arc::clone(&self.table_def));
                     while let Some((col_id, predicate)) = p_iter.next() {
-                        let col_name = self.table_def.column_id_to_name(col_id).unwrap_or_default();
+                        let col_name = table_def.column_id_to_name(col_id).unwrap_or_default();
                         write!(f, "[{col_name}@{col_id} {predicate}]")?;
                         if p_iter.size_hint().0 > 0 {
                             write!(f, ", ")?;
@@ -447,8 +448,8 @@ impl ExecutionPlan for LastCacheExec {
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
-        // (copied from DataSourceExec):
-        // DataSourceExec has no children
+        // (copied from MemoryExec):
+        // MemoryExec has no children
         if children.is_empty() {
             Ok(self)
         } else {

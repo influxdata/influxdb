@@ -2,7 +2,7 @@
 /// to `v3`s `db:*:write,create[,read]` permission. There are no structural changes in the catalog
 /// log files.
 use crate::catalog::CatalogSequenceNumber;
-use crate::log::{
+use crate::log::versions::v3::{
     MaxAge, MaxCardinality, NodeMode, TriggerSettings, TriggerSpecificationDefinition,
 };
 use crate::serialize::VersionedFileType;

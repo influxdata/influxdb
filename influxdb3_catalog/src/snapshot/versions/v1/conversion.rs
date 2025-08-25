@@ -2,19 +2,6 @@ use influxdb3_id::CatalogId;
 
 use crate::snapshot::versions::v2;
 
-impl<I, RS, RL> From<super::RepositorySnapshot<I, RS>> for v2::RepositorySnapshot<I, RL>
-where
-    I: CatalogId,
-    RL: From<RS>,
-{
-    fn from(value: super::RepositorySnapshot<I, RS>) -> Self {
-        Self {
-            repo: value.repo.into_iter().map(|(i, r)| (i, r.into())).collect(),
-            next_id: value.next_id,
-        }
-    }
-}
-
 impl From<super::CatalogSnapshot> for v2::CatalogSnapshot {
     fn from(value: super::CatalogSnapshot) -> Self {
         Self {
@@ -24,6 +11,19 @@ impl From<super::CatalogSnapshot> for v2::CatalogSnapshot {
             catalog_id: value.catalog_id,
             catalog_uuid: value.catalog_uuid,
             tokens: v2::RepositorySnapshot::default(),
+        }
+    }
+}
+
+impl<I, RS, RL> From<super::RepositorySnapshot<I, RS>> for v2::RepositorySnapshot<I, RL>
+where
+    I: CatalogId,
+    RL: From<RS>,
+{
+    fn from(value: super::RepositorySnapshot<I, RS>) -> Self {
+        Self {
+            repo: value.repo.into_iter().map(|(i, r)| (i, r.into())).collect(),
+            next_id: value.next_id,
         }
     }
 }

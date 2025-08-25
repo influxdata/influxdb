@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use arrow::{array::RecordBatch, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 
+use influxdb3_catalog::catalog::legacy;
 use influxdb3_catalog::{
     catalog::Catalog,
     catalog::IfNotDeleted,
@@ -60,6 +61,7 @@ impl LastCacheProvider {
                         cache_name = cache_def.name.as_ref(),
                         "adding last cache from catalog"
                     );
+                    let legacy_table_def = legacy::TableDefinition::new(Arc::clone(&table_def));
                     provider.create_cache(
                         db_schema.id,
                         *cache_id,
@@ -68,11 +70,19 @@ impl LastCacheProvider {
                             count: cache_def.count,
                             ttl: cache_def.ttl,
                             key_columns: crate::last_cache::cache::LastCacheKeyColumnsArg::Explicit(
-                                cache_def.key_columns.clone(),
+                                legacy_table_def
+                                    .ids_to_column_ids(&cache_def.key_columns)
+                                    .copied()
+                                    .collect(),
                             ),
                             value_columns: match &cache_def.value_columns {
                                 LastCacheValueColumnsDef::Explicit { columns } => {
-                                    LastCacheValueColumnsArg::Explicit(columns.clone())
+                                    LastCacheValueColumnsArg::Explicit(
+                                        legacy_table_def
+                                            .ids_to_column_ids(columns)
+                                            .copied()
+                                            .collect(),
+                                    )
                                 }
                                 LastCacheValueColumnsDef::AllNonKeyColumns => {
                                     LastCacheValueColumnsArg::AcceptNew
@@ -166,14 +176,22 @@ impl LastCacheProvider {
             .db_schema_by_id(&db_id)
             .and_then(|db| db.table_definition_by_id(&log.table_id))
             .expect("db and table id should be valid when creating last cache from log");
+        let legacy_def = legacy::TableDefinition::new(Arc::clone(&table_def));
         let last_cache = LastCache::new(CreateLastCacheArgs {
             table_def,
             count: log.count,
             ttl: log.ttl,
-            key_columns: super::cache::LastCacheKeyColumnsArg::Explicit(log.key_columns.clone()),
+            key_columns: super::cache::LastCacheKeyColumnsArg::Explicit(
+                legacy_def
+                    .ids_to_column_ids(&log.key_columns)
+                    .copied()
+                    .collect(),
+            ),
             value_columns: match &log.value_columns {
                 LastCacheValueColumnsDef::Explicit { columns } => {
-                    LastCacheValueColumnsArg::Explicit(columns.clone())
+                    LastCacheValueColumnsArg::Explicit(
+                        legacy_def.ids_to_column_ids(columns).copied().collect(),
+                    )
                 }
                 LastCacheValueColumnsDef::AllNonKeyColumns => LastCacheValueColumnsArg::AcceptNew,
             },

@@ -1,5 +1,5 @@
 ---
-source: influxdb3_catalog/src/catalog.rs
+source: influxdb3_catalog/src/catalog/versions/v2.rs
 description: Catalog snapshot with deleted objects
 expression: snapshot
 ---

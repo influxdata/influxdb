@@ -2,13 +2,11 @@ use std::sync::Arc;
 
 use metric::{Attributes, Metric, Registry, U64Counter};
 
-use crate::{
-    channel::CatalogUpdateReceiver,
-    log::{
-        CatalogBatch, DatabaseCatalogOp, GenerationOp, NodeCatalogOp, TokenCatalogOp,
-        versions::v3::{ClearRetentionPeriodLog, DeleteOp, SetRetentionPeriodLog},
-    },
+use super::log::{
+    CatalogBatch, ClearRetentionPeriodLog, DatabaseCatalogOp, DeleteOp, GenerationOp,
+    NodeCatalogOp, SetRetentionPeriodLog, TokenCatalogOp,
 };
+use crate::channel::versions::v2::CatalogUpdateReceiver;
 
 pub(super) const CATALOG_OPERATION_RETRIES_METRIC_NAME: &str =
     "influxdb3_catalog_operation_retries";
@@ -126,7 +124,7 @@ impl AsMetricStr for DatabaseCatalogOp {
             DatabaseCatalogOp::SoftDeleteDatabase(_) => "soft_delete_database",
             DatabaseCatalogOp::CreateTable(_) => "create_table",
             DatabaseCatalogOp::SoftDeleteTable(_) => "soft_delete_table",
-            DatabaseCatalogOp::AddFields(_) => "add_fields",
+            DatabaseCatalogOp::AddColumns(_) => "add_columns",
             DatabaseCatalogOp::CreateDistinctCache(_) => "create_distinct_cache",
             DatabaseCatalogOp::DeleteDistinctCache(_) => "delete_distinct_cache",
             DatabaseCatalogOp::CreateLastCache(_) => "create_last_cache",
@@ -166,17 +164,17 @@ impl AsMetricStr for GenerationOp {
 mod tests {
     use std::sync::Arc;
 
+    use crate::log::versions::v4::NodeMode;
     use influxdb3_process::{ProcessUuidGetter, ProcessUuidWrapper};
     use iox_time::{MockProvider, Time};
     use metric::{Attributes, Metric, Registry, U64Counter};
     use object_store::memory::InMemory;
+    use schema::{InfluxColumnType, InfluxFieldType};
 
-    use crate::{
-        catalog::{Catalog, Prompt, metrics::CATALOG_OPERATIONS_METRIC_NAME},
-        log::{FieldDataType, NodeMode},
+    use super::{
+        super::{Catalog, Prompt},
+        CATALOG_OPERATION_RETRIES_METRIC_NAME, CATALOG_OPERATIONS_METRIC_NAME,
     };
-
-    use super::CATALOG_OPERATION_RETRIES_METRIC_NAME;
 
     #[tokio::test]
     async fn test_catalog_retry_metrics() {
@@ -256,20 +254,32 @@ mod tests {
 
         let mut txn = catalog.begin("baz").unwrap();
         txn.table_or_create("employees").unwrap();
-        txn.column_or_create("employees", "name", FieldDataType::String)
-            .unwrap();
-        txn.column_or_create("employees", "job_title", FieldDataType::String)
-            .unwrap();
-        txn.column_or_create("employees", "hire_date", FieldDataType::String)
-            .unwrap();
+        txn.column_or_create(
+            "employees",
+            "name",
+            InfluxColumnType::Field(InfluxFieldType::String),
+        )
+        .unwrap();
+        txn.column_or_create(
+            "employees",
+            "job_title",
+            InfluxColumnType::Field(InfluxFieldType::String),
+        )
+        .unwrap();
+        txn.column_or_create(
+            "employees",
+            "hire_date",
+            InfluxColumnType::Field(InfluxFieldType::String),
+        )
+        .unwrap();
         check_metric_empty(&metrics, "create_table");
-        check_metric_empty(&metrics, "add_fields");
+        check_metric_empty(&metrics, "add_columns");
         let Prompt::Success(_) = catalog.commit(txn).await.unwrap() else {
             panic!("transaction should commit");
         };
         check_metric(&metrics, "create_database", 3);
         check_metric(&metrics, "create_table", 1);
-        check_metric(&metrics, "add_fields", 3);
+        check_metric(&metrics, "add_columns", 1); // AddColumns are accumulated into a single op
 
         check_metric_empty(&metrics, "register_node");
         catalog

@@ -14,7 +14,7 @@ mod tests {
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq, prelude::SessionContext};
     use indexmap::IndexMap;
     use influxdb3_catalog::log::{FieldDataType, MaxAge, MaxCardinality};
-    use influxdb3_id::ColumnId;
+    use influxdb3_id::{ColumnId, ColumnIdentifier};
     use iox_time::{MockProvider, Time, TimeProvider};
     use observability_deps::tracing::debug;
     use std::{sync::Arc, time::Duration};
@@ -59,12 +59,15 @@ cpu,host=n usage=300
         // grab the table definition for the table written to:
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         // use the two tags, in order, to create the cache:
-        let column_ids: Vec<ColumnId> = ["region", "host"]
+        let (column_ids, ord_ids) = ["region", "host"]
             .into_iter()
-            .map(|name| table_def.column_name_to_id_unchecked(name))
-            .collect();
-        let region_col_id = column_ids[0];
-        let host_col_id = column_ids[1];
+            .map(|name| {
+                let col = table_def.column_definition(name).unwrap();
+                (col.id(), col.ord_id())
+            })
+            .collect::<(Vec<_>, Vec<_>)>();
+        let region_col_id = ord_ids[0];
+        let host_col_id = ord_ids[1];
         // create the cache:
         let mut cache = DistinctCache::new(
             time_provider,
@@ -244,7 +247,7 @@ cpu,host=n usage=300
         // grab the table definition for the table written to:
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         // use the two tags, in order, to create the cache:
-        let column_ids: Vec<ColumnId> = ["region", "host"]
+        let column_ids: Vec<ColumnIdentifier> = ["region", "host"]
             .into_iter()
             .map(|name| table_def.column_name_to_id_unchecked(name))
             .collect();
@@ -357,7 +360,7 @@ cpu,host=n usage=300
             )
             .await;
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
-        let column_ids: Vec<ColumnId> = ["region", "host"]
+        let column_ids: Vec<ColumnIdentifier> = ["region", "host"]
             .into_iter()
             .map(|name| table_def.column_name_to_id_unchecked(name))
             .collect();
@@ -467,11 +470,6 @@ cpu,host=n usage=300
             )
             .await
             .unwrap();
-
-        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
-        // broadcast should be acknowledged and this would not be necessary... see
-        // https://github.com/influxdata/influxdb_pro/issues/556
-        tokio::time::sleep(Duration::from_millis(100)).await;
 
         // do some writes to generate a write batch and send it into the cache:
         let write_batch = writer
@@ -915,11 +913,6 @@ cpu,host=n usage=300
             )
             .await
             .unwrap();
-
-        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
-        // broadcast should be acknowledged and this would not be necessary... see
-        // https://github.com/influxdata/influxdb_pro/issues/556
-        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let write_batch = writer.write_lp_to_write_batch(
             "\
