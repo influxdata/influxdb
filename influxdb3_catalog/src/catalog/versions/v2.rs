@@ -295,10 +295,6 @@ impl Catalog {
         self.subscriptions.write().await.subscribe(name)
     }
 
-    pub async fn prune_subscriptions(&self) {
-        self.subscriptions.write().await.prune_closed()
-    }
-
     pub fn object_store(&self) -> Arc<dyn ObjectStore> {
         self.store.object_store()
     }
@@ -368,10 +364,6 @@ impl Catalog {
 
     pub fn node(&self, node_id: &str) -> Option<Arc<NodeDefinition>> {
         self.inner.read().nodes.get_by_name(node_id)
-    }
-
-    pub fn list_nodes(&self) -> Vec<Arc<NodeDefinition>> {
-        self.inner.read().nodes.resource_iter().cloned().collect()
     }
 
     pub fn next_db_id(&self) -> DbId {
@@ -1214,22 +1206,6 @@ pub enum NodeState {
     Running { registered_time_ns: i64 },
     /// A node is set to `Stopped` during graceful shutdown
     Stopped { stopped_time_ns: i64 },
-}
-
-impl NodeState {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            NodeState::Running { .. } => "running",
-            NodeState::Stopped { .. } => "stopped",
-        }
-    }
-
-    pub fn updated_at_ns(&self) -> i64 {
-        match self {
-            NodeState::Running { registered_time_ns } => *registered_time_ns,
-            NodeState::Stopped { stopped_time_ns } => *stopped_time_ns,
-        }
-    }
 }
 
 /// Definition of a database in the catalog
