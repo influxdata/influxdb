@@ -1080,6 +1080,27 @@ func (f *FileStore) LastModified() time.Time {
 	return f.lastModified
 }
 
+// TimeRange returns the minimum and maximum times across all TSM files in the FileStore.
+// Returns (math.MaxInt64, math.MinInt64) if there are no files.
+func (f *FileStore) TimeRange() (min, max int64) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	min, max = math.MaxInt64, math.MinInt64
+
+	for _, file := range f.files {
+		fileMin, fileMax := file.TimeRange()
+		if fileMin < min {
+			min = fileMin
+		}
+		if fileMax > max {
+			max = fileMax
+		}
+	}
+
+	return min, max
+}
+
 // We need to determine the possible files that may be accessed by this query given
 // the time range.
 func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
