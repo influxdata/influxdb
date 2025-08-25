@@ -29,7 +29,7 @@ pub struct CreateWalObjectStoreArgs<'a> {
     pub last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
     pub snapshotted_wal_files_to_keep: u64,
     pub shutdown: ShutdownToken,
-    pub wal_replay_concurrency_limit: Option<usize>,
+    pub wal_replay_concurrency_limit: usize,
 }
 
 #[derive(Debug)]
@@ -149,7 +149,7 @@ impl WalObjectStore {
         &self,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         all_wal_file_paths: &[Path],
-        concurrency_limit: Option<usize>,
+        concurrency_limit: usize,
         fail_on_error: bool,
     ) -> crate::Result<()> {
         let replay_start = Instant::now();
@@ -180,7 +180,7 @@ impl WalObjectStore {
         // of N files. Since replaying has to happen _in order_ only loading the files part is
         // concurrent, replaying the WAL file itself is done sequentially based on the original
         // order (i.e paths, which is already sorted)
-        for batched in paths.chunks(concurrency_limit.unwrap_or(usize::MAX)) {
+        for batched in paths.chunks(concurrency_limit) {
             let batched_start = Instant::now();
             let mut results = Vec::with_capacity(batched.len());
             for path in batched {
@@ -1277,7 +1277,7 @@ mod tests {
                     Path::from("my_host/wal/00000000001.wal"),
                     Path::from("my_host/wal/00000000002.wal"),
                 ],
-                None,
+                1,
                 false,
             )
             .await
@@ -1427,12 +1427,7 @@ mod tests {
             vec![Path::from("my_host/wal/00000000003.wal")]
         );
         replay_wal
-            .replay(
-                None,
-                &[Path::from("my_host/wal/00000000003.wal")],
-                None,
-                true,
-            )
+            .replay(None, &[Path::from("my_host/wal/00000000003.wal")], 1, true)
             .await
             .unwrap();
         let replay_notifier = replay_notifier

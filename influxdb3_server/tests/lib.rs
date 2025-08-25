@@ -263,7 +263,7 @@ impl TestService {
             query_file_limit: None,
             shutdown: ShutdownManager::new_testing().register(),
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-            wal_replay_concurrency_limit: Some(1),
+            wal_replay_concurrency_limit: 1,
         })
         .await
         .unwrap();

@@ -148,6 +148,11 @@ const DEPRECATED_ENV_VARS: &[(&str, &str)] = &[(
     "use INFLUXDB3_PARQUET_MEM_CACHE_SIZE instead, it is in MB or %",
 )];
 
+const MIN_REPLAY_PRELOAD_CONCURRENCY: usize = 10; // the min number of files that will be held in memory
+fn wal_replay_concurrency_limit_default() -> String {
+    std::cmp::max(num_cpus::get(), MIN_REPLAY_PRELOAD_CONCURRENCY).to_string()
+}
+
 /// Try to keep all the memory size in MB instead of raw bytes, also allow
 /// them to be configured as a percentage of total memory using MemorySizeMb
 #[derive(Debug, clap::Parser)]
@@ -520,9 +525,10 @@ pub struct Config {
 
     #[clap(
         long = "wal-replay-concurrency-limit",
-        env = "INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT"
+        env = "INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT",
+        default_value = wal_replay_concurrency_limit_default()
     )]
-    pub wal_replay_concurrency_limit: Option<usize>,
+    pub wal_replay_concurrency_limit: usize,
 
     /// The duration from when a database or table is soft-deleted until the data is scheduled to
     /// be hard deleted.
