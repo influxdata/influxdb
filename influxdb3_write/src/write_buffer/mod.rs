@@ -106,6 +106,9 @@ pub enum Error {
     #[error("tried creating database named '{0}' that already exists")]
     DatabaseExists(String),
 
+    #[error("cannot write to soft-deleted database '{0}' - it is marked for deletion")]
+    DatabaseDeleted(String),
+
     #[error("tried accessing table that do not exist")]
     TableDoesNotExist,
 
@@ -744,6 +747,84 @@ mod tests {
                 .num_columns(),
             2
         );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_write_to_deleted_database_rejected() {
+        // This test verifies that writes to a deleted database are rejected
+        let (write_buffer, _, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::new(InMemory::new()),
+            WalConfig::test_config(),
+        )
+        .await;
+
+        let db_name = NamespaceName::new("test_db").unwrap();
+        let lp = "cpu,region=west user=23.2 100";
+
+        // First, successfully write to create the database
+        let result = write_buffer
+            .write_lp(
+                db_name.clone(),
+                lp,
+                Time::from_timestamp_nanos(100),
+                false,
+                Precision::Nanosecond,
+                false, // no_sync
+            )
+            .await;
+        assert!(result.is_ok(), "expect write to new db to succeed");
+
+        // Get the database ID before deletion
+        let db_id = write_buffer
+            .catalog()
+            .db_name_to_id("test_db")
+            .expect("database should exist");
+
+        // Now soft delete the database
+        write_buffer
+            .catalog()
+            .soft_delete_database(
+                "test_db",
+                influxdb3_catalog::catalog::HardDeletionTime::Never,
+            )
+            .await
+            .unwrap();
+
+        // Get the renamed database name after soft deletion
+        let deleted_db_schema = write_buffer
+            .catalog()
+            .db_schema_by_id(&db_id)
+            .expect("deleted database should still exist");
+
+        assert!(
+            deleted_db_schema.deleted,
+            "database should be marked as deleted"
+        );
+        assert!(
+            deleted_db_schema.name.starts_with("test_db"),
+            "database should be renamed with timestamp"
+        );
+
+        // Try to write to the renamed deleted database - should fail
+        let deleted_db_name_str = deleted_db_schema.name.to_string();
+        let deleted_db_name = NamespaceName::new(deleted_db_name_str.clone()).unwrap();
+        let result = write_buffer
+            .write_lp(
+                deleted_db_name,
+                lp,
+                Time::from_timestamp_nanos(200),
+                false,
+                Precision::Nanosecond,
+                false, // no_sync
+            )
+            .await;
+
+        // The write should be rejected with DatabaseDeleted error
+        assert!(matches!(
+            result,
+            Err(Error::DatabaseDeleted(ref name)) if name.starts_with("test_db")
+        ));
     }
 
     #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]

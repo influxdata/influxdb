@@ -97,6 +97,10 @@ impl WriteValidator<Initialized> {
     /// with name `db_name`. This initializes the database if it does not already exist.
     pub fn initialize(db_name: NamespaceName<'static>, catalog: Arc<Catalog>) -> Result<Self> {
         let txn = catalog.begin(db_name.as_str())?;
+        // Check if the database is soft-deleted and reject writes if so.
+        if txn.db_schema().deleted {
+            return Err(Error::DatabaseDeleted(db_name.to_string()));
+        }
         trace!(transaction = ?txn, "initialize write validator");
         Ok(WriteValidator {
             state: Initialized { catalog, txn },
