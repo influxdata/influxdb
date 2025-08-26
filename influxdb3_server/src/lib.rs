@@ -834,8 +834,7 @@ mod tests {
         assert_eq!(
             body,
             "{\
-                \"error\":\"invalid character in database name: must be ASCII, containing only letters, numbers, underscores, or hyphens\",\
-                \"data\":null\
+                \"error\":\"invalid character in database name: must be ASCII, containing only letters, numbers, underscores, or hyphens\"\
             }"
         );
 
@@ -857,8 +856,7 @@ mod tests {
         assert_eq!(
             body,
             "{\
-                \"error\":\"db name did not start with a number or letter\",\
-                \"data\":null\
+                \"error\":\"db name did not start with a number or letter\"\
             }"
         );
 
@@ -880,8 +878,7 @@ mod tests {
         assert_eq!(
             body,
             "{\
-                \"error\":\"db name cannot be empty\",\
-                \"data\":null\
+                \"error\":\"db name cannot be empty\"\
             }"
         );
 
