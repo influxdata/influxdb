@@ -364,6 +364,10 @@ impl Catalog {
         self.inner.read().nodes.get_by_name(node_id)
     }
 
+    pub fn list_nodes(&self) -> Vec<Arc<NodeDefinition>> {
+        self.inner.read().nodes.resource_iter().cloned().collect()
+    }
+
     pub fn next_db_id(&self) -> DbId {
         self.inner.read().databases.next_id()
     }
@@ -956,6 +960,7 @@ impl InnerCatalog {
                     registered_time_ns,
                     core_count,
                     mode,
+                    cli_params,
                     ..
                 }) => {
                     if let Some(mut node) = self.nodes.get_by_name(node_id) {
@@ -968,6 +973,7 @@ impl InnerCatalog {
                         n.state = NodeState::Running {
                             registered_time_ns: *registered_time_ns,
                         };
+                        n.cli_params = cli_params.as_ref().map(|s| Arc::from(s.as_str()));
                         self.nodes
                             .update(node_batch.node_catalog_id, node)
                             .expect("existing node should update");
@@ -981,6 +987,7 @@ impl InnerCatalog {
                             state: NodeState::Running {
                                 registered_time_ns: *registered_time_ns,
                             },
+                            cli_params: cli_params.as_ref().map(|s| Arc::from(s.as_str())),
                         });
                         self.nodes
                             .insert(node_batch.node_catalog_id, new_node)
@@ -1197,6 +1204,8 @@ pub struct NodeDefinition {
     pub(crate) core_count: u64,
     /// The state of the node
     pub(crate) state: NodeState,
+    /// CLI parameters provided when the node was registered
+    pub(crate) cli_params: Option<Arc<str>>,
 }
 
 impl NodeDefinition {
@@ -1230,6 +1239,10 @@ impl NodeDefinition {
     pub fn state(&self) -> NodeState {
         self.state
     }
+
+    pub fn cli_params(&self) -> Option<Arc<str>> {
+        self.cli_params.clone()
+    }
 }
 
 /// The state of a node in an InfluxDB 3 cluster
@@ -1239,6 +1252,22 @@ pub enum NodeState {
     Running { registered_time_ns: i64 },
     /// A node is set to `Stopped` during graceful shutdown
     Stopped { stopped_time_ns: i64 },
+}
+
+impl NodeState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NodeState::Running { .. } => "running",
+            NodeState::Stopped { .. } => "stopped",
+        }
+    }
+
+    pub fn updated_at_ns(&self) -> i64 {
+        match self {
+            NodeState::Running { registered_time_ns } => *registered_time_ns,
+            NodeState::Stopped { stopped_time_ns } => *stopped_time_ns,
+        }
+    }
 }
 
 /// Definition of a database in the catalog
@@ -2788,6 +2817,7 @@ impl Snapshot for NodeDefinition {
             mode: self.mode.clone(),
             state: self.state.snapshot(),
             core_count: self.core_count,
+            cli_params: self.cli_params.clone(),
         }
     }
 
@@ -2799,6 +2829,7 @@ impl Snapshot for NodeDefinition {
             mode: snap.mode,
             core_count: snap.core_count,
             state: NodeState::from_snapshot(snap.state),
+            cli_params: snap.cli_params,
         }
     }
 }

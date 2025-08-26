@@ -57,6 +57,7 @@ use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use std::collections::HashMap;
 use std::{env, num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{path::Path, str::FromStr};
 use std::{path::PathBuf, process::Command};
@@ -87,6 +88,8 @@ pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 pub const DEFAULT_ADMIN_TOKEN_RECOVERY_BIND_ADDR: &str = "127.0.0.1:8182";
 
 pub const DEFAULT_TELEMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
+
+mod cli_params;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -656,7 +659,7 @@ fn ensure_directory_exists(p: &Path) {
     }
 }
 
-pub async fn command(config: Config) -> Result<()> {
+pub async fn command(config: Config, user_params: HashMap<String, String>) -> Result<()> {
     // Check that both a cert file and key file are present if TLS is being set up
     match (&config.cert_file, &config.key_file) {
         (Some(_), None) | (None, Some(_)) => {
@@ -890,12 +893,16 @@ pub async fn command(config: Config) -> Result<()> {
             .await
     });
 
+    // Capture and filter CLI parameters
+    let cli_params = cli_params::capture_cli_params(user_params);
+
     let _ = catalog
         .register_node(
             &config.node_identifier_prefix,
             num_cpus as u64,
             vec![influxdb3_catalog::log::NodeMode::Core],
             process_uuid_getter,
+            Some(cli_params),
         )
         .await
         .map_err(Error::InitializeCatalog)?;

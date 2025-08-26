@@ -540,3 +540,124 @@ async fn test_generation_durations_system_table_with_non_defaults() {
         &batches
     );
 }
+
+#[tokio::test]
+async fn test_nodes_table_with_cli_params() {
+    let server = TestServer::spawn().await;
+
+    // Query the system.nodes table for cli_params
+    let mut client = server.flight_sql_client("_internal").await;
+    let response_stream = client
+        .query("SELECT node_id, cli_params FROM system.nodes")
+        .await
+        .unwrap();
+    let batches = collect_stream(response_stream).await;
+
+    // Should have one row
+    assert_eq!(batches.len(), 1);
+    let batch = &batches[0];
+    assert_eq!(batch.num_rows(), 1);
+
+    // Check that node_id matches what we expect
+    let node_id_col = batch.column_by_name("node_id").unwrap();
+    let node_id_array = node_id_col
+        .as_any()
+        .downcast_ref::<arrow::array::StringViewArray>()
+        .unwrap();
+    assert_eq!(node_id_array.value(0), "test-server");
+
+    // Check that cli_params exists and is valid JSON
+    let cli_params_col = batch.column_by_name("cli_params").unwrap();
+    let cli_params_array = cli_params_col
+        .as_any()
+        .downcast_ref::<arrow::array::StringViewArray>()
+        .unwrap();
+    let cli_params_json = cli_params_array.value(0);
+
+    // Parse it as JSON to verify it's valid
+    let parsed: serde_json::Value =
+        serde_json::from_str(cli_params_json).expect("cli_params should be valid JSON");
+    assert!(parsed.is_object(), "cli_params should be a JSON object");
+
+    // Check that at least some expected parameters are present
+    let params_obj = parsed.as_object().unwrap();
+    assert!(
+        params_obj.contains_key("node-id"),
+        "Should contain node-id parameter"
+    );
+    assert_eq!(
+        params_obj.get("node-id").unwrap().as_str(),
+        Some("test-server")
+    );
+
+    // Check that sensitive parameters are masked
+    if params_obj.contains_key("without-auth") {
+        assert_eq!(
+            params_obj.get("without-auth").unwrap().as_str(),
+            Some("*******"),
+            "without-auth parameter should be masked"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_nodes_table_filters_sensitive_params() {
+    let server = TestServer::spawn().await;
+
+    // Query the system.nodes table for cli_params
+    let mut client = server.flight_sql_client("_internal").await;
+    let response_stream = client
+        .query("SELECT cli_params FROM system.nodes")
+        .await
+        .unwrap();
+    let batches = collect_stream(response_stream).await;
+
+    assert_eq!(batches.len(), 1);
+    let batch = &batches[0];
+    assert_eq!(batch.num_rows(), 1);
+
+    // Get the cli_params value
+    let cli_params_col = batch.column_by_name("cli_params").unwrap();
+    let cli_params_array = cli_params_col
+        .as_any()
+        .downcast_ref::<arrow::array::StringViewArray>()
+        .unwrap();
+    let cli_params_json = cli_params_array.value(0);
+
+    // Parse JSON and check that sensitive values are masked
+    let parsed: serde_json::Value =
+        serde_json::from_str(cli_params_json).expect("cli_params should be valid JSON");
+    let params_obj = parsed.as_object().unwrap();
+
+    // Check known sensitive parameters that should be masked
+    for (key, value) in params_obj.iter() {
+        let key_lower = key.to_lowercase();
+
+        // Check for any parameters that should be masked
+        if key_lower.contains("key")
+            || key_lower.contains("secret")
+            || key_lower.contains("password")
+            || key_lower.contains("token")
+            || key == "without-auth"
+            || key == "tls-cert"
+            || key == "tls-key"
+        {
+            assert_eq!(
+                value.as_str(),
+                Some("*******"),
+                "Parameter '{}' should be masked but has value: {:?}",
+                key,
+                value
+            );
+        }
+    }
+
+    // Verify that non-sensitive parameters are NOT masked
+    if let Some(node_id_value) = params_obj.get("node-id") {
+        assert_ne!(
+            node_id_value.as_str(),
+            Some("*******"),
+            "node-id should not be masked"
+        );
+    }
+}

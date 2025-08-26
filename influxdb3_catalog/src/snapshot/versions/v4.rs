@@ -106,6 +106,8 @@ pub(crate) struct NodeSnapshot {
     pub(crate) mode: Vec<NodeMode>,
     pub(crate) state: NodeStateSnapshot,
     pub(crate) core_count: u64,
+    #[serde(default)]
+    pub(crate) cli_params: Option<Arc<str>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

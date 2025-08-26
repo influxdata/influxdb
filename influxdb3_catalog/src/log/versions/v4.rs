@@ -291,6 +291,8 @@ pub struct RegisterNodeLog {
     pub core_count: u64,
     pub mode: Vec<NodeMode>,
     pub process_uuid: Uuid,
+    #[serde(default)]
+    pub cli_params: Option<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
