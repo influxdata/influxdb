@@ -38,6 +38,8 @@ Examples
                                    list of resources. Valid values are health, ping, and metrics.
                                    To disable auth for multiple resources pass in a list, eg.
                                    `--disable-authz health,ping`
+  --admin-token-file <FILE>        File containing offline admin tokens
+                                  [env: INFLUXDB3_ADMIN_TOKEN_FILE=]
 
 {}
   --data-dir <DIR>                 Location to store files locally [env: INFLUXDB3_DB_DIR=]

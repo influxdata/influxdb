@@ -1,5 +1,6 @@
 //! Entrypoint for InfluxDB 3 Core Server
 
+use crate::commands::create::token::AdminTokenFile;
 use anyhow::{Context, bail};
 use futures::{FutureExt, future::FusedFuture, pin_mut};
 use influxdb3_authz::TokenAuthenticator;
@@ -104,6 +105,9 @@ pub enum Error {
     #[error("Server error: {0}")]
     Server(#[source] influxdb3_server::Error),
 
+    #[error("Token error: {0}")]
+    TokenError(CatalogError),
+
     #[error("Write buffer error: {0}")]
     WriteBuffer(#[from] influxdb3_write::write_buffer::Error),
 
@@ -114,7 +118,7 @@ pub enum Error {
     WriteBufferInit(#[source] anyhow::Error),
 
     #[error("failed to initialize catalog: {0}")]
-    InitializeCatalog(#[from] CatalogError),
+    InitializeCatalog(CatalogError),
 
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] last_cache::Error),
@@ -523,6 +527,10 @@ pub struct Config {
     )]
     pub admin_token_recovery_tcp_listener_file_path: Option<PathBuf>,
 
+    /// File path containing offline admin token (JSON format with token and metadata)
+    #[clap(long = "admin-token-file", env = "INFLUXDB3_ADMIN_TOKEN_FILE")]
+    pub admin_token_file: Option<PathBuf>,
+
     #[clap(
         long = "wal-replay-concurrency-limit",
         env = "INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT",
@@ -851,8 +859,20 @@ pub async fn command(config: Config) -> Result<()> {
         shutdown_manager.register(),
         Arc::clone(&process_uuid_getter),
     )
-    .await?;
+    .await
+    .map_err(Error::InitializeCatalog)?;
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
+
+    // Initialize tokens from files if provided and auth is enabled
+    if !config.without_auth {
+        // Initialize admin token from file if provided
+        if let Some(admin_token_file) = &config.admin_token_file
+            && let Err(e) = initialize_admin_token_from_file(&catalog, admin_token_file).await
+        {
+            error!("Failed to initialize admin token from file: {}", e);
+            return Err(e);
+        }
+    }
 
     // Create and start the retention period handler
     let retention_handler = Arc::new(RetentionPeriodHandler::new(
@@ -877,7 +897,8 @@ pub async fn command(config: Config) -> Result<()> {
             vec![influxdb3_catalog::log::NodeMode::Core],
             process_uuid_getter,
         )
-        .await?;
+        .await
+        .map_err(Error::InitializeCatalog)?;
     let node_def = catalog
         .node(&config.node_identifier_prefix)
         .expect("node should be registered in catalog");
@@ -918,7 +939,7 @@ pub async fn command(config: Config) -> Result<()> {
             );
             existing
         }
-        Err(error) => return Err(error.into()),
+        Err(error) => return Err(Error::InitializeCatalog(error)),
     };
 
     let n_snapshots_to_load_on_start =
@@ -1410,4 +1431,89 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
     );
 
     registry
+}
+
+/// Initialize an admin token from a JSON file.
+///
+/// The token file must be in this format: `{"token": "apiv3_...", "name": "custom_name", "expiry_millis": 1234567890}`
+///
+/// If an admin token with the same name already exists, this function will succeed without creating a duplicate.
+/// File permissions should be restricted (0600) to protect the token.
+async fn initialize_admin_token_from_file(catalog: &Catalog, token_file: &PathBuf) -> Result<()> {
+    use sha2::{Digest, Sha512};
+
+    info!(
+        "Initializing admin token from file: {}",
+        token_file.display()
+    );
+
+    // Check file permissions on Unix systems
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let metadata = tokio::fs::metadata(token_file).await.map_err(|e| {
+            Error::TokenError(CatalogError::unexpected(format!(
+                "Failed to read admin token file metadata: {e}",
+            )))
+        })?;
+        let mode = metadata.permissions().mode();
+        if mode & 0o077 != 0 {
+            warn!(
+                "Admin token file has insecure permissions: {:o}. Consider using chmod 0600.",
+                mode & 0o777
+            );
+        }
+    }
+
+    // Read file content
+    let content = tokio::fs::read_to_string(token_file).await.map_err(|e| {
+        Error::TokenError(CatalogError::unexpected(format!(
+            "Failed to read admin token file: {e}",
+        )))
+    })?;
+
+    // Parse JSON format
+    let admin_token_file: AdminTokenFile = serde_json::from_str(&content).map_err(|e| {
+        Error::TokenError(CatalogError::unexpected(format!(
+            "Failed to parse admin token file as JSON: {e}",
+        )))
+    })?;
+
+    info!(
+        "Loaded admin token from file, name: {}",
+        admin_token_file.name
+    );
+
+    let token = admin_token_file.token;
+    let name = admin_token_file.name;
+    let expiry_millis = admin_token_file.expiry_millis;
+
+    // Validate token format
+    if !token.starts_with("apiv3_") {
+        return Err(Error::TokenError(CatalogError::unexpected(
+            "Invalid token format: must start with 'apiv3_'",
+        )));
+    }
+
+    // Compute hash from token (same as authentication does)
+    let hash = Sha512::digest(&token).to_vec();
+
+    // Create admin token with computed hash and name
+    match catalog
+        .create_named_admin_token_with_hash(name.clone(), hash, expiry_millis)
+        .await
+    {
+        Ok(()) => {
+            info!("Admin token '{}' initialized from file", name);
+            Ok(())
+        }
+        Err(CatalogError::TokenNameAlreadyExists(existing_name)) => {
+            info!(
+                "Admin token '{}' already exists, skipping initialization",
+                existing_name
+            );
+            Ok(())
+        }
+        Err(e) => Err(Error::TokenError(e)),
+    }
 }

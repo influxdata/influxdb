@@ -1,7 +1,6 @@
 //! Version 2 implementation of the Catalog that sits entirely in memory.
 
 use bimap::BiHashMap;
-// Enterprise import removed
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_authz::{
@@ -38,7 +37,6 @@ use crate::catalog::{
     make_new_name_using_deleted_time,
 };
 
-// Enterprise module removed during port
 mod resource;
 
 #[cfg(test)]
@@ -637,6 +635,41 @@ impl Catalog {
         // we need to pass these details back, especially this token as this is what user should
         // send in subsequent requests
         Ok((token_info, token))
+    }
+
+    /// Create an admin token with a specific name and hash
+    pub async fn create_named_admin_token_with_hash(
+        &self,
+        name: String,
+        hash: Vec<u8>,
+        expiry_millis: Option<i64>,
+    ) -> Result<()> {
+        use crate::log::CreateAdminTokenDetails;
+
+        self.catalog_update_with_retry(|| {
+            if self.inner.read().tokens.repo().contains_name(&name) {
+                return Err(CatalogError::TokenNameAlreadyExists(name.clone()));
+            }
+            let (token_id, created_at) = {
+                let mut inner = self.inner.write();
+                let token_id = inner.tokens.get_and_increment_next_id();
+                let created_at = self.time_provider.now();
+                (token_id, created_at.timestamp_millis())
+            };
+            Ok(CatalogBatch::Token(TokenBatch {
+                time_ns: created_at,
+                ops: vec![TokenCatalogOp::CreateAdminToken(CreateAdminTokenDetails {
+                    token_id,
+                    name: Arc::from(name.as_str()),
+                    hash: hash.clone(),
+                    created_at,
+                    updated_at: None,
+                    expiry: expiry_millis,
+                })],
+            }))
+        })
+        .await?;
+        Ok(())
     }
 
     // Return a map of all retention periods indexed by their combined database & table IDs.
