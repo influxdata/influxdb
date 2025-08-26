@@ -1,3 +1,4 @@
+mod conversion;
 /// The v3 changes are _only_ done for token permission mapping `v2`s `db:*:write[,read]` is mapped
 /// to `v3`s `db:*:write,create[,read]` permission. There are no structural changes in the catalog
 /// log files.
@@ -22,11 +23,13 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    CatalogError, Result,
-    catalog::{CatalogSequenceNumber, RetentionPeriod},
-    serialize::VersionedFileType,
-};
+use crate::{CatalogError, Result, catalog::CatalogSequenceNumber, serialize::VersionedFileType};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum RetentionPeriod {
+    Indefinite,
+    Duration(Duration),
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum CatalogBatch {
@@ -90,10 +93,7 @@ impl CatalogBatch {
     pub fn as_database(&self) -> Option<&DatabaseBatch> {
         match self {
             CatalogBatch::Database(database_batch) => Some(database_batch),
-            CatalogBatch::Node(_) => None,
-            CatalogBatch::Token(_) => None,
-            CatalogBatch::Delete(_) => None,
-            CatalogBatch::Generation(_) => None,
+            _ => None,
         }
     }
 
@@ -106,8 +106,8 @@ impl CatalogBatch {
 
     pub fn to_database(self) -> Option<DatabaseBatch> {
         match self {
-            CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
+            CatalogBatch::Node(_) => None,
             CatalogBatch::Token(_) => None,
             CatalogBatch::Delete(_) => None,
             CatalogBatch::Generation(_) => None,
@@ -295,16 +295,21 @@ pub struct StopNodeLog {
     pub process_uuid: Uuid,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum NodeMode {
     Core,
 }
 
+impl NodeMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NodeMode::Core => "core",
+        }
+    }
+}
 impl std::fmt::Display for NodeMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NodeMode::Core => write!(f, "core"),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -386,7 +391,7 @@ impl FieldDefinition {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum FieldDataType {
     String,
     Integer,

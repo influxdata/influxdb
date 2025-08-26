@@ -13,6 +13,8 @@ pub use serialize::{SerdeVecMap, SerdeVecSet};
 pub trait CatalogId: Default + Hash + Eq + Copy + Ord + Serialize {
     type Integer;
 
+    const MAX: Self;
+
     fn next(&self) -> Self;
 }
 
@@ -30,17 +32,19 @@ macro_rules! catalog_identifier_type {
         impl CatalogId for $name {
             type Integer = $ty;
 
+            const MAX: Self = Self(<$ty>::MAX);
+
             fn next(&self) -> Self {
                 Self::new(self.0.checked_add(1).expect("incrementing id overflow"))
             }
         }
 
         impl $name {
-            pub fn new(id: $ty) -> Self {
+            pub const fn new(id: $ty) -> Self {
                 Self(id)
             }
 
-            pub fn get(&self) -> $ty {
+            pub const fn get(&self) -> $ty {
                 self.0
             }
         }
@@ -79,6 +83,9 @@ catalog_identifier_type!(DbId, u32);
 catalog_identifier_type!(TableId, u32);
 catalog_identifier_type!(TriggerId, u32);
 catalog_identifier_type!(ColumnId, u16);
+catalog_identifier_type!(TagId, u8);
+catalog_identifier_type!(FieldFamilyId, u16);
+catalog_identifier_type!(FieldId, u16);
 catalog_identifier_type!(LastCacheId, u16);
 catalog_identifier_type!(DistinctCacheId, u16);
 catalog_identifier_type!(TokenId, u64);
@@ -165,5 +172,86 @@ impl fmt::Display for TableIndexId {
             "({}, {:?}, {:?})",
             self.node_id, self.db_id, self.table_id
         )
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+pub struct FieldIdentifier(pub FieldFamilyId, pub FieldId);
+
+impl<T, U> From<(T, U)> for FieldIdentifier
+where
+    T: Into<FieldFamilyId>,
+    U: Into<FieldId>,
+{
+    fn from(value: (T, U)) -> Self {
+        Self(value.0.into(), value.1.into())
+    }
+}
+
+impl FieldIdentifier {
+    pub fn new(field_family_id: impl Into<FieldFamilyId>, id: impl Into<FieldId>) -> Self {
+        Self(field_family_id.into(), id.into())
+    }
+
+    pub fn field_family_id(&self) -> FieldFamilyId {
+        self.0
+    }
+
+    pub fn id(&self) -> FieldId {
+        self.1
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ColumnIdentifier {
+    Timestamp,
+    Tag(TagId),
+    Field(FieldIdentifier),
+}
+
+impl fmt::Display for ColumnIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Timestamp => write!(f, "timestamp"),
+            Self::Tag(id) => write!(f, "tag({id})"),
+            Self::Field(FieldIdentifier(ff_id, id)) => write!(f, "field({ff_id}, {id})"),
+        }
+    }
+}
+
+impl ColumnIdentifier {
+    pub fn tag(id: impl Into<TagId>) -> Self {
+        Self::Tag(id.into())
+    }
+
+    pub fn field(cf_id: impl Into<FieldFamilyId>, id: impl Into<FieldId>) -> Self {
+        Self::Field(FieldIdentifier(cf_id.into(), id.into()))
+    }
+
+    pub fn to_tag(&self) -> TagId {
+        match self {
+            Self::Tag(id) => *id,
+            _ => panic!("not a tag"),
+        }
+    }
+
+    pub fn to_field(&self) -> FieldIdentifier {
+        match self {
+            Self::Field(id) => *id,
+            _ => panic!("not a field"),
+        }
+    }
+}
+
+impl From<TagId> for ColumnIdentifier {
+    fn from(id: TagId) -> Self {
+        Self::Tag(id)
+    }
+}
+
+impl From<&TagId> for ColumnIdentifier {
+    fn from(id: &TagId) -> Self {
+        Self::Tag(*id)
     }
 }

@@ -510,8 +510,7 @@ pub fn execute_python_with_batch(
                 continue;
             }
             let table_def = schema
-                .tables
-                .get_by_id(table_id)
+                .legacy_table_definition_by_id(table_id)
                 .context("table not found")?;
 
             let dict = PyDict::new(py);

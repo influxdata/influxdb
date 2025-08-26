@@ -1,0 +1,613 @@
+---
+source: influxdb3_catalog/src/catalog/migrations/v2.rs
+expression: v2_catalog.snapshot()
+---
+{
+  "generation_config": {
+    "generation_durations": []
+  },
+  "nodes": {
+    "repo": [
+      [
+        0,
+        {
+          "node_id": "node-1",
+          "node_catalog_id": 0,
+          "instance_id": "[uuid]",
+          "mode": [
+            "Core"
+          ],
+          "state": {
+            "Running": {
+              "registered_time_ns": 1000
+            }
+          },
+          "core_count": 1
+        }
+      ]
+    ],
+    "next_id": 1
+  },
+  "databases": {
+    "repo": [
+      [
+        0,
+        {
+          "id": 0,
+          "name": "_internal",
+          "tables": {
+            "repo": [],
+            "next_id": 0
+          },
+          "retention_period": "Indefinite",
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false,
+          "hard_delete_time": null
+        }
+      ],
+      [
+        1,
+        {
+          "id": 1,
+          "name": "db_1",
+          "tables": {
+            "repo": [
+              [
+                0,
+                {
+                  "table_id": 0,
+                  "table_name": "test_table",
+                  "key": [
+                    0,
+                    1,
+                    2
+                  ],
+                  "columns": {
+                    "repo": [
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "tag1"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 1,
+                          "name": "tag2"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 2,
+                          "column_id": 2,
+                          "name": "tag3"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 3,
+                          "name": "ff1::field1",
+                          "data_type": "String"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 4,
+                          "name": "ff1::field2",
+                          "data_type": "Integer"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            1,
+                            0
+                          ],
+                          "column_id": 5,
+                          "name": "field3",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            1,
+                            1
+                          ],
+                          "column_id": 6,
+                          "name": "field4",
+                          "data_type": "Boolean"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 7,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 8
+                  },
+                  "field_families": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "name": {
+                            "user": "ff1"
+                          },
+                          "id": 0
+                        }
+                      ],
+                      [
+                        1,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 1
+                        }
+                      ]
+                    ],
+                    "next_id": 2
+                  },
+                  "last_caches": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "table_id": 0,
+                          "table": "test_table",
+                          "id": 0,
+                          "name": "all_fields_cache",
+                          "keys": [
+                            {
+                              "tag": 0
+                            },
+                            {
+                              "tag": 1
+                            }
+                          ],
+                          "vals": null,
+                          "n": 5,
+                          "ttl": 1800
+                        }
+                      ]
+                    ],
+                    "next_id": 1
+                  },
+                  "distinct_caches": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "table_id": 0,
+                          "table": "test_table",
+                          "id": 0,
+                          "name": "my_distinct_cache",
+                          "cols": [
+                            {
+                              "tag": 0
+                            },
+                            {
+                              "tag": 1
+                            }
+                          ],
+                          "max_cardinality": 1000,
+                          "max_age_seconds": 3600
+                        }
+                      ]
+                    ],
+                    "next_id": 1
+                  },
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
+                }
+              ],
+              [
+                1,
+                {
+                  "table_id": 1,
+                  "table_name": "arbitrary",
+                  "key": [
+                    0,
+                    1,
+                    2
+                  ],
+                  "columns": {
+                    "repo": [
+                      {
+                        "timestamp": {
+                          "column_id": 0,
+                          "name": "time"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 1,
+                          "name": "tag_b"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 2,
+                          "name": "field_2",
+                          "data_type": "Float"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 3,
+                          "name": "tag_a"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 4,
+                          "name": "field_1",
+                          "data_type": "Integer"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 2,
+                          "column_id": 5,
+                          "name": "tag_c"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            2
+                          ],
+                          "column_id": 6,
+                          "name": "field_3",
+                          "data_type": "String"
+                        }
+                      }
+                    ],
+                    "next_id": 7
+                  },
+                  "field_families": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 0
+                        }
+                      ]
+                    ],
+                    "next_id": 1
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
+                }
+              ]
+            ],
+            "next_id": 2
+          },
+          "retention_period": "Indefinite",
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false,
+          "hard_delete_time": null
+        }
+      ],
+      [
+        2,
+        {
+          "id": 2,
+          "name": "db_2",
+          "tables": {
+            "repo": [
+              [
+                0,
+                {
+                  "table_id": 0,
+                  "table_name": "table_1-19700101T000000",
+                  "key": [
+                    0,
+                    1
+                  ],
+                  "columns": {
+                    "repo": [
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "tag1"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 1,
+                          "name": "tag3"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 2,
+                          "name": "ff1::field1",
+                          "data_type": "String"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 3,
+                          "name": "ff1::field2",
+                          "data_type": "Integer"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            1,
+                            0
+                          ],
+                          "column_id": 4,
+                          "name": "field4",
+                          "data_type": "Boolean"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 5,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 6
+                  },
+                  "field_families": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "name": {
+                            "user": "ff1"
+                          },
+                          "id": 0
+                        }
+                      ],
+                      [
+                        1,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 1
+                        }
+                      ]
+                    ],
+                    "next_id": 2
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": true,
+                  "hard_delete_time": 1000,
+                  "field_family_mode": "aware"
+                }
+              ],
+              [
+                1,
+                {
+                  "table_id": 1,
+                  "table_name": "table_2",
+                  "key": [
+                    0,
+                    1
+                  ],
+                  "columns": {
+                    "repo": [
+                      {
+                        "tag": {
+                          "id": 0,
+                          "column_id": 0,
+                          "name": "tag1"
+                        }
+                      },
+                      {
+                        "tag": {
+                          "id": 1,
+                          "column_id": 1,
+                          "name": "tag3"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            0
+                          ],
+                          "column_id": 2,
+                          "name": "ff1::field1",
+                          "data_type": "String"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            0,
+                            1
+                          ],
+                          "column_id": 3,
+                          "name": "ff1::field2",
+                          "data_type": "Integer"
+                        }
+                      },
+                      {
+                        "field": {
+                          "id": [
+                            1,
+                            0
+                          ],
+                          "column_id": 4,
+                          "name": "field4",
+                          "data_type": "Boolean"
+                        }
+                      },
+                      {
+                        "timestamp": {
+                          "column_id": 5,
+                          "name": "time"
+                        }
+                      }
+                    ],
+                    "next_id": 6
+                  },
+                  "field_families": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "name": {
+                            "user": "ff1"
+                          },
+                          "id": 0
+                        }
+                      ],
+                      [
+                        1,
+                        {
+                          "name": {
+                            "auto": 0
+                          },
+                          "id": 1
+                        }
+                      ]
+                    ],
+                    "next_id": 2
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false,
+                  "hard_delete_time": null,
+                  "field_family_mode": "aware"
+                }
+              ]
+            ],
+            "next_id": 3
+          },
+          "retention_period": "Indefinite",
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false,
+          "hard_delete_time": null
+        }
+      ]
+    ],
+    "next_id": 3
+  },
+  "sequence": 21,
+  "tokens": {
+    "repo": [
+      [
+        0,
+        {
+          "id": 0,
+          "name": "_admin",
+          "hash": "[hash]",
+          "created_at": 0,
+          "description": null,
+          "created_by": null,
+          "expiry": 9223372036854775807,
+          "updated_by": null,
+          "updated_at": null,
+          "permissions": [
+            {
+              "resource_type": "Wildcard",
+              "resource_identifier": "Wildcard",
+              "actions": "Wildcard"
+            }
+          ]
+        }
+      ],
+      [
+        1,
+        {
+          "id": 1,
+          "name": "my_admin",
+          "hash": "[hash]",
+          "created_at": 0,
+          "description": null,
+          "created_by": null,
+          "expiry": 500000,
+          "updated_by": null,
+          "updated_at": null,
+          "permissions": [
+            {
+              "resource_type": "Wildcard",
+              "resource_identifier": "Wildcard",
+              "actions": "Wildcard"
+            }
+          ]
+        }
+      ]
+    ],
+    "next_id": 2
+  },
+  "catalog_id": "test-catalog",
+  "catalog_uuid": "[uuid]"
+}

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, legacy::TableDefinition};
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{Gen1Duration, Row, WriteBatch};
 use influxdb3_write::write_buffer::validator::WriteValidator;

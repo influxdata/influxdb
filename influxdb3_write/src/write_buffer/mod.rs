@@ -3023,7 +3023,7 @@ mod tests {
 
         assert_eq!(db.tables.len(), 1);
         let db = catalog.db_schema_by_id(&DbId::from(1)).unwrap();
-        let table = db.tables.get_by_id(&TableId::from(0)).unwrap();
+        let table = db.legacy_table_definition_by_id(&TableId::from(0)).unwrap();
         assert_eq!(table.num_columns(), 4);
         assert_eq!(table.series_key.len(), 2);
         assert_eq!(table.series_key[0], ColumnId::from(0));

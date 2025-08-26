@@ -303,6 +303,8 @@ impl IntoResponse for CatalogError {
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType
+            | Self::ReservedColumn(_)
+            | Self::DuplicateColumn { .. }
             | Self::InvalidColumnType { .. } => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(bytes_to_response_body(self.to_string()))
@@ -310,7 +312,8 @@ impl IntoResponse for CatalogError {
             Self::TooManyColumns(_)
             | Self::TooManyTables(_)
             | Self::TooManyDbs(_)
-            | Self::TooManyTagColumns => {
+            | Self::TooManyTagColumns(_)
+            | Self::TooManyFields { .. } => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: self.to_string(),
                     data: None,

@@ -17,7 +17,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use indexmap::IndexMap;
-use influxdb3_catalog::catalog::TableDefinition;
+use influxdb3_catalog::catalog::{TableDefinition, legacy};
 use influxdb3_id::{ColumnId, DbId, DistinctCacheId};
 
 use super::{DistinctCacheProvider, cache::Predicate};
@@ -71,6 +71,7 @@ impl TableProvider for DistinctCacheFunctionProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        let table_def = legacy::TableDefinition::new(Arc::clone(&self.table_def));
         let schema = if let Some(projection) = projection {
             self.schema().project(projection).map(Arc::new)?
         } else {
@@ -82,7 +83,7 @@ impl TableProvider for DistinctCacheFunctionProvider {
             .and_then(|db| db.get(&self.table_def.table_id))
             .and_then(|tbl| tbl.get(&self.cache_id))
         {
-            let predicates = convert_filter_exprs(&self.table_def, self.schema(), filters)?;
+            let predicates = convert_filter_exprs(&table_def, self.schema(), filters)?;
             (
                 cache
                     .to_record_batch(
@@ -118,7 +119,7 @@ impl TableProvider for DistinctCacheFunctionProvider {
 /// The resulting map uses [`IndexMap`] to ensure consistent ordering of the map. This makes testing
 /// the filter conversion significantly easier using EXPLAIN queries.
 fn convert_filter_exprs(
-    table_def: &TableDefinition,
+    table_def: &legacy::TableDefinition,
     cache_schema: SchemaRef,
     filters: &[Expr],
 ) -> Result<IndexMap<ColumnId, Predicate>> {
@@ -355,8 +356,9 @@ impl DisplayAs for DistinctCacheExec {
                 if let Some(predicates) = self.predicates.as_ref() {
                     write!(f, " predicates=[")?;
                     let mut p_iter = predicates.iter();
+                    let table_def = legacy::TableDefinition::new(Arc::clone(&self.table_def));
                     while let Some((col_id, predicate)) = p_iter.next() {
-                        let col_name = self.table_def.column_id_to_name(col_id).unwrap_or_default();
+                        let col_name = table_def.column_id_to_name(col_id).unwrap_or_default();
                         write!(f, "[{col_name}@{col_id} {predicate}]")?;
                         if p_iter.size_hint().0 > 0 {
                             write!(f, ", ")?;

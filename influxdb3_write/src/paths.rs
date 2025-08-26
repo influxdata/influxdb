@@ -1,5 +1,4 @@
 use chrono::prelude::*;
-use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_id::{DbId, TableId, TableIndexId};
 use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 use object_store::path::Path as ObjPath;
@@ -25,12 +24,6 @@ pub enum PathError {
     InvalidSequenceNumber { context: String, filename: String },
 }
 
-/// File extension for catalog files
-pub const CATALOG_LOG_FILE_EXTENSION: &str = "catalog";
-
-/// File extension for catalog files
-pub const CATALOG_SNAPSHOT_FILE_EXTENSION: &str = "catalog.snapshot";
-
 /// File extension for parquet files
 pub const PARQUET_FILE_EXTENSION: &str = "parquet";
 
@@ -39,45 +32,6 @@ pub const SNAPSHOT_INFO_FILE_EXTENSION: &str = "info.json";
 
 fn object_store_file_stem(n: u64) -> u64 {
     u64::MAX - n
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CatalogFilePath(ObjPath);
-
-impl CatalogFilePath {
-    pub fn log(host_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
-        let num = u64::MAX - catalog_sequence_number.get();
-        let path = ObjPath::from(format!(
-            "{host_prefix}/catalogs/{num:020}.{CATALOG_LOG_FILE_EXTENSION}",
-        ));
-        Self(path)
-    }
-
-    pub fn snapshot(host_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
-        let num = u64::MAX - catalog_sequence_number.get();
-        let path = ObjPath::from(format!(
-            "{host_prefix}/catalogs/{num:020}.{CATALOG_SNAPSHOT_FILE_EXTENSION}",
-        ));
-        Self(path)
-    }
-
-    pub fn dir(host_prefix: &str) -> Self {
-        Self(ObjPath::from(format!("{host_prefix}/catalogs")))
-    }
-}
-
-impl Deref for CatalogFilePath {
-    type Target = ObjPath;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<ObjPath> for CatalogFilePath {
-    fn as_ref(&self) -> &ObjPath {
-        &self.0
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -459,14 +413,6 @@ impl TryFrom<ObjPath> for SnapshotInfoFilePath {
 
         Ok(Self(path))
     }
-}
-
-#[test]
-fn catalog_file_path_new() {
-    assert_eq!(
-        *CatalogFilePath::log("my_host", CatalogSequenceNumber::new(0)),
-        ObjPath::from("my_host/catalogs/18446744073709551615.catalog")
-    );
 }
 
 #[test]
