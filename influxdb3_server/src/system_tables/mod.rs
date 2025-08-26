@@ -29,9 +29,14 @@ mod distinct_caches;
 mod generations;
 mod influxdb_schema;
 mod last_caches;
+mod nodes;
 mod parquet_files;
-use crate::system_tables::python_call::{
-    ProcessingEngineLogsTable, ProcessingEngineTriggerArgumentsTable, ProcessingEngineTriggerTable,
+use crate::system_tables::{
+    nodes::NodeSystemTable,
+    python_call::{
+        ProcessingEngineLogsTable, ProcessingEngineTriggerArgumentsTable,
+        ProcessingEngineTriggerTable,
+    },
 };
 mod python_call;
 mod queries;
@@ -48,6 +53,7 @@ pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 pub(crate) const TOKENS_TABLE_NAME: &str = "tokens";
 pub(crate) const DATABASES_TABLE_NAME: &str = "databases";
 pub(crate) const TABLES_TABLE_NAME: &str = "tables";
+pub(crate) const NODES_TABLE_NAME: &str = "nodes";
 pub(crate) const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
 pub(crate) const INFLUXDB_SCHEMA_TABLE_NAME: &str = "influxdb_schema";
 /// The default timezone used in the system schema.
@@ -169,6 +175,12 @@ impl AllSystemSchemaTablesProvider {
                 Arc::new(SystemTableProvider::new(Arc::new(TokenSystemTable::new(
                     Arc::clone(&catalog),
                     started_with_auth,
+                )))),
+            );
+            tables.insert(
+                NODES_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(NodeSystemTable::new(
+                    Arc::clone(&catalog),
                 )))),
             );
             tables.insert(

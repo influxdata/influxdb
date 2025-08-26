@@ -288,6 +288,7 @@ mod tests {
                 4,
                 vec![NodeMode::Core],
                 Arc::clone(&process_uuid_getter),
+                None,
             )
             .await
             .unwrap();

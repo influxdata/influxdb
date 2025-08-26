@@ -22,7 +22,8 @@ expression: v2_catalog.snapshot()
               "registered_time_ns": 1000
             }
           },
-          "core_count": 1
+          "core_count": 1,
+          "cli_params": null
         }
       ]
     ],

@@ -10,12 +10,13 @@ clippy::clone_on_ref_ptr,
 clippy::future_not_send
 )]
 
-use clap::Parser;
+use clap::{CommandFactory, Parser, parser::ValueSource};
 use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::{TokioDatafusionConfig, TokioIoConfig};
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
 use owo_colors::OwoColorize;
+use std::collections::HashMap;
 
 use trogging::{
     TroggingGuard,
@@ -136,7 +137,10 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
     TokioDatafusionConfig::copy_deprecated_env_aliases();
 
     // Note the help code above *must* run before this function call
-    let config = Config::parse_from(args);
+    let config = Config::parse_from(args.clone());
+
+    // Extract user-provided parameters for the serve command
+    let user_params = extract_user_params(&args);
 
     let tokio_runtime = config.runtime_config.builder()?.build()?;
 
@@ -180,7 +184,7 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
             Some(Command::Serve(config)) => {
                 let _tracing_guard =
                     handle_init_logs(init_logs_and_tracing(&config.logging_config));
-                if let Err(e) = commands::serve::command(config).await {
+                if let Err(e) = commands::serve::command(config, user_params).await {
                     eprintln!("Serve command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
@@ -497,4 +501,78 @@ fn init_logs_and_tracing(
 
     let subscriber = Registry::default().with(layers);
     trogging::install_global(subscriber)
+}
+
+/// Extract user-provided parameters from command line arguments
+fn extract_user_params(args: &[String]) -> HashMap<String, String> {
+    let mut params = HashMap::new();
+
+    // Parse the arguments to check if we're in the serve subcommand
+    let matches = match Config::try_parse_from(args) {
+        Ok(config) => {
+            // Check if it's a serve command
+            if matches!(config.command, Some(Command::Serve(_))) {
+                // Re-parse to get ArgMatches for inspection
+                Config::command().try_get_matches_from(args).ok()
+            } else {
+                None
+            }
+        }
+        Err(_) => None,
+    };
+
+    if let Some(matches) = matches {
+        // Check if we're in the serve subcommand
+        if let Some(("serve", sub_matches)) = matches.subcommand() {
+            // Get the serve command metadata
+            let serve_cmd = commands::serve::Config::command();
+
+            // Iterate through all arguments defined in the serve command
+            for arg in serve_cmd.get_arguments() {
+                let id = arg.get_id();
+                let id_str = id.as_str();
+
+                // Only include arguments that were explicitly provided by the user
+                let source = sub_matches.value_source(id_str);
+                if source == Some(ValueSource::CommandLine)
+                    || source == Some(ValueSource::EnvVariable)
+                {
+                    // Get display name (prefer long, then short, then id)
+                    let display_name = arg
+                        .get_long()
+                        .map(|s| s.to_string())
+                        .or_else(|| arg.get_short().map(|c| c.to_string()))
+                        .unwrap_or_else(|| id.to_string());
+
+                    // Skip internal clap arguments
+                    if display_name == "help"
+                        || display_name == "version"
+                        || display_name == "help-all"
+                    {
+                        continue;
+                    }
+
+                    // Get the raw values as strings
+                    if let Some(raw_vals) = sub_matches.get_raw(id_str) {
+                        let values: Vec<String> = raw_vals
+                            .map(|os_str| os_str.to_string_lossy().to_string())
+                            .collect();
+
+                        if values.len() == 1 {
+                            // Single value
+                            params.insert(display_name, values[0].clone());
+                        } else if !values.is_empty() {
+                            // Multiple values - join with comma
+                            params.insert(display_name, values.join(","));
+                        }
+                    } else if sub_matches.get_flag(id_str) {
+                        // Boolean flag without value
+                        params.insert(display_name, "true".to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    params
 }

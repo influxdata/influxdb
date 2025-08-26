@@ -206,8 +206,9 @@ impl Catalog {
         core_count: u64,
         mode: Vec<NodeMode>,
         process_uuid_getter: Arc<dyn ProcessUuidGetter>,
+        cli_params: Option<String>,
     ) -> Result<OrderedCatalogBatch> {
-        info!(node_id, core_count, mode = ?mode, "register node");
+        info!(node_id, core_count, mode = ?mode, cli_params = ?cli_params, "register node");
         let process_uuid = *process_uuid_getter.get_process_uuid();
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
@@ -251,6 +252,7 @@ impl Catalog {
                     core_count,
                     mode: mode.clone(),
                     process_uuid,
+                    cli_params: cli_params.clone(),
                 })],
             ))
         })

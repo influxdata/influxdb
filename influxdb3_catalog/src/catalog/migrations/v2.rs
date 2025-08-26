@@ -110,6 +110,7 @@ fn migrate_nodes(from: &v1::InnerCatalog, v2_inner: &mut InnerCatalog) {
                     v2::NodeState::Stopped { stopped_time_ns }
                 }
             },
+            cli_params: None, // v1 catalog doesn't have cli_params
         };
         v2_inner
             .nodes
