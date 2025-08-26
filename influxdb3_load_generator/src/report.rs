@@ -360,7 +360,7 @@ impl SystemStatsReporter {
         let csv_writer = Mutex::new(csv::Writer::from_writer(csv_file));
         let mut system = System::new_all();
         let mut processes = system
-            .processes_by_exact_name(INFLUXDB3_PROCESS_NAME)
+            .processes_by_exact_name(INFLUXDB3_PROCESS_NAME.as_ref())
             .collect::<Vec<&Process>>();
         if processes.is_empty() {
             bail!("there is no '{}' process", INFLUXDB3_PROCESS_NAME);
@@ -373,7 +373,7 @@ impl SystemStatsReporter {
         }
         let pid = processes.pop().unwrap().pid();
         // refresh the system stats for the process to initialize the baseline:
-        system.refresh_pids(&[pid]);
+        system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
         Ok(Self {
             pid,
             system: Mutex::new(system),
@@ -387,9 +387,10 @@ impl SystemStatsReporter {
 
         loop {
             let mut system = self.system.lock();
-            system.refresh_pids_specifics(
-                &[self.pid],
-                ProcessRefreshKind::new()
+            system.refresh_processes_specifics(
+                sysinfo::ProcessesToUpdate::Some(&[self.pid]),
+                true,
+                ProcessRefreshKind::nothing()
                     .with_cpu()
                     .with_memory()
                     .with_disk_usage(),

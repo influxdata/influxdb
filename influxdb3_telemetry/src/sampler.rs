@@ -33,9 +33,10 @@ impl SystemInfoProvider for SystemInfo {
     /// This method picks the memory and cpu usage for this process using the
     /// pid.
     fn refresh_metrics(&mut self, pid: Pid) {
-        self.system.refresh_pids_specifics(
-            &[pid],
-            ProcessRefreshKind::new()
+        self.system.refresh_processes_specifics(
+            sysinfo::ProcessesToUpdate::Some(&[pid]),
+            true,
+            ProcessRefreshKind::nothing()
                 .with_cpu()
                 .with_memory()
                 .with_disk_usage(),
