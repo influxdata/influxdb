@@ -288,16 +288,16 @@ impl TableFunctionImpl for DistinctCacheFunction {
 ///
 /// For a query that does not provide any predicates, or one that does provide predicates, but they
 /// do no get pushed down, the `EXPLAIN` for said query will contain a line for the `DistinctCacheExec`
-/// with no predicates, including what is emitted by the inner `MemoryExec`:
+/// with no predicates, including what is emitted by the inner `DataSourceExec`:
 ///
 /// ```text
-/// DistinctCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]
+/// DistinctCacheExec: inner=DataSourceExec: partitions=1, partition_sizes=[1]
 /// ```
 ///
 /// For queries that do have predicates that get pushed down, the output will include them, e.g.:
 ///
 /// ```text
-/// DistinctCacheExec: predicates=[[0 IN (us-east)], [1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]
+/// DistinctCacheExec: predicates=[[0 IN (us-east)], [1 IN (a,b)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]
 /// ```
 #[derive(Debug)]
 struct DistinctCacheExec {
@@ -394,8 +394,8 @@ impl ExecutionPlan for DistinctCacheExec {
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // (copied from MemoryExec):
-        // MemoryExec has no children
+        // (copied from DataSourceExec):
+        // DataSourceExec has no children
         if children.is_empty() {
             Ok(self)
         } else {

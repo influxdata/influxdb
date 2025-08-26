@@ -363,10 +363,10 @@ impl TableFunctionImpl for LastCacheFunction {
 ///
 /// For a query that does not provide any predicates, or one that does provide predicates, but they
 /// do not get pushed down, the `EXPLAIN` for said query will contain a line for the `LastCacheExec`
-/// with no predicates, as well as the info emitted for the inner `MemoryExec`, e.g.,
+/// with no predicates, as well as the info emitted for the inner `DataSourceExec`, e.g.,
 ///
 /// ```text
-/// LastCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[12]
+/// LastCacheExec: inner=DataSourceExec: partitions=1, partition_sizes=[12]
 /// ```
 ///
 /// For queries that do have predicates that get pushed down, the output will include them, e.g.,
@@ -448,8 +448,8 @@ impl ExecutionPlan for LastCacheExec {
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
-        // (copied from MemoryExec):
-        // MemoryExec has no children
+        // (copied from DataSourceExec):
+        // DataSourceExec has no children
         if children.is_empty() {
             Ok(self)
         } else {
