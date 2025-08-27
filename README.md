@@ -66,3 +66,32 @@ The open source software we build is licensed under the permissive MIT or Apache
 
 ## Interested in joining the team building InfluxDB?
 Check out current job openings at [www.influxdata.com/careers](https://www.influxdata.com/careers) today!
+
+
+<!-- GitHub Frontend Bot Testing Improvement Contribution -->
+
+This comment was added by GitHub Frontend Bot as part of a testing infrastructure improvement initiative.
+
+**Suggested Testing Improvements:**
+
+**Recommended Testing Stack:**
+- **Built-in testing** - Rust's native `#[test]`
+- **assert_matches** - Pattern matching in tests
+- **proptest** - Property-based testing
+- **criterion** - Benchmarking
+
+**Example:**
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}
+```
+
+---
+*Generated on 2025-08-27T17:03:18.189Z*
