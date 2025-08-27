@@ -256,12 +256,15 @@ func (s *Store) autogenerateHasher(ctx context.Context, variantName string) (*Au
 	}
 
 	var decoderVariants []influxdb2_algo.Variant
-	// Make sure we have the hasher variant we will make in there and that it is first in the list.
+	// Make sure we have the hasher variant we will make in there and that it is first in the list,
+	// so that it is the first one we try to lookup a given token.
 	hasherVariant := influxdb2_algo.NewVariant(variantName)
 	decoderVariants = append(decoderVariants, hasherVariant)
-	delete(foundVariants, hasherVariant)
 	for variant := range foundVariants {
-		decoderVariants = append(decoderVariants, variant)
+		// Avoid having 2 hasherVariant decoders.
+		if variant != hasherVariant {
+			decoderVariants = append(decoderVariants, variant)
+		}
 	}
 
 	hasher, err := NewAuthorizationHasher(WithHasherVariant(hasherVariant), WithDecoderVariants(decoderVariants))

@@ -59,8 +59,9 @@ func (h *Hasher) Hash(password string) (hashed algorithm.Digest, err error) {
 	return d, nil
 }
 
-// HashWithSalt is an overload of plaintext.Digest that also accepts a salt.
-func (h *Hasher) HashWithSalt(password string, _ []byte) (hashed algorithm.Digest, err error) {
+// HashWithSalt is an overload of Hasher.Digest that also accepts a salt. The salt is ignored since we can't support
+// salted hashes because we need to lookup the auth record by the token.
+func (h *Hasher) HashWithSalt(password string, salt []byte) (hashed algorithm.Digest, err error) {
 	return h.Hash(password)
 }
 
