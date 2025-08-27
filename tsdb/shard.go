@@ -477,7 +477,7 @@ func (s *Shard) LastModifiedWithErr() (time.Time, error) {
 func (s *Shard) TimeRange() (int64, int64, error) {
 	engine, err := s.Engine()
 	if err != nil {
-		return int64(0), int64(0), fmt.Errorf("failed getting shard time range: %w", err)
+		return int64(0), int64(0), fmt.Errorf("failed getting shard %d time range: %w", s.id, err)
 	}
 
 	minT, maxT := engine.TimeRange()
