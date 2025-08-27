@@ -6,6 +6,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"os"
 	"runtime"
 	"sort"
@@ -100,7 +101,8 @@ type Monitor struct {
 	// TSDB configuration for diagnostics
 	TSDBConfig *tsdb.Config
 
-	Logger *zap.Logger
+	Logger  *zap.Logger
+	Limiter limiter.Rate
 }
 
 // PointsWriter is a simplified interface for writing the points the monitor gathers.
@@ -150,6 +152,16 @@ func (m *Monitor) Open() error {
 	m.RegisterDiagnosticsClient("runtime", &goRuntime{})
 	m.RegisterDiagnosticsClient("network", &network{})
 	m.RegisterDiagnosticsClient("system", &system{})
+
+	if m.Limiter != nil {
+		m.RegisterDiagnosticsClient("stats", &stats{
+			comp: compactThroughputStats{
+				limiter: m.Limiter,
+				burst:   m.Limiter.Burst(),
+			},
+		})
+	}
+
 	if m.TSDBConfig != nil {
 		m.RegisterDiagnosticsClient("config", m.TSDBConfig)
 	}
@@ -200,6 +212,12 @@ func (m *Monitor) writePoints(p models.Points) error {
 	return nil
 }
 
+func (m *Monitor) WithLimiter(limiter limiter.Rate) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Limiter = limiter
+}
+
 // Close closes the monitor system.
 func (m *Monitor) Close() error {
 	if !m.open() {
@@ -222,6 +240,8 @@ func (m *Monitor) Close() error {
 	m.DeregisterDiagnosticsClient("runtime")
 	m.DeregisterDiagnosticsClient("network")
 	m.DeregisterDiagnosticsClient("system")
+	m.DeregisterDiagnosticsClient("stats")
+	m.DeregisterDiagnosticsClient("config")
 	return nil
 }
 
