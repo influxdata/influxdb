@@ -16,7 +16,6 @@ use observability_deps::tracing::info;
 use schema::InfluxColumnType;
 use std::borrow::Cow;
 use std::sync::Arc;
-use uuid::Uuid;
 
 #[allow(dead_code)]
 pub(super) fn migrate(from: &v1::InnerCatalog) -> crate::Result<v2::InnerCatalog> {
@@ -24,7 +23,7 @@ pub(super) fn migrate(from: &v1::InnerCatalog) -> crate::Result<v2::InnerCatalog
 
     // Take the inner catalog from a newly constructed v2::Catalog, which ensures it is in a
     // consistent state, including invariants such as creating the internal database.
-    let mut v2_inner = InnerCatalog::new(Arc::clone(&from.catalog_id), Uuid::new_v4());
+    let mut v2_inner = InnerCatalog::new(Arc::clone(&from.catalog_id), from.catalog_uuid);
 
     // 1. Migrate tokens and token permissions
     v2_inner.tokens = from.tokens.clone();
@@ -378,6 +377,20 @@ mod tests {
 
         // Verify only the internal database exists
         assert_eq!(v2_catalog.databases.len(), 1); // Only _internal database
+    }
+
+    #[tokio::test]
+    async fn test_migrate_preserves_catalog_uuid() {
+        let v1_catalog = create_v1_catalog().await;
+        let v1_uuid = v1_catalog.catalog_uuid();
+
+        let v2_catalog = migrate(&v1_catalog.inner.read()).unwrap();
+
+        // Verify catalog UUID is preserved during migration
+        assert_eq!(
+            v2_catalog.catalog_uuid, v1_uuid,
+            "catalog UUID should be preserved during v1 to v2 migration"
+        );
     }
 
     mod tokens {
