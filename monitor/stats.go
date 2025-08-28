@@ -1,6 +1,8 @@
 package monitor
 
 import (
+	"math"
+
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/pkg/limiter"
 )
@@ -20,7 +22,8 @@ func (s *stats) CompactThroughputUsage() float64 {
 		return 0.0
 	}
 	available := s.comp.limiter.Tokens()
-	return ((float64(s.comp.burst) - available) / float64(s.comp.burst)) * 100
+	percentage := ((float64(s.comp.burst) - available) / float64(s.comp.burst)) * 100
+	return math.Round(percentage*10) / 10
 }
 
 func (s *stats) Diagnostics() (*diagnostics.Diagnostics, error) {
