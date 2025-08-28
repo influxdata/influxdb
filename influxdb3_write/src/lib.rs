@@ -37,7 +37,7 @@ use iox_time::Time;
 use observability_deps::tracing::debug;
 use schema::TIME_COLUMN_NAME;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -59,6 +59,22 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Returns a standard retry configuration for ObjectStore operations.
+pub fn standard_retry_config() -> backon::ExponentialBuilder {
+    backon::ExponentialBuilder::default()
+        .with_min_delay(Duration::from_millis(50))
+        .with_max_delay(Duration::from_secs(2))
+        .with_max_times(5)
+}
+
+/// Returns a quick retry configuration for ObjectStore operations.
+pub fn quick_retry_config() -> backon::ExponentialBuilder {
+    backon::ExponentialBuilder::default()
+        .with_min_delay(Duration::from_millis(50))
+        .with_max_delay(Duration::from_secs(2))
+        .with_max_times(2)
+}
 
 pub trait WriteBuffer: Bufferer + ChunkContainer + DistinctCacheManager + LastCacheManager {}
 

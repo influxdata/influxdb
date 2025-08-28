@@ -1,9 +1,10 @@
 use std::{collections::BTreeSet, sync::Arc};
 
+use backon::Retryable;
 use futures::{StreamExt, stream::FuturesOrdered};
 use hashbrown::{HashMap, HashSet};
 use object_store::ObjectStore;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, warn};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::Semaphore;
@@ -166,8 +167,21 @@ impl TableIndexSnapshot {
         );
 
         let json = serde_json::to_vec_pretty(self).map_err(TableIndexError::Json)?;
-        object_store
-            .put(path.as_ref(), json.into())
+
+        let put_op = || async { object_store.put(path.as_ref(), json.clone().into()).await };
+
+        put_op
+            .retry(crate::standard_retry_config())
+            .notify(|err, dur| {
+                warn!(
+                    error = %err,
+                    retry_after_ms = dur.as_millis(),
+                    path = %path.as_ref(),
+                    table_id = %self.id.table_id(),
+                    snapshot_seq = %self.snapshot_sequence_number,
+                    "Retrying table index snapshot persist after error"
+                );
+            })
             .await
             .map_err(TableIndexError::ObjectStore)?;
         Ok(())
@@ -179,13 +193,22 @@ impl TableIndexSnapshot {
         location: SnapshotInfoFilePath,
     ) -> Result<()> {
         debug!(?location, "loading persisted snapshot from object store");
-        let bytes = object_store
-            .get(location.as_ref())
-            .await
-            .map_err(TableIndexError::ObjectStore)?
-            .bytes()
+
+        let get_op = || async { object_store.get(location.as_ref()).await?.bytes().await };
+
+        let bytes = get_op
+            .retry(crate::standard_retry_config())
+            .notify(|err, dur| {
+                warn!(
+                    error = %err,
+                    retry_after_ms = dur.as_millis(),
+                    location = %location.as_ref(),
+                    "Retrying persisted snapshot load after error"
+                );
+            })
             .await
             .map_err(TableIndexError::ObjectStore)?;
+
         let snapshot: PersistedSnapshotVersion =
             serde_json::from_slice(&bytes).map_err(TableIndexError::Json)?;
 
@@ -267,8 +290,20 @@ impl CoreTableIndex {
         );
 
         let json = serde_json::to_vec_pretty(self).map_err(TableIndexError::SerializeIndex)?;
-        object_store
-            .put(path.as_ref(), json.into())
+
+        let put_op = || async { object_store.put(path.as_ref(), json.clone().into()).await };
+
+        put_op
+            .retry(crate::standard_retry_config())
+            .notify(|err, dur| {
+                warn!(
+                    error = %err,
+                    retry_after_ms = dur.as_millis(),
+                    path = %path.as_ref(),
+                    table_id = %self.id.table_id(),
+                    "Retrying core table index persist after error"
+                );
+            })
             .await
             .map_err(TableIndexError::PersistIndex)?;
         Ok(())
@@ -281,13 +316,23 @@ impl CoreTableIndex {
         let mut found = false;
 
         // Try to load existing CoreTableIndex from object store
-        let mut table_index = match object_store.get(path.as_ref()).await {
-            Ok(get_result) => {
+        let get_op = || async { object_store.get(path.as_ref()).await?.bytes().await };
+
+        let mut table_index = match get_op
+            .retry(crate::standard_retry_config())
+            .notify(|err, dur| {
+                warn!(
+                    error = %err,
+                    retry_after_ms = dur.as_millis(),
+                    path = %path.as_ref(),
+                    table_id = %path.full_table_id(),
+                    "Retrying table index load from object store after error"
+                );
+            })
+            .await
+        {
+            Ok(index_bytes) => {
                 found = true;
-                let index_bytes = get_result
-                    .bytes()
-                    .await
-                    .map_err(TableIndexError::LoadIndex)?;
                 serde_json::from_slice(&index_bytes).map_err(TableIndexError::DeserializeIndex)?
             }
             Err(object_store::Error::NotFound { .. }) => {
@@ -311,8 +356,20 @@ impl CoreTableIndex {
         if !found {
             let json = serde_json::to_vec_pretty(&table_index)
                 .map_err(TableIndexError::DeserializeIndex)?;
-            object_store
-                .put(path.as_ref(), json.into())
+
+            let put_op = || async { object_store.put(path.as_ref(), json.clone().into()).await };
+
+            put_op
+                .retry(crate::standard_retry_config())
+                .notify(|err, dur| {
+                    warn!(
+                        error = %err,
+                        retry_after_ms = dur.as_millis(),
+                        path = %path.as_ref(),
+                        table_id = %table_index.id,
+                        "Retrying initial table index persist after error"
+                    );
+                })
                 .await
                 .map_err(TableIndexError::PersistIndex)?;
         }
@@ -332,11 +389,27 @@ impl CoreTableIndex {
         );
 
         // List all snapshots for this table
-        let list_result = object_store.list(Some(&prefix)).collect::<Vec<_>>().await;
+        // Note: list returns a stream, so we need to collect and handle errors properly
+        let list_op = || async {
+            let results = object_store.list(Some(&prefix)).collect::<Vec<_>>().await;
+            // Convert Vec<Result<ObjectMeta, Error>> to Result<Vec<ObjectMeta>, Error>
+            results
+                .into_iter()
+                .collect::<std::result::Result<Vec<_>, _>>()
+        };
 
-        let objects = list_result
-            .into_iter()
-            .collect::<std::result::Result<Vec<_>, _>>()
+        let objects = list_op
+            .retry(crate::standard_retry_config())
+            .notify(|err, dur| {
+                warn!(
+                    error = %err,
+                    retry_after_ms = dur.as_millis(),
+                    prefix = %prefix,
+                    table_id = %self.id.table_id(),
+                    "Retrying list table index snapshots after error"
+                );
+            })
+            .await
             .map_err(TableIndexError::ListSnapshots)?;
 
         // Filter and collect snapshots newer than our current sequence number
@@ -371,11 +444,20 @@ impl CoreTableIndex {
 
             futures.push_back(async move {
                 let _permit = sem.acquire().await.unwrap();
-                let snapshot_bytes = store
-                    .get(&location)
-                    .await
-                    .map_err(TableIndexError::LoadSnapshot)?
-                    .bytes()
+
+                let get_op = || async { store.get(&location).await?.bytes().await };
+
+                let snapshot_bytes = get_op
+                    .retry(crate::standard_retry_config())
+                    .notify(|err, dur| {
+                        warn!(
+                            error = %err,
+                            retry_after_ms = dur.as_millis(),
+                            location = %location,
+                            sequence = %sequence,
+                            "Retrying table index snapshot load after error"
+                        );
+                    })
                     .await
                     .map_err(TableIndexError::LoadSnapshot)?;
 
@@ -410,8 +492,20 @@ impl CoreTableIndex {
             self.id.table_id().get(),
         );
         let json = serde_json::to_vec_pretty(self).map_err(TableIndexError::DeserializeIndex)?;
-        object_store
-            .put(path.as_ref(), json.into())
+
+        let put_op = || async { object_store.put(path.as_ref(), json.clone().into()).await };
+
+        put_op
+            .retry(crate::standard_retry_config())
+            .notify(|err, dur| {
+                warn!(
+                    error = %err,
+                    retry_after_ms = dur.as_millis(),
+                    path = %path.as_ref(),
+                    table_id = %self.id.table_id(),
+                    "Retrying updated table index persist after error"
+                );
+            })
             .await
             .map_err(TableIndexError::PersistIndex)?;
 
@@ -422,8 +516,18 @@ impl CoreTableIndex {
                 let store = Arc::clone(&object_store);
                 let location = meta.location;
                 async move {
-                    store
-                        .delete(&location)
+                    let delete_op = || async { store.delete(&location).await };
+
+                    delete_op
+                        .retry(crate::standard_retry_config())
+                        .notify(|err, dur| {
+                            warn!(
+                                error = %err,
+                                retry_after_ms = dur.as_millis(),
+                                location = %location,
+                                "Retrying merged snapshot delete after error"
+                            );
+                        })
                         .await
                         .map_err(TableIndexError::DeleteSnapshot)
                 }

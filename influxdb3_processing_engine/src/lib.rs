@@ -978,8 +978,8 @@ mod tests {
         let metric_registry = Arc::new(Registry::new());
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
-            "test_host",
-            Arc::clone(&time_provider) as _,
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
         ));
         let catalog = Arc::new(
             Catalog::new(

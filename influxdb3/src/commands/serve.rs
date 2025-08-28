@@ -31,7 +31,7 @@ use influxdb3_server::{
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
     serve, serve_admin_token_recovery_endpoint,
 };
-use influxdb3_shutdown::{ShutdownManager, wait_for_signal};
+use influxdb3_shutdown::{ShutdownManager, ShutdownToken, wait_for_signal};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::{
     ProcessingEngineMetrics,
@@ -831,22 +831,6 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         concurrency_limit: config.table_index_cache_concurrency_limit,
     };
 
-    let table_index_cache = TableIndexCache::new(
-        config.node_identifier_prefix.clone(),
-        table_index_cache_config,
-        Arc::clone(&object_store),
-    );
-
-    // Initialize table index cache from any existing snapshots
-    //
-    // This needs to happen before WAL snapshotting, retention handling, or hard deletion could
-    // begin executing so we have a quiescent time during which we can transform
-    // `PersistedSnapshot` to `TableIndexSnapshot` to `TableIndex` to completion.
-    table_index_cache
-        .initialize()
-        .await
-        .map_err(Error::TableIndexCacheInitialization)?;
-
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         config.node_identifier_prefix.as_str(),
@@ -866,6 +850,19 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     .map_err(Error::InitializeCatalog)?;
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
 
+    let retention_handler_token = shutdown_manager.register();
+    let _table_index_cache = initialize_table_index_cache(
+        config.node_identifier_prefix.clone(),
+        config.retention_check_interval.into(),
+        table_index_cache_config,
+        Arc::clone(&object_store),
+        Arc::clone(&catalog),
+        Arc::clone(&time_provider) as _,
+        retention_handler_token,
+    )
+    .await
+    .unwrap_or(None);
+
     // Initialize tokens from files if provided and auth is enabled
     if !config.without_auth {
         // Initialize admin token from file if provided
@@ -876,22 +873,6 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
             return Err(e);
         }
     }
-
-    // Create and start the retention period handler
-    let retention_handler = Arc::new(RetentionPeriodHandler::new(
-        table_index_cache,
-        Arc::clone(&catalog),
-        Arc::clone(&time_provider) as _,
-        config.retention_check_interval.into(),
-        config.node_identifier_prefix.clone(),
-    ));
-
-    let retention_handler_token = shutdown_manager.register();
-    tokio::spawn(async move {
-        retention_handler
-            .background_task(retention_handler_token)
-            .await
-    });
 
     // Capture and filter CLI parameters
     let cli_params = cli_params::capture_cli_params(user_params);
@@ -1314,6 +1295,59 @@ fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
 
     // If neither is available, return DisabledManager
     Arc::new(DisabledManager)
+}
+
+async fn initialize_table_index_cache(
+    node_id: String,
+    retention_check_interval: Duration,
+    table_index_cache_config: TableIndexCacheConfig,
+    object_store: Arc<dyn ObjectStore>,
+    catalog: Arc<Catalog>,
+    time_provider: Arc<dyn TimeProvider>,
+    retention_handler_token: ShutdownToken,
+) -> Result<Option<TableIndexCache>> {
+    let table_index_cache = TableIndexCache::new(
+        node_id.clone(),
+        table_index_cache_config,
+        Arc::clone(&object_store),
+    );
+
+    info!(
+        node_id = node_id.clone(),
+        max_entries = ?table_index_cache_config.max_entries,
+        concurrency_limit = table_index_cache_config.concurrency_limit,
+        "Initializing table index cache"
+    );
+
+    // Initialize table index cache from any existing snapshots
+    //
+    // This needs to happen before WAL snapshotting, retention handling, or hard deletion could
+    // begin executing so we have a quiescent time during which we can transform
+    // `PersistedSnapshot` to `TableIndexSnapshot` to `TableIndex` to completion.
+    table_index_cache.initialize().await.map_err(|e| {
+        warn!("Failed to initialize table index cache: {}", e);
+        Error::WriteBufferInit(anyhow::anyhow!(
+            "Failed to initialize table index cache: {}",
+            e
+        ))
+    })?;
+
+    // Create and start the retention period handler
+    let retention_handler = Arc::new(RetentionPeriodHandler::new(
+        table_index_cache.clone(),
+        Arc::clone(&catalog),
+        Arc::clone(&time_provider) as _,
+        retention_check_interval,
+        node_id.to_string(),
+    ));
+
+    tokio::spawn(async move {
+        retention_handler
+            .background_task(retention_handler_token)
+            .await
+    });
+
+    Ok(Some(table_index_cache))
 }
 
 struct TelemetryStoreSetupArgs<'a> {
