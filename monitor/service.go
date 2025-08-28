@@ -161,7 +161,6 @@ func (m *Monitor) Open() error {
 			},
 		})
 	}
-	m.Logger.Info("stats burst", zap.Int("burst", m.Limiter.Burst()))
 
 	if m.TSDBConfig != nil {
 		m.RegisterDiagnosticsClient("config", m.TSDBConfig)
