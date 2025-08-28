@@ -2336,7 +2336,7 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 					statsMap[col] = val.Rows[0][i]
 				}
 			}
-			
+
 			data, err := json.Marshal(statsMap)
 			if err != nil {
 				h.httpError(w, err.Error(), http.StatusInternalServerError)

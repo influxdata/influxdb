@@ -6,7 +6,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"github.com/influxdata/influxdb/pkg/limiter"
 	"os"
 	"runtime"
 	"sort"
@@ -17,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -161,6 +161,7 @@ func (m *Monitor) Open() error {
 			},
 		})
 	}
+	m.Logger.Info("stats burst", zap.Int("burst", m.Limiter.Burst()))
 
 	if m.TSDBConfig != nil {
 		m.RegisterDiagnosticsClient("config", m.TSDBConfig)
