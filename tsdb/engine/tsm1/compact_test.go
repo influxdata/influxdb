@@ -4492,6 +4492,103 @@ func TestEnginePlanCompactions(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Mixed generations with varying file sizes",
+			files: []tsm1.ExtFileStat{
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016684-000000007.tsm",
+						Size: 2147483648, // 2.1GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016684-000000008.tsm",
+						Size: 2147483648, // 2.1GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016684-000000009.tsm",
+						Size: 2147483648, // 2.1GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016684-000000010.tsm",
+						Size: 394264576, // 376MB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016812-000000004.tsm",
+						Size: 2147483648, // 2.1GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016812-000000005.tsm",
+						Size: 1503238553, // 1.4GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016844-000000002.tsm",
+						Size: 1395864371, // 1.3GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016948-000000004.tsm",
+						Size: 2147483648, // 2.1GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000016948-000000005.tsm",
+						Size: 1503238553, // 1.4GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000017076-000000004.tsm",
+						Size: 2147483648, // 2.1GB
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+			},
+			testShardTime: -1,
+			expectedResult: func() testLevelResults {
+				return testLevelResults{
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
+								"000016684-000000007.tsm",
+								"000016684-000000008.tsm",
+								"000016684-000000009.tsm",
+								"000016684-000000010.tsm",
+								"000016812-000000004.tsm",
+								"000016812-000000005.tsm",
+								"000016844-000000002.tsm",
+								"000016948-000000004.tsm",
+								"000016948-000000005.tsm",
+								"000017076-000000004.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
+			},
+		},
 	}
 
 	e, err := NewEngine(tsdb.InmemIndexName)
