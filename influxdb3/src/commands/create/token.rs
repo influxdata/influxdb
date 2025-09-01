@@ -291,9 +291,12 @@ impl CreateTokenConfig {
 
 impl FromArgMatches for CreateTokenConfig {
     fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
-        let admin_subcmd_matches = matches
-            .subcommand_matches("--admin")
-            .expect("--admin must be present");
+        let admin_subcmd_matches = matches.subcommand_matches("--admin").ok_or_else(|| {
+            ClapError::raw(
+                ErrorKind::MissingSubcommand,
+                "Missing required subcommand. Use: influxdb3 create token --admin [OPTIONS]\n",
+            )
+        })?;
         let name = admin_subcmd_matches.get_one::<String>("name");
         let regenerate = admin_subcmd_matches
             .get_one::<bool>("regenerate")
