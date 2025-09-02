@@ -3578,3 +3578,51 @@ fn assert_object_store_error_msg(error_output: Vec<u8>, full_command: &str) {
   --object-store <object-store>"
     );
 }
+
+#[test_log::test]
+fn test_create_token_requires_subcommand() {
+    // Test that 'create token' command shows help instead of panicking when no subcommand is provided
+    let output = assert_cmd::Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(["create", "token"])
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    // Should show our custom error message
+    assert_contains!(&stderr, "Missing required subcommand");
+    assert_contains!(&stderr, "Use: influxdb3 create token --admin");
+
+    // Should not have panic messages in stderr
+    assert_not_contains!(&stderr, "panic");
+    assert_not_contains!(&stderr, "thread 'main' panicked");
+
+    // Test that --name alone also shows the error
+    let output_name_only = assert_cmd::Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(["create", "token", "--name", "test"])
+        .output()
+        .unwrap();
+
+    let stderr_name_only = String::from_utf8(output_name_only.stderr).unwrap();
+
+    assert_contains!(
+        &stderr_name_only,
+        "error: unexpected argument '--name' found"
+    );
+
+    // Test that --help works properly (help goes to stdout when explicitly requested)
+    let output_help = assert_cmd::Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(["create", "token", "--help"])
+        .output()
+        .unwrap();
+
+    let stdout_help = String::from_utf8(output_help.stdout).unwrap();
+
+    // Should show the help information
+    assert_contains!(&stdout_help, "Create a new auth token");
+    assert_contains!(&stdout_help, "Usage: influxdb3 create token");
+    assert_contains!(&stdout_help, "--admin");
+}
