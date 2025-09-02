@@ -4500,21 +4500,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016684-000000007.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 456,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000008.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 623,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000009.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 389,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4528,7 +4528,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016812-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 734,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4549,7 +4549,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016948-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 245,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4563,7 +4563,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000017076-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 567,
 				},
 			},
 			testShardTime: -1,
@@ -4597,21 +4597,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016684-000000007.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 347,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000008.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 523,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000009.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 681,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4625,7 +4625,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016812-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 254,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4653,7 +4653,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016948-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 412,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4667,7 +4667,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000017076-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 756,
 				},
 			},
 			testShardTime: -1,
@@ -4702,21 +4702,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016684-000000007.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 189,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000008.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 635,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000009.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 298,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4730,7 +4730,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016812-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 573,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4765,7 +4765,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016948-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 721,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4779,7 +4779,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000017076-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 463,
 				},
 			},
 			testShardTime: -1,
@@ -4815,21 +4815,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016684-000000007.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 700,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000008.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 800,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000009.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 378,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4843,7 +4843,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016812-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 723,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4885,7 +4885,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016948-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 800,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4899,7 +4899,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000017076-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 800,
 				},
 			},
 			testShardTime: -1,
@@ -4943,21 +4943,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016684-000000007.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 156,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000008.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 693,
 				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "000016684-000000009.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 425,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -4971,7 +4971,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016812-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 784,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -5020,7 +5020,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000016948-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 218,
 				},
 				{
 					FileStat: tsm1.FileStat{
@@ -5034,7 +5034,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 						Path: "000017076-000000004.tsm",
 						Size: 2147483648, // 2.1GB
 					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+					FirstBlockCount: 542,
 				},
 			},
 			testShardTime: -1,
