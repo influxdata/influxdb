@@ -4565,11 +4565,39 @@ func TestEnginePlanCompactions(t *testing.T) {
 					},
 					FirstBlockCount: 567,
 				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000017094-000000004.tsm",
+						Size: 2147483648, // 2.1GB
+					},
+					FirstBlockCount: 245,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000017095-000000005.tsm",
+						Size: 1503238553, // 1.4GB
+					},
+					FirstBlockCount: 334,
+				},
 			},
 			testShardTime: -1,
 			expectedResult: func() testLevelResults {
 				return testLevelResults{
+					// Our rogue level 2 file should be picked up in the full compaction
 					level4Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
+								"000016844-000000002.tsm",
+								"000016948-000000004.tsm",
+								"000016948-000000005.tsm",
+								"000017076-000000004.tsm",
+								"000017094-000000004.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					// Other files should get picked up by optimize compaction
+					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								"000016684-000000007.tsm",
@@ -4578,10 +4606,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
-								"000016844-000000002.tsm",
-								"000016948-000000004.tsm",
-								"000016948-000000005.tsm",
-								"000017076-000000004.tsm",
+								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -4676,17 +4701,25 @@ func TestEnginePlanCompactions(t *testing.T) {
 					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
+								"000016844-000000002.tsm",
+								"000016845-000000002.tsm",
+								"000016948-000000004.tsm",
+								"000016948-000000005.tsm",
+								"000017076-000000004.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					// Other files should get picked up by optimize compaction
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
 								"000016684-000000007.tsm",
 								"000016684-000000008.tsm",
 								"000016684-000000009.tsm",
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
-								"000016844-000000002.tsm",
-								"000016845-000000002.tsm",
-								"000016948-000000004.tsm",
-								"000016948-000000005.tsm",
-								"000017076-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -4788,17 +4821,25 @@ func TestEnginePlanCompactions(t *testing.T) {
 					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
+								"000016844-000000002.tsm",
+								"000016845-000000002.tsm",
+								"000016846-000000002.tsm",
+								"000016948-000000004.tsm",
+								"000016948-000000005.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					// Other files should get picked up by optimize compaction
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
 								"000016684-000000007.tsm",
 								"000016684-000000008.tsm",
 								"000016684-000000009.tsm",
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
-								"000016844-000000002.tsm",
-								"000016845-000000002.tsm",
-								"000016846-000000002.tsm",
-								"000016948-000000004.tsm",
-								"000016948-000000005.tsm",
 								"000017076-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
@@ -5036,10 +5077,25 @@ func TestEnginePlanCompactions(t *testing.T) {
 					},
 					FirstBlockCount: 542,
 				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000017094-000000005.tsm",
+						Size: 1503238553, // 1.4GB
+					},
+					FirstBlockCount: 253,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "000017095-000000004.tsm",
+						Size: 2147483648, // 2.1GB
+					},
+					FirstBlockCount: 542,
+				},
 			},
 			testShardTime: -1,
 			expectedResult: func() testLevelResults {
 				return testLevelResults{
+					// First group of 4 level 2 files gets picked up for compaction
 					level2Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
@@ -5054,17 +5110,26 @@ func TestEnginePlanCompactions(t *testing.T) {
 					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
+								// Lone 5th level 2 file gets picked up by full planner
+								"000016848-000000002.tsm",
+								"000016948-000000004.tsm",
+								"000016948-000000005.tsm",
+								"000017076-000000004.tsm",
+								"000017094-000000005.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
 								"000016684-000000007.tsm",
 								"000016684-000000008.tsm",
 								"000016684-000000009.tsm",
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
-								// Notice that the level 2 file gets picked up here from the 5
-								"000016848-000000002.tsm",
-								"000016948-000000004.tsm",
-								"000016948-000000005.tsm",
-								"000017076-000000004.tsm",
+								"000017095-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},

@@ -581,7 +581,9 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	end := 0
 	start := 0
 	for i, g := range generations {
-		if g.level() <= 3 {
+		// 4 is used as the step size for our planned compactions, if there are 4 files
+		// in this generation it will get picked up by a level compaction
+		if g.level() <= 3 && len(g.files) > 4 {
 			break
 		}
 		end = i + 1
@@ -640,7 +642,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 			// Skip compacting this group if there happens to be any lower level files in the
 			// middle.  These will get picked up by the level compactors.
-			if lvl <= 3 {
+			if lvl <= 3 && len(gen.files) > 4 {
 				skipGroup = true
 				break
 			}
