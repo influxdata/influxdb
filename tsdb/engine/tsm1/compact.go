@@ -476,8 +476,7 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 		levelGroups = append(levelGroups, groups...)
 	} else {
 		for _, cur := range groups {
-			// We need to account for potentially orphaned lower level TSM files
-			if cur.level() == 4 || cur.Len() < 2 {
+			if cur.level() == 4 {
 				levelGroups = append(levelGroups, cur)
 			}
 		}
