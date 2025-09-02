@@ -97,6 +97,8 @@ pub struct TestConfig {
     gen1_duration: Option<String>,
     capture_logs: bool,
     enable_recovery_endpoint: bool,
+    admin_token_file: Option<String>,
+    permission_tokens_file: Option<String>,
 }
 
 impl TestConfig {
@@ -184,6 +186,18 @@ impl TestConfig {
         self.capture_logs = true;
         self
     }
+
+    /// Set the admin token file path for this [`TestServer`]
+    pub fn with_admin_token_file<S: Into<String>>(mut self, path: S) -> Self {
+        self.admin_token_file = Some(path.into());
+        self
+    }
+
+    /// Set the permission tokens file path for this [`TestServer`]
+    pub fn with_permission_tokens_file<S: Into<String>>(mut self, path: S) -> Self {
+        self.permission_tokens_file = Some(path.into());
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -239,6 +253,20 @@ impl ConfigProvider for TestConfig {
             args.append(&mut vec![
                 "--gen1-duration".to_string(),
                 gen1_duration.to_owned(),
+            ])
+        }
+
+        if let Some(admin_token_file) = &self.admin_token_file {
+            args.append(&mut vec![
+                "--admin-token-file".to_string(),
+                admin_token_file.to_owned(),
+            ])
+        }
+
+        if let Some(permission_tokens_file) = &self.permission_tokens_file {
+            args.append(&mut vec![
+                "--permission-tokens-file".to_string(),
+                permission_tokens_file.to_owned(),
             ])
         }
 
