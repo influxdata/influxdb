@@ -596,12 +596,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	}
 
 	// If we have high-level files, only include generations up to the last high-level file
-	// This excludes truly trailing low-level files
 	if lastHighLevelIndex >= 0 {
 		end = lastHighLevelIndex + 1
-	} else if end == 0 {
-		// No early breaks and no high-level files, include all
-		end = len(generations)
 	}
 
 	// As compactions run, the oldest files get bigger.  We don't want to re-compact them during
