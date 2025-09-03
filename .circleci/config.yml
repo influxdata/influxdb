@@ -1,7 +1,8 @@
 version: "2.1"
 
 orbs:
-  aws-s3:    circleci/aws-s3@2.0.0
+  aws-s3: circleci/aws-s3@4.1.3
+  aws-cli: circleci/aws-cli@5.1.1
   terraform: circleci/terraform@2.1.0
 
 parameters:
@@ -547,31 +548,20 @@ jobs:
 
   s3-publish-packages:
     docker:
-      - image: ubuntu:latest
+      - image: cimg/base:current
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
-      - run:
-          name: Publish Packages to S3
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install --yes awscli git
-
-            PREFIX=2.x .circleci/scripts/get-version
-            source "${BASH_ENV}"
-
-            # required for sha256sum generate the correct paths
-            pushd /tmp/workspace/artifacts
-
-            # Since the artifacts are generated in parallel, the checksums
-            # cannot be calculated until all artifacts are complete. This
-            # excludes `CHANGELOG.md`. Historically, `CHANGELOG.md` was
-            # not included in the checksums.
-            sha256sum * | tee influxdb.${VERSION}.sha256
-
-            aws s3 sync . 's3://dl.influxdata.com/influxdb/releases'
+      - aws-cli/setup:
+          # NOTE(bnpfeife): `region` is substituted differently than
+          # `aws_access_key_id` and `aws_secret_access_key`. As such,
+          # it requires the '$' prefix.
+          region:                $RELEASE_AWS_REGION
+          aws_access_key_id:     RELEASE_AWS_ACCESS_KEY_ID
+          aws_secret_access_key: RELEASE_AWS_SECRET_ACCESS_KEY
+      - aws-s3/sync:
+          to:   s3://dl.influxdata.com/influxdb/releases/
+          from: /tmp/workspace/artifacts
 
   build-docker-nightly:
     parameters:
@@ -905,29 +895,30 @@ jobs:
       workflow:
         type: string
     docker:
-      - image: cimg/python:3.6
+      - image: cimg/base:current
     steps:
       - attach_workspace:
           at: /tmp/workspace
+      - aws-cli/setup:
+          # NOTE(bnpfeife): `region` is substituted differently than
+          # `aws_access_key_id` and `aws_secret_access_key`. As such,
+          # it requires the '$' prefix.
+          region:                $RELEASE_AWS_REGION
+          aws_access_key_id:     RELEASE_AWS_ACCESS_KEY_ID
+          aws_secret_access_key: RELEASE_AWS_SECRET_ACCESS_KEY
       - when:
           condition:
             equal: [ << parameters.workflow >>, release ]
           steps:
             - aws-s3/copy:
-                aws-region:            AWS_S3_REGION
-                aws-access-key-id:     AWS_ACCESS_KEY_ID
-                aws-secret-access-key: AWS_SECRET_ACCESS_KEY
-                to:   "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md"
+                to:   s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md
                 from: /tmp/workspace/CHANGELOG.md
       - when:
           condition:
             equal: [ << parameters.workflow >>, nightly ]
           steps:
             - aws-s3/copy:
-                aws-region:            AWS_S3_REGION
-                aws-access-key-id:     AWS_ACCESS_KEY_ID
-                aws-secret-access-key: AWS_SECRET_ACCESS_KEY
-                to:   "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
+                to:   s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md
                 from: /tmp/workspace/CHANGELOG.md
 
   check_package_deb_amd64:
