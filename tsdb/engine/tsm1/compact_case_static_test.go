@@ -1008,6 +1008,70 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 			},
 		},
 
+		{
+			name: "complex_nested_4_5_2_2_1_2_4_5",
+			files: []tsm1.ExtFileStat{
+				{FileStat: tsm1.FileStat{Path: "000001-04.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000002-05.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000003-02.tsm", Size: 16 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000004-02.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000005-01.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000006-02.tsm", Size: 16 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000007-04.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000007-05.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+			},
+			defaultBlockCount: tsdb.DefaultMaxPointsPerBlock,
+			testShardTime:     -1,
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
+					level2Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"000003-02.tsm", "000004-02.tsm", "000005-01.tsm", "000006-02.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm", "000007-04.tsm", "000007-05.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
+			},
+		},
+
+		{
+			name: "complex_nested_4_5_2_2_1_2_4_5_different_gens",
+			files: []tsm1.ExtFileStat{
+				{FileStat: tsm1.FileStat{Path: "000001-04.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000002-05.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000003-02.tsm", Size: 16 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000004-02.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000005-01.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000007-02.tsm", Size: 16 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000008-04.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000009-05.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+			},
+			defaultBlockCount: tsdb.DefaultMaxPointsPerBlock,
+			testShardTime:     -1,
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
+					level2Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"000003-02.tsm", "000004-02.tsm", "000005-01.tsm", "000007-02.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level4Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm", "000008-04.tsm", "000009-05.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
+			},
+		},
+
 		// Mixed: leading + nested + trailing
 		{
 			name: "mixed_leading_nested_trailing_2_4_5_2_4_5_2",
