@@ -1016,7 +1016,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 				{FileStat: tsm1.FileStat{Path: "000003-02.tsm", Size: 16 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
 				{FileStat: tsm1.FileStat{Path: "000004-02.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
 				{FileStat: tsm1.FileStat{Path: "000005-01.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
-				{FileStat: tsm1.FileStat{Path: "000006-02.tsm", Size: 16 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
+				{FileStat: tsm1.FileStat{Path: "000005-02.tsm", Size: 16 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
 				{FileStat: tsm1.FileStat{Path: "000007-04.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
 				{FileStat: tsm1.FileStat{Path: "000007-05.tsm", Size: 256 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
 			},
@@ -1024,15 +1024,15 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 			testShardTime:     -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
-					level2Groups: []tsm1.PlannedCompactionGroup{
+					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"000003-02.tsm", "000004-02.tsm", "000005-01.tsm", "000006-02.tsm"},
+							tsm1.CompactionGroup{"000003-02.tsm", "000004-02.tsm", "000005-01.tsm", "000005-02.tsm", "000007-04.tsm", "000007-05.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm", "000007-04.tsm", "000007-05.tsm"},
+							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
