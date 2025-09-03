@@ -651,9 +651,9 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			gen := generations[j]
 			lvl := gen.level()
 
-			// Skip compacting this group if there happens to be any lower level files in the
-			// middle.  These will get picked up by the level compactors.
-			if lvl <= 3 && len(gen.files) > 4 {
+			// Skip compacting this group if there happens to be more than 3 lower level
+			// files in the middle. These will get picked up by the level compactors.
+			if lvl <= 3 && len(gen.files) > 3 {
 				skipGroup = true
 				break
 			}
