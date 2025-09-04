@@ -590,7 +590,6 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 		// Skip low-level generations with too many files for level compaction
 		if g.level() <= 3 && len(g.files) >= 4 {
-			end = i
 			break
 		}
 	}
