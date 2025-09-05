@@ -17,6 +17,8 @@ use object_store::{
 use observability_deps::tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
+#[cfg(any(feature = "aws", feature = "azure", feature = "gcp"))]
+use std::io::Read;
 use std::{
     cmp::Ordering, convert::Infallible, fs, num::NonZeroUsize, ops::Range, path::PathBuf,
     sync::Arc, time::Duration,
@@ -66,6 +68,18 @@ pub enum ParseError {
 
     #[snafu(display("Error deserializing AWS file credentials: {}", source))]
     DeserializingAwsFileCredentials { source: serde_json::Error },
+
+    #[snafu(display("Failed to read CA certificate file at {path:?}: {source}"))]
+    ReadingCaCertificateFile {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("Failed to parse CA certificate from {path:?}: {source}"))]
+    ParsingCaCertificate {
+        path: PathBuf,
+        source: object_store::Error,
+    },
 }
 
 /// The AWS region to use for Amazon S3 based object storage if none is
@@ -673,6 +687,26 @@ macro_rules! object_store_config_inner {
                     action
                 )]
                 pub cache_endpoint: Option<Endpoint>,
+
+                /// Allow invalid TLS certificates when connecting to object storage.
+                /// WARNING: This disables TLS certificate verification and should only be used for testing.
+                #[clap(
+                    id = gen_name!($prefix, "object-store-tls-allow-insecure"),
+                    long = gen_name!($prefix, "object-store-tls-allow-insecure"),
+                    env = gen_env!($prefix, "OBJECT_STORE_TLS_ALLOW_INSECURE"),
+                    action
+                )]
+                pub tls_allow_insecure: bool,
+
+                /// Path to a custom CA certificate file (PEM format) for verifying object store connections.
+                /// Use this when your object store uses a certificate signed by a private CA.
+                #[clap(
+                    id = gen_name!($prefix, "object-store-tls-ca"),
+                    long = gen_name!($prefix, "object-store-tls-ca"),
+                    env = gen_env!($prefix, "OBJECT_STORE_TLS_CA"),
+                    action
+                )]
+                pub tls_ca_path: Option<PathBuf>,
             }
 
             impl [<$prefix:camel ObjectStoreConfig>] {
@@ -713,11 +747,13 @@ macro_rules! object_store_config_inner {
                         max_retries: Default::default(),
                         retry_timeout: Default::default(),
                         cache_endpoint: Default::default(),
+                        tls_allow_insecure: Default::default(),
+                        tls_ca_path: Default::default(),
                     }
                 }
 
                 #[cfg(any(feature = "aws", feature = "azure", feature = "gcp"))]
-                fn client_options(&self) -> object_store::ClientOptions {
+                fn client_options(&self) -> Result<object_store::ClientOptions, ParseError> {
                     let mut options = object_store::ClientOptions::new();
 
                     if self.http2_only {
@@ -727,7 +763,29 @@ macro_rules! object_store_config_inner {
                         options = options.with_http2_max_frame_size(sz);
                     }
 
-                    options
+                    // Apply TLS configuration
+                    if self.tls_allow_insecure {
+                        warn!("TLS certificate verification is disabled for object store connections. This is insecure and should only be used for testing.");
+                        options = options.with_allow_invalid_certificates(true);
+                    }
+
+                    if let Some(ca_path) = &self.tls_ca_path {
+                        info!("Using custom CA certificate from {ca_path:?} for object store connections");
+                        let mut ca_contents = Vec::new();
+                        fs::File::open(ca_path)
+                            .context(ReadingCaCertificateFileSnafu { path: ca_path.clone() })?
+                            .read_to_end(&mut ca_contents)
+                            .context(ReadingCaCertificateFileSnafu { path: ca_path.clone() })?;
+
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let cert = object_store::Certificate::from_pem(&ca_contents)
+                                .context(ParsingCaCertificateSnafu { path: ca_path.clone() })?;
+                            options = options.with_root_certificate(cert);
+                        }
+                    }
+
+                    Ok(options)
                 }
 
                 #[cfg(feature = "gcp")]
@@ -737,7 +795,7 @@ macro_rules! object_store_config_inner {
 
                     info!(bucket=?self.bucket, object_store_type="GCS", "Object Store");
 
-                    let mut builder = GoogleCloudStorageBuilder::new().with_client_options(self.client_options()).with_retry(self.retry_config());
+                    let mut builder = GoogleCloudStorageBuilder::new().with_client_options(self.client_options()?).with_retry(self.retry_config());
 
                     if let Some(bucket) = &self.bucket {
                         builder = builder.with_bucket_name(bucket);
@@ -798,7 +856,7 @@ macro_rules! object_store_config_inner {
                     use object_store::aws::S3ConditionalPut;
 
                     let mut builder = AmazonS3Builder::from_env()
-                        .with_client_options(self.client_options())
+                        .with_client_options(self.client_options()?)
                         .with_allow_http(self.aws_allow_http)
                         .with_region(&self.aws_default_region)
                         .with_retry(self.retry_config())
@@ -870,7 +928,7 @@ macro_rules! object_store_config_inner {
                     info!(bucket=?self.bucket, account=?self.azure_storage_account,
                           endpoint=?self.azure_endpoint, object_store_type="Azure", "Object Store");
 
-                    let mut builder = MicrosoftAzureBuilder::new().with_client_options(self.client_options());
+                    let mut builder = MicrosoftAzureBuilder::new().with_client_options(self.client_options()?);
 
                     if let Some(bucket) = &self.bucket {
                         builder = builder.with_container_name(bucket);
@@ -2284,5 +2342,162 @@ mod tests {
 
         // reset the credentials to the initial state for the next test
         *reloader.current.write().await = Arc::new(initial_file_credentials.clone().into());
+    }
+
+    #[test]
+    fn test_tls_cli_arguments() {
+        // Test parsing TLS allow insecure flag
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "s3",
+            "--object-store-tls-allow-insecure",
+        ])
+        .unwrap();
+        assert!(config.tls_allow_insecure);
+
+        // Test parsing TLS CA path
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "s3",
+            "--object-store-tls-ca",
+            "/path/to/ca.pem",
+        ])
+        .unwrap();
+        assert_eq!(config.tls_ca_path, Some(PathBuf::from("/path/to/ca.pem")));
+
+        // Test both arguments together
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "s3",
+            "--object-store-tls-allow-insecure",
+            "--object-store-tls-ca",
+            "/path/to/ca.pem",
+        ])
+        .unwrap();
+        assert!(config.tls_allow_insecure);
+        assert_eq!(config.tls_ca_path, Some(PathBuf::from("/path/to/ca.pem")));
+
+        // Test default values
+        let config = ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
+        assert!(!config.tls_allow_insecure);
+        assert!(config.tls_ca_path.is_none());
+    }
+
+    #[test]
+    fn test_tls_configuration_with_different_stores() {
+        // Test TLS options with AWS S3
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "s3",
+            "--bucket",
+            "test-bucket",
+            "--object-store-tls-allow-insecure",
+        ])
+        .unwrap();
+        assert!(config.tls_allow_insecure);
+        assert_eq!(config.bucket, Some("test-bucket".to_string()));
+
+        // Test TLS options with Azure
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "azure",
+            "--azure-storage-account",
+            "testaccount",
+            "--object-store-tls-ca",
+            "/etc/ssl/custom-ca.pem",
+        ])
+        .unwrap();
+        assert_eq!(
+            config.tls_ca_path,
+            Some(PathBuf::from("/etc/ssl/custom-ca.pem"))
+        );
+        assert_eq!(
+            config.azure_storage_account,
+            Some("testaccount".to_string())
+        );
+
+        // Test TLS options with Google Cloud Storage
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "google",
+            "--bucket",
+            "gcs-bucket",
+            "--object-store-tls-allow-insecure",
+            "--object-store-tls-ca",
+            "/custom/ca.pem",
+        ])
+        .unwrap();
+        assert!(config.tls_allow_insecure);
+        assert_eq!(config.tls_ca_path, Some(PathBuf::from("/custom/ca.pem")));
+
+        // Test that TLS options work with file store (should be ignored but not error)
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "file",
+            "--data-dir",
+            "/tmp/data",
+            "--object-store-tls-allow-insecure",
+        ])
+        .unwrap();
+        assert!(config.tls_allow_insecure);
+        assert_eq!(config.database_directory, Some(PathBuf::from("/tmp/data")));
+
+        // Test with memory store (TLS options should be accepted but have no effect)
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "memory",
+            "--object-store-tls-ca",
+            "/ignored/ca.pem",
+        ])
+        .unwrap();
+        assert_eq!(config.tls_ca_path, Some(PathBuf::from("/ignored/ca.pem")));
+    }
+
+    #[test]
+    fn test_tls_environment_variables() {
+        use std::env;
+
+        unsafe {
+            // Test environment variable for allow-insecure
+            // Boolean flags need explicit true/false values when set via environment variable
+            env::set_var("OBJECT_STORE_TLS_ALLOW_INSECURE", "true");
+            let config =
+                ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
+            assert!(config.tls_allow_insecure);
+            env::remove_var("OBJECT_STORE_TLS_ALLOW_INSECURE");
+
+            // Test that the flag is false when env var is not set
+            let config =
+                ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
+            assert!(!config.tls_allow_insecure);
+
+            // Test environment variable for CA path
+            env::set_var("OBJECT_STORE_TLS_CA", "/env/ca.pem");
+            let config =
+                ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
+            assert_eq!(config.tls_ca_path, Some(PathBuf::from("/env/ca.pem")));
+            env::remove_var("OBJECT_STORE_TLS_CA");
+
+            // Test CLI args override environment variables
+            env::set_var("OBJECT_STORE_TLS_CA", "/env/ca.pem");
+            let config = ObjectStoreConfig::try_parse_from([
+                "server",
+                "--object-store",
+                "s3",
+                "--object-store-tls-ca",
+                "/cli/ca.pem",
+            ])
+            .unwrap();
+            assert_eq!(config.tls_ca_path, Some(PathBuf::from("/cli/ca.pem")));
+            env::remove_var("OBJECT_STORE_TLS_CA");
+        }
     }
 }
