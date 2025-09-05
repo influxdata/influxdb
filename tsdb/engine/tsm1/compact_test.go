@@ -4483,7 +4483,47 @@ func TestEnginePlanCompactions(t *testing.T) {
 	e.Compactor = tsm1.NewCompactor()
 	defer e.Compactor.Close()
 
+	// Run test suite without nested compactor enabled
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ffs := newFakeFileStore(withExtFileStats(test.files), withDefaultBlockCount(test.defaultBlockCount))
+			cp := tsm1.NewDefaultPlanner(ffs, test.testShardTime)
+			cp.SetNestedCompactor(false)
+
+			e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
+			e.CompactionPlan = cp
+			e.Compactor.FileStore = ffs
+
+			// Arbitrary group length to use in Scheduler.SetDepth
+			mockGroupLen := 5
+			// Set the scheduler depth for our lower level groups.
+			e.Scheduler.SetDepth(1, mockGroupLen)
+			e.Scheduler.SetDepth(2, mockGroupLen)
+
+			// Normally this is called within PlanCompactions but because we want to simulate already running
+			// some compactions we will set them manually here.
+			atomic.StoreInt64(&e.Stats.TSMCompactionsActive[0], int64(mockGroupLen))
+			atomic.StoreInt64(&e.Stats.TSMCompactionsActive[1], int64(mockGroupLen))
+
+			// Plan and check results.
+			level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions()
+			results := test.expectedResult()
+			compareLevelGroups(t, results.level1Groups, level1Groups, "unexpected level 1 Group")
+			compareLevelGroups(t, results.level2Groups, level2Groups, "unexpected level 2 Group")
+			compareLevelGroups(t, results.level3Groups, Level3Groups, "unexpected level 3 Group")
+			compareLevelGroups(t, results.level4Groups, Level4Groups, "unexpected level 4 Group")
+			compareLevelGroups(t, results.level5Groups, Level5Groups, "unexpected level 5 Group")
+
+			// Remove all the returned compaction levels and verify that no TSM files are marked as in-use.
+			// Calling e.PlanCompactions followed by e.ReleaseCompactionPlans replicates the code structure
+			// of the e.compact loop.
+			e.ReleaseCompactionPlans(level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups)
+			require.Zero(t, cp.InUseCount(), "some TSM files were not released properly")
+		})
+	}
+
 	// Add generated test cases for comprehensive level sequence testing
+	// for nested compactor
 	tests = AddStaticCompactionTestCases(tests)
 
 	for _, test := range tests {
