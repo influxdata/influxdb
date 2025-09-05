@@ -2998,6 +2998,7 @@ func (m *mockPlanner) FullyCompacted() (bool, string) {
 }
 func (m *mockPlanner) ForceFull()                      {}
 func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore) {}
+func (m *mockPlanner) SetNestedCompactor(enabled bool) { return }
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.
 func ParseTags(s string) query.Tags {

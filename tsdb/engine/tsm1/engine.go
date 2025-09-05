@@ -252,6 +252,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 
 	var planner CompactionPlanner = NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration))
 	planner.SetAggressiveCompactionPointsPerBlock(int(opt.Config.AggressivePointsPerBlock))
+	planner.SetNestedCompactor(opt.Config.NestedCompactor)
 
 	if opt.CompactionPlannerCreator != nil {
 		planner = opt.CompactionPlannerCreator(opt.Config).(CompactionPlanner)
