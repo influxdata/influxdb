@@ -589,9 +589,9 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		}
 
 		// Skip low-level generations with too many files for level compaction
-		if g.level() <= 3 && len(g.files) >= 4 {
-			break
-		}
+		//if g.level() <= 3 && len(g.files) >= 4 {
+		//	break
+		//}
 	}
 
 	// If we have high-level files, only include generations up to the last high-level file

@@ -1402,6 +1402,93 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 				}
 			},
 		},
+		{
+			name: "real_world_production_mixed_generations",
+			files: []tsm1.ExtFileStat{
+				// Generation 9728: Sequential files 6-19, mostly 2.1GB
+				{FileStat: tsm1.FileStat{Path: "000009728-000000006.tsm", Size: 2147483648}, FirstBlockCount: 450},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000007.tsm", Size: 2147483648}, FirstBlockCount: 520},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000008.tsm", Size: 2147483648}, FirstBlockCount: 380},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000009.tsm", Size: 2147483648}, FirstBlockCount: 600},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000010.tsm", Size: 2147483648}, FirstBlockCount: 290},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000011.tsm", Size: 2147483648}, FirstBlockCount: 670},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000012.tsm", Size: 2147483648}, FirstBlockCount: 340},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000013.tsm", Size: 2147483648}, FirstBlockCount: 480},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000014.tsm", Size: 2147483648}, FirstBlockCount: 560},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000015.tsm", Size: 2147483648}, FirstBlockCount: 320},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000016.tsm", Size: 2147483648}, FirstBlockCount: 710},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000017.tsm", Size: 2147483648}, FirstBlockCount: 430},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000018.tsm", Size: 2147483648}, FirstBlockCount: 650},
+				{FileStat: tsm1.FileStat{Path: "000009728-000000019.tsm", Size: 1932735284}, FirstBlockCount: 280}, // 1.8GB
+				// Generation 9760: Single level 3 file
+				{FileStat: tsm1.FileStat{Path: "000009760-000000003.tsm", Size: 1288490189}, FirstBlockCount: 195}, // 1.2GB
+				// Mixed level 4,5 pairs across different generations - sample of the many files
+				{FileStat: tsm1.FileStat{Path: "000009864-000000004.tsm", Size: 2147483648}, FirstBlockCount: 780},
+				{FileStat: tsm1.FileStat{Path: "000009864-000000005.tsm", Size: 1395864371}, FirstBlockCount: 420}, // 1.3GB
+				{FileStat: tsm1.FileStat{Path: "000009992-000000004.tsm", Size: 2147483648}, FirstBlockCount: 690},
+				{FileStat: tsm1.FileStat{Path: "000009992-000000005.tsm", Size: 1395864371}, FirstBlockCount: 380},
+				{FileStat: tsm1.FileStat{Path: "000010120-000000004.tsm", Size: 2147483648}, FirstBlockCount: 540},
+				{FileStat: tsm1.FileStat{Path: "000010120-000000005.tsm", Size: 1395864371}, FirstBlockCount: 460},
+				{FileStat: tsm1.FileStat{Path: "000010248-000000004.tsm", Size: 2147483648}, FirstBlockCount: 620},
+				{FileStat: tsm1.FileStat{Path: "000010248-000000005.tsm", Size: 1395864371}, FirstBlockCount: 350},
+				{FileStat: tsm1.FileStat{Path: "000010376-000000004.tsm", Size: 2147483648}, FirstBlockCount: 720},
+				{FileStat: tsm1.FileStat{Path: "000010376-000000005.tsm", Size: 1395864371}, FirstBlockCount: 410},
+				{FileStat: tsm1.FileStat{Path: "000010504-000000004.tsm", Size: 2147483648}, FirstBlockCount: 490},
+				{FileStat: tsm1.FileStat{Path: "000010504-000000005.tsm", Size: 1503238553}, FirstBlockCount: 370}, // 1.4GB
+				{FileStat: tsm1.FileStat{Path: "000011560-000000002.tsm", Size: 1288490189}, FirstBlockCount: 240}, // Level 2 file
+				{FileStat: tsm1.FileStat{Path: "000012464-000000002.tsm", Size: 1395864371}, FirstBlockCount: 310}, // Level 2 file
+			},
+			testShardTime: -1,
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
+					level4Groups: []tsm1.PlannedCompactionGroup{
+						{
+							// Lower level file mixed with higher level files
+							tsm1.CompactionGroup{
+								"000009760-000000003.tsm", // Level 3 file
+								"000009864-000000004.tsm", // Level 4 files
+								"000009864-000000005.tsm",
+								"000009992-000000004.tsm",
+								"000009992-000000005.tsm",
+								"000010120-000000004.tsm",
+								"000010120-000000005.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							// Remaining files in optimize compaction
+							tsm1.CompactionGroup{
+								"000009728-000000006.tsm",
+								"000009728-000000007.tsm",
+								"000009728-000000008.tsm",
+								"000009728-000000009.tsm",
+								"000009728-000000010.tsm",
+								"000009728-000000011.tsm",
+								"000009728-000000012.tsm",
+								"000009728-000000013.tsm",
+								"000009728-000000014.tsm",
+								"000009728-000000015.tsm",
+								"000009728-000000016.tsm",
+								"000009728-000000017.tsm",
+								"000009728-000000018.tsm",
+								"000009728-000000019.tsm",
+								"000010248-000000004.tsm",
+								"000010248-000000005.tsm",
+								"000010376-000000004.tsm",
+								"000010376-000000005.tsm",
+								"000010504-000000004.tsm",
+								"000010504-000000005.tsm",
+								"000011560-000000002.tsm",
+								"000012464-000000002.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
+			},
+		},
 	}
 
 	return append(existingTests, staticTests...)
