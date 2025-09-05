@@ -85,11 +85,11 @@ const (
 	// MaxTSMFileSize is the maximum size of TSM files.
 	MaxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 
-	// DefaultNestedCompactor is the default value on whether to enable the nested
+	// DefaultNestedCompactorEnabled is the default value on whether to enable the nested
 	// compaction level checking feature flag. This rectifies an issue where TSM files
 	// Have 1-3 rogue lower level file(s) nested within larger level files. This state
 	// is not frequent but has been seen. Enable this flag to capture these files during full compaction.
-	DefaultNestedCompactor = false
+	DefaultNestedCompactorEnabled = false
 )
 
 var SingleGenerationReasonText string = SingleGenerationReason()
@@ -193,11 +193,11 @@ type Config struct {
 	// slow disks.
 	TSMWillNeed bool `toml:"tsm-use-madv-willneed"`
 
-	// NestedCompactor controls whether we enable the nested
+	// NestedCompactorEnabled controls whether we enable the nested
 	// compaction level checking feature flag. This rectifies an issue where TSM files
 	// Have 1-3 rogue lower level file(s) nested within larger level files. This state
 	// is not frequent but has been seen. Enable this flag to capture these files during full compaction.
-	NestedCompactor bool `toml:"nested-compactor"`
+	NestedCompactorEnabled bool `toml:"nested-compactor-enabled"`
 }
 
 // NewConfig returns the default configuration for tsdb.
@@ -230,7 +230,7 @@ func NewConfig() Config {
 		TraceLoggingEnabled: false,
 		TSMWillNeed:         false,
 
-		NestedCompactor: DefaultNestedCompactor,
+		NestedCompactorEnabled: DefaultNestedCompactorEnabled,
 	}
 }
 
