@@ -393,6 +393,52 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 	var levelGroups []tsmGenerations
 	for _, cur := range groups {
 		if cur.level() == level {
+			// When nested compactor is enabled and planning lower levels (1-3),
+			// check if there are higher level files (4+) both BEFORE and AFTER this group
+			// Only skip if the lower-level files are truly nested between higher-level files
+			if c.enableNestedCompactor && level <= 3 {
+				hasHigherLevelBefore := false
+				hasHigherLevelAfter := false
+
+				// Find the index range of this group in the original generations
+				firstGroupIndex := -1
+				lastGroupIndex := -1
+				for _, gen := range cur {
+					for genIdx, origGen := range generations {
+						if origGen == gen {
+							if firstGroupIndex == -1 || genIdx < firstGroupIndex {
+								firstGroupIndex = genIdx
+							}
+							if lastGroupIndex == -1 || genIdx > lastGroupIndex {
+								lastGroupIndex = genIdx
+							}
+						}
+					}
+				}
+
+				if firstGroupIndex != -1 {
+					// Check if there are higher-level generations before this group
+					for i := 0; i < firstGroupIndex; i++ {
+						if generations[i].level() > 3 {
+							hasHigherLevelBefore = true
+							break
+						}
+					}
+
+					// Check if there are higher-level generations after this group
+					for i := lastGroupIndex + 1; i < len(generations); i++ {
+						if generations[i].level() > 3 {
+							hasHigherLevelAfter = true
+							break
+						}
+					}
+				}
+
+				// Only skip if there are higher level files both before AND after (truly nested)
+				if hasHigherLevelBefore && hasHigherLevelAfter {
+					continue
+				}
+			}
 			levelGroups = append(levelGroups, cur)
 		}
 	}

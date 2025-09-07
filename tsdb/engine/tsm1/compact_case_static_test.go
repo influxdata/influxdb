@@ -464,20 +464,13 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 			testShardTime: -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
-					level2Groups: []tsm1.PlannedCompactionGroup{
+					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								"000016844-000000002.tsm",
 								"000016845-000000002.tsm",
 								"000016846-000000002.tsm",
 								"000016847-000000002.tsm",
-							},
-							tsdb.DefaultMaxPointsPerBlock,
-						},
-					},
-					level4Groups: []tsm1.PlannedCompactionGroup{
-						{
-							tsm1.CompactionGroup{
 								"000016684-000000007.tsm",
 								"000016684-000000008.tsm",
 								"000016684-000000009.tsm",
@@ -613,8 +606,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 			testShardTime: -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
-					// First group of 4 level 2 files gets picked up for compaction
-					level2Groups: []tsm1.PlannedCompactionGroup{
+					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								"000016844-000000002.tsm",
@@ -624,8 +616,6 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
-					},
-					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								// Lone 5th level 2 file gets picked up by full planner
@@ -1056,13 +1046,11 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 			testShardTime:     -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
-					level2Groups: []tsm1.PlannedCompactionGroup{
+					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"000003-02.tsm", "000004-02.tsm", "000005-01.tsm", "000007-02.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
-					},
-					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm", "000008-04.tsm", "000009-05.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
@@ -1753,23 +1741,21 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 			testShardTime: -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
-					level2Groups: []tsm1.PlannedCompactionGroup{
-						{
-							tsm1.CompactionGroup{
-								"000016844-000000002.tsm",
-								"000016845-000000002.tsm",
-								"000016846-000000002.tsm",
-								"000016852-000000002.tsm",
-							},
-							tsdb.DefaultMaxPointsPerBlock,
-						},
-					},
 					// All level 2 files are picked up by level4 compaction groups
 					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								"000016684-000000007.tsm",
 								"000016812-000000004.tsm",
+								"000016844-000000002.tsm",
+								"000016845-000000002.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+						{
+							tsm1.CompactionGroup{
+								"000016846-000000002.tsm",
+								"000016852-000000002.tsm",
 								"000016853-000000002.tsm",
 								"000016948-000000004.tsm",
 							},
