@@ -110,6 +110,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016948-000000005.tsm",
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
+								"000017095-000000005.tsm", // Moved here to eliminate gap
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -124,7 +125,6 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
-								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -359,6 +359,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016948-000000005.tsm",
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
+								"000017095-000000005.tsm", // Moved here to eliminate gap
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -373,7 +374,6 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
-								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -480,6 +480,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016846-000000002.tsm",
 								"000016948-000000004.tsm",
 								"000016948-000000005.tsm",
+								"000017076-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -494,7 +495,6 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
-								"000017076-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -772,6 +772,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016948-000000005.tsm",
 								"000017076-000000004.tsm",
 								"000017094-000000005.tsm",
+								"000017095-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -785,7 +786,6 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
-								"000017095-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -907,7 +907,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 							tsm1.CompactionGroup{
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm",
+								"000017095-000000005.tsm", // Moved here to eliminate gap
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -1132,13 +1132,13 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 				return TestLevelResults{
 					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"000003-02.tsm", "000004-04.tsm", "000005-05.tsm", "000006-02.tsm"},
+							tsm1.CompactionGroup{"000003-02.tsm", "000004-04.tsm", "000005-05.tsm", "000006-02.tsm", "000007-04.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm", "000007-04.tsm"},
+							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
@@ -1481,13 +1481,13 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 				return TestLevelResults{
 					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"000003-02.tsm", "000004-04.tsm", "000005-05.tsm", "000006-02.tsm"},
+							tsm1.CompactionGroup{"000003-02.tsm", "000004-04.tsm", "000005-05.tsm", "000006-02.tsm", "000007-04.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm", "000007-04.tsm"},
+							tsm1.CompactionGroup{"000001-04.tsm", "000002-05.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
@@ -1594,6 +1594,14 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000009992-000000005.tsm",
 								"000010120-000000004.tsm",
 								"000010120-000000005.tsm",
+								"000010248-000000004.tsm",
+								"000010248-000000005.tsm",
+								"000010376-000000004.tsm",
+								"000010376-000000005.tsm",
+								"000010504-000000004.tsm",
+								"000010504-000000005.tsm",
+								"000011560-000000002.tsm",
+								"000012464-000000002.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -1616,14 +1624,6 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000009728-000000017.tsm",
 								"000009728-000000018.tsm",
 								"000009728-000000019.tsm",
-								"000010248-000000004.tsm",
-								"000010248-000000005.tsm",
-								"000010376-000000004.tsm",
-								"000010376-000000005.tsm",
-								"000010504-000000004.tsm",
-								"000010504-000000005.tsm",
-								"000011560-000000002.tsm",
-								"000012464-000000002.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -1706,7 +1706,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 							tsm1.CompactionGroup{
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm",
+								"000017095-000000005.tsm", // Moved here to eliminate gap
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -1802,6 +1802,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016948-000000004.tsm",
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
+								"000017095-000000005.tsm", // Moved here to eliminate gap
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -1922,7 +1923,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 							tsm1.CompactionGroup{
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm",
+								"000017095-000000005.tsm", // Moved here to eliminate gap
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
