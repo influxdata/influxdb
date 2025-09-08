@@ -9,13 +9,13 @@ use influxdb3_catalog::catalog::Catalog;
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
-pub(super) struct TablesTable {
+pub(crate) struct TablesTable {
     catalog: Arc<Catalog>,
     schema: SchemaRef,
 }
 
 impl TablesTable {
-    pub(super) fn new(catalog: Arc<Catalog>) -> Self {
+    pub(crate) fn new(catalog: Arc<Catalog>) -> Self {
         Self {
             catalog,
             schema: tables_schema(),
