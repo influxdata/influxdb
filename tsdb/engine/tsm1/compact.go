@@ -757,12 +757,27 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 	// With the groups, we need to evaluate whether the group as a whole can be compacted
 	compactable := []tsmGenerations{}
-	for _, group := range groups {
-		// if we don't have enough generations to compact, skip it
-		if len(group) < 4 && !group.hasTombstones() {
-			continue
+
+	if c.enableNestedCompactor {
+		lastGroupLevel := 4
+		for _, group := range groups {
+			// If we have the nested compactor flag enabled we need to try our best to not ever
+			// skip over lower lever files. This will ensure that if there are a few higher level files
+			// BUT over 4 lower level files nested we will compact them all together.
+			if len(group) < 4 && !group.hasTombstones() && lastGroupLevel == group.level() {
+				continue
+			}
+			compactable = append(compactable, group)
+			lastGroupLevel = group.level()
 		}
-		compactable = append(compactable, group)
+	} else {
+		for _, group := range groups {
+			// if we don't have enough generations to compact, skip it
+			if len(group) < 4 && !group.hasTombstones() {
+				continue
+			}
+			compactable = append(compactable, group)
+		}
 	}
 
 	// All the files to be compacted must be compacted in order.  We need to convert each
