@@ -4500,6 +4500,10 @@ func TestEnginePlanCompactions(t *testing.T) {
 			e.Scheduler.SetDepth(1, mockGroupLen)
 			e.Scheduler.SetDepth(2, mockGroupLen)
 
+			// Validate our test case based on compact_property_test.go
+			validationErr := ValidateTestCase(test, test.expectedResult())
+			require.NoError(t, validationErr, "test validation failed")
+
 			// Normally this is called within PlanCompactions but because we want to simulate already running
 			// some compactions we will set them manually here.
 			atomic.StoreInt64(&e.Stats.TSMCompactionsActive[0], int64(mockGroupLen))
@@ -4541,6 +4545,10 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// Set the scheduler depth for our lower level groups.
 			e.Scheduler.SetDepth(1, mockGroupLen)
 			e.Scheduler.SetDepth(2, mockGroupLen)
+
+			// Validate our test case based on compact_property_test.go
+			validationErr := ValidateTestCase(test, test.expectedResult())
+			require.NoError(t, validationErr, "test validation failed")
 
 			// Normally this is called within PlanCompactions but because we want to simulate already running
 			// some compactions we will set them manually here.
