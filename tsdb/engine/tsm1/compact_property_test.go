@@ -15,11 +15,11 @@ type CompactionProperty struct {
 	Validator   func(allFiles []string, groups []tsm1.CompactionGroup) error
 }
 
-// AdjacentFileProperty validates that compaction groups don't split adjacent files
+// AdjacentFileProperty validates that compaction groups don't create gaps
 var AdjacentFileProperty = CompactionProperty{
-	Name:        "Adjacent File Rule",
-	Description: "Files that are adjacent in generation sequence should not be split across different compaction groups",
-	Validator:   validateAdjacentFiles,
+	Name:        "No Gaps Rule", 
+	Description: "Files should not have gaps within the same compaction level - if files A and C are in the same level group, any file B between them should also be in a group at the same level or higher",
+	Validator:   validateNoGaps,
 }
 
 // parseFileName uses the existing TSM file parsing functionality
@@ -34,9 +34,10 @@ type fileInfo struct {
 	sequence   int
 }
 
-// validateAdjacentFiles checks that adjacent files in the generation sequence
-// are not split across different compaction groups
-func validateAdjacentFiles(allFiles []string, groups []tsm1.CompactionGroup) error {
+// validateNoGaps checks that there are no gaps within the same compaction level
+// A gap occurs when files A and C are in the same level group, but file B (between A and C) 
+// is in a different level group, creating a "hole" in the sequence
+func validateNoGaps(allFiles []string, groups []tsm1.CompactionGroup) error {
 	// Parse all files and sort them by generation, then by sequence
 	var fileInfos []fileInfo
 	for _, file := range allFiles {
@@ -67,37 +68,53 @@ func validateAdjacentFiles(allFiles []string, groups []tsm1.CompactionGroup) err
 		}
 	}
 
-	// Check for adjacency violations
-	for i := 0; i < len(fileInfos)-1; i++ {
-		current := fileInfos[i]
-		next := fileInfos[i+1]
+	// Group files by their compaction group
+	groupToFiles := make(map[int][]fileInfo)
+	for _, info := range fileInfos {
+		if groupIdx, inGroup := fileToGroup[info.filename]; inGroup {
+			groupToFiles[groupIdx] = append(groupToFiles[groupIdx], info)
+		}
+	}
 
-		// Files are considered adjacent if:
-		// 1. Same generation with consecutive sequences
-		// 2. Consecutive generations (regardless of sequence numbers)
-		isAdjacent := false
-
-		if current.generation == next.generation {
-			// Same generation: adjacent if consecutive sequences
-			isAdjacent = (next.sequence - current.sequence) == 1
-		} else if (next.generation - current.generation) == 1 {
-			// Consecutive generations are always considered adjacent
-			isAdjacent = true
+	// For each group, check if there are gaps in the file sequence
+	for groupIdx, filesInGroup := range groupToFiles {
+		if len(filesInGroup) < 2 {
+			continue // No gaps possible with less than 2 files
 		}
 
-		if isAdjacent {
-			currentGroup, currentInGroup := fileToGroup[current.filename]
-			nextGroup, nextInGroup := fileToGroup[next.filename]
+		// Check for gaps between files in this group
+		for i := 0; i < len(filesInGroup)-1; i++ {
+			current := filesInGroup[i]
+			next := filesInGroup[i+1]
 
-			// If both files are in compaction groups, they should be in the same group
-			if currentInGroup && nextInGroup && currentGroup != nextGroup {
-				return fmt.Errorf("adjacent files %s (group %d) and %s (group %d) are in different compaction groups",
-					current.filename, currentGroup, next.filename, nextGroup)
+			// Find all files between current and next in the sorted sequence
+			currentPos := findFilePosition(current, fileInfos)
+			nextPos := findFilePosition(next, fileInfos)
+
+			// Check if there are files between current and next that are in different groups
+			for pos := currentPos + 1; pos < nextPos; pos++ {
+				betweenFile := fileInfos[pos]
+				betweenGroup, inGroup := fileToGroup[betweenFile.filename]
+
+				if inGroup && betweenGroup != groupIdx {
+					return fmt.Errorf("gap detected: files %s and %s are in group %d, but file %s (between them) is in group %d",
+						current.filename, next.filename, groupIdx, betweenFile.filename, betweenGroup)
+				}
 			}
 		}
 	}
 
 	return nil
+}
+
+// findFilePosition returns the position of a file in the sorted fileInfos slice
+func findFilePosition(target fileInfo, fileInfos []fileInfo) int {
+	for i, info := range fileInfos {
+		if info.filename == target.filename {
+			return i
+		}
+	}
+	return -1
 }
 
 // ValidateCompactionProperties validates that compaction results satisfy all properties
