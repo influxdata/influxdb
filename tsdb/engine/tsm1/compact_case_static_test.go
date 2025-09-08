@@ -110,7 +110,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016948-000000005.tsm",
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm", // Moved here to eliminate gap
+								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -359,7 +359,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016948-000000005.tsm",
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm", // Moved here to eliminate gap
+								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -907,7 +907,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 							tsm1.CompactionGroup{
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm", // Moved here to eliminate gap
+								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -1706,7 +1706,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 							tsm1.CompactionGroup{
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm", // Moved here to eliminate gap
+								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -1802,7 +1802,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 								"000016948-000000004.tsm",
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm", // Moved here to eliminate gap
+								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -1923,7 +1923,7 @@ func AddStaticCompactionTestCases(existingTests []TestEnginePlanCompactionsRunne
 							tsm1.CompactionGroup{
 								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
-								"000017095-000000005.tsm", // Moved here to eliminate gap
+								"000017095-000000005.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
