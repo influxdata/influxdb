@@ -2021,6 +2021,17 @@ func (a tsmGenerations) hasTombstones() bool {
 	return false
 }
 
+func (a tsmGenerations) lowestLevel() int {
+	var level int
+	for _, g := range a {
+		lev := g.level()
+		if lev < level {
+			level = lev
+		}
+	}
+	return level
+}
+
 func (a tsmGenerations) level() int {
 	var level int
 	for _, g := range a {
