@@ -18,7 +18,7 @@ type CompactionProperty struct {
 var AdjacentFileProperty = CompactionProperty{
 	Name:        "Adjacency Rule",
 	Description: "Files should not have non-adjacent files within the same compaction level - if files A and C are in the same level group, any file B between them should also be in a group at the same level or higher",
-	Validator:   validateNoGaps,
+	Validator:   validateFileAdjacency,
 }
 
 type fileInfo struct {
@@ -28,10 +28,10 @@ type fileInfo struct {
 	fileName string
 }
 
-// validateNoGaps checks that there are no gaps between compaction groups
+// validateFileAdjacency checks that there are no gaps between compaction groups
 // An adjacency violation occurs when files A and C are in different groups, but file B (between A and C)
 // is also in a different group, creating overlapping or non-contiguous ranges
-func validateNoGaps(allFiles []string, groups []tsm1.CompactionGroup) error {
+func validateFileAdjacency(allFiles []string, groups []tsm1.CompactionGroup) error {
 	var inputFiles []fileInfo
 	for i, file := range allFiles {
 		gen, seq, err := tsm1.DefaultParseFileName(file)
