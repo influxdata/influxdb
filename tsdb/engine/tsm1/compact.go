@@ -148,6 +148,7 @@ type CompactionPlanner interface {
 	// Have 1-3 rogue lower level file(s) nested within larger level files. This state
 	// is not frequent but has been seen. Enable this flag to capture these files during full compaction.
 	SetNestedCompactor(enabled bool)
+	GetNestedCompactorEnabled() bool
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -270,6 +271,10 @@ func (c *DefaultPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompact
 
 func (c *DefaultPlanner) SetNestedCompactor(enableNestedCompactor bool) {
 	c.enableNestedCompactor = enableNestedCompactor
+}
+
+func (c *DefaultPlanner) GetNestedCompactorEnabled() bool {
+	return c.enableNestedCompactor
 }
 
 func (c *DefaultPlanner) GetAggressiveCompactionPointsPerBlock() int {

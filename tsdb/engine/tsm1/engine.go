@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -2425,6 +2426,11 @@ func (e *Engine) planCompactionsInner() ([]PlannedCompactionGroup, []PlannedComp
 func (e *Engine) PlanCompactions() ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
 	l1, l2, l3, l4, l5 := e.planCompactionsInner()
 
+	// Check for adjacency violations between L4 and L5 and fix them
+	if e.CompactionPlan.GetNestedCompactorEnabled() {
+		l4, l5 = e.fixAdjacencyViolations(l4, l5)
+	}
+
 	// Update the level plan queue stats
 	// For stats, use the length needed, even if the lock was
 	// not acquired
@@ -2434,6 +2440,128 @@ func (e *Engine) PlanCompactions() ([]PlannedCompactionGroup, []PlannedCompactio
 	atomic.StoreInt64(&e.Stats.TSMFullCompactionsQueue, int64(len(l4)))
 	atomic.StoreInt64(&e.Stats.TSMOptimizeCompactionsQueue, int64(len(l5)))
 	return l1, l2, l3, l4, l5
+}
+
+// fixAdjacencyViolations checks for adjacency violations between L4 and L5 groups
+// and moves violating files from L5 to L4 to maintain file adjacency.
+func (e *Engine) fixAdjacencyViolations(l4, l5 []PlannedCompactionGroup) ([]PlannedCompactionGroup, []PlannedCompactionGroup) {
+	if len(l4) == 0 || len(l5) == 0 {
+		return l4, l5
+	}
+
+	type fileInfo struct {
+		gen      int
+		seq      int
+		index    int
+		filename string
+	}
+
+	var allFiles []string
+	for _, group := range l4 {
+		allFiles = append(allFiles, group.Group...)
+	}
+	for _, group := range l5 {
+		allFiles = append(allFiles, group.Group...)
+	}
+
+	var allFilesInfo []fileInfo
+	for idx, f := range allFiles {
+		gen, seq, _ := DefaultParseFileName(f)
+		allFilesInfo = append(allFilesInfo, fileInfo{
+			gen:      gen,
+			seq:      seq,
+			index:    idx,
+			filename: f,
+		})
+	}
+
+	sort.Slice(allFilesInfo, func(i, j int) bool {
+		if allFilesInfo[i].gen == allFilesInfo[j].gen {
+			return allFilesInfo[i].seq < allFilesInfo[j].seq
+		}
+		return allFilesInfo[i].gen < allFilesInfo[j].gen
+	})
+
+	// Rewrite index of files
+	for i := range allFilesInfo {
+		allFilesInfo[i].index = i
+	}
+
+	var allFilesMap = make(map[string]fileInfo, len(allFiles))
+	for _, f := range allFilesInfo {
+		allFilesMap[f.filename] = fileInfo{
+			gen:      f.gen,
+			seq:      f.seq,
+			index:    f.index,
+			filename: f.filename,
+		}
+	}
+
+	var problemIndex []int
+	var originalIndex []int
+	var problemGroupIndex []int
+	for groupIndex, group := range l5 {
+		lastIndex := -1
+		for _, f := range group.Group {
+			if lastIndex == -1 {
+				mFile, ok := allFilesMap[f]
+				if !ok {
+					return l4, l5
+				}
+				lastIndex = mFile.index
+			} else {
+				mFile, ok := allFilesMap[f]
+				if !ok {
+					return l4, l5
+				}
+				if lastIndex+1 != mFile.index {
+					problemIndex = append(problemIndex, lastIndex+1)
+					originalIndex = append(originalIndex, mFile.index)
+					problemGroupIndex = append(problemGroupIndex, groupIndex)
+				}
+				lastIndex = lastIndex + 1
+			}
+		}
+	}
+
+	for _, g := range problemGroupIndex {
+		l5[g].Group = l5[g].Group[:problemIndex[g]]
+	}
+
+	// Verify the problem indexes can be inserted to the end of indexes within l4 groups
+	for groupIndex, group := range l4 {
+		if len(group.Group) == 0 {
+			continue
+		}
+
+		lastFile := group.Group[len(group.Group)-1]
+		lastFileInfo, ok := allFilesMap[lastFile]
+		if !ok {
+			continue
+		}
+
+		// Check if any problem indexes can be inserted at the end of this L4 group
+		for i := range problemIndex {
+			if lastFileInfo.index+1 == originalIndex[i] {
+				for _, fileInfo := range allFilesInfo {
+					if fileInfo.index == originalIndex[i] {
+						l4[groupIndex].Group = append(l4[groupIndex].Group, fileInfo.filename)
+						lastFileInfo.index = lastFileInfo.index + 1
+					}
+				}
+			}
+		}
+	}
+
+	return l4, l5
+}
+
+// abs returns the absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
