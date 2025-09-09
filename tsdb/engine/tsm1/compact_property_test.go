@@ -3,9 +3,9 @@ package tsm1_test
 import (
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"golang.org/x/exp/slices"
 )
 
 // CompactionProperty represents a property that compaction groups should satisfy
@@ -17,104 +17,70 @@ type CompactionProperty struct {
 
 // AdjacentFileProperty validates that compaction groups don't create gaps
 var AdjacentFileProperty = CompactionProperty{
-	Name:        "No Gaps Rule",
-	Description: "Files should not have gaps within the same compaction level - if files A and C are in the same level group, any file B between them should also be in a group at the same level or higher",
+	Name:        "Adjacency Rule",
+	Description: "Files should not have non-adjacent files within the same compaction level - if files A and C are in the same level group, any file B between them should also be in a group at the same level or higher",
 	Validator:   validateNoGaps,
 }
 
-// parseFileName uses the existing TSM file parsing functionality
-func parseFileName(filename string) (generation int, sequence int, err error) {
-	return tsm1.DefaultParseFileName(filename)
-}
-
-// fileInfo holds parsed file information for sorting
 type fileInfo struct {
-	filename   string
-	generation int
-	sequence   int
+	gen      int
+	seq      int
+	index    int
+	fileName string
 }
 
-// validateNoGaps checks that there are no gaps within the same compaction level
-// A gap occurs when files A and C are in the same level group, but file B (between A and C)
-// is in a different level group, creating a "hole" in the sequence
+// validateNoGaps checks that there are no gaps between compaction groups
+// An adjacency violation occurs when files A and C are in different groups, but file B (between A and C)
+// is also in a different group, creating overlapping or non-contiguous ranges
 func validateNoGaps(allFiles []string, groups []tsm1.CompactionGroup) error {
-	// Parse all files and sort them by generation, then by sequence
-	var fileInfos []fileInfo
-	for _, file := range allFiles {
-		gen, seq, err := parseFileName(file)
+	var inputFiles []fileInfo
+	for i, file := range allFiles {
+		gen, seq, err := tsm1.DefaultParseFileName(file)
 		if err != nil {
-			return fmt.Errorf("failed to parse file %s: %v", file, err)
+			return err
 		}
-		fileInfos = append(fileInfos, fileInfo{
-			filename:   file,
-			generation: gen,
-			sequence:   seq,
+		inputFiles = append(inputFiles, fileInfo{
+			gen:      gen,
+			seq:      seq,
+			index:    i,
+			fileName: file,
 		})
 	}
 
-	// Sort by generation first, then by sequence
-	sort.Slice(fileInfos, func(i, j int) bool {
-		if fileInfos[i].generation != fileInfos[j].generation {
-			return fileInfos[i].generation < fileInfos[j].generation
+	slices.SortFunc(inputFiles, func(a, b fileInfo) int {
+		if a.gen != b.gen {
+			return a.gen - b.gen
 		}
-		return fileInfos[i].sequence < fileInfos[j].sequence
+
+		return a.seq - b.seq
 	})
 
-	// Create a map of filename to group index
-	fileToGroup := make(map[string]int)
-	for groupIdx, group := range groups {
+	var fileMap = make(map[string]fileInfo, len(inputFiles))
+	for _, file := range inputFiles {
+		fileMap[file.fileName] = file
+	}
+
+	for groupIndex, group := range groups {
+		lastIndex := -1
 		for _, file := range group {
-			fileToGroup[file] = groupIdx
-		}
-	}
+			f, ok := fileMap[file]
+			if !ok {
+				return fmt.Errorf("file %s not found in group %d", file, groupIndex)
+			}
 
-	// Group files by their compaction group
-	groupToFiles := make(map[int][]fileInfo)
-	for _, info := range fileInfos {
-		if groupIdx, inGroup := fileToGroup[info.filename]; inGroup {
-			groupToFiles[groupIdx] = append(groupToFiles[groupIdx], info)
-		}
-	}
-
-	// For each group, check if there are gaps in the file sequence
-	for groupIdx, filesInGroup := range groupToFiles {
-		if len(filesInGroup) < 2 {
-			continue // No gaps possible with less than 2 files
-		}
-
-		// Check for gaps between files in this group
-		for i := 0; i < len(filesInGroup)-1; i++ {
-			current := filesInGroup[i]
-			next := filesInGroup[i+1]
-
-			// Find all files between current and next in the sorted sequence
-			currentPos := findFilePosition(current, fileInfos)
-			nextPos := findFilePosition(next, fileInfos)
-
-			// Check if there are files between current and next that are in different groups
-			for pos := currentPos + 1; pos < nextPos; pos++ {
-				betweenFile := fileInfos[pos]
-				betweenGroup, inGroup := fileToGroup[betweenFile.filename]
-
-				if inGroup && betweenGroup != groupIdx {
-					return fmt.Errorf("gap detected: files %s and %s are in group %d, but file %s (between them) is in group %d",
-						current.filename, next.filename, groupIdx, betweenFile.filename, betweenGroup)
+			if lastIndex == -1 {
+				lastIndex = f.index
+			} else {
+				// Check lastIndex wrt f.index
+				if lastIndex+1 != f.index {
+					return fmt.Errorf("file %s in compaction group %d violates adjacency policy", file, groupIndex+1)
 				}
+				lastIndex = f.index
 			}
 		}
 	}
 
 	return nil
-}
-
-// findFilePosition returns the position of a file in the sorted fileInfos slice
-func findFilePosition(target fileInfo, fileInfos []fileInfo) int {
-	for i, info := range fileInfos {
-		if info.filename == target.filename {
-			return i
-		}
-	}
-	return -1
 }
 
 // ValidateCompactionProperties validates that compaction results satisfy all properties
