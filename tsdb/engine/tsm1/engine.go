@@ -2556,14 +2556,6 @@ func (e *Engine) fixAdjacencyViolations(l4, l5 []PlannedCompactionGroup) ([]Plan
 	return l4, l5
 }
 
-// abs returns the absolute value of an integer
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
 // true if the compaction was started.
 func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast bool, wg *sync.WaitGroup) bool {
