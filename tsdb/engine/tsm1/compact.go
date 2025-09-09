@@ -142,6 +142,13 @@ type CompactionPlanner interface {
 	SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int)
 
 	GetAggressiveCompactionPointsPerBlock() int
+
+	// SetNestedCompactor controls whether we enable the nested
+	// compaction level checking feature flag. This rectifies an issue where TSM files
+	// Have 1-3 rogue lower level file(s) nested within larger level files. This state
+	// is not frequent but has been seen. Enable this flag to capture these files during full compaction.
+	SetNestedCompactor(enabled bool)
+	GetNestedCompactorEnabled() bool
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -179,6 +186,12 @@ type DefaultPlanner struct {
 	// aggressiveCompactionPointsPerBlock is the amount of points that should be
 	// packed in to a TSM file block during aggressive compaction
 	aggressiveCompactionPointsPerBlock int
+
+	// enableNestedCompactor controls whether we enable the nested
+	// compaction level checking feature flag. This rectifies an issue where TSM files
+	// Have 1-3 rogue lower level file(s) nested within larger level files. This state
+	// is not frequent but has been seen. Enable this flag to capture these files during full compaction.
+	enableNestedCompactor bool
 }
 
 type fileStore interface {
@@ -254,6 +267,14 @@ func (t *tsmGeneration) hasTombstones() bool {
 
 func (c *DefaultPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int) {
 	c.aggressiveCompactionPointsPerBlock = aggressiveCompactionPointsPerBlock
+}
+
+func (c *DefaultPlanner) SetNestedCompactor(enableNestedCompactor bool) {
+	c.enableNestedCompactor = enableNestedCompactor
+}
+
+func (c *DefaultPlanner) GetNestedCompactorEnabled() bool {
+	return c.enableNestedCompactor
 }
 
 func (c *DefaultPlanner) GetAggressiveCompactionPointsPerBlock() int {
@@ -375,9 +396,29 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 
 	// Remove any groups in the wrong level
 	var levelGroups []tsmGenerations
-	for _, cur := range groups {
-		if cur.level() == level {
-			levelGroups = append(levelGroups, cur)
+	if c.enableNestedCompactor {
+		// When nested compactor is enabled and planning lower levels (1-3),
+		// check if there are higher level files (4+) both BEFORE and AFTER this group
+		// Only skip if the lower-level files are truly nested between higher-level files
+		for i, cur := range groups {
+			if len(groups) > i+1 {
+				nextLevel := groups[i+1]
+				if cur.level() < nextLevel.level() {
+					continue
+				} else if cur.level() == level {
+					levelGroups = append(levelGroups, cur)
+				}
+			} else {
+				if cur.level() == level {
+					levelGroups = append(levelGroups, cur)
+				}
+			}
+		}
+	} else {
+		for _, cur := range groups {
+			if cur.level() == level {
+				levelGroups = append(levelGroups, cur)
+			}
 		}
 	}
 
@@ -580,11 +621,26 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	// each generation in descending break once we see a file less than 4.
 	end := 0
 	start := 0
+	lastHighLevelIndex := -1
+
 	for i, g := range generations {
-		if g.level() <= 3 {
-			break
+		if c.enableNestedCompactor {
+			// Track the last high-level generation
+			if g.level() > 3 {
+				lastHighLevelIndex = i
+			}
+		} else {
+			if g.level() <= 3 {
+				break
+			}
+
+			end = i + 1
 		}
-		end = i + 1
+	}
+
+	// If we have high-level files, only include generations up to the last high-level file
+	if c.enableNestedCompactor && lastHighLevelIndex >= 0 {
+		end = lastHighLevelIndex + 1
 	}
 
 	// As compactions run, the oldest files get bigger.  We don't want to re-compact them during
@@ -610,9 +666,16 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		// can become larger faster than ones after them.  We want to skip those really big ones and just
 		// compact the smaller ones until they are closer in size.
 		if i > 0 {
-			if g.size()*2 < generations[i-1].size() {
-				start = i
-				break
+			if c.enableNestedCompactor {
+				if g.size()*2 < generations[i-1].size() && generations[i-1].level() >= generations[i].level() {
+					start = i
+					break
+				}
+			} else {
+				if g.size()*2 < generations[i-1].size() {
+					start = i
+					break
+				}
 			}
 		}
 	}
@@ -636,13 +699,15 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 		for j := i; j < i+step && j < len(generations); j++ {
 			gen := generations[j]
-			lvl := gen.level()
+			if !c.enableNestedCompactor {
+				lvl := gen.level()
 
-			// Skip compacting this group if there happens to be any lower level files in the
-			// middle.  These will get picked up by the level compactors.
-			if lvl <= 3 {
-				skipGroup = true
-				break
+				// Skip compacting this group if there happens to be lower level
+				// files in the middle.
+				if lvl <= 3 {
+					skipGroup = true
+					break
+				}
 			}
 
 			// Skip the file if it's over the max size and it contains a full block
@@ -652,7 +717,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			}
 		}
 
-		if skipGroup {
+		if !c.enableNestedCompactor && skipGroup {
 			continue
 		}
 
@@ -671,12 +736,27 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 	// With the groups, we need to evaluate whether the group as a whole can be compacted
 	compactable := []tsmGenerations{}
-	for _, group := range groups {
-		// if we don't have enough generations to compact, skip it
-		if len(group) < 4 && !group.hasTombstones() {
-			continue
+
+	if c.enableNestedCompactor {
+		lastGroupLevel := 4
+		for _, group := range groups {
+			// If we have the nested compactor flag enabled we need to try our best to not ever
+			// skip over lower lever files. This will ensure that if there are a few higher level files
+			// BUT over 4 lower level files nested we will compact them all together.
+			if len(group) < 4 && !group.hasTombstones() && lastGroupLevel == group.level() {
+				continue
+			}
+			compactable = append(compactable, group)
+			lastGroupLevel = group.level()
 		}
-		compactable = append(compactable, group)
+	} else {
+		for _, group := range groups {
+			// if we don't have enough generations to compact, skip it
+			if len(group) < 4 && !group.hasTombstones() {
+				continue
+			}
+			compactable = append(compactable, group)
+		}
 	}
 
 	// All the files to be compacted must be compacted in order.  We need to convert each
@@ -1944,6 +2024,17 @@ func (a tsmGenerations) hasTombstones() bool {
 		}
 	}
 	return false
+}
+
+func (a tsmGenerations) lowestLevel() int {
+	var level int
+	for _, g := range a {
+		lev := g.level()
+		if lev < level {
+			level = lev
+		}
+	}
+	return level
 }
 
 func (a tsmGenerations) level() int {
