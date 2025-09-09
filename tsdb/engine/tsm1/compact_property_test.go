@@ -22,33 +22,26 @@ var AdjacentFileProperty = CompactionProperty{
 }
 
 type fileInfo struct {
-	gen      int
-	seq      int
-	index    int
-	fileName string
+	gen   int
+	seq   int
+	index int
 }
 
 // validateFileAdjacency checks that there are no gaps between compaction groups
 // An adjacency violation occurs when files A and C are in different groups, but file B (between A and C)
 // is also in a different group, creating overlapping or non-contiguous ranges
 func validateFileAdjacency(allFiles []string, groups []tsm1.CompactionGroup) error {
-	var inputFiles []fileInfo
+	var fileMap = make(map[string]fileInfo, len(allFiles))
 	for i, file := range allFiles {
 		gen, seq, err := tsm1.DefaultParseFileName(file)
 		if err != nil {
 			return err
 		}
-		inputFiles = append(inputFiles, fileInfo{
-			gen:      gen,
-			seq:      seq,
-			index:    i,
-			fileName: file,
-		})
-	}
-
-	var fileMap = make(map[string]fileInfo, len(inputFiles))
-	for _, file := range inputFiles {
-		fileMap[file.fileName] = file
+		fileMap[file] = fileInfo{
+			gen:   gen,
+			seq:   seq,
+			index: i,
+		}
 	}
 
 	for groupIndex, group := range groups {
