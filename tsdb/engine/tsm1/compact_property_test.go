@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
-	"golang.org/x/exp/slices"
 )
 
 // CompactionProperty represents a property that compaction groups should satisfy
@@ -46,14 +45,6 @@ func validateNoGaps(allFiles []string, groups []tsm1.CompactionGroup) error {
 			fileName: file,
 		})
 	}
-
-	slices.SortFunc(inputFiles, func(a, b fileInfo) int {
-		if a.gen != b.gen {
-			return a.gen - b.gen
-		}
-
-		return a.seq - b.seq
-	})
 
 	var fileMap = make(map[string]fileInfo, len(inputFiles))
 	for _, file := range inputFiles {
