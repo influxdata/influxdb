@@ -4515,10 +4515,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 				level4Groups: Level4Groups,
 				level5Groups: Level5Groups,
 			})
-
-			if validationErr != nil {
-				t.Logf("%s", validationErr.Error())
-			}
+			assert.NoError(t, validationErr, "test validation failed")
 
 			compareLevelGroups(t, results.level1Groups, level1Groups, "unexpected level 1 Group")
 			compareLevelGroups(t, results.level2Groups, level2Groups, "unexpected level 2 Group")
