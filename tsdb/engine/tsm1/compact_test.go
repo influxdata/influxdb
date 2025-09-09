@@ -4500,10 +4500,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 			e.Scheduler.SetDepth(1, mockGroupLen)
 			e.Scheduler.SetDepth(2, mockGroupLen)
 
-			// Validate our test case based on compact_property_test.go
-			validationErr := ValidateTestCase(test, test.expectedResult())
-			require.NoError(t, validationErr, "test validation failed")
-
 			// Normally this is called within PlanCompactions but because we want to simulate already running
 			// some compactions we will set them manually here.
 			atomic.StoreInt64(&e.Stats.TSMCompactionsActive[0], int64(mockGroupLen))
@@ -4512,6 +4508,17 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// Plan and check results.
 			level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions()
 			results := test.expectedResult()
+
+			// Validate our test case based on compact_property_test.go
+			validationErr := ValidateTestCase(test, TestLevelResults{
+				level1Groups: level1Groups,
+				level2Groups: level2Groups,
+				level3Groups: Level3Groups,
+				level4Groups: Level4Groups,
+				level5Groups: Level5Groups,
+			})
+			assert.NoError(t, validationErr, "test validation failed")
+
 			compareLevelGroups(t, results.level1Groups, level1Groups, "unexpected level 1 Group")
 			compareLevelGroups(t, results.level2Groups, level2Groups, "unexpected level 2 Group")
 			compareLevelGroups(t, results.level3Groups, Level3Groups, "unexpected level 3 Group")
@@ -4546,10 +4553,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 			e.Scheduler.SetDepth(1, mockGroupLen)
 			e.Scheduler.SetDepth(2, mockGroupLen)
 
-			// Validate our test case based on compact_property_test.go
-			validationErr := ValidateTestCase(test, test.expectedResult())
-			require.NoError(t, validationErr, "test validation failed")
-
 			// Normally this is called within PlanCompactions but because we want to simulate already running
 			// some compactions we will set them manually here.
 			atomic.StoreInt64(&e.Stats.TSMCompactionsActive[0], int64(mockGroupLen))
@@ -4558,6 +4561,17 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// Plan and check results.
 			level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions()
 			results := test.expectedResult()
+
+			// Validate our test case based on compact_property_test.go
+			validationErr := ValidateTestCase(test, TestLevelResults{
+				level1Groups: level1Groups,
+				level2Groups: level2Groups,
+				level3Groups: Level3Groups,
+				level4Groups: Level4Groups,
+				level5Groups: Level5Groups,
+			})
+			assert.NoError(t, validationErr, "test validation failed")
+
 			compareLevelGroups(t, results.level1Groups, level1Groups, "unexpected level 1 Group")
 			compareLevelGroups(t, results.level2Groups, level2Groups, "unexpected level 2 Group")
 			compareLevelGroups(t, results.level3Groups, Level3Groups, "unexpected level 3 Group")
