@@ -22,8 +22,6 @@ var AdjacentFileProperty = CompactionProperty{
 }
 
 type fileInfo struct {
-	gen   int
-	seq   int
 	index int
 }
 
@@ -33,13 +31,7 @@ type fileInfo struct {
 func validateFileAdjacency(allFiles []string, groups []tsm1.CompactionGroup) error {
 	var fileMap = make(map[string]fileInfo, len(allFiles))
 	for i, file := range allFiles {
-		gen, seq, err := tsm1.DefaultParseFileName(file)
-		if err != nil {
-			return err
-		}
 		fileMap[file] = fileInfo{
-			gen:   gen,
-			seq:   seq,
 			index: i,
 		}
 	}
