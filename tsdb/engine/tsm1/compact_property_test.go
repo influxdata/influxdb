@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/exp/slices"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
@@ -22,13 +23,42 @@ var AdjacentFileProperty = CompactionProperty{
 }
 
 type fileInfo struct {
-	index int
+	filename   string
+	generation int
+	sequence   int
+	index      int
 }
 
-// validateFileAdjacency checks that there are no gaps between compaction groups
-// An adjacency violation occurs when files A and C are in different groups, but file B (between A and C)
-// is also in a different group, creating overlapping or non-contiguous ranges
+// validateFileAdjacency checks that there are no adjacency violations between TSM files
+// The following example will highlight an adjacency violation:
+// Given the following list of files [01-01.tsm, 02-02.tsm, 03-03.tsm] let's say we have the following compaction plans created
+// Group 1: [01-01.tsm, 03-03.tsm] & Group 2: [02-02.tsm]
+// This violates file adjacency as the first compaction group sees [01-01.tsm, X, 03-03.tsm] and the second group: [X, 02-02.tsm, X]
+// these are non-contiguous blocks, when the first group performs compaction we will have two files that are out of order compacted together.
+// This rule is important to maintain the ordering of files, with improper ordering we cannot determine which point is the newest point when overwrites occur.
+// We always want the newest write to win.
 func validateFileAdjacency(allFiles []string, groups []tsm1.CompactionGroup) error {
+	var fileInfos []fileInfo
+	for _, file := range allFiles {
+		gen, seq, err := tsm1.DefaultParseFileName(file)
+		if err != nil {
+			return fmt.Errorf("failed to parse file %s: %v", file, err)
+		}
+		fileInfos = append(fileInfos, fileInfo{
+			filename:   file,
+			generation: gen,
+			sequence:   seq,
+		})
+	}
+
+	slices.SortFunc(fileInfos, func(a, b fileInfo) int {
+		if a.generation != b.generation {
+			return a.generation - b.generation
+		}
+
+		return a.sequence - b.sequence
+	})
+
 	var fileMap = make(map[string]fileInfo, len(allFiles))
 	for i, file := range allFiles {
 		fileMap[file] = fileInfo{
@@ -95,9 +125,9 @@ func ValidateTestCase(testCase TestEnginePlanCompactionsRunner, actualResults Te
 	var errs []error
 
 	// Extract all filenames from test case
-	var allFiles []string
-	for _, file := range testCase.files {
-		allFiles = append(allFiles, file.Path)
+	var allFiles = make([]string, len(testCase.files))
+	for i, file := range testCase.files {
+		allFiles[i] = file.Path
 	}
 
 	// Validate expected results
