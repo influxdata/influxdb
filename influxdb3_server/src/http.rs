@@ -25,7 +25,9 @@ use hyper::http::HeaderValue;
 use hyper::{Method, StatusCode};
 use influxdb_influxql_parser::select::GroupByClause;
 use influxdb_influxql_parser::statement::Statement;
-use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
+use influxdb3_authz::{
+    AuthProvider, AuthenticatorError, NoAuthAuthenticator, ResourceAuthorizationError,
+};
 use influxdb3_cache::distinct_cache;
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
@@ -53,7 +55,7 @@ use iox_http_util::{
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::{Time, TimeProvider};
-use observability_deps::tracing::{debug, error, info, trace};
+use observability_deps::tracing::{debug, error, info, trace, warn};
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -263,6 +265,18 @@ pub enum Error {
 
     #[error("Timestamp is out of range")]
     TimestampOutOfRange,
+
+    #[error("Authorization error: {0}")]
+    ResourceAuthorization(#[from] ResourceAuthorizationError),
+
+    #[error("Authentication error: {0}")]
+    Authentication(#[from] AuthenticatorError),
+
+    #[error("Current node mode does not use the processing engine")]
+    NoProcessingEngine,
+
+    #[error(transparent)]
+    LegacyWriteParse(#[from] WriteParseError),
 }
 
 #[derive(Debug, Error)]
@@ -277,6 +291,141 @@ pub(crate) enum AuthenticationError {
     Forbidden,
     #[error("to str error: {0}")]
     ToStr(#[from] hyper::header::ToStrError),
+}
+
+/// The /v2/write API expects errors to be JSON formatted like so:
+///
+/// ```json
+/// {"code": "<code>", "message": "<detailed message>"}
+/// ```
+///
+/// `code` can be one of:
+/// * `invalid`
+/// * `unauthorized`
+/// * `not found`
+/// * `request too large`
+/// * `internal error`
+///
+/// See: <https://docs.influxdata.com/influxdb3/clustered/api/v2/#tag/Write>
+///
+/// This type implements `IntoResponse` to ensure that errors conform to this structure using the
+/// existing `Error` type.
+#[derive(Debug)]
+struct V2WriteApiError(Error);
+
+impl V2WriteApiError {
+    fn to_code(&self) -> V2WriteErrorCode {
+        match &self.0 {
+            Error::NonUtf8Body(_)
+            | Error::NonUtf8ContentEncodingHeader(_)
+            | Error::NonUtf8ContentTypeHeader(_)
+            | Error::InvalidContentEncoding(_)
+            | Error::InvalidContentType { .. }
+            | Error::InvalidGzip(_)
+            | Error::InvalidMimeType(_)
+            | Error::InvalidNamespaceName(_)
+            | Error::ParseLineProtocol(_)
+            | Error::RequestLimit
+            | Error::Forbidden
+            | Error::UnsupportedMethod
+            | Error::NonUtf8MimeType(_)
+            | Error::SerdeUrlDecoding(_)
+            | Error::WriteBuffer(_)
+            | Error::DbName(_)
+            | Error::LegacyWriteParse(_)
+            | Error::Authentication(_) => V2WriteErrorCode::Invalid,
+            Error::Catalog(e) => match e {
+                CatalogError::AlreadyExists
+                | CatalogError::InvalidConfiguration { .. }
+                | CatalogError::InvalidColumnType { .. }
+                | CatalogError::ReservedColumn(_)
+                | CatalogError::TooManyColumns(_)
+                | CatalogError::TooManyTagColumns(_)
+                | CatalogError::TooManyTables(_)
+                | CatalogError::TooManyDbs(_)
+                | CatalogError::TooManyFields { .. }
+                | CatalogError::FieldTypeMismatch { .. }
+                | CatalogError::SeriesKeyMismatch { .. }
+                | CatalogError::DuplicateColumn { .. } => V2WriteErrorCode::Invalid,
+                CatalogError::NotFound
+                | CatalogError::DatabaseNotFound { .. }
+                | CatalogError::TableNotFound { .. } => V2WriteErrorCode::NotFound,
+                _ => V2WriteErrorCode::InternalError,
+            },
+            Error::Unauthenticated => V2WriteErrorCode::Unauthorized,
+            Error::ResourceAuthorization(ResourceAuthorizationError::Unauthorized) => {
+                V2WriteErrorCode::Unauthorized
+            }
+            Error::RequestSizeExceeded(_) => V2WriteErrorCode::RequestTooLarge,
+            _ => V2WriteErrorCode::InternalError,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum V2WriteErrorCode {
+    Invalid,
+    Unauthorized,
+    NotFound,
+    RequestTooLarge,
+    InternalError,
+}
+
+impl V2WriteErrorCode {
+    fn to_str(&self) -> &'static str {
+        match self {
+            Self::Invalid => "invalid",
+            Self::Unauthorized => "unauthorized",
+            Self::NotFound => "not found",
+            Self::RequestTooLarge => "request too large",
+            Self::InternalError => "internal error",
+        }
+    }
+
+    fn to_status_code(&self) -> StatusCode {
+        match self {
+            Self::Invalid => StatusCode::BAD_REQUEST,
+            Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::NotFound => StatusCode::NOT_FOUND,
+            Self::RequestTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+impl Serialize for V2WriteErrorCode {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_str())
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct V2ErrorResponse {
+    code: V2WriteErrorCode,
+    message: String,
+}
+
+impl IntoResponse for V2WriteApiError {
+    fn into_response(self) -> Response {
+        let code = self.to_code();
+        let status = code.to_status_code();
+        let message = if let V2WriteErrorCode::Unauthorized = code {
+            // Ensure an opaque error message for 401 errors.
+            warn!(
+                error = self.0.to_string(),
+                "unauthorized access attempt to /v2/write API"
+            );
+            "unauthorized access".to_string()
+        } else {
+            self.0.to_string()
+        };
+        let response = V2ErrorResponse { code, message };
+        let body = bytes_to_response_body(serde_json::to_vec(&response).unwrap());
+        ResponseBuilder::new().status(status).body(body).unwrap()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -2062,11 +2211,24 @@ pub(crate) async fn route_request(
             http_server.write_lp_inner(params, req, true).await
         }
         (Method::POST, all_paths::API_V2_WRITE) => {
-            let params = match http_server.legacy_write_param_unifier.parse_v2(&req).await {
+            let params = match http_server
+                .legacy_write_param_unifier
+                .parse_v2(&req)
+                .await
+                .map_err(Error::LegacyWriteParse)
+                .map_err(V2WriteApiError)
+            {
                 Ok(p) => p.into(),
-                Err(e) => return Ok(legacy_write_error_to_response(e)),
+                Err(e) => return Ok(e.into_response()),
             };
-            http_server.write_lp_inner(params, req, false).await
+            match http_server
+                .write_lp_inner(params, req, false)
+                .await
+                .map_err(V2WriteApiError)
+            {
+                Ok(r) => Ok(r),
+                Err(e) => return Ok(e.into_response()),
+            }
         }
         (Method::POST, all_paths::API_V3_WRITE) => http_server.write_lp(req).await,
         (Method::GET | Method::POST, all_paths::API_V3_QUERY_SQL) => {

@@ -1,6 +1,7 @@
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use reqwest::StatusCode;
+use serde_json::Value;
 
 use crate::server::TestServer;
 
@@ -392,6 +393,255 @@ async fn api_no_sync_param() {
     let body = resp.text().await.expect("response body as text");
     println!("Response [{status}]:\n{body}");
     assert_eq!(status, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn api_v2_write_error_response_format() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+
+    // Test case: Invalid line protocol syntax (this will go through write_lp_inner and trigger V2WriteApiError)
+    let resp = client
+        .post(&write_url)
+        .query(&[("bucket", "test_bucket")])
+        .body("invalid_line_protocol_syntax")
+        .send()
+        .await
+        .expect("send request");
+
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+
+    println!("Response [{status}]: {body}");
+
+    // Should return BAD_REQUEST for invalid line protocol
+    assert_eq!(StatusCode::BAD_REQUEST, status);
+
+    // Parse and verify JSON error response structure
+    let json: Value = serde_json::from_str(&body)
+        .unwrap_or_else(|_| panic!("Failed to parse JSON response. Body: {}", body));
+
+    let obj = json.as_object().unwrap();
+    assert!(obj.contains_key("code"), "Response missing 'code' field");
+    assert!(
+        obj.contains_key("message"),
+        "Response missing 'message' field"
+    );
+
+    let code = obj["code"].as_str().unwrap();
+    assert_eq!("invalid", code, "Expected 'invalid' error code");
+
+    let message = obj["message"].as_str().unwrap();
+    assert!(!message.is_empty(), "Error message should not be empty");
+}
+
+#[tokio::test]
+async fn api_v2_write_parameter_validation_v2_format() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+
+    // Test parameter validation errors (these should now use V2WriteApiError format)
+    let resp = client
+        .post(&write_url)
+        .body("cpu,host=a usage=0.5")
+        .send()
+        .await
+        .expect("send request");
+
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+
+    println!("Response [{status}]: {body}");
+
+    // Should return BAD_REQUEST for missing bucket
+    assert_eq!(StatusCode::BAD_REQUEST, status);
+
+    // Parse and verify this uses the new V2WriteApiError format
+    let json: Value = serde_json::from_str(&body)
+        .unwrap_or_else(|_| panic!("Failed to parse JSON response. Body: {}", body));
+
+    let obj = json.as_object().unwrap();
+    // V2WriteApiError format has "code" and "message" fields
+    assert!(
+        obj.contains_key("code"),
+        "Response should have V2 'code' field"
+    );
+    assert!(
+        obj.contains_key("message"),
+        "Response should have V2 'message' field"
+    );
+
+    let code = obj["code"].as_str().unwrap();
+    assert_eq!("invalid", code, "Expected 'invalid' error code");
+
+    let message = obj["message"].as_str().unwrap();
+    assert!(!message.is_empty(), "Error message should not be empty");
+    assert!(
+        message.contains("org") || message.contains("bucket"),
+        "Error should mention missing org/bucket"
+    );
+}
+
+#[tokio::test]
+async fn api_v2_write_error_response_conflicting_schema() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+
+    // First, write valid data with integer field
+    client
+        .post(&write_url)
+        .query(&[("bucket", "test_bucket")])
+        .body("measurement,tag=value field=42i")
+        .send()
+        .await
+        .expect("send first write request");
+
+    // Now try to write conflicting schema (string field with same name)
+    let resp = client
+        .post(&write_url)
+        .query(&[("bucket", "test_bucket")])
+        .body("measurement,tag=value field=\"string_value\"")
+        .send()
+        .await
+        .expect("send conflicting write request");
+
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+
+    println!("Response [{status}]: {body}");
+
+    // Should return BAD_REQUEST for schema conflict
+    assert_eq!(StatusCode::BAD_REQUEST, status);
+
+    // Parse and verify JSON error response structure
+    let json: Value = serde_json::from_str(&body)
+        .unwrap_or_else(|_| panic!("Failed to parse JSON response. Body: {}", body));
+
+    let obj = json.as_object().unwrap();
+    assert!(obj.contains_key("code"));
+    assert!(obj.contains_key("message"));
+
+    let code = obj["code"].as_str().unwrap();
+    assert_eq!("invalid", code);
+
+    let message = obj["message"].as_str().unwrap();
+    assert!(!message.is_empty());
+    // The schema conflict currently shows as a parsing error, but it still uses the V2WriteApiError format
+    assert!(
+        message.contains("parsing")
+            || message.contains("field")
+            || message.contains("type")
+            || message.contains("mismatch")
+    );
+}
+
+#[tokio::test]
+async fn api_v2_write_empty_body_error() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+
+    let resp = client
+        .post(&write_url)
+        .query(&[("bucket", "test_bucket")])
+        .body("")
+        .send()
+        .await
+        .expect("send request");
+
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+
+    println!("Empty body test: Response [{status}]: {body}");
+
+    // Should return BAD_REQUEST for empty body
+    assert_eq!(StatusCode::BAD_REQUEST, status);
+
+    // Parse and verify JSON error response has V2WriteApiError format
+    let json: Value = serde_json::from_str(&body)
+        .unwrap_or_else(|_| panic!("Failed to parse JSON response. Body: {}", body));
+
+    let obj = json.as_object().unwrap();
+    assert!(obj.contains_key("code"), "Response missing 'code' field");
+    assert!(
+        obj.contains_key("message"),
+        "Response missing 'message' field"
+    );
+
+    let code = obj["code"].as_str().unwrap();
+    assert_eq!("invalid", code, "Expected 'invalid' error code");
+
+    let message = obj["message"].as_str().unwrap();
+    assert!(!message.is_empty(), "Error message should not be empty");
+}
+
+#[tokio::test]
+async fn api_v2_write_malformed_line_protocol_error() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+
+    let resp = client
+        .post(&write_url)
+        .query(&[("bucket", "test_bucket")])
+        .body(",tag=value field=1") // Missing measurement name
+        .send()
+        .await
+        .expect("send request");
+
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+
+    println!("Malformed LP test: Response [{status}]: {body}");
+
+    // Should return BAD_REQUEST for malformed line protocol
+    assert_eq!(StatusCode::BAD_REQUEST, status);
+
+    // Parse and verify JSON error response has V2WriteApiError format
+    let json: Value = serde_json::from_str(&body)
+        .unwrap_or_else(|_| panic!("Failed to parse JSON response. Body: {}", body));
+
+    let obj = json.as_object().unwrap();
+    assert!(obj.contains_key("code"), "Response missing 'code' field");
+    assert!(
+        obj.contains_key("message"),
+        "Response missing 'message' field"
+    );
+
+    let code = obj["code"].as_str().unwrap();
+    assert_eq!("invalid", code, "Expected 'invalid' error code");
+
+    let message = obj["message"].as_str().unwrap();
+    assert!(!message.is_empty(), "Error message should not be empty");
+}
+
+#[tokio::test]
+async fn api_v2_write_success_no_error_response() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+
+    let resp = client
+        .post(&write_url)
+        .query(&[("bucket", "test_bucket")])
+        .body("cpu,host=server01 usage=0.75")
+        .send()
+        .await
+        .expect("send write request");
+
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+
+    // Success should return 204 No Content with empty body
+    assert_eq!(StatusCode::NO_CONTENT, status);
+    assert!(
+        body.is_empty(),
+        "Success response should have empty body, got: {}",
+        body
+    );
 }
 
 #[test_log::test(tokio::test)]
