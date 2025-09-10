@@ -1262,7 +1262,9 @@ impl HttpApi {
     async fn configure_processing_engine_trigger(&self, req: Request) -> Result<Response> {
         let ProcessingEngineTriggerCreateRequest {
             db,
+            #[allow(deprecated)]
             plugin_filename,
+            path,
             trigger_name,
             trigger_settings,
             trigger_specification,
@@ -1273,18 +1275,41 @@ impl HttpApi {
         } else {
             self.read_body_json(req).await?
         };
-        debug!(%db, %plugin_filename, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
-        let plugin_filename = self
-            .processing_engine
-            .validate_plugin_filename(&plugin_filename)
-            .await?;
+
+        // If we have a plugin_filename this uses the old field to validate a plugin. This is a single file plugin only.
+        let validated_plugin_path = if let Some(ref plugin_filename) = plugin_filename {
+            // Single file plugin
+            debug!(%db, %plugin_filename, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
+            // Skip validation if trigger is disabled - files may not exist yet (e.g., when using --upload)
+            if disabled {
+                influxdb3_catalog::log::ValidPluginPath::from_validated_name(plugin_filename)
+            } else {
+                self.processing_engine
+                    .validate_plugin_name(plugin_filename)
+                    .await?
+            }
+        // If this is set we need to validate the path for a directory or a file is valid
+        } else if let Some(path) = &path {
+            debug!(%db, %path, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
+            // Skip validation if trigger is disabled - files may not exist yet (e.g., when using --upload)
+            if disabled {
+                influxdb3_catalog::log::ValidPluginPath::from_validated_name(path)
+            } else {
+                self.processing_engine.validate_plugin_name(path).await?
+            }
+        } else {
+            return Err(Error::ProcessingEngine(ProcessingEngineError::PluginError(
+                influxdb3_processing_engine::plugins::PluginError::NoPluginDir,
+            )));
+        };
+
         self.write_buffer
             .catalog()
             .create_processing_engine_trigger(
                 &db,
                 &trigger_name,
                 self.processing_engine.node_id(),
-                plugin_filename,
+                validated_plugin_path,
                 &trigger_specification,
                 trigger_settings,
                 &trigger_arguments,
@@ -1666,6 +1691,100 @@ impl HttpApi {
             .body(empty_response_body());
 
         Ok(body?)
+    }
+
+    /// List all plugins and their metadata
+    async fn list_plugins(&self, _req: Request) -> Result<Response> {
+        let plugin_files = self.processing_engine.list_plugin_files().await;
+
+        // Group files by plugin name
+        let mut plugins_map = std::collections::HashMap::new();
+        for file_info in plugin_files {
+            let entry = plugins_map
+                .entry(Arc::<str>::clone(&file_info.plugin_name))
+                .or_insert_with(Vec::new);
+            entry.push(file_info);
+        }
+
+        let plugins: Vec<PluginInfo> = plugins_map
+            .into_iter()
+            .map(|(name, files)| PluginInfo {
+                plugin_name: name.to_string(),
+                files: files
+                    .iter()
+                    .map(|f| PluginFileInfo {
+                        file_name: f.file_name.to_string(),
+                        size_bytes: f.size_bytes,
+                        last_modified: f.last_modified_millis,
+                        content_hash: f.content_hash.to_string(),
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        let response = ListPluginsResponse { plugins };
+        let body = serde_json::to_string(&response)?;
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
+            .body(bytes_to_response_body(body))?)
+    }
+
+    /// Get plugin file contents (admin-only)
+    async fn get_plugin_files(&self, req: Request) -> Result<Response> {
+        let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
+        let params: PluginQueryParams = serde_urlencoded::from_str(query)?;
+
+        let content = self
+            .processing_engine
+            .get_plugin_file_content(&params.plugin_name, &params.file_name)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        let response = GetPluginFileResponse {
+            plugin_name: params.plugin_name,
+            file_name: params.file_name,
+            content,
+        };
+
+        let body = serde_json::to_string(&response)?;
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
+            .body(bytes_to_response_body(body))?)
+    }
+
+    /// Update plugin file contents (admin-only)
+    async fn update_plugin_file(&self, req: Request) -> Result<Response> {
+        let request: UpdatePluginFileRequest = self.read_body_json(req).await?;
+
+        Arc::clone(&self.processing_engine)
+            .update_plugin_file(&request.plugin_name, &request.file_name, &request.content)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .body(empty_response_body())?)
+    }
+
+    /// Reload a plugin (admin-only)
+    async fn reload_plugin(&self, req: Request) -> Result<Response> {
+        #[derive(Deserialize)]
+        struct ReloadPluginRequest {
+            plugin_name: String,
+        }
+
+        let request: ReloadPluginRequest = self.read_body_json(req).await?;
+
+        Arc::clone(&self.processing_engine)
+            .reload_plugin(&request.plugin_name)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .body(empty_response_body())?)
     }
 }
 
@@ -2312,6 +2431,10 @@ pub(crate) async fn route_request(
         (Method::DELETE, all_paths::API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD) => {
             http_server.clear_retention_period_for_database(req).await
         }
+        (Method::GET, all_paths::API_V3_PLUGINS) => http_server.list_plugins(req).await,
+        (Method::GET, all_paths::API_V3_PLUGINS_FILES) => http_server.get_plugin_files(req).await,
+        (Method::PUT, all_paths::API_V3_PLUGINS_FILES) => http_server.update_plugin_file(req).await,
+        (Method::POST, all_paths::API_V3_PLUGINS_RELOAD) => http_server.reload_plugin(req).await,
         _ => {
             let body = bytes_to_response_body("not found");
             Ok(ResponseBuilder::new()

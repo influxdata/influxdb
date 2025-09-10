@@ -184,7 +184,13 @@ pub struct ProcessingEnginePluginDeleteRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProcessingEngineTriggerCreateRequest {
     pub db: String,
-    pub plugin_filename: String,
+    /// Single plugin file name, path should be favored as this is deprecated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[deprecated(since = "3.5.0", note = "Use path field instead")]
+    pub plugin_filename: Option<String>,
+    /// Used to create a plugin given a path to a plugin file or directory
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
     pub trigger_name: String,
     pub trigger_settings: TriggerSettings,
     pub trigger_specification: String,
@@ -449,4 +455,49 @@ pub struct TokenDeleteRequest {
 pub struct CreateNamedAdminTokenRequest {
     pub token_name: String,
     pub expiry_secs: Option<u64>,
+}
+
+/// Metadata for a single plugin file
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PluginFileInfo {
+    pub file_name: String,
+    pub size_bytes: i64,
+    pub last_modified: i64,
+    pub content_hash: String,
+}
+
+/// Plugin information with associated files
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PluginInfo {
+    pub plugin_name: String,
+    pub files: Vec<PluginFileInfo>,
+}
+
+/// Response definition for the `GET /api/v3/plugins` API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ListPluginsResponse {
+    pub plugins: Vec<PluginInfo>,
+}
+
+/// Response definition for the `GET /api/v3/plugins/files` API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetPluginFileResponse {
+    pub plugin_name: String,
+    pub file_name: String,
+    pub content: String,
+}
+
+/// Request definition for the `PUT /api/v3/plugins/files` API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UpdatePluginFileRequest {
+    pub plugin_name: String,
+    pub file_name: String,
+    pub content: String,
+}
+
+/// Query parameters for plugin-related APIs
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PluginQueryParams {
+    pub plugin_name: String,
+    pub file_name: String,
 }

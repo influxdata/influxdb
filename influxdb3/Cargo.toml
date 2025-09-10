@@ -40,6 +40,7 @@ influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_clap_blocks = { path = "../influxdb3_clap_blocks" }
+influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_processing_engine = {path = "../influxdb3_processing_engine"}
 influxdb3_server = { path = "../influxdb3_server" }

@@ -1758,6 +1758,7 @@ mod tests {
         let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
             catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),
+            processing_engine: None,
             exec: Arc::clone(&exec),
             metrics: Arc::clone(&metrics),
             datafusion_config: Default::default(),
