@@ -3500,7 +3500,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 				{
 					FileStat: tsm1.FileStat{
-						Path: "05-03.tsm1",
+						Path: "04-03.tsm1",
 						Size: 400 * 1024 * 1024,
 					},
 					FirstBlockCount: 10,
@@ -3523,7 +3523,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 								"03-04.tsm1",
 								"04-01.tsm1",
 								"04-02.tsm1",
-								"05-03.tsm1",
+								"04-03.tsm1",
 							}, tsdb.DefaultAggressiveMaxPointsPerBlock},
 					},
 				}
@@ -4233,8 +4233,36 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 		},
 		{
-			name: "Mock another planned level inside scheduler aggress blocks middle",
+			name: "Mock another planned level inside scheduler aggressive blocks middle",
 			files: []tsm1.ExtFileStat{
+				{
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "02-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "03-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "04-04.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "05-01.tsm",
@@ -4286,60 +4314,38 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 				{
 					FileStat: tsm1.FileStat{
-						Path: "12-05.tsm",
+						Path: "12-01.tsm",
 						Size: 256 * 1024 * 1024,
 					},
 					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 				},
 				{
 					FileStat: tsm1.FileStat{
-						Path: "13-05.tsm",
+						Path: "13-01.tsm",
 						Size: 256 * 1024 * 1024,
 					},
 					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
 				},
 				{
 					FileStat: tsm1.FileStat{
-						Path: "14-05.tsm",
+						Path: "14-01.tsm",
 						Size: 256 * 1024 * 1024,
 					},
 					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
-				},
-				{
-					FileStat: tsm1.FileStat{
-						Path: "15-04.tsm",
-						Size: 256 * 1024 * 1024,
-					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
-				},
-				{
-					FileStat: tsm1.FileStat{
-						Path: "16-01.tsm",
-						Size: 256 * 1024 * 1024,
-					},
-					FirstBlockCount: 50,
-				},
-				{
-					FileStat: tsm1.FileStat{
-						Path: "17-01.tsm",
-						Size: 256 * 1024 * 1024,
-					},
-					FirstBlockCount: 50,
-				},
-				{
-					FileStat: tsm1.FileStat{
-						Path: "18-01.tsm",
-						Size: 256 * 1024 * 1024,
-					},
-					FirstBlockCount: 50,
 				},
 			},
 			testShardTime: -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
+					level1Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"12-05.tsm", "13-05.tsm", "14-05.tsm", "15-04.tsm", "16-01.tsm", "17-01.tsm", "18-01.tsm"},
+							tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
 							tsdb.DefaultAggressiveMaxPointsPerBlock,
 						},
 					},
