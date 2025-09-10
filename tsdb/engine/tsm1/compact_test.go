@@ -2883,26 +2883,7 @@ func TestIsGroupOptimized(t *testing.T) {
 }
 
 func TestEnginePlanCompactions(t *testing.T) {
-	type testLevelResults struct {
-		level1Groups []tsm1.PlannedCompactionGroup
-		level2Groups []tsm1.PlannedCompactionGroup
-		level3Groups []tsm1.PlannedCompactionGroup
-		level4Groups []tsm1.PlannedCompactionGroup
-		level5Groups []tsm1.PlannedCompactionGroup
-	}
-
-	type testEnginePlanCompactionsRunner struct {
-		name              string
-		files             []tsm1.ExtFileStat
-		defaultBlockCount int // Default block count if member of files has FirstBlockCount of 0.
-		// This is specifically used to adjust the modification time
-		// so we can simulate the passage of time in tests
-		testShardTime time.Duration
-		// Each result is for the different plantypes
-		expectedResult func() testLevelResults
-	}
-
-	tests := []testEnginePlanCompactionsRunner{
+	tests := []TestEnginePlanCompactionsRunner{
 		{
 			name: "many generations under 2GB",
 			files: []tsm1.ExtFileStat{
@@ -2936,8 +2917,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm", "02-05.tsm", "03-05.tsm", "04-04.tsm"},
@@ -3022,8 +3003,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1", "01-06.tsm1", "01-07.tsm1", "01-08.tsm1", "02-05.tsm1", "02-06.tsm1", "02-07.tsm1", "02-08.tsm1", "03-04.tsm1", "03-05.tsm1"},
@@ -3063,8 +3044,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1",
@@ -3096,8 +3077,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			}.ToExtFileStats(),
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-02.tsm1",
@@ -3132,8 +3113,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			}.ToExtFileStats(),
 			defaultBlockCount: tsdb.DefaultMaxPointsPerBlock,
 			testShardTime:     -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1",
@@ -3208,8 +3189,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1",
@@ -3254,8 +3235,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-13.tsm1",
@@ -3281,8 +3262,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			}.ToExtFileStats(),
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{}
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{}
 			},
 		},
 		{
@@ -3302,8 +3283,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			}.ToExtFileStats(),
 			defaultBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 			testShardTime:     -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{}
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{}
 			},
 		},
 		{
@@ -3329,8 +3310,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{}
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{}
 			},
 		},
 		{
@@ -3353,8 +3334,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			}.ToExtFileStats(),
 			defaultBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
 			testShardTime:     -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{}
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{}
 			},
 		},
 		{
@@ -3411,8 +3392,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			}.ToExtFileStats(),
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"01-05.tsm1",
@@ -3519,15 +3500,15 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 				{
 					FileStat: tsm1.FileStat{
-						Path: "03-03.tsm1",
+						Path: "04-03.tsm1",
 						Size: 400 * 1024 * 1024,
 					},
 					FirstBlockCount: 10,
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
@@ -3540,9 +3521,9 @@ func TestEnginePlanCompactions(t *testing.T) {
 								"03-02.tsm1",
 								"03-03.tsm1",
 								"03-04.tsm1",
-								"03-03.tsm1",
 								"04-01.tsm1",
 								"04-02.tsm1",
+								"04-03.tsm1",
 							}, tsdb.DefaultAggressiveMaxPointsPerBlock},
 					},
 				}
@@ -4039,8 +4020,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 			defaultBlockCount: tsdb.DefaultMaxPointsPerBlock,
 			testShardTime:     -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
@@ -4234,8 +4215,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level1Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
@@ -4252,8 +4233,36 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 		},
 		{
-			name: "Mock another planned level inside scheduler aggress blocks middle",
+			name: "Write level 5 group using DefaultAggressiveMaxPointsPerBlock given we have a TSM file at that level",
 			files: []tsm1.ExtFileStat{
+				{
+					FileStat: tsm1.FileStat{
+						Path: "01-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "02-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "03-05.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
+				{
+					FileStat: tsm1.FileStat{
+						Path: "04-04.tsm",
+						Size: 256 * 1024 * 1024,
+					},
+					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
+				},
 				{
 					FileStat: tsm1.FileStat{
 						Path: "05-01.tsm",
@@ -4305,34 +4314,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 				{
 					FileStat: tsm1.FileStat{
-						Path: "01-05.tsm",
-						Size: 256 * 1024 * 1024,
-					},
-					FirstBlockCount: tsdb.DefaultAggressiveMaxPointsPerBlock,
-				},
-				{
-					FileStat: tsm1.FileStat{
-						Path: "02-05.tsm",
-						Size: 256 * 1024 * 1024,
-					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
-				},
-				{
-					FileStat: tsm1.FileStat{
-						Path: "03-05.tsm",
-						Size: 256 * 1024 * 1024,
-					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
-				},
-				{
-					FileStat: tsm1.FileStat{
-						Path: "04-04.tsm",
-						Size: 256 * 1024 * 1024,
-					},
-					FirstBlockCount: tsdb.DefaultMaxPointsPerBlock,
-				},
-				{
-					FileStat: tsm1.FileStat{
 						Path: "12-01.tsm",
 						Size: 256 * 1024 * 1024,
 					},
@@ -4354,8 +4335,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level1Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
@@ -4475,8 +4456,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 				},
 			},
 			testShardTime: -1,
-			expectedResult: func() testLevelResults {
-				return testLevelResults{
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
 					level1Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{"05-01.tsm", "06-01.tsm", "07-01.tsm", "08-01.tsm", "09-01.tsm", "10-01.tsm", "11-01.tsm", "12-01.tsm"},
@@ -4525,6 +4506,17 @@ func TestEnginePlanCompactions(t *testing.T) {
 			// Plan and check results.
 			level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions()
 			results := test.expectedResult()
+
+			// Validate our test case based on compact_property_test.go
+			validationErr := ValidateTestCase(test, TestLevelResults{
+				level1Groups: level1Groups,
+				level2Groups: level2Groups,
+				level3Groups: Level3Groups,
+				level4Groups: Level4Groups,
+				level5Groups: Level5Groups,
+			})
+			assert.NoError(t, validationErr, "test validation failed")
+
 			compareLevelGroups(t, results.level1Groups, level1Groups, "unexpected level 1 Group")
 			compareLevelGroups(t, results.level2Groups, level2Groups, "unexpected level 2 Group")
 			compareLevelGroups(t, results.level3Groups, Level3Groups, "unexpected level 3 Group")
