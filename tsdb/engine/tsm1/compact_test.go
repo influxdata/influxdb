@@ -4233,7 +4233,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 		},
 		{
-			name: "Mock another planned level inside scheduler aggressive blocks middle",
+			name: "Write level 5 group using DefaultAggressiveMaxPointsPerBlock given we have a TSM file at that level",
 			files: []tsm1.ExtFileStat{
 				{
 					FileStat: tsm1.FileStat{
