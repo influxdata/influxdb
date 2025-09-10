@@ -576,6 +576,21 @@ pub struct CreateTriggerQuery<'a> {
     error_behavior: Option<String>,
 }
 
+// Builder for the 'create trigger' command with multi-file plugin directory
+#[derive(Debug)]
+pub struct CreateTriggerWithDirQuery<'a> {
+    server: &'a TestServer,
+    trigger_name: String,
+    db_name: String,
+    plugin_dir: String,
+    entrypoint: String,
+    trigger_spec: String,
+    trigger_arguments: Vec<String>,
+    disabled: bool,
+    run_asynchronous: bool,
+    error_behavior: Option<String>,
+}
+
 impl TestServer {
     pub fn create_trigger(
         &self,
@@ -589,6 +604,28 @@ impl TestServer {
             db_name: db_name.into(),
             trigger_name: trigger_name.into(),
             plugin_filename: plugin_filename.into(),
+            trigger_spec: trigger_spec.into(),
+            trigger_arguments: Vec::new(),
+            disabled: false,
+            run_asynchronous: false,
+            error_behavior: None,
+        }
+    }
+
+    pub fn create_trigger_with_dir(
+        &self,
+        db_name: impl Into<String>,
+        trigger_name: impl Into<String>,
+        plugin_dir: impl Into<String>,
+        entrypoint: impl Into<String>,
+        trigger_spec: impl Into<String>,
+    ) -> CreateTriggerWithDirQuery<'_> {
+        CreateTriggerWithDirQuery {
+            server: self,
+            db_name: db_name.into(),
+            trigger_name: trigger_name.into(),
+            plugin_dir: plugin_dir.into(),
+            entrypoint: entrypoint.into(),
             trigger_spec: trigger_spec.into(),
             trigger_arguments: Vec::new(),
             disabled: false,
@@ -663,6 +700,75 @@ impl CreateTriggerQuery<'_> {
         self.server.run(vec!["create", "trigger"], args.as_slice())
     }
 }
+
+impl CreateTriggerWithDirQuery<'_> {
+    pub fn with_trigger_arguments(
+        mut self,
+        args: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.trigger_arguments = args.into_iter().map(Into::into).collect();
+        self
+    }
+
+    pub fn add_trigger_argument(mut self, arg: impl Into<String>) -> Self {
+        self.trigger_arguments.push(arg.into());
+        self
+    }
+
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    pub fn run_asynchronous(mut self, async_run: bool) -> Self {
+        self.run_asynchronous = async_run;
+        self
+    }
+
+    pub fn error_behavior(mut self, behavior: impl Into<String>) -> Self {
+        self.error_behavior = Some(behavior.into());
+        self
+    }
+
+    pub fn run(self) -> Result<String> {
+        let mut args = vec![
+            self.trigger_name.as_str(),
+            "--database",
+            self.db_name.as_str(),
+            "--multi-file-plugin-dir",
+            self.plugin_dir.as_str(),
+            "--entrypoint",
+            self.entrypoint.as_str(),
+            "--trigger-spec",
+            self.trigger_spec.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
+        ];
+
+        let trigger_args = self.trigger_arguments.join(",");
+
+        if !self.trigger_arguments.is_empty() {
+            args.push("--trigger-arguments");
+            args.push(trigger_args.as_str());
+        }
+
+        if self.disabled {
+            args.push("--disabled");
+        }
+
+        if self.run_asynchronous {
+            args.push("--run-asynchronous");
+        }
+
+        if let Some(behavior) = &self.error_behavior {
+            args.push("--error-behavior");
+            args.push(behavior);
+        }
+
+        self.server.run(vec!["create", "trigger"], args.as_slice())
+    }
+}
+
 // Builder for the 'enable trigger' command
 #[derive(Debug)]
 pub struct EnableTriggerQuery<'a> {

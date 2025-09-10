@@ -262,7 +262,7 @@ pub struct TriggerConfig {
     /// Directory containing multi-file plugin code. Mutually exclusive with --plugin-filename.
     #[clap(long = "multi-file-plugin-dir", conflicts_with = "plugin_filename")]
     multi_file_plugin_dir: Option<String>,
-    /// Entry point file within the multi-file plugin directory (e.g., 'main.py'). 
+    /// Entry point file within the multi-file plugin directory (e.g., 'main.py').
     /// Required when using --multi-file-plugin-dir.
     #[clap(long = "entrypoint", requires = "multi_file_plugin_dir")]
     entrypoint: Option<String>,
@@ -474,7 +474,8 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                         trigger_settings,
                     )
                     .await
-            } else if let (Some(plugin_dir), Some(entrypoint)) = (multi_file_plugin_dir, entrypoint) {
+            } else if let (Some(plugin_dir), Some(entrypoint)) = (multi_file_plugin_dir, entrypoint)
+            {
                 // Multi-file plugin directory
                 client
                     .api_v3_configure_processing_engine_trigger_create_with_dir(
@@ -489,12 +490,13 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     )
                     .await
             } else {
-                eprintln!("Error: Either --plugin-filename or both --multi-file-plugin-dir and --entrypoint must be specified");
+                eprintln!(
+                    "Error: Either --plugin-filename or both --multi-file-plugin-dir and --entrypoint must be specified"
+                );
                 return Err("Invalid plugin configuration".into());
             };
 
-            match result
-            {
+            match result {
                 Err(e) => {
                     eprintln!("Failed to create trigger: {e}");
                     return Err(e.into());
@@ -611,5 +613,94 @@ mod tests {
             .expect("must include query_path trigger argument");
 
         assert_eq!("/metrics?format=json", query_path.0.1);
+    }
+
+    #[test]
+    fn parse_args_create_trigger_with_multi_file_plugin() {
+        let args = super::Config::parse_from([
+            "create",
+            "trigger",
+            "--trigger-spec",
+            "every:10s",
+            "--multi-file-plugin-dir",
+            "my_plugin/",
+            "--entrypoint",
+            "main.py",
+            "--database",
+            "test",
+            "test-trigger",
+        ]);
+        let super::SubCommand::Trigger(super::TriggerConfig {
+            trigger_name,
+            plugin_filename,
+            multi_file_plugin_dir,
+            entrypoint,
+            trigger_specification,
+            influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
+            ..
+        }) = args.cmd
+        else {
+            panic!("Did not parse args correctly: {args:#?}")
+        };
+        assert_eq!("test", database_name);
+        assert_eq!("test-trigger", trigger_name);
+        assert_eq!(None, plugin_filename);
+        assert_eq!(Some("my_plugin/".to_string()), multi_file_plugin_dir);
+        assert_eq!(Some("main.py".to_string()), entrypoint);
+        assert_eq!(
+            TriggerSpecificationDefinition::Every {
+                duration: Duration::from_secs(10)
+            },
+            trigger_specification
+        );
+    }
+
+    #[test]
+    fn parse_args_create_trigger_conflict_single_and_multi_file() {
+        // This should fail because both --plugin-filename and --multi-file-plugin-dir are provided
+        let result = super::Config::try_parse_from([
+            "create",
+            "trigger",
+            "--trigger-spec",
+            "every:10s",
+            "--plugin-filename",
+            "plugin.py",
+            "--multi-file-plugin-dir",
+            "my_plugin/",
+            "--entrypoint",
+            "main.py",
+            "--database",
+            "test",
+            "test-trigger",
+        ]);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("cannot be used") || err_msg.contains("conflicts"),
+            "Expected conflict error, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn parse_args_create_trigger_entrypoint_requires_dir() {
+        // This should fail because --entrypoint is provided without --multi-file-plugin-dir
+        let result = super::Config::try_parse_from([
+            "create",
+            "trigger",
+            "--trigger-spec",
+            "every:10s",
+            "--entrypoint",
+            "main.py",
+            "--database",
+            "test",
+            "test-trigger",
+        ]);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("required"));
     }
 }

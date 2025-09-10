@@ -1,6 +1,7 @@
 mod admin_token;
 mod api;
 mod db_retention;
+mod multi_file_plugin;
 mod offline_tokens;
 
 use crate::server::{ConfigProvider, TestServer};

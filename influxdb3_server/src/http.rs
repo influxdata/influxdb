@@ -1122,7 +1122,7 @@ impl HttpApi {
         } else {
             self.read_body_json(req).await?
         };
-        
+
         // Determine which type of plugin to validate and create
         let validated_plugin = if let Some(ref plugin_filename) = plugin_filename {
             // Single file plugin
@@ -1137,13 +1137,11 @@ impl HttpApi {
                 .validate_plugin_directory(plugin_dir, entrypoint)
                 .await?
         } else {
-            return Err(Error::ProcessingEngine(
-                ProcessingEngineError::PluginError(
-                    influxdb3_processing_engine::plugins::PluginError::NoPluginDir
-                )
-            ));
+            return Err(Error::ProcessingEngine(ProcessingEngineError::PluginError(
+                influxdb3_processing_engine::plugins::PluginError::NoPluginDir,
+            )));
         };
-        
+
         self.write_buffer
             .catalog()
             .create_processing_engine_trigger(

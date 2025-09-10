@@ -269,17 +269,23 @@ impl ProcessingEngineManagerImpl {
         let _ = self.read_plugin_directory(dir_name, entrypoint).await?;
         // Create a composite identifier for the directory plugin
         let composite_name = format!("dir:{dir_name}:{entrypoint}");
-        Ok(ValidPluginFilename::from_validated_name(Box::leak(composite_name.into_boxed_str())))
+        Ok(ValidPluginFilename::from_validated_name(Box::leak(
+            composite_name.into_boxed_str(),
+        )))
     }
 
-    pub async fn read_plugin_directory(&self, dir_name: &str, entrypoint: &str) -> Result<PluginCode, PluginError> {
+    pub async fn read_plugin_directory(
+        &self,
+        dir_name: &str,
+        entrypoint: &str,
+    ) -> Result<PluginCode, PluginError> {
         let plugin_dir = self
             .environment_manager
             .plugin_dir
             .clone()
             .ok_or(PluginError::NoPluginDir)?;
         let plugin_path = plugin_dir.join(dir_name);
-        
+
         // Verify directory exists
         if !plugin_path.is_dir() {
             return Err(PluginError::ReadPluginError(std::io::Error::new(
@@ -287,20 +293,24 @@ impl ProcessingEngineManagerImpl {
                 format!("Plugin directory not found: {}", dir_name),
             )));
         }
-        
+
         // Read all Python files from the directory and combine them
         let module_code = self.read_directory_as_module(&plugin_path, entrypoint)?;
-        
+
         Ok(PluginCode::LocalDirectory(LocalPluginDirectory {
             plugin_dir: plugin_path,
             entrypoint: entrypoint.to_string(),
             last_read_and_code: Mutex::new((SystemTime::now(), Arc::from(module_code))),
         }))
     }
-    
-    fn read_directory_as_module(&self, dir_path: &PathBuf, entrypoint: &str) -> Result<String, PluginError> {
+
+    fn read_directory_as_module(
+        &self,
+        dir_path: &PathBuf,
+        entrypoint: &str,
+    ) -> Result<String, PluginError> {
         let entrypoint_path = dir_path.join(entrypoint);
-        
+
         // Verify entrypoint exists
         if !entrypoint_path.exists() {
             return Err(PluginError::ReadPluginError(std::io::Error::new(
@@ -308,36 +318,71 @@ impl ProcessingEngineManagerImpl {
                 format!("Entrypoint file not found: {}", entrypoint),
             )));
         }
-        
+
         // Read all .py files in the directory
         let mut module_code = String::new();
-        
-        // First, read all non-entrypoint Python files
+        let mut python_files = Vec::new();
+
+        // Collect all non-entrypoint Python files
         for entry in std::fs::read_dir(dir_path)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.extension().and_then(|s| s.to_str()) == Some("py") {
-                let file_name = path.file_name().unwrap().to_str().unwrap();
-                
+                let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+
                 // Skip the entrypoint file for now
                 if file_name == entrypoint {
                     continue;
                 }
-                
-                // Add the file content as part of the module
-                let content = std::fs::read_to_string(&path)?;
-                module_code.push_str(&format!("# File: {}\n", file_name));
-                module_code.push_str(&content);
-                module_code.push_str("\n\n");
+
+                python_files.push((file_name, path));
             }
         }
-        
-        // Finally, add the entrypoint file
+
+        // Sort for consistent ordering
+        python_files.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Add each Python file to the module (these will define functions/classes in the same namespace)
+        for (file_name, path) in &python_files {
+            let content = std::fs::read_to_string(path)?;
+            module_code.push_str(&format!("# File: {}\n", file_name));
+            module_code.push_str(&content);
+            module_code.push_str("\n\n");
+        }
+
+        // Read the entrypoint and remove imports of local modules
         let entrypoint_content = std::fs::read_to_string(&entrypoint_path)?;
+
+        // Get list of local module names (without .py extension)
+        let local_module_names: Vec<String> = python_files
+            .iter()
+            .map(|(name, _)| name.trim_end_matches(".py").to_string())
+            .collect();
+
+        // Filter out imports from local modules
+        let filtered_entrypoint = entrypoint_content
+            .lines()
+            .filter(|line| {
+                let trimmed = line.trim_start();
+                // Skip import lines that reference local modules
+                if trimmed.starts_with("from ") || trimmed.starts_with("import ") {
+                    for module_name in &local_module_names {
+                        if line.contains(&format!("from {}", module_name))
+                            || line.contains(&format!("import {}", module_name))
+                        {
+                            return false; // Skip this import line
+                        }
+                    }
+                }
+                true // Keep all other lines
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
         module_code.push_str(&format!("# Entrypoint: {}\n", entrypoint));
-        module_code.push_str(&entrypoint_content);
-        
+        module_code.push_str(&filtered_entrypoint);
+
         Ok(module_code)
     }
 
@@ -349,7 +394,7 @@ impl ProcessingEngineManagerImpl {
                 return self.read_plugin_directory(parts[1], parts[2]).await;
             }
         }
-        
+
         // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
         if name.starts_with("gh:") {
             let plugin_path = name.strip_prefix("gh:").unwrap();
@@ -426,22 +471,21 @@ impl LocalPluginDirectory {
     fn read_module(&self) -> Arc<str> {
         let mut last_read_and_code = self.last_read_and_code.lock();
         let (last_read, code) = &mut *last_read_and_code;
-        
+
         // Check if any file in the directory has been modified
         let mut newest_modification = SystemTime::UNIX_EPOCH;
-        
+
         if let Ok(entries) = std::fs::read_dir(&self.plugin_dir) {
             for entry in entries.filter_map(Result::ok) {
-                if let Ok(metadata) = entry.metadata() {
-                    if let Ok(modified) = metadata.modified() {
-                        if modified > newest_modification {
-                            newest_modification = modified;
-                        }
-                    }
+                if let Ok(metadata) = entry.metadata()
+                    && let Ok(modified) = metadata.modified()
+                    && modified > newest_modification
+                {
+                    newest_modification = modified;
                 }
             }
         }
-        
+
         // Re-read if any file was modified
         if newest_modification > *last_read {
             // Re-read the entire directory
@@ -449,40 +493,38 @@ impl LocalPluginDirectory {
                 let mut module_code = String::new();
                 let mut py_files: Vec<_> = dir_entries
                     .filter_map(Result::ok)
-                    .filter(|entry| {
-                        entry.path().extension().and_then(|s| s.to_str()) == Some("py")
-                    })
+                    .filter(|entry| entry.path().extension().and_then(|s| s.to_str()) == Some("py"))
                     .collect();
-                
+
                 // Sort files to ensure consistent ordering
                 py_files.sort_by_key(|entry| entry.file_name());
-                
+
                 for entry in py_files {
                     let path = entry.path();
                     let file_name = path.file_name().unwrap().to_str().unwrap();
-                    
+
                     // Process non-entrypoint files first
-                    if file_name != self.entrypoint {
-                        if let Ok(content) = std::fs::read_to_string(&path) {
-                            module_code.push_str(&format!("# File: {}\n", file_name));
-                            module_code.push_str(&content);
-                            module_code.push_str("\n\n");
-                        }
+                    if file_name != self.entrypoint
+                        && let Ok(content) = std::fs::read_to_string(&path)
+                    {
+                        module_code.push_str(&format!("# File: {}\n", file_name));
+                        module_code.push_str(&content);
+                        module_code.push_str("\n\n");
                     }
                 }
-                
+
                 // Add entrypoint last
                 let entrypoint_path = self.plugin_dir.join(&self.entrypoint);
                 if let Ok(entrypoint_content) = std::fs::read_to_string(&entrypoint_path) {
                     module_code.push_str(&format!("# Entrypoint: {}\n", self.entrypoint));
                     module_code.push_str(&entrypoint_content);
                 }
-                
+
                 *last_read = newest_modification;
                 *code = Arc::from(module_code);
             }
         }
-        
+
         Arc::clone(code)
     }
 }
@@ -1214,6 +1256,341 @@ def process_writes(influxdb3_local, table_batches, args=None):
             .await,
             file,
         )
+    }
+
+    #[tokio::test]
+    async fn test_read_plugin_directory() -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with multiple Python files
+        let temp_dir = TempDir::new()?;
+        let plugin_dir = temp_dir.path().join("test_plugin");
+        fs::create_dir(&plugin_dir)?;
+
+        // Create helper.py
+        let helper_content = r#"
+def helper_function(value):
+    return value * 2
+"#;
+        fs::write(plugin_dir.join("helper.py"), helper_content)?;
+
+        // Create utils.py
+        let utils_content = r#"
+import datetime
+
+def get_timestamp():
+    return datetime.datetime.now()
+"#;
+        fs::write(plugin_dir.join("utils.py"), utils_content)?;
+
+        // Create main.py (entrypoint)
+        let main_content = r#"
+from helper import helper_function
+from utils import get_timestamp
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    timestamp = get_timestamp()
+    for batch in table_batches:
+        processed = helper_function(batch.get('value', 0))
+        influxdb3_local.info(f"Processed at {timestamp}: {processed}")
+"#;
+        fs::write(plugin_dir.join("main.py"), main_content)?;
+
+        // Create non-Python file (should be ignored)
+        fs::write(plugin_dir.join("README.md"), "This is a readme")?;
+
+        // Set up the processing engine manager
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let (_pem, _file) = setup(start_time, test_store.clone(), wal_config).await;
+
+        // Create a new ProcessingEngineManagerImpl with the test directory
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(temp_dir.path().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+        };
+
+        // Reuse components from setup but with custom environment
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let wbuf = Arc::new(
+            WriteBufferImpl::new(
+                Arc::clone(&persister),
+                Arc::clone(&catalog),
+                None,
+                Arc::clone(&time_provider) as _,
+                executor_factory(1),
+                wal_config,
+                WriteBufferCreationConfig::default(),
+            )
+            .await
+            .unwrap(),
+        );
+        let qe = Arc::new(UnimplementedQueryExecutor);
+
+        let pem_with_dir = ProcessingEngineManagerImpl::new(
+            environment_manager,
+            catalog,
+            "test_node",
+            wbuf,
+            qe,
+            time_provider,
+            sys_event_store,
+        )
+        .await;
+
+        // Test reading the plugin directory
+        let plugin_code = pem_with_dir
+            .read_plugin_directory("test_plugin", "main.py")
+            .await?;
+
+        // Verify the plugin code was assembled correctly
+        match plugin_code {
+            PluginCode::LocalDirectory(ref dir) => {
+                assert_eq!(dir.entrypoint, "main.py");
+                let code_str = dir.read_module();
+
+                // Verify all files are included
+                assert!(code_str.contains("helper_function"));
+                assert!(code_str.contains("get_timestamp"));
+                assert!(code_str.contains("process_writes"));
+
+                // Verify README.md is not included
+                assert!(!code_str.contains("This is a readme"));
+
+                // Verify entrypoint is last
+                let main_pos = code_str.find("# Entrypoint: main.py").unwrap();
+                let helper_pos = code_str.find("# File: helper.py").unwrap();
+                let utils_pos = code_str.find("# File: utils.py").unwrap();
+                assert!(main_pos > helper_pos);
+                assert!(main_pos > utils_pos);
+            }
+            _ => panic!("Expected LocalDirectory variant"),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_plugin_directory() -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new()?;
+
+        // Set up the processing engine manager
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+
+        // Set up a new ProcessingEngineManagerImpl with the test directory
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let wbuf = Arc::new(
+            WriteBufferImpl::new(
+                Arc::clone(&persister),
+                Arc::clone(&catalog),
+                None,
+                Arc::clone(&time_provider) as _,
+                executor_factory(1),
+                wal_config,
+                WriteBufferCreationConfig::default(),
+            )
+            .await
+            .unwrap(),
+        );
+        let qe = Arc::new(UnimplementedQueryExecutor);
+
+        let pem_with_dir = ProcessingEngineManagerImpl::new(
+            ProcessingEngineEnvironmentManager {
+                plugin_dir: Some(temp_dir.path().to_path_buf()),
+                virtual_env_location: None,
+                package_manager: Arc::new(DisabledManager),
+            },
+            catalog,
+            "test_node",
+            wbuf,
+            qe,
+            time_provider,
+            sys_event_store,
+        )
+        .await;
+
+        // Test 1: Valid directory with entrypoint
+        let valid_dir = temp_dir.path().join("valid_plugin");
+        fs::create_dir(&valid_dir)?;
+        fs::write(valid_dir.join("main.py"), "def process_writes(): pass")?;
+
+        let result = pem_with_dir
+            .validate_plugin_directory("valid_plugin", "main.py")
+            .await;
+        assert!(result.is_ok());
+        let validated = result.unwrap();
+        assert!(validated.deref().starts_with("dir:valid_plugin:main.py"));
+
+        // Test 2: Non-existent directory
+        let result = pem_with_dir
+            .validate_plugin_directory("nonexistent", "main.py")
+            .await;
+        assert!(result.is_err());
+
+        // Test 3: Missing entrypoint
+        let no_entrypoint_dir = temp_dir.path().join("no_entrypoint");
+        fs::create_dir(&no_entrypoint_dir)?;
+        fs::write(no_entrypoint_dir.join("other.py"), "def foo(): pass")?;
+
+        let result = pem_with_dir
+            .validate_plugin_directory("no_entrypoint", "main.py")
+            .await;
+        assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_plugin_directory_file_changes() -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        use tempfile::TempDir;
+        use tokio::time::sleep;
+
+        let temp_dir = TempDir::new()?;
+        let plugin_dir = temp_dir.path().join("changing_plugin");
+        fs::create_dir(&plugin_dir)?;
+
+        // Initial file content
+        let initial_content = r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("version 1")
+"#;
+        fs::write(plugin_dir.join("main.py"), initial_content)?;
+
+        // Set up the processing engine manager
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig::default();
+
+        // Set up a new ProcessingEngineManagerImpl with the test directory
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let wbuf = Arc::new(
+            WriteBufferImpl::new(
+                Arc::clone(&persister),
+                Arc::clone(&catalog),
+                None,
+                Arc::clone(&time_provider) as _,
+                executor_factory(1),
+                wal_config,
+                WriteBufferCreationConfig::default(),
+            )
+            .await
+            .unwrap(),
+        );
+        let qe = Arc::new(UnimplementedQueryExecutor);
+
+        let pem_with_dir = ProcessingEngineManagerImpl::new(
+            ProcessingEngineEnvironmentManager {
+                plugin_dir: Some(temp_dir.path().to_path_buf()),
+                virtual_env_location: None,
+                package_manager: Arc::new(DisabledManager),
+            },
+            catalog,
+            "test_node",
+            wbuf,
+            qe,
+            time_provider,
+            sys_event_store,
+        )
+        .await;
+
+        // Read the plugin initially
+        let plugin_code = pem_with_dir
+            .read_plugin_directory("changing_plugin", "main.py")
+            .await?;
+
+        match plugin_code {
+            PluginCode::LocalDirectory(ref dir) => {
+                let initial_code = dir.read_module();
+                assert!(initial_code.contains("version 1"));
+
+                // Sleep briefly to ensure file modification time differs
+                sleep(Duration::from_millis(10)).await;
+
+                // Modify the file
+                let updated_content = r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("version 2")
+"#;
+                fs::write(plugin_dir.join("main.py"), updated_content)?;
+
+                // Read again - should detect the change
+                let updated_code = dir.read_module();
+                assert!(updated_code.contains("version 2"));
+                assert!(!updated_code.contains("version 1"));
+            }
+            _ => panic!("Expected LocalDirectory variant"),
+        }
+
+        Ok(())
     }
 
     pub(crate) fn make_exec() -> Arc<Executor> {
