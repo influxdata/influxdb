@@ -22,6 +22,9 @@ pub enum SubCommand {
     /// List tokens
     Tokens(ShowTokensConfig),
 
+    /// List plugins/triggers across all databases
+    Plugins(PluginsConfig),
+
     /// Display system table data.
     System(SystemConfig),
 }
@@ -42,6 +45,30 @@ pub struct ShowTokensConfig {
     auth_token: Option<Secret<String>>,
 
     /// The format in which to output the list of databases
+    #[clap(value_enum, long = "format", default_value = "pretty")]
+    output_format: Format,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
+}
+
+#[derive(Debug, Parser)]
+pub struct PluginsConfig {
+    /// The host URL of the running InfluxDB 3 Core server
+    #[clap(
+        short = 'H',
+        long = "host",
+        env = "INFLUXDB3_HOST_URL",
+        default_value = "http://127.0.0.1:8181"
+    )]
+    host_url: Url,
+
+    /// The token for authentication with the InfluxDB 3 Core server
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
+    auth_token: Option<Secret<String>>,
+
+    /// The format in which to output the list of plugins
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
 
@@ -97,6 +124,26 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 .api_v3_configure_db_show()
                 .with_format(output_format.into())
                 .with_show_deleted(show_deleted)
+                .send()
+                .await?;
+
+            println!("{}", std::str::from_utf8(&resp_bytes)?);
+        }
+        SubCommand::Plugins(PluginsConfig {
+            host_url,
+            auth_token,
+            output_format,
+            ca_cert,
+        }) => {
+            let mut client = influxdb3_client::Client::new(host_url, ca_cert)?;
+
+            if let Some(t) = auth_token {
+                client = client.with_auth_token(t.expose_secret());
+            }
+
+            let resp_bytes = client
+                .api_v3_show_plugins()
+                .with_format(output_format.into())
                 .send()
                 .await?;
 

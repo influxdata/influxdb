@@ -32,3 +32,7 @@ pub(crate) const API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE: &str =
 pub(crate) const API_V3_CONFIGURE_NAMED_ADMIN_TOKEN: &str = "/api/v3/configure/token/named_admin";
 pub(crate) const API_V3_TEST_WAL_ROUTE: &str = "/api/v3/plugin_test/wal";
 pub(crate) const API_V3_TEST_PLUGIN_ROUTE: &str = "/api/v3/plugin_test/schedule";
+pub(crate) const API_V3_PLUGINS: &str = "/api/v3/plugins";
+pub(crate) const API_V3_PLUGINS_FILES: &str = "/api/v3/plugins/files";
+pub(crate) const API_V3_PLUGINS_RELOAD: &str = "/api/v3/plugins/reload";
+pub(crate) const API_V3_PLUGINS_SHOW: &str = "/api/v3/plugins/show";

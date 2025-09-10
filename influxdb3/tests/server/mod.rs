@@ -883,6 +883,21 @@ impl TestServer {
             .expect("failed to send request to create table")
     }
 
+    pub async fn api_v3_configure_processing_engine_trigger(
+        &self,
+        request: &serde_json::Value,
+    ) -> Response {
+        self.http_client
+            .post(format!(
+                "{base}/api/v3/configure/processing_engine_trigger",
+                base = self.client_addr()
+            ))
+            .json(request)
+            .send()
+            .await
+            .expect("failed to send request to configure processing engine trigger")
+    }
+
     pub async fn api_v3_configure_last_cache_create(
         &self,
         request: &serde_json::Value,

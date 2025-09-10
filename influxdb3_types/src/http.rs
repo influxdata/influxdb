@@ -184,7 +184,13 @@ pub struct ProcessingEnginePluginDeleteRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProcessingEngineTriggerCreateRequest {
     pub db: String,
-    pub plugin_filename: String,
+    /// Single plugin file name, path should be favored as this is deprecated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[deprecated(since = "3.5.0", note = "Use path field instead")]
+    pub plugin_filename: Option<String>,
+    /// Used to create a plugin given a path to a plugin file or directory
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
     pub trigger_name: String,
     pub trigger_settings: TriggerSettings,
     pub trigger_specification: String,

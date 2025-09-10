@@ -889,15 +889,15 @@ impl std::fmt::Display for PluginType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct ValidPluginFilename<'a>(&'a str);
+pub struct ValidPluginPath<'a>(&'a str);
 
-impl<'a> ValidPluginFilename<'a> {
+impl<'a> ValidPluginPath<'a> {
     pub fn from_validated_name(name: &'a str) -> Self {
         Self(name)
     }
 }
 
-impl Deref for ValidPluginFilename<'_> {
+impl Deref for ValidPluginPath<'_> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {

@@ -26,7 +26,7 @@ use crate::{
         OrderedCatalogBatch, RegisterNodeLog, RetentionPeriod, SetGenerationDurationLog,
         SetRetentionPeriodLog, SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog, TokenBatch,
         TokenCatalogOp, TriggerDefinition, TriggerIdentifier, TriggerSettings,
-        TriggerSpecificationDefinition, ValidPluginFilename,
+        TriggerSpecificationDefinition, ValidPluginPath,
     },
     object_store::PersistCatalogResult,
 };
@@ -808,7 +808,7 @@ impl Catalog {
         db_name: &str,
         trigger_name: &str,
         node_id: Arc<str>,
-        plugin_filename: ValidPluginFilename<'_>,
+        path: ValidPluginPath<'_>,
         trigger_specification: &str,
         trigger_settings: TriggerSettings,
         trigger_arguments: &Option<HashMap<String, String>>,
@@ -833,7 +833,7 @@ impl Catalog {
                 vec![DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
                     trigger_id,
                     trigger_name: trigger_name.into(),
-                    plugin_filename: plugin_filename.to_string(),
+                    plugin_filename: path.to_string(),
                     database_name: Arc::clone(&db.name),
                     node_id: Arc::clone(&node_id),
                     trigger,

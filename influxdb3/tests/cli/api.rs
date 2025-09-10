@@ -568,7 +568,7 @@ pub struct CreateTriggerQuery<'a> {
     server: &'a TestServer,
     trigger_name: String,
     db_name: String,
-    plugin_filename: String,
+    path: String,
     trigger_spec: String,
     trigger_arguments: Vec<String>,
     disabled: bool,
@@ -581,14 +581,14 @@ impl TestServer {
         &self,
         db_name: impl Into<String>,
         trigger_name: impl Into<String>,
-        plugin_filename: impl Into<String>,
+        path: impl Into<String>,
         trigger_spec: impl Into<String>,
     ) -> CreateTriggerQuery<'_> {
         CreateTriggerQuery {
             server: self,
             db_name: db_name.into(),
             trigger_name: trigger_name.into(),
-            plugin_filename: plugin_filename.into(),
+            path: path.into(),
             trigger_spec: trigger_spec.into(),
             trigger_arguments: Vec::new(),
             disabled: false,
@@ -632,8 +632,8 @@ impl CreateTriggerQuery<'_> {
             self.trigger_name.as_str(),
             "--database",
             self.db_name.as_str(),
-            "--plugin-filename",
-            self.plugin_filename.as_str(),
+            "--path",
+            self.path.as_str(),
             "--trigger-spec",
             self.trigger_spec.as_str(),
             "--tls-ca",
@@ -663,6 +663,7 @@ impl CreateTriggerQuery<'_> {
         self.server.run(vec!["create", "trigger"], args.as_slice())
     }
 }
+
 // Builder for the 'enable trigger' command
 #[derive(Debug)]
 pub struct EnableTriggerQuery<'a> {
@@ -734,6 +735,52 @@ impl DisableTriggerQuery<'_> {
         self.server.run(vec!["disable", "trigger"], args.as_slice())
     }
 }
+// Builder for the 'update trigger' command
+#[derive(Debug)]
+pub struct UpdateTriggerQuery<'a> {
+    server: &'a TestServer,
+    db_name: String,
+    trigger_name: String,
+    path: String,
+}
+
+impl TestServer {
+    pub fn update_trigger(
+        &self,
+        db_name: impl Into<String>,
+        trigger_name: impl Into<String>,
+    ) -> UpdateTriggerQuery<'_> {
+        UpdateTriggerQuery {
+            server: self,
+            db_name: db_name.into(),
+            trigger_name: trigger_name.into(),
+            path: String::new(),
+        }
+    }
+}
+
+impl UpdateTriggerQuery<'_> {
+    pub fn with_path(mut self, path: impl Into<String>) -> Self {
+        self.path = path.into();
+        self
+    }
+
+    pub fn run(self) -> Result<String> {
+        let args = vec![
+            "--trigger-name",
+            self.trigger_name.as_str(),
+            "--database",
+            self.db_name.as_str(),
+            "--path",
+            self.path.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
+        ];
+
+        self.server.run(vec!["update", "trigger"], args.as_slice())
+    }
+}
+
 // Builder for the 'delete trigger' command
 #[derive(Debug)]
 pub struct DeleteTriggerQuery<'a> {

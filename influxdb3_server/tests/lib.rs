@@ -286,6 +286,7 @@ impl TestService {
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth: false,
             time_provider: Arc::clone(&time_provider) as _,
+            processing_engine: None,
         }));
 
         Self {

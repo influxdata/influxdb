@@ -257,8 +257,19 @@ pub struct TriggerConfig {
     /// Python file name of the file on the server's plugin-dir containing the plugin code. Or
     /// on the [influxdb3_plugins](https://github.com/influxdata/influxdb3_plugins) repo if `gh:` is specified as
     /// the prefix.
-    #[clap(long = "plugin-filename")]
-    plugin_filename: String,
+    ///
+    /// Deprecated: Use --path instead
+    #[clap(long = "plugin-filename", conflicts_with_all = &["path"])]
+    plugin_filename: Option<String>,
+    /// Path to the plugin file or directory containing plugin code to be used by the trigger.
+    ///
+    /// If a Python file name is specified, the file on the server's plugin-dir containing the plugin code will be run or
+    /// on the [influxdb3_plugins](https://github.com/influxdata/influxdb3_plugins) repo if `gh:` is specified as
+    /// the prefix.
+    ///
+    /// If a directory is specified, the __main__.py file in the directory will be executed as the entry point to the plugin.
+    #[clap(short = 'p', long = "path", conflicts_with = "plugin_filename")]
+    path: Option<String>,
     /// When the trigger should fire
     #[clap(long = "trigger-spec",
           value_parser = TriggerSpecificationDefinition::from_string_rep,
@@ -433,6 +444,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             trigger_name,
             plugin_filename,
+            path,
             trigger_specification,
             trigger_arguments,
             disabled,
@@ -451,18 +463,36 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 error_behavior,
             };
 
-            match client
-                .api_v3_configure_processing_engine_trigger_create(
-                    database_name,
-                    &trigger_name,
-                    plugin_filename,
-                    trigger_specification.string_rep(),
-                    trigger_arguments,
-                    disabled,
-                    trigger_settings,
-                )
-                .await
-            {
+            // Determine which type of plugin to create
+            let result = if let Some(plugin_filename) = plugin_filename {
+                client
+                    .api_v3_configure_processing_engine_trigger_create(
+                        database_name,
+                        &trigger_name,
+                        plugin_filename,
+                        trigger_specification.string_rep(),
+                        trigger_arguments,
+                        disabled,
+                        trigger_settings,
+                    )
+                    .await
+            } else if let Some(path) = path {
+                client
+                    .api_v3_configure_processing_engine_trigger_create(
+                        database_name,
+                        &trigger_name,
+                        path,
+                        trigger_specification.string_rep(),
+                        trigger_arguments,
+                        disabled,
+                        trigger_settings,
+                    )
+                    .await
+            } else {
+                return Err("Invalid plugin configuration".into());
+            };
+
+            match result {
                 Err(e) => {
                     eprintln!("Failed to create trigger: {e}");
                     return Err(e.into());
@@ -543,6 +573,8 @@ mod tests {
             trigger_arguments,
             trigger_specification,
             plugin_filename,
+
+            path,
             disabled,
             run_asynchronous,
             error_behavior,
@@ -554,7 +586,8 @@ mod tests {
         };
         assert_eq!("test", database_name);
         assert_eq!("test-trigger", trigger_name);
-        assert_eq!("plugin.py", plugin_filename);
+        assert_eq!(Some("plugin.py".to_string()), plugin_filename);
+        assert_eq!(None, path);
         assert_eq!(
             TriggerSpecificationDefinition::Every {
                 duration: Duration::from_secs(10)
@@ -575,5 +608,68 @@ mod tests {
             .expect("must include query_path trigger argument");
 
         assert_eq!("/metrics?format=json", query_path.0.1);
+    }
+
+    #[test]
+    fn parse_args_create_trigger_with_directory() {
+        let args = super::Config::parse_from([
+            "create",
+            "trigger",
+            "--trigger-spec",
+            "every:10s",
+            "--path",
+            "my_plugin",
+            "--database",
+            "test",
+            "test-trigger",
+        ]);
+        let super::SubCommand::Trigger(super::TriggerConfig {
+            trigger_name,
+            plugin_filename,
+            path,
+            trigger_specification,
+            influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
+            ..
+        }) = args.cmd
+        else {
+            panic!("Did not parse args correctly: {args:#?}")
+        };
+        assert_eq!("test", database_name);
+        assert_eq!("test-trigger", trigger_name);
+        assert_eq!(None, plugin_filename);
+        assert_eq!(Some("my_plugin".to_string()), path);
+        assert_eq!(
+            TriggerSpecificationDefinition::Every {
+                duration: Duration::from_secs(10)
+            },
+            trigger_specification
+        );
+    }
+
+    #[test]
+    fn parse_args_create_trigger_conflict_single_and_multi_file() {
+        // This should fail because both --plugin-filename and --path are provided
+        let result = super::Config::try_parse_from([
+            "create",
+            "trigger",
+            "--trigger-spec",
+            "every:10s",
+            "--plugin-filename",
+            "plugin.py",
+            "--path",
+            "my_plugin",
+            "--database",
+            "test",
+            "test-trigger",
+        ]);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("cannot be used") || err_msg.contains("conflicts"),
+            "Expected conflict error, got: {}",
+            err_msg
+        );
     }
 }

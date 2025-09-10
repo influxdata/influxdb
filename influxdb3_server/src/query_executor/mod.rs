@@ -23,6 +23,7 @@ use influxdb3_cache::distinct_cache::{DISTINCT_CACHE_UDTF_NAME, DistinctCacheFun
 use influxdb3_cache::last_cache::{LAST_CACHE_UDTF_NAME, LastCacheFunction};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
+use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::{ChunkFilter, WriteBuffer};
@@ -62,6 +63,7 @@ pub struct QueryExecutorImpl {
     telemetry_store: Arc<TelemetryStore>,
     sys_events_store: Arc<SysEventStore>,
     started_with_auth: bool,
+    processing_engine: Option<Arc<ProcessingEngineManagerImpl>>,
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -77,6 +79,7 @@ pub struct CreateQueryExecutorArgs {
     pub telemetry_store: Arc<TelemetryStore>,
     pub sys_events_store: Arc<SysEventStore>,
     pub started_with_auth: bool,
+    pub processing_engine: Option<Arc<ProcessingEngineManagerImpl>>,
 }
 
 impl QueryExecutorImpl {
@@ -92,6 +95,7 @@ impl QueryExecutorImpl {
             sys_events_store,
             started_with_auth,
             time_provider,
+            processing_engine,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -111,6 +115,7 @@ impl QueryExecutorImpl {
             telemetry_store,
             sys_events_store,
             started_with_auth,
+            processing_engine,
         }
     }
 }
@@ -241,6 +246,112 @@ impl QueryExecutor for QueryExecutorImpl {
 
         let batch = retention_policy_rows_to_batch(&rows);
         Ok(Box::pin(MemoryStream::new(vec![batch])))
+    }
+
+    fn show_plugins(&self) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        use arrow_array::{ArrayRef, RecordBatch, StringArray};
+        use arrow_schema::{DataType, Field, Schema, SchemaRef};
+        use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+
+        let schema: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("database_name", DataType::Utf8, false),
+            Field::new("trigger_name", DataType::Utf8, false),
+            Field::new("plugin_filename", DataType::Utf8, false),
+            Field::new("trigger_type", DataType::Utf8, false),
+            Field::new("status", DataType::Utf8, false),
+            Field::new("node_id", DataType::Utf8, false),
+            Field::new("files", DataType::Utf8, false),
+        ]));
+
+        let mut database_names = Vec::new();
+        let mut trigger_names = Vec::new();
+        let mut plugin_filenames = Vec::new();
+        let mut trigger_types = Vec::new();
+        let mut statuses = Vec::new();
+        let mut node_ids = Vec::new();
+        let mut files_list = Vec::new();
+
+        // Get plugin files from processing engine if available
+        let plugin_files = if let Some(ref pe) = self.processing_engine {
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(pe.list_plugin_files())
+            })
+        } else {
+            Vec::new()
+        };
+
+        // Iterate through all databases
+        let databases = self.catalog.list_db_schema();
+        for db in databases {
+            // Get all triggers for this database
+            for trigger in db.processing_engine_triggers.resource_iter() {
+                database_names.push(Some(db.name.to_string()));
+                trigger_names.push(Some(trigger.trigger_name.to_string()));
+                plugin_filenames.push(Some(trigger.plugin_filename.clone()));
+
+                // Determine trigger type
+                let trigger_type = match &trigger.trigger {
+                    influxdb3_catalog::log::TriggerSpecificationDefinition::SingleTableWalWrite { table_name } =>
+                        format!("WAL({})", table_name),
+                    influxdb3_catalog::log::TriggerSpecificationDefinition::AllTablesWalWrite =>
+                        "WAL(all_tables)".to_string(),
+                    influxdb3_catalog::log::TriggerSpecificationDefinition::Schedule { schedule } =>
+                        format!("Schedule({})", schedule),
+                    influxdb3_catalog::log::TriggerSpecificationDefinition::RequestPath { path } =>
+                        format!("Request({})", path),
+                    influxdb3_catalog::log::TriggerSpecificationDefinition::Every { duration } =>
+                        format!("Every({})", humantime::format_duration(*duration)),
+                };
+                trigger_types.push(Some(trigger_type));
+
+                statuses.push(Some(
+                    if trigger.disabled {
+                        "disabled"
+                    } else {
+                        "enabled"
+                    }
+                    .to_string(),
+                ));
+                node_ids.push(Some(trigger.node_id.to_string()));
+
+                // List files for the plugin
+                let files = {
+                    let matching_files: Vec<String> = plugin_files
+                        .iter()
+                        .filter(|f| f.plugin_name.as_ref() == trigger.trigger_name.as_ref())
+                        .map(|f| f.file_name.to_string())
+                        .collect();
+
+                    // Always return a file list - either the matched files or the plugin filename itself
+                    Some(if !matching_files.is_empty() {
+                        matching_files.join(", ")
+                    } else {
+                        // Fallback to the plugin filename itself (for single-file plugins or if no matches)
+                        trigger.plugin_filename.clone()
+                    })
+                };
+                files_list.push(files);
+            }
+        }
+
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(database_names)),
+            Arc::new(StringArray::from(trigger_names)),
+            Arc::new(StringArray::from(plugin_filenames)),
+            Arc::new(StringArray::from(trigger_types)),
+            Arc::new(StringArray::from(statuses)),
+            Arc::new(StringArray::from(node_ids)),
+            Arc::new(StringArray::from(files_list)),
+        ];
+
+        let batch = RecordBatch::try_new(Arc::clone(&schema), columns)
+            .map_err(|e| QueryExecutorError::Anyhow(anyhow::anyhow!(e)))?;
+
+        let stream = futures::stream::iter(vec![Ok(batch)]);
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            schema,
+            Box::pin(stream),
+        )))
     }
 
     fn upcast(&self) -> Arc<dyn QueryDatabase + 'static> {
@@ -450,6 +561,7 @@ impl QueryDatabase for QueryExecutorImpl {
                 Arc::clone(&self.sys_events_store),
                 Arc::clone(&self.write_buffer.catalog()),
                 self.started_with_auth,
+                self.processing_engine.clone(),
             ),
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
@@ -935,6 +1047,7 @@ mod tests {
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth,
             time_provider: Arc::clone(&time_provider) as _,
+            processing_engine: None,
         });
 
         (

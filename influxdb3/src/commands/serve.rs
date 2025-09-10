@@ -1009,6 +1009,24 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         );
     }
 
+    // Create a temporary stub query executor for the processing engine initialization
+    // The real query executor will be created and used after this
+    // Using UnimplementedQueryExecutor which returns errors if called before the real executor is ready
+    use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
+
+    let temp_query_executor = Arc::new(UnimplementedQueryExecutor);
+
+    let processing_engine = ProcessingEngineManagerImpl::new(
+        setup_processing_engine_env_manager(&config.processing_engine_config),
+        write_buffer.catalog(),
+        config.node_identifier_prefix,
+        Arc::clone(&write_buffer),
+        Arc::clone(&temp_query_executor) as _,
+        Arc::clone(&time_provider) as _,
+        Arc::clone(&sys_events_store),
+    )
+    .await;
+
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
         catalog: write_buffer.catalog(),
         write_buffer: Arc::clone(&write_buffer),
@@ -1021,6 +1039,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         // convert to positive here so that we can avoid double negatives downstream
         started_with_auth: !config.without_auth,
         time_provider: Arc::clone(&time_provider) as _,
+        processing_engine: Some(Arc::clone(&processing_engine)),
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)
@@ -1035,17 +1054,6 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     } else {
         None
     };
-
-    let processing_engine = ProcessingEngineManagerImpl::new(
-        setup_processing_engine_env_manager(&config.processing_engine_config),
-        write_buffer.catalog(),
-        config.node_identifier_prefix,
-        Arc::clone(&write_buffer),
-        Arc::clone(&query_executor) as _,
-        Arc::clone(&time_provider) as _,
-        sys_events_store,
-    )
-    .await;
 
     let cert_file = config.cert_file;
     let key_file = config.key_file;

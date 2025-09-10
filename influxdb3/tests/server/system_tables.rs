@@ -1,6 +1,7 @@
 use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
 use serde_json::json;
+use std::fs;
 use tempfile::TempDir;
 
 use crate::server::{ConfigProvider, TestServer, collect_stream};
@@ -658,6 +659,352 @@ async fn test_nodes_table_filters_sensitive_params() {
             node_id_value.as_str(),
             Some("*******"),
             "node-id should not be masked"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_plugin_files_system_table() {
+    let plugin_dir = TempDir::new().unwrap();
+    let plugin_dir_path = plugin_dir.path();
+
+    // Create a single-file plugin
+    let single_plugin_content = r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    for table_name, batches in table_batches.items():
+        influxdb3_local.info(f"Processing {table_name}")
+"#;
+    fs::write(
+        plugin_dir_path.join("simple_plugin.py"),
+        single_plugin_content,
+    )
+    .unwrap();
+
+    // Create a multi-file plugin directory
+    let multi_plugin_dir = plugin_dir_path.join("multi_plugin");
+    fs::create_dir(&multi_plugin_dir).unwrap();
+
+    let main_content = r#"
+from helper import process_data
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    process_data(influxdb3_local, table_batches)
+"#;
+    fs::write(multi_plugin_dir.join("__main__.py"), main_content).unwrap();
+
+    let helper_content = r#"
+def process_data(influxdb3_local, table_batches):
+    influxdb3_local.info("Helper processing data")
+"#;
+    fs::write(multi_plugin_dir.join("helper.py"), helper_content).unwrap();
+
+    // Start server with plugin directory
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir_path.to_str().unwrap())
+        .spawn()
+        .await;
+
+    // Create database and table
+    server
+        .write_lp_to_db("test_db", "cpu usage=1", Precision::Second)
+        .await
+        .unwrap();
+
+    // Check initially empty plugin_files table
+    {
+        let mut client = server.flight_sql_client("_internal").await;
+        let response = client
+            .query("SELECT COUNT(*) as count FROM system.plugin_files")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-------+",
+                "| count |",
+                "+-------+",
+                "| 0     |",
+                "+-------+",
+            ],
+            &batches
+        );
+    }
+
+    // Create triggers for both plugins
+    let resp = server
+        .api_v3_configure_processing_engine_trigger(&json!({
+            "db": "test_db",
+            "trigger_name": "simple_trigger",
+            "path": "simple_plugin.py",
+            "trigger_specification": "all_tables",
+            "trigger_settings": {
+                "run_async": false,
+                "error_behavior": "log"
+            },
+            "disabled": false
+        }))
+        .await;
+    assert!(resp.status().is_success());
+
+    let resp = server
+        .api_v3_configure_processing_engine_trigger(&json!({
+            "db": "test_db",
+            "trigger_name": "multi_trigger",
+            "path": "multi_plugin",
+            "trigger_specification": "table:cpu",
+            "trigger_settings": {
+                "run_async": false,
+                "error_behavior": "log"
+            },
+            "disabled": false
+        }))
+        .await;
+    assert!(resp.status().is_success());
+
+    // Now query plugin_files and verify all files appear
+    {
+        let mut client = server.flight_sql_client("_internal").await;
+        let response = client
+            .query("SELECT plugin_name, file_name, size_bytes > 0 as has_size FROM system.plugin_files ORDER BY plugin_name, file_name")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+----------------+------------------+----------+",
+                "| plugin_name    | file_name        | has_size |",
+                "+----------------+------------------+----------+",
+                "| multi_trigger  | __main__.py      | true     |",
+                "| multi_trigger  | helper.py        | true     |",
+                "| simple_trigger | simple_plugin.py | true     |",
+                "+----------------+------------------+----------+",
+            ],
+            &batches
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_processing_engine_triggers_table() {
+    let plugin_dir = TempDir::new().unwrap();
+    let plugin_dir_path = plugin_dir.path();
+
+    // Create test plugins
+    let wal_plugin = r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    pass
+"#;
+    fs::write(plugin_dir_path.join("wal_plugin.py"), wal_plugin).unwrap();
+
+    let schedule_plugin = r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    pass
+"#;
+    fs::write(plugin_dir_path.join("schedule_plugin.py"), schedule_plugin).unwrap();
+
+    // Start server with plugin directory
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir_path.to_str().unwrap())
+        .spawn()
+        .await;
+
+    // Create database and table
+    server
+        .write_lp_to_db("test_db", "cpu usage=1", Precision::Second)
+        .await
+        .unwrap();
+
+    // Initially empty triggers table
+    {
+        let mut client = server.flight_sql_client("test_db").await;
+        let response = client
+            .query("SELECT COUNT(*) as count FROM system.processing_engine_triggers")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-------+",
+                "| count |",
+                "+-------+",
+                "| 0     |",
+                "+-------+",
+            ],
+            &batches
+        );
+    }
+
+    // Create various triggers
+    let resp = server
+        .api_v3_configure_processing_engine_trigger(&json!({
+            "db": "test_db",
+            "trigger_name": "wal_trigger",
+            "path": "wal_plugin.py",
+            "trigger_specification": "table:cpu",
+            "trigger_settings": {
+                "run_async": false,
+                "error_behavior": "log"
+            },
+            "disabled": false
+        }))
+        .await;
+    assert!(resp.status().is_success());
+
+    let resp = server
+        .api_v3_configure_processing_engine_trigger(&json!({
+            "db": "test_db",
+            "trigger_name": "schedule_trigger",
+            "path": "schedule_plugin.py",
+            "trigger_specification": "every:10s",
+            "trigger_settings": {
+                "run_async": false,
+                "error_behavior": "log"
+            },
+            "disabled": false
+        }))
+        .await;
+    assert!(resp.status().is_success());
+
+    let resp = server
+        .api_v3_configure_processing_engine_trigger(&json!({
+            "db": "test_db",
+            "trigger_name": "disabled_trigger",
+            "path": "wal_plugin.py",
+            "trigger_specification": "all_tables",
+            "trigger_settings": {
+                "run_async": false,
+                "error_behavior": "log"
+            },
+            "disabled": true
+        }))
+        .await;
+    assert!(resp.status().is_success());
+
+    // Query the triggers table
+    {
+        let mut client = server.flight_sql_client("test_db").await;
+        let response = client
+            .query("SELECT trigger_name, plugin_filename, disabled FROM system.processing_engine_triggers ORDER BY trigger_name")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+------------------+--------------------+----------+",
+                "| trigger_name     | plugin_filename    | disabled |",
+                "+------------------+--------------------+----------+",
+                "| disabled_trigger | wal_plugin.py      | true     |",
+                "| schedule_trigger | schedule_plugin.py | false    |",
+                "| wal_trigger      | wal_plugin.py      | false    |",
+                "+------------------+--------------------+----------+",
+            ],
+            &batches
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_processing_engine_trigger_arguments_table() {
+    let plugin_dir = TempDir::new().unwrap();
+    let plugin_dir_path = plugin_dir.path();
+
+    // Create a test plugin
+    let plugin_content = r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    if args:
+        for key, value in args.items():
+            influxdb3_local.info(f"{key}={value}")
+"#;
+    fs::write(plugin_dir_path.join("test_plugin.py"), plugin_content).unwrap();
+
+    // Start server with plugin directory
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir_path.to_str().unwrap())
+        .spawn()
+        .await;
+
+    // Create database
+    server
+        .write_lp_to_db("test_db", "cpu usage=1", Precision::Second)
+        .await
+        .unwrap();
+
+    // Initially empty trigger arguments table
+    {
+        let mut client = server.flight_sql_client("test_db").await;
+        let response = client
+            .query("SELECT COUNT(*) as count FROM system.processing_engine_trigger_arguments")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-------+",
+                "| count |",
+                "+-------+",
+                "| 0     |",
+                "+-------+",
+            ],
+            &batches
+        );
+    }
+
+    // Create trigger with arguments
+    let resp = server
+        .api_v3_configure_processing_engine_trigger(&json!({
+            "db": "test_db",
+            "trigger_name": "trigger_with_args",
+            "path": "test_plugin.py",
+            "trigger_specification": "all_tables",
+            "trigger_settings": {
+                "run_async": false,
+                "error_behavior": "log"
+            },
+            "trigger_arguments": {
+                "key1": "value1",
+                "key2": "value2",
+                "threshold": "100"
+            },
+            "disabled": false
+        }))
+        .await;
+    assert!(resp.status().is_success());
+
+    // Create trigger without arguments
+    let resp = server
+        .api_v3_configure_processing_engine_trigger(&json!({
+            "db": "test_db",
+            "trigger_name": "trigger_no_args",
+            "path": "test_plugin.py",
+            "trigger_specification": "table:cpu",
+            "trigger_settings": {
+                "run_async": false,
+                "error_behavior": "log"
+            },
+            "disabled": false
+        }))
+        .await;
+    assert!(resp.status().is_success());
+
+    // Query the trigger arguments table
+    {
+        let mut client = server.flight_sql_client("test_db").await;
+        let response = client
+            .query("SELECT trigger_name, argument_key, argument_value FROM system.processing_engine_trigger_arguments ORDER BY trigger_name, argument_key")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-------------------+--------------+----------------+",
+                "| trigger_name      | argument_key | argument_value |",
+                "+-------------------+--------------+----------------+",
+                "| trigger_with_args | key1         | value1         |",
+                "| trigger_with_args | key2         | value2         |",
+                "| trigger_with_args | threshold    | 100            |",
+                "+-------------------+--------------+----------------+",
+            ],
+            &batches
         );
     }
 }
