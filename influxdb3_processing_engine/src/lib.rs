@@ -261,7 +261,95 @@ impl ProcessingEngineManagerImpl {
         Ok(ValidPluginFilename::from_validated_name(name))
     }
 
+    pub async fn validate_plugin_directory<'a>(
+        &self,
+        dir_name: &'a str,
+        entrypoint: &'a str,
+    ) -> Result<ValidPluginFilename<'a>, PluginError> {
+        let _ = self.read_plugin_directory(dir_name, entrypoint).await?;
+        // Create a composite identifier for the directory plugin
+        let composite_name = format!("dir:{dir_name}:{entrypoint}");
+        Ok(ValidPluginFilename::from_validated_name(Box::leak(composite_name.into_boxed_str())))
+    }
+
+    pub async fn read_plugin_directory(&self, dir_name: &str, entrypoint: &str) -> Result<PluginCode, PluginError> {
+        let plugin_dir = self
+            .environment_manager
+            .plugin_dir
+            .clone()
+            .ok_or(PluginError::NoPluginDir)?;
+        let plugin_path = plugin_dir.join(dir_name);
+        
+        // Verify directory exists
+        if !plugin_path.is_dir() {
+            return Err(PluginError::ReadPluginError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Plugin directory not found: {}", dir_name),
+            )));
+        }
+        
+        // Read all Python files from the directory and combine them
+        let module_code = self.read_directory_as_module(&plugin_path, entrypoint)?;
+        
+        Ok(PluginCode::LocalDirectory(LocalPluginDirectory {
+            plugin_dir: plugin_path,
+            entrypoint: entrypoint.to_string(),
+            last_read_and_code: Mutex::new((SystemTime::now(), Arc::from(module_code))),
+        }))
+    }
+    
+    fn read_directory_as_module(&self, dir_path: &PathBuf, entrypoint: &str) -> Result<String, PluginError> {
+        let entrypoint_path = dir_path.join(entrypoint);
+        
+        // Verify entrypoint exists
+        if !entrypoint_path.exists() {
+            return Err(PluginError::ReadPluginError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Entrypoint file not found: {}", entrypoint),
+            )));
+        }
+        
+        // Read all .py files in the directory
+        let mut module_code = String::new();
+        
+        // First, read all non-entrypoint Python files
+        for entry in std::fs::read_dir(dir_path)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.extension().and_then(|s| s.to_str()) == Some("py") {
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+                
+                // Skip the entrypoint file for now
+                if file_name == entrypoint {
+                    continue;
+                }
+                
+                // Add the file content as part of the module
+                let content = std::fs::read_to_string(&path)?;
+                module_code.push_str(&format!("# File: {}\n", file_name));
+                module_code.push_str(&content);
+                module_code.push_str("\n\n");
+            }
+        }
+        
+        // Finally, add the entrypoint file
+        let entrypoint_content = std::fs::read_to_string(&entrypoint_path)?;
+        module_code.push_str(&format!("# Entrypoint: {}\n", entrypoint));
+        module_code.push_str(&entrypoint_content);
+        
+        Ok(module_code)
+    }
+
     pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, PluginError> {
+        // Handle directory-based plugins
+        if name.starts_with("dir:") {
+            let parts: Vec<&str> = name.splitn(3, ':').collect();
+            if parts.len() == 3 {
+                return self.read_plugin_directory(parts[1], parts[2]).await;
+            }
+        }
+        
         // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
         if name.starts_with("gh:") {
             let plugin_path = name.strip_prefix("gh:").unwrap();
@@ -307,6 +395,7 @@ impl ProcessingEngineManagerImpl {
 pub enum PluginCode {
     Github(Arc<str>),
     Local(LocalPlugin),
+    LocalDirectory(LocalPluginDirectory),
 }
 
 impl PluginCode {
@@ -314,6 +403,7 @@ impl PluginCode {
         match self {
             PluginCode::Github(code) => Arc::clone(code),
             PluginCode::Local(plugin) => plugin.read_if_modified(),
+            PluginCode::LocalDirectory(plugin_dir) => plugin_dir.read_module(),
         }
     }
 }
@@ -323,6 +413,78 @@ impl PluginCode {
 pub struct LocalPlugin {
     plugin_path: PathBuf,
     last_read_and_code: Mutex<(SystemTime, Arc<str>)>,
+}
+
+#[derive(Debug)]
+pub struct LocalPluginDirectory {
+    plugin_dir: PathBuf,
+    entrypoint: String,
+    last_read_and_code: Mutex<(SystemTime, Arc<str>)>,
+}
+
+impl LocalPluginDirectory {
+    fn read_module(&self) -> Arc<str> {
+        let mut last_read_and_code = self.last_read_and_code.lock();
+        let (last_read, code) = &mut *last_read_and_code;
+        
+        // Check if any file in the directory has been modified
+        let mut newest_modification = SystemTime::UNIX_EPOCH;
+        
+        if let Ok(entries) = std::fs::read_dir(&self.plugin_dir) {
+            for entry in entries.filter_map(Result::ok) {
+                if let Ok(metadata) = entry.metadata() {
+                    if let Ok(modified) = metadata.modified() {
+                        if modified > newest_modification {
+                            newest_modification = modified;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Re-read if any file was modified
+        if newest_modification > *last_read {
+            // Re-read the entire directory
+            if let Ok(dir_entries) = std::fs::read_dir(&self.plugin_dir) {
+                let mut module_code = String::new();
+                let mut py_files: Vec<_> = dir_entries
+                    .filter_map(Result::ok)
+                    .filter(|entry| {
+                        entry.path().extension().and_then(|s| s.to_str()) == Some("py")
+                    })
+                    .collect();
+                
+                // Sort files to ensure consistent ordering
+                py_files.sort_by_key(|entry| entry.file_name());
+                
+                for entry in py_files {
+                    let path = entry.path();
+                    let file_name = path.file_name().unwrap().to_str().unwrap();
+                    
+                    // Process non-entrypoint files first
+                    if file_name != self.entrypoint {
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            module_code.push_str(&format!("# File: {}\n", file_name));
+                            module_code.push_str(&content);
+                            module_code.push_str("\n\n");
+                        }
+                    }
+                }
+                
+                // Add entrypoint last
+                let entrypoint_path = self.plugin_dir.join(&self.entrypoint);
+                if let Ok(entrypoint_content) = std::fs::read_to_string(&entrypoint_path) {
+                    module_code.push_str(&format!("# Entrypoint: {}\n", self.entrypoint));
+                    module_code.push_str(&entrypoint_content);
+                }
+                
+                *last_read = newest_modification;
+                *code = Arc::from(module_code);
+            }
+        }
+        
+        Arc::clone(code)
+    }
 }
 
 impl LocalPlugin {

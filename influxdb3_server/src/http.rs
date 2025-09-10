@@ -1110,6 +1110,8 @@ impl HttpApi {
         let ProcessingEngineTriggerCreateRequest {
             db,
             plugin_filename,
+            plugin_dir,
+            entrypoint,
             trigger_name,
             trigger_settings,
             trigger_specification,
@@ -1120,18 +1122,35 @@ impl HttpApi {
         } else {
             self.read_body_json(req).await?
         };
-        debug!(%db, %plugin_filename, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
-        let plugin_filename = self
-            .processing_engine
-            .validate_plugin_filename(&plugin_filename)
-            .await?;
+        
+        // Determine which type of plugin to validate and create
+        let validated_plugin = if let Some(ref plugin_filename) = plugin_filename {
+            // Single file plugin
+            debug!(%db, %plugin_filename, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
+            self.processing_engine
+                .validate_plugin_filename(plugin_filename)
+                .await?
+        } else if let (Some(plugin_dir), Some(entrypoint)) = (&plugin_dir, &entrypoint) {
+            // Multi-file plugin directory
+            debug!(%db, %plugin_dir, %entrypoint, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger with directory");
+            self.processing_engine
+                .validate_plugin_directory(plugin_dir, entrypoint)
+                .await?
+        } else {
+            return Err(Error::ProcessingEngine(
+                ProcessingEngineError::PluginError(
+                    influxdb3_processing_engine::plugins::PluginError::NoPluginDir
+                )
+            ));
+        };
+        
         self.write_buffer
             .catalog()
             .create_processing_engine_trigger(
                 &db,
                 &trigger_name,
                 self.processing_engine.node_id(),
-                plugin_filename,
+                validated_plugin,
                 &trigger_specification,
                 trigger_settings,
                 &trigger_arguments,

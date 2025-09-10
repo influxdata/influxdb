@@ -556,7 +556,7 @@ impl Client {
         Ok(())
     }
 
-    /// Make a request to `POST /api/v3/configure/processing_engine_trigger`
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger` for single-file plugins
     #[allow(clippy::too_many_arguments)]
     pub async fn api_v3_configure_processing_engine_trigger_create(
         &self,
@@ -575,7 +575,44 @@ impl Client {
                 Some(ProcessingEngineTriggerCreateRequest {
                     db: db.into(),
                     trigger_name: trigger_name.into(),
-                    plugin_filename: plugin_filename.into(),
+                    plugin_filename: Some(plugin_filename.into()),
+                    plugin_dir: None,
+                    entrypoint: None,
+                    trigger_specification: trigger_spec.into(),
+                    trigger_settings,
+                    trigger_arguments,
+                    disabled,
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger` for multi-file plugin directories
+    #[allow(clippy::too_many_arguments)]
+    pub async fn api_v3_configure_processing_engine_trigger_create_with_dir(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        plugin_dir: impl Into<String> + Send,
+        entrypoint: impl Into<String> + Send,
+        trigger_spec: impl Into<String> + Send,
+        trigger_arguments: Option<HashMap<String, String>>,
+        disabled: bool,
+        trigger_settings: TriggerSettings,
+    ) -> Result<()> {
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/processing_engine_trigger",
+                Some(ProcessingEngineTriggerCreateRequest {
+                    db: db.into(),
+                    trigger_name: trigger_name.into(),
+                    plugin_filename: None,
+                    plugin_dir: Some(plugin_dir.into()),
+                    entrypoint: Some(entrypoint.into()),
                     trigger_specification: trigger_spec.into(),
                     trigger_settings,
                     trigger_arguments,

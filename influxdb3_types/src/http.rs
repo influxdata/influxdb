@@ -184,7 +184,15 @@ pub struct ProcessingEnginePluginDeleteRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProcessingEngineTriggerCreateRequest {
     pub db: String,
-    pub plugin_filename: String,
+    /// Single plugin file name. Mutually exclusive with plugin_dir/entrypoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_filename: Option<String>,
+    /// Multi-file plugin directory. Used together with entrypoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_dir: Option<String>,
+    /// Entry point file within the plugin directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entrypoint: Option<String>,
     pub trigger_name: String,
     pub trigger_settings: TriggerSettings,
     pub trigger_specification: String,

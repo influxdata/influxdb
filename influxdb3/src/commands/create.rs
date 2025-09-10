@@ -256,9 +256,16 @@ pub struct TriggerConfig {
     influxdb3_config: InfluxDb3Config,
     /// Python file name of the file on the server's plugin-dir containing the plugin code. Or
     /// on the [influxdb3_plugins](https://github.com/influxdata/influxdb3_plugins) repo if `gh:` is specified as
-    /// the prefix.
-    #[clap(long = "plugin-filename")]
-    plugin_filename: String,
+    /// the prefix. Mutually exclusive with --multi-file-plugin-dir.
+    #[clap(long = "plugin-filename", conflicts_with_all = &["multi_file_plugin_dir", "entrypoint"])]
+    plugin_filename: Option<String>,
+    /// Directory containing multi-file plugin code. Mutually exclusive with --plugin-filename.
+    #[clap(long = "multi-file-plugin-dir", conflicts_with = "plugin_filename")]
+    multi_file_plugin_dir: Option<String>,
+    /// Entry point file within the multi-file plugin directory (e.g., 'main.py'). 
+    /// Required when using --multi-file-plugin-dir.
+    #[clap(long = "entrypoint", requires = "multi_file_plugin_dir")]
+    entrypoint: Option<String>,
     /// When the trigger should fire
     #[clap(long = "trigger-spec",
           value_parser = TriggerSpecificationDefinition::from_string_rep,
@@ -433,6 +440,8 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             trigger_name,
             plugin_filename,
+            multi_file_plugin_dir,
+            entrypoint,
             trigger_specification,
             trigger_arguments,
             disabled,
@@ -451,17 +460,40 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 error_behavior,
             };
 
-            match client
-                .api_v3_configure_processing_engine_trigger_create(
-                    database_name,
-                    &trigger_name,
-                    plugin_filename,
-                    trigger_specification.string_rep(),
-                    trigger_arguments,
-                    disabled,
-                    trigger_settings,
-                )
-                .await
+            // Determine which type of plugin to create
+            let result = if let Some(plugin_filename) = plugin_filename {
+                // Single file plugin
+                client
+                    .api_v3_configure_processing_engine_trigger_create(
+                        database_name,
+                        &trigger_name,
+                        plugin_filename,
+                        trigger_specification.string_rep(),
+                        trigger_arguments,
+                        disabled,
+                        trigger_settings,
+                    )
+                    .await
+            } else if let (Some(plugin_dir), Some(entrypoint)) = (multi_file_plugin_dir, entrypoint) {
+                // Multi-file plugin directory
+                client
+                    .api_v3_configure_processing_engine_trigger_create_with_dir(
+                        database_name,
+                        &trigger_name,
+                        plugin_dir,
+                        entrypoint,
+                        trigger_specification.string_rep(),
+                        trigger_arguments,
+                        disabled,
+                        trigger_settings,
+                    )
+                    .await
+            } else {
+                eprintln!("Error: Either --plugin-filename or both --multi-file-plugin-dir and --entrypoint must be specified");
+                return Err("Invalid plugin configuration".into());
+            };
+
+            match result
             {
                 Err(e) => {
                     eprintln!("Failed to create trigger: {e}");
@@ -543,6 +575,8 @@ mod tests {
             trigger_arguments,
             trigger_specification,
             plugin_filename,
+            multi_file_plugin_dir,
+            entrypoint,
             disabled,
             run_asynchronous,
             error_behavior,
@@ -554,7 +588,9 @@ mod tests {
         };
         assert_eq!("test", database_name);
         assert_eq!("test-trigger", trigger_name);
-        assert_eq!("plugin.py", plugin_filename);
+        assert_eq!(Some("plugin.py".to_string()), plugin_filename);
+        assert_eq!(None, multi_file_plugin_dir);
+        assert_eq!(None, entrypoint);
         assert_eq!(
             TriggerSpecificationDefinition::Every {
                 duration: Duration::from_secs(10)
