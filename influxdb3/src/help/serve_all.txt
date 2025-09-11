@@ -125,6 +125,13 @@ Examples:
                                   Max retry timeout [env: OBJECT_STORE_RETRY_TIMEOUT=]
   --object-store-cache-endpoint <ENDPOINT>
                                   S3 compatible cache endpoint [env: OBJECT_STORE_CACHE_ENDPOINT=]
+  --object-store-tls-allow-insecure
+                                  Skip TLS certificate verification for object storage.
+                                  WARNING: This is insecure and should only be used for testing
+                                  [env: OBJECT_STORE_TLS_ALLOW_INSECURE=]
+  --object-store-tls-ca <PATH>   Path to custom CA certificate file (PEM format) for object storage.
+                                  Use when your object store uses a certificate signed by a private CA
+                                  [env: OBJECT_STORE_TLS_CA=]
 
 {}
   --max-http-request-size <SIZE>   Maximum size of HTTP requests [default: 10485760]

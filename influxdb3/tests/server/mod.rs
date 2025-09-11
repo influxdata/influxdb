@@ -97,6 +97,10 @@ pub struct TestConfig {
     gen1_duration: Option<String>,
     capture_logs: bool,
     enable_recovery_endpoint: bool,
+    admin_token_file: Option<String>,
+    permission_tokens_file: Option<String>,
+    object_store_tls_allow_insecure: bool,
+    object_store_tls_ca_path: Option<String>,
 }
 
 impl TestConfig {
@@ -184,6 +188,30 @@ impl TestConfig {
         self.capture_logs = true;
         self
     }
+
+    /// Set the admin token file path for this [`TestServer`]
+    pub fn with_admin_token_file<S: Into<String>>(mut self, path: S) -> Self {
+        self.admin_token_file = Some(path.into());
+        self
+    }
+
+    /// Set the permission tokens file path for this [`TestServer`]
+    pub fn with_permission_tokens_file<S: Into<String>>(mut self, path: S) -> Self {
+        self.permission_tokens_file = Some(path.into());
+        self
+    }
+
+    /// Allow insecure TLS connections for object store
+    pub fn with_object_store_tls_allow_insecure(mut self) -> Self {
+        self.object_store_tls_allow_insecure = true;
+        self
+    }
+
+    /// Set custom CA certificate path for object store TLS
+    pub fn with_object_store_tls_ca_path<S: Into<String>>(mut self, path: S) -> Self {
+        self.object_store_tls_ca_path = Some(path.into());
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -225,6 +253,17 @@ impl ConfigProvider for TestConfig {
             args.append(&mut vec![
                 "--object-store".to_string(),
                 "memory".to_string(),
+            ]);
+        }
+
+        // Add TLS configuration for object store
+        if self.object_store_tls_allow_insecure {
+            args.push("--object-store-tls-allow-insecure".to_string());
+        }
+        if let Some(ca_path) = &self.object_store_tls_ca_path {
+            args.append(&mut vec![
+                "--object-store-tls-ca".to_string(),
+                ca_path.to_owned(),
             ]);
         }
 
