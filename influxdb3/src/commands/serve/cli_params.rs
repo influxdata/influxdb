@@ -97,6 +97,8 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "object-store-http2-max-frame-size",
     "object-store-max-retries",
     "object-store-retry-timeout",
+    "object-store-tls-allow-insecure",
+    "object-store-tls-ca",
     // Feature flags and modes
     "disable-authz",
     // Telemetry
