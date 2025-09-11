@@ -317,17 +317,13 @@ start_server_with_health_check() {
         
         # Show email verification message after 5 seconds for Enterprise
         if [ "$is_enterprise" = "true" ] && [ "$i" -eq 5 ] && [ "$EMAIL_MESSAGE_SHOWN" = "false" ]; then
-            printf "├─${DIM} Checking license activation - please verify your email if needed${NC}\n"
+            printf "├─${DIM} Checking license activation - please verify your email${NC}\n"
             EMAIL_MESSAGE_SHOWN=true
         fi
         
         # Show progress updates every 15 seconds after initial grace period
         if [ "$is_enterprise" = "true" ] && [ "$i" -gt 5 ] && [ $((i % 15)) -eq 0 ]; then
-            if [ "$show_progress" = "true" ]; then
-                printf "├─${DIM} Still waiting for license verification (%s/%ss)${NC}\n" "$i" "$timeout_seconds"
-            else
-                printf "├─${DIM} Waiting for licensing (%s/%ss)...${NC}\n" "$i" "$timeout_seconds"
-            fi
+            printf "├─${DIM} Waiting for license verification (%s/%ss)${NC}\n" "$i" "$timeout_seconds"
         fi
         
         sleep 1
