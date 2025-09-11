@@ -580,11 +580,24 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	// each generation in descending break once we see a file less than 4.
 	end := 0
 	start := 0
+	lastHighLevelIndex := -1
+
 	for i, g := range generations {
-		if g.level() <= 3 {
+		// Track the last high-level generation
+		if g.level() > 3 {
+			lastHighLevelIndex = i
+		}
+
+		// Skip low-level generations with too many files for level compaction
+		if g.level() <= 3 && len(g.files) >= 4 {
 			break
 		}
-		end = i + 1
+	}
+
+	// If we have high-level files, only include generations up to the last high-level file
+	// This excludes truly trailing low-level files
+	if lastHighLevelIndex >= 0 {
+		end = lastHighLevelIndex + 1
 	}
 
 	// As compactions run, the oldest files get bigger.  We don't want to re-compact them during
@@ -640,7 +653,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 			// Skip compacting this group if there happens to be any lower level files in the
 			// middle.  These will get picked up by the level compactors.
-			if lvl <= 3 {
+			if lvl <= 3 && len(gen.files) >= 4 || (lvl <= 3 && i == len(generations)) {
 				skipGroup = true
 				break
 			}
