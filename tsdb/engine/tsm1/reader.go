@@ -62,6 +62,10 @@ type TSMReader struct {
 	deleteMu sync.Mutex
 
 	firstBlockCountCache blockCountCache
+
+	parseFileNameFunc ParseFileNameFunc
+	generation        int
+	sequence          int
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -230,6 +234,12 @@ var WithMadviseWillNeed = func(willNeed bool) tsmReaderOption {
 	}
 }
 
+var WithParseFileNameFunc = func(f ParseFileNameFunc) tsmReaderOption {
+	return func(r *TSMReader) {
+		r.parseFileNameFunc = f
+	}
+}
+
 // TODO(DSB) - add a tsmReaderOption in a test call that has the mmmapAccessor mock a failure
 // NewTSMReader returns a new TSMReader from the given file.
 func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
@@ -261,6 +271,15 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 
 	if err := t.applyTombstones(); err != nil {
 		return nil, err
+	}
+
+	if nil != t.parseFileNameFunc {
+		// If parseFileNameFunc is nil, we are in a test or other TSMReader use
+		// that does not involve compaction planning!
+		t.generation, t.sequence, err = t.parseFileNameFunc(t.Path())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return t, nil
@@ -421,7 +440,15 @@ func (t *TSMReader) Remove() error {
 func (t *TSMReader) Rename(path string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.accessor.rename(path)
+	var err error
+	if err = t.accessor.rename(path); err != nil {
+		return fmt.Errorf("failure renaming to %q: %w", path, err)
+	}
+	t.generation, t.sequence, err = t.parseFileNameFunc(path)
+	if err != nil {
+		return fmt.Errorf("failed parsing filename %q for generation and sequence numbers: %w", path, err)
+	}
+	return nil
 }
 
 // Remove removes any underlying files stored on disk for this reader.
@@ -631,6 +658,7 @@ func (t *TSMReader) firstBlockCount() (int, error) {
 func (t *TSMReader) Stats() FileStat {
 	minTime, maxTime := t.index.TimeRange()
 	minKey, maxKey := t.index.KeyRange()
+
 	return FileStat{
 		Path:         t.Path(),
 		Size:         t.Size(),
@@ -640,6 +668,8 @@ func (t *TSMReader) Stats() FileStat {
 		MinKey:       minKey,
 		MaxKey:       maxKey,
 		HasTombstone: t.tombstoner.HasTombstones(),
+		Generation:   t.generation,
+		Sequence:     t.sequence,
 	}
 }
 
