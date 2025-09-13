@@ -240,6 +240,8 @@ type FileStat struct {
 	LastModified     int64
 	MinTime, MaxTime int64
 	MinKey, MaxKey   []byte
+	Generation       int
+	Sequence         int
 }
 
 type FileStats []FileStat
@@ -309,7 +311,7 @@ func NewFileStore(dir string, options ...tsmReaderOption) *FileStore {
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
 		copyFiles:     runtime.GOOS == "windows",
-		readerOptions: options,
+		readerOptions: append(options, WithParseFileNameFunc(DefaultParseFileName)),
 	}
 	fs.purger.fileStore = fs
 	return fs
@@ -322,9 +324,13 @@ func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
 
 func (f *FileStore) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	f.parseFileName = parseFileNameFunc
+	f.readerOptions = append(f.readerOptions, WithParseFileNameFunc(f.parseFileName))
 }
 
 func (f *FileStore) ParseFileName(path string) (int, int, error) {
+	if f == nil || f.parseFileName == nil {
+		return 0, 0, fmt.Errorf("failed parsing %s: file store is not initialized", path)
+	}
 	return f.parseFileName(path)
 }
 
@@ -1356,12 +1362,12 @@ func DefaultParseFileName(name string) (int, int, error) {
 
 	generation, err := strconv.ParseUint(id[:idx], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+		return 0, 0, fmt.Errorf("file %s is named incorrectly: %w", name, err)
 	}
 
 	sequence, err := strconv.ParseUint(id[idx+1:], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+		return 0, 0, fmt.Errorf("file %s is named incorrectly: %w", name, err)
 	}
 
 	return int(generation), int(sequence), nil
