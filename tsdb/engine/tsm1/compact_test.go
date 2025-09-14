@@ -2638,28 +2638,29 @@ func TestDefaultPlanner_Plan_CompactsMiddleSteps(t *testing.T) {
 
 func TestDefaultPlanner_Plan_LargeGeneration(t *testing.T) {
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(t, []tsm1.FileStat{
-			{
-				Path: "000000278-000000006.tsm",
-				Size: 2148340232,
-			},
-			{
-				Path: "000000278-000000007.tsm",
-				Size: 2148356556,
-			},
-			{
-				Path: "000000278-000000008.tsm",
-				Size: 167780181,
-			},
-			{
-				Path: "000000278-000047040.tsm",
-				Size: 2148728539,
-			},
-			{
-				Path: "000000278-000047041.tsm",
-				Size: 701863692,
-			},
-		})),
+		newFakeFileStore(withFileStats(t,
+			[]tsm1.FileStat{
+				{
+					Path: "000000278-000000006.tsm",
+					Size: 2148340232,
+				},
+				{
+					Path: "000000278-000000007.tsm",
+					Size: 2148356556,
+				},
+				{
+					Path: "000000278-000000008.tsm",
+					Size: 167780181,
+				},
+				{
+					Path: "000000278-000047040.tsm",
+					Size: 2148728539,
+				},
+				{
+					Path: "000000278-000047041.tsm",
+					Size: 701863692,
+				},
+			})),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2673,60 +2674,61 @@ func TestDefaultPlanner_Plan_LargeGeneration(t *testing.T) {
 
 func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(t, []tsm1.FileStat{
-			{
-				Path: "000000001-000000001.tsm",
-				Size: 2148340232,
-			},
-			{
-				Path: "000000002-000000001.tsm",
-				Size: 2148356556,
-			},
-			{
-				Path: "000000003-000000001.tsm",
-				Size: 167780181,
-			},
-			{
-				Path: "000000004-000000001.tsm",
-				Size: 2148728539,
-			},
-			{
-				Path: "000000005-000000001.tsm",
-				Size: 2148340232,
-			},
-			{
-				Path: "000000006-000000001.tsm",
-				Size: 2148356556,
-			},
-			{
-				Path: "000000007-000000001.tsm",
-				Size: 167780181,
-			},
-			{
-				Path: "000000008-000000001.tsm",
-				Size: 2148728539,
-			},
-			{
-				Path: "000000009-000000002.tsm",
-				Size: 701863692,
-			},
-			{
-				Path: "000000010-000000002.tsm",
-				Size: 701863692,
-			},
-			{
-				Path: "000000011-000000002.tsm",
-				Size: 701863692,
-			},
-			{
-				Path: "000000012-000000002.tsm",
-				Size: 701863692,
-			},
-			{
-				Path: "000000013-000000002.tsm",
-				Size: 701863692,
-			},
-		})),
+		newFakeFileStore(withFileStats(t,
+			[]tsm1.FileStat{
+				{
+					Path: "000000001-000000001.tsm",
+					Size: 2148340232,
+				},
+				{
+					Path: "000000002-000000001.tsm",
+					Size: 2148356556,
+				},
+				{
+					Path: "000000003-000000001.tsm",
+					Size: 167780181,
+				},
+				{
+					Path: "000000004-000000001.tsm",
+					Size: 2148728539,
+				},
+				{
+					Path: "000000005-000000001.tsm",
+					Size: 2148340232,
+				},
+				{
+					Path: "000000006-000000001.tsm",
+					Size: 2148356556,
+				},
+				{
+					Path: "000000007-000000001.tsm",
+					Size: 167780181,
+				},
+				{
+					Path: "000000008-000000001.tsm",
+					Size: 2148728539,
+				},
+				{
+					Path: "000000009-000000002.tsm",
+					Size: 701863692,
+				},
+				{
+					Path: "000000010-000000002.tsm",
+					Size: 701863692,
+				},
+				{
+					Path: "000000011-000000002.tsm",
+					Size: 701863692,
+				},
+				{
+					Path: "000000012-000000002.tsm",
+					Size: 701863692,
+				},
+				{
+					Path: "000000013-000000002.tsm",
+					Size: 701863692,
+				},
+			})),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
