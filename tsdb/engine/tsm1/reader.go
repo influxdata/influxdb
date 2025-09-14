@@ -274,7 +274,7 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 	}
 
 	if nil != t.parseFileNameFunc {
-		// If parseFileNameFunc is nil, we are in a test or other TSMReader use
+		// If parseFileNameFunc is nil, we are in a test or another TSMReader use
 		// that does not involve compaction planning!
 		t.generation, t.sequence, err = t.parseFileNameFunc(t.Path())
 		if err != nil {
