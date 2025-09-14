@@ -161,11 +161,6 @@ type DefaultPlanner struct {
 	lastPlanCheck time.Time
 
 	mu sync.RWMutex
-	// lastFindGenerations is the last time findGenerations was run
-	lastFindGenerations time.Time
-
-	// lastGenerations is the last set of generations found by findGenerations
-	lastGenerations tsmGenerations
 
 	// forceFull causes the next full plan requests to plan any files
 	// that may need to be compacted.  Normally, these files are skipped and scheduled
@@ -705,14 +700,6 @@ func (c *DefaultPlanner) findGenerations(skipInUse bool) tsmGenerations {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	last := c.lastFindGenerations
-	lastGen := c.lastGenerations
-
-	if !last.IsZero() && c.FileStore.LastModified().Equal(last) {
-		return lastGen
-	}
-
-	genTime := c.FileStore.LastModified()
 	tsmStats := c.FileStore.Stats()
 	generations := make(map[int]*tsmGeneration, len(tsmStats))
 	for _, f := range tsmStats {
@@ -736,9 +723,6 @@ func (c *DefaultPlanner) findGenerations(skipInUse bool) tsmGenerations {
 	if !orderedGenerations.IsSorted() {
 		sort.Sort(orderedGenerations)
 	}
-
-	c.lastFindGenerations = genTime
-	c.lastGenerations = orderedGenerations
 
 	return orderedGenerations
 }
