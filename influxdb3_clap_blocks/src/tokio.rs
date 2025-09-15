@@ -14,9 +14,6 @@ use paste::paste;
 /// Tokio runtime type.
 #[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
 pub enum TokioRuntimeType {
-    /// Current-thread runtime.
-    CurrentThread,
-
     /// Multi-thread runtime.
     #[default]
     MultiThread,
@@ -164,7 +161,6 @@ macro_rules! tokio_rt_config {
                     // requires a running tokio runtime and is initialised after this function.
 
                     let mut builder = match self.runtime_type {
-                        TokioRuntimeType::CurrentThread => tokio::runtime::Builder::new_current_thread(),
                         TokioRuntimeType::MultiThread => tokio::runtime::Builder::new_multi_thread(),
                         TokioRuntimeType::MultiThreadAlt => {
                             #[cfg(tokio_unstable)]
