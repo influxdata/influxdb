@@ -1037,7 +1037,11 @@ impl HttpApi {
             .authenticate(auth_token.clone())
             .await
             .map_err(|e| {
-                error!(?e, "cannot authenticate token");
+                error!(
+                    ?e,
+                    path = req.uri().path_and_query().map(|pq| pq.path()),
+                    "cannot authenticate token"
+                );
                 AuthenticationError::Unauthenticated
             })?;
 

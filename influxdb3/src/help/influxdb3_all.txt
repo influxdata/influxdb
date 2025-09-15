@@ -23,9 +23,10 @@ InfluxDB 3 Core Server and Command Line Tools
   {}      Test that Processing Engine plugins work the way you expect
 
 {}
-  --io-runtime-type <TYPE>          IO tokio runtime type [env: INFLUXDB3_IO_RUNTIME_TYPE=]
-                                    [default: multi-thread]
-                                    [possible values: current-thread, multi-thread, multi-thread-alt]
+  --io-runtime-type <TYPE>           IO tokio runtime type [env: INFLUXDB3_IO_RUNTIME_TYPE=]
+                                     [default: multi-thread]
+                                     [possible values: multi-thread, multi-thread-alt]
+
   --io-runtime-disable-lifo-slot <BOOL>
                                      Disable LIFO slot of IO runtime
                                      [env: INFLUXDB3_IO_RUNTIME_DISABLE_LIFO_SLOT=]
