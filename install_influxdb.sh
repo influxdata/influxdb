@@ -15,7 +15,7 @@ readonly NC='\033[0m' # No Color
 ARCHITECTURE=$(uname -m)
 ARTIFACT=""
 OS=""
-INSTALL_LOC=~/.influxdb3
+INSTALL_LOC=~/.influxdb
 BINARY_NAME="influxdb3"
 PORT=8181
 
@@ -102,8 +102,8 @@ setup_quick_start_defaults() {
     
     NODE_ID="node0" 
     STORAGE_TYPE="File Storage"
-    STORAGE_PATH="$HOME/.influxdb3/data"
-    PLUGIN_PATH="$HOME/.influxdb3/plugins"
+    STORAGE_PATH="$HOME/.influxdb/data"
+    PLUGIN_PATH="$HOME/.influxdb/plugins"
     STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
     STORAGE_FLAGS_ECHO="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
     START_SERVICE="y"  # Always set for Quick Start
@@ -235,7 +235,7 @@ prompt_storage_configuration() {
             echo
             printf "Enter storage path (default: %s/data): " "${INSTALL_LOC}"
             read -r STORAGE_PATH
-            STORAGE_PATH=${STORAGE_PATH:-"${INSTALL_LOC}/data"}
+            STORAGE_PATH=${STORAGE_PATH:-"$INSTALL_LOC/data"}
             STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH}"
             STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
             ;;
@@ -265,7 +265,7 @@ prompt_storage_configuration() {
                 *)
                     printf "Invalid cloud provider choice. Defaulting to file storage.\n"
                     STORAGE_TYPE="File Storage"
-                    STORAGE_FLAGS="--object-store=file --data-dir ${INSTALL_LOC}/data"
+                    STORAGE_FLAGS="--object-store=file --data-dir $INSTALL_LOC/data"
                     STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
                     ;;
             esac
@@ -279,7 +279,7 @@ prompt_storage_configuration() {
         *)
             printf "Invalid choice. Defaulting to file storage.\n"
             STORAGE_TYPE="File Storage"
-            STORAGE_FLAGS="--object-store=file --data-dir ${INSTALL_LOC}/data"
+            STORAGE_FLAGS="--object-store=file --data-dir $INSTALL_LOC/data"
             STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
             ;;
     esac
@@ -515,7 +515,7 @@ if [ "${EDITION}" = "Core" ]; then
     # Prompt user for startup options
     echo
     printf "${BOLD}What would you like to do next?${NC}\n"
-    printf "1) ${GREEN}Quick Start${NC} ${DIM}(recommended; data stored at ~/.influxdb3/data)${NC}\n"
+    printf "1) ${GREEN}Quick Start${NC} ${DIM}(recommended; data stored at %s/data)${NC}\n" "${INSTALL_LOC}"
     printf "2) ${GREEN}Custom Configuration${NC} ${DIM}(configure all options manually)${NC}\n"
     printf "3) ${GREEN}Skip startup${NC} ${DIM}(install only)${NC}\n"
     echo
@@ -576,8 +576,8 @@ if [ "${EDITION}" = "Core" ]; then
         echo
         printf "${BOLD}Starting InfluxDB (Quick Start)${NC}\n"
         printf "├─${DIM} Node ID: %s${NC}\n" "$NODE_ID"
-        printf "├─${DIM} Storage: ~/.influxdb3/data${NC}\n"
-        printf "├─${DIM} Plugins: ~/.influxdb3/plugins${NC}\n"
+        printf "├─${DIM} Storage: %s/data${NC}\n" "${INSTALL_LOC}"
+        printf "├─${DIM} Plugins: %s/plugins${NC}\n" "${INSTALL_LOC}"
 
         # Ensure port is available; if not, find a new one.
         ORIGINAL_PORT="$PORT"
@@ -609,7 +609,7 @@ else
     # Enterprise startup options
     echo
     printf "${BOLD}What would you like to do next?${NC}\n"
-    printf "1) ${GREEN}Quick Start${NC} ${DIM}(recommended; data stored at ~/.influxdb3/data)${NC}\n"
+    printf "1) ${GREEN}Quick Start${NC} ${DIM}(recommended; data stored at %s/data)${NC}\n" "${INSTALL_LOC}"
     printf "2) ${GREEN}Custom Configuration${NC} ${DIM}(configure all options manually)${NC}\n"
     printf "3) ${GREEN}Skip startup${NC} ${DIM}(install only)${NC}\n"
     echo
@@ -659,8 +659,8 @@ else
         if [ -n "$LICENSE_EMAIL" ]; then
             printf "├─${DIM} Email: %s${NC}\n" "$LICENSE_EMAIL"
         fi
-        printf "├─${DIM} Storage: ~/.influxdb3/data${NC}\n"
-        printf "├─${DIM} Plugins: ~/.influxdb3/plugins${NC}\n"
+        printf "├─${DIM} Storage: %s/data${NC}\n" "${INSTALL_LOC}"
+        printf "├─${DIM} Plugins: %s/plugins${NC}\n" "${INSTALL_LOC}"
 
         # Ensure port is available; if not, find a new one.
         ORIGINAL_PORT="$PORT"
@@ -790,18 +790,13 @@ if [ "${EDITION}" = "Enterprise" ] && [ "$SUCCESS" -eq 0 ] 2>/dev/null; then
     printf "       --node-id=%s \\\\\n" "${NODE_ID:-node0}"
     printf "       --license-type=%s \\\\\n" "${LICENSE_TYPE:-trial}"
     printf "       --license-email=%s \\\\\n" "${LICENSE_EMAIL:-your@email.com}"
-    printf "       %s\n" "${STORAGE_FLAGS_ECHO:-"--object-store=file --data-dir ~/.influxdb3/data --plugin-dir ~/.influxdb3/plugins"}"
+    printf "       %s\n" "${STORAGE_FLAGS_ECHO:-"--object-store=file --data-dir $INSTALL_LOC/data --plugin-dir $INSTALL_LOC/plugins"}"
     printf "   ${BOLD}Common issues:${NC} Network connectivity, invalid email format, port conflicts\n"
 fi
 
-printf "2) ${BOLD}Create admin token:${NC} influxdb3 create token --admin\n\n"
-printf "3) ${BOLD}Set token:${NC} export INFLUXDB3_AUTH_TOKEN=<your_token>\n\n"
-
-printf "View the Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/${NC}.\n"
-printf "Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
-echo
-
-printf "┌────────────────────────────────────────────────────────────────────────────────────────┐\n"
-printf "│ Looking to use a UI for querying, plugins, management, and more?                       │\n"
-printf "│ Get InfluxDB 3 Explorer at ${BLUE}https://docs.influxdata.com/influxdb3/explorer/#quick-start${NC} │\n"
-printf "└────────────────────────────────────────────────────────────────────────────────────────┘\n\n"
+printf "2) Create admin token: ${BOLD}influxdb3 create token --admin${NC}\n\n"
+printf "3) Begin writing data! Learn more at https://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/write/\n\n"
+        printf "┌────────────────────────────────────────────────────────────────────────────────────────┐\n"
+        printf "│ Looking to use a UI for querying, plugins, management, and more?                       │\n"
+        printf "│ Get InfluxDB 3 Explorer at ${BLUE}https://docs.influxdata.com/influxdb3/explorer/#quick-start${NC} │\n"
+        printf "└────────────────────────────────────────────────────────────────────────────────────────┘\n\n"
