@@ -23,6 +23,7 @@ use std::{
     cmp::Ordering, convert::Infallible, fs, num::NonZeroUsize, ops::Range, path::PathBuf,
     sync::Arc, time::Duration,
 };
+use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use url::Url;
 
@@ -229,11 +230,13 @@ impl ObjectStore for LocalFileSystemWithSortedListOp {
             return self.inner.list(prefix);
         }
 
-        let mut items: Vec<Result<ObjectMeta, _>> = futures::executor::block_on(async {
-            // we could use TryStreamExt.collect() here to drop all collected results and
-            // return the first error we encounter, but users of the ObjectStore API will
-            // probably expect to have to deal with errors one element at a time anyway
-            self.inner.list(prefix).collect().await
+        let mut items: Vec<Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
+            Handle::current().block_on(async move {
+                // we could use TryStreamExt.collect() here to drop all collected results and
+                // return the first error we encounter, but users of the ObjectStore API will
+                // probably expect to have to deal with errors one element at a time anyway
+                self.inner.list(prefix).collect().await
+            })
         });
 
         items.sort_unstable_by(|left, right| match (left, right) {
@@ -261,11 +264,13 @@ impl ObjectStore for LocalFileSystemWithSortedListOp {
             return self.inner.list_with_offset(prefix, offset);
         }
 
-        let mut items: Vec<Result<ObjectMeta, _>> = futures::executor::block_on(async {
-            // we could use TryStreamExt.collect() here to drop all collected results and
-            // return the first error we encounter, but users of the ObjectStore API will
-            // probably expect to have to deal with errors one element at a time anyway
-            self.inner.list_with_offset(prefix, offset).collect().await
+        let mut items: Vec<Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
+            Handle::current().block_on(async move {
+                // we could use TryStreamExt.collect() here to drop all collected results and
+                // return the first error we encounter, but users of the ObjectStore API will
+                // probably expect to have to deal with errors one element at a time anyway
+                self.inner.list_with_offset(prefix, offset).collect().await
+            })
         });
 
         items.sort_unstable_by(|left, right| match (left, right) {
@@ -1358,11 +1363,13 @@ impl object_store::ObjectStore for ReauthingObjectStore {
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         let inner_cloned = Arc::clone(&self.inner);
-        let items: Vec<object_store::Result<ObjectMeta, _>> = futures::executor::block_on(async {
-            // we could use TryStreamExt.collect() here to drop all collected results and
-            // return the first error we encounter, but users of the ObjectStore API will
-            // probably expect to have to deal with errors one element at a time anyway
-            inner_cloned.list(prefix).collect().await
+        let items: Vec<object_store::Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
+            Handle::current().block_on(async move {
+                // we could use TryStreamExt.collect() here to drop all collected results and
+                // return the first error we encounter, but users of the ObjectStore API will
+                // probably expect to have to deal with errors one element at a time anyway
+                inner_cloned.list(prefix).collect().await
+            })
         });
 
         if items.is_empty() {
@@ -1371,12 +1378,14 @@ impl object_store::ObjectStore for ReauthingObjectStore {
 
         if let Err(object_store::Error::Unauthenticated { source, .. }) = &items[0] {
             warn!(error = ?source, "authentication with object store failed, attempting to reload from disk");
-            let items: Vec<Result<ObjectMeta, _>> = futures::executor::block_on(async {
-                self.credential_reloader.check_and_update().await;
-                // we could use TryStreamExt.collect() here to drop all collected results and
-                // return the first error we encounter, but users of the ObjectStore API will
-                // probably expect to have to deal with errors one element at a time anyway
-                self.inner.as_ref().list(prefix).collect().await
+            let items: Vec<Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
+                Handle::current().block_on(async move {
+                    self.credential_reloader.check_and_update().await;
+                    // we could use TryStreamExt.collect() here to drop all collected results and
+                    // return the first error we encounter, but users of the ObjectStore API will
+                    // probably expect to have to deal with errors one element at a time anyway
+                    self.inner.as_ref().list(prefix).collect().await
+                })
             });
             return futures::stream::iter(items).boxed();
         }
