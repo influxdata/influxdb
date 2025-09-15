@@ -57,42 +57,62 @@ jobs:
       - run:
           name: Build binaries
           command: |
-            export CC="$(xcc linux x86_64)"
-            export CGO_ENABLED=1
+            mkdir -p ./bins/linux-amd64 \
+                     ./bins/linux-arm64 \
+                     ./artifacts
+
+            build() {
+              for binary in \
+                influx \
+                influx_inspect \
+                influxd
+              do
+                go build \
+                  -tags "netgo,osusergo,static_build" \
+                  -buildmode=pie \
+                  -ldflags="-s
+                    -X \"main.version=${VERSION}\"
+                    -X \"main.branch=${CIRCLE_BRANCH}\"
+                    -X \"main.commit=${CIRCLE_SHA1}\"
+                    -linkmode=external
+                    -extld=${CC}
+                    -extldflags \"-fno-PIC -static-pie -Wl,-z,stack-size=8388608\"" \
+                  -o "bins/${GOOS}-${GOARCH}/${binary}" \
+                  "github.com/influxdata/influxdb/cmd/${binary}"
+              done
+            }
+
+            archive() {
+              target="artifacts/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
+              tar -czf "${target}" -C "bins/${GOOS}-${GOARCH}" \
+                influx \
+                influx_inspect \
+                influxd
+              md5sum    "${target}" > "${target}.md5"
+              sha256sum "${target}" > "${target}.sha256"
+            }
 
             # linux amd64 (static build)
-            export GOOS=linux
+            export CC="$(xcc linux x86_64)"
+            export CGO_ENABLED=1
             export GOARCH=amd64
-            for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect}
-            do
-              go build \
-                -tags "netgo,osusergo,static_build" \
-                -buildmode=pie \
-                -ldflags="-s
-                  -X \"main.version=${VERSION}\"
-                  -X \"main.branch=${CIRCLE_BRANCH}\"
-                  -X \"main.commit=${CIRCLE_SHA1}\"
-                  -linkmode=external
-                  -extld=${CC}
-                  -extldflags \"-fno-PIC -static-pie -Wl,-z,stack-size=8388608\"" \
-                ${cmd}
-            done
+            export GOOS=linux
+            build
+            archive
 
-            mkdir -p ./bins
-
-            target="bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
-            tar -czf "${target}" \
-              influx             \
-              influx_inspect     \
-              influxd
-            md5sum    "${target}" > "${target}.md5"
-            sha256sum "${target}" > "${target}.sha256"
+            # linux arm64 (static build)
+            export CC="$(xcc linux aarch64)"
+            export CGO_ENABLED=1
+            export GOARCH=arm64
+            export GOOS=linux
+            build
+            archive
       - store_artifacts:
-          path: bins/
+          path: artifacts/
       - persist_to_workspace:
           root: .
           paths:
-              - bins
+              - artifacts
       - save_cache:
           key: influxdb-cache-v1-{{ checksum "go.mod" }}
           paths:
