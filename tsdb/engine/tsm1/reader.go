@@ -225,24 +225,24 @@ func (b *BlockIterator) Err() error {
 	return b.err
 }
 
-type tsmReaderOption func(*TSMReader)
+type TsmReaderOption func(*TSMReader)
 
 // WithMadviseWillNeed is an option for specifying whether to provide a MADV_WILL need hint to the kernel.
-var WithMadviseWillNeed = func(willNeed bool) tsmReaderOption {
+var WithMadviseWillNeed = func(willNeed bool) TsmReaderOption {
 	return func(r *TSMReader) {
 		r.madviseWillNeed = willNeed
 	}
 }
 
-var WithParseFileNameFunc = func(f ParseFileNameFunc) tsmReaderOption {
+var WithParseFileNameFunc = func(f ParseFileNameFunc) TsmReaderOption {
 	return func(r *TSMReader) {
 		r.parseFileNameFunc = f
 	}
 }
 
-// TODO(DSB) - add a tsmReaderOption in a test call that has the mmmapAccessor mock a failure
+// TODO(DSB) - add a TsmReaderOption in a test call that has the mmmapAccessor mock a failure
 // NewTSMReader returns a new TSMReader from the given file.
-func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
+func NewTSMReader(f *os.File, options ...TsmReaderOption) (*TSMReader, error) {
 	t := &TSMReader{}
 	for _, option := range options {
 		option(t)

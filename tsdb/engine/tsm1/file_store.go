@@ -225,7 +225,7 @@ type FileStore struct {
 
 	copyFiles bool
 
-	readerOptions []tsmReaderOption
+	readerOptions []TsmReaderOption
 
 	// newReaderBlockCount keeps track of the current new reader block requests.
 	// If non-zero, no new TSMReader objects may be created.
@@ -295,7 +295,7 @@ func (f FileStat) ContainsKey(key []byte) bool {
 }
 
 // NewFileStore returns a new instance of FileStore based on the given directory.
-func NewFileStore(dir string, options ...tsmReaderOption) *FileStore {
+func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 	logger := zap.NewNop()
 	fs := &FileStore{
 		dir:          dir,

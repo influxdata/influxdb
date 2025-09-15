@@ -219,7 +219,16 @@ func TestCompactor_CompactFull(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 3; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -655,7 +664,16 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -756,7 +774,16 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -858,7 +885,16 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -965,7 +1001,16 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -4606,17 +4651,17 @@ func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	return name
 }
 
-func MustTSMReader(dir string, gen int, values map[string][]tsm1.Value) *tsm1.TSMReader {
-	return MustOpenTSMReader(MustWriteTSM(dir, gen, values))
+func MustTSMReader(dir string, gen int, values map[string][]tsm1.Value, options ...tsm1.TsmReaderOption) *tsm1.TSMReader {
+	return MustOpenTSMReader(MustWriteTSM(dir, gen, values), options...)
 }
 
-func MustOpenTSMReader(name string) *tsm1.TSMReader {
+func MustOpenTSMReader(name string, options ...tsm1.TsmReaderOption) *tsm1.TSMReader {
 	f, err := os.Open(name)
 	if err != nil {
 		panic(fmt.Sprintf("open file: %v", err))
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := tsm1.NewTSMReader(f, options...)
 	if err != nil {
 		panic(fmt.Sprintf("new reader: %v", err))
 	}
@@ -4647,7 +4692,7 @@ func (w *fakeFileStore) LastModified() time.Time {
 }
 
 func (w *fakeFileStore) TSMReader(path string) (*tsm1.TSMReader, error) {
-	r := MustOpenTSMReader(path)
+	r := MustOpenTSMReader(path, tsm1.WithParseFileNameFunc(w.ParseFileName))
 	w.readers = append(w.readers, r)
 	r.Ref()
 	return r, nil
