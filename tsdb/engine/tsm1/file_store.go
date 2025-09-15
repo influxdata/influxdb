@@ -1362,12 +1362,12 @@ func DefaultParseFileName(name string) (int, int, error) {
 
 	generation, err := strconv.ParseUint(id[:idx], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("file %s is named incorrectly: %w", name, err)
+		return 0, 0, fmt.Errorf("cannot parse generation number; file %s is named incorrectly: %w", name, err)
 	}
 
 	sequence, err := strconv.ParseUint(id[idx+1:], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("file %s is named incorrectly: %w", name, err)
+		return 0, 0, fmt.Errorf("cannot parse sequence number; file %s is named incorrectly: %w", name, err)
 	}
 
 	return int(generation), int(sequence), nil
