@@ -19,7 +19,7 @@ INSTALL_LOC=~/.influxdb3
 BINARY_NAME="influxdb3"
 PORT=8181
 
-INFLUXDB_VERSION="3.4.1"
+INFLUXDB_VERSION="3.4.2"
 EDITION="Core"
 EDITION_TAG="core"
 if [ "$1" = "enterprise" ]; then
@@ -285,8 +285,8 @@ prompt_storage_configuration() {
     esac
 }
 
-# Function to start server and perform health check
-start_server_with_health_check() {
+# Function to perform health check on server
+perform_server_with_health_check() {
     local timeout_seconds="${1:-30}"
     local is_enterprise="${2:-false}"
     local show_progress="${3:-true}"
@@ -569,7 +569,7 @@ if [ "${EDITION}" = "Core" ]; then
         "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null &
         PID="$!"
 
-        start_server_with_health_check 30
+        perform_server_with_health_check 30
 
     elif [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "1" ]; then
         # Quick Start flow - minimal output, just start the server
@@ -599,7 +599,7 @@ if [ "${EDITION}" = "Core" ]; then
         "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null &
         PID="$!"
 
-        start_server_with_health_check 30
+        perform_server_with_health_check 30
 
     else
         echo
@@ -684,7 +684,7 @@ else
         fi
         PID="$!"
         
-        start_server_with_health_check 90 true false
+        perform_server_with_health_check 90 true false
 
     elif [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "2" ]; then
         # Enterprise Custom Start flow
@@ -748,7 +748,7 @@ else
         # Ensure port is available; if not, find a new one.
         find_available_port
 
-        # Start Enterprise in background with licensing and give up to 60 seconds to respond (licensing takes longer)
+        # Start Enterprise in background with licensing and give up to 90 seconds to respond (licensing takes longer)
         echo
         printf "${BOLD}Starting InfluxDB Enterprise${NC}\n"
         printf "├─${DIM} Cluster ID: %s${NC}\n" "$CLUSTER_ID"
@@ -765,7 +765,7 @@ else
         printf "├─${DIM} Server started in background (PID: %s)${NC}\n" "$PID"
         printf "├─${DIM} Checking license activation and server health...${NC}\n"
         
-        start_server_with_health_check 90 true true
+        perform_server_with_health_check 90 true true
 
     else
         echo
