@@ -1416,9 +1416,8 @@ impl TableTransaction {
             .get_mut_by_id(&ff_id)
             .expect("field family name exists");
 
-        // We know there are no other references, as the table only exists
-        // as a field of TableTransaction.
-        let ffd = Arc::get_mut(ffd_arc).expect("no other references");
+        // Use `Arc::make_mut` because `TableTransaction`s are created via cloning `TableDefinition`
+        let ffd = Arc::make_mut(ffd_arc);
 
         let id = FieldIdentifier::new(ffd.id, ffd.fields.get_and_increment_next_id());
         let col_id = self.table.columns.get_and_increment_next_id();
@@ -2989,6 +2988,36 @@ mod tests {
                 InfluxColumnType::Field(InfluxFieldType::Integer),
             );
             assert!(matches!(result, Err(CatalogError::TooManyColumns(3))));
+        }
+    }
+
+    /// Reproducer for issue <https://github.com/influxdata/influxdb/issues/26776>
+    #[tokio::test]
+    async fn test_field_family_arc_ref_count_bug() {
+        use super::CreateTableColumns;
+        use crate::catalog::versions::v2::FieldFamilyMode;
+
+        let catalog = Arc::new(Catalog::new_in_memory("test-catalog").await.unwrap());
+        {
+            let mut txn = catalog.begin("test_db").unwrap();
+            txn.create_table(
+                "test_table",
+                Some(CreateTableColumns {
+                    tags: &["tag"],
+                    fields: &[("ff::a", FieldDataType::Integer)],
+                }),
+                FieldFamilyMode::Aware,
+            )
+            .unwrap();
+            catalog.commit(txn).await.unwrap();
+        }
+        {
+            let mut txn = catalog.begin("test_db").unwrap();
+            let ttx = txn.table_transaction("test_table").unwrap();
+            // This should not panic.
+            let _col_def = ttx
+                .add_field("ff::b", InfluxFieldType::Float)
+                .expect("add field");
         }
     }
 }
