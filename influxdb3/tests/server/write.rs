@@ -343,6 +343,35 @@ async fn writes_with_different_schema_should_fail() {
         "the request should hae failed with an API Error"
     );
 }
+
+#[tokio::test]
+async fn duplicate_field_names_should_fail() {
+    let server = TestServer::spawn().await;
+
+    // Attempt to write a row containing two instances of the same field name
+    let error = server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a usage=0.5,usage=0.6",
+            Precision::Nanosecond,
+        )
+        .await
+        .expect_err("should fail when writing LP with duplicate field names");
+
+    // The request should have failed with a BAD_REQUEST error and a message indicating which field
+    // is duplicated.
+    assert!(
+        matches!(
+            error,
+            influxdb3_client::Error::ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message,
+            } if message.contains("multiple instances of 'usage' field found"),
+        ),
+        "the request should have failed with an API Error for duplicate field names"
+    );
+}
+
 #[tokio::test]
 /// Check that the no_sync param can be used on any endpoint. However, this only means that serde
 /// will parse it just fine. It is only able to be used in the v3 endpoint and will

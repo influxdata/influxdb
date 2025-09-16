@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use crate::{Precision, WriteLineError, write_buffer::Result};
 use data_types::{NamespaceName, Timestamp};
+use hashbrown::HashSet;
 use indexmap::IndexMap;
 use influxdb3_catalog::catalog::{
     Catalog, CatalogSequenceNumber, DatabaseCatalogTransaction, Prompt,
 };
 
 use influxdb_line_protocol::{FieldValue, ParsedLine, parse_lines};
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{Field, FieldData, Gen1Duration, Row, TableChunks, WriteBatch};
 use iox_time::Time;
 use observability_deps::tracing::trace;
@@ -127,6 +128,7 @@ impl WriteValidator<Initialized> {
         let mut lp_lines = lp.lines();
         let mut lines = vec![];
         let mut bytes = 0;
+        let mut column_ids: HashSet<ColumnId> = HashSet::new();
 
         for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
             let qualified_line = match maybe_line
@@ -145,6 +147,7 @@ impl WriteValidator<Initialized> {
                         l,
                         ingest_time,
                         precision,
+                        &mut column_ids,
                     )
                     .inspect(|_| bytes += raw_line.len() as u64)
                 }) {
@@ -188,7 +191,10 @@ fn validate_and_qualify_v1_line(
     line: ParsedLine<'_>,
     ingest_time: Time,
     precision: Precision,
+    column_ids: &mut HashSet<ColumnId>,
 ) -> Result<QualifiedLine, WriteLineError> {
+    column_ids.clear();
+
     let table_name = line.series.measurement.as_str();
     let mut fields = Vec::with_capacity(line.column_count());
     let mut index_count = 0;
@@ -237,6 +243,15 @@ fn validate_and_qualify_v1_line(
                 error_message: error.to_string(),
             })?
             .ord_id();
+        if !column_ids.insert(col_id) {
+            return Err(WriteLineError {
+                original_line: line.to_string(),
+                line_number: line_number + 1,
+                error_message: format!(
+                    "invalid line protocol - multiple instances of '{field_name}' field found"
+                ),
+            });
+        };
         fields.push(Field::new(col_id, field_val));
         field_count += 1;
     }
