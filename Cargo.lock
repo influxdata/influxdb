@@ -3363,6 +3363,7 @@ dependencies = [
  "pyo3",
  "reqwest 0.11.27",
  "serde_json",
+ "sha2",
  "tempfile",
  "test-log",
  "thiserror 1.0.69",

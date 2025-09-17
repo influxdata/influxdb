@@ -213,7 +213,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     let result = server
         .test_schedule_plugin(
             "metrics_db",
-            &format!(
+            format!(
                 "dir:{}:scheduler.py",
                 plugin_dir.file_name().unwrap().to_str().unwrap()
             ),
@@ -222,10 +222,8 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .run()?;
 
     // Check for errors first
-    if let Some(errors) = result["errors"].as_array() {
-        if !errors.is_empty() {
-            panic!("Plugin execution failed with errors: {:?}", errors);
-        }
+    if let Some(errors) = result["errors"].as_array() && !errors.is_empty() {
+        panic!("Plugin execution failed with errors: {:?}", errors);
     }
 
     // Verify the plugin executed and wrote metrics
@@ -301,7 +299,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     let result = server
         .test_wal_plugin(
             "test_db",
-            &format!(
+            format!(
                 "dir:{}:main.py",
                 plugin_dir.file_name().unwrap().to_str().unwrap()
             ),

@@ -23,6 +23,7 @@ use influxdb3_cache::distinct_cache::{DISTINCT_CACHE_UDTF_NAME, DistinctCacheFun
 use influxdb3_cache::last_cache::{LAST_CACHE_UDTF_NAME, LastCacheFunction};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
+use influxdb3_processing_engine::ProcessingEngine;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::{ChunkFilter, WriteBuffer};
@@ -62,6 +63,7 @@ pub struct QueryExecutorImpl {
     telemetry_store: Arc<TelemetryStore>,
     sys_events_store: Arc<SysEventStore>,
     started_with_auth: bool,
+    processing_engine: Option<Arc<ProcessingEngine>>,
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -77,6 +79,7 @@ pub struct CreateQueryExecutorArgs {
     pub telemetry_store: Arc<TelemetryStore>,
     pub sys_events_store: Arc<SysEventStore>,
     pub started_with_auth: bool,
+    pub processing_engine: Option<Arc<ProcessingEngine>>,
 }
 
 impl QueryExecutorImpl {
@@ -92,6 +95,7 @@ impl QueryExecutorImpl {
             sys_events_store,
             started_with_auth,
             time_provider,
+            processing_engine,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -111,6 +115,7 @@ impl QueryExecutorImpl {
             telemetry_store,
             sys_events_store,
             started_with_auth,
+            processing_engine,
         }
     }
 }
@@ -450,6 +455,7 @@ impl QueryDatabase for QueryExecutorImpl {
                 Arc::clone(&self.sys_events_store),
                 Arc::clone(&self.write_buffer.catalog()),
                 self.started_with_auth,
+                self.processing_engine.clone(),
             ),
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
@@ -935,6 +941,7 @@ mod tests {
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth,
             time_provider: Arc::clone(&time_provider) as _,
+            processing_engine: None,
         });
 
         (

@@ -1021,6 +1021,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         // convert to positive here so that we can avoid double negatives downstream
         started_with_auth: !config.without_auth,
         time_provider: Arc::clone(&time_provider) as _,
+        processing_engine: None, // Will be set later after processing_engine is created
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)

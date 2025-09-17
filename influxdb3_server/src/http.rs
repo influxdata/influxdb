@@ -1531,6 +1531,121 @@ impl HttpApi {
 
         Ok(body?)
     }
+
+    /// List all plugins and their metadata (admin-only)
+    async fn list_plugins(&self, _req: Request) -> Result<Response> {
+        // TODO: Add proper admin authorization when the system supports it
+        // Authentication should have already happened in route_request
+
+        let plugin_files = self.processing_engine.list_plugin_files().await;
+
+        // Group files by plugin name
+        let mut plugins_map = std::collections::HashMap::new();
+        for file_info in plugin_files {
+            let entry = plugins_map
+                .entry(Arc::<str>::clone(&file_info.plugin_name))
+                .or_insert_with(Vec::new);
+            entry.push(file_info);
+        }
+
+        let plugins: Vec<_> = plugins_map
+            .into_iter()
+            .map(|(name, files)| {
+                serde_json::json!({
+                    "plugin_name": name,
+                    "files": files.iter().map(|f| serde_json::json!({
+                        "file_name": f.file_name,
+                        "size_bytes": f.size_bytes,
+                        "last_modified": f.last_modified_millis,
+                        "content_hash": f.content_hash,
+                    })).collect::<Vec<_>>()
+                })
+            })
+            .collect();
+
+        let body = serde_json::to_string(&serde_json::json!({ "plugins": plugins }))?;
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
+            .body(bytes_to_response_body(body))?)
+    }
+
+    /// Get plugin file contents (admin-only)
+    async fn get_plugin_files(&self, req: Request) -> Result<Response> {
+        // TODO: Add proper admin authorization when the system supports it
+        // Authentication should have already happened in route_request
+
+        // Parse query parameters for plugin_name and file_name
+        let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
+        let params: std::collections::HashMap<String, String> = serde_urlencoded::from_str(query)?;
+
+        let plugin_name = params.get("plugin_name").ok_or(Error::MissingWriteParams)?;
+        let file_name = params.get("file_name").ok_or(Error::MissingWriteParams)?;
+
+        let content = self
+            .processing_engine
+            .get_plugin_file_content(plugin_name, file_name)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        let response = serde_json::json!({
+            "plugin_name": plugin_name,
+            "file_name": file_name,
+            "content": content,
+        });
+
+        let body = serde_json::to_string(&response)?;
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
+            .body(bytes_to_response_body(body))?)
+    }
+
+    /// Update plugin file contents (admin-only)
+    async fn update_plugin_file(&self, req: Request) -> Result<Response> {
+        // TODO: Add proper admin authorization when the system supports it
+        // Authentication should have already happened in route_request
+
+        #[derive(Deserialize)]
+        struct UpdatePluginFileRequest {
+            plugin_name: String,
+            file_name: String,
+            content: String,
+        }
+
+        let request: UpdatePluginFileRequest = self.read_body_json(req).await?;
+
+        self.processing_engine
+            .update_plugin_file(&request.plugin_name, &request.file_name, &request.content)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .body(empty_response_body())?)
+    }
+
+    /// Reload a plugin (admin-only)
+    async fn reload_plugin(&self, req: Request) -> Result<Response> {
+        // TODO: Add proper admin authorization when the system supports it
+        // Authentication should have already happened in route_request
+
+        #[derive(Deserialize)]
+        struct ReloadPluginRequest {
+            plugin_name: String,
+        }
+
+        let request: ReloadPluginRequest = self.read_body_json(req).await?;
+
+        Arc::clone(&self.processing_engine)
+            .reload_plugin(&request.plugin_name)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .body(empty_response_body())?)
+    }
 }
 
 /// Check that the content type is application/json
@@ -2163,6 +2278,10 @@ pub(crate) async fn route_request(
         (Method::DELETE, all_paths::API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD) => {
             http_server.clear_retention_period_for_database(req).await
         }
+        (Method::GET, all_paths::API_V3_PLUGINS) => http_server.list_plugins(req).await,
+        (Method::GET, all_paths::API_V3_PLUGINS_FILES) => http_server.get_plugin_files(req).await,
+        (Method::PUT, all_paths::API_V3_PLUGINS_FILES) => http_server.update_plugin_file(req).await,
+        (Method::POST, all_paths::API_V3_PLUGINS_RELOAD) => http_server.reload_plugin(req).await,
         _ => {
             let body = bytes_to_response_body("not found");
             Ok(ResponseBuilder::new()

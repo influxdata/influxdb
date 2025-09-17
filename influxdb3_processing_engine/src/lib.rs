@@ -39,6 +39,9 @@ pub mod plugins;
 
 pub mod virtualenv;
 
+// Re-export commonly used types
+pub use crate::ProcessingEngineManagerImpl as ProcessingEngine;
+
 #[derive(Debug)]
 pub struct ProcessingEngineManagerImpl {
     environment_manager: ProcessingEngineEnvironmentManager,
@@ -815,6 +818,242 @@ impl ProcessingEngineManagerImpl {
     pub fn get_environment_manager(&self) -> Arc<dyn PythonEnvironmentManager> {
         Arc::clone(&self.environment_manager.package_manager)
     }
+
+    /// List all plugin files across all databases
+    pub async fn list_plugin_files(&self) -> Vec<PluginFileInfo> {
+        use sha2::{Digest, Sha256};
+        use std::fs;
+
+        let mut plugin_files = Vec::new();
+
+        // Get all databases from catalog
+        for db_schema in self.catalog.list_db_schema() {
+            // Iterate through all triggers in this database
+            for trigger in db_schema.processing_engine_triggers.resource_iter() {
+                let plugin_name = Arc::<str>::clone(&trigger.trigger_name);
+
+                // Check if this is a local directory plugin
+                if trigger.plugin_filename.starts_with("dir:") {
+                    // Parse the directory plugin format: dir:dirname:entrypoint
+                    let parts: Vec<&str> = trigger.plugin_filename.splitn(3, ':').collect();
+                    if parts.len() == 3 {
+                        let dir_name = parts[1];
+                        let _entrypoint = parts[2];
+
+                        if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
+                            let full_dir_path = plugin_dir.join(dir_name);
+
+                            // List all Python files in the directory
+                            if let Ok(entries) = fs::read_dir(&full_dir_path) {
+                                for entry in entries.flatten() {
+                                    let path = entry.path();
+                                    if path.extension().and_then(|s| s.to_str()) == Some("py")
+                                        && let Ok(metadata) = entry.metadata()
+                                            && let Ok(content) = fs::read(&path) {
+                                                let hash =
+                                                    format!("{:x}", Sha256::digest(&content));
+                                                let file_name = path
+                                                    .file_name()
+                                                    .and_then(|n| n.to_str())
+                                                    .unwrap_or("unknown")
+                                                    .to_string();
+
+                                                plugin_files.push(PluginFileInfo {
+                                                    plugin_name: Arc::<str>::clone(&plugin_name),
+                                                    file_name: file_name.into(),
+                                                    file_path: path.to_string_lossy().into(),
+                                                    content_hash: hash.into(),
+                                                    size_bytes: metadata.len() as i64,
+                                                    last_modified_millis: metadata
+                                                        .modified()
+                                                        .ok()
+                                                        .and_then(|t| {
+                                                            t.duration_since(SystemTime::UNIX_EPOCH)
+                                                                .ok()
+                                                        })
+                                                        .map(|d| d.as_millis() as i64)
+                                                        .unwrap_or(0),
+                                                });
+                                            }
+                                }
+                            }
+                        }
+                    }
+                } else if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
+                    // Single file plugin
+                    let plugin_path = plugin_dir.join(&trigger.plugin_filename);
+                    if let Ok(metadata) = fs::metadata(&plugin_path)
+                        && let Ok(content) = fs::read(&plugin_path) {
+                            let hash = format!("{:x}", Sha256::digest(&content));
+
+                            plugin_files.push(PluginFileInfo {
+                                plugin_name: Arc::<str>::clone(&plugin_name),
+                                file_name: trigger.plugin_filename.clone().into(),
+                                file_path: plugin_path.to_string_lossy().into(),
+                                content_hash: hash.into(),
+                                size_bytes: metadata.len() as i64,
+                                last_modified_millis: metadata
+                                    .modified()
+                                    .ok()
+                                    .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                                    .map(|d| d.as_millis() as i64)
+                                    .unwrap_or(0),
+                            });
+                        }
+                }
+            }
+        }
+
+        plugin_files
+    }
+
+    /// Get the content of a specific plugin file
+    pub async fn get_plugin_file_content(
+        &self,
+        plugin_name: &str,
+        file_name: &str,
+    ) -> Result<String, ProcessingEngineError> {
+        use std::fs;
+
+        // Find the plugin across all databases
+        for db_schema in self.catalog.list_db_schema() {
+            if let Some(trigger) = db_schema
+                .processing_engine_triggers
+                .resource_iter()
+                .find(|t| t.trigger_name.as_ref() == plugin_name)
+            {
+                if trigger.plugin_filename.starts_with("dir:") {
+                    // Directory plugin
+                    let parts: Vec<&str> = trigger.plugin_filename.splitn(3, ':').collect();
+                    if parts.len() == 3 {
+                        let dir_name = parts[1];
+
+                        if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
+                            let file_path = plugin_dir.join(dir_name).join(file_name);
+                            return fs::read_to_string(file_path).map_err(|e| {
+                                ProcessingEngineError::PluginError(
+                                    plugins::PluginError::ReadPluginError(e),
+                                )
+                            });
+                        }
+                    }
+                } else if trigger.plugin_filename == file_name {
+                    // Single file plugin
+                    if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
+                        let file_path = plugin_dir.join(file_name);
+                        return fs::read_to_string(file_path).map_err(|e| {
+                            ProcessingEngineError::PluginError(
+                                plugins::PluginError::ReadPluginError(e),
+                            )
+                        });
+                    }
+                }
+            }
+        }
+
+        Err(ProcessingEngineError::PluginError(
+            plugins::PluginError::AnyhowError(anyhow::anyhow!(
+                "Plugin file not found: {}/{}",
+                plugin_name,
+                file_name
+            )),
+        ))
+    }
+
+    /// Update a plugin file content
+    pub async fn update_plugin_file(
+        &self,
+        plugin_name: &str,
+        file_name: &str,
+        content: &str,
+    ) -> Result<(), ProcessingEngineError> {
+        use std::fs;
+
+        // Find the plugin across all databases
+        for db_schema in self.catalog.list_db_schema() {
+            if let Some(trigger) = db_schema
+                .processing_engine_triggers
+                .resource_iter()
+                .find(|t| t.trigger_name.as_ref() == plugin_name)
+            {
+                if trigger.plugin_filename.starts_with("dir:") {
+                    // Directory plugin
+                    let parts: Vec<&str> = trigger.plugin_filename.splitn(3, ':').collect();
+                    if parts.len() == 3 {
+                        let dir_name = parts[1];
+
+                        if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
+                            let file_path = plugin_dir.join(dir_name).join(file_name);
+                            fs::write(file_path, content).map_err(|e| {
+                                ProcessingEngineError::PluginError(
+                                    plugins::PluginError::ReadPluginError(e),
+                                )
+                            })?;
+                            return Ok(());
+                        }
+                    }
+                } else if trigger.plugin_filename == file_name {
+                    // Single file plugin
+                    if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
+                        let file_path = plugin_dir.join(file_name);
+                        fs::write(file_path, content).map_err(|e| {
+                            ProcessingEngineError::PluginError(
+                                plugins::PluginError::ReadPluginError(e),
+                            )
+                        })?;
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        Err(ProcessingEngineError::PluginError(
+            plugins::PluginError::AnyhowError(anyhow::anyhow!(
+                "Plugin file not found: {}/{}",
+                plugin_name,
+                file_name
+            )),
+        ))
+    }
+
+    /// Force reload a plugin
+    pub async fn reload_plugin(
+        self: Arc<Self>,
+        plugin_name: &str,
+    ) -> Result<(), ProcessingEngineError> {
+        // Find the plugin and its database
+        for db_schema in self.catalog.list_db_schema() {
+            if let Some(trigger) = db_schema
+                .processing_engine_triggers
+                .resource_iter()
+                .find(|t| t.trigger_name.as_ref() == plugin_name)
+            {
+                // Stop the current plugin if running
+                let plugin_channels = self.plugin_event_tx.read().await;
+                if let Some(rx) = plugin_channels
+                    .send_shutdown(
+                        db_schema.name.to_string(),
+                        trigger.trigger_name.to_string(),
+                        &trigger.trigger,
+                    )
+                    .await?
+                {
+                    // Wait for shutdown to complete
+                    let _ = rx.await;
+                }
+                drop(plugin_channels);
+
+                // Restart the plugin
+                return Arc::clone(&self)
+                    .run_trigger(&db_schema.name, &trigger.trigger_name)
+                    .await;
+            }
+        }
+
+        Err(ProcessingEngineError::PluginError(
+            plugins::PluginError::AnyhowError(anyhow::anyhow!("Plugin not found: {}", plugin_name)),
+        ))
+    }
 }
 
 #[async_trait::async_trait]
@@ -867,6 +1106,17 @@ pub(crate) struct Request {
     pub headers: HashMap<String, String>,
     pub body: Bytes,
     pub response_tx: oneshot::Sender<Response>,
+}
+
+/// Information about a plugin file
+#[derive(Debug, Clone)]
+pub struct PluginFileInfo {
+    pub plugin_name: Arc<str>,
+    pub file_name: Arc<str>,
+    pub file_path: Arc<str>,
+    pub content_hash: Arc<str>,
+    pub size_bytes: i64,
+    pub last_modified_millis: i64,
 }
 
 fn background_catalog_update(
@@ -945,9 +1195,10 @@ fn background_catalog_update(
 
 #[cfg(test)]
 mod tests {
-    use crate::ProcessingEngineManagerImpl;
     use crate::environment::DisabledManager;
     use crate::plugins::ProcessingEngineEnvironmentManager;
+    use crate::{PluginCode, ProcessingEngineManagerImpl};
+    use std::ops::Deref;
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
@@ -1205,24 +1456,24 @@ mod tests {
         .await
         .unwrap();
         let shutdown = ShutdownManager::new_testing();
-        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
-            persister,
-            catalog: Arc::clone(&catalog),
-            last_cache,
-            distinct_cache,
-            time_provider: Arc::clone(&time_provider),
-            executor: make_exec(),
-            wal_config,
-            parquet_cache: None,
-            metric_registry: Arc::clone(&metric_registry),
-            snapshotted_wal_files_to_keep: 10,
-            query_file_limit: None,
-            shutdown: shutdown.register(),
-            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-            wal_replay_concurrency_limit: 1,
-        })
-        .await
-        .unwrap();
+        let wbuf: Arc<dyn WriteBuffer> = WriteBufferImpl::new(WriteBufferImplArgs {
+                persister,
+                catalog: Arc::clone(&catalog),
+                last_cache,
+                distinct_cache,
+                time_provider: Arc::clone(&time_provider),
+                executor: make_exec(),
+                wal_config,
+                parquet_cache: None,
+                metric_registry: Arc::clone(&metric_registry),
+                snapshotted_wal_files_to_keep: 10,
+                query_file_limit: None,
+                shutdown: shutdown.register(),
+                n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+                wal_replay_concurrency_limit: 1,
+            })
+            .await
+            .unwrap();
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
@@ -1248,7 +1499,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
                 environment_manager,
                 catalog,
                 "test_node",
-                wbuf,
+                Arc::clone(&wbuf),
                 qe,
                 time_provider,
                 sys_event_store,
@@ -1310,7 +1561,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             snapshot_size: 1,
             ..Default::default()
         };
-        let (_pem, _file) = setup(start_time, test_store.clone(), wal_config).await;
+        let (_pem, _file) = setup(start_time, Arc::clone(&test_store) as Arc<dyn ObjectStore>, wal_config).await;
 
         // Create a new ProcessingEngineManagerImpl with the test directory
         let environment_manager = ProcessingEngineEnvironmentManager {
@@ -1324,7 +1575,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
         let catalog = Arc::new(
             Catalog::new(
                 "test_host",
-                Arc::clone(&test_store),
+                Arc::clone(&test_store) as Arc<dyn ObjectStore>,
                 Arc::clone(&time_provider),
                 Default::default(),
             )
@@ -1333,30 +1584,45 @@ def process_writes(influxdb3_local, table_batches, args=None):
         );
         let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
         let persister = Arc::new(Persister::new(
-            Arc::clone(&test_store),
+            Arc::clone(&test_store) as Arc<dyn ObjectStore>,
             "test_host".to_string(),
             Arc::clone(&time_provider),
         ));
-        let wbuf = Arc::new(
-            WriteBufferImpl::new(
-                Arc::clone(&persister),
-                Arc::clone(&catalog),
-                None,
-                Arc::clone(&time_provider) as _,
-                executor_factory(1),
-                wal_config,
-                WriteBufferCreationConfig::default(),
-            )
+        let shutdown = ShutdownManager::new_testing();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
-            .unwrap(),
-        );
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let wbuf: Arc<dyn WriteBuffer> = WriteBufferImpl::new(WriteBufferImplArgs {
+                persister: Arc::clone(&persister),
+                catalog: Arc::clone(&catalog),
+                last_cache,
+                distinct_cache,
+                time_provider: Arc::clone(&time_provider),
+                executor: make_exec(),
+                wal_config: WalConfig::default(),
+                parquet_cache: None,
+                metric_registry: Arc::new(Registry::default()),
+                snapshotted_wal_files_to_keep: 10,
+                query_file_limit: None,
+                shutdown: shutdown.register(),
+                n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+                wal_replay_concurrency_limit: 1,
+            })
+            .await
+            .unwrap();
         let qe = Arc::new(UnimplementedQueryExecutor);
 
         let pem_with_dir = ProcessingEngineManagerImpl::new(
             environment_manager,
             catalog,
             "test_node",
-            wbuf,
+            Arc::clone(&wbuf),
             qe,
             time_provider,
             sys_event_store,
@@ -1405,7 +1671,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
         // Set up the processing engine manager
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
-        let wal_config = WalConfig {
+        let _wal_config = WalConfig {
             gen1_duration: Gen1Duration::new_1m(),
             max_write_buffer_size: 100,
             flush_interval: Duration::from_millis(10),
@@ -1418,7 +1684,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
         let catalog = Arc::new(
             Catalog::new(
                 "test_host",
-                Arc::clone(&test_store),
+                Arc::clone(&test_store) as Arc<dyn ObjectStore>,
                 Arc::clone(&time_provider),
                 Default::default(),
             )
@@ -1427,23 +1693,38 @@ def process_writes(influxdb3_local, table_batches, args=None):
         );
         let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
         let persister = Arc::new(Persister::new(
-            Arc::clone(&test_store),
+            Arc::clone(&test_store) as Arc<dyn ObjectStore>,
             "test_host".to_string(),
             Arc::clone(&time_provider),
         ));
-        let wbuf = Arc::new(
-            WriteBufferImpl::new(
-                Arc::clone(&persister),
-                Arc::clone(&catalog),
-                None,
-                Arc::clone(&time_provider) as _,
-                executor_factory(1),
-                wal_config,
-                WriteBufferCreationConfig::default(),
-            )
+        let shutdown = ShutdownManager::new_testing();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
-            .unwrap(),
-        );
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let wbuf: Arc<dyn WriteBuffer> = WriteBufferImpl::new(WriteBufferImplArgs {
+                persister: Arc::clone(&persister),
+                catalog: Arc::clone(&catalog),
+                last_cache,
+                distinct_cache,
+                time_provider: Arc::clone(&time_provider),
+                executor: make_exec(),
+                wal_config: WalConfig::default(),
+                parquet_cache: None,
+                metric_registry: Arc::new(Registry::default()),
+                snapshotted_wal_files_to_keep: 10,
+                query_file_limit: None,
+                shutdown: shutdown.register(),
+                n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+                wal_replay_concurrency_limit: 1,
+            })
+            .await
+            .unwrap();
         let qe = Arc::new(UnimplementedQueryExecutor);
 
         let pem_with_dir = ProcessingEngineManagerImpl::new(
@@ -1454,7 +1735,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             },
             catalog,
             "test_node",
-            wbuf,
+            Arc::clone(&wbuf),
             qe,
             time_provider,
             sys_event_store,
@@ -1512,14 +1793,14 @@ def process_writes(influxdb3_local, table_batches, args=None):
         // Set up the processing engine manager
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
-        let wal_config = WalConfig::default();
+        let _wal_config = WalConfig::default();
 
         // Set up a new ProcessingEngineManagerImpl with the test directory
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
         let catalog = Arc::new(
             Catalog::new(
                 "test_host",
-                Arc::clone(&test_store),
+                Arc::clone(&test_store) as Arc<dyn ObjectStore>,
                 Arc::clone(&time_provider),
                 Default::default(),
             )
@@ -1528,23 +1809,38 @@ def process_writes(influxdb3_local, table_batches, args=None):
         );
         let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
         let persister = Arc::new(Persister::new(
-            Arc::clone(&test_store),
+            Arc::clone(&test_store) as Arc<dyn ObjectStore>,
             "test_host".to_string(),
             Arc::clone(&time_provider),
         ));
-        let wbuf = Arc::new(
-            WriteBufferImpl::new(
-                Arc::clone(&persister),
-                Arc::clone(&catalog),
-                None,
-                Arc::clone(&time_provider) as _,
-                executor_factory(1),
-                wal_config,
-                WriteBufferCreationConfig::default(),
-            )
+        let shutdown = ShutdownManager::new_testing();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
-            .unwrap(),
-        );
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let wbuf: Arc<dyn WriteBuffer> = WriteBufferImpl::new(WriteBufferImplArgs {
+                persister: Arc::clone(&persister),
+                catalog: Arc::clone(&catalog),
+                last_cache,
+                distinct_cache,
+                time_provider: Arc::clone(&time_provider),
+                executor: make_exec(),
+                wal_config: WalConfig::default(),
+                parquet_cache: None,
+                metric_registry: Arc::new(Registry::default()),
+                snapshotted_wal_files_to_keep: 10,
+                query_file_limit: None,
+                shutdown: shutdown.register(),
+                n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+                wal_replay_concurrency_limit: 1,
+            })
+            .await
+            .unwrap();
         let qe = Arc::new(UnimplementedQueryExecutor);
 
         let pem_with_dir = ProcessingEngineManagerImpl::new(
@@ -1555,7 +1851,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             },
             catalog,
             "test_node",
-            wbuf,
+            Arc::clone(&wbuf),
             qe,
             time_provider,
             sys_event_store,
