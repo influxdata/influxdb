@@ -4708,3 +4708,8 @@ func (w *fakeFileStore) Close() {
 func (w *fakeFileStore) ParseFileName(path string) (int, int, error) {
 	return tsm1.DefaultParseFileName(path)
 }
+
+func (w *fakeFileStore) SupportsCompactionPlanning() bool {
+	// Our ParseFileName is hard-coded to always use default.
+	return true
+}
