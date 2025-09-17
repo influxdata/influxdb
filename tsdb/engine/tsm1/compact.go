@@ -187,9 +187,14 @@ type fileStore interface {
 	ParseFileName(path string) (generation int, sequence int, err error)
 	NextGeneration() int
 	TSMReader(path string) (*TSMReader, error)
+	SupportsCompactionPlanning() bool
 }
 
 func NewDefaultPlanner(fs fileStore, writeColdDuration time.Duration) *DefaultPlanner {
+	if !fs.SupportsCompactionPlanning() {
+		// This should only happen due to developer mistakes.
+		panic("fileStore must support compaction planning")
+	}
 	return &DefaultPlanner{
 		FileStore:                          fs,
 		compactFullWriteColdDuration:       writeColdDuration,

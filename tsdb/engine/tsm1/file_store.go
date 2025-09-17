@@ -317,6 +317,11 @@ func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 	return fs
 }
 
+// SupportsCompactionPlanning returns true if f supports all functionality needed for compaction planning.
+func (f *FileStore) SupportsCompactionPlanning() bool {
+	return f.parseFileName != nil
+}
+
 // WithObserver sets the observer for the file store.
 func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
 	f.obs = obs
