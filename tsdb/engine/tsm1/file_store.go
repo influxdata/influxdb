@@ -311,7 +311,7 @@ func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
 		copyFiles:     runtime.GOOS == "windows",
-		readerOptions: append(options, WithParseFileNameFunc(DefaultParseFileName)),
+		readerOptions: append([]TsmReaderOption{WithParseFileNameFunc(DefaultParseFileName)}, options...),
 	}
 	fs.purger.fileStore = fs
 	return fs
