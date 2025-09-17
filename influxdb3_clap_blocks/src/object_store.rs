@@ -1205,7 +1205,7 @@ impl AwsCredentialReloader {
         let cloned = self.clone();
         tokio::spawn(async move {
             loop {
-                let next_check_in = cloned
+                let mut next_check_in = cloned
                     .check_and_update()
                     .await
                     .and_then(|next_check_ts| {
@@ -1213,11 +1213,17 @@ impl AwsCredentialReloader {
                         if next_check_ts < now {
                             None
                         } else {
-                            Some(Duration::from_secs(now - next_check_ts))
+                            Some(Duration::from_secs(next_check_ts - now))
                         }
                     })
                     .unwrap_or_else(default_check_in);
 
+                // avoid a tight loop when sleeping under a second
+                // this might happen if the expiry time wasn't updated or
+                // the process started up right on the expiry time
+                if next_check_in.as_secs() < 1 {
+                    next_check_in = Duration::from_secs(1);
+                }
                 cloned.time_provider.sleep(next_check_in).await;
             }
         });
@@ -1265,11 +1271,9 @@ impl AwsCredentialReloader {
         if do_update {
             let mut guard = self.current.write().await;
             *guard = Arc::new(credentials);
-
-            next_expiry
-        } else {
-            None
         }
+        // we assume the creds file is accurate even if we didn't update the creds themselves
+        next_expiry
     }
 }
 
