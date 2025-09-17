@@ -609,7 +609,7 @@ func (f *FileStore) Open() error {
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
-		generation, _, err := f.parseFileName(fn)
+		generation, _, err := f.ParseFileName(fn)
 		if err != nil {
 			return fmt.Errorf("error parsing %q in FileStore.Open: %w", fn, err)
 		}
