@@ -513,7 +513,7 @@ func (s *Server) Open() error {
 		return fmt.Errorf("open points writer: %s", err)
 	}
 
-	s.Monitor.WithLimiter(s.TSDBStore.EngineOptions.CompactionThroughputLimiter)
+	s.Monitor.WithCompactThroughputLimiter(s.TSDBStore.EngineOptions.CompactionThroughputLimiter)
 
 	for _, service := range s.Services {
 		if err := service.Open(); err != nil {

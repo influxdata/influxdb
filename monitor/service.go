@@ -157,7 +157,6 @@ func (m *Monitor) Open() error {
 		m.RegisterDiagnosticsClient("stats", &stats{
 			comp: compactThroughputStats{
 				limiter: m.Limiter,
-				burst:   m.Limiter.Burst(),
 			},
 		})
 	}
@@ -212,7 +211,7 @@ func (m *Monitor) writePoints(p models.Points) error {
 	return nil
 }
 
-func (m *Monitor) WithLimiter(limiter limiter.Rate) {
+func (m *Monitor) WithCompactThroughputLimiter(limiter limiter.Rate) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Limiter = limiter

@@ -13,7 +13,7 @@ func TestDiagnostics_Stats(t *testing.T) {
 	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
 	compactLimiter := limiter.NewRate(100, 100)
 
-	s.WithLimiter(compactLimiter)
+	s.WithCompactThroughputLimiter(compactLimiter)
 
 	require.NoError(t, s.Open(), "opening monitor")
 	defer func() {
