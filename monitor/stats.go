@@ -2,10 +2,11 @@ package monitor
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"golang.org/x/time/rate"
-	"strconv"
 )
 
 // stats captures statistics
