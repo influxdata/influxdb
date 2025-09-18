@@ -61,36 +61,94 @@ jobs:
                      ./bins/linux-arm64 \
                      ./artifacts
 
-            build() {
-              for binary in \
+            function build() {
+              for command in \
                 influx \
                 influx_inspect \
                 influxd
               do
-                go build \
-                  -tags "netgo,osusergo,static_build" \
-                  -buildmode=pie \
-                  -ldflags="-s
-                    -X \"main.version=${VERSION}\"
-                    -X \"main.branch=${CIRCLE_BRANCH}\"
-                    -X \"main.commit=${CIRCLE_SHA1}\"
-                    -linkmode=external
-                    -extld=${CC}
-                    -extldflags \"-fno-PIC -static-pie -Wl,-z,stack-size=8388608\"" \
-                  -o "bins/${GOOS}-${GOARCH}/${binary}" \
-                  "github.com/influxdata/influxdb/cmd/${binary}"
+                # tags
+                case "${GOOS}" in
+                  darwin)
+                    tags='netgo,osusergo'
+                  ;;
+                  linux|windows)
+                    tags='netgo,osusergo,static_build'
+                  ;;
+                esac
+
+                # buildmode
+                case "${GOOS}" in
+                  darwin|linux)
+                    buildmode='pie'
+                    ;;
+                  windows)
+                    buildmode='exe'
+                    ;;
+                esac
+
+                # linker flags
+                case "${GOOS}" in
+                  darwin|windows)
+                    ldflags='-s -w'
+                    ;;
+                  linux)
+                    ldflags='-s -w -linkmode=external -extld='"${CC}"' -extldflags "-fno-PIC -static-pie -Wl,-z,stack-size=8388608"'
+                    ;;
+                esac
+
+                # windows requires ".exe" appended to filename
+                if [[ "${GOOS}" = windows ]] ; then
+                  binary="bins/${GOOS}-${GOARCH}/${command}.exe"
+                else
+                  binary="bins/${GOOS}-${GOARCH}/${command}"
+                fi
+
+                set -x
+                go build -tags="${tags}" -buildmode="${buildmode}" \
+                  -ldflags="${ldflags:-}
+                            -X \"main.version=${VERSION}\"
+                            -X \"main.branch=${CIRCLE_BRANCH}\"
+                            -X \"main.commit=${CIRCLE_SHA1}\"
+                  " \
+                  -o "${binary}" \
+                  "github.com/influxdata/influxdb/cmd/${command}"
+                set +x
               done
             }
 
             archive() {
               target="artifacts/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
-              tar -czf "${target}" -C "bins/${GOOS}-${GOARCH}" \
-                influx \
-                influx_inspect \
-                influxd
+              if [[ "${GOOS}" = windows ]] ; then
+                tar -czf "${target}" -C "bins/${GOOS}-${GOARCH}" \
+                  influx.exe \
+                  influx_inspect.exe \
+                  influxd.exe
+              else
+                tar -czf "${target}" -C "bins/${GOOS}-${GOARCH}" \
+                  influx \
+                  influx_inspect \
+                  influxd
+              fi
               md5sum    "${target}" > "${target}.md5"
               sha256sum "${target}" > "${target}.sha256"
             }
+
+            # darwin
+            export CC="$(xcc darwin)"
+            export CGO_ENABLED=1
+            export GOARCH=amd64
+            export GOOS=darwin
+            build
+            archive
+
+            # windows
+            export CC="$(xcc windows)"
+            export CGO_ENABLED=1
+            export GOARCH=amd64
+            export GOOS=windows
+            build
+            archive
 
             # linux amd64 (static build)
             export CC="$(xcc linux x86_64)"
