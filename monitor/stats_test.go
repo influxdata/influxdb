@@ -26,6 +26,6 @@ func TestDiagnostics_Stats(t *testing.T) {
 	diags, ok := d["stats"]
 	require.True(t, ok, "expected stats diagnostic client to be registered")
 
-	got, exp := diags.Columns, []string{"compact-throughput-usage"}
+	got, exp := diags.Columns, []string{"compact-throughput-usage-percentage"}
 	require.Equal(t, exp, got)
 }
