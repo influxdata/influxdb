@@ -459,12 +459,19 @@ func (s *Shard) ready() error {
 }
 
 // LastModified returns the time when this shard was last modified.
+// On error and 0 TSM files this will return time.Time{} (0001-01-01 00:00:00 +0000 UTC)
 func (s *Shard) LastModified() time.Time {
+	t, _ := s.LastModifiedWithErr()
+	return t
+}
+
+// LastModifiedOrErr returns the time when this shard was last modified and an error.
+func (s *Shard) LastModifiedWithErr() (time.Time, error) {
 	engine, err := s.Engine()
 	if err != nil {
-		return time.Time{}
+		return time.Time{}, err
 	}
-	return engine.LastModified()
+	return engine.LastModified(), nil
 }
 
 // Index returns a reference to the underlying index. It returns an error if
