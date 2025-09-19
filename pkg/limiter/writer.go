@@ -18,6 +18,8 @@ type Writer struct {
 type Rate interface {
 	WaitN(ctx context.Context, n int) error
 	Burst() int
+	Tokens() float64
+	Limit() rate.Limit
 }
 
 func NewRate(bytesPerSec, burstLimit int) Rate {
