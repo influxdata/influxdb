@@ -672,17 +672,6 @@ impl std::fmt::Display for PluginType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub(crate) struct ValidPluginFilename<'a>(&'a str);
-
-impl Deref for ValidPluginFilename<'_> {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct TriggerDefinition {
     pub trigger_id: TriggerId,
     pub trigger_name: Arc<str>,

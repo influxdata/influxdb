@@ -1143,7 +1143,11 @@ impl Catalog {
     /// Persist the catalog as a checkpoint in the background if we are at the _n_th sequence
     /// number.
     fn background_checkpoint(&self, ordered_batch: &OrderedCatalogBatch) {
-        if ordered_batch.sequence_number().get() % self.store.checkpoint_interval != 0 {
+        if !ordered_batch
+            .sequence_number()
+            .get()
+            .is_multiple_of(self.store.checkpoint_interval)
+        {
             return;
         }
         let snapshot = self.snapshot();
