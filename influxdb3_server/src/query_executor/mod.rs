@@ -243,7 +243,7 @@ impl QueryExecutor for QueryExecutorImpl {
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
 
-    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {
+    fn upcast(&self) -> Arc<dyn QueryDatabase + 'static> {
         // NB: This clone is required to get compiler to be happy
         //     to convert `self` to dyn QueryDatabase. This wasn't
         //     possible without getting owned value of self.
@@ -610,7 +610,7 @@ impl QueryNamespace for Database {
 
     fn new_extended_query_context(
         &self,
-        _extension: std::option::Option<std::sync::Arc<(dyn iox_query::Extension + 'static)>>,
+        _extension: std::option::Option<std::sync::Arc<dyn iox_query::Extension + 'static>>,
         _span_ctx: Option<SpanContext>,
         _query_config: Option<&QueryConfig>,
     ) -> IOxSessionContext {
