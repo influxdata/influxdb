@@ -427,6 +427,9 @@ impl<'a> ChunkFilter<'a> {
             // Determine time bounds, if provided:
             let boundaries = ExprBoundaries::try_new_unbounded(&arrow_schema)
                 .context("unable to create unbounded expr boundaries on incoming expression")?;
+            // DataFusion does not support all possible expressions. If the expression can't be analyzed
+            // skip the analysis rather than erroring the query
+            // see https://github.com/influxdata/influxdb/issues/26163
             let Ok(mut analysis) = analyze(
                 &physical_expr,
                 AnalysisContext::new(boundaries),
