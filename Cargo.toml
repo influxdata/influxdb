@@ -182,6 +182,7 @@ object_store_metrics = { git = "https://github.com/influxdata/influxdb3_core", r
 observability_deps = { git = "https://github.com/influxdata/influxdb3_core", rev = "f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516" }
 panic_logging = { git = "https://github.com/influxdata/influxdb3_core", rev = "f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516" }
 parquet_file = { git = "https://github.com/influxdata/influxdb3_core", rev = "f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516" }
+query_functions = { git = "https://github.com/influxdata/influxdb3_core", rev = "f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516" }
 schema = { git = "https://github.com/influxdata/influxdb3_core", rev = "f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516", features = ["v3"]}
 service_common = { git = "https://github.com/influxdata/influxdb3_core", rev = "f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516" }
 service_grpc_flight = { git = "https://github.com/influxdata/influxdb3_core", rev = "f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516" }

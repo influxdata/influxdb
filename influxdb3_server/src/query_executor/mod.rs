@@ -799,7 +799,7 @@ mod tests {
         },
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
-    use iox_time::{MockProvider, Time};
+    use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
     use object_store::{ObjectStore, local::LocalFileSystem};
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -1410,6 +1410,73 @@ mod tests {
                     .iter()
                     .any(|field| field.name() == "hash")
             );
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_influxql_time_filter_double_group_by() {
+        use influxdb3_write::test_helpers::do_write;
+        use iox_query_influxql_rewrite as rewrite;
+
+        let (wb, qe, tp, ..) = setup(None, false).await;
+        do_write(wb.as_ref(), "test_db", "test_table,t1=a val=1", tp.now()).await;
+
+        for (query_str, expected) in [
+            (
+                "select * from test_table where time < 1337ms",
+                vec![
+                    "+------------------+---------------------+----+-----+",
+                    "| iox::measurement | time                | t1 | val |",
+                    "+------------------+---------------------+----+-----+",
+                    "| test_table       | 1970-01-01T00:00:00 | a  | 1.0 |",
+                    "+------------------+---------------------+----+-----+",
+                ],
+            ),
+            (
+                "select sum(val) from test_table where time < 1337ms group by time(1d)",
+                vec![
+                    "+------------------+---------------------+-----+",
+                    "| iox::measurement | time                | sum |",
+                    "+------------------+---------------------+-----+",
+                    "| test_table       | 1970-01-01T00:00:00 | 1.0 |",
+                    "+------------------+---------------------+-----+",
+                ],
+            ),
+            (
+                "\
+                select \
+                    sum(a)/sum(b) as foo \
+                from (\
+                    select \
+                        sum(val) as a, \
+                        last(val) as b, \
+                        time \
+                    from test_table \
+                    where time >= 0ms \
+                        and time <= 1337 \
+                    group by time(1d)\
+                ) group by time(1d)\
+                limit 1", // NB(tjh): add a limit because otherwise the result is massive
+                vec![
+                    "+------------------+---------------------+-----+",
+                    "| iox::measurement | time                | foo |",
+                    "+------------------+---------------------+-----+",
+                    "| test_table       | 1970-01-01T00:00:00 | 1.0 |",
+                    "+------------------+---------------------+-----+",
+                ],
+            ),
+        ] {
+            let statement = rewrite::parse_statements(query_str)
+                .unwrap()
+                .pop()
+                .unwrap()
+                .to_statement();
+            let stream = qe
+                .query_influxql("test_db", query_str, statement, None, None, None)
+                .await
+                .expect("query should work");
+            let batches: Vec<RecordBatch> = stream.try_collect().await.unwrap();
+            assert_batches_sorted_eq!(expected, &batches);
         }
     }
 }

@@ -54,7 +54,7 @@ pub enum Error {
     #[error("queries not supported in compactor only mode")]
     CompactorOnly,
 
-    #[error(transparent)]
+    #[error("unexpected: {0:?}")]
     Anyhow(#[from] anyhow::Error),
 }
 
@@ -427,12 +427,23 @@ impl<'a> ChunkFilter<'a> {
             // Determine time bounds, if provided:
             let boundaries = ExprBoundaries::try_new_unbounded(&arrow_schema)
                 .context("unable to create unbounded expr boundaries on incoming expression")?;
-            let mut analysis = analyze(
+            // DataFusion does not support all possible expressions. If the expression can't be analyzed
+            // skip the analysis rather than erroring the query
+            // see https://github.com/influxdata/influxdb/issues/26163
+            let Ok(mut analysis) = analyze(
                 &physical_expr,
                 AnalysisContext::new(boundaries),
                 &arrow_schema,
             )
-            .context("unable to analyze provided filters for a boundary on the time column")?;
+            .inspect_err(|error| {
+                debug!(
+                    ?error,
+                    logical_expr = ?expr,
+                    "unable to analyze provided filters for a boundary on the time column"
+                );
+            }) else {
+                continue;
+            };
 
             // Set the boundaries on the time column using the evaluated
             // interval, if it exists.
@@ -507,6 +518,7 @@ pub mod test_helpers {
     use crate::WriteBuffer;
     use crate::write_buffer::validator::WriteValidator;
     use arrow::array::RecordBatch;
+    use data_types::NamespaceName;
     use datafusion::prelude::Expr;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
     use influxdb3_wal::{Gen1Duration, WriteBatch};
@@ -582,6 +594,20 @@ pub mod test_helpers {
         }
     }
 
+    pub async fn do_write(wb: &dyn WriteBuffer, db: &str, lp: &str, time: Time) {
+        let db_name = NamespaceName::new(db.to_owned()).expect("valid namespace name for database");
+        wb.write_lp(
+            db_name,
+            lp,
+            time,
+            false,
+            influxdb3_types::write::Precision::Auto,
+            false,
+        )
+        .await
+        .expect("valid write operation");
+    }
+
     #[derive(Debug)]
     pub struct TestWriter {
         catalog: Arc<Catalog>,
@@ -633,9 +659,16 @@ pub mod test_helpers {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use arrow_schema::{DataType, TimeUnit};
+    use datafusion::{
+        logical_expr::{BinaryExpr, Operator, expr::ScalarFunction},
+        prelude::{Expr, cast, col, date_trunc, lit},
+    };
     use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
     use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
+    use influxdb3_types::http::FieldDataType;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
+    use query_functions::tz::TZ_UDF;
     use std::sync::Arc;
 
     use data_types::NamespaceName;
@@ -643,7 +676,8 @@ pub(crate) mod tests {
     use iox_time::Time;
 
     use crate::{
-        DatabaseTables, ParquetFile, PersistedSnapshot, write_buffer::validator::WriteValidator,
+        ChunkFilter, DatabaseTables, ParquetFile, PersistedSnapshot,
+        write_buffer::validator::WriteValidator,
     };
 
     #[test]
@@ -832,5 +866,49 @@ pub(crate) mod tests {
             .map(|tbl| tbl.influx_schema().clone())
             .unwrap();
         assert_eq!(["a/b", "time"], schema.primary_key().as_slice());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_filter_on_time_with_date_trunc() {
+        let catalog = Catalog::new_in_memory("test-node").await.unwrap();
+        catalog
+            .create_table(
+                "foo",
+                "bar",
+                &["t1", "t2"],
+                &[("f1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        let table_def = catalog
+            .db_schema("foo")
+            .and_then(|db| db.table_definition("bar"))
+            .unwrap();
+        let tz_expr = Expr::ScalarFunction(ScalarFunction {
+            func: TZ_UDF.clone(),
+            args: vec![col("time"), lit("America/Detroit")],
+        });
+        let date_trunc_expr = date_trunc(lit("day"), tz_expr);
+        let expr = Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(date_trunc_expr),
+            op: Operator::GtEq,
+            right: Box::new(cast(
+                lit("2025-03-12T04:00:00Z"),
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+            )),
+        });
+
+        // NB(tjh): since the time boundary analysis cannot analyze the above expression, the
+        // following filter will not have time boundaries.
+        ChunkFilter::new(&table_def, &[expr])
+            .inspect(|f| {
+                println!("filter: {f:#?}");
+                // These assertions will break if we add the ability to handle the above expression in such
+                // a way that properly determines the lower time bound, but that is okay; the assertions
+                // should be changed in that case.
+                assert!(f.time_lower_bound_ns.is_none());
+                assert!(f.time_upper_bound_ns.is_none());
+            })
+            .expect("create ChunkFilter");
     }
 }
