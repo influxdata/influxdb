@@ -38,20 +38,20 @@ type fileInfo struct {
 // This rule is important to maintain the ordering of files, with improper ordering we cannot determine which point is the newest point when overwrites occur.
 // We always want the newest write to win.
 func validateFileAdjacency(allFiles []string, groups []tsm1.CompactionGroup) error {
-	var fileInfos []fileInfo
+	fileInfos := make([]*fileInfo, 0, len(allFiles))
 	for _, file := range allFiles {
 		gen, seq, err := tsm1.DefaultParseFileName(file)
 		if err != nil {
 			return fmt.Errorf("failed to parse file %s: %v", file, err)
 		}
-		fileInfos = append(fileInfos, fileInfo{
+		fileInfos = append(fileInfos, &fileInfo{
 			filename:   file,
 			generation: gen,
 			sequence:   seq,
 		})
 	}
 
-	slices.SortFunc(fileInfos, func(a, b fileInfo) int {
+	slices.SortFunc(fileInfos, func(a, b *fileInfo) int {
 		if a.generation != b.generation {
 			return a.generation - b.generation
 		}
@@ -59,11 +59,10 @@ func validateFileAdjacency(allFiles []string, groups []tsm1.CompactionGroup) err
 		return a.sequence - b.sequence
 	})
 
-	var fileMap = make(map[string]fileInfo, len(allFiles))
-	for i, file := range allFiles {
-		fileMap[file] = fileInfo{
-			index: i,
-		}
+	var fileMap = make(map[string]*fileInfo, len(fileInfos))
+	for i, fi := range fileInfos {
+		fi.index = i
+		fileMap[fi.filename] = fi
 	}
 
 	for groupIndex, group := range groups {
