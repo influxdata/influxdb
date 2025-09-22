@@ -7,6 +7,16 @@ version:
     value: '1.x-{{env.CIRCLE_SHA1[:8]}}'
 
 sources:
+  - binary: /tmp/workspace/artifacts/influxdb_bin_windows_amd64-*.tar.gz
+    target: packages/
+    arch:   amd64
+    plat:   windows
+
+  - binary: /tmp/workspace/artifacts/influxdb_bin_darwin_amd64-*.tar.gz
+    target: packages/
+    arch:   amd64
+    plat:   darwin
+
   - binary: /tmp/workspace/artifacts/influxdb_bin_linux_amd64-*.tar.gz
     target: packages/
     arch:   amd64
@@ -22,9 +32,14 @@ packages:
     description: Distributed time-series database.
     license:     MIT
     binaries:
+      # linux, darwin
       - influx
       - influx_inspect
       - influxd
+      # windows
+      - influx.exe
+      - influx_inspect.exe
+      - influxd.exe
     extras:
       - source: etc/config.sample.toml
         target: etc/influxdb/influxdb.conf
