@@ -29,6 +29,11 @@ jobs:
       - run:
           name: Get InfluxDB Version
           command: |
+            git checkout v1.12.2
+            export CIRCLE_TAG=v1.12.2
+            export CIRCLE_SHA1=95e86be3f4a18bf9b4a2a63b660109bc291b0775
+            export CIRCLE_BRANCH=1.12
+
             PREFIX=1.x .circleci/scripts/get-version
       - run:
           name: Build source tarball
@@ -57,6 +62,11 @@ jobs:
       - run:
           name: Build binaries
           command: |
+            git checkout v1.12.2
+            export CIRCLE_TAG=v1.12.2
+            export CIRCLE_SHA1=95e86be3f4a18bf9b4a2a63b660109bc291b0775
+            export CIRCLE_BRANCH=1.12
+
             mkdir -p ./bins/linux-amd64 \
                      ./bins/linux-arm64 \
                      ./artifacts
@@ -189,6 +199,10 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - run: |
+          export CIRCLE_TAG=v1.12.2
+          export CIRCLE_SHA1=95e86be3f4a18bf9b4a2a63b660109bc291b0775
+          export CIRCLE_BRANCH=1.12
+
           ( cd man ; make build ; gzip -9 ./*.1 )
 
           packager .circleci/packages/config.yaml
@@ -446,14 +460,14 @@ workflows:
     when:
       equal: [ << pipeline.parameters.workflow >>, build ]
     jobs:
-      - build_binaries:
-          <<: *release_filter
+      - build_binaries
+          #<<: *release_filter
       - build_packages:
-          <<: *release_filter
+          #<<: *release_filter
           requires:
             - build_binaries
       - sign_packages:
-          <<: *release_filter
+          #<<: *release_filter
           requires:
             - build_packages
       - test_pkgs_64bit:
