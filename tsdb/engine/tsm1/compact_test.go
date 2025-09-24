@@ -2,6 +2,7 @@ package tsm1_test
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"math"
 	"os"
 	"path/filepath"
@@ -3043,6 +3044,78 @@ type fakeFileStore struct {
 	lastModified time.Time
 	blockCount   int
 	readers      []*tsm1.TSMReader
+}
+
+func TestDefaultPlanner_Plan_LargeFileSet(t *testing.T) {
+	data := []tsm1.FileStat{
+		{
+			Path: "000016684-000000007.tsm",
+			Size: 2147483648, // 2.1GB
+		},
+		{
+			Path: "000016684-000000008.tsm",
+			Size: 2147483648, // 2.1GB
+		},
+		{
+			Path: "000016684-000000009.tsm",
+			Size: 2147483648, // 2.1GB
+		},
+		{
+			Path: "000016684-000000010.tsm",
+			Size: 394264576, // 376MB
+		},
+		{
+			Path: "000016812-000000004.tsm",
+			Size: 2147483648, // 2.1GB
+		},
+		{
+			Path: "000016812-000000005.tsm",
+			Size: 1503238553, // 1.4GB
+		},
+		{
+			Path: "000016844-000000004.tsm",
+			Size: 1395864371, // 1.3GB
+		},
+		{
+			Path: "000016948-000000004.tsm",
+			Size: 2147483648, // 2.1GB
+		},
+		{
+			Path: "000016948-000000005.tsm",
+			Size: 1503238553, // 1.4GB
+		},
+		{
+			Path: "000017076-000000004.tsm",
+			Size: 2147483648, // 2.1GB
+		},
+		{
+			Path: "000017094-000000004.tsm",
+			Size: 2147483648, // 2.1GB
+		},
+		{
+			Path: "000017095-000000005.tsm",
+			Size: 1503238553, // 1.4GB
+		},
+	}
+
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	tsm, _ := cp.Plan(time.Now())
+	require.Equal(t, []tsm1.CompactionGroup{
+		tsm1.CompactionGroup{
+			"000016844-000000004.tsm",
+			"000016948-000000004.tsm",
+			"000016948-000000005.tsm",
+			"000017076-000000004.tsm",
+			"000017094-000000004.tsm",
+		},
+	}, tsm)
 }
 
 func (w *fakeFileStore) Stats() []tsm1.FileStat {
