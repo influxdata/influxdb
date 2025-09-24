@@ -150,6 +150,10 @@ func (sc *shardCompactor) ParseFileName(path string) (int, int, error) {
 	return 0, 0, errors.New("not implemented")
 }
 
+func (sc *shardCompactor) SupportsCompactionPlanning() bool {
+	return false
+}
+
 func newShardCompactor(path string, logger *zap.Logger) (sc *shardCompactor, err error) {
 	sc = &shardCompactor{
 		logger: logger,
