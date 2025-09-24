@@ -1,8 +1,7 @@
 package monitor
 
 import (
-	"fmt"
-	"strconv"
+	"math"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/pkg/limiter"
@@ -26,12 +25,7 @@ func (s *stats) CompactThroughputUsage() float64 {
 
 func (s *stats) Diagnostics() (*diagnostics.Diagnostics, error) {
 	compactThroughputUsage := s.CompactThroughputUsage()
-	i := fmt.Sprintf("%.2f", compactThroughputUsage)
-	compactThroughputUsageTrunc, err := strconv.ParseFloat(i, 2)
-	if err != nil {
-		return nil, err
-	}
-
+	compactThroughputUsageTrunc := math.Round(compactThroughputUsage*100.0) / 100.0
 	d := map[string]interface{}{
 		"compact-throughput-usage-percentage": compactThroughputUsageTrunc,
 	}
