@@ -20,7 +20,7 @@ members = [
     "influxdb3_types",
     "influxdb3_wal",
     "influxdb3_write",
-    "iox_query_influxql_rewrite",
+    "iox_query_influxql_rewrite", "object_store_utils",
 ]
 default-members = ["influxdb3"]
 

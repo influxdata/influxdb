@@ -4696,6 +4696,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "object_store_utils"
+version = "3.5.0-nightly"
+dependencies = [
+ "async-trait",
+ "backon",
+ "bytes",
+ "futures",
+ "object_store",
+ "observability_deps",
+ "tokio",
+]
+
+[[package]]
 name = "observability_deps"
 version = "0.1.0"
 source = "git+https://github.com/influxdata/influxdb3_core?rev=f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516#f1bc15655d50e07e2cb4d7a52acf5b1d24ff6516"
