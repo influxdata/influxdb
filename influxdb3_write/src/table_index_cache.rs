@@ -12,10 +12,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use backon::Retryable;
 use futures::TryStreamExt;
 use hashbrown::{HashMap, HashSet};
 use object_store::{ObjectMeta, ObjectStore, path::Path as ObjPath};
+use object_store_utils::RetryableObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -282,26 +282,14 @@ async fn list_metas(
 
     let list_start = std::time::Instant::now();
 
-    let list_op = || async {
-        let stream = if let Some(ref offset) = offset {
-            object_store.list_with_offset(Some(path.as_ref()), offset)
-        } else {
-            object_store.list(Some(path.as_ref()))
-        };
-        stream.try_collect::<Vec<ObjectMeta>>().await
-    };
+    let stream = object_store.list_with_default_retries(
+        Some(path.as_ref()),
+        offset.as_ref(),
+        format!("Listing object store paths at prefix {}", path.as_ref()),
+    );
 
-    let results = list_op
-        .retry(crate::standard_retry_config())
-        .notify(|err, dur| {
-            warn!(
-                error = %err,
-                retry_after_ms = dur.as_millis(),
-                prefix = %path.as_ref(),
-                has_offset = offset.is_some(),
-                "Retrying object store list after error"
-            );
-        })
+    let results: Vec<ObjectMeta> = stream
+        .try_collect::<Vec<ObjectMeta>>()
         .await
         .map_err(TableIndexCacheError::ListMetasError)?;
 
@@ -377,28 +365,20 @@ impl TableIndexCache {
             TableIndexConversionCompletedPath::new(self.inner.node_identifier_prefix.as_str());
         let snapshot_info_prefix = SnapshotInfoFilePath::dir(&self.inner.node_identifier_prefix);
 
-        let get_op = || async {
-            self.inner
-                .object_store
-                .get(conversion_complet_path.as_ref())
-                .await?
-                .bytes()
-                .await
-        };
-
-        let last_conversion_completed: Option<TableIndexConversionCompleted> = match get_op
-            .retry(crate::quick_retry_config())
-            .notify(|err, dur| {
-                warn!(
-                    error = %err,
-                    retry_after_ms = dur.as_millis(),
-                    path = %conversion_complet_path.as_ref(),
-                    "Retrying conversion marker load after error"
-                );
-            })
+        let last_conversion_completed: Option<TableIndexConversionCompleted> = match self
+            .inner
+            .object_store
+            .get_with_default_retries(
+                conversion_complet_path.as_ref(),
+                "Loading table index conversion marker".to_string(),
+            )
             .await
         {
-            Ok(bytes) => {
+            Ok(result) => {
+                let bytes = result
+                    .bytes()
+                    .await
+                    .map_err(TableIndexCacheError::LoadConversionMarkerBytesError)?;
                 let marker: TableIndexConversionCompleted = serde_json::from_slice(&bytes).unwrap();
                 info!(
                     "loading snapshot object metas starting from snapshot sequence {:?}",
@@ -431,23 +411,13 @@ impl TableIndexCache {
                 let json = serde_json::to_vec_pretty(&contents)
                     .map_err(TableIndexCacheError::SerializeConversionMarkerError)?;
 
-                let put_op = || async {
-                    self.inner
-                        .object_store
-                        .put(conversion_complet_path.as_ref(), json.clone().into())
-                        .await
-                };
-
-                put_op
-                    .retry(crate::standard_retry_config())
-                    .notify(|err, dur| {
-                        warn!(
-                            error = %err,
-                            retry_after_ms = dur.as_millis(),
-                            path = %conversion_complet_path.as_ref(),
-                            "Retrying initial conversion marker persist after error"
-                        );
-                    })
+                self.inner
+                    .object_store
+                    .put_with_default_retries(
+                        conversion_complet_path.as_ref(),
+                        json.into(),
+                        "Persisting initial table index conversion marker".to_string(),
+                    )
                     .await
                     .map_err(TableIndexCacheError::PutConversionMarkerError)?;
             }
@@ -520,19 +490,7 @@ impl TableIndexCache {
 
             js.spawn(async move {
                 let _permit = sem.acquire_owned().await;
-                let f = || async {
-                    TableIndexSnapshot::load_split_persist(Arc::clone(&object_store), path.clone())
-                        .await
-                };
-                f.retry(crate::standard_retry_config())
-                    .notify(|err, dur| {
-                        warn!(
-                            error = %err,
-                            retry_after_ms = dur.as_millis(),
-                            location = %path.as_ref(),
-                            "Retrying snapshot split and persist after error"
-                        );
-                    })
+                TableIndexSnapshot::load_split_persist(Arc::clone(&object_store), path.clone())
                     .await
                     .map_err(TableIndexCacheError::SplitPersistedSnapshotError)?;
                 Ok(meta)
@@ -558,24 +516,16 @@ impl TableIndexCache {
         let json = serde_json::to_vec_pretty(&contents)
             .map_err(TableIndexCacheError::SerializeConversionMarkerError)?;
 
-        let put_op = || async {
-            self.inner
-                .object_store
-                .put(conversion_complet_path.as_ref(), json.clone().into())
-                .await
-        };
-
-        put_op
-            .retry(crate::standard_retry_config())
-            .notify(|err, dur| {
-                warn!(
-                    error = %err,
-                    retry_after_ms = dur.as_millis(),
-                    path = %conversion_complet_path.as_ref(),
-                    last_sequence = %last_seq_number,
-                    "Retrying final conversion marker persist after error"
-                );
-            })
+        self.inner
+            .object_store
+            .put_with_default_retries(
+                conversion_complet_path.as_ref(),
+                json.into(),
+                format!(
+                    "Persisting final conversion marker at sequence {}",
+                    last_seq_number
+                ),
+            )
             .await
             .map_err(TableIndexCacheError::PutConversionMarkerError)?;
 
@@ -777,36 +727,15 @@ impl TableIndexCache {
                     "Deleting parquet file"
                 );
 
-                // Delete the file, ignoring NotFound errors
-                let delete_op = || async { self.inner.object_store.delete(&path).await };
-
-                match delete_op
-                    .retry(crate::standard_retry_config())
-                    .notify(|err, dur| {
-                        warn!(
-                            error = %err,
-                            retry_after_ms = dur.as_millis(),
-                            path = %path,
-                            "Retrying parquet file delete after error"
-                        );
-                    })
+                self.inner
+                    .object_store
+                    .delete_with_default_retries(&path, format!("Deleting parquet file {}", path))
                     .await
-                {
-                    Ok(_) => {
-                        trace!(path = %path, "Successfully deleted parquet file");
-                    }
-                    Err(object_store::Error::NotFound { .. }) => {
-                        // File already deleted, this is fine
-                        trace!(path = %path, "Parquet file already deleted");
-                    }
-                    Err(e) => {
-                        // Other errors should be propagated
-                        return Err(TableIndexCacheError::DeleteParquetFile {
-                            path: path.to_string(),
-                            source: e,
-                        });
-                    }
-                }
+                    .map_err(|e| TableIndexCacheError::DeleteParquetFile {
+                        path: path.to_string(),
+                        source: e,
+                    })?;
+                trace!(path = %path, "Successfully deleted parquet file");
             }
         }
 
@@ -822,45 +751,24 @@ impl TableIndexCache {
             "Deleting table index from object store"
         );
 
-        let delete_op = || async { self.inner.object_store.delete(index_path.as_ref()).await };
-
-        match delete_op
-            .retry(crate::standard_retry_config())
-            .notify(|err, dur| {
-                warn!(
-                    error = %err,
-                    retry_after_ms = dur.as_millis(),
-                    path = %index_path.as_ref(),
-                    table_id = %table_index_id,
-                    "Retrying table index delete after error"
-                );
-            })
+        self.inner
+            .object_store
+            .delete_with_default_retries(
+                index_path.as_ref(),
+                format!("Deleting table index for {}", table_index_id),
+            )
             .await
-        {
-            Ok(_) => {
-                info!(
-                    ?db_id,
-                    ?table_id,
-                    node_prefix = %self.inner.node_identifier_prefix,
-                    "Successfully purged table"
-                );
-            }
-            Err(object_store::Error::NotFound { .. }) => {
-                // Index already deleted, this is fine
-                debug!(
-                    ?db_id,
-                    ?table_id,
-                    node_prefix = %self.inner.node_identifier_prefix,
-                    "Table index already deleted from object store"
-                );
-            }
-            Err(e) => {
-                return Err(TableIndexCacheError::DeleteTableIndex {
-                    table_id: table_index_id,
-                    source: e,
-                });
-            }
-        }
+            .map_err(|e| TableIndexCacheError::DeleteTableIndex {
+                table_id: table_index_id,
+                source: e,
+            })?;
+
+        info!(
+            ?db_id,
+            ?table_id,
+            node_prefix = %self.inner.node_identifier_prefix,
+            "Successfully purged table"
+        );
 
         Ok(())
     }
@@ -1021,37 +929,21 @@ impl TableIndexCache {
                 "Deleting expired parquet file"
             );
 
-            let delete_op = || async { self.inner.object_store.delete(&path).await };
-
-            match delete_op
-                .retry(crate::standard_retry_config())
-                .notify(|err, dur| {
-                    warn!(
-                        error = %err,
-                        retry_after_ms = dur.as_millis(),
-                        path = %path,
-                        max_time = file.max_time,
-                        cutoff_time_ns,
-                        "Retrying expired parquet file delete after error"
-                    );
-                })
+            self.inner
+                .object_store
+                .delete_with_default_retries(
+                    &path,
+                    format!(
+                        "Deleting expired parquet file {} (max_time: {}, cutoff: {})",
+                        path, file.max_time, cutoff_time_ns
+                    ),
+                )
                 .await
-            {
-                Ok(_) => {
-                    trace!(path = %path, "Successfully deleted expired parquet file");
-                }
-                Err(object_store::Error::NotFound { .. }) => {
-                    // File already deleted, this is fine
-                    trace!(path = %path, "Expired parquet file already deleted");
-                }
-                Err(e) => {
-                    // Other errors should be propagated
-                    return Err(TableIndexCacheError::DeleteParquetFile {
-                        path: path.to_string(),
-                        source: e,
-                    });
-                }
-            }
+                .map_err(|e| TableIndexCacheError::DeleteParquetFile {
+                    path: path.to_string(),
+                    source: e,
+                })?;
+            trace!(path = %path, "Successfully deleted expired parquet file");
         }
 
         // Create updated table index with only remaining files

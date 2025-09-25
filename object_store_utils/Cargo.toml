@@ -1,0 +1,23 @@
+[package]
+name = "object_store_utils"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+test-helpers = []
+
+[dependencies]
+async-trait.workspace = true
+backon.workspace = true
+bytes.workspace = true
+futures.workspace = true
+object_store.workspace = true
+observability_deps.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true
