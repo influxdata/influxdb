@@ -437,7 +437,8 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "AWS_ACCESS_KEY_ID"),
                     value_parser = parse_optional_string,
                     default_value = "",
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub aws_access_key_id: std::option::Option<NonEmptyString>,
 
@@ -458,7 +459,8 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "AWS_SECRET_ACCESS_KEY"),
                     value_parser = parse_optional_string,
                     default_value = "",
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub aws_secret_access_key: std::option::Option<NonEmptyString>,
 
@@ -504,7 +506,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "aws-session-token"),
                     long = gen_name!($prefix, "aws-session-token"),
                     env = gen_env!($prefix, "AWS_SESSION_TOKEN"),
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub aws_session_token: Option<String>,
 
@@ -560,7 +563,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "google-service-account"),
                     long = gen_name!($prefix, "google-service-account"),
                     env = gen_env!($prefix, "GOOGLE_SERVICE_ACCOUNT"),
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub google_service_account: Option<String>,
 
@@ -589,7 +593,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "azure-storage-access-key"),
                     long = gen_name!($prefix, "azure-storage-access-key"),
                     env = gen_env!($prefix, "AZURE_STORAGE_ACCESS_KEY"),
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub azure_storage_access_key: Option<String>,
 
