@@ -563,9 +563,10 @@ impl QueryNamespace for Database {
         auth_id: Option<String>,
     ) -> QueryCompletedToken<StateReceived> {
         let trace_id = span_ctx.map(|ctx| ctx.trace_id);
-        let namespace_name: Arc<str> = Arc::from("influxdb3 oss");
+        let namespace_id = NamespaceId::new(self.db_schema.id.get().into());
+        let namespace_name = self.db_schema.name();
         self.query_log.push(
-            NamespaceId::new(0),
+            namespace_id,
             namespace_name,
             query_type,
             query_text,
