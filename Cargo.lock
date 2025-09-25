@@ -3705,6 +3705,7 @@ dependencies = [
  "iox_time",
  "metric",
  "object_store",
+ "object_store_utils",
  "observability_deps",
  "parking_lot",
  "parquet",

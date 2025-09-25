@@ -35,6 +35,7 @@ influxdb3_telemetry = { path = "../influxdb3_telemetry" }
 influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 influxdb3_types = { path = "../influxdb3_types" }
 influxdb3_wal = { path = "../influxdb3_wal" }
+object_store_utils = { path = "../object_store_utils" }
 
 # crates.io dependencies
 anyhow.workspace = true
