@@ -1,9 +1,77 @@
 # Release process for Core
 
+## Minor Releases
+
+- Create a new branch for the minor release version. So, if releasing `3.5.0`, create the `3.5`
+  branch. This can be done manually in Github from the [branches][gh-branches] page, or from the
+  command line:
+  ```sh
+  git checkout main   # new minor release branch should be off of main
+  git pull            # make sure `main` is up-to-date
+  git checkout -b 3.5 # create the new branch
+  git push            # push the new branch up to the remote
+  ```
+
+  [gh-branches]: https://github.com/influxdata/influxdb/branches
+
+- Create a new branch that will be used to update the version in `Cargo.toml`:
+  ```sh
+  git checkout -b chore/3.5/three-one-zero
+  ```
+
+- Update the `version` in `Cargo.toml` by removing the `-nightly`, to change it from `3.5.0-nightly`
+  to `3.5.0`.
+
+- Commit those changes, push, and open a PR from `chore/3.5/three-one-zero` into `3.5`
+
+- Once that PR is merged into the `3.5` branch on the remote, jump back to the `3.5` branch locally
+  to `git pull` and tag/push to trigger the release commit:
+  ```
+  git tag -a 'v3.5.0' -m '3.5.0 release'
+  git push origin v3.5.0
+  ```
+  If doing a _release candidate_, or to find more about proper tag naming conventions, see
+  [Commit Tagging](#commit-tagging).
+
+- This should run the full build and publish the packages. Once the build is finished, you can run a
+  quick test with `curl` (replacing `3.5.0` with your tag name without the leading `v`):
+  ```
+  curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.5.0_linux_amd64.tar.gz
+  ```
+
+- When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_VERSION` (if
+  doing a release candidate, then ignore this step; we don't want the default installed version to
+  be the release candidate, but the latest official release).
+
+- Once the above is complete, the official Docker image repository needs to be updated. See
+  [Official Docker Image Repository](#official-docker-image-repository) for the steps required to
+  do so.
+
+- Lastly, `apt` and `yum` repositories need to be updated. This can be done with a change to the
+  respective files for `core`/`enterprise` in the private `repos` repository (see [example][repos-commit]).
+
+- After completing the release of `3.5.0`, the version in `Cargo.toml` needs to be updated on the
+  `main` branch. Open a branch/PR into the `main` branch that updates the `version` in the
+  `Cargo.toml` file from `3.5.0-nightly` to `3.6.0-nightly` (or whatever the subsequent minor
+  version is).
+
+### Note on updating Docker Image Repository for Minor releases
+
+For the time being, we are only supporting the most recent released version of InfluxDB 3 Core/Enterprise.
+Therefore, when updating the official docker images repository, you do not need to preserve the tags
+for the previous version. You can see an example of the [commit][3-1-docker-commit] used when
+we released `3.1`.
+
+[3-1-docker-commit]: https://github.com/docker-library/official-images/pull/19123/commits/0bcd57c914f0639c7c07b2dc018469794ac5d367
+
 ## Point Releases
 
-- Checkout the base branch for the point release. So, if releasing `3.0.2`, checkout `3.0` and list
-  out commits to see which was the latest tagged release commit:
+- _Note: ideally, any necessary changes will have already have been cherry-picked to the base version
+  branch, but it is worth taking a look through the commit history to check for anything that may
+  have been missed._
+
+- Checkout the base version branch for the point release. So, if releasing `3.0.2`, checkout `3.0`
+  and list out commits to see which was the latest tagged release commit:
   ```
   git checkout 3.0
   git log --oneline --graph
@@ -43,6 +111,9 @@
   git cherry-pick 0f52ebb90d
   git cherry-pick d30f26618c
   ```
+  Typically, we focus on `fix` commits, as any other commits will go out on the next minor release,
+  but use your discretion about what should be cherry-picked from `main` for the release you are
+  doing.
 
 - Once all necessary commits have been `git cherry-pick`'d, push them up to the remote:
   ```
@@ -54,24 +125,24 @@
 - Once that PR is merged, the version needs to be bumped on the `3.0` branch for the new release, so
   start a new branch:
   ```
-  git checkout -b hiltontj/three-zero-two
+  git checkout -b chore/3.0/three-zero-two
   ```
   On this branch, update the `version` in the `Cargo.toml` file to use the desired release version
   in the `[workspace.package]` section.
 
-  Commit and open a PR with the version change _into the `3.0` branch_ (not `main`).
+- Commit and open a PR with the version change _into the `3.0` branch_ (not `main`).
 
 - Once the PR to update the version is merged into the `3.0` branch on the remote, jump back to the
-  `3.0` branch locally to `git pull` and tag/push the release commit (see
-  [Commit Tagging](#commit-tagging)):
+  `3.0` branch locally to `git pull` and tag/push the release commit:
   ```
   git tag -a 'v3.0.2' -m '3.0.2 release'
   git push origin v3.0.2
   ```
+  If doing a _release candidate_, or to find more about proper tag naming conventions, see
+  [Commit Tagging](#commit-tagging).
 
 - This should run the full build and publish the packages, a quick test will be to run a `curl`
   (replace `3.0.2` with your tag name without the leading `v`)
-
   ```
   curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.0.2_linux_amd64.tar.gz
   ```
@@ -85,53 +156,7 @@
 - Lastly, `apt` and `yum` repositories need to be updated. This can be done with a change to the
   respective files for `core`/`enterprise` in the private `repos` repository (see [example][repos-commit]).
 
-_At some point this should be scripted so that versions etc are in sync between the steps_
-
 [repos-commit]: https://github.com/influxdata/repos/pull/179/commits/fa0f8374e52ee86359efd00ce7dcb011d5ebb37a
-
-## Minor Releases
-
-- Create a new branch for the minor release version. So, if releasing `3.1.0`, create the `3.1`
-  branch. This can be done manually in Github from the [branches][gh-branches] page, or from the
-  command line:
-  ```sh
-  git checkout main   # new minor release branch should be off of main
-  git pull            # make sure `main` is up-to-date
-  git checkout -b 3.1 # create the new branch
-  git push            # push the new branch up to the remote
-  ```
-
-  [gh-branches]: https://github.com/influxdata/influxdb/branches
-
-- Create a new branch that will be used to update the version in `Cargo.toml`:
-  ```sh
-  git checkout -b chore/3.1/three-one-zero
-  ```
-
-- Update the `version` in `Cargo.toml` by removing the `-nightly`, to change it from `3.1.0-nightly`
-  to `3.1.0`.
-
-- Commit those changes, push, and open a PR from `chore/3.1/three-one-zero` into `3.1`
-
-- Once that PR is merged, and CI is green on the `3.1` branch, then you can follow the same steps
-  in the [Point Releases](#point-releases) including and following tagging the release. Some special
-  consideration is needed when updating the official docker image. See the
-  [following section](#note-on-updating-Docker-Image-Repository-for-Minor-releases) for more detail
-  on that.
-
-- After completing the release of `3.1.0`, the version in `Cargo.toml` needs to be updated on the
-  `main` branch. Open a branch/PR into the `main` branch that updates the `version` in the
-  `Cargo.toml` file from `3.1.0-nightly` to `3.2.0-nightly` (or whatever the subsequent minor
-  version is).
-
-### Note on updating Docker Image Repository for Minor releases
-
-For the time being, we are only supporting the most recent released version of InfluxDB 3 Core.
-Therefore, when updating the official docker images repository, you do not need to preserve the tags
-for the previous version. You can see an example of the [commit][3-1-docker-commit] used when
-releasing `3.1`.
-
-[3-1-docker-commit]: https://github.com/docker-library/official-images/pull/19123/commits/0bcd57c914f0639c7c07b2dc018469794ac5d367
 
 ## Commit Tagging
 
