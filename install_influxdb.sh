@@ -17,14 +17,32 @@ INSTALL_LOC=~/.influxdb
 BINARY_NAME="influxdb3"
 PORT=8181
 
+# Set the default (latest) version here. Users may specify a version using the
+# --version arg (handled below)
 INFLUXDB_VERSION="3.4.2"
 EDITION="Core"
 EDITION_TAG="core"
-if [ "$1" = "enterprise" ]; then
-    EDITION="Enterprise"
-    EDITION_TAG="enterprise"
-    shift 1
-fi
+
+# Parse command line arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --version)
+            INFLUXDB_VERSION="$2"
+            shift 2
+            ;;
+        enterprise)
+            EDITION="Enterprise"
+            EDITION_TAG="enterprise"
+            shift 1
+            ;;
+        *)
+            echo "Usage: $0 [enterprise] [--version VERSION]"
+            echo "  enterprise: Install the Enterprise edition (optional)"
+            echo "  --version VERSION: Specify InfluxDB version (default: $INFLUXDB_VERSION)"
+            exit 1
+            ;;
+    esac
+done
 
 ### OS AND ARCHITECTURE DETECTION ###
 case "$(uname -s)" in
