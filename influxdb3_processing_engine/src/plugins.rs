@@ -459,6 +459,7 @@ mod python_plugin {
                             return Err(PluginError::MissingDb);
                         };
                         let plugin_code = self.plugin_code.code();
+                        let plugin_dir = self.plugin_code.plugin_dir();
                         let query_executor = Arc::clone(&self.query_executor);
                         let logger = Some(self.logger.clone());
                         let trigger_arguments = self.trigger_definition.trigger_arguments.clone();
@@ -479,6 +480,7 @@ mod python_plugin {
                                 request.headers,
                                 request.body,
                                 py_cache,
+                                plugin_dir,
                             )
                         })
                         .await?;
@@ -594,6 +596,7 @@ mod python_plugin {
                         loop {
                             let logger = Some(self.logger.clone());
                             let plugin_code = Arc::clone(&self.plugin_code.code());
+                            let plugin_dir = self.plugin_code.plugin_dir();
                             let query_executor = Arc::clone(&self.query_executor);
                             let schema_clone = Arc::clone(&schema);
                             let trigger_arguments =
@@ -619,6 +622,7 @@ mod python_plugin {
                                     table_filter,
                                     &trigger_arguments,
                                     py_cache,
+                                    plugin_dir,
                                 )
                             })
                             .await?;
@@ -798,6 +802,7 @@ mod python_plugin {
             // This loop is here just for the retry case.
             loop {
                 let plugin_code = plugin.plugin_code.code();
+                let plugin_dir = plugin.plugin_code.plugin_dir();
                 let query_executor = Arc::clone(&plugin.query_executor);
                 let logger = Some(plugin.logger.clone());
                 let trigger_arguments = plugin.trigger_definition.trigger_arguments.clone();
@@ -817,6 +822,7 @@ mod python_plugin {
                         logger,
                         &trigger_arguments,
                         py_cache,
+                        plugin_dir,
                     )
                 })
                 .await?;
@@ -908,6 +914,7 @@ pub(crate) fn run_test_wal_plugin(
                 .cache_name
                 .unwrap_or_else(|| "_shared_test".to_string()),
         ),
+        None, // No plugin directory for test execution
     )?;
 
     let log_lines = plugin_return_state.log();
@@ -1037,6 +1044,7 @@ pub(crate) fn run_test_schedule_plugin(
                 .cache_name
                 .unwrap_or_else(|| "_shared_test".to_string()),
         ),
+        None, // No plugin directory for test execution
     )?;
 
     let log_lines = plugin_return_state.log();

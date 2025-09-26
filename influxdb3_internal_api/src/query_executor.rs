@@ -82,6 +82,8 @@ pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
         span_ctx: Option<SpanContext>,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError>;
 
+    fn show_plugins(&self) -> Result<SendableRecordBatchStream, QueryExecutorError>;
+
     fn upcast(&self) -> Arc<dyn QueryDatabase + 'static>;
 }
 
@@ -151,6 +153,10 @@ impl QueryExecutor for UnimplementedQueryExecutor {
         Err(QueryExecutorError::MethodNotImplemented(
             "show_retention_policies",
         ))
+    }
+
+    fn show_plugins(&self) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        Err(QueryExecutorError::MethodNotImplemented("show_plugins"))
     }
 
     fn upcast(&self) -> Arc<dyn QueryDatabase + 'static> {

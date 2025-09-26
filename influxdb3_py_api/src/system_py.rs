@@ -48,6 +48,7 @@ struct PyPluginCallApi {
     return_state: Arc<Mutex<PluginReturnState>>,
     logger: Option<ProcessingEngineLogger>,
     py_cache: PyCache,
+    plugin_dir: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug)]
@@ -308,6 +309,45 @@ impl PyPluginCallApi {
         })
     }
 
+    fn read_plugin_file(&self, filename: &str) -> PyResult<PyObject> {
+        Python::with_gil(|py| {
+            if let Some(ref plugin_dir) = self.plugin_dir {
+                // Ensure the file path doesn't escape the plugin directory
+                let file_path = plugin_dir.join(filename);
+                let canonical_plugin_dir = plugin_dir.canonicalize().map_err(|e| {
+                    PyValueError::new_err(format!("Invalid plugin directory: {}", e))
+                })?;
+                let canonical_file_path = file_path
+                    .canonicalize()
+                    .map_err(|e| PyValueError::new_err(format!("File not found: {}", e)))?;
+
+                // Security check: ensure the file is within the plugin directory
+                if !canonical_file_path.starts_with(&canonical_plugin_dir) {
+                    return Err(PyValueError::new_err(
+                        "Access denied: file path outside plugin directory",
+                    ));
+                }
+
+                // Read the file
+                let content = std::fs::read(&canonical_file_path)
+                    .map_err(|e| PyValueError::new_err(format!("Failed to read file: {}", e)))?;
+
+                // Try to decode as UTF-8 string first
+                if let Ok(text) = String::from_utf8(content.clone()) {
+                    // Return as string
+                    let py_str = text.into_pyobject(py)?;
+                    Ok(py_str.into_any().unbind())
+                } else {
+                    // If not valid UTF-8, return as bytes
+                    let bytes = PyBytes::new(py, &content);
+                    Ok(bytes.into_any().unbind())
+                }
+            } else {
+                Err(PyValueError::new_err("Plugin directory not available"))
+            }
+        })
+    }
+
     #[getter]
     fn cache(&self) -> PyResult<PyCache> {
         self.py_cache.cache_store.lock().cleanup();
@@ -482,6 +522,7 @@ pub fn execute_python_with_batch(
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
+    plugin_dir: Option<std::path::PathBuf>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -588,6 +629,7 @@ pub fn execute_python_with_batch(
             logger: logger.clone(),
             return_state: Default::default(),
             py_cache,
+            plugin_dir,
         };
         let return_state = Arc::clone(&api.return_state);
         let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
@@ -629,6 +671,7 @@ pub fn execute_python_with_batch(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute_schedule_trigger(
     code: &str,
     schedule_time: DateTime<Utc>,
@@ -637,6 +680,7 @@ pub fn execute_schedule_trigger(
     logger: Option<ProcessingEngineLogger>,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
+    plugin_dir: Option<std::path::PathBuf>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -666,6 +710,7 @@ pub fn execute_schedule_trigger(
             logger: logger.clone(),
             return_state: Default::default(),
             py_cache,
+            plugin_dir,
         };
         let return_state = Arc::clone(&api.return_state);
         let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
@@ -721,6 +766,7 @@ pub fn execute_request_trigger(
     request_headers: HashMap<String, String>,
     request_body: Bytes,
     py_cache: PyCache,
+    plugin_dir: Option<std::path::PathBuf>,
 ) -> Result<(u16, HashMap<String, String>, String, PluginReturnState), ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -744,6 +790,7 @@ pub fn execute_request_trigger(
             logger: logger.clone(),
             return_state: Default::default(),
             py_cache,
+            plugin_dir,
         };
         let return_state = Arc::clone(&api.return_state);
         let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;

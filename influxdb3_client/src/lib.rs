@@ -15,6 +15,22 @@ use url::Url;
 use influxdb3_types::http::*;
 pub use influxdb3_types::write::Precision;
 
+/// Metadata for a plugin file
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct FileMetadata {
+    pub file_name: String,
+    pub size_bytes: i64,
+    pub last_modified: i64,
+    pub content_hash: String,
+}
+
+/// Metadata for a plugin
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct PluginMetadata {
+    pub plugin_name: String,
+    pub files: Vec<FileMetadata>,
+}
+
 /// Primary error type for the [`Client`]
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -562,7 +578,7 @@ impl Client {
         &self,
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
-        plugin_filename: impl Into<String> + Send,
+        plugin_path: impl Into<String> + Send,
         trigger_spec: impl Into<String> + Send,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
@@ -575,7 +591,10 @@ impl Client {
                 Some(ProcessingEngineTriggerCreateRequest {
                     db: db.into(),
                     trigger_name: trigger_name.into(),
-                    plugin_filename: plugin_filename.into(),
+                    // This is deprecated in favor of the path field, but needs to be kept for backwards compatibility
+                    #[allow(deprecated)]
+                    plugin_filename: None,
+                    path: Some(plugin_path.into()),
                     trigger_specification: trigger_spec.into(),
                     trigger_settings,
                     trigger_arguments,
@@ -660,6 +679,125 @@ impl Client {
                 "/api/v3/configure/plugin_environment/install_requirements",
                 Some(ProcessingEngineInstallRequirementsRequest {
                     requirements_location: requirements_location.into(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Get the list of files for a specific plugin/trigger
+    pub async fn api_v3_get_plugin_files(
+        &self,
+        _db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+    ) -> Result<Vec<FileMetadata>> {
+        #[derive(serde::Deserialize)]
+        struct PluginsResponse {
+            plugins: Vec<PluginMetadata>,
+        }
+
+        let response = self
+            .send_json_get_bytes(Method::GET, "/api/v3/plugins", None::<()>, None::<()>, None)
+            .await?;
+
+        let plugins_response: PluginsResponse =
+            serde_json::from_slice(&response).map_err(Error::RequestSerialization)?;
+
+        let trigger_name = trigger_name.into();
+
+        // Find the plugin with matching name
+        for plugin in plugins_response.plugins {
+            if plugin.plugin_name == trigger_name {
+                return Ok(plugin.files);
+            }
+        }
+
+        // If not found, return empty list
+        Ok(vec![])
+    }
+
+    /// Get the content of a specific plugin file
+    pub async fn api_v3_get_plugin_file_content(
+        &self,
+        _db: impl Into<String> + Send,
+        plugin_name: impl Into<String> + Send,
+        file_name: impl Into<String> + Send,
+    ) -> Result<String> {
+        #[derive(serde::Deserialize)]
+        struct FileContentResponse {
+            content: String,
+        }
+
+        let response = self
+            .send_json_get_bytes(
+                Method::GET,
+                &format!(
+                    "/api/v3/plugins/files?plugin_name={}&file_name={}",
+                    plugin_name.into(),
+                    file_name.into()
+                ),
+                None::<()>,
+                None::<()>,
+                None,
+            )
+            .await?;
+
+        let content_response: FileContentResponse =
+            serde_json::from_slice(&response).map_err(Error::RequestSerialization)?;
+
+        Ok(content_response.content)
+    }
+
+    /// Show all plugins across all databases
+    pub fn api_v3_show_plugins(&self) -> ShowPluginsBuilder<'_> {
+        ShowPluginsBuilder {
+            client: self,
+            format: None,
+        }
+    }
+
+    /// List all plugins across all databases with their metadata
+    pub async fn api_v3_list_all_plugins(&self) -> Result<Vec<PluginMetadata>> {
+        #[derive(serde::Deserialize)]
+        struct PluginsResponse {
+            plugins: Vec<PluginMetadata>,
+        }
+
+        let response = self
+            .send_json_get_bytes(Method::GET, "/api/v3/plugins", None::<()>, None::<()>, None)
+            .await?;
+
+        let plugins_response: PluginsResponse =
+            serde_json::from_slice(&response).map_err(Error::RequestSerialization)?;
+
+        Ok(plugins_response.plugins)
+    }
+
+    /// Update a plugin file
+    pub async fn api_v3_update_plugin_file(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        file_name: impl Into<String> + Send,
+        content: impl Into<String> + Send,
+    ) -> Result<()> {
+        #[derive(serde::Serialize)]
+        struct UpdatePluginFileRequest {
+            plugin_name: String,
+            file_name: String,
+            content: String,
+        }
+
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::PUT,
+                &format!("/api/v3/plugins/files?db={}", &db.into()),
+                Some(UpdatePluginFileRequest {
+                    plugin_name: trigger_name.into(),
+                    file_name: file_name.into(),
+                    content: content.into(),
                 }),
                 None::<()>,
                 None,
@@ -1212,6 +1350,38 @@ impl ShowDatabasesRequestBuilder<'_> {
         let url = "/api/v3/configure/database";
         self.client
             .send_json_get_bytes(Method::GET, url, None::<()>, Some(self.request), None)
+            .await
+    }
+}
+
+#[derive(Debug)]
+pub struct ShowPluginsBuilder<'c> {
+    client: &'c Client,
+    format: Option<QueryFormat>,
+}
+
+impl ShowPluginsBuilder<'_> {
+    /// Specify the [`QueryFormat`] of the returned `Bytes`
+    pub fn with_format(mut self, format: QueryFormat) -> Self {
+        self.format = Some(format);
+        self
+    }
+
+    /// Send the request, returning the raw [`Bytes`] in the response from the server
+    pub async fn send(self) -> Result<Bytes> {
+        let url = "/api/v3/plugins/show";
+        let query_params = self.format.map(|f| {
+            let format_str = match f {
+                QueryFormat::Parquet => "parquet",
+                QueryFormat::Csv => "csv",
+                QueryFormat::Pretty => "pretty",
+                QueryFormat::Json => "json",
+                QueryFormat::JsonLines => "jsonl",
+            };
+            [("format", format_str.to_string())]
+        });
+        self.client
+            .send_json_get_bytes(Method::GET, url, None::<()>, query_params, None)
             .await
     }
 }
