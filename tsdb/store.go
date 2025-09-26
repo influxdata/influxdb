@@ -38,6 +38,9 @@ var (
 	// ErrMultipleIndexTypes is returned when trying to do deletes on a database with
 	// multiple index types.
 	ErrMultipleIndexTypes = errors.New("cannot delete data. DB contains shards using both inmem and tsi1 indexes. Please convert all shards to use the same index type to delete data.")
+	// ErrNothingToDelete is returned when where is nothing to do for DeleteSeries
+	// this error is a noop
+	ErrNothingToDelete = errors.New("nothing to delete")
 )
 
 // Statistics gathered by the store.
@@ -1649,41 +1652,50 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		max = influxql.MaxTime
 	}
 
-	s.mu.RLock()
-	if s.databases[database].hasMultipleIndexTypes() {
-		s.mu.RUnlock()
-		return ErrMultipleIndexTypes
-	}
-	sfile := s.sfiles[database]
-	if sfile == nil {
-		s.mu.RUnlock()
-		// No series file means nothing has been written to this DB and thus nothing to delete.
-		return nil
-	}
+	getEpochsAndShards := func() (error, []*Shard, map[uint64]*epochTracker, *SeriesFile) {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		if s.databases[database].hasMultipleIndexTypes() {
+			return ErrMultipleIndexTypes, nil, nil, nil
+		}
+		sfile := s.sfiles[database]
+		if sfile == nil {
+			// No series file means nothing has been written to this DB and thus nothing to delete.
+			return ErrNothingToDelete, nil, nil, nil
+		}
 
-	shardFilterFn := byDatabase(database)
-	if len(sources) != 0 {
-		var rp string
-		for idx, source := range sources {
-			if measurement, ok := source.(*influxql.Measurement); ok {
-				if idx == 0 {
-					rp = measurement.RetentionPolicy
-				} else if rp != measurement.RetentionPolicy {
-					return fmt.Errorf("mixed retention policies not supported, wanted %q got %q", rp, measurement.RetentionPolicy)
+		shardFilterFn := byDatabase(database)
+		if len(sources) != 0 {
+			var rp string
+			for idx, source := range sources {
+				if measurement, ok := source.(*influxql.Measurement); ok {
+					if idx == 0 {
+						rp = measurement.RetentionPolicy
+					} else if rp != measurement.RetentionPolicy {
+						return fmt.Errorf("mixed retention policies not supported, wanted %q got %q", rp, measurement.RetentionPolicy), nil, nil, nil
+					}
+				} else {
+					return fmt.Errorf("unsupported source type in delete %v", source), nil, nil, nil
 				}
-			} else {
-				return fmt.Errorf("unsupported source type in delete %v", source)
+			}
+
+			if rp != "" {
+				shardFilterFn = ComposeShardFilter(shardFilterFn, byRetentionPolicy(rp))
 			}
 		}
 
-		if rp != "" {
-			shardFilterFn = ComposeShardFilter(shardFilterFn, byRetentionPolicy(rp))
-		}
+		shards := s.filterShards(shardFilterFn)
+		epochs := s.epochsForShards(shards)
+		return nil, shards, epochs, sfile
 	}
-	shards := s.filterShards(shardFilterFn)
 
-	epochs := s.epochsForShards(shards)
-	s.mu.RUnlock()
+	err, shards, epochs, sfile := getEpochsAndShards()
+	if err != nil && !errors.Is(err, ErrNothingToDelete) {
+		s.Logger.Error("DeleteSeries failed", zap.String("error", err.Error()))
+		return err
+	} else if errors.Is(err, ErrNothingToDelete) {
+		return nil
+	}
 
 	// Limit deletes for each shard since expanding the measurement into the list
 	// of series keys can be very memory intensive if run concurrently.
