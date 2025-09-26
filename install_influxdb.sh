@@ -26,6 +26,11 @@ if [ "$1" = "enterprise" ]; then
     shift 1
 fi
 
+# Check for version argument
+if [ -n "$1" ]; then
+    INFLUXDB_VERSION="$1"
+fi
+
 ### OS AND ARCHITECTURE DETECTION ###
 case "$(uname -s)" in
     Linux*)     OS="Linux";;
