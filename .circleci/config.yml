@@ -91,10 +91,13 @@ any_filter: &any_filter
 # will generate snapshat versions. For easier maintenance, this regex is more
 # open than ci-support/ci-packager-next (which enforces a number of
 # constraints). See .circleci/packages/config.yaml for details.
+release_tag_filter: &release_tag_filter
+  tags:
+    only: /^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+(\.(alpha|beta|rc)\.[0-9]+(\.[0-9]+)?)?)?$/
+
 release_filter: &release_filter
   filters:
-    tags:
-      only: /^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+(\.(alpha|beta|rc)\.[0-9]+(\.[0-9]+)?)?)?$/
+    <<: *release_tag_filter
     branches:
       ignore: /.*/
 
@@ -110,6 +113,7 @@ nofork_filter: &nofork_filter
 
 docker_filter: &docker_filter
   filters:
+    <<: *release_tag_filter
     branches:
       only:
         - main
