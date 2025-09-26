@@ -96,6 +96,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "object-store-http2-only",
     "object-store-http2-max-frame-size",
     "object-store-max-retries",
+    "object-store-request-timeout",
     "object-store-retry-timeout",
     "object-store-tls-allow-insecure",
     "object-store-tls-ca",

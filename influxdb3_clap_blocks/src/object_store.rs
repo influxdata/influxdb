@@ -657,6 +657,17 @@ macro_rules! object_store_config_inner {
                 )]
                 pub http2_max_frame_size: Option<u32>,
 
+                /// Set HTTP request timeout for object store.
+                #[clap(
+                    id = gen_name!($prefix, "object-store-request-timeout"),
+                    long = gen_name!($prefix, "object-store-request-timeout"),
+                    env = gen_env!($prefix, "OBJECT_STORE_REQUEST_TIMEOUT"),
+                    value_parser = humantime::parse_duration,
+                    default_value = "30s",
+                    action
+                )]
+                pub request_timeout: Duration,
+
                 /// The maximum number of times to retry a request
                 ///
                 /// Set to 0 to disable retries
@@ -752,6 +763,7 @@ macro_rules! object_store_config_inner {
                         google_service_account: Default::default(),
                         object_store,
                         object_store_connection_limit: NonZeroUsize::new(16).unwrap(),
+                        request_timeout: Duration::from_secs(30),
                         http2_only: Default::default(),
                         http2_max_frame_size: Default::default(),
                         max_retries: Default::default(),
