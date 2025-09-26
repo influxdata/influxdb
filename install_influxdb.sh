@@ -19,7 +19,7 @@ INSTALL_LOC=~/.influxdb
 BINARY_NAME="influxdb3"
 PORT=8181
 
-INFLUXDB_VERSION="3.4.2"
+INFLUXDB_VERSION="3.5.0-0.rc.1"
 EDITION="Core"
 EDITION_TAG="core"
 if [ "$1" = "enterprise" ]; then
@@ -286,10 +286,9 @@ prompt_storage_configuration() {
 }
 
 # Function to perform health check on server
-perform_server_with_health_check() {
+perform_server_health_check() {
     local timeout_seconds="${1:-30}"
     local is_enterprise="${2:-false}"
-    local show_progress="${3:-true}"
     
     SUCCESS=0
     EMAIL_MESSAGE_SHOWN=false
@@ -309,14 +308,14 @@ perform_server_with_health_check() {
             break
         fi
 
-        if curl --max-time 3 -s "http://localhost:$PORT/health" >/dev/null 2>&1; then
+        if curl --max-time 1 -s "http://localhost:$PORT/health" >/dev/null 2>&1; then
             printf "${BOLDGREEN}✓ InfluxDB 3 ${EDITION} is now installed and running on port %s. Nice!${NC}\n" "$PORT"
             SUCCESS=1
             break
         fi
-        
-        # Show email verification message after 5 seconds for Enterprise
-        if [ "$is_enterprise" = "true" ] && [ "$i" -eq 5 ] && [ "$EMAIL_MESSAGE_SHOWN" = "false" ]; then
+
+        # Show email verification message after 10 seconds for Enterprise
+        if [ "$is_enterprise" = "true" ] && [ "$i" -eq 10 ] && [ "$EMAIL_MESSAGE_SHOWN" = "false" ]; then
             printf "├─${DIM} Checking license activation - please verify your email${NC}\n"
             EMAIL_MESSAGE_SHOWN=true
         fi
@@ -559,17 +558,24 @@ if [ "${EDITION}" = "Core" ]; then
 
         # Start and give up to 30 seconds to respond
         echo
+
+        # Create logs directory and generate timestamped log filename
+        mkdir -p "$INSTALL_LOC/logs"
+        LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
+
         printf "${BOLD}Starting InfluxDB${NC}\n"
         printf "├─${DIM} Node ID: %s${NC}\n" "$NODE_ID"
         printf "├─${DIM} Storage: %s${NC}\n" "$STORAGE_TYPE"
+        printf "├─${DIM} Logs: %s${NC}\n" "$LOG_FILE"
         printf "├─${DIM} influxdb3 serve \\\\${NC}\n"
         printf "├─${DIM}   --node-id='%s' \\\\${NC}\n" "$NODE_ID"
         printf "├─${DIM}   --http-bind='0.0.0.0:%s' \\\\${NC}\n" "$PORT"
         printf "└─${DIM}   %s${NC}\n" "$STORAGE_FLAGS_ECHO"
-        "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null &
+
+        "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         PID="$!"
 
-        perform_server_with_health_check 30
+        perform_server_health_check 30
 
     elif [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "1" ]; then
         # Quick Start flow - minimal output, just start the server
@@ -578,6 +584,7 @@ if [ "${EDITION}" = "Core" ]; then
         printf "├─${DIM} Node ID: %s${NC}\n" "$NODE_ID"
         printf "├─${DIM} Storage: %s/data${NC}\n" "${INSTALL_LOC}"
         printf "├─${DIM} Plugins: %s/plugins${NC}\n" "${INSTALL_LOC}"
+        printf "├─${DIM} Logs: %s/logs/$(date +%Y%m%d_%H%M%S).log${NC}\n" "${INSTALL_LOC}"
 
         # Ensure port is available; if not, find a new one.
         ORIGINAL_PORT="$PORT"
@@ -595,11 +602,15 @@ if [ "${EDITION}" = "Core" ]; then
         printf "${DIM}     --http-bind=0.0.0.0:%s \\\\${NC}\n" "$PORT"
         printf "${DIM}     %s${NC}\n\n" "$STORAGE_FLAGS_ECHO"
 
+        # Create logs directory and generate timestamped log filename
+        mkdir -p "$INSTALL_LOC/logs"
+        LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
+
         # Start server in background
-        "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null &
+        "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         PID="$!"
 
-        perform_server_with_health_check 30
+        perform_server_health_check 30
 
     else
         echo
@@ -662,6 +673,11 @@ else
         printf "├─${DIM} Storage: %s/data${NC}\n" "${INSTALL_LOC}"
         printf "├─${DIM} Plugins: %s/plugins${NC}\n" "${INSTALL_LOC}"
 
+        # Create logs directory and generate timestamped log filename
+        mkdir -p "$INSTALL_LOC/logs"
+        LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
+        printf "├─${DIM} Logs: %s${NC}\n" "$LOG_FILE"
+
         # Ensure port is available; if not, find a new one.
         ORIGINAL_PORT="$PORT"
         find_available_port false
@@ -677,14 +693,16 @@ else
         # Start server in background with or without license flags
         if [ -n "$LICENSE_TYPE" ] && [ -n "$LICENSE_EMAIL" ]; then
             # New license needed
-            "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null 2>&1 &
+            "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         else
             # Existing license file
-            "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null 2>&1 &
+            "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         fi
         PID="$!"
         
-        perform_server_with_health_check 90 true false
+        printf "├─${DIM} Server started in background (PID: %s)${NC}\n" "$PID"
+        
+        perform_server_health_check 90 true 
 
     elif [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "2" ]; then
         # Enterprise Custom Start flow
@@ -756,16 +774,21 @@ else
         printf "├─${DIM} License Type: %s${NC}\n" "$LICENSE_DESC"
         printf "├─${DIM} Email: %s${NC}\n" "$LICENSE_EMAIL"
         printf "├─${DIM} Storage: %s${NC}\n" "$STORAGE_TYPE"
+
+        # Create logs directory and generate timestamped log filename
+        mkdir -p "$INSTALL_LOC/logs"
+        LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
+        printf "├─${DIM} Logs: %s${NC}\n" "$LOG_FILE"
+
         display_enterprise_server_command false
-        
+
         # Start server in background
-        "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null 2>&1 &
+        "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         PID="$!"
         
         printf "├─${DIM} Server started in background (PID: %s)${NC}\n" "$PID"
-        printf "├─${DIM} Checking license activation and server health...${NC}\n"
         
-        perform_server_with_health_check 90 true true
+        perform_server_health_check 90 true 
 
     else
         echo
@@ -777,9 +800,9 @@ fi
 echo
 printf "${BOLD}Next Steps${NC}\n"
 if [ -n "$shellrc" ]; then
-    printf "1) Run ${BOLD}source '%s'${NC}, then access InfluxDB with ${BOLD}influxdb3${NC} command.\n\n" "$shellrc"
+    printf "├─ Run ${BOLD}source '%s'${NC}, then access InfluxDB with ${BOLD}influxdb3${NC} command.\n" "$shellrc"
 else
-    printf "1) Access InfluxDB with the ${BOLD}influxdb3${NC} command.\n"
+    printf "├─ Access InfluxDB with the ${BOLD}influxdb3${NC} command.\n"
 fi
 if [ "${EDITION}" = "Enterprise" ] && [ "$SUCCESS" -eq 0 ] 2>/dev/null; then
     printf "├─ ${BOLD}Server startup failed${NC} - troubleshooting options:\n"
@@ -794,8 +817,8 @@ if [ "${EDITION}" = "Enterprise" ] && [ "$SUCCESS" -eq 0 ] 2>/dev/null; then
     printf "   ${BOLD}Common issues:${NC} Network connectivity, invalid email format, port conflicts\n"
 fi
 
-printf "2) Create admin token: ${BOLD}influxdb3 create token --admin${NC}\n\n"
-printf "3) Begin writing data! Learn more at https://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/write/\n\n"
+printf "├─ Create admin token: ${BOLD}influxdb3 create token --admin${NC}\n"
+printf "└─ Begin writing data! Learn more at https://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/write/\n\n"
         printf "┌────────────────────────────────────────────────────────────────────────────────────────┐\n"
         printf "│ Looking to use a UI for querying, plugins, management, and more?                       │\n"
         printf "│ Get InfluxDB 3 Explorer at ${BLUE}https://docs.influxdata.com/influxdb3/explorer/#quick-start${NC} │\n"
