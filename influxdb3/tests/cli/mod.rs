@@ -3564,8 +3564,7 @@ async fn test_serve_command_error_msg() {
         .stderr
         .clone();
 
-    let full_cmd =
-        "influxdb3 serve --object-store <object-store> --node-id <NODE_IDENTIFIER_PREFIX>";
+    let full_cmd = "influxdb3 serve --object-store <object-store> <--node-id <PREFIX>|--node-id-from-env <FROM_ENV_VAR>>";
     assert_object_store_error_msg(output, full_cmd);
 }
 
