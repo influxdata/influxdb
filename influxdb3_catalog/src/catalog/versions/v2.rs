@@ -997,20 +997,25 @@ impl InnerCatalog {
                 }
                 NodeCatalogOp::StopNode(StopNodeLog {
                     stopped_time_ns, ..
-                }) => {
-                    let mut new_node = self
-                        .nodes
-                        .get_by_id(&node_batch.node_catalog_id)
-                        .expect("node should exist");
-                    let n = Arc::make_mut(&mut new_node);
-                    n.state = NodeState::Stopped {
-                        stopped_time_ns: *stopped_time_ns,
-                    };
-                    self.nodes
-                        .update(node_batch.node_catalog_id, new_node)
-                        .expect("there should be a node to update");
-                    true
-                }
+                }) => match self.nodes.get_by_id(&node_batch.node_catalog_id) {
+                    Some(mut new_node) => {
+                        let n = Arc::make_mut(&mut new_node);
+                        n.state = NodeState::Stopped {
+                            stopped_time_ns: *stopped_time_ns,
+                        };
+                        self.nodes
+                            .update(node_batch.node_catalog_id, new_node)
+                            .expect("there should be a node to update");
+                        true
+                    }
+                    None => {
+                        warn!(
+                            node_id = %&node_batch.node_catalog_id,
+                            "cannot find node id, skipping stop operation"
+                        );
+                        false
+                    }
+                },
             };
         }
         Ok(updated)
