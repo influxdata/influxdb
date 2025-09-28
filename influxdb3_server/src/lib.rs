@@ -1780,6 +1780,7 @@ mod tests {
                 plugin_dir: None,
                 virtual_env_location: None,
                 package_manager: Arc::new(DisabledManager),
+                plugin_repo: None,
             },
             write_buffer.catalog(),
             node_identifier_prefix,

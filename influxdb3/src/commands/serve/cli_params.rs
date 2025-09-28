@@ -110,6 +110,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "plugin-dir",
     "virtual-env-location",
     "package-manager",
+    "plugin-repo",
     // Other parameters
     "tcp-listener-file-path",
 ];
