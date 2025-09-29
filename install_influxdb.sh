@@ -321,13 +321,13 @@ perform_server_health_check() {
 
         if ! kill -0 "$PID" 2>/dev/null ; then
             if [ "$is_enterprise" = "true" ]; then
-                printf "├─${DIM} Server process stopped unexpectedly${NC}\n"
+                printf "└─${DIM} Server process stopped unexpectedly${NC}\n"
             fi
             break
         fi
 
         if curl --max-time 1 -s "http://localhost:$PORT/health" >/dev/null 2>&1; then
-            printf "${BOLDGREEN}✓ InfluxDB 3 ${EDITION} is now installed and running on port %s. Nice!${NC}\n" "$PORT"
+            printf "\n${BOLDGREEN}✓ InfluxDB 3 ${EDITION} is now installed and running on port %s. Nice!${NC}\n" "$PORT"
             SUCCESS=1
             break
         fi
@@ -384,26 +384,26 @@ display_enterprise_server_command() {
         # Quick Start format
         printf "└─${DIM} Command: ${NC}\n"
         printf "${DIM}   influxdb3 serve \\\\${NC}\n"
-        printf "${DIM}    --cluster-id=%s \\\\${NC}\n" "$CLUSTER_ID"
-        printf "${DIM}    --node-id=%s \\\\${NC}\n" "$NODE_ID"
+        printf "${DIM}   --cluster-id=%s \\\\${NC}\n" "$CLUSTER_ID"
+        printf "${DIM}   --node-id=%s \\\\${NC}\n" "$NODE_ID"
         if [ -n "$LICENSE_TYPE" ] && [ -n "$LICENSE_EMAIL" ]; then
-            printf "${DIM}    --license-type=%s \\\\${NC}\n" "$LICENSE_TYPE"
-            printf "${DIM}    --license-email=%s \\\\${NC}\n" "$LICENSE_EMAIL"
+            printf "${DIM}   --license-type=%s \\\\${NC}\n" "$LICENSE_TYPE"
+            printf "${DIM}   --license-email=%s \\\\${NC}\n" "$LICENSE_EMAIL"
         fi
-        printf "${DIM}    --http-bind=0.0.0.0:%s \\\\${NC}\n" "$PORT"
-        printf "${DIM}    %s${NC}\n" "$STORAGE_FLAGS_ECHO"
+        printf "${DIM}   --http-bind=0.0.0.0:%s \\\\${NC}\n" "$PORT"
+        printf "${DIM}   %s${NC}\n" "$STORAGE_FLAGS_ECHO"
         echo
     else
         # Custom configuration format
         printf "│\n"
         printf "├─ Running serve command:\n"
         printf "├─${DIM} influxdb3 serve \\\\${NC}\n"
-        printf "├─${DIM}   --cluster-id='%s' \\\\${NC}\n" "$CLUSTER_ID"
-        printf "├─${DIM}   --node-id='%s' \\\\${NC}\n" "$NODE_ID"
-        printf "├─${DIM}   --license-type='%s' \\\\${NC}\n" "$LICENSE_TYPE"
-        printf "├─${DIM}   --license-email='%s' \\\\${NC}\n" "$LICENSE_EMAIL"
-        printf "├─${DIM}   --http-bind='0.0.0.0:%s' \\\\${NC}\n" "$PORT"
-        printf "├─${DIM}   %s${NC}\n" "$STORAGE_FLAGS_ECHO"
+        printf "├─${DIM} --cluster-id='%s' \\\\${NC}\n" "$CLUSTER_ID"
+        printf "├─${DIM} --node-id='%s' \\\\${NC}\n" "$NODE_ID"
+        printf "├─${DIM} --license-type='%s' \\\\${NC}\n" "$LICENSE_TYPE"
+        printf "├─${DIM} --license-email='%s' \\\\${NC}\n" "$LICENSE_EMAIL"
+        printf "├─${DIM} --http-bind='0.0.0.0:%s' \\\\${NC}\n" "$PORT"
+        printf "├─${DIM} %s${NC}\n" "$STORAGE_FLAGS_ECHO"
         printf "│\n"
     fi
 }
@@ -816,28 +816,29 @@ fi
 
 ### SUCCESS INFORMATION ###
 echo
-printf "${BOLD}Next Steps${NC}\n"
-if [ -n "$shellrc" ]; then
-    printf "├─ Run ${BOLD}source '%s'${NC}, then access InfluxDB with ${BOLD}influxdb3${NC} command.\n" "$shellrc"
-else
-    printf "├─ Access InfluxDB with the ${BOLD}influxdb3${NC} command.\n"
-fi
 if [ "${EDITION}" = "Enterprise" ] && [ "$SUCCESS" -eq 0 ] 2>/dev/null; then
-    printf "├─ ${BOLD}Server startup failed${NC} - troubleshooting options:\n"
-    printf "└─ ${BOLD}Check email verification:${NC} Look for verification email and click the link\n\n"
-    printf "1) ${BOLD}Manual startup:${NC} Try running the server manually to see detailed logs:\n"
+    printf "${BOLD}Server startup failed${NC} - troubleshooting options:\n"
+    printf "├─ ${BOLD}Check email verification:${NC} Look for verification email and click the link\n"
+    printf "├─ ${BOLD}Manual startup:${NC} Try running the server manually to see detailed logs:\n"
     printf "     influxdb3 serve \\\\\n"
-    printf "       --cluster-id=%s \\\\\n" "${CLUSTER_ID:-cluster0}"
-    printf "       --node-id=%s \\\\\n" "${NODE_ID:-node0}"
-    printf "       --license-type=%s \\\\\n" "${LICENSE_TYPE:-trial}"
-    printf "       --license-email=%s \\\\\n" "${LICENSE_EMAIL:-your@email.com}"
-    printf "       %s\n" "${STORAGE_FLAGS_ECHO:-"--object-store=file --data-dir $INSTALL_LOC/data --plugin-dir $INSTALL_LOC/plugins"}"
-    printf "   ${BOLD}Common issues:${NC} Network connectivity, invalid email format, port conflicts\n"
+    printf "     --cluster-id=%s \\\\\n" "${CLUSTER_ID:-cluster0}"
+    printf "     --node-id=%s \\\\\n" "${NODE_ID:-node0}"
+    printf "     --license-type=%s \\\\\n" "${LICENSE_TYPE:-trial}"
+    printf "     --license-email=%s \\\\\n" "${LICENSE_EMAIL:-your@email.com}"
+    printf "     %s\n" "${STORAGE_FLAGS_ECHO:-"--object-store=file --data-dir $INSTALL_LOC/data --plugin-dir $INSTALL_LOC/plugins"}"
+    printf "└─ ${BOLD}Common issues:${NC} Network connectivity, invalid email format, port conflicts\n"
+else
+    printf "${BOLD}Next Steps${NC}\n"
+    if [ -n "$shellrc" ]; then
+        printf "├─ Run ${BOLD}source '%s'${NC}, then access InfluxDB with ${BOLD}influxdb3${NC} command.\n" "$shellrc"
+    else
+        printf "├─ Access InfluxDB with the ${BOLD}influxdb3${NC} command.\n"
+    fi
+    printf "├─ Create admin token: ${BOLD}influxdb3 create token --admin${NC}\n"
+    printf "└─ Begin writing data! Learn more at https://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/write/\n\n"
 fi
 
-printf "├─ Create admin token: ${BOLD}influxdb3 create token --admin${NC}\n"
-printf "└─ Begin writing data! Learn more at https://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/write/\n\n"
-        printf "┌────────────────────────────────────────────────────────────────────────────────────────┐\n"
-        printf "│ Looking to use a UI for querying, plugins, management, and more?                       │\n"
-        printf "│ Get InfluxDB 3 Explorer at ${BLUE}https://docs.influxdata.com/influxdb3/explorer/#quick-start${NC} │\n"
-        printf "└────────────────────────────────────────────────────────────────────────────────────────┘\n\n"
+printf "┌────────────────────────────────────────────────────────────────────────────────────────┐\n"
+printf "│ Looking to use a UI for querying, plugins, management, and more?                       │\n"
+printf "│ Get InfluxDB 3 Explorer at ${BLUE}https://docs.influxdata.com/influxdb3/explorer/#quick-start${NC} │\n"
+printf "└────────────────────────────────────────────────────────────────────────────────────────┘\n\n"
