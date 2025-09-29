@@ -19,14 +19,32 @@ INSTALL_LOC=~/.influxdb
 BINARY_NAME="influxdb3"
 PORT=8181
 
+# Set the default (latest) version here. Users may specify a version using the
+# --version arg (handled below)
 INFLUXDB_VERSION="3.5.0-0.rc.1"
 EDITION="Core"
 EDITION_TAG="core"
-if [ "$1" = "enterprise" ]; then
-    EDITION="Enterprise"
-    EDITION_TAG="enterprise"
-    shift 1
-fi
+
+# Parse command line arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --version)
+            INFLUXDB_VERSION="$2"
+            shift 2
+            ;;
+        enterprise)
+            EDITION="Enterprise"
+            EDITION_TAG="enterprise"
+            shift 1
+            ;;
+        *)
+            echo "Usage: $0 [enterprise] [--version VERSION]"
+            echo "  enterprise: Install the Enterprise edition (optional)"
+            echo "  --version VERSION: Specify InfluxDB version (default: $INFLUXDB_VERSION)"
+            exit 1
+            ;;
+    esac
+done
 
 
 
@@ -75,7 +93,7 @@ URL="https://dl.influxdata.com/influxdb/releases/influxdb3-${EDITION_TAG}-${INFL
 
 # Function to find available port
 find_available_port() {
-    local show_progress="${1:-true}"
+    show_progress="${1:-true}"
     lsof_exec=$(command -v lsof) && {
         while [ -n "$lsof_exec" ] && lsof -i:"$PORT" -t >/dev/null 2>&1; do
             if [ "$show_progress" = "true" ]; then
@@ -98,7 +116,7 @@ find_available_port() {
 
 # Function to set up Quick Start defaults for both Core and Enterprise
 setup_quick_start_defaults() {
-    local edition="${1:-core}"
+    edition="${1:-core}"
     
     NODE_ID="node0" 
     STORAGE_TYPE="File Storage"
@@ -287,8 +305,8 @@ prompt_storage_configuration() {
 
 # Function to perform health check on server
 perform_server_health_check() {
-    local timeout_seconds="${1:-30}"
-    local is_enterprise="${2:-false}"
+    timeout_seconds="${1:-30}"
+    is_enterprise="${2:-false}"
     
     SUCCESS=0
     EMAIL_MESSAGE_SHOWN=false
@@ -360,7 +378,7 @@ perform_server_health_check() {
 
 # Function to display Enterprise server command
 display_enterprise_server_command() {
-    local is_quick_start="${1:-false}"
+    is_quick_start="${1:-false}"
     
     if [ "$is_quick_start" = "true" ]; then
         # Quick Start format
