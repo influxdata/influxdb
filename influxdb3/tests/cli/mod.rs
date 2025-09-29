@@ -2719,7 +2719,7 @@ async fn test_trigger_create_validates_file_present() {
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("error reading file from Github: 404 Not Found"));
+    assert!(err.contains("error fetching plugin from repository: 404 Not Found"));
 }
 
 fn check_logs(response: &Value, expected_logs: &[&str]) {
@@ -3564,8 +3564,7 @@ async fn test_serve_command_error_msg() {
         .stderr
         .clone();
 
-    let full_cmd =
-        "influxdb3 serve --object-store <object-store> --node-id <NODE_IDENTIFIER_PREFIX>";
+    let full_cmd = "influxdb3 serve --object-store <object-store> <--node-id <PREFIX>|--node-id-from-env <FROM_ENV_VAR>>";
     assert_object_store_error_msg(output, full_cmd);
 }
 

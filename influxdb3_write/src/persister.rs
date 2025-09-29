@@ -68,8 +68,8 @@ impl From<PersisterError> for DataFusionError {
     fn from(error: PersisterError) -> Self {
         match error {
             PersisterError::DataFusion(e) => e,
-            PersisterError::ObjectStore(e) => DataFusionError::ObjectStore(e),
-            PersisterError::ParquetError(e) => DataFusionError::ParquetError(e),
+            PersisterError::ObjectStore(e) => DataFusionError::ObjectStore(Box::new(e)),
+            PersisterError::ParquetError(e) => DataFusionError::ParquetError(Box::new(e)),
             _ => DataFusionError::External(Box::new(error)),
         }
     }

@@ -721,7 +721,7 @@ impl LastCacheStore {
                 let cache = table_def
                     .columns
                     .iter()
-                    .filter(|&(col_id, _)| (!key_column_ids.contains(col_id)))
+                    .filter(|&(col_id, _)| !key_column_ids.contains(col_id))
                     .map(|(col_id, col_def)| (*col_id, CacheColumn::new(col_def.data_type, count)))
                     .collect();
                 (cache, None)

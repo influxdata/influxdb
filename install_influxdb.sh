@@ -25,6 +25,7 @@ INFLUXDB_VERSION="3.5.0"
 EDITION="Core"
 EDITION_TAG="core"
 
+
 # Parse command line arguments
 while [ $# -gt 0 ]; do
     case "$1" in

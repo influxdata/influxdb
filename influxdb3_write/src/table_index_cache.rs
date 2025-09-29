@@ -12,10 +12,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use backon::Retryable;
 use futures::TryStreamExt;
 use hashbrown::{HashMap, HashSet};
 use object_store::{ObjectMeta, ObjectStore, path::Path as ObjPath};
+use object_store_utils::RetryableObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -282,26 +282,14 @@ async fn list_metas(
 
     let list_start = std::time::Instant::now();
 
-    let list_op = || async {
-        let stream = if let Some(ref offset) = offset {
-            object_store.list_with_offset(Some(path.as_ref()), offset)
-        } else {
-            object_store.list(Some(path.as_ref()))
-        };
-        stream.try_collect::<Vec<ObjectMeta>>().await
-    };
+    let stream = object_store.list_with_default_retries(
+        Some(path.as_ref()),
+        offset.as_ref(),
+        format!("Listing object store paths at prefix {}", path.as_ref()),
+    );
 
-    let results = list_op
-        .retry(crate::standard_retry_config())
-        .notify(|err, dur| {
-            warn!(
-                error = %err,
-                retry_after_ms = dur.as_millis(),
-                prefix = %path.as_ref(),
-                has_offset = offset.is_some(),
-                "Retrying object store list after error"
-            );
-        })
+    let results: Vec<ObjectMeta> = stream
+        .try_collect::<Vec<ObjectMeta>>()
         .await
         .map_err(TableIndexCacheError::ListMetasError)?;
 
@@ -377,28 +365,20 @@ impl TableIndexCache {
             TableIndexConversionCompletedPath::new(self.inner.node_identifier_prefix.as_str());
         let snapshot_info_prefix = SnapshotInfoFilePath::dir(&self.inner.node_identifier_prefix);
 
-        let get_op = || async {
-            self.inner
-                .object_store
-                .get(conversion_complet_path.as_ref())
-                .await?
-                .bytes()
-                .await
-        };
-
-        let last_conversion_completed: Option<TableIndexConversionCompleted> = match get_op
-            .retry(crate::quick_retry_config())
-            .notify(|err, dur| {
-                warn!(
-                    error = %err,
-                    retry_after_ms = dur.as_millis(),
-                    path = %conversion_complet_path.as_ref(),
-                    "Retrying conversion marker load after error"
-                );
-            })
+        let last_conversion_completed: Option<TableIndexConversionCompleted> = match self
+            .inner
+            .object_store
+            .get_with_default_retries(
+                conversion_complet_path.as_ref(),
+                "Loading table index conversion marker".to_string(),
+            )
             .await
         {
-            Ok(bytes) => {
+            Ok(result) => {
+                let bytes = result
+                    .bytes()
+                    .await
+                    .map_err(TableIndexCacheError::LoadConversionMarkerBytesError)?;
                 let marker: TableIndexConversionCompleted = serde_json::from_slice(&bytes).unwrap();
                 info!(
                     "loading snapshot object metas starting from snapshot sequence {:?}",
@@ -431,23 +411,13 @@ impl TableIndexCache {
                 let json = serde_json::to_vec_pretty(&contents)
                     .map_err(TableIndexCacheError::SerializeConversionMarkerError)?;
 
-                let put_op = || async {
-                    self.inner
-                        .object_store
-                        .put(conversion_complet_path.as_ref(), json.clone().into())
-                        .await
-                };
-
-                put_op
-                    .retry(crate::standard_retry_config())
-                    .notify(|err, dur| {
-                        warn!(
-                            error = %err,
-                            retry_after_ms = dur.as_millis(),
-                            path = %conversion_complet_path.as_ref(),
-                            "Retrying initial conversion marker persist after error"
-                        );
-                    })
+                self.inner
+                    .object_store
+                    .put_with_default_retries(
+                        conversion_complet_path.as_ref(),
+                        json.into(),
+                        "Persisting initial table index conversion marker".to_string(),
+                    )
                     .await
                     .map_err(TableIndexCacheError::PutConversionMarkerError)?;
             }
@@ -520,19 +490,7 @@ impl TableIndexCache {
 
             js.spawn(async move {
                 let _permit = sem.acquire_owned().await;
-                let f = || async {
-                    TableIndexSnapshot::load_split_persist(Arc::clone(&object_store), path.clone())
-                        .await
-                };
-                f.retry(crate::standard_retry_config())
-                    .notify(|err, dur| {
-                        warn!(
-                            error = %err,
-                            retry_after_ms = dur.as_millis(),
-                            location = %path.as_ref(),
-                            "Retrying snapshot split and persist after error"
-                        );
-                    })
+                TableIndexSnapshot::load_split_persist(Arc::clone(&object_store), path.clone())
                     .await
                     .map_err(TableIndexCacheError::SplitPersistedSnapshotError)?;
                 Ok(meta)
@@ -558,24 +516,16 @@ impl TableIndexCache {
         let json = serde_json::to_vec_pretty(&contents)
             .map_err(TableIndexCacheError::SerializeConversionMarkerError)?;
 
-        let put_op = || async {
-            self.inner
-                .object_store
-                .put(conversion_complet_path.as_ref(), json.clone().into())
-                .await
-        };
-
-        put_op
-            .retry(crate::standard_retry_config())
-            .notify(|err, dur| {
-                warn!(
-                    error = %err,
-                    retry_after_ms = dur.as_millis(),
-                    path = %conversion_complet_path.as_ref(),
-                    last_sequence = %last_seq_number,
-                    "Retrying final conversion marker persist after error"
-                );
-            })
+        self.inner
+            .object_store
+            .put_with_default_retries(
+                conversion_complet_path.as_ref(),
+                json.into(),
+                format!(
+                    "Persisting final conversion marker at sequence {}",
+                    last_seq_number
+                ),
+            )
             .await
             .map_err(TableIndexCacheError::PutConversionMarkerError)?;
 
@@ -777,36 +727,15 @@ impl TableIndexCache {
                     "Deleting parquet file"
                 );
 
-                // Delete the file, ignoring NotFound errors
-                let delete_op = || async { self.inner.object_store.delete(&path).await };
-
-                match delete_op
-                    .retry(crate::standard_retry_config())
-                    .notify(|err, dur| {
-                        warn!(
-                            error = %err,
-                            retry_after_ms = dur.as_millis(),
-                            path = %path,
-                            "Retrying parquet file delete after error"
-                        );
-                    })
+                self.inner
+                    .object_store
+                    .delete_with_default_retries(&path, format!("Deleting parquet file {}", path))
                     .await
-                {
-                    Ok(_) => {
-                        trace!(path = %path, "Successfully deleted parquet file");
-                    }
-                    Err(object_store::Error::NotFound { .. }) => {
-                        // File already deleted, this is fine
-                        trace!(path = %path, "Parquet file already deleted");
-                    }
-                    Err(e) => {
-                        // Other errors should be propagated
-                        return Err(TableIndexCacheError::DeleteParquetFile {
-                            path: path.to_string(),
-                            source: e,
-                        });
-                    }
-                }
+                    .map_err(|e| TableIndexCacheError::DeleteParquetFile {
+                        path: path.to_string(),
+                        source: e,
+                    })?;
+                trace!(path = %path, "Successfully deleted parquet file");
             }
         }
 
@@ -822,45 +751,24 @@ impl TableIndexCache {
             "Deleting table index from object store"
         );
 
-        let delete_op = || async { self.inner.object_store.delete(index_path.as_ref()).await };
-
-        match delete_op
-            .retry(crate::standard_retry_config())
-            .notify(|err, dur| {
-                warn!(
-                    error = %err,
-                    retry_after_ms = dur.as_millis(),
-                    path = %index_path.as_ref(),
-                    table_id = %table_index_id,
-                    "Retrying table index delete after error"
-                );
-            })
+        self.inner
+            .object_store
+            .delete_with_default_retries(
+                index_path.as_ref(),
+                format!("Deleting table index for {}", table_index_id),
+            )
             .await
-        {
-            Ok(_) => {
-                info!(
-                    ?db_id,
-                    ?table_id,
-                    node_prefix = %self.inner.node_identifier_prefix,
-                    "Successfully purged table"
-                );
-            }
-            Err(object_store::Error::NotFound { .. }) => {
-                // Index already deleted, this is fine
-                debug!(
-                    ?db_id,
-                    ?table_id,
-                    node_prefix = %self.inner.node_identifier_prefix,
-                    "Table index already deleted from object store"
-                );
-            }
-            Err(e) => {
-                return Err(TableIndexCacheError::DeleteTableIndex {
-                    table_id: table_index_id,
-                    source: e,
-                });
-            }
-        }
+            .map_err(|e| TableIndexCacheError::DeleteTableIndex {
+                table_id: table_index_id,
+                source: e,
+            })?;
+
+        info!(
+            ?db_id,
+            ?table_id,
+            node_prefix = %self.inner.node_identifier_prefix,
+            "Successfully purged table"
+        );
 
         Ok(())
     }
@@ -883,27 +791,26 @@ impl TableIndexCache {
             "Listing table indices for database"
         );
 
-        let table_paths: Vec<TableIndexPath> = Box::pin(
-            self.inner
-                .object_store
-                .list(Some(&db_indices_prefix))
-                .map_err(TableIndexCacheError::ListIndices)
-                .try_filter_map(|meta| async move {
-                    match TableIndexPath::try_from(meta.location) {
-                        Ok(p) => Ok(Some(p)),
-                        Err(e) => {
-                            // Skip invalid paths
-                            debug!(
-                                error = %e,
-                                "Skipping invalid table index path during database purge"
-                            );
-                            Ok(None)
-                        }
+        let table_paths: Vec<TableIndexPath> = self
+            .inner
+            .object_store
+            .list(Some(&db_indices_prefix))
+            .map_err(TableIndexCacheError::ListIndices)
+            .try_filter_map(|meta| async move {
+                match TableIndexPath::try_from(meta.location) {
+                    Ok(p) => Ok(Some(p)),
+                    Err(e) => {
+                        // Skip invalid paths
+                        debug!(
+                            error = %e,
+                            "Skipping invalid table index path during database purge"
+                        );
+                        Ok(None)
                     }
-                }),
-        )
-        .try_collect()
-        .await?;
+                }
+            })
+            .try_collect()
+            .await?;
 
         info!(
             ?db_id,
@@ -1022,37 +929,21 @@ impl TableIndexCache {
                 "Deleting expired parquet file"
             );
 
-            let delete_op = || async { self.inner.object_store.delete(&path).await };
-
-            match delete_op
-                .retry(crate::standard_retry_config())
-                .notify(|err, dur| {
-                    warn!(
-                        error = %err,
-                        retry_after_ms = dur.as_millis(),
-                        path = %path,
-                        max_time = file.max_time,
-                        cutoff_time_ns,
-                        "Retrying expired parquet file delete after error"
-                    );
-                })
+            self.inner
+                .object_store
+                .delete_with_default_retries(
+                    &path,
+                    format!(
+                        "Deleting expired parquet file {} (max_time: {}, cutoff: {})",
+                        path, file.max_time, cutoff_time_ns
+                    ),
+                )
                 .await
-            {
-                Ok(_) => {
-                    trace!(path = %path, "Successfully deleted expired parquet file");
-                }
-                Err(object_store::Error::NotFound { .. }) => {
-                    // File already deleted, this is fine
-                    trace!(path = %path, "Expired parquet file already deleted");
-                }
-                Err(e) => {
-                    // Other errors should be propagated
-                    return Err(TableIndexCacheError::DeleteParquetFile {
-                        path: path.to_string(),
-                        source: e,
-                    });
-                }
-            }
+                .map_err(|e| TableIndexCacheError::DeleteParquetFile {
+                    path: path.to_string(),
+                    source: e,
+                })?;
+            trace!(path = %path, "Successfully deleted expired parquet file");
         }
 
         // Create updated table index with only remaining files
@@ -1317,45 +1208,25 @@ impl TableIndexCache {
 
         trace!(prefix = %indices_prefix, "Listing object store paths for existing indices");
 
-        let list_start = std::time::Instant::now();
-        let table_index_paths: Vec<TableIndexPath> = Box::pin(
-            self.inner
-                .object_store
-                .list(Some(&indices_prefix))
-                .map_err(TableIndexCacheError::ListIndices)
-                .try_filter_map(|meta| async move {
-                    match TableIndexPath::from_path(meta.location.clone()) {
-                        Ok(p) => Ok(Some(p)),
-                        Err(e) => Err(TableIndexCacheError::TableIndexPath(e)),
-                    }
-                }),
-        )
-        .try_collect()
-        .await?;
-
-        trace!(
-            count = table_index_paths.len(),
-            duration_ms = list_start.elapsed().as_millis(),
-            "Object store listing completed for indices"
-        );
-
-        // Extract FullTableIds from existing indices
-        let mut tables_with_indices: HashSet<TableIndexId> = HashSet::new();
-        for path in &table_index_paths {
-            tables_with_indices.insert(path.full_table_id());
-        }
+        let table_index_paths: Vec<TableIndexPath> = self
+            .inner
+            .object_store
+            .list(Some(&indices_prefix))
+            .map_err(TableIndexCacheError::ListIndices)
+            .try_filter_map(|meta| async move {
+                match TableIndexPath::from_path(meta.location.clone()) {
+                    Ok(p) => Ok(Some(p)),
+                    Err(e) => Err(TableIndexCacheError::TableIndexPath(e)),
+                }
+            })
+            .try_collect()
+            .await?;
 
         // Process updates concurrently
         let sem = Arc::new(Semaphore::new(self.inner.config.concurrency_limit));
         let mut js = JoinSet::new();
 
-        // Update existing indices
-        debug!(
-            "Found {} existing table indices to update",
-            tables_with_indices.len()
-        );
-
-        for table_index_path in table_index_paths {
+        for table_index_path in &table_index_paths {
             let table_id = table_index_path.full_table_id();
             let sem = Arc::clone(&sem);
             let cache = self.clone();
@@ -1369,8 +1240,19 @@ impl TableIndexCache {
                 // updating existing cached entries or loading new ones
                 cache.update_from_object_store(&table_id).await?;
 
-                Ok::<_, TableIndexCacheError>((table_id, true))
+                Ok::<_, TableIndexCacheError>(table_id)
             });
+        }
+
+        let mut updated_count = 0;
+        while let Some(res) = js.join_next().await {
+            match res.map_err(TableIndexCacheError::UpdateTaskFailed)? {
+                Ok(table_id) => {
+                    debug!("updated table index for {:?}", table_id);
+                    updated_count += 1;
+                }
+                Err(e) => return Err(e),
+            }
         }
 
         // List all table snapshots to find tables that might not have an index yet.
@@ -1382,39 +1264,68 @@ impl TableIndexCache {
         //
         // This can be considered relatively cheap because in the most common case where indices
         // already exist, there should be no additional snapshots listed here. There should be
-        // no unmerged snapshots listed here because the TableIndex::from_object_store call above
-        // deletes snapshots after merging them into their respective indices.
+        // no unmerged snapshots listed here because the TableIndex.update_from_object_store calls
+        // above delete snapshots after merging them into their respective indices.
         let snapshots_prefix = TableIndexSnapshotPath::all_snapshots_prefix(node_identifier_prefix);
 
-        // Group snapshots by table for tables without indices
-        let mut tables_without_indices: HashSet<TableIndexId> = HashSet::new();
-
-        let mut snapshot_stream = Box::pin(
-            self.inner
-                .object_store
-                .list(Some(&snapshots_prefix))
-                .map_err(TableIndexCacheError::ListSnapshots)
-                .try_filter_map(|meta| async move {
-                    match TableIndexSnapshotPath::from_path(meta.location.clone()) {
-                        Ok(snapshot_path) => Ok(Some(snapshot_path)),
-                        Err(e) => Err(TableIndexCacheError::TableIndexSnapshotPath(e)),
-                    }
-                }),
+        let tables_with_indices: Arc<HashSet<TableIndexId>> = Arc::new(
+            table_index_paths
+                .iter()
+                .map(|p| p.full_table_id())
+                .collect(),
         );
 
-        // NOTE(wayne): it's technically not necessary here to iterate over all listed snapshots,
-        // since we don't load the index directly form this list of snapshots. it's probably worth
-        // considering a way to avoid the unnecessary listing at some point.
-        while let Some(snapshot_path) = snapshot_stream.try_next().await? {
-            let table_id = snapshot_path.full_table_id();
-            tables_without_indices.insert(table_id);
+        // Group snapshots by table for tables without indices
+        let tables_without_indices: Vec<TableIndexId> = self
+            .inner
+            .object_store
+            .list(Some(&snapshots_prefix))
+            .map_err(TableIndexCacheError::ListSnapshots)
+            .try_filter_map(|meta| {
+                let tables_with_indices = Arc::clone(&tables_with_indices);
+                async move {
+                    match TableIndexSnapshotPath::from_path(meta.location.clone()) {
+                        Ok(p) => {
+                            let id = p.full_table_id();
+                            if tables_with_indices.contains(&id) {
+                                Ok(None)
+                            } else {
+                                Ok(Some(id))
+                            }
+                        }
+                        Err(e) => Err(TableIndexCacheError::TableIndexSnapshotPath(e)),
+                    }
+                }
+            })
+            .try_collect()
+            .await?;
+
+        if tables_without_indices.is_empty() {
+            // Evict entries if we've exceeded the cache size limit
+            self.evict_if_full().await;
+
+            let elapsed = start_time.elapsed();
+            let cache_size = self.len().await;
+
+            info!(
+                duration_ms = elapsed.as_millis(),
+                total_cached = cache_size,
+                indices_updated = updated_count,
+                cache_capacity = ?self.inner.config.max_entries,
+                "No table new table indices to be created."
+            );
+
+            return Ok(());
         }
 
-        // Create new indices for tables with only snapshots
         debug!(
             "Found {} tables without indices to create",
             tables_without_indices.len()
         );
+
+        // Process creates concurrently
+        let sem = Arc::new(Semaphore::new(self.inner.config.concurrency_limit));
+        let mut js = JoinSet::new();
 
         for table_id in tables_without_indices {
             let sem = Arc::clone(&sem);
@@ -1432,26 +1343,14 @@ impl TableIndexCache {
             });
         }
 
-        // Wait for all updates to complete
-        let mut updated_count = 0;
+        // wait for index updates/creations to complete
         let mut created_count = 0;
 
         while let Some(res) = js.join_next().await {
             match res.map_err(TableIndexCacheError::UpdateTaskFailed)? {
-                Ok((table_id, was_update)) => {
-                    if was_update {
-                        debug!("updated table index for {:?}", table_id);
-                        updated_count += 1;
-                    } else {
-                        debug!("created new table index for {:?}", table_id);
-                        created_count += 1;
-                    }
-                    trace!(
-                        table_id = %table_id,
-                        task_type = if was_update { "update_index" } else { "create_index" },
-                        result = "success",
-                        "Concurrent task completed"
-                    );
+                Ok(table_id) => {
+                    debug!("created new table index for {:?}", table_id);
+                    created_count += 1;
                 }
                 Err(e) => return Err(e),
             }
