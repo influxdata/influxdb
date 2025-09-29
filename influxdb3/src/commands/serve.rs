@@ -1314,6 +1314,7 @@ pub(crate) fn setup_processing_engine_env_manager(
         plugin_dir: config.plugin_dir.clone(),
         virtual_env_location: config.virtual_env_location.clone(),
         package_manager,
+        plugin_repo: config.plugin_repo.clone(),
     }
 }
 

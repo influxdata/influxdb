@@ -2719,7 +2719,7 @@ async fn test_trigger_create_validates_file_present() {
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("error reading file from Github: 404 Not Found"));
+    assert!(err.contains("error fetching plugin from repository: 404 Not Found"));
 }
 
 fn check_logs(response: &Value, expected_logs: &[&str]) {

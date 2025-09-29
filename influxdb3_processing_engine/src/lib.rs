@@ -262,25 +262,35 @@ impl ProcessingEngineManagerImpl {
     }
 
     pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, PluginError> {
-        // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
+        // if the name starts with gh: then we use the custom repo if set or we need to get it from
+        // the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
         if name.starts_with("gh:") {
             let plugin_path = name.strip_prefix("gh:").unwrap();
-            let url = format!(
-                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{plugin_path}"
-            );
+            let plugin_repo =
+                self.environment_manager.plugin_repo.as_deref().unwrap_or(
+                    "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/",
+                );
+
+            // combine the repo and path, adjusting for ending / if needed
+            let url = if plugin_repo.ends_with('/') {
+                format!("{plugin_repo}{plugin_path}")
+            } else {
+                format!("{plugin_repo}/{plugin_path}")
+            };
+
             let resp = reqwest::get(&url)
                 .await
-                .context("error getting plugin from github repo")?;
+                .context("error getting plugin from repository")?;
 
             // verify the response is a success
             if !resp.status().is_success() {
-                return Err(PluginError::FetchingFromGithub(resp.status(), url));
+                return Err(PluginError::FetchingFromRepository(resp.status(), url));
             }
 
             let resp_body = resp
                 .text()
                 .await
-                .context("error reading plugin from github repo")?;
+                .context("error reading plugin from repository")?;
             return Ok(PluginCode::Github(Arc::from(resp_body)));
         }
 
@@ -1035,6 +1045,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             plugin_dir: Some(file.path().parent().unwrap().to_path_buf()),
             virtual_env_location: None,
             package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
         };
 
         let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
@@ -1077,5 +1088,46 @@ def process_writes(influxdb3_local, table_batches, args=None):
             },
             DedicatedExecutor::new_testing(),
         ))
+    }
+
+    fn construct_plugin_url(plugin_repo: Option<&str>, plugin_path: &str) -> String {
+        let repo = plugin_repo
+            .unwrap_or("https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/");
+        if repo.ends_with('/') {
+            format!("{repo}{plugin_path}")
+        } else {
+            format!("{repo}/{plugin_path}")
+        }
+    }
+
+    #[test]
+    fn test_plugin_repo_url_construction_default() {
+        // Test URL construction with default repo
+        let plugin_repo: Option<String> = None;
+        let plugin_path = "my_plugin.py";
+        let url = construct_plugin_url(plugin_repo.as_deref(), plugin_path);
+        assert_eq!(
+            url,
+            "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/my_plugin.py"
+        );
+    }
+
+    #[test]
+    fn test_plugin_repo_url_construction_custom() {
+        // Test URL construction with custom repo
+        let plugin_repo = Some("https://custom-repo.example.com/plugins/".to_string());
+        let plugin_path = "my_plugin.py";
+        let url = construct_plugin_url(plugin_repo.as_deref(), plugin_path);
+        assert_eq!(url, "https://custom-repo.example.com/plugins/my_plugin.py");
+    }
+
+    #[test]
+    fn test_plugin_repo_url_construction_custom_without_trailing_slash() {
+        // Test URL construction with custom repo without trailing slash
+        let plugin_repo = Some("https://custom-repo.example.com/plugins".to_string());
+        let plugin_path = "my_plugin.py";
+        let url = construct_plugin_url(plugin_repo.as_deref(), plugin_path);
+        // Automatic slash insertion creates correct URL regardless of input format
+        assert_eq!(url, "https://custom-repo.example.com/plugins/my_plugin.py");
     }
 }

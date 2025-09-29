@@ -80,8 +80,8 @@ pub enum PluginError {
         trigger_type: String,
     },
 
-    #[error("error reading file from Github: {0} {1}")]
-    FetchingFromGithub(reqwest::StatusCode, String),
+    #[error("error fetching plugin from repository: {0} {1}")]
+    FetchingFromRepository(reqwest::StatusCode, String),
 
     #[error("Join error, please report: {0}")]
     JoinError(#[from] tokio::task::JoinError),
@@ -112,6 +112,7 @@ pub struct ProcessingEngineEnvironmentManager {
     pub plugin_dir: Option<PathBuf>,
     pub virtual_env_location: Option<PathBuf>,
     pub package_manager: Arc<dyn PythonEnvironmentManager>,
+    pub plugin_repo: Option<String>,
 }
 
 pub(crate) fn run_schedule_plugin(

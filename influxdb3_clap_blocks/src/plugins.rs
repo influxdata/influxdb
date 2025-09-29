@@ -12,6 +12,8 @@ pub struct ProcessingEngineConfig {
     pub virtual_env_location: Option<PathBuf>,
     #[clap(long = "package-manager", default_value = "discover")]
     pub package_manager: PackageManager,
+    #[clap(long = "plugin-repo", env = "INFLUXDB3_PLUGIN_REPO")]
+    pub plugin_repo: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
