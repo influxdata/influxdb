@@ -1,3 +1,4 @@
+use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -279,27 +280,44 @@ pub trait RetryableObjectStore: ObjectStore {
     where
         Self: Clone + Send + Sync + 'static,
     {
-        // Note: List operations return streaming results, so we can only retry the initial
-        // stream creation, not failures that occur during iteration
-        let prefix_clone = prefix.cloned();
-        let offset_clone = offset.cloned();
         let prefix_str = prefix
             .map(|p| p.to_string())
             .unwrap_or_else(|| "<root>".to_string());
 
         // Clone self to move into async block
-        let self_clone = self.clone();
-
+        let prefix_clone = prefix.cloned();
+        let offset_clone = offset.cloned();
+        let inner = self.clone();
+        let retry_builder = retry_params.exponential_builder();
         let fut = async move {
-            let retry_builder = retry_params.exponential_builder();
-
-            let result: Result<BoxStream<'static, Result<ObjectMeta>>> = (|| async {
-                if let Some(offset) = &offset_clone {
-                    Ok(self_clone.list_with_offset(prefix_clone.as_ref(), offset))
+            let prefix_clone = prefix_clone.clone();
+            let offset_clone = offset_clone.clone();
+            let inner = inner.clone();
+            let f = async || -> Result<BoxStream<'static, Result<ObjectMeta>>> {
+                let mut stream = if let Some(offset) = &offset_clone {
+                    inner.list_with_offset(prefix_clone.as_ref(), offset)
                 } else {
-                    Ok(self_clone.list(prefix_clone.as_ref()))
+                    inner.list(prefix_clone.as_ref())
                 }
-            })
+                .peekable();
+
+                // Because peek only gives us a borrowed Err(e) value, we can only use that peek to
+                // check if the value is an Err, then get the actual owned value as an error from
+                // the stream if it is
+                if Pin::new(&mut stream)
+                    .peek()
+                    .await
+                    .is_some_and(|v| v.is_err())
+                    // the following condition is redundant, but we need to do it to get an owned
+                    // ObjectStoreError
+                    && let Some(Err(err)) = stream.next().await
+                {
+                    return Err(err);
+                }
+
+                Ok(stream.boxed())
+            };
+            let result: Result<BoxStream<'static, Result<ObjectMeta>>> = f
             .retry(&retry_builder)
             .notify(|err: &ObjectStoreError, dur: Duration| {
                 warn!(
@@ -310,7 +328,7 @@ pub trait RetryableObjectStore: ObjectStore {
             .await;
 
             match result {
-                Ok(stream) => stream,
+                Ok(s) => s,
                 Err(e) => futures::stream::once(async move { Err(e) }).boxed(),
             }
         };
@@ -329,33 +347,44 @@ impl RetryableObjectStore for Arc<dyn ObjectStore> {
         context_message: String,
         retry_params: RetryParams,
     ) -> BoxStream<'static, Result<ObjectMeta>> {
-        // Note: List operations return streaming results, so we can only retry the initial
-        // stream creation, not failures that occur during iteration
-        let prefix_clone = prefix.cloned();
-        let offset_clone = offset.cloned();
         let prefix_str = prefix
             .map(|p| p.to_string())
             .unwrap_or_else(|| "<root>".to_string());
 
-        // Clone Arc for use in async block
-        let store = Arc::clone(self);
-
+        // Clone self to move into async block
+        let prefix_clone = prefix.cloned();
+        let offset_clone = offset.cloned();
+        let inner = Arc::clone(self);
+        let retry_builder = retry_params.exponential_builder();
         let fut = async move {
-            let retry_builder = retry_params.exponential_builder();
-
-            let o = offset_clone.clone();
-            let result: Result<BoxStream<'static, Result<ObjectMeta>>> = (move || {
-                let s = Arc::clone(&store);
-                let p = prefix_clone.clone();
-                let o = o.clone();
-                async move {
-                    if let Some(offset) = &o {
-                        Ok(s.list_with_offset(p.as_ref(), offset))
-                    } else {
-                        Ok(s.list(p.as_ref()))
-                    }
+            let prefix_clone = prefix_clone.clone();
+            let offset_clone = offset_clone.clone();
+            let inner = Arc::clone(&inner);
+            let f = async || -> Result<BoxStream<'static, Result<ObjectMeta>>> {
+                let mut stream = if let Some(offset) = &offset_clone {
+                    inner.list_with_offset(prefix_clone.as_ref(), offset)
+                } else {
+                    inner.list(prefix_clone.as_ref())
                 }
-            })
+                .peekable();
+
+                // Because peek only gives us a borrowed Err(e) value, we can only use that peek to
+                // check if the value is an Err, then get the actual owned value as an error from
+                // the stream if it is
+                if Pin::new(&mut stream)
+                    .peek()
+                    .await
+                    .is_some_and(|v| v.is_err())
+                    // the following condition is redundant, but we need to do it to get an owned
+                    // ObjectStoreError
+                    && let Some(Err(err)) = stream.next().await
+                {
+                    return Err(err);
+                }
+
+                Ok(stream.boxed())
+            };
+            let result: Result<BoxStream<'static, Result<ObjectMeta>>> = f
             .retry(&retry_builder)
             .notify(|err: &ObjectStoreError, dur: Duration| {
                 warn!(
@@ -366,7 +395,7 @@ impl RetryableObjectStore for Arc<dyn ObjectStore> {
             .await;
 
             match result {
-                Ok(stream) => stream,
+                Ok(s) => s,
                 Err(e) => futures::stream::once(async move { Err(e) }).boxed(),
             }
         };
@@ -500,12 +529,16 @@ mod tests {
             .await
             .expect("setup: direct put to InMemory should succeed");
 
-        // Create TestObjectStore that will succeed (no error injection)
-        // Note: list_with_retries only retries stream creation, not errors within the stream
-        // So we test that list works when no errors are injected
-        let test_store: Arc<dyn ObjectStore> = Arc::new(TestObjectStore::new(Arc::clone(&inner)));
+        // Create TestObjectStore that fails first call
+        let concrete_store = Arc::new(
+            TestObjectStore::new(Arc::clone(&inner)).with_error_config(ErrorConfig::FirstCallFails),
+        );
+        let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
 
-        // Test: List should work normally
+        // Reset call count before test
+        concrete_store.reset_call_count();
+
+        // Test: List should fail first, then succeed on retry
         let mut stream = test_store.list_with_retries(
             None,
             None,
@@ -519,11 +552,134 @@ mod tests {
             results.push(item);
         }
 
-        // Should have successfully listed files
-        assert_eq!(results.len(), 2, "Should list 2 files");
+        // Should have successfully listed files after retry
+        assert_eq!(results.len(), 2, "Should list 2 files after retry");
         assert!(
             results.iter().all(|r: &Result<ObjectMeta>| r.is_ok()),
-            "All results should be Ok"
+            "All results should be Ok after retry"
+        );
+
+        // Verify that multiple list calls were made (1 failure + 1 successful retry)
+        assert_eq!(
+            concrete_store.get_call_count(),
+            2,
+            "Should make exactly 2 list calls (1 failure + 1 successful retry)"
+        );
+    }
+
+    #[tokio::test]
+    async fn list_with_retries_exhaustion() {
+        let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        // Add test data
+        let path1 = Path::from("file1.txt");
+        inner
+            .put(&path1, PutPayload::from("data1"))
+            .await
+            .expect("setup: direct put to InMemory should succeed");
+
+        // Create TestObjectStore that always fails
+        let concrete_store = Arc::new(
+            TestObjectStore::new(Arc::clone(&inner))
+                .with_error_config(ErrorConfig::PercentageError(100.0)),
+        );
+        let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+        // Reset call count before test
+        concrete_store.reset_call_count();
+
+        // Test: List should fail after exhausting retries
+        let mut stream = test_store.list_with_retries(
+            None,
+            None,
+            "test context".to_string(),
+            test_retry_params(4),
+        );
+
+        // Collect results - should get error
+        let mut has_error = false;
+        while let Some(item) = stream.next().await {
+            if item.is_err() {
+                has_error = true;
+            }
+        }
+
+        // Should have encountered an error after exhausting retries
+        assert!(has_error, "Should fail after exhausting retries");
+
+        // Verify that exactly 5 calls were made -- the initial first attempt and 4 retries
+        assert_eq!(
+            concrete_store.get_call_count(),
+            5,
+            "Should make at least 5 list calls, got {}",
+            concrete_store.get_call_count()
+        );
+    }
+
+    #[tokio::test]
+    async fn list_with_retries_every_nth_fails() {
+        let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        // Add some test data
+        let path1 = Path::from("file1.txt");
+        let path2 = Path::from("file2.txt");
+        inner
+            .put(&path1, PutPayload::from("data1"))
+            .await
+            .expect("setup: direct put to InMemory should succeed");
+        inner
+            .put(&path2, PutPayload::from("data2"))
+            .await
+            .expect("setup: direct put to InMemory should succeed");
+
+        // Create TestObjectStore that fails every 2nd call
+        let concrete_store = Arc::new(
+            TestObjectStore::new(Arc::clone(&inner))
+                .with_error_config(ErrorConfig::EveryNthFails(2)),
+        );
+        let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+        // Reset call count before test
+        concrete_store.reset_call_count();
+
+        // First list should succeed (1st call)
+        let mut stream1 = test_store.list_with_retries(
+            None,
+            None,
+            "test context".to_string(),
+            test_retry_params(3),
+        );
+
+        let mut results1 = Vec::new();
+        while let Some(item) = stream1.next().await {
+            results1.push(item);
+        }
+
+        assert_eq!(results1.len(), 2, "First list should succeed");
+        assert_eq!(
+            concrete_store.get_call_count(),
+            1,
+            "First list should make 1 call"
+        );
+
+        // Second list should fail initially (2nd call) but succeed on retry (3rd call)
+        let mut stream2 = test_store.list_with_retries(
+            None,
+            None,
+            "test context".to_string(),
+            test_retry_params(3),
+        );
+
+        let mut results2 = Vec::new();
+        while let Some(item) = stream2.next().await {
+            results2.push(item);
+        }
+
+        assert_eq!(results2.len(), 2, "Second list should succeed after retry");
+        assert_eq!(
+            concrete_store.get_call_count(),
+            3,
+            "Total should be 3 calls (1 from first list + 2 from second list with retry)"
         );
     }
 
