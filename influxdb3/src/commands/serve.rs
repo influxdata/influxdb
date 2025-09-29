@@ -145,6 +145,9 @@ pub enum Error {
     TableIndexCacheInitialization(
         #[source] influxdb3_write::table_index_cache::TableIndexCacheError,
     ),
+
+    #[error("Must set INFLUXDB3_NODE_IDENTIFIER_PREFIX to a valid string value")]
+    NodeIdEnvVarMissing,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -337,17 +340,8 @@ pub struct Config {
     )]
     pub query_log_size: usize,
 
-    /// The node idendifier used as a prefix in all object store file paths. This should be unique
-    /// for any InfluxDB 3 Core servers that share the same object store configuration, i.e., the
-    /// same bucket.
-    #[clap(
-        long = "node-id",
-        // TODO: deprecate this alias in future version
-        alias = "host-id",
-        env = "INFLUXDB3_NODE_IDENTIFIER_PREFIX",
-        action
-    )]
-    pub node_identifier_prefix: String,
+    #[clap(flatten)]
+    pub node_id: NodeId,
 
     /// Maximum number of table indices to cache in memory.
     ///
@@ -561,6 +555,54 @@ pub struct Config {
     pub delete_grace_period: humantime::Duration,
 }
 
+#[derive(Clone, Debug, clap::Args)]
+#[group(required = true, multiple = false)]
+pub struct NodeId {
+    /// The node idendifier used as a prefix in all object store file paths. This should be unique
+    /// for any InfluxDB 3 Enterprise servers that share the same object store configuration, i.e., the
+    /// same bucket.
+    #[clap(
+        long = "node-id",
+        // TODO: deprecate this alias in future version
+        alias = "host-id",
+        env = "INFLUXDB3_NODE_IDENTIFIER_PREFIX",
+        action
+    )]
+    pub prefix: Option<String>,
+
+    /// Alternative to node-id which allows the node identifier to be derived from the specified
+    /// environment variable. This allows the node identifier to be dynamically detected at runtime
+    /// in environments like Docker Compose or Kubernetes.
+    #[clap(
+        long = "node-id-from-env",
+        env = "INFLUXDB3_NODE_IDENTIFIER_FROM_ENV",
+        action
+    )]
+    pub from_env_var: Option<String>,
+}
+
+impl NodeId {
+    pub(crate) fn get_node_id(&self) -> Result<String> {
+        self.prefix.clone().map_or_else(
+            || {
+                std::env::var(
+                    self.from_env_var
+                        .clone()
+                        .expect(".from_env_var must be Some if .prefix is None"),
+                )
+                .map_err(|_| Error::NodeIdEnvVarMissing)
+            },
+            Ok,
+        )
+    }
+}
+
+impl Config {
+    fn get_node_id(&self) -> Result<String> {
+        self.node_id.get_node_id()
+    }
+}
+
 /// The minimum version of TLS to use for InfluxDB
 #[derive(Debug, Clone, Copy, Default)]
 pub enum TlsMinimumVersion {
@@ -660,6 +702,8 @@ fn ensure_directory_exists(p: &Path) {
 }
 
 pub async fn command(config: Config, user_params: HashMap<String, String>) -> Result<()> {
+    let node_id = config.get_node_id()?;
+
     // Check that both a cert file and key file are present if TLS is being set up
     match (&config.cert_file, &config.key_file) {
         (Some(_), None) | (None, Some(_)) => {
@@ -672,7 +716,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
-        node_id = %config.node_identifier_prefix,
+        node_id = %node_id,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
         uuid = %PROCESS_UUID_STR.as_ref() as &str,
@@ -833,13 +877,13 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.node_identifier_prefix.as_str(),
+        node_id.as_str(),
         Arc::clone(&time_provider) as _,
     ));
 
     let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
     let catalog = Catalog::new_with_shutdown(
-        config.node_identifier_prefix.as_str(),
+        node_id.as_str(),
         Arc::clone(&object_store),
         Arc::clone(&time_provider),
         Arc::clone(&metrics),
@@ -852,7 +896,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     let retention_handler_token = shutdown_manager.register();
     let _table_index_cache = initialize_table_index_cache(
-        config.node_identifier_prefix.clone(),
+        node_id.clone(),
         config.retention_check_interval.into(),
         table_index_cache_config,
         Arc::clone(&object_store),
@@ -879,7 +923,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     let _ = catalog
         .register_node(
-            &config.node_identifier_prefix,
+            &node_id,
             num_cpus as u64,
             vec![influxdb3_catalog::log::NodeMode::Core],
             process_uuid_getter,
@@ -888,7 +932,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         .await
         .map_err(Error::InitializeCatalog)?;
     let node_def = catalog
-        .node(&config.node_identifier_prefix)
+        .node(&node_id)
         .expect("node should be registered in catalog");
     info!(instance_id = ?node_def.instance_id(), "catalog initialized");
 
@@ -1039,7 +1083,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     let processing_engine = ProcessingEngineManagerImpl::new(
         setup_processing_engine_env_manager(&config.processing_engine_config),
         write_buffer.catalog(),
-        config.node_identifier_prefix,
+        node_id,
         Arc::clone(&write_buffer),
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,
@@ -1270,6 +1314,7 @@ pub(crate) fn setup_processing_engine_env_manager(
         plugin_dir: config.plugin_dir.clone(),
         virtual_env_location: config.virtual_env_location.clone(),
         package_manager,
+        plugin_repo: config.plugin_repo.clone(),
     }
 }
 

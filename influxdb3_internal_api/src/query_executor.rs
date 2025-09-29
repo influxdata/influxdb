@@ -82,7 +82,7 @@ pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
         span_ctx: Option<SpanContext>,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError>;
 
-    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)>;
+    fn upcast(&self) -> Arc<dyn QueryDatabase + 'static>;
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -153,7 +153,7 @@ impl QueryExecutor for UnimplementedQueryExecutor {
         ))
     }
 
-    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {
+    fn upcast(&self) -> Arc<dyn QueryDatabase + 'static> {
         Arc::new(UnimplementedQueryExecutor) as _
     }
 }

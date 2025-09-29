@@ -1,0 +1,3 @@
+disallowed-methods = [
+    { path = "futures::executor::block_on", reason = "incompatible with tokio runtime", replacement = "use tokio::task::block_in_place with Handle::current().block_on" },
+]

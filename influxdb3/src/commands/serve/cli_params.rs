@@ -28,6 +28,7 @@ const SENSITIVE_PARAMS: &[&str] = &[
 const NON_SENSITIVE_PARAMS: &[&str] = &[
     // Core parameters
     "node-id",
+    "node-id-from-env",
     "http-bind",
     "max-http-request-size",
     "object-store",
@@ -96,6 +97,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "object-store-http2-only",
     "object-store-http2-max-frame-size",
     "object-store-max-retries",
+    "object-store-request-timeout",
     "object-store-retry-timeout",
     "object-store-tls-allow-insecure",
     "object-store-tls-ca",
@@ -110,6 +112,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "plugin-dir",
     "virtual-env-location",
     "package-manager",
+    "plugin-repo",
     // Other parameters
     "tcp-listener-file-path",
 ];

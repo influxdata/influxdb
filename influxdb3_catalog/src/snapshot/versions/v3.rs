@@ -95,9 +95,6 @@ pub(crate) struct DatabaseActionsSnapshot(pub u16);
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct CrudActionsSnapshot(pub u16);
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct SystemActionsSnapshot(pub u16);
-
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct NodeSnapshot {
     pub(crate) node_id: Arc<str>,

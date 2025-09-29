@@ -379,7 +379,7 @@ impl Node {
         } else {
             self.0
                 .iter()
-                .filter(|&(_, (t, _))| (t > &expired_time_ns))
+                .filter(|&(_, (t, _))| t > &expired_time_ns)
                 .map(|(v, (_, n))| (v.clone(), n.as_ref()))
                 .take(limit)
                 .collect()

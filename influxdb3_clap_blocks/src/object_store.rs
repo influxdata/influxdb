@@ -23,6 +23,7 @@ use std::{
     cmp::Ordering, convert::Infallible, fs, num::NonZeroUsize, ops::Range, path::PathBuf,
     sync::Arc, time::Duration,
 };
+use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use url::Url;
 
@@ -229,11 +230,13 @@ impl ObjectStore for LocalFileSystemWithSortedListOp {
             return self.inner.list(prefix);
         }
 
-        let mut items: Vec<Result<ObjectMeta, _>> = futures::executor::block_on(async {
-            // we could use TryStreamExt.collect() here to drop all collected results and
-            // return the first error we encounter, but users of the ObjectStore API will
-            // probably expect to have to deal with errors one element at a time anyway
-            self.inner.list(prefix).collect().await
+        let mut items: Vec<Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
+            Handle::current().block_on(async move {
+                // we could use TryStreamExt.collect() here to drop all collected results and
+                // return the first error we encounter, but users of the ObjectStore API will
+                // probably expect to have to deal with errors one element at a time anyway
+                self.inner.list(prefix).collect().await
+            })
         });
 
         items.sort_unstable_by(|left, right| match (left, right) {
@@ -261,11 +264,13 @@ impl ObjectStore for LocalFileSystemWithSortedListOp {
             return self.inner.list_with_offset(prefix, offset);
         }
 
-        let mut items: Vec<Result<ObjectMeta, _>> = futures::executor::block_on(async {
-            // we could use TryStreamExt.collect() here to drop all collected results and
-            // return the first error we encounter, but users of the ObjectStore API will
-            // probably expect to have to deal with errors one element at a time anyway
-            self.inner.list_with_offset(prefix, offset).collect().await
+        let mut items: Vec<Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
+            Handle::current().block_on(async move {
+                // we could use TryStreamExt.collect() here to drop all collected results and
+                // return the first error we encounter, but users of the ObjectStore API will
+                // probably expect to have to deal with errors one element at a time anyway
+                self.inner.list_with_offset(prefix, offset).collect().await
+            })
         });
 
         items.sort_unstable_by(|left, right| match (left, right) {
@@ -432,7 +437,8 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "AWS_ACCESS_KEY_ID"),
                     value_parser = parse_optional_string,
                     default_value = "",
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub aws_access_key_id: std::option::Option<NonEmptyString>,
 
@@ -453,7 +459,8 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "AWS_SECRET_ACCESS_KEY"),
                     value_parser = parse_optional_string,
                     default_value = "",
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub aws_secret_access_key: std::option::Option<NonEmptyString>,
 
@@ -499,7 +506,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "aws-session-token"),
                     long = gen_name!($prefix, "aws-session-token"),
                     env = gen_env!($prefix, "AWS_SESSION_TOKEN"),
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub aws_session_token: Option<String>,
 
@@ -555,7 +563,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "google-service-account"),
                     long = gen_name!($prefix, "google-service-account"),
                     env = gen_env!($prefix, "GOOGLE_SERVICE_ACCOUNT"),
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub google_service_account: Option<String>,
 
@@ -584,7 +593,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "azure-storage-access-key"),
                     long = gen_name!($prefix, "azure-storage-access-key"),
                     env = gen_env!($prefix, "AZURE_STORAGE_ACCESS_KEY"),
-                    action
+                    action,
+                    hide_env_values = true,
                 )]
                 pub azure_storage_access_key: Option<String>,
 
@@ -646,6 +656,17 @@ macro_rules! object_store_config_inner {
                     action
                 )]
                 pub http2_max_frame_size: Option<u32>,
+
+                /// Set HTTP request timeout for object store.
+                #[clap(
+                    id = gen_name!($prefix, "object-store-request-timeout"),
+                    long = gen_name!($prefix, "object-store-request-timeout"),
+                    env = gen_env!($prefix, "OBJECT_STORE_REQUEST_TIMEOUT"),
+                    value_parser = humantime::parse_duration,
+                    default_value = "30s",
+                    action
+                )]
+                pub request_timeout: Duration,
 
                 /// The maximum number of times to retry a request
                 ///
@@ -742,6 +763,7 @@ macro_rules! object_store_config_inner {
                         google_service_account: Default::default(),
                         object_store,
                         object_store_connection_limit: NonZeroUsize::new(16).unwrap(),
+                        request_timeout: Duration::from_secs(30),
                         http2_only: Default::default(),
                         http2_max_frame_size: Default::default(),
                         max_retries: Default::default(),
@@ -1200,7 +1222,7 @@ impl AwsCredentialReloader {
         let cloned = self.clone();
         tokio::spawn(async move {
             loop {
-                let next_check_in = cloned
+                let mut next_check_in = cloned
                     .check_and_update()
                     .await
                     .and_then(|next_check_ts| {
@@ -1208,11 +1230,17 @@ impl AwsCredentialReloader {
                         if next_check_ts < now {
                             None
                         } else {
-                            Some(Duration::from_secs(now - next_check_ts))
+                            Some(Duration::from_secs(next_check_ts - now))
                         }
                     })
                     .unwrap_or_else(default_check_in);
 
+                // avoid a tight loop when sleeping under a second
+                // this might happen if the expiry time wasn't updated or
+                // the process started up right on the expiry time
+                if next_check_in.as_secs() < 1 {
+                    next_check_in = Duration::from_secs(1);
+                }
                 cloned.time_provider.sleep(next_check_in).await;
             }
         });
@@ -1260,11 +1288,9 @@ impl AwsCredentialReloader {
         if do_update {
             let mut guard = self.current.write().await;
             *guard = Arc::new(credentials);
-
-            next_expiry
-        } else {
-            None
         }
+        // we assume the creds file is accurate even if we didn't update the creds themselves
+        next_expiry
     }
 }
 
@@ -1358,11 +1384,13 @@ impl object_store::ObjectStore for ReauthingObjectStore {
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         let inner_cloned = Arc::clone(&self.inner);
-        let items: Vec<object_store::Result<ObjectMeta, _>> = futures::executor::block_on(async {
-            // we could use TryStreamExt.collect() here to drop all collected results and
-            // return the first error we encounter, but users of the ObjectStore API will
-            // probably expect to have to deal with errors one element at a time anyway
-            inner_cloned.list(prefix).collect().await
+        let items: Vec<object_store::Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
+            Handle::current().block_on(async move {
+                // we could use TryStreamExt.collect() here to drop all collected results and
+                // return the first error we encounter, but users of the ObjectStore API will
+                // probably expect to have to deal with errors one element at a time anyway
+                inner_cloned.list(prefix).collect().await
+            })
         });
 
         if items.is_empty() {
@@ -1371,12 +1399,14 @@ impl object_store::ObjectStore for ReauthingObjectStore {
 
         if let Err(object_store::Error::Unauthenticated { source, .. }) = &items[0] {
             warn!(error = ?source, "authentication with object store failed, attempting to reload from disk");
-            let items: Vec<Result<ObjectMeta, _>> = futures::executor::block_on(async {
-                self.credential_reloader.check_and_update().await;
-                // we could use TryStreamExt.collect() here to drop all collected results and
-                // return the first error we encounter, but users of the ObjectStore API will
-                // probably expect to have to deal with errors one element at a time anyway
-                self.inner.as_ref().list(prefix).collect().await
+            let items: Vec<Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
+                Handle::current().block_on(async move {
+                    self.credential_reloader.check_and_update().await;
+                    // we could use TryStreamExt.collect() here to drop all collected results and
+                    // return the first error we encounter, but users of the ObjectStore API will
+                    // probably expect to have to deal with errors one element at a time anyway
+                    self.inner.as_ref().list(prefix).collect().await
+                })
             });
             return futures::stream::iter(items).boxed();
         }

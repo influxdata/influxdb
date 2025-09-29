@@ -20,13 +20,15 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "bzip2-1.0.6",
+    "BSL-1.0",
     "CC0-1.0",
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
+    "Unicode-DFS-2016",
     "Unicode-3.0",
     "Zlib",
-    "OpenSSL",
 ]
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
