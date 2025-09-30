@@ -1595,6 +1595,10 @@ type purger struct {
 
 func (p *purger) add(files []TSMFile) {
 	var fileNames []string
+
+	if len(files) == 0 {
+		return
+	}
 	p.mu.Lock()
 	for _, f := range files {
 		fileName := f.Path()
