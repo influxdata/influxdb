@@ -1,5 +1,3 @@
-The Changelog has moved!
+Please see:
 
-You can find it at the following URL:
-
-https://dl.influxdata.com/platform/nightlies/master-1.x/CHANGELOG.md
+https://docs.influxdata.com/influxdb/v1/about_the_project/release-notes/
