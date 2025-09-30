@@ -1,5 +1,7 @@
 #!/bin/sh -e
 
+# ==========================Script Config==========================
+
 readonly GREEN='\033[0;32m'
 readonly BLUE='\033[0;34m'
 readonly BOLD='\033[1m'
@@ -19,9 +21,10 @@ PORT=8181
 
 # Set the default (latest) version here. Users may specify a version using the
 # --version arg (handled below)
-INFLUXDB_VERSION="3.4.2"
+INFLUXDB_VERSION="3.5.0"
 EDITION="Core"
 EDITION_TAG="core"
+
 
 # Parse command line arguments
 while [ $# -gt 0 ]; do
@@ -44,7 +47,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-### OS AND ARCHITECTURE DETECTION ###
+
+
+# ==========================Detect OS/Architecture==========================
+
 case "$(uname -s)" in
     Linux*)     OS="Linux";;
     Darwin*)    OS="Darwin";;
@@ -82,7 +88,330 @@ fi
 
 URL="https://dl.influxdata.com/influxdb/releases/influxdb3-${EDITION_TAG}-${INFLUXDB_VERSION}_${ARTIFACT}.tar.gz"
 
-START_TIME=$(date +%s)
+
+
+# ==========================Reusable Script Functions ==========================
+
+# Function to find available port
+find_available_port() {
+    show_progress="${1:-true}"
+    lsof_exec=$(command -v lsof) && {
+        while [ -n "$lsof_exec" ] && lsof -i:"$PORT" -t >/dev/null 2>&1; do
+            if [ "$show_progress" = "true" ]; then
+                printf "├─${DIM} Port %s is in use. Finding new port.${NC}\n" "$PORT"
+            fi
+            PORT=$((PORT + 1))
+            if [ "$PORT" -gt 32767 ]; then
+                printf "└─${DIM} Could not find an available port. Aborting.${NC}\n"
+                exit 1
+            fi
+            if ! "$lsof_exec" -i:"$PORT" -t >/dev/null 2>&1; then
+                if [ "$show_progress" = "true" ]; then
+                    printf "└─${DIM} Found an available port: %s${NC}\n" "$PORT"
+                fi
+                break
+            fi
+        done
+    }
+}
+
+# Function to set up Quick Start defaults for both Core and Enterprise
+setup_quick_start_defaults() {
+    edition="${1:-core}"
+    
+    NODE_ID="node0" 
+    STORAGE_TYPE="File Storage"
+    STORAGE_PATH="$HOME/.influxdb/data"
+    PLUGIN_PATH="$HOME/.influxdb/plugins"
+    STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
+    STORAGE_FLAGS_ECHO="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
+    START_SERVICE="y"  # Always set for Quick Start
+    
+    # Enterprise-specific settings
+    if [ "$edition" = "enterprise" ]; then
+        CLUSTER_ID="cluster0"
+        LICENSE_FILE_PATH="${STORAGE_PATH}/${CLUSTER_ID}/trial_or_home_license"
+    fi
+    
+    # Create directories
+    mkdir -p "${STORAGE_PATH}"
+    mkdir -p "${PLUGIN_PATH}"
+}
+
+# Function to configure AWS S3 storage
+configure_aws_s3_storage() {
+    echo
+    printf "${BOLD}AWS S3 Configuration${NC}\n"
+    printf "├─ Enter AWS Access Key ID: "
+    read -r AWS_KEY
+
+    printf "├─ Enter AWS Secret Access Key: "
+    stty -echo
+    read -r AWS_SECRET
+    stty echo
+
+    echo
+    printf "├─ Enter S3 Bucket: "
+    read -r AWS_BUCKET
+
+    printf "└─ Enter AWS Region (default: us-east-1): "
+    read -r AWS_REGION
+    AWS_REGION=${AWS_REGION:-"us-east-1"}
+
+    STORAGE_FLAGS="--object-store=s3 --bucket=${AWS_BUCKET}"
+    if [ -n "$AWS_REGION" ]; then
+        STORAGE_FLAGS="$STORAGE_FLAGS --aws-default-region=${AWS_REGION}"
+    fi
+    STORAGE_FLAGS="$STORAGE_FLAGS --aws-access-key-id=${AWS_KEY}"
+    STORAGE_FLAGS_ECHO="$STORAGE_FLAGS --aws-secret-access-key=..."
+    STORAGE_FLAGS="$STORAGE_FLAGS --aws-secret-access-key=${AWS_SECRET}"
+}
+
+# Function to configure Azure storage
+configure_azure_storage() {
+    echo
+    printf "${BOLD}Azure Storage Configuration${NC}\n"
+    printf "├─ Enter Storage Account Name: "
+    read -r AZURE_ACCOUNT
+
+    printf "└─ Enter Storage Access Key: "
+    stty -echo
+    read -r AZURE_KEY
+    stty echo
+
+    echo
+    STORAGE_FLAGS="--object-store=azure --azure-storage-account=${AZURE_ACCOUNT}"
+    STORAGE_FLAGS_ECHO="$STORAGE_FLAGS --azure-storage-access-key=..."
+    STORAGE_FLAGS="$STORAGE_FLAGS --azure-storage-access-key=${AZURE_KEY}"
+}
+
+# Function to configure Google Cloud storage  
+configure_google_cloud_storage() {
+    echo
+    printf "${BOLD}Google Cloud Storage Configuration${NC}\n"
+    printf "└─ Enter path to service account JSON file: "
+    read -r GOOGLE_SA
+    STORAGE_FLAGS="--object-store=google --google-service-account=${GOOGLE_SA}"
+    STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
+}
+
+# Function to set up license for Enterprise Quick Start
+setup_license_for_quick_start() {
+    # Check if license file exists
+    if [ -f "$LICENSE_FILE_PATH" ]; then
+        printf "${DIM}Found existing license file, using it for quick start.${NC}\n"
+        LICENSE_TYPE=""
+        LICENSE_EMAIL=""
+        LICENSE_DESC="Existing"
+    else
+        # Prompt for license type and email only
+        echo
+        printf "${BOLD}License Setup Required${NC}\n"
+        printf "1) ${GREEN}Trial${NC} ${DIM}- Full features for 30 days (up to 256 cores)${NC}\n"
+        printf "2) ${GREEN}Home${NC} ${DIM}- Free for non-commercial use (max 2 cores, single node)${NC}\n"
+        echo
+        printf "Enter choice (1-2): "
+        read -r LICENSE_CHOICE
+        
+        case "${LICENSE_CHOICE:-1}" in
+            1)
+                LICENSE_TYPE="trial"
+                LICENSE_DESC="Trial"
+                ;;
+            2)
+                LICENSE_TYPE="home"
+                LICENSE_DESC="Home"
+                ;;
+            *)
+                LICENSE_TYPE="trial"
+                LICENSE_DESC="Trial"
+                ;;
+        esac
+        
+        printf "Enter your email: "
+        read -r LICENSE_EMAIL
+        while [ -z "$LICENSE_EMAIL" ]; do
+            printf "Email is required. Enter your email: "
+            read -r LICENSE_EMAIL
+        done
+    fi
+}
+
+# Function to prompt for storage configuration
+prompt_storage_configuration() {
+    # Prompt for storage solution
+    echo
+    printf "${BOLD}Select Your Storage Solution${NC}\n"
+    printf "├─ 1) File storage (Persistent)\n"
+    printf "├─ 2) Object storage (Persistent)\n"
+    printf "├─ 3) In-memory storage (Non-persistent)\n"
+    printf "└─ Enter your choice (1-3): "
+    read -r STORAGE_CHOICE
+
+    case "$STORAGE_CHOICE" in
+        1)
+            STORAGE_TYPE="File Storage"
+            echo
+            printf "Enter storage path (default: %s/data): " "${INSTALL_LOC}"
+            read -r STORAGE_PATH
+            STORAGE_PATH=${STORAGE_PATH:-"$INSTALL_LOC/data"}
+            STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH}"
+            STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
+            ;;
+        2)
+            STORAGE_TYPE="Object Storage"
+            echo
+            printf "${BOLD}Select Cloud Provider${NC}\n"
+            printf "├─ 1) Amazon S3\n"
+            printf "├─ 2) Azure Storage\n"
+            printf "├─ 3) Google Cloud Storage\n"
+            printf "└─ Enter your choice (1-3): "
+            read -r CLOUD_CHOICE
+
+            case $CLOUD_CHOICE in
+                1)  # AWS S3
+                    configure_aws_s3_storage
+                    ;;
+
+                2)  # Azure Storage
+                    configure_azure_storage
+                    ;;
+
+                3)  # Google Cloud Storage
+                    configure_google_cloud_storage
+                    ;;
+
+                *)
+                    printf "Invalid cloud provider choice. Defaulting to file storage.\n"
+                    STORAGE_TYPE="File Storage"
+                    STORAGE_FLAGS="--object-store=file --data-dir $INSTALL_LOC/data"
+                    STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
+                    ;;
+            esac
+            ;;
+        3)
+            STORAGE_TYPE="memory"
+            STORAGE_FLAGS="--object-store=memory"
+            STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
+            ;;
+
+        *)
+            printf "Invalid choice. Defaulting to file storage.\n"
+            STORAGE_TYPE="File Storage"
+            STORAGE_FLAGS="--object-store=file --data-dir $INSTALL_LOC/data"
+            STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
+            ;;
+    esac
+}
+
+# Function to perform health check on server
+perform_server_health_check() {
+    timeout_seconds="${1:-30}"
+    is_enterprise="${2:-false}"
+    
+    SUCCESS=0
+    EMAIL_MESSAGE_SHOWN=false
+    
+    for i in $(seq 1 "$timeout_seconds"); do
+        # on systems without a usable lsof, sleep a second to see if the pid is
+        # still there to give influxdb a chance to error out in case an already
+        # running influxdb is running on this port
+        if [ -z "$lsof_exec" ]; then
+            sleep 1
+        fi
+
+        if ! kill -0 "$PID" 2>/dev/null ; then
+            if [ "$is_enterprise" = "true" ]; then
+                printf "└─${DIM} Server process stopped unexpectedly${NC}\n"
+            fi
+            break
+        fi
+
+        if curl --max-time 1 -s "http://localhost:$PORT/health" >/dev/null 2>&1; then
+            printf "\n${BOLDGREEN}✓ InfluxDB 3 ${EDITION} is now installed and running on port %s. Nice!${NC}\n" "$PORT"
+            SUCCESS=1
+            break
+        fi
+
+        # Show email verification message after 10 seconds for Enterprise
+        if [ "$is_enterprise" = "true" ] && [ "$i" -eq 10 ] && [ "$EMAIL_MESSAGE_SHOWN" = "false" ]; then
+            printf "├─${DIM} Checking license activation - please verify your email${NC}\n"
+            EMAIL_MESSAGE_SHOWN=true
+        fi
+        
+        # Show progress updates every 15 seconds after initial grace period
+        if [ "$is_enterprise" = "true" ] && [ "$i" -gt 5 ] && [ $((i % 15)) -eq 0 ]; then
+            printf "├─${DIM} Waiting for license verification (%s/%ss)${NC}\n" "$i" "$timeout_seconds"
+        fi
+        
+        sleep 1
+    done
+
+    if [ $SUCCESS -eq 0 ]; then
+        if [ "$is_enterprise" = "true" ]; then
+            printf "└─${BOLD} ERROR: InfluxDB Enterprise failed to start within %s seconds${NC}\n" "$timeout_seconds"
+            if [ "$show_progress" = "true" ]; then
+                printf "   This may be due to:\n"
+                printf "   ├─ Email verification required (check your email)\n"
+                printf "   ├─ Network connectivity issues during license retrieval\n"
+                printf "   ├─ Invalid license type or email format\n"
+                printf "   ├─ Port %s already in use\n" "$PORT"
+                printf "   └─ Server startup issues\n"
+            else
+                if [ -n "$LICENSE_TYPE" ]; then
+                    printf "   ├─ Check your email for license verification if required\n"
+                fi
+                printf "   ├─ Network connectivity issues\n"
+                printf "   └─ Port %s conflicts\n" "$PORT"
+            fi
+            
+            # Kill the background process if it's still running
+            if kill -0 "$PID" 2>/dev/null; then
+                printf "   Stopping background server process...\n"
+                kill "$PID" 2>/dev/null
+            fi
+        else
+            printf "└─${BOLD} ERROR: InfluxDB failed to start; check permissions or other potential issues.${NC}\n"
+            exit 1
+        fi
+    fi
+}
+
+# Function to display Enterprise server command
+display_enterprise_server_command() {
+    is_quick_start="${1:-false}"
+    
+    if [ "$is_quick_start" = "true" ]; then
+        # Quick Start format
+        printf "└─${DIM} Command: ${NC}\n"
+        printf "${DIM}   influxdb3 serve \\\\${NC}\n"
+        printf "${DIM}   --cluster-id=%s \\\\${NC}\n" "$CLUSTER_ID"
+        printf "${DIM}   --node-id=%s \\\\${NC}\n" "$NODE_ID"
+        if [ -n "$LICENSE_TYPE" ] && [ -n "$LICENSE_EMAIL" ]; then
+            printf "${DIM}   --license-type=%s \\\\${NC}\n" "$LICENSE_TYPE"
+            printf "${DIM}   --license-email=%s \\\\${NC}\n" "$LICENSE_EMAIL"
+        fi
+        printf "${DIM}   --http-bind=0.0.0.0:%s \\\\${NC}\n" "$PORT"
+        printf "${DIM}   %s${NC}\n" "$STORAGE_FLAGS_ECHO"
+        echo
+    else
+        # Custom configuration format
+        printf "│\n"
+        printf "├─ Running serve command:\n"
+        printf "├─${DIM} influxdb3 serve \\\\${NC}\n"
+        printf "├─${DIM} --cluster-id='%s' \\\\${NC}\n" "$CLUSTER_ID"
+        printf "├─${DIM} --node-id='%s' \\\\${NC}\n" "$NODE_ID"
+        printf "├─${DIM} --license-type='%s' \\\\${NC}\n" "$LICENSE_TYPE"
+        printf "├─${DIM} --license-email='%s' \\\\${NC}\n" "$LICENSE_EMAIL"
+        printf "├─${DIM} --http-bind='0.0.0.0:%s' \\\\${NC}\n" "$PORT"
+        printf "├─${DIM} %s${NC}\n" "$STORAGE_FLAGS_ECHO"
+        printf "│\n"
+    fi
+}
+
+
+
+# =========================Installation==========================
 
 # Attempt to clear screen and show welcome message
 clear 2>/dev/null || true  # clear isn't available everywhere
@@ -201,14 +530,37 @@ if [ -n "$shellrc" ] && ! grep -q "export PATH=.*$INSTALL_LOC" "$shellrc"; then
 fi
 
 if [ "${EDITION}" = "Core" ]; then
-    # Prompt user to start the service
+    # Prompt user for startup options
     echo
-    printf "${BOLD}Configuration Options${NC}\n"
+    printf "${BOLD}What would you like to do next?${NC}\n"
+    printf "1) ${GREEN}Quick Start${NC} ${DIM}(recommended; data stored at %s/data)${NC}\n" "${INSTALL_LOC}"
+    printf "2) ${GREEN}Custom Configuration${NC} ${DIM}(configure all options manually)${NC}\n"
+    printf "3) ${GREEN}Skip startup${NC} ${DIM}(install only)${NC}\n"
+    echo
+    printf "Enter your choice (1-3): "
+    read -r STARTUP_CHOICE
+    STARTUP_CHOICE=${STARTUP_CHOICE:-1}
 
+    case "$STARTUP_CHOICE" in
+        1)
+            # Quick Start - use defaults
+            setup_quick_start_defaults core
+            ;;
+        2)
+            # Custom Configuration - existing detailed flow
+            START_SERVICE="y"
+            ;;
+        3)
+            # Skip startup
+            START_SERVICE="n"
+            ;;
+        *)
+            printf "Invalid choice. Using Quick Start (option 1).\n"
+            setup_quick_start_defaults core
+            ;;
+    esac
 
-    printf "└─ Start InfluxDB Now? (y/n): "
-    read -r START_SERVICE
-    if echo "$START_SERVICE" | grep -q "^[Yy]$" ; then
+    if [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "2" ]; then
         # Prompt for Node ID
         echo
         printf "${BOLD}Enter Your Node ID${NC}\n"
@@ -218,191 +570,276 @@ if [ "${EDITION}" = "Core" ]; then
         NODE_ID=${NODE_ID:-node0}
 
         # Prompt for storage solution
-        echo
-        printf "${BOLD}Select Your Storage Solution${NC}\n"
-        printf "├─ 1) In-memory storage (Fastest, data cleared on restart)\n"
-        printf "├─ 2) File storage (Persistent local storage)\n"
-        printf "├─ 3) Object storage (Cloud-compatible storage)\n"
-        printf "└─ Enter your choice (1-3): "
-        read -r STORAGE_CHOICE
-
-        case "$STORAGE_CHOICE" in
-            1)
-                STORAGE_TYPE="memory"
-                STORAGE_FLAGS="--object-store=memory"
-                STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
-                ;;
-            2)
-                STORAGE_TYPE="File Storage"
-                echo
-                printf "Enter storage path (default: %s/data): " "${INSTALL_LOC}"
-                read -r STORAGE_PATH
-                STORAGE_PATH=${STORAGE_PATH:-"${INSTALL_LOC}/data"}
-                STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH}"
-                STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
-                ;;
-            3)
-                STORAGE_TYPE="Object Storage"
-                echo
-                printf "${BOLD}Select Cloud Provider${NC}\n"
-                printf "├─ 1) Amazon S3\n"
-                printf "├─ 2) Azure Storage\n"
-                printf "├─ 3) Google Cloud Storage\n"
-                printf "└─ Enter your choice (1-3): "
-                read -r CLOUD_CHOICE
-
-                case $CLOUD_CHOICE in
-                    1)  # AWS S3
-                        echo
-                        printf "${BOLD}AWS S3 Configuration${NC}\n"
-                        printf "├─ Enter AWS Access Key ID: "
-                        read -r AWS_KEY
-
-                        printf "├─ Enter AWS Secret Access Key: "
-                        stty -echo
-                        read -r AWS_SECRET
-                        stty echo
-
-                        echo
-                        printf "├─ Enter S3 Bucket: "
-                        read -r AWS_BUCKET
-
-                        printf "└─ Enter AWS Region (default: us-east-1): "
-                        read -r AWS_REGION
-                        AWS_REGION=${AWS_REGION:-"us-east-1"}
-
-                        STORAGE_FLAGS="--object-store=s3 --bucket=${AWS_BUCKET}"
-                        if [ -n "$AWS_REGION" ]; then
-                            STORAGE_FLAGS="$STORAGE_FLAGS --aws-default-region=${AWS_REGION}"
-                        fi
-                        STORAGE_FLAGS="$STORAGE_FLAGS --aws-access-key-id=${AWS_KEY}"
-                        STORAGE_FLAGS_ECHO="$STORAGE_FLAGS --aws-secret-access-key=..."
-                        STORAGE_FLAGS="$STORAGE_FLAGS --aws-secret-access-key=${AWS_SECRET}"
-                        ;;
-
-                    2)  # Azure Storage
-                        echo
-                        printf "${BOLD}Azure Storage Configuration${NC}\n"
-                        printf "├─ Enter Storage Account Name: "
-                        read -r AZURE_ACCOUNT
-
-                        printf "└─ Enter Storage Access Key: "
-                        stty -echo
-                        read -r AZURE_KEY
-                        stty echo
-
-                        echo
-                        STORAGE_FLAGS="--object-store=azure --azure-storage-account=${AZURE_ACCOUNT}"
-                        STORAGE_FLAGS_ECHO="$STORAGE_FLAGS --azure-storage-access-key=..."
-                        STORAGE_FLAGS="$STORAGE_FLAGS --azure-storage-access-key=${AZURE_KEY}"
-                        ;;
-
-                    3)  # Google Cloud Storage
-                        echo
-                        printf "${BOLD}Google Cloud Storage Configuration${NC}\n"
-                        printf "└─ Enter path to service account JSON file: "
-                        read -r GOOGLE_SA
-                        STORAGE_FLAGS="--object-store=google --google-service-account=${GOOGLE_SA}"
-                        STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
-                        ;;
-
-                    *)
-                        printf "Invalid cloud provider choice. Defaulting to file storage.\n"
-                        STORAGE_TYPE="File Storage"
-                        STORAGE_FLAGS="--object-store=file --data-dir ${INSTALL_LOC}/data"
-                        STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
-                        ;;
-                esac
-                ;;
-
-            *)
-                printf "Invalid choice. Defaulting to in-memory.\n"
-                STORAGE_TYPE="Memory"
-                STORAGE_FLAGS="--object-store=memory"
-                STORAGE_FLAGS_ECHO="$STORAGE_FLAGS"
-                ;;
-        esac
+        prompt_storage_configuration
 
         # Ensure port is available; if not, find a new one.
-        lsof_exec=$(command -v lsof) && {
-            while [ -n "$lsof_exec" ] && lsof -i:"$PORT" -t >/dev/null 2>&1; do
-                printf "├─${DIM} Port %s is in use. Finding new port.${NC}\n" "$PORT"
-                PORT=$((PORT + 1))
-                if [ "$PORT" -gt 32767 ]; then
-                    printf "└─${DIM} Could not find an available port. Aborting.${NC}\n"
-                    exit 1
-                fi
-                if ! "$lsof_exec" -i:"$PORT" -t >/dev/null 2>&1; then
-                    printf "└─${DIM} Found an available port: %s${NC}\n" "$PORT"
-                    break
-                fi
-            done
-        }
+        find_available_port
 
         # Start and give up to 30 seconds to respond
         echo
+
+        # Create logs directory and generate timestamped log filename
+        mkdir -p "$INSTALL_LOC/logs"
+        LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
+
         printf "${BOLD}Starting InfluxDB${NC}\n"
         printf "├─${DIM} Node ID: %s${NC}\n" "$NODE_ID"
         printf "├─${DIM} Storage: %s${NC}\n" "$STORAGE_TYPE"
-        printf "├─${DIM} '%s' serve --node-id='%s' --http-bind='0.0.0.0:%s' %s${NC}\n" "$INSTALL_LOC/$BINARY_NAME" "$NODE_ID" "$PORT" "$STORAGE_FLAGS_ECHO"
-        "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null &
+        printf "├─${DIM} Logs: %s${NC}\n" "$LOG_FILE"
+        printf "├─${DIM} influxdb3 serve \\\\${NC}\n"
+        printf "├─${DIM}   --node-id='%s' \\\\${NC}\n" "$NODE_ID"
+        printf "├─${DIM}   --http-bind='0.0.0.0:%s' \\\\${NC}\n" "$PORT"
+        printf "└─${DIM}   %s${NC}\n" "$STORAGE_FLAGS_ECHO"
+
+        "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         PID="$!"
 
-        SUCCESS=0
-        for _ in $(seq 1 30); do
-            # on systems without a usable lsof, sleep a second to see if the pid is
-            # still there to give influxdb a chance to error out in case an already
-            # running influxdb is running on this port
-            if [ -z "$lsof_exec" ]; then
-                sleep 1
-            fi
+        perform_server_health_check 30
 
-            if ! kill -0 "$PID" 2>/dev/null ; then
-                break
-            fi
+    elif [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "1" ]; then
+        # Quick Start flow - minimal output, just start the server
+        echo
+        printf "${BOLD}Starting InfluxDB (Quick Start)${NC}\n"
+        printf "├─${DIM} Node ID: %s${NC}\n" "$NODE_ID"
+        printf "├─${DIM} Storage: %s/data${NC}\n" "${INSTALL_LOC}"
+        printf "├─${DIM} Plugins: %s/plugins${NC}\n" "${INSTALL_LOC}"
+        printf "├─${DIM} Logs: %s/logs/$(date +%Y%m%d_%H%M%S).log${NC}\n" "${INSTALL_LOC}"
 
-            if curl --max-time 3 -s "http://localhost:$PORT/health" >/dev/null 2>&1; then
-                printf "└─${BOLDGREEN} ✓ InfluxDB 3 ${EDITION} is now installed and running on port %s. Nice!${NC}\n" "$PORT"
-                SUCCESS=1
-                break
-            fi
-            sleep 1
-        done
-
-        if [ $SUCCESS -eq 0 ]; then
-            printf "└─${BOLD} ERROR: InfluxDB failed to start; check permissions or other potential issues.${NC}\n" "$PORT"
-            exit 1
+        # Ensure port is available; if not, find a new one.
+        ORIGINAL_PORT="$PORT"
+        find_available_port false
+        
+        # Show port result
+        if [ "$PORT" != "$ORIGINAL_PORT" ]; then
+            printf "├─${DIM} Found available port: %s (%s-%s in use)${NC}\n" "$PORT" "$ORIGINAL_PORT" "$((PORT - 1))"
         fi
+        
+        # Show the command being executed
+        printf "└─${DIM} Command:${NC}\n"
+        printf "${DIM}    influxdb3 serve \\\\${NC}\n"
+        printf "${DIM}     --node-id=%s \\\\${NC}\n" "$NODE_ID"
+        printf "${DIM}     --http-bind=0.0.0.0:%s \\\\${NC}\n" "$PORT"
+        printf "${DIM}     %s${NC}\n\n" "$STORAGE_FLAGS_ECHO"
 
-        else
+        # Create logs directory and generate timestamped log filename
+        mkdir -p "$INSTALL_LOC/logs"
+        LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
+
+        # Start server in background
+        "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
+        PID="$!"
+
+        perform_server_health_check 30
+
+    else
         echo
         printf "${BOLDGREEN}✓ InfluxDB 3 ${EDITION} is now installed. Nice!${NC}\n"
     fi
 else
+    # Enterprise startup options
     echo
-    printf "${BOLDGREEN}✓ InfluxDB 3 ${EDITION} is now installed. Nice!${NC}\n"
+    printf "${BOLD}What would you like to do next?${NC}\n"
+    printf "1) ${GREEN}Quick Start${NC} ${DIM}(recommended; data stored at %s/data)${NC}\n" "${INSTALL_LOC}"
+    printf "2) ${GREEN}Custom Configuration${NC} ${DIM}(configure all options manually)${NC}\n"
+    printf "3) ${GREEN}Skip startup${NC} ${DIM}(install only)${NC}\n"
+    echo
+    printf "Enter your choice (1-3): "
+    read -r STARTUP_CHOICE
+    STARTUP_CHOICE=${STARTUP_CHOICE:-1}
+
+    case "$STARTUP_CHOICE" in
+        1)
+            # Quick Start - use defaults and check for existing license
+            setup_quick_start_defaults enterprise
+            setup_license_for_quick_start
+            
+            STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
+            STORAGE_FLAGS_ECHO="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
+            START_SERVICE="y"
+            ;;
+        2)
+            # Custom Configuration - existing detailed flow
+            START_SERVICE="y"
+            ;;
+        3)
+            # Skip startup
+            START_SERVICE="n"
+            ;;
+        *)
+            printf "Invalid choice. Using Quick Start (option 1).\n"
+            # Same as option 1
+            setup_quick_start_defaults enterprise
+            setup_license_for_quick_start
+            
+            STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
+            STORAGE_FLAGS_ECHO="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
+            START_SERVICE="y"
+            ;;
+    esac
+
+    if [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "1" ]; then
+        # Enterprise Quick Start flow
+        echo
+        printf "${BOLD}Starting InfluxDB Enterprise (Quick Start)${NC}\n"
+        printf "├─${DIM} Cluster ID: %s${NC}\n" "$CLUSTER_ID"
+        printf "├─${DIM} Node ID: %s${NC}\n" "$NODE_ID"
+        if [ -n "$LICENSE_TYPE" ]; then
+            printf "├─${DIM} License Type: %s${NC}\n" "$LICENSE_DESC"
+        fi
+        if [ -n "$LICENSE_EMAIL" ]; then
+            printf "├─${DIM} Email: %s${NC}\n" "$LICENSE_EMAIL"
+        fi
+        printf "├─${DIM} Storage: %s/data${NC}\n" "${INSTALL_LOC}"
+        printf "├─${DIM} Plugins: %s/plugins${NC}\n" "${INSTALL_LOC}"
+
+        # Create logs directory and generate timestamped log filename
+        mkdir -p "$INSTALL_LOC/logs"
+        LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
+        printf "├─${DIM} Logs: %s${NC}\n" "$LOG_FILE"
+
+        # Ensure port is available; if not, find a new one.
+        ORIGINAL_PORT="$PORT"
+        find_available_port false
+        
+        # Show port result
+        if [ "$PORT" != "$ORIGINAL_PORT" ]; then
+            printf "├─${DIM} Found available port: %s (%s-%s in use)${NC}\n" "$PORT" "$ORIGINAL_PORT" "$((PORT - 1))"
+        fi
+        
+        # Show the command being executed
+        display_enterprise_server_command true
+
+        # Start server in background with or without license flags
+        if [ -n "$LICENSE_TYPE" ] && [ -n "$LICENSE_EMAIL" ]; then
+            # New license needed
+            "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
+        else
+            # Existing license file
+            "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
+        fi
+        PID="$!"
+        
+        printf "├─${DIM} Server started in background (PID: %s)${NC}\n" "$PID"
+        
+        perform_server_health_check 90 true 
+
+    elif [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "2" ]; then
+        # Enterprise Custom Start flow
+        echo
+        # Prompt for Cluster ID
+        printf "${BOLD}Enter Your Cluster ID${NC}\n"
+        printf "├─ A Cluster ID determines part of the storage path hierarchy.\n"
+        printf "├─ All nodes within the same cluster share this identifier.\n"
+        printf "└─ Enter a Cluster ID (default: cluster0): "
+        read -r CLUSTER_ID
+        CLUSTER_ID=${CLUSTER_ID:-cluster0}
+
+        # Prompt for Node ID
+        echo
+        printf "${BOLD}Enter Your Node ID${NC}\n"
+        printf "├─ A Node ID distinguishes individual server instances within the cluster.\n"
+        printf "└─ Enter a Node ID (default: node0): "
+        read -r NODE_ID
+        NODE_ID=${NODE_ID:-node0}
+
+        # Prompt for license type
+        echo
+        printf "${BOLD}Select Your License Type${NC}\n"
+        printf "├─ 1) Trial - Full features for 30 days (up to 256 cores)\n"
+        printf "├─ 2) Home - Free for non-commercial use (max 2 cores, single node)\n"
+        printf "└─ Enter your choice (1-2): "
+        read -r LICENSE_CHOICE
+
+        case "$LICENSE_CHOICE" in
+            1)
+                LICENSE_TYPE="trial"
+                LICENSE_DESC="Trial"
+                ;;
+            2)
+                LICENSE_TYPE="home"
+                LICENSE_DESC="Home"
+                ;;
+            *)
+                printf "Invalid choice. Defaulting to trial.\n"
+                LICENSE_TYPE="trial"
+                LICENSE_DESC="Trial"
+                ;;
+        esac
+
+        # Prompt for email
+        echo
+        printf "${BOLD}Enter Your Email Address${NC}\n"
+        printf "├─ Required for license verification and activation\n"
+        printf "├─ You may need to check your email for verification\n"
+        printf "└─ Email: "
+        read -r LICENSE_EMAIL
+        
+        while [ -z "$LICENSE_EMAIL" ]; do
+            printf "├─ Email address is required. Please enter your email: "
+            read -r LICENSE_EMAIL
+        done
+
+        # Prompt for storage solution
+        prompt_storage_configuration
+
+        # Ensure port is available; if not, find a new one.
+        find_available_port
+
+        # Start Enterprise in background with licensing and give up to 90 seconds to respond (licensing takes longer)
+        echo
+        printf "${BOLD}Starting InfluxDB Enterprise${NC}\n"
+        printf "├─${DIM} Cluster ID: %s${NC}\n" "$CLUSTER_ID"
+        printf "├─${DIM} Node ID: %s${NC}\n" "$NODE_ID"
+        printf "├─${DIM} License Type: %s${NC}\n" "$LICENSE_DESC"
+        printf "├─${DIM} Email: %s${NC}\n" "$LICENSE_EMAIL"
+        printf "├─${DIM} Storage: %s${NC}\n" "$STORAGE_TYPE"
+
+        # Create logs directory and generate timestamped log filename
+        mkdir -p "$INSTALL_LOC/logs"
+        LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
+        printf "├─${DIM} Logs: %s${NC}\n" "$LOG_FILE"
+
+        display_enterprise_server_command false
+
+        # Start server in background
+        "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
+        PID="$!"
+        
+        printf "├─${DIM} Server started in background (PID: %s)${NC}\n" "$PID"
+        
+        perform_server_health_check 90 true 
+
+    else
+        echo
+        printf "${BOLDGREEN}✓ InfluxDB 3 ${EDITION} is now installed. Nice!${NC}\n"
+    fi
 fi
 
 ### SUCCESS INFORMATION ###
 echo
-printf "${BOLD}Next Steps${NC}\n"
-if [ -n "$shellrc" ]; then
-    printf "├─ Run ${BOLD}source '%s'${NC}, then access InfluxDB with ${BOLD}influxdb3${NC} command.\n" "$shellrc"
+if [ "${EDITION}" = "Enterprise" ] && [ "$SUCCESS" -eq 0 ] 2>/dev/null; then
+    printf "${BOLD}Server startup failed${NC} - troubleshooting options:\n"
+    printf "├─ ${BOLD}Check email verification:${NC} Look for verification email and click the link\n"
+    printf "├─ ${BOLD}Manual startup:${NC} Try running the server manually to see detailed logs:\n"
+    printf "     influxdb3 serve \\\\\n"
+    printf "     --cluster-id=%s \\\\\n" "${CLUSTER_ID:-cluster0}"
+    printf "     --node-id=%s \\\\\n" "${NODE_ID:-node0}"
+    printf "     --license-type=%s \\\\\n" "${LICENSE_TYPE:-trial}"
+    printf "     --license-email=%s \\\\\n" "${LICENSE_EMAIL:-your@email.com}"
+    printf "     %s\n" "${STORAGE_FLAGS_ECHO:-"--object-store=file --data-dir $INSTALL_LOC/data --plugin-dir $INSTALL_LOC/plugins"}"
+    printf "└─ ${BOLD}Common issues:${NC} Network connectivity, invalid email format, port conflicts\n"
 else
-    printf "├─ Access InfluxDB with the ${BOLD}%s${NC} command.\n" "$INSTALL_LOC/$BINARY_NAME"
+    printf "${BOLD}Next Steps${NC}\n"
+    if [ -n "$shellrc" ]; then
+        printf "├─ Run ${BOLD}source '%s'${NC}, then access InfluxDB with ${BOLD}influxdb3${NC} command.\n" "$shellrc"
+    else
+        printf "├─ Access InfluxDB with the ${BOLD}influxdb3${NC} command.\n"
+    fi
+    printf "├─ Create admin token: ${BOLD}influxdb3 create token --admin${NC}\n"
+    printf "└─ Begin writing data! Learn more at https://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/write/\n\n"
 fi
-printf "├─ View the Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/get-started/${NC}.\n"
-printf "└─ Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
-echo
 
-END_TIME=$(date +%s)
-DURATION=$((END_TIME - START_TIME))
-
-out=" Time is everything. This process took $DURATION seconds. "
-mid=""
-for _ in $(seq 1 ${#out}); do
-    mid="${mid}─"
-done
-printf "┌%s┐\n" "$mid"
-printf "│%s│\n" "$out"
-printf "└%s┘\n" "$mid"
+printf "┌────────────────────────────────────────────────────────────────────────────────────────┐\n"
+printf "│ Looking to use a UI for querying, plugins, management, and more?                       │\n"
+printf "│ Get InfluxDB 3 Explorer at ${BLUE}https://docs.influxdata.com/influxdb3/explorer/#quick-start${NC} │\n"
+printf "└────────────────────────────────────────────────────────────────────────────────────────┘\n\n"
