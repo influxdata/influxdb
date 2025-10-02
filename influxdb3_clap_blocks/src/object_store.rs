@@ -536,7 +536,7 @@ macro_rules! object_store_config_inner {
                 /// `--aws-secret-access-key`,  and `--aws-session-token`. This is a file path
                 /// argument where the format of the file is as follows:
                 ///
-                /// ```
+                /// ```ignore
                 /// {
                 ///     "aws_access_key_id": "<key>",
                 ///     "aws_secret_access_key": "<secret>",
@@ -1371,35 +1371,45 @@ impl object_store::ObjectStore for ReauthingObjectStore {
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
-        let inner_cloned = Arc::clone(&self.inner);
-        let items: Vec<object_store::Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
-            Handle::current().block_on(async move {
-                // we could use TryStreamExt.collect() here to drop all collected results and
-                // return the first error we encounter, but users of the ObjectStore API will
-                // probably expect to have to deal with errors one element at a time anyway
-                inner_cloned.list(prefix).collect().await
-            })
-        });
+        let inner = Arc::clone(&self.inner);
+        let credential_reloader = Arc::clone(&self.credential_reloader);
+        let prefix = prefix.cloned();
 
-        if items.is_empty() {
-            return futures::stream::iter(items).boxed();
-        }
+        futures::stream::once(async move {
+            use std::pin::Pin;
 
-        if let Err(object_store::Error::Unauthenticated { source, .. }) = &items[0] {
-            warn!(error = ?source, "authentication with object store failed, attempting to reload from disk");
-            let items: Vec<Result<ObjectMeta, _>> = tokio::task::block_in_place(|| {
-                Handle::current().block_on(async move {
-                    self.credential_reloader.check_and_update().await;
-                    // we could use TryStreamExt.collect() here to drop all collected results and
-                    // return the first error we encounter, but users of the ObjectStore API will
-                    // probably expect to have to deal with errors one element at a time anyway
-                    self.inner.as_ref().list(prefix).collect().await
-                })
-            });
-            return futures::stream::iter(items).boxed();
-        }
+            let mut stream = inner.list(prefix.as_ref()).peekable();
 
-        futures::stream::iter(items).boxed()
+            // Peek at the first item to check for authentication errors
+            let first_item = Pin::new(&mut stream).peek().await;
+
+            match first_item {
+                Some(Err(object_store::Error::Unauthenticated { source, .. })) => {
+                    let path = credential_reloader.path.display();
+                    warn!(error = ?source, "authentication with object store failed, attempting to reload credentials from {path}");
+                    credential_reloader.check_and_update().await;
+                    // Retry with fresh credentials
+                    inner.list(prefix.as_ref())
+                }
+                Some(Err(object_store::Error::Generic { source, .. })) => {
+                    let msg = format!("{source:?}");
+                    if msg.contains("ExpiredToken") {
+                        let path = credential_reloader.path.display();
+                        warn!(error = ?source, "authentication with object store failed (ExpiredToken), attempting to reload credentials from {path}");
+                        credential_reloader.check_and_update().await;
+                        // Retry with fresh credentials
+                        inner.list(prefix.as_ref())
+                    } else {
+                        // Not an auth error, return the original stream
+                        stream.boxed()
+                    }
+                }
+                _ => {
+                    // No auth error or empty stream, return the original stream
+                    stream.boxed()
+                }
+            }
+        }).flatten().boxed()
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> object_store::Result<ListResult> {
