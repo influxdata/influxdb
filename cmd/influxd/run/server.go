@@ -416,6 +416,9 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	srv.QueryExecutor = s.QueryExecutor
 	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
+	if s.Monitor != nil {
+		s.Monitor.RegisterDiagnosticsClient("cq", srv)
+	}
 }
 
 // Err returns an error channel that multiplexes all out of band errors received from all services.

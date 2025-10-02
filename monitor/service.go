@@ -222,6 +222,7 @@ func (m *Monitor) Close() error {
 	m.DeregisterDiagnosticsClient("runtime")
 	m.DeregisterDiagnosticsClient("network")
 	m.DeregisterDiagnosticsClient("system")
+	m.DeregisterDiagnosticsClient("cq")
 	return nil
 }
 

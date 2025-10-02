@@ -13,9 +13,11 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -412,6 +414,23 @@ func TestMonitor_QuickClose(t *testing.T) {
 	if err := s.Close(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
+}
+
+func TestMonitor_CQDiagnostics(t *testing.T) {
+	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
+	err := s.Open()
+	require.NoError(t, err, "monitor open")
+	defer s.Close()
+
+	s.RegisterDiagnosticsClient("cq", continuous_querier.NewService(continuous_querier.NewConfig()))
+	d, err := s.Diagnostics()
+	require.NoError(t, err, "cq diagnostics")
+
+	diags, ok := d["cq"]
+	require.True(t, ok, "no diagnostics found for 'cq'")
+
+	require.Equal(t, diags.Columns, []string{"queryFail", "queryOk"}, "diagnostics columns")
+	require.Equal(t, diags.Rows, [][]interface{}{{int64(0), int64(0)}}, "diagnostics rows")
 }
 
 func TestStatistic_ValueNames(t *testing.T) {

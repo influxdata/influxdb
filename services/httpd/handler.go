@@ -2327,6 +2327,24 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if val := diags["cq"]; val != nil {
+		jv, err := parseCQDiagnostics(val)
+		data, err := json.Marshal(jv)
+		if !first {
+			_, err := fmt.Fprintln(w, ",")
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		first = false
+		_, err = fmt.Fprintf(w, "\"cq\": %s", data)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	// We're going to print some kind of crypto data, we just
 	// need to find the proper source for it.
 	{
@@ -2371,6 +2389,9 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 	uniqueKeys := make(map[string]int)
 
 	for _, s := range stats {
+		if s.Name == "cq" {
+			continue
+		}
 		val, err := json.Marshal(s)
 		if err != nil {
 			continue
@@ -2615,6 +2636,23 @@ func parseConfigDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 		default:
 			m[col] = v
 		}
+	}
+
+	return m, nil
+}
+
+func parseCQDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
+	if len(d.Rows) == 0 {
+		return nil, fmt.Errorf("no cq diagnostic data available")
+	}
+
+	m := make(map[string]interface{})
+	for i, col := range d.Columns {
+		if i >= len(d.Rows[0]) {
+			continue
+		}
+
+		m[col] = d.Rows[0][i]
 	}
 
 	return m, nil
