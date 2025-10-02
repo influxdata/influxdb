@@ -2327,6 +2327,30 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if val := diags["stats"]; val != nil {
+		if len(val.Rows) > 0 && len(val.Columns) > 0 {
+			// Create a map of column names to values
+			statsMap := make(map[string]interface{})
+			for i, col := range val.Columns {
+				if i < len(val.Rows[0]) {
+					statsMap[col] = val.Rows[0][i]
+				}
+			}
+
+			data, err := json.Marshal(statsMap)
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			if !first {
+				fmt.Fprintln(w, ",")
+			}
+			first = false
+			fmt.Fprintf(w, "\"stats\": %s", data)
+		}
+	}
+
 	if val := diags["cq"]; val != nil {
 		jv, err := parseCQDiagnostics(val)
 		data, err := json.Marshal(jv)
