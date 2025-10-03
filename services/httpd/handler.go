@@ -2351,24 +2351,6 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if val := diags["cq"]; val != nil {
-		jv, err := parseCQDiagnostics(val)
-		data, err := json.Marshal(jv)
-		if !first {
-			_, err := fmt.Fprintln(w, ",")
-			if err != nil {
-				h.httpError(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-		first = false
-		_, err = fmt.Fprintf(w, "\"cq\": %s", data)
-		if err != nil {
-			h.httpError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-
 	// We're going to print some kind of crypto data, we just
 	// need to find the proper source for it.
 	{
@@ -2414,6 +2396,21 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 
 	for _, s := range stats {
 		if s.Name == "cq" {
+			jv, err := parseCQStatistics(&s.Statistic)
+			data, err := json.Marshal(jv)
+			if !first {
+				_, err := fmt.Fprintln(w, ",")
+				if err != nil {
+					h.httpError(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			first = false
+			_, err = fmt.Fprintf(w, "\"cq\": %s", data)
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			continue
 		}
 		val, err := json.Marshal(s)
@@ -2665,21 +2662,12 @@ func parseConfigDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 	return m, nil
 }
 
-func parseCQDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
-	if len(d.Rows) == 0 {
-		return nil, fmt.Errorf("no cq diagnostic data available")
+func parseCQStatistics(s *models.Statistic) (map[string]interface{}, error) {
+	if len(s.Values) == 0 {
+		return nil, fmt.Errorf("no cq statistics data available")
 	}
 
-	m := make(map[string]interface{})
-	for i, col := range d.Columns {
-		if i >= len(d.Rows[0]) {
-			continue
-		}
-
-		m[col] = d.Rows[0][i]
-	}
-
-	return m, nil
+	return s.Values, nil
 }
 
 // httpError writes an error to the client in a standard format.

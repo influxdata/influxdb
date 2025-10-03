@@ -170,14 +170,10 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 	}}
 }
 
+// Required for Monitor interface. Currently does not return any
+// diagnostic values.
 func (s *Service) Diagnostics() (*diagnostics.Diagnostics, error) {
-	d := map[string]interface{}{
-		statQueryOK:   atomic.LoadInt64(&s.stats.QueryOK),
-		statQueryFail: atomic.LoadInt64(&s.stats.QueryFail),
-	}
-
-	return diagnostics.RowFromMap(d), nil
-
+	return &diagnostics.Diagnostics{}, nil
 }
 
 // Run runs the specified continuous query, or all CQs if none is specified.
