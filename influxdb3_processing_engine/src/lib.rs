@@ -27,10 +27,10 @@ use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, warn};
 use parking_lot::Mutex;
 use std::any::Any;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
+use tokio::fs;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, mpsc, oneshot};
 
@@ -638,7 +638,7 @@ impl ProcessingEngineManagerImpl {
                 if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
                     let plugin_path = plugin_dir.join(&trigger.plugin_filename);
 
-                    if let Ok(metadata) = fs::metadata(&plugin_path)
+                    if let Ok(metadata) = fs::metadata(&plugin_path).await
                         && metadata.is_file()
                     {
                         plugin_files.push(PluginFileInfo {
