@@ -416,21 +416,24 @@ func TestMonitor_QuickClose(t *testing.T) {
 	}
 }
 
-func TestMonitor_CQDiagnostics(t *testing.T) {
+func TestMonitor_CQStatistics(t *testing.T) {
 	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
 	err := s.Open()
 	require.NoError(t, err, "monitor open")
 	defer s.Close()
 
 	s.RegisterDiagnosticsClient("cq", continuous_querier.NewService(continuous_querier.NewConfig()))
-	d, err := s.Diagnostics()
-	require.NoError(t, err, "cq diagnostics")
+	stats, err := s.Statistics(nil)
+	require.NoError(t, err, "cq statistics")
 
-	diags, ok := d["cq"]
-	require.True(t, ok, "no diagnostics found for 'cq'")
-
-	require.Equal(t, diags.Columns, []string{"queryFail", "queryOk"}, "diagnostics columns")
-	require.Equal(t, diags.Rows, [][]interface{}{{int64(0), int64(0)}}, "diagnostics rows")
+	for _, stat := range stats {
+		if stat.Name == "cq" {
+			require.Equal(t, stat.Values, map[string]interface{}{
+				"queryOk":   0,
+				"queryFail": 0,
+			}, "statistics")
+		}
+	}
 }
 
 func TestStatistic_ValueNames(t *testing.T) {
