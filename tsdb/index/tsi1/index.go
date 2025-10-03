@@ -1057,6 +1057,8 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 	for _, p := range i.partitions {
 		itr, err := p.TagKeySeriesIDIterator(name, key)
 		if err != nil {
+			// ok to ignore the error from Close() as it's better to report the error that prevented making the Iterator
+			tsdb.SeriesIDIterators(a).Close()
 			return nil, err
 		} else if itr != nil {
 			a = append(a, itr)
