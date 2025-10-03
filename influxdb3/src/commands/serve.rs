@@ -1065,6 +1065,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         // convert to positive here so that we can avoid double negatives downstream
         started_with_auth: !config.without_auth,
         time_provider: Arc::clone(&time_provider) as _,
+        processing_engine: None,
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)
@@ -1090,6 +1091,9 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         sys_events_store,
     )
     .await;
+
+    // Update query executor with processing engine reference
+    query_executor.set_processing_engine(Arc::clone(&processing_engine));
 
     let cert_file = config.cert_file;
     let key_file = config.key_file;

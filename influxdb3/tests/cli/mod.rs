@@ -2,6 +2,7 @@ mod admin_token;
 mod api;
 mod db_retention;
 mod offline_tokens;
+mod system_tables;
 
 use crate::server::{ConfigProvider, TestServer};
 use assert_cmd::Command as AssertCmd;

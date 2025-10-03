@@ -1766,6 +1766,7 @@ mod tests {
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth: false,
             time_provider: Arc::clone(&time_provider) as _,
+            processing_engine: None,
         }));
 
         // bind to port 0 will assign a random available port:

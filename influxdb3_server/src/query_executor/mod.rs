@@ -23,6 +23,7 @@ use influxdb3_cache::distinct_cache::{DISTINCT_CACHE_UDTF_NAME, DistinctCacheFun
 use influxdb3_cache::last_cache::{LAST_CACHE_UDTF_NAME, LastCacheFunction};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
+use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::{ChunkFilter, WriteBuffer};
@@ -42,7 +43,7 @@ use std::any::Any;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::Semaphore;
 use trace::span::{Span, SpanExt, SpanRecorder};
 use trace::{ctx::SpanContext, span::MetaValue};
@@ -51,7 +52,7 @@ use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct QueryExecutorImpl {
     catalog: Arc<Catalog>,
     write_buffer: Arc<dyn WriteBuffer>,
@@ -62,6 +63,24 @@ pub struct QueryExecutorImpl {
     telemetry_store: Arc<TelemetryStore>,
     sys_events_store: Arc<SysEventStore>,
     started_with_auth: bool,
+    processing_engine: Arc<RwLock<Option<Arc<ProcessingEngineManagerImpl>>>>,
+}
+
+impl Clone for QueryExecutorImpl {
+    fn clone(&self) -> Self {
+        Self {
+            catalog: Arc::clone(&self.catalog),
+            write_buffer: Arc::clone(&self.write_buffer),
+            exec: Arc::clone(&self.exec),
+            datafusion_config: Arc::clone(&self.datafusion_config),
+            query_execution_semaphore: Arc::clone(&self.query_execution_semaphore),
+            query_log: Arc::clone(&self.query_log),
+            telemetry_store: Arc::clone(&self.telemetry_store),
+            sys_events_store: Arc::clone(&self.sys_events_store),
+            started_with_auth: self.started_with_auth,
+            processing_engine: Arc::clone(&self.processing_engine),
+        }
+    }
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -77,6 +96,7 @@ pub struct CreateQueryExecutorArgs {
     pub telemetry_store: Arc<TelemetryStore>,
     pub sys_events_store: Arc<SysEventStore>,
     pub started_with_auth: bool,
+    pub processing_engine: Option<Arc<ProcessingEngineManagerImpl>>,
 }
 
 impl QueryExecutorImpl {
@@ -92,6 +112,7 @@ impl QueryExecutorImpl {
             sys_events_store,
             started_with_auth,
             time_provider,
+            processing_engine,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -111,7 +132,12 @@ impl QueryExecutorImpl {
             telemetry_store,
             sys_events_store,
             started_with_auth,
+            processing_engine: Arc::new(RwLock::new(processing_engine)),
         }
+    }
+
+    pub fn set_processing_engine(&self, processing_engine: Arc<ProcessingEngineManagerImpl>) {
+        *self.processing_engine.write().unwrap() = Some(processing_engine);
     }
 }
 
@@ -450,6 +476,7 @@ impl QueryDatabase for QueryExecutorImpl {
                 Arc::clone(&self.sys_events_store),
                 Arc::clone(&self.write_buffer.catalog()),
                 self.started_with_auth,
+                self.processing_engine.read().unwrap().clone(),
             ),
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
@@ -936,6 +963,7 @@ mod tests {
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth,
             time_provider: Arc::clone(&time_provider) as _,
+            processing_engine: None,
         });
 
         (

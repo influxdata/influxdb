@@ -27,6 +27,7 @@ use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, warn};
 use parking_lot::Mutex;
 use std::any::Any;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -621,6 +622,44 @@ impl ProcessingEngineManagerImpl {
     pub fn get_environment_manager(&self) -> Arc<dyn PythonEnvironmentManager> {
         Arc::clone(&self.environment_manager.package_manager)
     }
+
+    pub async fn list_plugin_files(&self) -> Vec<PluginFileInfo> {
+        let mut plugin_files = Vec::new();
+
+        // Iterate through all triggers in every database
+        for db_schema in self.catalog.list_db_schema() {
+            for trigger in db_schema.processing_engine_triggers.resource_iter() {
+                let plugin_name = Arc::<str>::clone(&trigger.trigger_name);
+                debug!(
+                    "Processing trigger '{}' with plugin_filename '{}'",
+                    trigger.trigger_name, trigger.plugin_filename
+                );
+
+                if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
+                    let plugin_path = plugin_dir.join(&trigger.plugin_filename);
+
+                    if let Ok(metadata) = fs::metadata(&plugin_path)
+                        && metadata.is_file()
+                    {
+                        plugin_files.push(PluginFileInfo {
+                            plugin_name: Arc::<str>::clone(&plugin_name),
+                            file_name: trigger.plugin_filename.clone().into(),
+                            file_path: plugin_path.to_string_lossy().into(),
+                            size_bytes: metadata.len() as i64,
+                            last_modified_millis: metadata
+                                .modified()
+                                .ok()
+                                .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                                .map(|d| d.as_millis() as i64)
+                                .unwrap_or(0),
+                        });
+                    }
+                }
+            }
+        }
+
+        plugin_files
+    }
 }
 
 #[async_trait::async_trait]
@@ -673,6 +712,15 @@ pub(crate) struct Request {
     pub headers: HashMap<String, String>,
     pub body: Bytes,
     pub response_tx: oneshot::Sender<Response>,
+}
+
+#[derive(Debug)]
+pub struct PluginFileInfo {
+    pub plugin_name: Arc<str>,
+    pub file_name: Arc<str>,
+    pub file_path: Arc<str>,
+    pub size_bytes: i64,
+    pub last_modified_millis: i64,
 }
 
 fn background_catalog_update(

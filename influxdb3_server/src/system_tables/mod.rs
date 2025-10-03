@@ -11,6 +11,7 @@ use distinct_caches::DistinctCachesTable;
 use generations::GenerationDurationsTable;
 use influxdb_schema::InfluxdbSchemaTable;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME};
+use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
@@ -20,8 +21,8 @@ use tokens::TokenSystemTable;
 use tonic::async_trait;
 
 use self::{
-    databases::DatabasesTable, last_caches::LastCachesTable, queries::QueriesTable,
-    tables::TablesTable,
+    databases::DatabasesTable, last_caches::LastCachesTable, plugins::PluginsTable,
+    queries::QueriesTable, tables::TablesTable,
 };
 
 pub(crate) mod databases;
@@ -31,6 +32,7 @@ mod influxdb_schema;
 mod last_caches;
 mod nodes;
 mod parquet_files;
+mod plugins;
 use crate::system_tables::{
     nodes::NodeSystemTable,
     python_call::{
@@ -56,6 +58,7 @@ pub(crate) const TABLES_TABLE_NAME: &str = "tables";
 pub(crate) const NODES_TABLE_NAME: &str = "nodes";
 pub(crate) const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
 pub(crate) const INFLUXDB_SCHEMA_TABLE_NAME: &str = "influxdb_schema";
+pub(crate) const PLUGIN_FILES_TABLE_NAME: &str = "plugin_files";
 /// The default timezone used in the system schema.
 pub(crate) const DEFAULT_TIMEZONE: &str = "UTC";
 
@@ -116,6 +119,7 @@ impl AllSystemSchemaTablesProvider {
         sys_events_store: Arc<SysEventStore>,
         catalog: Arc<Catalog>,
         started_with_auth: bool,
+        processing_engine: Option<Arc<ProcessingEngineManagerImpl>>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
@@ -175,6 +179,12 @@ impl AllSystemSchemaTablesProvider {
                 Arc::new(SystemTableProvider::new(Arc::new(TokenSystemTable::new(
                     Arc::clone(&catalog),
                     started_with_auth,
+                )))),
+            );
+            tables.insert(
+                PLUGIN_FILES_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(PluginsTable::new(
+                    processing_engine,
                 )))),
             );
             tables.insert(
