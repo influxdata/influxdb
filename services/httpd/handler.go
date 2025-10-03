@@ -2397,7 +2397,16 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 	for _, s := range stats {
 		if s.Name == "cq" {
 			jv, err := parseCQStatistics(&s.Statistic)
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			data, err := json.Marshal(jv)
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			if !first {
 				_, err := fmt.Fprintln(w, ",")
 				if err != nil {
