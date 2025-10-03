@@ -241,6 +241,7 @@ func (m *Monitor) Close() error {
 	m.DeregisterDiagnosticsClient("system")
 	m.DeregisterDiagnosticsClient("stats")
 	m.DeregisterDiagnosticsClient("config")
+	m.DeregisterDiagnosticsClient("cq")
 	return nil
 }
 
