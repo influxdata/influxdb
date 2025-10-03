@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
@@ -167,6 +168,12 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 			statQueryFail: atomic.LoadInt64(&s.stats.QueryFail),
 		},
 	}}
+}
+
+// Required for Monitor interface. Currently does not return any
+// diagnostic values.
+func (s *Service) Diagnostics() (*diagnostics.Diagnostics, error) {
+	return &diagnostics.Diagnostics{}, nil
 }
 
 // Run runs the specified continuous query, or all CQs if none is specified.
