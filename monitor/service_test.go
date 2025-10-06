@@ -13,9 +13,11 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -411,6 +413,26 @@ func TestMonitor_QuickClose(t *testing.T) {
 
 	if err := s.Close(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+func TestMonitor_CQStatistics(t *testing.T) {
+	s := monitor.New(nil, monitor.Config{}, &tsdb.Config{})
+	err := s.Open()
+	require.NoError(t, err, "monitor open")
+	defer s.Close()
+
+	s.RegisterDiagnosticsClient("cq", continuous_querier.NewService(continuous_querier.NewConfig()))
+	stats, err := s.Statistics(nil)
+	require.NoError(t, err, "cq statistics")
+
+	for _, stat := range stats {
+		if stat.Name == "cq" {
+			require.Equal(t, stat.Values, map[string]interface{}{
+				"queryOk":   0,
+				"queryFail": 0,
+			}, "statistics")
+		}
 	}
 }
 

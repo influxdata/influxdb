@@ -2395,6 +2395,33 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 	uniqueKeys := make(map[string]int)
 
 	for _, s := range stats {
+		if s.Name == "cq" {
+			jv, err := parseCQStatistics(&s.Statistic)
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			data, err := json.Marshal(jv)
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			if !first {
+				_, err := fmt.Fprintln(w, ",")
+				if err != nil {
+					h.httpError(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			first = false
+			_, err = fmt.Fprintf(w, "\"cq\": %s", data)
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			continue
+		}
 		val, err := json.Marshal(s)
 		if err != nil {
 			continue
@@ -2642,6 +2669,14 @@ func parseConfigDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 	}
 
 	return m, nil
+}
+
+func parseCQStatistics(s *models.Statistic) (map[string]interface{}, error) {
+	if len(s.Values) == 0 {
+		return nil, fmt.Errorf("no cq statistics data available")
+	}
+
+	return s.Values, nil
 }
 
 // httpError writes an error to the client in a standard format.
