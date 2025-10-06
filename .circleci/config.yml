@@ -412,7 +412,7 @@ jobs:
           aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
           aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
           from:                  /tmp/workspace/packages
-          to:                    s3://dl.influxdata.com/influxdb/releases/
+          to:                    s3://dl.influxdata.com/influxdb/releases/<< pipeline.git.tag >>
   slack:
     docker:
       - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-slack:latest
