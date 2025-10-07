@@ -66,7 +66,7 @@ if [ $HTTPS_ENABLED = "true" ]; then
   echo "$HTTPS_CERT found"
   PROTOCOL="https"
 fi
-HOST=${BIND_ADDRESS%%:*}
+HOST=${BIND_ADDRESS%:*}
 HOST=${HOST:-"localhost"}
 PORT=${BIND_ADDRESS##*:}
 
