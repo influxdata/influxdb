@@ -17,6 +17,11 @@ pub enum PluginEnvironmentError {
 
     #[error("Virtual environment error: {0}")]
     VenvError(#[from] VenvError),
+
+    #[error(
+        "Package installation has been disabled. Contact your administrator for more information."
+    )]
+    PackageInstallationDisabled,
 }
 
 pub trait PythonEnvironmentManager: Debug + Send + Sync + 'static {
@@ -152,5 +157,34 @@ impl PythonEnvironmentManager for DisabledManager {
         _requirements_path: String,
     ) -> Result<(), PluginEnvironmentError> {
         Err(PluginEnvironmentDisabled)
+    }
+}
+
+/// A package manager that disables package installation while allowing
+/// the processing engine to function normally for triggers and plugins.
+/// Used when --package-manager disabled is set.
+#[derive(Debug, Copy, Clone)]
+pub struct DisabledPackageManager;
+
+impl PythonEnvironmentManager for DisabledPackageManager {
+    fn init_pyenv(
+        &self,
+        _plugin_dir: &Path,
+        _virtual_env_location: Option<&PathBuf>,
+    ) -> Result<(), PluginEnvironmentError> {
+        // Allow normal initialization - the processing engine should still work
+        // We assume the virtual environment is already set up
+        Ok(())
+    }
+
+    fn install_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+        Err(PluginEnvironmentError::PackageInstallationDisabled)
+    }
+
+    fn install_requirements(
+        &self,
+        _requirements_path: String,
+    ) -> Result<(), PluginEnvironmentError> {
+        Err(PluginEnvironmentError::PackageInstallationDisabled)
     }
 }

@@ -114,7 +114,7 @@ Examples:
   --virtual-env-location <PATH>    Location of your virtual environment
                                      [env: VIRTUAL_ENV=]
   --package-manager <MANAGER>      Package manager for Processing Engine [default: discover]
-                                     [possible values: discover, pip, uv]
+                                     [possible values: discover, pip, uv, disabled]
   --plugin-repo <URL>              URL of plugin repository
                                      [env: INFLUXDB3_PLUGIN_REPO=]
 {}

@@ -21,7 +21,7 @@ use influxdb3_process::{
 };
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::{
-    DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
+    DisabledManager, DisabledPackageManager, PipManager, PythonEnvironmentManager, UVManager,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::virtualenv::find_python;
@@ -1313,6 +1313,7 @@ pub(crate) fn setup_processing_engine_env_manager(
         PackageManager::Discover => determine_package_manager(),
         PackageManager::Pip => Arc::new(PipManager),
         PackageManager::UV => Arc::new(UVManager),
+        PackageManager::Disabled => Arc::new(DisabledPackageManager),
     };
     ProcessingEngineEnvironmentManager {
         plugin_dir: config.plugin_dir.clone(),

@@ -22,4 +22,5 @@ pub enum PackageManager {
     Discover,
     Pip,
     UV,
+    Disabled,
 }
