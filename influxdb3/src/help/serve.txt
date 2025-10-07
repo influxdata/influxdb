@@ -62,8 +62,11 @@ Examples
 
 {}
   --plugin-dir <DIR>               Location of plugins [env: INFLUXDB3_PLUGIN_DIR=]
-  --virtual-env-location <PATH>    [env: VIRTUAL_ENV=]
-  --package-manager <MANAGER>      [default: discover] [possible values: discover, pip, uv, disabled]
+  --virtual-env-location <PATH>    Location of your virtual environment
+                                    [env: VIRTUAL_ENV=]
+  --package-manager <MANAGER>      Python package manager  
+                                    [possible values: discover, pip, uv, disabled] [default: discover]
+                                    [env: INFLUXDB3_PACKAGE_MANAGER=]
 
 {}
   -h, --help                       Print help information
