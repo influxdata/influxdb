@@ -261,6 +261,43 @@ impl ShowDatabasesQuery<'_> {
     }
 }
 
+// Builder for the 'show plugins' command
+#[derive(Debug)]
+pub struct ShowPluginsQuery<'a> {
+    server: &'a TestServer,
+    format: Option<String>,
+}
+
+impl TestServer {
+    pub fn show_plugins(&self) -> ShowPluginsQuery<'_> {
+        ShowPluginsQuery {
+            server: self,
+            format: None,
+        }
+    }
+}
+
+impl ShowPluginsQuery<'_> {
+    pub fn with_format(mut self, format: impl Into<String>) -> Self {
+        self.format = Some(format.into());
+        self
+    }
+
+    pub fn run(self) -> Result<String> {
+        let mut args = Vec::new();
+
+        if let Some(format) = self.format.as_ref() {
+            args.push("--format");
+            args.push(format);
+        }
+
+        args.push("--tls-ca");
+        args.push("../testing-certs/rootCA.pem");
+
+        self.server.run(vec!["show", "plugins"], &args)
+    }
+}
+
 // Builder for the 'delete database' command
 #[derive(Debug)]
 pub struct DeleteDatabaseQuery<'a> {
