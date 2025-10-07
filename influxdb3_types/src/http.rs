@@ -201,6 +201,13 @@ pub struct ProcessingEngineTriggerDeleteRequest {
     pub force: bool,
 }
 
+/// Request definition for the `PUT /api/v3/plugins/files` API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UpdatePluginFileRequest {
+    pub plugin_name: String,
+    pub content: String,
+}
+
 /// Request definition for the `POST /api/v3/configure/plugin_environment/install_packages` API
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProcessingEngineInstallPackagesRequest {

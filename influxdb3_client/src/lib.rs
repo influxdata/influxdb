@@ -689,6 +689,28 @@ impl Client {
         Ok(())
     }
 
+    /// Update a plugin file
+    pub async fn api_v3_update_plugin_file(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        content: impl Into<String> + Send,
+    ) -> Result<()> {
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::PUT,
+                &format!("/api/v3/plugins/files?db={}", &db.into()),
+                Some(UpdatePluginFileRequest {
+                    plugin_name: trigger_name.into(),
+                    content: content.into(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Make a request to the `POST /api/v3/plugin_test/wal` API
     pub async fn wal_plugin_test(
         &self,

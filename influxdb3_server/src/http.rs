@@ -26,13 +26,15 @@ use hyper::{Method, StatusCode};
 use influxdb_influxql_parser::select::GroupByClause;
 use influxdb_influxql_parser::statement::Statement;
 use influxdb3_authz::{
-    AuthProvider, AuthenticatorError, NoAuthAuthenticator, ResourceAuthorizationError,
+    AccessRequest, AuthProvider, AuthenticatorError, NoAuthAuthenticator,
+    ResourceAuthorizationError,
 };
 use influxdb3_cache::distinct_cache;
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::HardDeletionTime;
 use influxdb3_catalog::log::FieldDataType;
+use influxdb3_id::TokenId;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_process::{
     INFLUXDB3_BUILD, INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, ProcessUuidWrapper,
@@ -1667,6 +1669,40 @@ impl HttpApi {
 
         Ok(body?)
     }
+
+    async fn update_plugin_file(&self, req: Request) -> Result<Response> {
+        // Extract token_id from request extensions for authorization
+        let token_id = req
+            .extensions()
+            .get::<TokenId>()
+            .copied()
+            .ok_or(Error::Unauthenticated)?;
+
+        // Check admin authorization
+        self.authorizer
+            .authorize_action(&token_id, AccessRequest::Admin)
+            .await
+            .map_err(|_| Error::ResourceAuthorization(ResourceAuthorizationError::Unauthorized))?;
+
+        let UpdatePluginFileRequest {
+            plugin_name,
+            content,
+        } = self.read_body_json(req).await?;
+
+        let db_name = Arc::clone(&self.processing_engine)
+            .update_plugin_file(&plugin_name, &content)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        info!(
+            "Plugin file updated for trigger '{}' in database '{}' by token {:?}",
+            plugin_name, db_name, token_id
+        );
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .body(empty_response_body())?)
+    }
 }
 
 /// Check that the content type is application/json
@@ -2312,6 +2348,7 @@ pub(crate) async fn route_request(
         (Method::DELETE, all_paths::API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD) => {
             http_server.clear_retention_period_for_database(req).await
         }
+        (Method::PUT, all_paths::API_V3_PLUGINS_FILES) => http_server.update_plugin_file(req).await,
         _ => {
             let body = bytes_to_response_body("not found");
             Ok(ResponseBuilder::new()

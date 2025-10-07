@@ -15,6 +15,8 @@ pub struct Config {
 pub enum SubCommand {
     /// Update a database
     Database(UpdateDatabase),
+    /// Update a trigger's plugin file
+    Trigger(UpdateTrigger),
 }
 
 #[derive(Debug, clap::Args)]
@@ -25,6 +27,24 @@ pub struct UpdateDatabase {
     /// The retention period as a human-readable duration (e.g., "30d", "24h") or "none" to clear
     #[clap(long, short = 'r')]
     retention_period: Option<String>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
+}
+
+#[derive(Debug, clap::Args)]
+pub struct UpdateTrigger {
+    #[clap(flatten)]
+    influxdb3_config: InfluxDb3Config,
+
+    /// The name of the trigger to update
+    #[clap(long = "trigger-name", short = 't')]
+    trigger_name: String,
+
+    /// Path to file containing plugin code to update
+    #[clap(long, short = 'p')]
+    path: PathBuf,
 
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
@@ -63,6 +83,39 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             } else {
                 return Err("--retention-period is required for update database".into());
             }
+        }
+        SubCommand::Trigger(UpdateTrigger {
+            influxdb3_config:
+                InfluxDb3Config {
+                    host_url,
+                    auth_token,
+                    database_name,
+                    ..
+                },
+            trigger_name,
+            path,
+            ca_cert,
+        }) => {
+            let mut client = Client::new(host_url, ca_cert)?;
+            if let Some(token) = &auth_token {
+                client = client.with_auth_token(token.expose_secret());
+            }
+
+            if !path.exists() {
+                return Err(format!("Path does not exist: {}", path.display()).into());
+            }
+
+            if !path.is_file() {
+                return Err("Path must be a file".into());
+            }
+
+            let content = std::fs::read_to_string(&path)?;
+
+            client
+                .api_v3_update_plugin_file(&database_name, &trigger_name, &content)
+                .await?;
+
+            println!("Trigger '{}' updated successfully", trigger_name);
         }
     }
     Ok(())
