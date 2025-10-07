@@ -10,7 +10,11 @@ pub struct ProcessingEngineConfig {
     pub plugin_dir: Option<PathBuf>,
     #[clap(long = "virtual-env-location", env = "VIRTUAL_ENV")]
     pub virtual_env_location: Option<PathBuf>,
-    #[clap(long = "package-manager", default_value = "discover")]
+    #[clap(
+        long = "package-manager",
+        env = "INFLUXDB3_PACKAGE_MANAGER",
+        default_value = "discover"
+    )]
     pub package_manager: PackageManager,
     #[clap(long = "plugin-repo", env = "INFLUXDB3_PLUGIN_REPO")]
     pub plugin_repo: Option<String>,
