@@ -1349,6 +1349,28 @@ impl HttpApi {
         }
     }
 
+    fn handle_install_result(
+        &self,
+        result: Result<(), influxdb3_processing_engine::environment::PluginEnvironmentError>,
+    ) -> Result<Response> {
+        match result {
+            Ok(_) => Ok(ResponseBuilder::new()
+                .status(StatusCode::OK)
+                .body(empty_response_body())?),
+            Err(err) => {
+                let processing_err = ProcessingEngineError::from(err);
+                match processing_err {
+                    ProcessingEngineError::PackageInstallationDisabled(inner) => {
+                        Ok(ResponseBuilder::new()
+                            .status(StatusCode::FORBIDDEN)
+                            .body(bytes_to_response_body(Bytes::from(inner.to_string())))?)
+                    }
+                    other => Err(other.into()),
+                }
+            }
+        }
+    }
+
     async fn install_plugin_environment_packages(&self, req: Request) -> Result<Response> {
         let ProcessingEngineInstallPackagesRequest { packages } =
             if let Some(query) = req.uri().query() {
@@ -1357,13 +1379,7 @@ impl HttpApi {
                 self.read_body_json(req).await?
             };
         let manager = self.processing_engine.get_environment_manager();
-        manager
-            .install_packages(packages)
-            .map_err(ProcessingEngineError::from)?;
-
-        Ok(ResponseBuilder::new()
-            .status(StatusCode::OK)
-            .body(empty_response_body())?)
+        self.handle_install_result(manager.install_packages(packages))
     }
 
     async fn install_plugin_environment_requirements(&self, req: Request) -> Result<Response> {
@@ -1379,13 +1395,7 @@ impl HttpApi {
             requirements_location
         );
         let manager = self.processing_engine.get_environment_manager();
-        manager
-            .install_requirements(requirements_location)
-            .map_err(ProcessingEngineError::from)?;
-
-        Ok(ResponseBuilder::new()
-            .status(StatusCode::OK)
-            .body(empty_response_body())?)
+        self.handle_install_result(manager.install_requirements(requirements_location))
     }
 
     async fn show_databases(&self, req: Request) -> Result<Response> {

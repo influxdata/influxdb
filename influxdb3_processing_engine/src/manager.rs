@@ -36,5 +36,19 @@ pub enum ProcessingEngineError {
     RequestHandlerDown,
 
     #[error("error installing python packages: {0}")]
-    PythonPackageError(#[from] PluginEnvironmentError),
+    PythonPackageError(PluginEnvironmentError),
+
+    #[error("{0}")]
+    PackageInstallationDisabled(PluginEnvironmentError),
+}
+
+impl From<PluginEnvironmentError> for ProcessingEngineError {
+    fn from(err: PluginEnvironmentError) -> Self {
+        match err {
+            PluginEnvironmentError::PackageInstallationDisabled => {
+                ProcessingEngineError::PackageInstallationDisabled(err)
+            }
+            other => ProcessingEngineError::PythonPackageError(other),
+        }
+    }
 }
