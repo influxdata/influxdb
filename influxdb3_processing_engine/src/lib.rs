@@ -661,12 +661,43 @@ impl ProcessingEngineManagerImpl {
         plugin_files
     }
 
+    pub async fn create_plugin_file(
+        self: &Arc<Self>,
+        plugin_filename: &str,
+        content: &str,
+    ) -> Result<(), ProcessingEngineError> {
+        let plugin_dir = self
+            .environment_manager
+            .plugin_dir
+            .as_ref()
+            .ok_or_else(|| {
+                ProcessingEngineError::PluginError(plugins::PluginError::AnyhowError(
+                    anyhow::anyhow!("No plugin directory configured"),
+                ))
+            })?;
+
+        let plugin_path = plugin_dir.join(plugin_filename);
+
+        if plugin_path.is_dir() {
+            return Err(ProcessingEngineError::PluginError(
+                plugins::PluginError::AnyhowError(anyhow::anyhow!(
+                    "Cannot write plugin file: path is a directory"
+                )),
+            ));
+        }
+
+        fs::write(plugin_path, content).await.map_err(|e| {
+            ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
+        })?;
+
+        Ok(())
+    }
+
     pub async fn update_plugin_file(
         self: &Arc<Self>,
         plugin_name: &str,
         content: &str,
     ) -> Result<String, ProcessingEngineError> {
-        // Find the plugin to update
         for db_schema in self.catalog.list_db_schema() {
             if let Some(trigger) = db_schema
                 .processing_engine_triggers

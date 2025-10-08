@@ -611,6 +611,7 @@ pub struct CreateTriggerQuery<'a> {
     disabled: bool,
     run_asynchronous: bool,
     error_behavior: Option<String>,
+    upload: bool,
 }
 
 impl TestServer {
@@ -631,6 +632,7 @@ impl TestServer {
             disabled: false,
             run_asynchronous: false,
             error_behavior: None,
+            upload: false,
         }
     }
 }
@@ -661,6 +663,11 @@ impl CreateTriggerQuery<'_> {
 
     pub fn error_behavior(mut self, behavior: impl Into<String>) -> Self {
         self.error_behavior = Some(behavior.into());
+        self
+    }
+
+    pub fn upload(mut self, upload: bool) -> Self {
+        self.upload = upload;
         self
     }
 
@@ -695,6 +702,10 @@ impl CreateTriggerQuery<'_> {
         if let Some(behavior) = &self.error_behavior {
             args.push("--error-behavior");
             args.push(behavior);
+        }
+
+        if self.upload {
+            args.push("--upload");
         }
 
         self.server.run(vec!["create", "trigger"], args.as_slice())

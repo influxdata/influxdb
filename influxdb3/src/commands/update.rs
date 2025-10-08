@@ -4,6 +4,7 @@ use influxdb3_client::Client;
 use secrecy::ExposeSecret;
 use std::error::Error;
 use std::path::PathBuf;
+use tokio::fs;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -109,7 +110,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 return Err("Path must be a file".into());
             }
 
-            let content = std::fs::read_to_string(&path)?;
+            let content = fs::read_to_string(&path).await?;
 
             client
                 .api_v3_update_plugin_file(&database_name, &trigger_name, &content)

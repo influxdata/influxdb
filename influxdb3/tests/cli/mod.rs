@@ -1299,6 +1299,78 @@ async fn test_triggers_are_started() {
         };
     }
 }
+
+#[test_log::test(tokio::test)]
+async fn test_create_trigger_with_upload() {
+    // Plugin file is in a different temp directory than server's plugin-dir
+    let (_temp_dir, plugin_path) = create_plugin_in_temp_dir(WRITE_REPORTS_PLUGIN_CODE);
+    let server_plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(server_plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let db_name = "foo";
+    let trigger_name = "test_upload_trigger";
+
+    server.create_database(db_name).run().unwrap();
+
+    let result = server
+        .create_trigger(
+            db_name,
+            trigger_name,
+            plugin_path.to_str().unwrap(),
+            "all_tables",
+        )
+        .upload(true)
+        .add_trigger_argument("double_count_table=cpu")
+        .run()
+        .unwrap();
+
+    debug!(result = ?result, "create trigger with upload");
+    assert_contains!(&result, "Trigger test_upload_trigger created successfully");
+
+    // Write data to verify the trigger is working
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,host=a f1=1.0\ncpu,host=b f1=2.0\nmem,host=a usage=234",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let expected = json!(
+        [
+            {"table_name": "cpu", "row_count": 4},
+            {"table_name": "mem", "row_count": 1}
+        ]
+    );
+
+    // Query to verify the processed data is there
+    let mut check_count = 0;
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        match server
+            .query_sql(db_name)
+            .with_sql("SELECT table_name, row_count FROM write_reports")
+            .run()
+        {
+            Ok(result) => {
+                if result == expected {
+                    break;
+                }
+            }
+            Err(e) => {
+                check_count += 1;
+                if check_count > 30 {
+                    panic!("Failed to query processed data: {e}");
+                }
+            }
+        };
+    }
+}
+
 #[test_log::test(tokio::test)]
 async fn test_database_create_persists() {
     // create tmp dir for object store
