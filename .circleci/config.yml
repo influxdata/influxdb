@@ -28,8 +28,9 @@ jobs:
             - influxdb-cache-v1-{{ checksum "go.mod" }}
       - run:
           name: Get InfluxDB Version
+          # TODO: Remove this!
           command: |
-            PREFIX=1.x .circleci/scripts/get-version
+            PREFIX=1.12 .circleci/scripts/get-version
       - run:
           name: Build source tarball
           command: |
