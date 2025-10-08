@@ -69,7 +69,7 @@ packages:
         target: usr/share/man/man1/influxd-version.1.gz
 
       - source: .circleci/packages/influxdb/fs/usr/lib/influxdb/scripts/influxdb.service
-        target: lib/systemd/system/influxdb.service
+        target: usr/lib/systemd/system/influxdb.service
     perm_overrides:
       - owner:  root
         group:  root
@@ -80,6 +80,11 @@ packages:
         group:  root
         perms:  0755
         target: usr/lib/influxdb/scripts/influxd-systemd-start.sh
+
+      - owner:  root
+        group:  root
+        perms:  0755
+        target: usr/lib/systemd/system/influxdb.service
     rpm_attributes:
       - 750,influxdb,influxdb:/var/log/influxdb
       - 750,influxdb,influxdb:/var/lib/influxdb
