@@ -67,6 +67,9 @@ packages:
 
       - source: man/influxd-version.1.gz
         target: usr/share/man/man1/influxd-version.1.gz
+
+      - source: .circleci/packages/influxdb/fs/usr/lib/influxdb/scripts/influxdb.service
+        target: lib/systemd/system/influxdb.service
     perm_overrides:
       - owner:  root
         group:  root
