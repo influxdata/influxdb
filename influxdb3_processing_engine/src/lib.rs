@@ -304,7 +304,7 @@ impl ProcessingEngineManagerImpl {
         let plugin_path = plugin_dir.join(name);
 
         // read it at least once to make sure it's there
-        let code = std::fs::read_to_string(plugin_path.clone())?;
+        let code = fs::read_to_string(plugin_path.clone()).await?;
 
         // now we can return it
         Ok(PluginCode::Local(LocalPlugin {
@@ -659,6 +659,36 @@ impl ProcessingEngineManagerImpl {
         }
 
         plugin_files
+    }
+
+    pub async fn update_plugin_file(
+        self: &Arc<Self>,
+        plugin_name: &str,
+        content: &str,
+    ) -> Result<String, ProcessingEngineError> {
+        // Find the plugin to update
+        for db_schema in self.catalog.list_db_schema() {
+            if let Some(trigger) = db_schema
+                .processing_engine_triggers
+                .resource_iter()
+                .find(|t| t.trigger_name.as_ref() == plugin_name)
+                && let Some(ref plugin_dir) = self.environment_manager.plugin_dir
+            {
+                let plugin_path = plugin_dir.join(&trigger.plugin_filename);
+
+                if !plugin_path.is_dir() {
+                    fs::write(plugin_path, content).await.map_err(|e| {
+                        ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
+                    })?;
+
+                    return Ok(db_schema.name.to_string());
+                }
+            }
+        }
+
+        Err(ProcessingEngineError::PluginError(
+            plugins::PluginError::AnyhowError(anyhow::anyhow!("Plugin not found: {}", plugin_name)),
+        ))
     }
 }
 

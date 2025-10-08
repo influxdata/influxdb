@@ -3627,3 +3627,59 @@ fn test_create_token_requires_subcommand() {
     assert_contains!(&stdout_help, "Usage: influxdb3 create token");
     assert_contains!(&stdout_help, "--admin");
 }
+
+#[test_log::test(tokio::test)]
+async fn test_update_trigger() {
+    let plugin_dir = TempDir::new().unwrap();
+    let external_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+
+    let db_name = "test_db";
+
+    server.create_database(db_name).run().unwrap();
+
+    // Create initial plugin file in plugin_dir
+    let plugin_file = plugin_dir.path().join("test_plugin.py");
+    let initial_content = "def handle_wal(wal_data): pass";
+    fs::write(&plugin_file, initial_content).unwrap();
+
+    server
+        .create_trigger(db_name, "test_trigger", "test_plugin.py", "all_tables")
+        .run()
+        .unwrap();
+
+    // Create updated plugin file that is located elsewhere that we will upload
+    let external_file = external_dir.path().join("updated_plugin.py");
+    let updated_content = "def handle_wal(wal_data): print('updated')";
+    fs::write(&external_file, updated_content).unwrap();
+
+    // Upload from external file
+    let output = server
+        .run(
+            vec![
+                "update",
+                "trigger",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            &[
+                "--database",
+                db_name,
+                "--trigger-name",
+                "test_trigger",
+                "--path",
+                external_file.to_str().unwrap(),
+            ],
+        )
+        .unwrap();
+
+    assert!(output.contains("updated successfully"));
+
+    // Verify that the file in plugin_dir has the updated content
+    let actual_content = fs::read_to_string(&plugin_file).unwrap();
+    assert_eq!(actual_content, updated_content);
+}
