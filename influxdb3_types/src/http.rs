@@ -208,6 +208,21 @@ pub struct UpdatePluginFileRequest {
     pub content: String,
 }
 
+/// Request definition for the `PUT /api/v3/plugins/directory` API
+/// Replaces an entire plugin directory atomically
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ReplacePluginDirectoryRequest {
+    pub plugin_name: String,
+    pub files: Vec<PluginFileEntry>,
+}
+
+/// Individual file entry for bulk plugin directory replacement
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PluginFileEntry {
+    pub relative_path: String,
+    pub content: String,
+}
+
 /// Request definition for the `POST /api/v3/configure/plugin_environment/install_packages` API
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProcessingEngineInstallPackagesRequest {

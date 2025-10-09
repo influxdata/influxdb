@@ -15,12 +15,13 @@ use secrecy::Secret;
 use serde_json::json;
 use std::error::Error;
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str;
 use token::CreateTokenConfig;
 use token::handle_token_creation_with_config;
 use tokio::fs;
 use url::Url;
+use walkdir::WalkDir;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -255,11 +256,15 @@ pub struct TableConfig {
 pub struct TriggerConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
-    /// Python file name of the file on the server's plugin-dir containing the plugin code. Or
-    /// on the [influxdb3_plugins](https://github.com/influxdata/influxdb3_plugins) repo if `gh:` is specified as
-    /// the prefix. When using --upload, this should be the local file path.
-    #[clap(long = "plugin-filename")]
-    plugin_filename: String,
+    /// Path to plugin file or directory. For single-file plugins, provide the .py file path.
+    /// For multi-file plugins, provide the directory path (must contain __init__.py).
+    /// When not using --upload, this should be the filename/path on the server's plugin-dir.
+    /// Supports gh: prefix for [influxdb3_plugins](https://github.com/influxdata/influxdb3_plugins) repo.
+    #[clap(long = "path")]
+    path: Option<PathBuf>,
+    /// Deprecated: Use --path instead. Python file name of the file on the server's plugin-dir.
+    #[clap(long = "plugin-filename", conflicts_with = "path")]
+    plugin_filename: Option<String>,
     /// When the trigger should fire
     #[clap(long = "trigger-spec",
           value_parser = TriggerSpecificationDefinition::from_string_rep,
@@ -436,6 +441,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Trigger(TriggerConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             trigger_name,
+            path,
             plugin_filename,
             trigger_specification,
             trigger_arguments,
@@ -445,32 +451,102 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             upload,
             ..
         }) => {
+            // Determine which path/filename to use: --path supersedes --plugin-filename
+            let plugin_path_source = match (path, plugin_filename) {
+                (Some(p), _) => p,
+                (None, Some(f)) => PathBuf::from(f),
+                (None, None) => {
+                    return Err("Either --path or --plugin-filename must be provided".into());
+                }
+            };
+
             let final_plugin_filename = if upload {
-                let path = PathBuf::from(&plugin_filename);
+                let path = plugin_path_source;
 
                 if !path.exists() {
                     return Err(format!("File not found: {}", path.display()).into());
                 }
 
-                if !path.is_file() {
-                    return Err(format!("Path must be a file: {}", path.display()).into());
+                if path.is_file() {
+                    // Single file upload (existing behavior)
+                    let content = fs::read_to_string(&path).await?;
+
+                    let filename = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .ok_or("Invalid filename")?
+                        .to_string();
+
+                    client
+                        .api_v3_create_plugin_file(&database_name, &filename, &content)
+                        .await?;
+
+                    filename
+                } else if path.is_dir() {
+                    // Multi-file plugin upload (new behavior)
+                    let plugin_name = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .ok_or("Invalid directory name")?
+                        .to_string();
+
+                    // Validate __init__.py exists
+                    let init_file = path.join("__init__.py");
+                    if !init_file.exists() {
+                        return Err(format!(
+                            "Multi-file plugin directory must contain __init__.py: {}",
+                            path.display()
+                        )
+                        .into());
+                    }
+
+                    // Recursively collect all .py files
+                    for entry in WalkDir::new(&path)
+                        .follow_links(false)
+                        .into_iter()
+                        .filter_entry(|e| {
+                            // Skip __pycache__ directories
+                            e.file_name()
+                                .to_str()
+                                .map(|s| s != "__pycache__")
+                                .unwrap_or(true)
+                        })
+                        .filter_map(Result::ok)
+                    {
+                        if entry.file_type().is_file()
+                            && entry.path().extension().and_then(|s| s.to_str()) == Some("py")
+                        {
+                            let content = fs::read_to_string(entry.path()).await?;
+
+                            // Get relative path from plugin directory
+                            let relative_path = entry
+                                .path()
+                                .strip_prefix(&path)
+                                .map_err(|e| format!("Failed to get relative path: {}", e))?;
+
+                            // Combine plugin name with relative path
+                            let file_path = Path::new(&plugin_name)
+                                .join(relative_path)
+                                .to_str()
+                                .ok_or("Invalid file path")?
+                                .to_string();
+
+                            client
+                                .api_v3_create_plugin_file(&database_name, &file_path, &content)
+                                .await?;
+                        }
+                    }
+
+                    plugin_name
+                } else {
+                    return Err(format!("Invalid path: {}", path.display()).into());
                 }
-
-                let content = fs::read_to_string(&path).await?;
-
-                let filename = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .ok_or("Invalid filename")?
-                    .to_string();
-
-                client
-                    .api_v3_create_plugin_file(&database_name, &filename, &content)
-                    .await?;
-
-                filename
             } else {
-                plugin_filename
+                // When not uploading, extract the filename/path as a string for server reference
+                plugin_path_source
+                    .to_str()
+                    .ok_or("Invalid path encoding")?
+                    .to_string()
             };
 
             let trigger_arguments: Option<HashMap<String, String>> = trigger_arguments.map(|a| {
@@ -510,6 +586,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
 
+    use std::path::PathBuf;
     use std::time::Duration;
 
     use clap::Parser;
@@ -563,7 +640,7 @@ mod tests {
             "trigger",
             "--trigger-spec",
             "every:10s",
-            "--plugin-filename",
+            "--path",
             "plugin.py",
             "--database",
             "test",
@@ -575,7 +652,7 @@ mod tests {
             trigger_name,
             trigger_arguments,
             trigger_specification,
-            plugin_filename,
+            path,
             disabled,
             run_asynchronous,
             error_behavior,
@@ -587,7 +664,7 @@ mod tests {
         };
         assert_eq!("test", database_name);
         assert_eq!("test-trigger", trigger_name);
-        assert_eq!("plugin.py", plugin_filename);
+        assert_eq!(Some(PathBuf::from("plugin.py")), path);
         assert_eq!(
             TriggerSpecificationDefinition::Every {
                 duration: Duration::from_secs(10)

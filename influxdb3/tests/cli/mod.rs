@@ -1547,6 +1547,174 @@ async fn test_upload_plugin_no_plugin_dir_configured() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_upload_multifile_plugin_on_create() {
+    let local_plugin_dir = TempDir::new().unwrap();
+    let server_plugin_dir = TempDir::new().unwrap();
+
+    // Create a multi-file plugin locally
+    let plugin_path = local_plugin_dir.path().join("my_multifile_plugin");
+    fs::create_dir(&plugin_path).unwrap();
+
+    let init_code = r#"
+from .utils import process_table
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    for table_batch in table_batches:
+        count = process_table(table_batch)
+        influxdb3_local.info(f"Processed {count} rows")
+"#;
+    fs::write(plugin_path.join("__init__.py"), init_code).unwrap();
+
+    let utils_code = r#"
+def process_table(table_batch):
+    return len(table_batch["rows"])
+"#;
+    fs::write(plugin_path.join("utils.py"), utils_code).unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(server_plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+
+    let db_name = "test_db";
+    server.create_database(db_name).run().unwrap();
+
+    let result = server
+        .create_trigger(
+            db_name,
+            "multifile_trigger",
+            plugin_path.to_str().unwrap(),
+            "all_tables",
+        )
+        .upload(true)
+        .run()
+        .unwrap();
+
+    assert_contains!(&result, "Trigger multifile_trigger created successfully");
+
+    // Verify files were uploaded
+    let result = server
+        .query_sql("_internal")
+        .with_sql("SELECT file_name FROM system.plugin_files WHERE plugin_name = 'multifile_trigger' ORDER BY file_name")
+        .run()
+        .unwrap();
+
+    let parsed = result.as_array().expect("Expected array result");
+    assert_eq!(parsed.len(), 2);
+
+    let file_names: Vec<&str> = parsed
+        .iter()
+        .map(|f| f["file_name"].as_str().unwrap())
+        .collect();
+
+    assert!(file_names.contains(&"__init__.py"));
+    assert!(file_names.contains(&"utils.py"));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_upload_multifile_plugin_nested() {
+    let local_plugin_dir = TempDir::new().unwrap();
+    let server_plugin_dir = TempDir::new().unwrap();
+
+    // Create a nested multi-file plugin
+    let plugin_path = local_plugin_dir.path().join("nested_plugin");
+    fs::create_dir(&plugin_path).unwrap();
+
+    let models_dir = plugin_path.join("models");
+    fs::create_dir(&models_dir).unwrap();
+
+    let init_code = r#"
+from .models.processor import process_data
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    result = process_data(table_batches)
+    influxdb3_local.info(f"Processed {result} batches")
+"#;
+    fs::write(plugin_path.join("__init__.py"), init_code).unwrap();
+
+    fs::write(models_dir.join("__init__.py"), "").unwrap();
+
+    let processor_code = r#"
+def process_data(batches):
+    return len(batches)
+"#;
+    fs::write(models_dir.join("processor.py"), processor_code).unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(server_plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+
+    let db_name = "test_db";
+    server.create_database(db_name).run().unwrap();
+
+    let result = server
+        .create_trigger(
+            db_name,
+            "nested_trigger",
+            plugin_path.to_str().unwrap(),
+            "all_tables",
+        )
+        .upload(true)
+        .run()
+        .unwrap();
+
+    assert_contains!(&result, "Trigger nested_trigger created successfully");
+
+    // Verify nested structure was uploaded
+    let result = server
+        .query_sql("_internal")
+        .with_sql("SELECT file_name FROM system.plugin_files WHERE plugin_name = 'nested_trigger' ORDER BY file_name")
+        .run()
+        .unwrap();
+
+    let parsed = result.as_array().expect("Expected array result");
+    assert_eq!(parsed.len(), 3);
+
+    let file_names: Vec<&str> = parsed
+        .iter()
+        .map(|f| f["file_name"].as_str().unwrap())
+        .collect();
+
+    assert!(file_names.contains(&"__init__.py"));
+    assert!(file_names.contains(&"models/__init__.py"));
+    assert!(file_names.contains(&"models/processor.py"));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_upload_multifile_missing_init_fails() {
+    let local_plugin_dir = TempDir::new().unwrap();
+    let server_plugin_dir = TempDir::new().unwrap();
+
+    // Create a directory without __init__.py
+    let plugin_path = local_plugin_dir.path().join("bad_plugin");
+    fs::create_dir(&plugin_path).unwrap();
+    fs::write(plugin_path.join("utils.py"), "def helper(): pass").unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(server_plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+
+    let db_name = "test_db";
+    server.create_database(db_name).run().unwrap();
+
+    let result = server
+        .create_trigger(
+            db_name,
+            "bad_trigger",
+            plugin_path.to_str().unwrap(),
+            "all_tables",
+        )
+        .upload(true)
+        .run();
+
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("__init__.py"));
+}
+
+#[test_log::test(tokio::test)]
 async fn test_database_create_persists() {
     // create tmp dir for object store
     let tmp_file = TempDir::new().unwrap();
@@ -3927,6 +4095,135 @@ async fn test_update_trigger() {
     assert!(output.contains("updated successfully"));
 
     // Verify that the file in plugin_dir has the updated content
+    let actual_content = fs::read_to_string(&plugin_file).unwrap();
+    assert_eq!(actual_content, updated_content);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_update_multifile_plugin_single_file() {
+    let plugin_dir = TempDir::new().unwrap();
+    let external_dir = TempDir::new().unwrap();
+
+    // Create initial multi-file plugin in plugin_dir
+    let plugin_path = plugin_dir.path().join("my_plugin");
+    fs::create_dir(&plugin_path).unwrap();
+
+    let init_code = r#"
+from .utils import helper
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    helper()
+"#;
+    fs::write(plugin_path.join("__init__.py"), init_code).unwrap();
+    fs::write(plugin_path.join("utils.py"), "def helper(): pass").unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+
+    let db_name = "test_db";
+    server.create_database(db_name).run().unwrap();
+
+    server
+        .create_trigger(db_name, "test_trigger", "my_plugin", "all_tables")
+        .run()
+        .unwrap();
+
+    // Update __init__.py file
+    let external_file = external_dir.path().join("new_init.py");
+    let updated_content = r#"
+from .utils import helper
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("Updated!")
+    helper()
+"#;
+    fs::write(&external_file, updated_content).unwrap();
+
+    let output = server
+        .run(
+            vec![
+                "update",
+                "trigger",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            &[
+                "--database",
+                db_name,
+                "--trigger-name",
+                "test_trigger",
+                "--path",
+                external_file.to_str().unwrap(),
+            ],
+        )
+        .unwrap();
+
+    assert!(output.contains("updated successfully"));
+
+    // Verify __init__.py was updated
+    let actual_content = fs::read_to_string(plugin_path.join("__init__.py")).unwrap();
+    assert_eq!(actual_content, updated_content);
+
+    // Verify utils.py is unchanged
+    let utils_content = fs::read_to_string(plugin_path.join("utils.py")).unwrap();
+    assert_eq!(utils_content, "def helper(): pass");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_update_single_file_plugin_still_works() {
+    let plugin_dir = TempDir::new().unwrap();
+    let external_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+
+    let db_name = "test_db";
+    server.create_database(db_name).run().unwrap();
+
+    // Create initial single-file plugin
+    let plugin_file = plugin_dir.path().join("single_plugin.py");
+    fs::write(
+        &plugin_file,
+        "def process_writes(influxdb3_local, table_batches, args=None): pass",
+    )
+    .unwrap();
+
+    server
+        .create_trigger(db_name, "single_trigger", "single_plugin.py", "all_tables")
+        .run()
+        .unwrap();
+
+    // Update the single file
+    let external_file = external_dir.path().join("updated.py");
+    let updated_content = "def process_writes(influxdb3_local, table_batches, args=None): influxdb3_local.info('updated')";
+    fs::write(&external_file, updated_content).unwrap();
+
+    let output = server
+        .run(
+            vec![
+                "update",
+                "trigger",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            &[
+                "--database",
+                db_name,
+                "--trigger-name",
+                "single_trigger",
+                "--path",
+                external_file.to_str().unwrap(),
+            ],
+        )
+        .unwrap();
+
+    assert!(output.contains("updated successfully"));
+
+    // Verify the file was updated
     let actual_content = fs::read_to_string(&plugin_file).unwrap();
     assert_eq!(actual_content, updated_content);
 }
