@@ -22,6 +22,7 @@ iox_query_params.workspace = true
 iox_query_influxql.workspace = true
 iox_system_tables.workspace = true
 iox_time.workspace = true
+iox_v1_query_api.workspace = true
 metric.workspace = true
 metric_exporters.workspace = true
 observability_deps.workspace = true

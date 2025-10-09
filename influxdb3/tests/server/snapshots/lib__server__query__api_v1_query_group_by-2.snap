@@ -7,6 +7,7 @@ expression: values
   {
     "results": [
       {
+        "partial": true,
         "series": [
           {
             "columns": [
@@ -22,12 +23,12 @@ expression: values
               [
                 "2065-01-07T17:28:51Z",
                 "aa",
-                1.0
+                1
               ],
               [
                 "2065-01-07T17:28:53Z",
                 "bb",
-                3.0
+                3
               ]
             ]
           }
@@ -54,12 +55,12 @@ expression: values
               [
                 "2065-01-07T17:28:52Z",
                 "aa",
-                2.0
+                2
               ],
               [
                 "2065-01-07T17:28:54Z",
                 "bb",
-                4.0
+                4
               ]
             ]
           }
