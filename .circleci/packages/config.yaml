@@ -80,8 +80,8 @@ packages:
 
       - owner:  root
         group:  root
-        perms:  0755
-        target: usr/lib/systemd/system/influxdb.service
+        perms:  0644
+        target: lib/systemd/system/influxdb.service
     rpm_attributes:
       - 750,influxdb,influxdb:/var/log/influxdb
       - 750,influxdb,influxdb:/var/lib/influxdb
