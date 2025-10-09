@@ -88,6 +88,11 @@ pub enum PluginError {
 
     #[error("Node not configured with plugin directory")]
     NoPluginDir,
+
+    #[error(
+        "Path traversal detected: plugin filename '{0}' attempts to access files outside the plugin directory"
+    )]
+    PathTraversal(String),
 }
 
 pub(crate) fn run_wal_contents_plugin(

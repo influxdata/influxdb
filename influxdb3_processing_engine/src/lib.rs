@@ -301,7 +301,56 @@ impl ProcessingEngineManagerImpl {
             .plugin_dir
             .clone()
             .ok_or(PluginError::NoPluginDir)?;
+
+        // First, normalize the path components to check for path traversal
+        // This catches attempts like "../../etc/passwd" before we try to access the filesystem
+        let normalized_path = std::path::Path::new(name);
+        for component in normalized_path.components() {
+            match component {
+                std::path::Component::ParentDir => {
+                    // Any ".." component is a path traversal attempt
+                    return Err(PluginError::PathTraversal(name.to_string()));
+                }
+                std::path::Component::RootDir => {
+                    // Absolute paths are not allowed
+                    return Err(PluginError::PathTraversal(name.to_string()));
+                }
+                _ => {} // Normal and CurDir components are fine
+            }
+        }
+
         let plugin_path = plugin_dir.join(name);
+
+        // Canonicalize both paths to prevent path traversal attacks via symlinks
+        let canonical_plugin_dir = plugin_dir
+            .canonicalize()
+            .context("failed to canonicalize plugin directory")?;
+
+        // For the plugin path, we need to handle the case where the file doesn't exist yet
+        let canonical_plugin_path = if plugin_path.exists() {
+            plugin_path
+                .canonicalize()
+                .context("failed to canonicalize plugin path")?
+        } else {
+            // If file doesn't exist, canonicalize the parent and append the filename
+            if let Some(parent) = plugin_path.parent() {
+                if let Some(filename) = plugin_path.file_name() {
+                    let canonical_parent = parent
+                        .canonicalize()
+                        .context("failed to canonicalize plugin path parent directory")?;
+                    canonical_parent.join(filename)
+                } else {
+                    return Err(PluginError::PathTraversal(name.to_string()));
+                }
+            } else {
+                return Err(PluginError::PathTraversal(name.to_string()));
+            }
+        };
+
+        // Verify that the canonical plugin path is within the canonical plugin directory
+        if !canonical_plugin_path.starts_with(&canonical_plugin_dir) {
+            return Err(PluginError::PathTraversal(name.to_string()));
+        }
 
         // read it at least once to make sure it's there
         let code = fs::read_to_string(plugin_path.clone()).await?;
@@ -831,7 +880,7 @@ fn background_catalog_update(
 mod tests {
     use crate::ProcessingEngineManagerImpl;
     use crate::environment::DisabledManager;
-    use crate::plugins::ProcessingEngineEnvironmentManager;
+    use crate::plugins::{PluginError, ProcessingEngineEnvironmentManager};
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
@@ -1207,5 +1256,115 @@ def process_writes(influxdb3_local, table_batches, args=None):
         let url = construct_plugin_url(plugin_repo.as_deref(), plugin_path);
         // Automatic slash insertion creates correct URL regardless of input format
         assert_eq!(url, "https://custom-repo.example.com/plugins/my_plugin.py");
+    }
+
+    #[tokio::test]
+    async fn test_path_traversal_prevention_direct() {
+        // Test that direct path traversal attempts are blocked
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let (pem, _file) = setup(start_time, test_store, wal_config).await;
+
+        // Try to access a file outside the plugin directory using ../
+        let result = pem.read_plugin_code("../../etc/passwd").await;
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(
+                matches!(e, PluginError::PathTraversal(_)),
+                "Expected PathTraversal error, got: {:?}",
+                e
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_path_traversal_prevention_nested() {
+        // Test that nested path traversal attempts are blocked
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let (pem, _file) = setup(start_time, test_store, wal_config).await;
+
+        // Try to access a file using a more complex traversal pattern
+        let result = pem
+            .read_plugin_code("influxdata/examples/../../../../somewhere_else/malicious.py")
+            .await;
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(
+                matches!(e, PluginError::PathTraversal(_)),
+                "Expected PathTraversal error, got: {:?}",
+                e
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_valid_subdirectory_access() {
+        // Test that valid subdirectory access still works
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let (pem, file) = setup(start_time, test_store, wal_config).await;
+
+        // Create a subdirectory in the plugin dir
+        let plugin_dir = file.path().parent().unwrap();
+        let subdir = plugin_dir.join("influxdata");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        // Create a plugin file in the subdirectory
+        let plugin_path = subdir.join("test_plugin.py");
+        std::fs::write(
+            &plugin_path,
+            "def process_writes(influxdb3_local, table_batches, args=None):\n    pass",
+        )
+        .unwrap();
+
+        // This should succeed - accessing a file in a valid subdirectory
+        let result = pem.read_plugin_code("influxdata/test_plugin.py").await;
+        assert!(
+            result.is_ok(),
+            "Valid subdirectory access should work, got error: {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_absolute_path_blocked() {
+        // Test that absolute paths are blocked
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let (pem, _file) = setup(start_time, test_store, wal_config).await;
+
+        // Try to access an absolute path
+        let result = pem.read_plugin_code("/etc/passwd").await;
+        assert!(result.is_err());
+        // This will either be PathTraversal or a file not found error, both are acceptable
     }
 }
