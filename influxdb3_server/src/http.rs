@@ -1740,6 +1740,32 @@ impl HttpApi {
             .status(StatusCode::OK)
             .body(empty_response_body())?)
     }
+
+    async fn replace_plugin_directory(&self, req: Request) -> Result<Response> {
+        let token_id = self.authorize_admin(&req).await?;
+
+        let ReplacePluginDirectoryRequest { plugin_name, files } = self.read_body_json(req).await?;
+
+        // Convert files to the format expected by the processing engine
+        let file_entries: Vec<(String, String)> = files
+            .into_iter()
+            .map(|entry| (entry.relative_path, entry.content))
+            .collect();
+
+        let db_name = Arc::clone(&self.processing_engine)
+            .replace_plugin_directory(&plugin_name, file_entries)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        info!(
+            "Plugin directory atomically replaced for trigger '{}' in database '{}' by token {:?}",
+            plugin_name, db_name, token_id
+        );
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .body(empty_response_body())?)
+    }
 }
 
 /// Check that the content type is application/json
@@ -2389,6 +2415,9 @@ pub(crate) async fn route_request(
             http_server.create_plugin_file(req).await
         }
         (Method::PUT, all_paths::API_V3_PLUGINS_FILES) => http_server.update_plugin_file(req).await,
+        (Method::PUT, all_paths::API_V3_PLUGINS_DIRECTORY) => {
+            http_server.replace_plugin_directory(req).await
+        }
         _ => {
             let body = bytes_to_response_body("not found");
             Ok(ResponseBuilder::new()

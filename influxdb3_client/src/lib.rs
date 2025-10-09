@@ -732,6 +732,35 @@ impl Client {
             .await
     }
 
+    /// Replace an entire plugin directory atomically
+    pub async fn api_v3_replace_plugin_directory(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        files: Vec<(String, String)>,
+    ) -> Result<()> {
+        let file_entries = files
+            .into_iter()
+            .map(|(relative_path, content)| PluginFileEntry {
+                relative_path,
+                content,
+            })
+            .collect();
+
+        self.send_json_get_bytes(
+            Method::PUT,
+            &format!("/api/v3/plugins/directory?db={}", db.into()),
+            Some(ReplacePluginDirectoryRequest {
+                plugin_name: trigger_name.into(),
+                files: file_entries,
+            }),
+            None::<()>,
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
     /// Make a request to the `POST /api/v3/plugin_test/wal` API
     pub async fn wal_plugin_test(
         &self,

@@ -5,7 +5,7 @@
 use crate::ExecutePluginError;
 use crate::logging::{LogLevel, ProcessingEngineLog};
 use crate::system_py::CacheId::{Global, GlobalTest, Trigger, TriggerTest};
-use anyhow::{Context, bail};
+use anyhow::{Context, anyhow, bail};
 use arrow_array::types::Int32Type;
 use arrow_array::{
     Array, BooleanArray, DictionaryArray, Float64Array, Int32Array, Int64Array, RecordBatch,
@@ -35,6 +35,7 @@ use pyo3::{
 };
 use std::collections::BTreeMap;
 use std::ffi::CString;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -472,6 +473,65 @@ fn map_to_py_object<'py>(py: Python<'py>, map: &HashMap<String, String>) -> Boun
     dict
 }
 
+/// Loads a Python function from a multi-file plugin module.
+///
+/// This function temporarily adds the plugin's parent directory to Python's sys.path,
+/// imports the module, retrieves the function, and then cleans up sys.path.
+fn load_function_from_module<'py>(
+    py: Python<'py>,
+    plugin_root: &Path,
+    function_name: &str,
+) -> Result<Bound<'py, PyAny>, anyhow::Error> {
+    let parent_dir = plugin_root
+        .parent()
+        .ok_or_else(|| anyhow!("Plugin root has no parent directory"))?;
+    let module_name = plugin_root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| anyhow!("Invalid plugin directory name"))?;
+
+    let sys = py.import("sys")?;
+    let sys_path = sys.getattr("path")?;
+
+    let parent_dir_str = parent_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("Invalid UTF-8 in parent directory path"))?;
+
+    // Add parent directory to sys.path
+    sys_path.call_method1("insert", (0, parent_dir_str))?;
+
+    // Attempt to import the module and get the function
+    // Cleanup happens regardless of success or failure
+    let import_result = py
+        .import(module_name)
+        .and_then(|module| module.getattr(function_name));
+
+    // Always cleanup sys.path, even if import failed
+    // Ignore cleanup errors as they don't affect the import result
+    let _ = sys_path.call_method1("pop", (0,));
+
+    // Convert PyErr to anyhow error with helpful context
+    import_result.map_err(|e| {
+        // Check if error is about missing function or import failure
+        let error_str = e.to_string();
+        if error_str.contains("has no attribute") {
+            anyhow!(
+                "Plugin module '{}' does not contain function '{}'. \
+                 Multi-file plugins must define this function in __init__.py",
+                module_name,
+                function_name
+            )
+        } else {
+            anyhow!(
+                "Failed to import plugin module '{}': {}\n\
+                 Hint: Check for syntax errors or missing dependencies in Python files.",
+                module_name,
+                e
+            )
+        }
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn execute_python_with_batch(
     code: &str,
@@ -482,6 +542,7 @@ pub fn execute_python_with_batch(
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
+    plugin_root: Option<&Path>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -494,11 +555,22 @@ pub fn execute_python_with_batch(
     };
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
-
+        // Run LineBuilder code in the main namespace
         py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
             .map_err(|e| {
                 anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
             })?;
+
+        // Make LineBuilder available to all modules by adding it to builtins
+        // This ensures multi-file plugins can access it
+        let builtins = py.import("builtins").map_err(anyhow::Error::from)?;
+        let main_module = py.import("__main__").map_err(anyhow::Error::from)?;
+        let line_builder = main_module
+            .getattr("LineBuilder")
+            .map_err(anyhow::Error::from)?;
+        builtins
+            .setattr("LineBuilder", line_builder)
+            .map_err(anyhow::Error::from)?;
 
         // convert the write batch into a python object
         let mut table_batches = Vec::with_capacity(write_batch.table_chunks.len());
@@ -595,12 +667,17 @@ pub fn execute_python_with_batch(
         // turn args into an optional dict to pass into python
         let args = args_to_py_object(py, args);
 
-        // run the code and get the python function to call
-        py.run(&CString::new(code).unwrap(), None, None)
-            .map_err(anyhow::Error::from)?;
-        let py_func = py
-            .eval(&CString::new(PROCESS_WRITES_CALL_SITE).unwrap(), None, None)
-            .map_err(|_| ExecutePluginError::MissingProcessWritesFunction)?;
+        // Get the python function based on whether this is a directory plugin or not
+        let py_func = if let Some(root_path) = plugin_root {
+            load_function_from_module(py, root_path, PROCESS_WRITES_CALL_SITE)
+                .map_err(|_| ExecutePluginError::MissingProcessWritesFunction)?
+        } else {
+            // run the code and get the python function to call (single-file plugin)
+            py.run(&CString::new(code).unwrap(), None, None)
+                .map_err(anyhow::Error::from)?;
+            py.eval(&CString::new(PROCESS_WRITES_CALL_SITE).unwrap(), None, None)
+                .map_err(|_| ExecutePluginError::MissingProcessWritesFunction)?
+        };
 
         py_func
             .call1((local_api, py_batches.unbind(), args))
@@ -629,6 +706,7 @@ pub fn execute_python_with_batch(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute_schedule_trigger(
     code: &str,
     schedule_time: DateTime<Utc>,
@@ -637,6 +715,7 @@ pub fn execute_schedule_trigger(
     logger: Option<ProcessingEngineLogger>,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
+    plugin_root: Option<&Path>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -660,6 +739,16 @@ pub fn execute_schedule_trigger(
                 anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
             })?;
 
+        // Make LineBuilder available to all modules by adding it to builtins
+        let builtins = py.import("builtins").map_err(anyhow::Error::from)?;
+        let main_module = py.import("__main__").map_err(anyhow::Error::from)?;
+        let line_builder = main_module
+            .getattr("LineBuilder")
+            .map_err(anyhow::Error::from)?;
+        builtins
+            .setattr("LineBuilder", line_builder)
+            .map_err(anyhow::Error::from)?;
+
         let api = PyPluginCallApi {
             db_schema: schema,
             query_executor,
@@ -673,17 +762,22 @@ pub fn execute_schedule_trigger(
         // turn args into an optional dict to pass into python
         let args = args_to_py_object(py, args);
 
-        // run the code and get the python function to call
-        py.run(&CString::new(code).unwrap(), None, None)
-            .map_err(anyhow::Error::from)?;
+        // Get the python function based on whether this is a directory plugin or not
+        let py_func = if let Some(root_path) = plugin_root {
+            load_function_from_module(py, root_path, PROCESS_SCHEDULED_CALL_SITE)
+                .map_err(|_| ExecutePluginError::MissingProcessScheduledCallFunction)?
+        } else {
+            // run the code and get the python function to call (single-file plugin)
+            py.run(&CString::new(code).unwrap(), None, None)
+                .map_err(anyhow::Error::from)?;
 
-        let py_func = py
-            .eval(
+            py.eval(
                 &CString::new(PROCESS_SCHEDULED_CALL_SITE).unwrap(),
                 None,
                 None,
             )
-            .map_err(|_| ExecutePluginError::MissingProcessScheduledCallFunction)?;
+            .map_err(|_| ExecutePluginError::MissingProcessScheduledCallFunction)?
+        };
 
         py_func
             .call1((local_api, py_datetime, args))
@@ -721,6 +815,7 @@ pub fn execute_request_trigger(
     request_headers: HashMap<String, String>,
     request_body: Bytes,
     py_cache: PyCache,
+    plugin_root: Option<&Path>,
 ) -> Result<(u16, HashMap<String, String>, String, PluginReturnState), ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -738,6 +833,16 @@ pub fn execute_request_trigger(
                 anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
             })?;
 
+        // Make LineBuilder available to all modules by adding it to builtins
+        let builtins = py.import("builtins").map_err(anyhow::Error::from)?;
+        let main_module = py.import("__main__").map_err(anyhow::Error::from)?;
+        let line_builder = main_module
+            .getattr("LineBuilder")
+            .map_err(anyhow::Error::from)?;
+        builtins
+            .setattr("LineBuilder", line_builder)
+            .map_err(anyhow::Error::from)?;
+
         let api = PyPluginCallApi {
             db_schema,
             query_executor,
@@ -754,17 +859,22 @@ pub fn execute_request_trigger(
         let query_params = map_to_py_object(py, &query_params);
         let request_params = map_to_py_object(py, &request_headers);
 
-        // run the code and get the python function to call
-        py.run(&CString::new(code).unwrap(), None, None)
-            .map_err(anyhow::Error::from)?;
+        // Get the python function based on whether this is a directory plugin or not
+        let py_func = if let Some(root_path) = plugin_root {
+            load_function_from_module(py, root_path, PROCESS_REQUEST_CALL_SITE)
+                .map_err(|_| ExecutePluginError::MissingProcessRequestFunction)?
+        } else {
+            // run the code and get the python function to call (single-file plugin)
+            py.run(&CString::new(code).unwrap(), None, None)
+                .map_err(anyhow::Error::from)?;
 
-        let py_func = py
-            .eval(
+            py.eval(
                 &CString::new(PROCESS_REQUEST_CALL_SITE).unwrap(),
                 None,
                 None,
             )
-            .map_err(|_| ExecutePluginError::MissingProcessRequestFunction)?;
+            .map_err(|_| ExecutePluginError::MissingProcessRequestFunction)?
+        };
 
         // convert the body bytes into python bytes blob
         let request_body = PyBytes::new(py, &request_body[..]);
@@ -772,7 +882,7 @@ pub fn execute_request_trigger(
         // get the result from calling the python function
         let result = py_func
             .call1((local_api, query_params, request_params, request_body, args))
-            .map_err(|e| anyhow::anyhow!("Python function call failed: {}", e))?;
+            .map_err(|e| anyhow!("Python function call failed: {}", e))?;
 
         // Process the result according to Flask conventions
         let (response_code, response_headers, response_body) = process_flask_response(py, result)?;
@@ -910,9 +1020,7 @@ fn process_flask_response(
     }
 
     // If we can't identify the response type, return an error
-    Err(anyhow::anyhow!(
-        "Unsupported return type from Python function"
-    ))
+    Err(anyhow!("Unsupported return type from Python function"))
 }
 
 fn process_response_part(

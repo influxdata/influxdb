@@ -459,7 +459,6 @@ mod python_plugin {
                             error!(?self.trigger_definition, "missing db schema");
                             return Err(PluginError::MissingDb);
                         };
-                        let plugin_code = self.plugin_code.code();
                         let query_executor = Arc::clone(&self.query_executor);
                         let logger = Some(self.logger.clone());
                         let trigger_arguments = self.trigger_definition.trigger_arguments.clone();
@@ -469,9 +468,11 @@ mod python_plugin {
                             self.trigger_definition.trigger_name.to_string(),
                         );
 
+                        let plugin_code_str = self.plugin_code.code();
+                        let plugin_root = self.plugin_code.plugin_root().cloned();
                         let result = tokio::task::spawn_blocking(move || {
                             execute_request_trigger(
-                                plugin_code.as_ref(),
+                                plugin_code_str.as_ref(),
                                 schema,
                                 query_executor,
                                 logger,
@@ -480,6 +481,7 @@ mod python_plugin {
                                 request.headers,
                                 request.body,
                                 py_cache,
+                                plugin_root.as_deref(),
                             )
                         })
                         .await?;
@@ -594,7 +596,8 @@ mod python_plugin {
                         // loop for retries, in general it will only run once.
                         loop {
                             let logger = Some(self.logger.clone());
-                            let plugin_code = Arc::clone(&self.plugin_code.code());
+                            let plugin_code_str = self.plugin_code.code();
+                            let plugin_root = self.plugin_code.plugin_root().cloned();
                             let query_executor = Arc::clone(&self.query_executor);
                             let schema_clone = Arc::clone(&schema);
                             let trigger_arguments =
@@ -612,7 +615,7 @@ mod python_plugin {
                                     _ => unreachable!("Index was checked."),
                                 };
                                 execute_python_with_batch(
-                                    plugin_code.as_ref(),
+                                    plugin_code_str.as_ref(),
                                     write_batch,
                                     schema_clone,
                                     query_executor,
@@ -620,6 +623,7 @@ mod python_plugin {
                                     table_filter,
                                     &trigger_arguments,
                                     py_cache,
+                                    plugin_root.as_deref(),
                                 )
                             })
                             .await?;
@@ -644,6 +648,7 @@ mod python_plugin {
                                                 format!("error executing against batch {err}"),
                                             );
                                             error!(?self.trigger_definition, "error running against batch: {err}");
+                                            break; // Exit retry loop after logging
                                         }
                                         ErrorBehavior::Retry => {
                                             info!(
@@ -798,7 +803,6 @@ mod python_plugin {
         ) -> Result<PluginNextState, PluginError> {
             // This loop is here just for the retry case.
             loop {
-                let plugin_code = plugin.plugin_code.code();
                 let query_executor = Arc::clone(&plugin.query_executor);
                 let logger = Some(plugin.logger.clone());
                 let trigger_arguments = plugin.trigger_definition.trigger_arguments.clone();
@@ -809,15 +813,18 @@ mod python_plugin {
                     plugin.trigger_definition.trigger_name.to_string(),
                 );
 
+                let plugin_code_str = plugin.plugin_code.code();
+                let plugin_root = plugin.plugin_code.plugin_root().cloned();
                 let result = tokio::task::spawn_blocking(move || {
                     execute_schedule_trigger(
-                        plugin_code.as_ref(),
+                        plugin_code_str.as_ref(),
                         trigger_time,
                         schema,
                         query_executor,
                         logger,
                         &trigger_arguments,
                         py_cache,
+                        plugin_root.as_deref(),
                     )
                 })
                 .await?;
@@ -909,6 +916,7 @@ pub(crate) fn run_test_wal_plugin(
                 .cache_name
                 .unwrap_or_else(|| "_shared_test".to_string()),
         ),
+        None,
     )?;
 
     let log_lines = plugin_return_state.log();
@@ -1038,6 +1046,7 @@ pub(crate) fn run_test_schedule_plugin(
                 .cache_name
                 .unwrap_or_else(|| "_shared_test".to_string()),
         ),
+        None,
     )?;
 
     let log_lines = plugin_return_state.log();
