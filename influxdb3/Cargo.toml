@@ -42,9 +42,11 @@ influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_clap_blocks = { path = "../influxdb3_clap_blocks" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_processing_engine = {path = "../influxdb3_processing_engine"}
+influxdb3_query_executor = { path = "../influxdb3_query_executor" }
 influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_sys_events = { path = "../influxdb3_sys_events" }
+influxdb3_system_tables = { path = "../influxdb3_system_tables" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
 influxdb3_types = { path = "../influxdb3_types" }
 influxdb3_wal = { path = "../influxdb3_wal" }

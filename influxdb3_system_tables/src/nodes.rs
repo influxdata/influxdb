@@ -12,13 +12,13 @@ use iox_system_tables::IoxSystemTable;
 use tonic::async_trait;
 
 #[derive(Debug)]
-pub(crate) struct NodeSystemTable {
+pub(super) struct NodeSystemTable {
     catalog: Arc<Catalog>,
     schema: SchemaRef,
 }
 
 impl NodeSystemTable {
-    pub(crate) fn new(catalog: Arc<Catalog>) -> Self {
+    pub(super) fn new(catalog: Arc<Catalog>) -> Self {
         Self {
             catalog,
             schema: table_schema(),

@@ -1,6 +1,7 @@
 //! module for query executor
-use crate::system_tables::{SYSTEM_SCHEMA_NAME, SystemSchemaProvider};
-use crate::{query_planner::Planner, system_tables::AllSystemSchemaTablesProvider};
+mod query_planner;
+
+use crate::query_planner::Planner;
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
@@ -25,6 +26,9 @@ use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_sys_events::SysEventStore;
+use influxdb3_system_tables::{
+    AllSystemSchemaTablesProvider, SYSTEM_SCHEMA_NAME, SystemSchemaProvider,
+};
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::{ChunkFilter, WriteBuffer};
 use iox_query::QueryDatabase;
@@ -801,9 +805,8 @@ impl TableProvider for QueryTable {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
-
-    use crate::query_executor::QueryExecutorImpl;
+    use super::CreateQueryExecutorArgs;
+    use crate::QueryExecutorImpl;
     use arrow::array::RecordBatch;
     use data_types::NamespaceName;
     use datafusion::assert_batches_sorted_eq;
@@ -832,8 +835,10 @@ mod tests {
     use object_store::{ObjectStore, local::LocalFileSystem};
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
-
-    use super::CreateQueryExecutorArgs;
+    use std::collections::HashMap;
+    use std::num::NonZeroUsize;
+    use std::sync::Arc;
+    use std::time::Duration;
 
     pub(crate) fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());

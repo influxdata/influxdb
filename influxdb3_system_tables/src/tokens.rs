@@ -9,14 +9,14 @@ use influxdb3_catalog::catalog::Catalog;
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
-pub(crate) struct TokenSystemTable {
+pub(super) struct TokenSystemTable {
     catalog: Arc<Catalog>,
     schema: SchemaRef,
     started_with_auth: bool,
 }
 
 impl TokenSystemTable {
-    pub(crate) fn new(catalog: Arc<Catalog>, started_with_auth: bool) -> Self {
+    pub(super) fn new(catalog: Arc<Catalog>, started_with_auth: bool) -> Self {
         Self {
             catalog,
             schema: table_schema(started_with_auth),

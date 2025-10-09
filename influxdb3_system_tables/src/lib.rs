@@ -7,67 +7,70 @@ use datafusion::{
     logical_expr::{BinaryExpr, Expr, Operator, col},
     scalar::ScalarValue,
 };
-use distinct_caches::DistinctCachesTable;
 use generations::GenerationDurationsTable;
-use influxdb_schema::InfluxdbSchemaTable;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, INTERNAL_DB_NAME};
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
-use parquet_files::ParquetFilesTable;
-use tokens::TokenSystemTable;
 use tonic::async_trait;
 
-use self::{
-    databases::DatabasesTable, last_caches::LastCachesTable, plugins::PluginsTable,
-    queries::QueriesTable, tables::TablesTable,
-};
-
-pub(crate) mod databases;
+mod databases;
+use databases::DatabasesTable;
 mod distinct_caches;
-pub(crate) mod generations;
+use distinct_caches::DistinctCachesTable;
+mod generations;
 mod influxdb_schema;
+use influxdb_schema::InfluxdbSchemaTable;
 mod last_caches;
+use last_caches::LastCachesTable;
 mod nodes;
+use nodes::NodeSystemTable;
 mod parquet_files;
+use parquet_files::ParquetFilesTable;
 mod plugins;
-use crate::system_tables::{
-    nodes::NodeSystemTable,
-    python_call::{
-        ProcessingEngineLogsTable, ProcessingEngineTriggerArgumentsTable,
-        ProcessingEngineTriggerTable,
-    },
-};
+use plugins::PluginsTable;
 mod python_call;
+use python_call::{
+    ProcessingEngineLogsTable, ProcessingEngineTriggerArgumentsTable, ProcessingEngineTriggerTable,
+};
 mod queries;
-pub(crate) mod tables;
-pub(crate) mod tokens;
-
-pub(crate) const SYSTEM_SCHEMA_NAME: &str = "system";
-pub(crate) const TABLE_NAME_PREDICATE: &str = "table_name";
-
-pub(crate) const QUERIES_TABLE_NAME: &str = "queries";
-pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
-pub(crate) const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
-pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
-pub(crate) const TOKENS_TABLE_NAME: &str = "tokens";
-pub(crate) const DATABASES_TABLE_NAME: &str = "databases";
-pub(crate) const TABLES_TABLE_NAME: &str = "tables";
-pub(crate) const NODES_TABLE_NAME: &str = "nodes";
-pub(crate) const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
-pub(crate) const INFLUXDB_SCHEMA_TABLE_NAME: &str = "influxdb_schema";
-pub(crate) const PLUGIN_FILES_TABLE_NAME: &str = "plugin_files";
+use queries::QueriesTable;
+mod tables;
+use tables::TablesTable;
+mod tokens;
+use tokens::TokenSystemTable;
 /// The default timezone used in the system schema.
-pub(crate) const DEFAULT_TIMEZONE: &str = "UTC";
+pub const DEFAULT_TIMEZONE: &str = "UTC";
+/// Global system schema name used in queries
+///
+/// # Example
+/// ```sql
+/// SELECT * FROM system.queries;
+/// ```
+pub const SYSTEM_SCHEMA_NAME: &str = "system";
+pub const TABLE_NAME_PREDICATE: &str = "table_name";
 
-const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
-const PROCESSING_ENGINE_TRIGGER_ARGUMENTS_TABLE_NAME: &str = "processing_engine_trigger_arguments";
-const PROCESSING_ENGINE_LOGS_TABLE_NAME: &str = "processing_engine_logs";
+pub const QUERIES_TABLE_NAME: &str = "queries";
+pub const LAST_CACHES_TABLE_NAME: &str = "last_caches";
+pub const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
+pub const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
+pub const TOKENS_TABLE_NAME: &str = "tokens";
+pub const DATABASES_TABLE_NAME: &str = "databases";
+pub const TABLES_TABLE_NAME: &str = "tables";
+pub const NODES_TABLE_NAME: &str = "nodes";
+pub const GENERATION_DURATIONS_TABLE_NAME: &str = "generation_durations";
+pub const INFLUXDB_SCHEMA_TABLE_NAME: &str = "influxdb_schema";
+pub const PLUGIN_FILES_TABLE_NAME: &str = "plugin_files";
+
+pub const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
+pub const PROCESSING_ENGINE_TRIGGER_ARGUMENTS_TABLE_NAME: &str =
+    "processing_engine_trigger_arguments";
+pub const PROCESSING_ENGINE_LOGS_TABLE_NAME: &str = "processing_engine_logs";
 
 #[derive(Debug)]
-pub(crate) enum SystemSchemaProvider {
+pub enum SystemSchemaProvider {
     AllSystemSchemaTables(AllSystemSchemaTablesProvider),
 }
 
@@ -96,7 +99,7 @@ impl SchemaProvider for SystemSchemaProvider {
     }
 }
 
-pub(crate) struct AllSystemSchemaTablesProvider {
+pub struct AllSystemSchemaTablesProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
 }
 
@@ -112,7 +115,7 @@ impl std::fmt::Debug for AllSystemSchemaTablesProvider {
 }
 
 impl AllSystemSchemaTablesProvider {
-    pub(crate) fn new(
+    pub fn new(
         db_schema: Arc<DatabaseSchema>,
         query_log: Arc<QueryLog>,
         buffer: Arc<dyn WriteBuffer>,
@@ -247,7 +250,7 @@ impl SchemaProvider for AllSystemSchemaTablesProvider {
 /// ```sql
 /// SELECT * FROM system.parquet_files WHERE table_name = 'foo'
 /// ```
-pub(crate) fn find_table_name_in_filter(filters: Option<Vec<Expr>>) -> Option<Arc<str>> {
+pub fn find_table_name_in_filter(filters: Option<Vec<Expr>>) -> Option<Arc<str>> {
     filters.map(|all_filters| {
         all_filters.iter().find_map(|f| match f {
             Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
