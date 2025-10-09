@@ -33,6 +33,8 @@ allow = [
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
     { name = "webpki-roots", allow = ["MPL-2.0"] },
+    # aws sdk-s3 uses aws-lc-sys for rustls
+    { name = "aws-lc-sys", allow = ["OpenSSL"] },
 ]
 
 [[licenses.clarify]]

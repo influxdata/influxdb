@@ -1054,6 +1054,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
 
     let common_state = CommonServerState::new(
+        Arc::clone(&catalog),
         Arc::clone(&metrics),
         trace_exporter,
         trace_header_parser,

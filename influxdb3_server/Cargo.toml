@@ -19,6 +19,7 @@ iox_http_util.workspace = true
 iox_query.workspace = true
 iox_query_params.workspace = true
 iox_time.workspace = true
+iox_v1_query_api.workspace = true
 metric.workspace = true
 metric_exporters.workspace = true
 observability_deps.workspace = true

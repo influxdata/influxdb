@@ -1,6 +1,7 @@
 //! Version 2 implementation of the Catalog that sits entirely in memory.
 
 use bimap::BiHashMap;
+use data_types::{Namespace, NamespaceId};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_authz::{
@@ -709,6 +710,15 @@ impl Catalog {
             .generation_durations
             .iter()
             .map(|(level, duration)| (*level, *duration))
+            .collect()
+    }
+
+    pub fn list_namespaces(&self) -> Vec<Namespace> {
+        self.inner
+            .read()
+            .databases
+            .resource_iter()
+            .map(|db| db.as_namespace())
             .collect()
     }
 }
@@ -1479,6 +1489,27 @@ impl DatabaseSchema {
         time_provider: Arc<dyn TimeProvider>,
     ) -> Option<DeletionStatus> {
         table_deletion_status(self, table_id, &time_provider)
+    }
+
+    pub fn as_namespace(&self) -> Namespace {
+        let retention_period_ns = match self.retention_period {
+            RetentionPeriod::Indefinite => None,
+            RetentionPeriod::Duration(duration) => {
+                TryInto::<i64>::try_into(duration.as_nanos()).ok()
+            }
+        };
+        Namespace {
+            id: NamespaceId::new(self.id.get().into()),
+            name: self.name.to_string(),
+            retention_period_ns,
+            deleted_at: self.hard_delete_time.map(Into::into),
+            // NOTE(tjh): all of the below are IOx attributes that are not used in Core/Enterprise
+            // and therefore are populated with defaults.
+            max_tables: Default::default(),
+            max_columns_per_table: Default::default(),
+            partition_template: Default::default(),
+            router_version: Default::default(),
+        }
     }
 }
 

@@ -1,0 +1,6 @@
+---
+source: influxdb3/tests/server/query.rs
+description: SHOW RETENTION POLICIES on non-existent db
+expression: response
+---
+{"results":[{"statement_id":0,"error":"datafusion error: Error during planning: database not found: frodo"}]}
