@@ -7,6 +7,7 @@ expression: values
   {
     "results": [
       {
+        "partial": true,
         "series": [
           {
             "columns": [
@@ -22,7 +23,7 @@ expression: values
             "values": [
               [
                 "2065-01-07T17:28:51Z",
-                1.0
+                1
               ]
             ]
           }
@@ -34,6 +35,7 @@ expression: values
   {
     "results": [
       {
+        "partial": true,
         "series": [
           {
             "columns": [
@@ -49,7 +51,7 @@ expression: values
             "values": [
               [
                 "2065-01-07T17:28:53Z",
-                3.0
+                3
               ]
             ]
           }
@@ -61,6 +63,7 @@ expression: values
   {
     "results": [
       {
+        "partial": true,
         "series": [
           {
             "columns": [
@@ -76,7 +79,7 @@ expression: values
             "values": [
               [
                 "2065-01-07T17:28:52Z",
-                2.0
+                2
               ]
             ]
           }
@@ -103,7 +106,7 @@ expression: values
             "values": [
               [
                 "2065-01-07T17:28:54Z",
-                4.0
+                4
               ]
             ]
           }
