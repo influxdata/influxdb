@@ -12,7 +12,8 @@ function install_init {
 }
 
 function install_systemd {
-    cp -f $SCRIPT_DIR/influxdb.service /lib/systemd/system/influxdb.service
+    # Service file is now installed directly by RPM - just enable it
+    systemctl daemon-reload
     systemctl enable influxdb
 }
 
