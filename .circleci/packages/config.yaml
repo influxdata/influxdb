@@ -77,6 +77,11 @@ packages:
         group:  root
         perms:  0755
         target: usr/lib/influxdb/scripts/influxd-systemd-start.sh
+
+      - owner:  root
+        group:  root
+        perms:  0644
+        target: lib/systemd/system/influxdb.service
     rpm_attributes:
       - 750,influxdb,influxdb:/var/log/influxdb
       - 750,influxdb,influxdb:/var/lib/influxdb
