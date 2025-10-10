@@ -311,7 +311,6 @@ func (e *Engine) WithFormatFileNameFunc(formatFileNameFunc FormatFileNameFunc) {
 
 func (e *Engine) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	e.FileStore.WithParseFileNameFunc(parseFileNameFunc)
-	e.Compactor.WithParseFileNameFunc(parseFileNameFunc)
 }
 
 // Digest returns a reader for the shard's digest.
