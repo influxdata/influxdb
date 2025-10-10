@@ -689,6 +689,38 @@ impl Client {
         Ok(())
     }
 
+    async fn save_plugin_file(
+        &self,
+        method: Method,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        content: impl Into<String> + Send,
+    ) -> Result<()> {
+        self.send_json_get_bytes(
+            method,
+            &format!("/api/v3/plugins/files?db={}", db.into()),
+            Some(UpdatePluginFileRequest {
+                plugin_name: trigger_name.into(),
+                content: content.into(),
+            }),
+            None::<()>,
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Create a plugin file
+    pub async fn api_v3_create_plugin_file(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        content: impl Into<String> + Send,
+    ) -> Result<()> {
+        self.save_plugin_file(Method::POST, db, trigger_name, content)
+            .await
+    }
+
     /// Update a plugin file
     pub async fn api_v3_update_plugin_file(
         &self,
@@ -696,19 +728,8 @@ impl Client {
         trigger_name: impl Into<String> + Send,
         content: impl Into<String> + Send,
     ) -> Result<()> {
-        let _bytes = self
-            .send_json_get_bytes(
-                Method::PUT,
-                &format!("/api/v3/plugins/files?db={}", &db.into()),
-                Some(UpdatePluginFileRequest {
-                    plugin_name: trigger_name.into(),
-                    content: content.into(),
-                }),
-                None::<()>,
-                None,
-            )
-            .await?;
-        Ok(())
+        self.save_plugin_file(Method::PUT, db, trigger_name, content)
+            .await
     }
 
     /// Make a request to the `POST /api/v3/plugin_test/wal` API
