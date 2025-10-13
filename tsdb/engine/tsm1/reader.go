@@ -273,13 +273,9 @@ func NewTSMReader(f *os.File, options ...TsmReaderOption) (*TSMReader, error) {
 		return nil, err
 	}
 
-	if nil != t.parseFileNameFunc {
-		// If parseFileNameFunc is nil, we are in a test or another TSMReader use
-		// that does not involve compaction planning, and was not created by the FileStore
-		t.generation, t.sequence, err = t.parseFileNameFunc(t.Path())
-		if err != nil {
-			return nil, err
-		}
+	err = t.parseAndCacheFileName(t.Path())
+	if nil != err {
+		return nil, fmt.Errorf("failed creating new TSM reader: %w", err)
 	}
 
 	return t, nil
@@ -440,16 +436,27 @@ func (t *TSMReader) Remove() error {
 func (t *TSMReader) Rename(path string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	var err error
-	if err = t.accessor.rename(path); err != nil {
+
+	if err := t.accessor.rename(path); err != nil {
 		return fmt.Errorf("failure renaming to %q: %w", path, err)
 	}
-	if t.parseFileNameFunc != nil {
-		if t.generation, t.sequence, err = t.parseFileNameFunc(path); err != nil {
-			return fmt.Errorf("failed parsing filename %q for generation and sequence numbers: %w", path, err)
-		}
+
+	if err := t.parseAndCacheFileName(path); err != nil {
+		return fmt.Errorf("rename failed: %w", err)
 	}
 	return nil
+}
+
+func (t *TSMReader) parseAndCacheFileName(path string) error {
+	if t.parseFileNameFunc != nil {
+		var err error
+		t.generation, t.sequence, err = t.parseFileNameFunc(path)
+		return err
+	} else {
+		// If parseFileNameFunc is nil, we are in a test or another TSMReader use
+		// that does not involve compaction planning, and was not created by the FileStore
+		return nil
+	}
 }
 
 // Remove removes any underlying files stored on disk for this reader.
