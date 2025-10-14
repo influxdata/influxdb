@@ -461,27 +461,12 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 	}
 
 	groups := c.groupAdjacentGenerations(generations, func(currentLevel int, candidateLevel int) bool { return currentLevel >= candidateLevel })
-	/*
-		// Only optimize level 4 files since using lower-levels will collide
-		// with the level planners. If this is a single generation optimization
-		// do not skip any levels.
-		var levelGroups []tsmGenerations
-		if len(generations) == 1 {
-			levelGroups = append(levelGroups, groups...)
-		} else {
-			for _, cur := range groups {
-				if cur.level() == 4 {
-					levelGroups = append(levelGroups, cur)
-				}
-			}
-		}
-	*/
-
+	
 	var cGroups []CompactionGroup
 	for _, group := range groups {
 		var cGroup CompactionGroup
-		// Only optimize level 4 generation groups since using lower-levels will collide
-		// with the level planners. If this is a single-generation optimization
+		// Optimize level 4 generation groups since using lower-levels will collide
+		// with the level planners. If this is a single-generation optimization,
 		// do not skip any levels.
 		if group.level() == 4 || len(generations) == 1 {
 			for _, gen := range group {

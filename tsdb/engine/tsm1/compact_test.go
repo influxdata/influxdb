@@ -3765,14 +3765,10 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 		},
 		{
-			// Current WIP test
 			name: "Mixed generations with 3 level 2 files",
 			files: []tsm1.ExtFileStat{
 				{FileStat: tsm1.FileStat{Path: "000016684-000000007.tsm", Size: 2147483648}, FirstBlockCount: 189},
-				{
-					FileStat:        tsm1.FileStat{Path: "000016684-000000008.tsm", Size: 2147483648},
-					FirstBlockCount: 635,
-				},
+				{FileStat: tsm1.FileStat{Path: "000016684-000000008.tsm", Size: 2147483648}, FirstBlockCount: 635},
 				{FileStat: tsm1.FileStat{Path: "000016684-000000009.tsm", Size: 2147483648}, FirstBlockCount: 298},
 				{FileStat: tsm1.FileStat{Path: "000016684-000000010.tsm", Size: 394264576}, FirstBlockCount: 298},
 				{FileStat: tsm1.FileStat{Path: "000016812-000000004.tsm", Size: 2147483648}, FirstBlockCount: 573},
@@ -3786,15 +3782,12 @@ func TestEnginePlanCompactions(t *testing.T) {
 			testShardTime: -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
-					level4Groups: []tsm1.PlannedCompactionGroup{
+					level2Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								"000016844-000000002.tsm",
 								"000016845-000000002.tsm",
 								"000016846-000000002.tsm",
-								"000016948-000000004.tsm",
-								"000016948-000000005.tsm",
-								"000017076-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -3809,6 +3802,14 @@ func TestEnginePlanCompactions(t *testing.T) {
 								"000016684-000000010.tsm",
 								"000016812-000000004.tsm",
 								"000016812-000000005.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+						{
+							tsm1.CompactionGroup{
+								"000016948-000000004.tsm",
+								"000016948-000000005.tsm",
+								"000017076-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -3836,21 +3837,13 @@ func TestEnginePlanCompactions(t *testing.T) {
 			testShardTime: -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
-					level4Groups: []tsm1.PlannedCompactionGroup{
+					level2Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								"000016844-000000002.tsm",
 								"000016845-000000002.tsm",
 								"000016846-000000002.tsm",
 								"000016847-000000002.tsm",
-							},
-							tsdb.DefaultMaxPointsPerBlock,
-						},
-						{
-							tsm1.CompactionGroup{
-								"000016948-000000004.tsm",
-								"000016948-000000005.tsm",
-								"000017076-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -3867,7 +3860,14 @@ func TestEnginePlanCompactions(t *testing.T) {
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
-					},
+						{
+							tsm1.CompactionGroup{
+								"000016948-000000004.tsm",
+								"000016948-000000005.tsm",
+								"000017076-000000004.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						}},
 				}
 			},
 		},
@@ -3894,7 +3894,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 			testShardTime: -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
-					level4Groups: []tsm1.PlannedCompactionGroup{
+					level2Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								"000016844-000000002.tsm",
@@ -3906,8 +3906,15 @@ func TestEnginePlanCompactions(t *testing.T) {
 						},
 						{
 							tsm1.CompactionGroup{
-								// Lone 5th level 2 file gets picked up by full planner
 								"000016848-000000002.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level4Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
+								// Lone 5th level 2 file gets picked up by full planner
 								"000016948-000000004.tsm",
 								"000016948-000000005.tsm",
 								"000017076-000000004.tsm",
@@ -3953,10 +3960,17 @@ func TestEnginePlanCompactions(t *testing.T) {
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
 					// Our rogue level 2 file should be picked up in the full compaction
-					level4Groups: []tsm1.PlannedCompactionGroup{
+					level2Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
 								"000016090-000000002.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level4Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
 								"000016684-000000007.tsm",
 								"000016684-000000008.tsm",
 								"000016684-000000009.tsm",
@@ -3965,6 +3979,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 								"000016812-000000005.tsm",
 								"000016948-000000004.tsm",
 								"000016948-000000005.tsm",
+								"000017076-000000004.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -3973,7 +3988,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
 							tsm1.CompactionGroup{
-								"000017076-000000004.tsm",
 								"000017094-000000004.tsm",
 								"000017095-000000005.tsm",
 							},
@@ -4003,6 +4017,12 @@ func TestEnginePlanCompactions(t *testing.T) {
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"000005-04.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
 				}
 			},
 		},
@@ -4022,15 +4042,21 @@ func TestEnginePlanCompactions(t *testing.T) {
 			testShardTime:     -1,
 			expectedResult: func() TestLevelResults {
 				return TestLevelResults{
+					level2Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{"000001-02.tsm"},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
 					level4Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"000001-02.tsm", "000002-04.tsm", "000003-05.tsm", "000004-04.tsm"},
+							tsm1.CompactionGroup{"000002-04.tsm", "000003-05.tsm", "000004-04.tsm", "000005-05.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
 					level5Groups: []tsm1.PlannedCompactionGroup{
 						{
-							tsm1.CompactionGroup{"000005-05.tsm", "000006-04.tsm"},
+							tsm1.CompactionGroup{"000006-04.tsm"},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
 					},
@@ -4040,6 +4066,8 @@ func TestEnginePlanCompactions(t *testing.T) {
 
 		// Multiple leading low-level files
 		{
+			// CURRENT WIP
+
 			name: "leading_low_run_2_2_4_5_4_5_4",
 			files: []tsm1.ExtFileStat{
 				{FileStat: tsm1.FileStat{Path: "000001-02.tsm", Size: 16 * 1024 * 1024}, FirstBlockCount: tsdb.DefaultMaxPointsPerBlock},
