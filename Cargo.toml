@@ -13,14 +13,17 @@ members = [
     "influxdb3_process",
     "influxdb3_processing_engine",
     "influxdb3_py_api",
+    "influxdb3_query_executor",
     "influxdb3_server",
     "influxdb3_shutdown",
+    "influxdb3_system_tables",
     "influxdb3_telemetry",
     "influxdb3_test_helpers",
     "influxdb3_types",
     "influxdb3_wal",
     "influxdb3_write",
-    "iox_query_influxql_rewrite", "object_store_utils",
+    "iox_query_influxql_rewrite",
+    "object_store_utils",
 ]
 default-members = ["influxdb3"]
 

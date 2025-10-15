@@ -1,0 +1,44 @@
+[package]
+name = "influxdb3_system_tables"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Local crates
+influxdb3_authz = { path = "../influxdb3_authz" }
+influxdb3_catalog = { path = "../influxdb3_catalog" }
+influxdb3_id = { path = "../influxdb3_id" }
+influxdb3_processing_engine = { path = "../influxdb3_processing_engine" }
+influxdb3_py_api = { path = "../influxdb3_py_api" }
+influxdb3_sys_events = { path = "../influxdb3_sys_events" }
+influxdb3_write = { path = "../influxdb3_write" }
+
+# Core crates
+iox_query.workspace = true
+iox_query_influxql.workspace = true
+iox_query_params.workspace = true
+iox_system_tables.workspace = true
+observability_deps.workspace = true
+
+# Crates.io crates
+arrow.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+async-trait.workspace = true
+datafusion.workspace = true
+hashbrown.workspace = true
+hex.workspace = true
+indexmap.workspace = true
+serde_json.workspace = true
+tonic.workspace = true
+
+[dev-dependencies]
+influxdb3_types = { path = "../influxdb3_types"}
+pretty_assertions.workspace = true
+test-log.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

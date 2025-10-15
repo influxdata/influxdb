@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::system_tables::DEFAULT_TIMEZONE;
+use crate::DEFAULT_TIMEZONE;
 use arrow::array::{StringViewBuilder, UInt64Builder};
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};

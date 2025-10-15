@@ -14,9 +14,6 @@ clippy::future_not_send
 pub mod all_paths;
 mod grpc;
 pub mod http;
-pub mod query_executor;
-mod query_planner;
-mod system_tables;
 mod unified_service;
 
 use crate::grpc::make_flight_server;
@@ -590,7 +587,6 @@ fn setup_tls(
 
 #[cfg(test)]
 mod tests {
-    use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::{CreateServerArgs, serve};
     use crate::{Server, http::HttpApi};
     use chrono::DateTime;
@@ -607,6 +603,7 @@ mod tests {
     use influxdb3_processing_engine::ProcessingEngineManagerImpl;
     use influxdb3_processing_engine::environment::DisabledManager;
     use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
+    use influxdb3_query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use influxdb3_shutdown::ShutdownManager;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;

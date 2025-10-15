@@ -1,0 +1,62 @@
+[package]
+name = "influxdb3_query_executor"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Local crates
+influxdb3_cache = { path = "../influxdb3_cache" }
+influxdb3_catalog = { path = "../influxdb3_catalog" }
+influxdb3_id = { path = "../influxdb3_id" }
+influxdb3_internal_api = { path = "../influxdb3_internal_api" }
+influxdb3_processing_engine = { path = "../influxdb3_processing_engine" }
+influxdb3_sys_events = { path = "../influxdb3_sys_events" }
+influxdb3_system_tables = { path = "../influxdb3_system_tables" }
+influxdb3_telemetry = { path = "../influxdb3_telemetry" }
+influxdb3_write = { path = "../influxdb3_write" }
+
+# Core crates
+datafusion_util.workspace = true
+data_types.workspace = true
+influxdb_influxql_parser.workspace = true
+iox_query.workspace = true
+iox_query_influxql.workspace = true
+iox_query_params.workspace = true
+iox_time.workspace = true
+metric.workspace = true
+observability_deps.workspace = true
+schema.workspace = true
+trace.workspace = true
+trace_http.workspace = true
+tracker.workspace = true
+
+# Crates.io crates
+anyhow.workspace = true
+arrow.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+async-trait.workspace = true
+datafusion.workspace = true
+futures.workspace = true
+itertools.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+influxdb3_authz = { path = "../influxdb3_authz" }
+influxdb3_shutdown = { path = "../influxdb3_shutdown" }
+influxdb3_types = { path = "../influxdb3_types"}
+influxdb3_wal = { path = "../influxdb3_wal"}
+insta.workspace = true
+iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
+object_store.workspace = true
+parquet_file.workspace = true
+pretty_assertions.workspace = true
+rstest.workspace = true
+test_helpers.workspace = true
+test-log.workspace = true
+
+[lints]
+workspace = true

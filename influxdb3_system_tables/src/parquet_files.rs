@@ -8,7 +8,7 @@ use influxdb3_id::DbId;
 use influxdb3_write::{ParquetFile, WriteBuffer};
 use iox_system_tables::IoxSystemTable;
 
-use crate::system_tables::find_table_name_in_filter;
+use crate::find_table_name_in_filter;
 
 #[derive(Debug)]
 pub(super) struct ParquetFilesTable {
