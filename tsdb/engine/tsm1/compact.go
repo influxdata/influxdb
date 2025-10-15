@@ -122,7 +122,7 @@ type CompactionGroup []string
 // given compaction run.
 type CompactionPlanner interface {
 	Plan(lastWrite time.Time) ([]CompactionGroup, int64)
-	PlanLevel(level int, handleNested bool) ([]CompactionGroup, int64)
+	PlanLevel(level int) ([]CompactionGroup, int64)
 	// PlanOptimize will return the groups for compaction, the compaction group length,
 	// and the amount of generations within the compaction group.
 	// generationCount needs to be set to decide how many points per block during compaction.
@@ -321,7 +321,7 @@ func (c *DefaultPlanner) ForceFull() {
 type leveltestFnType func(currentLevel int, candidateLevel int) bool
 
 // PlanLevel returns a set of TSM files to rewrite for a specific level.
-func (c *DefaultPlanner) PlanLevel(level int, handleNested bool) ([]CompactionGroup, int64) {
+func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 	// If a full plan has been requested, don't plan any levels which will prevent
 	// the full plan from acquiring them.
 	c.mu.RLock()
@@ -377,7 +377,7 @@ func (c *DefaultPlanner) PlanLevel(level int, handleNested bool) ([]CompactionGr
 
 			if len(chunk) < minGenerations && !hasTombstones {
 				for j := levelGroupIndices[i] + 1; j < len(groups); j++ {
-					if handleNested && groups[j].level() >= level {
+					if groups[j].level() >= level {
 						// There are later generations of higher level, so this
 						// group should be processed to go up a level.
 						cGroups = append(cGroups, cGroup)

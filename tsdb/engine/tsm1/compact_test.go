@@ -1872,7 +1872,7 @@ func TestDefaultPlanner_PlanLevel_SmallestCompactionStep(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11]}
-	tsm, pLen := cp.PlanLevel(1, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(1)
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -1924,7 +1924,7 @@ func TestDefaultPlanner_PlanLevel_SplitFile(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4]}
-	tsm, pLen := cp.PlanLevel(3, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(3)
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -1976,7 +1976,7 @@ func TestDefaultPlanner_PlanLevel_IsolatedHighLevel(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{}
-	tsm, pLen := cp.PlanLevel(3, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(3)
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2018,7 +2018,7 @@ func TestDefaultPlanner_PlanLevel3_MinFiles(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{}
-	tsm, pLen := cp.PlanLevel(3, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(3)
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2049,7 +2049,7 @@ func TestDefaultPlanner_PlanLevel2_MinFiles(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{}
-	tsm, pLen := cp.PlanLevel(2, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(2)
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2092,7 +2092,7 @@ func TestDefaultPlanner_PlanLevel_Tombstone(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1]}
-	tsm, pLen := cp.PlanLevel(3, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(3)
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2149,7 +2149,7 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 
 	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]}
 
-	tsm, pLen := cp.PlanLevel(1, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(1)
 	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2239,7 +2239,7 @@ func TestDefaultPlanner_PlanLevel_InUse(t *testing.T) {
 	expFiles1 := data[0:8]
 	expFiles2 := data[8:16]
 
-	tsm, pLen := cp.PlanLevel(1, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(1)
 	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2264,7 +2264,7 @@ func TestDefaultPlanner_PlanLevel_InUse(t *testing.T) {
 
 	cp.Release(tsm[1:])
 
-	tsm, pLen = cp.PlanLevel(1, tsm1.HandleNested)
+	tsm, pLen = cp.PlanLevel(1)
 	if exp, got := len(expFiles2), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2777,7 +2777,7 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	tsm, pLen := cp.PlanLevel(1, tsm1.HandleNested)
+	tsm, pLen := cp.PlanLevel(1)
 	if exp, got := 1, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2785,7 +2785,7 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 	}
 	cp.Release(tsm)
 
-	tsm, pLen = cp.PlanLevel(2, tsm1.HandleNested)
+	tsm, pLen = cp.PlanLevel(2)
 	if exp, got := 1, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2796,7 +2796,7 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 	cp.ForceFull()
 
 	// Level plans should not return any plans
-	tsm, pLen = cp.PlanLevel(1, tsm1.HandleNested)
+	tsm, pLen = cp.PlanLevel(1)
 	if exp, got := 0, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2804,7 +2804,7 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 	}
 	cp.Release(tsm)
 
-	tsm, pLen = cp.PlanLevel(2, tsm1.HandleNested)
+	tsm, pLen = cp.PlanLevel(2)
 	if exp, got := 0, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2825,7 +2825,7 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 	cp.Release(tsm)
 
 	// Level plans should return plans now that Plan has been called
-	tsm, pLen = cp.PlanLevel(1, tsm1.HandleNested)
+	tsm, pLen = cp.PlanLevel(1)
 	if exp, got := 1, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2833,7 +2833,7 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 	}
 	cp.Release(tsm)
 
-	tsm, pLen = cp.PlanLevel(2, tsm1.HandleNested)
+	tsm, pLen = cp.PlanLevel(2)
 	if exp, got := 1, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -4978,7 +4978,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 			atomic.StoreInt64(&e.Stats.TSMCompactionsActive[0], int64(mockGroupLen))
 			atomic.StoreInt64(&e.Stats.TSMCompactionsActive[1], int64(mockGroupLen))
 
-			tsm1.HandleNested = true
 			// Plan and check results.
 			level1Groups, level2Groups, Level3Groups, Level4Groups, Level5Groups := e.PlanCompactions()
 			results := test.expectedResult()

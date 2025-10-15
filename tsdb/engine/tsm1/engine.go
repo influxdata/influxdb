@@ -2342,11 +2342,9 @@ func makePlannedCompactionGroup(groups []CompactionGroup, pointsPerBlock int) []
 	return planned
 }
 
-var HandleNested bool = true
-
 func (e *Engine) planCompactionsLevel(level int) []PlannedCompactionGroup {
 
-	groups, _ := e.CompactionPlan.PlanLevel(level, HandleNested)
+	groups, _ := e.CompactionPlan.PlanLevel(level)
 	return makePlannedCompactionGroup(groups, tsdb.DefaultMaxPointsPerBlock)
 }
 
