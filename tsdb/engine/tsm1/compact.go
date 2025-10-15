@@ -365,7 +365,6 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 
 	var cGroups []CompactionGroup
 	for i, group := range levelGroups {
-		//for _, group := range levelGroups {
 		for _, chunk := range group.chunk(minGenerations) {
 			var cGroup CompactionGroup
 			var hasTombstones bool
@@ -1986,44 +1985,6 @@ func (a tsmGenerations) IsSorted() bool {
 }
 
 type tsmGenerationGroups []tsmGenerations
-
-func (t tsmGenerationGroups) FileCount() int {
-	var count int
-	for _, g := range t {
-		for _, f := range g {
-			count += len(f.files)
-		}
-	}
-	return count
-}
-
-func (t tsmGenerationGroups) FileCountsByGroup() []int {
-	counts := make([]int, 0, len(t))
-	for _, g := range t {
-		count := 0
-		for _, f := range g {
-			count += len(f.files)
-		}
-		counts = append(counts, count)
-	}
-	return counts
-}
-
-func (t tsmGenerationGroups) GenerationCountsByGroup() []int {
-	counts := make([]int, 0, len(t))
-	for _, g := range t {
-		counts = append(counts, len(g))
-	}
-	return counts
-}
-
-func (t tsmGenerationGroups) GenerationCount() int {
-	count := 0
-	for _, g := range t {
-		count += len(g)
-	}
-	return count
-}
 
 type latencies struct {
 	i      int
