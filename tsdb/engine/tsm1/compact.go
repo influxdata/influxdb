@@ -628,13 +628,10 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		moveToNextGroup := func() {
 			if len(currentGroup) > 0 {
 				i += len(currentGroup)
-			} else {
-				i++
-			}
-
-			if len(currentGroup) > 0 {
 				groups = append(groups, currentGroup)
 				currentGroup = nil
+			} else {
+				i++
 			}
 		}
 
@@ -643,7 +640,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		for j := 0; j < step && (j+i) < len(generations); j++ {
 			gen := generations[j+i]
 
-			// TODO(DSB): we used to discard groups of level 3 or under here, on the theory
+			// We used to discard groups of level 3 or under here, on the theory
 			// that the level planner would pick them up.  But, if they are not in-use,
 			// then they weren't picked up and should be rolled up in here.
 			if c.isInUse(gen) {
