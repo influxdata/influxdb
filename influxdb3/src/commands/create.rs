@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use std::str;
 use token::CreateTokenConfig;
 use token::handle_token_creation_with_config;
+use tokio::fs;
 use url::Url;
 
 #[derive(Debug, clap::Parser)]
@@ -256,7 +257,7 @@ pub struct TriggerConfig {
     influxdb3_config: InfluxDb3Config,
     /// Python file name of the file on the server's plugin-dir containing the plugin code. Or
     /// on the [influxdb3_plugins](https://github.com/influxdata/influxdb3_plugins) repo if `gh:` is specified as
-    /// the prefix.
+    /// the prefix. When using --upload, this should be the local file path.
     #[clap(long = "plugin-filename")]
     plugin_filename: String,
     /// When the trigger should fire
@@ -276,6 +277,9 @@ pub struct TriggerConfig {
     /// How you wish the system to respond in the event of an error from the plugin
     #[clap(long, value_enum, default_value_t = ErrorBehavior::Log)]
     error_behavior: ErrorBehavior,
+    /// Upload plugin file from local filesystem instead of using server's plugin-dir
+    #[clap(long)]
+    upload: bool,
     /// Name for the new trigger
     trigger_name: String,
 
@@ -438,8 +442,37 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             disabled,
             run_asynchronous,
             error_behavior,
+            upload,
             ..
         }) => {
+            let final_plugin_filename = if upload {
+                let path = PathBuf::from(&plugin_filename);
+
+                if !path.exists() {
+                    return Err(format!("File not found: {}", path.display()).into());
+                }
+
+                if !path.is_file() {
+                    return Err(format!("Path must be a file: {}", path.display()).into());
+                }
+
+                let content = fs::read_to_string(&path).await?;
+
+                let filename = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .ok_or("Invalid filename")?
+                    .to_string();
+
+                client
+                    .api_v3_create_plugin_file(&database_name, &filename, &content)
+                    .await?;
+
+                filename
+            } else {
+                plugin_filename
+            };
+
             let trigger_arguments: Option<HashMap<String, String>> = trigger_arguments.map(|a| {
                 a.into_iter()
                     .map(|SeparatedKeyValue((k, v))| (k, v))
@@ -455,7 +488,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 .api_v3_configure_processing_engine_trigger_create(
                     database_name,
                     &trigger_name,
-                    plugin_filename,
+                    final_plugin_filename,
                     trigger_specification.string_rep(),
                     trigger_arguments,
                     disabled,

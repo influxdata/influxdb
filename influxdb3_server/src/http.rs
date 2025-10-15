@@ -1680,19 +1680,46 @@ impl HttpApi {
         Ok(body?)
     }
 
-    async fn update_plugin_file(&self, req: Request) -> Result<Response> {
-        // Extract token_id from request extensions for authorization
+    async fn authorize_admin(&self, req: &Request) -> Result<TokenId> {
         let token_id = req
             .extensions()
             .get::<TokenId>()
             .copied()
             .ok_or(Error::Unauthenticated)?;
 
-        // Check admin authorization
         self.authorizer
             .authorize_action(&token_id, AccessRequest::Admin)
             .await
             .map_err(|_| Error::ResourceAuthorization(ResourceAuthorizationError::Unauthorized))?;
+
+        Ok(token_id)
+    }
+
+    async fn create_plugin_file(&self, req: Request) -> Result<Response> {
+        let token_id = self.authorize_admin(&req).await?;
+
+        let UpdatePluginFileRequest {
+            plugin_name,
+            content,
+        } = self.read_body_json(req).await?;
+
+        Arc::clone(&self.processing_engine)
+            .create_plugin_file(&plugin_name, &content)
+            .await
+            .map_err(Error::ProcessingEngine)?;
+
+        info!(
+            "Plugin file created: '{}' by token {:?}",
+            plugin_name, token_id
+        );
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .body(empty_response_body())?)
+    }
+
+    async fn update_plugin_file(&self, req: Request) -> Result<Response> {
+        let token_id = self.authorize_admin(&req).await?;
 
         let UpdatePluginFileRequest {
             plugin_name,
@@ -2357,6 +2384,9 @@ pub(crate) async fn route_request(
 
         (Method::DELETE, all_paths::API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD) => {
             http_server.clear_retention_period_for_database(req).await
+        }
+        (Method::POST, all_paths::API_V3_PLUGINS_FILES) => {
+            http_server.create_plugin_file(req).await
         }
         (Method::PUT, all_paths::API_V3_PLUGINS_FILES) => http_server.update_plugin_file(req).await,
         _ => {

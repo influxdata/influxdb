@@ -1299,6 +1299,253 @@ async fn test_triggers_are_started() {
         };
     }
 }
+
+#[test_log::test(tokio::test)]
+async fn test_create_trigger_with_upload() {
+    // Plugin file is in a different temp directory than server's plugin-dir
+    let (_temp_dir, plugin_path) = create_plugin_in_temp_dir(WRITE_REPORTS_PLUGIN_CODE);
+    let server_plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(server_plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let db_name = "foo";
+    let trigger_name = "test_upload_trigger";
+
+    server.create_database(db_name).run().unwrap();
+
+    let result = server
+        .create_trigger(
+            db_name,
+            trigger_name,
+            plugin_path.to_str().unwrap(),
+            "all_tables",
+        )
+        .upload(true)
+        .add_trigger_argument("double_count_table=cpu")
+        .run()
+        .unwrap();
+
+    debug!(result = ?result, "create trigger with upload");
+    assert_contains!(&result, "Trigger test_upload_trigger created successfully");
+
+    // Write data to verify the trigger is working
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,host=a f1=1.0\ncpu,host=b f1=2.0\nmem,host=a usage=234",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let expected = json!(
+        [
+            {"table_name": "cpu", "row_count": 4},
+            {"table_name": "mem", "row_count": 1}
+        ]
+    );
+
+    // Query to verify the processed data is there
+    let mut check_count = 0;
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        match server
+            .query_sql(db_name)
+            .with_sql("SELECT table_name, row_count FROM write_reports")
+            .run()
+        {
+            Ok(result) => {
+                if result == expected {
+                    break;
+                }
+            }
+            Err(e) => {
+                check_count += 1;
+                if check_count > 30 {
+                    panic!("Failed to query processed data: {e}");
+                }
+            }
+        };
+    }
+}
+
+#[test_log::test(tokio::test)]
+async fn test_upload_plugin_file_not_found() {
+    let server_plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(server_plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let db_name = "foo";
+    let trigger_name = "test_trigger";
+
+    server.create_database(db_name).run().unwrap();
+
+    // Try to upload a file that doesn't exist
+    let non_existent_path = "/tmp/this_file_does_not_exist_12345.py";
+    let result = server
+        .create_trigger(db_name, trigger_name, non_existent_path, "all_tables")
+        .upload(true)
+        .run();
+
+    assert!(
+        result.is_err(),
+        "Expected error when uploading non-existent file"
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("File not found") || err.contains("not found"),
+        "Expected 'File not found' error, got: {err}"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_upload_plugin_file_collision() {
+    let server_plugin_dir = TempDir::new().unwrap();
+    let local_dir = TempDir::new().unwrap();
+
+    // Create a file that already exists in the server's plugin directory
+    let existing_file = server_plugin_dir.path().join("existing_plugin.py");
+    fs::write(&existing_file, "def old_version(): pass").unwrap();
+
+    // Create a new version of the file locally
+    let local_file = local_dir.path().join("existing_plugin.py");
+    let new_content = "def new_version(): pass";
+    fs::write(&local_file, new_content).unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(server_plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let db_name = "foo";
+    let trigger_name = "test_trigger";
+
+    server.create_database(db_name).run().unwrap();
+
+    // Upload with the same filename as the existing file
+    assert!(
+        server
+            .create_trigger(
+                db_name,
+                trigger_name,
+                local_file.to_str().unwrap(),
+                "all_tables",
+            )
+            .upload(true)
+            .run()
+            .is_ok()
+    );
+
+    // Verify the file was overwritten by checking content
+    // (using the trigger name as the filename since that's how it's stored)
+    let content = fs::read_to_string(&existing_file).unwrap();
+    assert_eq!(
+        content, new_content,
+        "File should be overwritten with new content"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_upload_plugin_invalid_filename_path_traversal() {
+    let server_plugin_dir = TempDir::new().unwrap();
+    let local_dir = TempDir::new().unwrap();
+
+    // Create a local file with a path that includes ../ traversal
+    let traversal_subdir = local_dir.path().join("subdir");
+    fs::create_dir(&traversal_subdir).unwrap();
+    let local_file = traversal_subdir.join("..").join("escape_test.py");
+    fs::write(&local_file, "def test(): pass").unwrap();
+
+    // Verify the local file path contains path traversal
+    let local_path_str = local_file.to_str().unwrap();
+    assert!(
+        local_path_str.contains(".."),
+        "Test setup: local path should contain .."
+    );
+
+    let server = TestServer::configure()
+        .with_plugin_dir(server_plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let db_name = "foo";
+    let trigger_name = "test_trigger";
+
+    server.create_database(db_name).run().unwrap();
+
+    // Count files in plugin dir before upload
+    let files_before: Vec<_> = fs::read_dir(server_plugin_dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+
+    // Try to upload with path traversal in filename
+    let result = server
+        .create_trigger(db_name, trigger_name, local_path_str, "all_tables")
+        .upload(true)
+        .run();
+
+    // The system should handle this safely by extracting just the filename
+    assert!(
+        result.is_ok(),
+        "System should handle path traversal safely by extracting filename"
+    );
+
+    // Verify file was created with just the filename in the plugin directory
+    let uploaded_file = server_plugin_dir.path().join("escape_test.py");
+    assert!(
+        uploaded_file.exists(),
+        "File should be created with normalized filename in plugin dir"
+    );
+
+    // Verify only one new file was added to plugin directory
+    let files_after: Vec<_> = fs::read_dir(server_plugin_dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+    assert_eq!(
+        files_after.len(),
+        files_before.len() + 1,
+        "Exactly one file should be added to plugin directory"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_upload_plugin_no_plugin_dir_configured() {
+    let local_dir = TempDir::new().unwrap();
+    let local_file = local_dir.path().join("plugin.py");
+    std::fs::write(&local_file, "def test(): pass").unwrap();
+
+    // Start server WITHOUT plugin directory configured
+    let server = TestServer::configure().spawn().await;
+    let db_name = "foo";
+    let trigger_name = "test_trigger";
+
+    server.create_database(db_name).run().unwrap();
+
+    let result = server
+        .create_trigger(
+            db_name,
+            trigger_name,
+            local_file.to_str().unwrap(),
+            "all_tables",
+        )
+        .upload(true)
+        .run();
+
+    assert!(
+        result.is_err(),
+        "Expected error when no plugin directory is configured"
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("No plugin directory") || err.contains("not configured"),
+        "Expected 'No plugin directory' error, got: {err}"
+    );
+}
+
 #[test_log::test(tokio::test)]
 async fn test_database_create_persists() {
     // create tmp dir for object store
