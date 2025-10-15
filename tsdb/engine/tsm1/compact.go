@@ -626,7 +626,12 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 	for i := 0; i < len(generations); {
 		moveToNextGroup := func() {
-			i += len(currentGroup) + 1
+			if len(currentGroup) > 0 {
+				i += len(currentGroup)
+			} else {
+				i++
+			}
+
 			if len(currentGroup) > 0 {
 				groups = append(groups, currentGroup)
 				currentGroup = nil
