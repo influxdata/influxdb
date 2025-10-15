@@ -3,7 +3,7 @@ package tsm1
 // Compactions are the process of creating read-optimized TSM files.
 // The files are created by converting write-optimized WAL entries
 // to read-optimized TSM format.  They can also be created from existing
-// TSM files when there are tombstone records that neeed to be removed, points
+// TSM files when there are tombstone records that need to be removed, points
 // that were overwritten by later writes and need to updated, or multiple
 // smaller TSM files need to be merged to reduce file counts and improve
 // compression ratios.
@@ -70,8 +70,11 @@ func (e errCompactionInProgress) Unwrap() error {
 }
 
 func (e errCompactionInProgress) Is(target error) bool {
-	_, ok := target.(errCompactionInProgress)
-	return ok
+	switch target.(type) {
+	case errCompactionInProgress, *errCompactionInProgress:
+		return true
+	}
+	return false
 }
 
 type errCompactionAborted struct {
@@ -146,7 +149,7 @@ type CompactionPlanner interface {
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
 // multiple generations of TSM files into larger files in stages.  It attempts
-// to minimize the number of TSM files on disk while rolling up a bounder number
+// to minimize the number of TSM files on disk while rolling up a bounded number
 // of files.
 type DefaultPlanner struct {
 	FileStore fileStore
@@ -694,7 +697,7 @@ func (c *DefaultPlanner) isInUse(t *tsmGeneration) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	for i, _ := range t.files {
+	for i := range t.files {
 		if _, ok := c.filesInUse[t.files[i].Path]; ok {
 			return true
 		}
@@ -707,8 +710,8 @@ func (c *DefaultPlanner) isInUse(t *tsmGeneration) bool {
 // If skipInUse is true, tsm files that are part of an existing compaction plan
 // are not returned.
 func (c *DefaultPlanner) findGenerations() tsmGenerations {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	tsmStats := c.FileStore.Stats()
 	generations := make(map[int]*tsmGeneration, len(tsmStats))
