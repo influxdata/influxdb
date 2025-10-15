@@ -461,7 +461,7 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 	}
 
 	groups := c.groupAdjacentGenerations(generations, func(currentLevel int, candidateLevel int) bool { return currentLevel >= candidateLevel })
-	
+
 	var cGroups []CompactionGroup
 	for _, group := range groups {
 		var cGroup CompactionGroup
@@ -637,11 +637,11 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		// Group
 		for j := 0; j < step && (j+i) < len(generations); j++ {
 			gen := generations[j+i]
-			lvl := gen.level()
 
-			// Skip compacting this generationGroup if there happen to be any lower level files in the
-			// middle.  These will get picked up by the level compactors.
-			if c.isInUse(gen) || lvl <= 3 {
+			// TODO(DSB): we used to discard groups of level 3 or under here, on the theory
+			// that the level planner would pick them up.  But, if they are not in-use,
+			// then they weren't picked up and should be rolled up in here.
+			if c.isInUse(gen) {
 				break
 			}
 
