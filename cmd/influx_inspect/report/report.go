@@ -235,7 +235,7 @@ Usage: influx_inspect report [flags]
             Defaults to "false".
 `
 
-	fmt.Fprintf(cmd.Stdout, usage)
+	fmt.Fprintf(cmd.Stdout, "%s", usage)
 }
 
 // Counter abstracts a a method of counting keys.

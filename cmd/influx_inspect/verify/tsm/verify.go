@@ -74,7 +74,7 @@ Usage: influx_inspect verify [flags]
             This check skips verification of block checksums.
  `, os.Getenv("HOME"))
 
-	fmt.Fprintf(cmd.Stdout, usage)
+	fmt.Fprintf(cmd.Stdout, "%s", usage)
 }
 
 type verifyTSM struct {
