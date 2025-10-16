@@ -3160,6 +3160,7 @@ dependencies = [
  "trogging",
  "url",
  "uuid",
+ "walkdir",
 ]
 
 [[package]]
@@ -3422,6 +3423,7 @@ dependencies = [
  "test-log",
  "thiserror 1.0.69",
  "tokio",
+ "walkdir",
 ]
 
 [[package]]

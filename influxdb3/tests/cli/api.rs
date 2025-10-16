@@ -606,6 +606,7 @@ pub struct CreateTriggerQuery<'a> {
     trigger_name: String,
     db_name: String,
     plugin_filename: String,
+    path: Option<String>,
     trigger_spec: String,
     trigger_arguments: Vec<String>,
     disabled: bool,
@@ -627,6 +628,7 @@ impl TestServer {
             db_name: db_name.into(),
             trigger_name: trigger_name.into(),
             plugin_filename: plugin_filename.into(),
+            path: None,
             trigger_spec: trigger_spec.into(),
             trigger_arguments: Vec::new(),
             disabled: false,
@@ -671,18 +673,33 @@ impl CreateTriggerQuery<'_> {
         self
     }
 
+    pub fn with_path(mut self, path: impl Into<String>) -> Self {
+        self.path = Some(path.into());
+        self
+    }
+
     pub fn run(self) -> Result<String> {
         let mut args = vec![
             self.trigger_name.as_str(),
             "--database",
             self.db_name.as_str(),
-            "--plugin-filename",
-            self.plugin_filename.as_str(),
+        ];
+
+        // Use --path if set, otherwise fall back to --plugin-filename
+        if let Some(ref path) = self.path {
+            args.push("--path");
+            args.push(path.as_str());
+        } else {
+            args.push("--plugin-filename");
+            args.push(self.plugin_filename.as_str());
+        }
+
+        args.extend_from_slice(&[
             "--trigger-spec",
             self.trigger_spec.as_str(),
             "--tls-ca",
             "../testing-certs/rootCA.pem",
-        ];
+        ]);
 
         let trigger_args = self.trigger_arguments.join(",");
 

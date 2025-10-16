@@ -81,6 +81,7 @@ tokio-rustls.workspace = true
 tokio-util.workspace = true
 url.workspace = true
 uuid.workspace = true
+walkdir = "2"
 
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }

@@ -3,7 +3,7 @@ use crate::manager::ProcessingEngineError;
 
 use crate::plugins::PluginContext;
 use crate::plugins::{PluginError, ProcessingEngineEnvironmentManager};
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use bytes::Bytes;
 use hashbrown::HashMap;
 use influxdb3_catalog::CatalogError;
@@ -27,16 +27,23 @@ use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, warn};
 use parking_lot::Mutex;
 use std::any::Any;
+use std::fs;
+use std::io::{Error as IoError, ErrorKind};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::fs;
+use tokio::fs as async_fs;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, mpsc, oneshot};
 
 pub mod environment;
 pub mod manager;
 pub mod plugins;
+
+// Constants for plugin file naming
+const INIT_PY: &str = "__init__.py";
+const PY_EXTENSION: &str = "py";
+const PYCACHE_DIR: &str = "__pycache__";
 
 pub mod virtualenv;
 
@@ -295,16 +302,18 @@ impl ProcessingEngineManagerImpl {
             return Ok(PluginCode::Github(Arc::from(resp_body)));
         }
 
-        // otherwise we assume it is a local file
+        // otherwise we assume it is a local file or directory
         let plugin_dir = self
             .environment_manager
             .plugin_dir
             .clone()
             .ok_or(PluginError::NoPluginDir)?;
 
+        let plugin_name = name.trim_end_matches('/');
+
         // First, normalize the path components to check for path traversal
         // This catches attempts like "../../etc/passwd" before we try to access the filesystem
-        let normalized_path = std::path::Path::new(name);
+        let normalized_path = std::path::Path::new(plugin_name);
         for component in normalized_path.components() {
             match component {
                 std::path::Component::ParentDir => {
@@ -319,7 +328,7 @@ impl ProcessingEngineManagerImpl {
             }
         }
 
-        let plugin_path = plugin_dir.join(name);
+        let plugin_path = plugin_dir.join(plugin_name);
 
         // Canonicalize both paths to prevent path traversal attacks via symlinks
         let canonical_plugin_dir = plugin_dir
@@ -352,10 +361,38 @@ impl ProcessingEngineManagerImpl {
             return Err(PluginError::PathTraversal(name.to_string()));
         }
 
-        // read it at least once to make sure it's there
-        let code = fs::read_to_string(plugin_path.clone()).await?;
+        if !plugin_path.exists() {
+            return Err(PluginError::ReadPluginError(IoError::new(
+                ErrorKind::NotFound,
+                format!("Plugin not found: {}", plugin_path.display()),
+            )));
+        }
 
-        // now we can return it
+        if plugin_path.is_dir() {
+            let entry_point = plugin_path.join(INIT_PY);
+            if !entry_point.exists() {
+                return Err(PluginError::ReadPluginError(IoError::new(
+                    ErrorKind::NotFound,
+                    format!(
+                        "Multi-file plugin directory must contain {}: {}",
+                        INIT_PY,
+                        plugin_path.display()
+                    ),
+                )));
+            }
+
+            let code = async_fs::read_to_string(&entry_point).await?;
+
+            return Ok(PluginCode::LocalDirectory(LocalPluginDirectory {
+                plugin_root: plugin_path,
+                entry_point,
+                last_read_and_code: Mutex::new((SystemTime::now(), Arc::from(code))),
+            }));
+        }
+
+        // Single file plugin
+        let code = async_fs::read_to_string(&plugin_path).await?;
+
         Ok(PluginCode::Local(LocalPlugin {
             plugin_path,
             last_read_and_code: Mutex::new((SystemTime::now(), Arc::from(code))),
@@ -367,6 +404,7 @@ impl ProcessingEngineManagerImpl {
 pub enum PluginCode {
     Github(Arc<str>),
     Local(LocalPlugin),
+    LocalDirectory(LocalPluginDirectory),
 }
 
 impl PluginCode {
@@ -374,6 +412,19 @@ impl PluginCode {
         match self {
             PluginCode::Github(code) => Arc::clone(code),
             PluginCode::Local(plugin) => plugin.read_if_modified(),
+            PluginCode::LocalDirectory(plugin) => plugin.read_entry_point_if_modified(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_directory(&self) -> bool {
+        matches!(self, PluginCode::LocalDirectory(_))
+    }
+
+    pub(crate) fn plugin_root(&self) -> Option<&PathBuf> {
+        match self {
+            PluginCode::LocalDirectory(plugin) => Some(&plugin.plugin_root),
+            _ => None,
         }
     }
 }
@@ -387,7 +438,7 @@ pub struct LocalPlugin {
 
 impl LocalPlugin {
     fn read_if_modified(&self) -> Arc<str> {
-        let metadata = std::fs::metadata(&self.plugin_path);
+        let metadata = fs::metadata(&self.plugin_path);
 
         let mut last_read_and_code = self.last_read_and_code.lock();
         let (last_read, code) = &mut *last_read_and_code;
@@ -401,7 +452,7 @@ impl LocalPlugin {
 
                 if is_modified {
                     // attempt to read the code, if it fails we will return the last known code
-                    if let Ok(new_code) = std::fs::read_to_string(&self.plugin_path) {
+                    if let Ok(new_code) = fs::read_to_string(&self.plugin_path) {
                         *last_read = SystemTime::now();
                         *code = Arc::from(new_code);
                     } else {
@@ -413,6 +464,78 @@ impl LocalPlugin {
             }
             Err(_) => Arc::clone(code),
         }
+    }
+}
+
+/// A multi-file plugin stored as a directory on the local filesystem.
+///
+/// Multi-file plugins must have an `__init__.py` file at the root that serves as
+/// the entry point and contains the trigger functions (e.g., `process_writes`).
+/// Other Python files in the directory can be imported using standard Python import syntax.
+///
+/// # Example Structure
+///
+/// ```text
+/// my_plugin/
+///   __init__.py      (contains process_writes, imports from utils)
+///   utils.py         (helper functions)
+///   models/
+///     __init__.py
+///     data.py        (data models)
+/// ```
+#[derive(Debug)]
+pub struct LocalPluginDirectory {
+    plugin_root: PathBuf,
+    entry_point: PathBuf,
+    last_read_and_code: Mutex<(SystemTime, Arc<str>)>,
+}
+
+impl LocalPluginDirectory {
+    /// Reads the plugin entry point (`__init__.py`) if any Python file in the
+    /// directory has been modified.
+    fn read_entry_point_if_modified(&self) -> Arc<str> {
+        let mut last_read_and_code = self.last_read_and_code.lock();
+        let (last_read, code) = &mut *last_read_and_code;
+
+        if let Some(latest_modified) = self.find_latest_modified_time()
+            && latest_modified > *last_read
+        {
+            if let Ok(new_code) = fs::read_to_string(&self.entry_point) {
+                *last_read = SystemTime::now();
+                *code = Arc::from(new_code);
+            } else {
+                error!("error reading plugin entry point {:?}", self.entry_point);
+            }
+        }
+
+        Arc::clone(code)
+    }
+
+    /// Finds the latest modification time of any `.py` file in the plugin directory.
+    fn find_latest_modified_time(&self) -> Option<SystemTime> {
+        use walkdir::WalkDir;
+
+        WalkDir::new(&self.plugin_root)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|e| {
+                // Skip __pycache__ directories entirely
+                e.file_name()
+                    .to_str()
+                    .map(|s| s != PYCACHE_DIR)
+                    .unwrap_or(true)
+            })
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry.path().extension().and_then(|s| s.to_str()) == Some(PY_EXTENSION)
+                    && entry.file_type().is_file()
+            })
+            .filter_map(|entry| entry.metadata().ok()?.modified().ok())
+            .max()
+    }
+
+    pub fn plugin_root(&self) -> &PathBuf {
+        &self.plugin_root
     }
 }
 
@@ -673,9 +796,10 @@ impl ProcessingEngineManagerImpl {
     }
 
     pub async fn list_plugin_files(&self) -> Vec<PluginFileInfo> {
+        use walkdir::WalkDir;
+
         let mut plugin_files = Vec::new();
 
-        // Iterate through all triggers in every database
         for db_schema in self.catalog.list_db_schema() {
             for trigger in db_schema.processing_engine_triggers.resource_iter() {
                 let plugin_name = Arc::<str>::clone(&trigger.trigger_name);
@@ -685,23 +809,63 @@ impl ProcessingEngineManagerImpl {
                 );
 
                 if let Some(ref plugin_dir) = self.environment_manager.plugin_dir {
-                    let plugin_path = plugin_dir.join(&trigger.plugin_filename);
+                    let plugin_filename = trigger.plugin_filename.trim_end_matches('/');
+                    let plugin_path = plugin_dir.join(plugin_filename);
 
-                    if let Ok(metadata) = fs::metadata(&plugin_path).await
-                        && metadata.is_file()
-                    {
-                        plugin_files.push(PluginFileInfo {
-                            plugin_name: Arc::<str>::clone(&plugin_name),
-                            file_name: trigger.plugin_filename.clone().into(),
-                            file_path: plugin_path.to_string_lossy().into(),
-                            size_bytes: metadata.len() as i64,
-                            last_modified_millis: metadata
-                                .modified()
-                                .ok()
-                                .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
-                                .map(|d| d.as_millis() as i64)
-                                .unwrap_or(0),
-                        });
+                    if let Ok(metadata) = async_fs::metadata(&plugin_path).await {
+                        if metadata.is_file() {
+                            plugin_files.push(PluginFileInfo {
+                                plugin_name: Arc::<str>::clone(&plugin_name),
+                                file_name: trigger.plugin_filename.clone().into(),
+                                file_path: plugin_path.to_string_lossy().into(),
+                                size_bytes: metadata.len() as i64,
+                                last_modified_millis: metadata
+                                    .modified()
+                                    .ok()
+                                    .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                                    .map(|d| d.as_millis() as i64)
+                                    .unwrap_or(0),
+                            });
+                        } else if metadata.is_dir() {
+                            for entry in WalkDir::new(&plugin_path)
+                                .follow_links(false)
+                                .into_iter()
+                                .filter_entry(|e| {
+                                    // Skip __pycache__ directories
+                                    e.file_name()
+                                        .to_str()
+                                        .map(|s| s != PYCACHE_DIR)
+                                        .unwrap_or(true)
+                                })
+                                .filter_map(Result::ok)
+                            {
+                                if entry.file_type().is_file()
+                                    && entry.path().extension().and_then(|s| s.to_str())
+                                        == Some(PY_EXTENSION)
+                                    && let Ok(file_metadata) = entry.metadata()
+                                {
+                                    let relative_path = entry
+                                        .path()
+                                        .strip_prefix(&plugin_path)
+                                        .unwrap_or(entry.path());
+
+                                    plugin_files.push(PluginFileInfo {
+                                        plugin_name: Arc::<str>::clone(&plugin_name),
+                                        file_name: relative_path.to_string_lossy().into(),
+                                        file_path: entry.path().to_string_lossy().into(),
+                                        size_bytes: file_metadata.len() as i64,
+                                        last_modified_millis: file_metadata
+                                            .modified()
+                                            .ok()
+                                            .and_then(|t| {
+                                                t.duration_since(SystemTime::UNIX_EPOCH).ok()
+                                            })
+                                            .map(|d| d.as_millis() as i64)
+                                            .unwrap_or(0),
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -720,22 +884,21 @@ impl ProcessingEngineManagerImpl {
             .plugin_dir
             .as_ref()
             .ok_or_else(|| {
-                ProcessingEngineError::PluginError(plugins::PluginError::AnyhowError(
-                    anyhow::anyhow!("No plugin directory configured"),
-                ))
+                ProcessingEngineError::PluginError(plugins::PluginError::AnyhowError(anyhow!(
+                    "No plugin directory configured"
+                )))
             })?;
 
         let plugin_path = plugin_dir.join(plugin_filename);
 
-        if plugin_path.is_dir() {
-            return Err(ProcessingEngineError::PluginError(
-                plugins::PluginError::AnyhowError(anyhow::anyhow!(
-                    "Cannot write plugin file: path is a directory"
-                )),
-            ));
+        // Create parent directories if they don't exist (for multi-file plugins)
+        if let Some(parent) = plugin_path.parent() {
+            async_fs::create_dir_all(parent).await.map_err(|e| {
+                ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
+            })?;
         }
 
-        fs::write(plugin_path, content).await.map_err(|e| {
+        async_fs::write(plugin_path, content).await.map_err(|e| {
             ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
         })?;
 
@@ -756,19 +919,165 @@ impl ProcessingEngineManagerImpl {
             {
                 let plugin_path = plugin_dir.join(&trigger.plugin_filename);
 
+                // For single-file plugins, update the file directly
                 if !plugin_path.is_dir() {
-                    fs::write(plugin_path, content).await.map_err(|e| {
+                    async_fs::write(plugin_path, content).await.map_err(|e| {
                         ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
                     })?;
 
                     return Ok(db_schema.name.to_string());
                 }
+
+                // For multi-file plugins (directories), update __init__.py by default
+                let init_file = plugin_path.join(INIT_PY);
+                async_fs::write(init_file, content).await.map_err(|e| {
+                    ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
+                })?;
+
+                return Ok(db_schema.name.to_string());
             }
         }
 
         Err(ProcessingEngineError::PluginError(
             plugins::PluginError::AnyhowError(anyhow::anyhow!("Plugin not found: {}", plugin_name)),
         ))
+    }
+
+    /// Replace an entire plugin directory atomically with new files.
+    pub async fn replace_plugin_directory(
+        self: &Arc<Self>,
+        plugin_name: &str,
+        files: Vec<(String, String)>, // Vec of (relative_path, content)
+    ) -> Result<String, ProcessingEngineError> {
+        // Find the trigger to get the plugin filename
+        let (db_name, plugin_filename) = {
+            let mut result = None;
+            for db_schema in self.catalog.list_db_schema() {
+                if let Some(trigger) = db_schema
+                    .processing_engine_triggers
+                    .resource_iter()
+                    .find(|t| t.trigger_name.as_ref() == plugin_name)
+                {
+                    result = Some((
+                        db_schema.name.to_string(),
+                        trigger.plugin_filename.to_string(),
+                    ));
+                    break;
+                }
+            }
+            result.ok_or_else(|| {
+                ProcessingEngineError::PluginError(PluginError::AnyhowError(anyhow!(
+                    "Plugin not found: {}",
+                    plugin_name
+                )))
+            })?
+        };
+
+        let plugin_dir = self
+            .environment_manager
+            .plugin_dir
+            .as_ref()
+            .ok_or_else(|| {
+                ProcessingEngineError::PluginError(PluginError::AnyhowError(anyhow!(
+                    "No plugin directory configured"
+                )))
+            })?;
+
+        let plugin_path = plugin_dir.join(&plugin_filename);
+        let temp_path = plugin_dir.join(format!("{}.tmp", plugin_filename));
+        let old_path = plugin_dir.join(format!("{}.old", plugin_filename));
+
+        if temp_path.exists() {
+            async_fs::remove_dir_all(&temp_path)
+                .await
+                .context("Failed to remove existing temp directory")
+                .map_err(|e| ProcessingEngineError::PluginError(PluginError::AnyhowError(e)))?;
+        }
+
+        async_fs::create_dir_all(&temp_path)
+            .await
+            .context("Failed to create temp directory")
+            .map_err(|e| ProcessingEngineError::PluginError(PluginError::AnyhowError(e)))?;
+
+        // Write all files to temp directory
+        for (relative_path, content) in files {
+            let file_path = temp_path.join(&relative_path);
+
+            // Create parent directories if needed
+            if let Some(parent) = file_path.parent() {
+                async_fs::create_dir_all(parent)
+                    .await
+                    .with_context(|| {
+                        format!("Failed to create parent directory for {}", relative_path)
+                    })
+                    .map_err(|e| {
+                        // Cleanup temp dir on failure
+                        let temp_clone = temp_path.clone();
+                        tokio::spawn(async move {
+                            let _ = async_fs::remove_dir_all(temp_clone).await;
+                        });
+                        ProcessingEngineError::PluginError(PluginError::AnyhowError(e))
+                    })?;
+            }
+
+            async_fs::write(&file_path, content)
+                .await
+                .with_context(|| format!("Failed to write file {}", relative_path))
+                .map_err(|e| {
+                    // Cleanup temp dir on failure
+                    let temp_clone = temp_path.clone();
+                    tokio::spawn(async move {
+                        let _ = async_fs::remove_dir_all(temp_clone).await;
+                    });
+                    ProcessingEngineError::PluginError(PluginError::AnyhowError(e))
+                })?;
+        }
+
+        if plugin_path.exists() {
+            if old_path.exists() {
+                async_fs::remove_dir_all(&old_path)
+                    .await
+                    .context("Failed to remove existing old directory")
+                    .map_err(|e| ProcessingEngineError::PluginError(PluginError::AnyhowError(e)))?;
+            }
+
+            async_fs::rename(&plugin_path, &old_path)
+                .await
+                .context("Failed to rename old directory")
+                .map_err(|e| {
+                    // Cleanup temp dir on failure
+                    let temp_clone = temp_path.clone();
+                    tokio::spawn(async move {
+                        let _ = async_fs::remove_dir_all(temp_clone).await;
+                    });
+                    ProcessingEngineError::PluginError(PluginError::AnyhowError(e))
+                })?;
+        }
+
+        let rename_result = async_fs::rename(&temp_path, &plugin_path).await;
+
+        if let Err(e) = rename_result {
+            // Rollback: restore old directory if it exists
+            if old_path.exists() {
+                let _ = async_fs::rename(&old_path, &plugin_path).await;
+            }
+            let _ = async_fs::remove_dir_all(&temp_path).await;
+
+            return Err(ProcessingEngineError::PluginError(
+                PluginError::AnyhowError(
+                    anyhow!(e).context("Failed to rename temp directory to target"),
+                ),
+            ));
+        }
+
+        if old_path.exists() {
+            async_fs::remove_dir_all(&old_path)
+                .await
+                .context("Failed to delete old directory")
+                .map_err(|e| ProcessingEngineError::PluginError(PluginError::AnyhowError(e)))?;
+        }
+
+        Ok(db_name)
     }
 }
 
@@ -911,7 +1220,7 @@ fn background_catalog_update(
 mod tests {
     use crate::ProcessingEngineManagerImpl;
     use crate::environment::DisabledManager;
-    use crate::plugins::{PluginError, ProcessingEngineEnvironmentManager};
+    use crate::plugins::ProcessingEngineEnvironmentManager;
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
@@ -935,11 +1244,12 @@ mod tests {
     use metric::Registry;
     use object_store::ObjectStore;
     use object_store::memory::InMemory;
+    use parking_lot::Mutex;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use std::io::Write;
     use std::num::NonZeroUsize;
     use std::sync::Arc;
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
     use tempfile::NamedTempFile;
 
     #[test_log::test(tokio::test)]
@@ -1290,100 +1600,324 @@ def process_writes(influxdb3_local, table_batches, args=None):
     }
 
     #[tokio::test]
-    async fn test_path_traversal_prevention_direct() {
-        // Test that direct path traversal attempts are blocked
-        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
-        let test_store = Arc::new(InMemory::new());
-        let wal_config = WalConfig {
-            gen1_duration: Gen1Duration::new_1m(),
-            max_write_buffer_size: 100,
-            flush_interval: Duration::from_millis(10),
-            snapshot_size: 1,
-            ..Default::default()
+    async fn test_read_multifile_plugin() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path().join("my_plugin");
+        std::fs::create_dir(&plugin_dir).unwrap();
+
+        let init_code = r#"
+from .utils import helper_function
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    helper_function()
+    influxdb3_local.info("done")
+"#;
+        std::fs::write(plugin_dir.join("__init__.py"), init_code).unwrap();
+
+        let utils_code = r#"
+def helper_function():
+    return "helper"
+"#;
+        std::fs::write(plugin_dir.join("utils.py"), utils_code).unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(temp_dir.path().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
         };
-        let (pem, _file) = setup(start_time, test_store, wal_config).await;
 
-        // Try to access a file outside the plugin directory using ../
-        let result = pem.read_plugin_code("../../etc/passwd").await;
-        assert!(result.is_err());
-        if let Err(e) = result {
-            assert!(
-                matches!(e, PluginError::PathTraversal(_)),
-                "Expected PathTraversal error, got: {:?}",
-                e
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_path_traversal_prevention_nested() {
-        // Test that nested path traversal attempts are blocked
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
-        let test_store = Arc::new(InMemory::new());
-        let wal_config = WalConfig {
-            gen1_duration: Gen1Duration::new_1m(),
-            max_write_buffer_size: 100,
-            flush_interval: Duration::from_millis(10),
-            snapshot_size: 1,
-            ..Default::default()
-        };
-        let (pem, _file) = setup(start_time, test_store, wal_config).await;
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
 
-        // Try to access a file using a more complex traversal pattern
-        let result = pem
-            .read_plugin_code("influxdata/examples/../../../../somewhere_else/malicious.py")
-            .await;
-        assert!(result.is_err());
-        if let Err(e) = result {
-            assert!(
-                matches!(e, PluginError::PathTraversal(_)),
-                "Expected PathTraversal error, got: {:?}",
-                e
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_valid_subdirectory_access() {
-        // Test that valid subdirectory access still works
-        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
-        let test_store = Arc::new(InMemory::new());
-        let wal_config = WalConfig {
-            gen1_duration: Gen1Duration::new_1m(),
-            max_write_buffer_size: 100,
-            flush_interval: Duration::from_millis(10),
-            snapshot_size: 1,
-            ..Default::default()
-        };
-        let (pem, file) = setup(start_time, test_store, wal_config).await;
-
-        // Create a subdirectory in the plugin dir
-        let plugin_dir = file.path().parent().unwrap();
-        let subdir = plugin_dir.join("influxdata");
-        std::fs::create_dir_all(&subdir).unwrap();
-
-        // Create a plugin file in the subdirectory
-        let plugin_path = subdir.join("test_plugin.py");
-        std::fs::write(
-            &plugin_path,
-            "def process_writes(influxdb3_local, table_batches, args=None):\n    pass",
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
         )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
         .unwrap();
 
-        // This should succeed - accessing a file in a valid subdirectory
-        let result = pem.read_plugin_code("influxdata/test_plugin.py").await;
+        let pem = ProcessingEngineManagerImpl::new(
+            environment_manager,
+            catalog,
+            "test_node",
+            wbuf,
+            qe,
+            time_provider,
+            sys_event_store,
+        )
+        .await;
+
+        let plugin_code = pem.read_plugin_code("my_plugin").await.unwrap();
+
+        match plugin_code {
+            crate::PluginCode::LocalDirectory(dir) => {
+                assert!(dir.plugin_root.ends_with("my_plugin"));
+                assert!(dir.entry_point.ends_with("__init__.py"));
+                let code = dir.read_entry_point_if_modified();
+                assert!(code.contains("helper_function"));
+            }
+            _ => panic!("Expected LocalDirectory variant"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_missing_init_py() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path().join("my_plugin");
+        std::fs::create_dir(&plugin_dir).unwrap();
+
+        std::fs::write(plugin_dir.join("utils.py"), "def helper(): pass").unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(temp_dir.path().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
+
+        let pem = ProcessingEngineManagerImpl::new(
+            environment_manager,
+            catalog,
+            "test_node",
+            wbuf,
+            qe,
+            time_provider,
+            sys_event_store,
+        )
+        .await;
+
+        let result = pem.read_plugin_code("my_plugin").await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
         assert!(
-            result.is_ok(),
-            "Valid subdirectory access should work, got error: {:?}",
-            result
+            matches!(err, crate::plugins::PluginError::ReadPluginError(_)),
+            "Expected ReadPluginError"
+        );
+    }
+
+    #[test]
+    fn test_hot_reload_multifile_plugin() {
+        use std::thread::sleep;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_root = temp_dir.path().join("my_plugin");
+        std::fs::create_dir(&plugin_root).unwrap();
+
+        let init_path = plugin_root.join("__init__.py");
+        std::fs::write(&init_path, "def process_writes(): pass").unwrap();
+
+        let plugin = crate::LocalPluginDirectory {
+            plugin_root: plugin_root.clone(),
+            entry_point: init_path.clone(),
+            last_read_and_code: Mutex::new((SystemTime::now(), Arc::from("initial"))),
+        };
+
+        let first_modified = plugin.find_latest_modified_time();
+        assert!(first_modified.is_some());
+
+        sleep(Duration::from_millis(100));
+
+        std::fs::write(plugin_root.join("utils.py"), "def helper(): pass").unwrap();
+
+        let second_modified = plugin.find_latest_modified_time();
+        assert!(second_modified.is_some());
+        assert!(
+            second_modified.unwrap() > first_modified.unwrap(),
+            "Modification time should be newer after adding file"
+        );
+    }
+
+    #[test]
+    fn test_pycache_ignored() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_root = temp_dir.path().join("my_plugin");
+        std::fs::create_dir(&plugin_root).unwrap();
+
+        let init_path = plugin_root.join("__init__.py");
+        std::fs::write(&init_path, "def process_writes(): pass").unwrap();
+
+        let pycache_dir = plugin_root.join("__pycache__");
+        std::fs::create_dir(&pycache_dir).unwrap();
+        std::fs::write(pycache_dir.join("__init__.cpython-39.pyc"), "bytecode").unwrap();
+
+        let plugin = crate::LocalPluginDirectory {
+            plugin_root: plugin_root.clone(),
+            entry_point: init_path.clone(),
+            last_read_and_code: Mutex::new((SystemTime::now(), Arc::from("initial"))),
+        };
+
+        let first_modified = plugin.find_latest_modified_time().unwrap();
+
+        std::thread::sleep(Duration::from_millis(100));
+
+        std::fs::write(pycache_dir.join("utils.cpython-39.pyc"), "more bytecode").unwrap();
+
+        let second_modified = plugin.find_latest_modified_time().unwrap();
+
+        assert_eq!(
+            first_modified, second_modified,
+            "Modification time should not change when only __pycache__ is modified"
         );
     }
 
     #[tokio::test]
-    async fn test_absolute_path_blocked() {
-        // Test that absolute paths are blocked
+    async fn test_atomic_directory_replacement() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path();
+
+        // Create initial plugin directory with some files
+        let initial_plugin = plugin_dir.join("test_plugin");
+        std::fs::create_dir(&initial_plugin).unwrap();
+        std::fs::write(initial_plugin.join("__init__.py"), "def process_v1(): pass").unwrap();
+        std::fs::write(
+            initial_plugin.join("old_file.py"),
+            "def old_function(): pass",
+        )
+        .unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(plugin_dir.to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
-        let test_store = Arc::new(InMemory::new());
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
         let wal_config = WalConfig {
             gen1_duration: Gen1Duration::new_1m(),
             max_write_buffer_size: 100,
@@ -1391,11 +1925,102 @@ def process_writes(influxdb3_local, table_batches, args=None):
             snapshot_size: 1,
             ..Default::default()
         };
-        let (pem, _file) = setup(start_time, test_store, wal_config).await;
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
 
-        // Try to access an absolute path
-        let result = pem.read_plugin_code("/etc/passwd").await;
-        assert!(result.is_err());
-        // This will either be PathTraversal or a file not found error, both are acceptable
+        let pem = Arc::new(
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                Arc::clone(&catalog),
+                "test_node",
+                wbuf,
+                qe,
+                time_provider,
+                sys_event_store,
+            )
+            .await,
+        );
+
+        // Create the DB and trigger first
+        pem.write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+                false,
+            )
+            .await
+            .unwrap();
+
+        let plugin_filename = pem.validate_plugin_filename("test_plugin").await.unwrap();
+
+        pem.catalog
+            .create_processing_engine_trigger(
+                "foo",
+                "test_trigger",
+                Arc::clone(&pem.node_id),
+                plugin_filename,
+                &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
+                TriggerSettings::default(),
+                &None,
+                false,
+            )
+            .await
+            .unwrap();
+
+        // Prepare new files for atomic replacement
+        let new_files = vec![
+            (
+                "__init__.py".to_string(),
+                "def process_v2(): pass".to_string(),
+            ),
+            ("utils.py".to_string(), "def helper(): pass".to_string()),
+            (
+                "models/processor.py".to_string(),
+                "class Processor: pass".to_string(),
+            ),
+        ];
+
+        // Perform atomic replacement
+        pem.replace_plugin_directory("test_trigger", new_files)
+            .await
+            .unwrap();
+
+        // Verify the new directory structure
+        assert!(initial_plugin.join("__init__.py").exists());
+        assert!(initial_plugin.join("utils.py").exists());
+        assert!(initial_plugin.join("models").join("processor.py").exists());
+
+        // Verify old file was deleted
+        assert!(!initial_plugin.join("old_file.py").exists());
+
+        // Verify content is correct
+        let init_content = std::fs::read_to_string(initial_plugin.join("__init__.py")).unwrap();
+        assert_eq!(init_content, "def process_v2(): pass");
+
+        let utils_content = std::fs::read_to_string(initial_plugin.join("utils.py")).unwrap();
+        assert_eq!(utils_content, "def helper(): pass");
+
+        // Verify old directory was cleaned up
+        assert!(!plugin_dir.join("test_plugin.old").exists());
+        assert!(!plugin_dir.join("test_plugin.tmp").exists());
     }
 }

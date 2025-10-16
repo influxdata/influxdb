@@ -1,6 +1,7 @@
 use crate::server::{ConfigProvider, TestServer};
 use anyhow::Result;
 use std::fs;
+use std::path::Path;
 use tempfile::TempDir;
 
 const PLUGIN_ALPHA: &str = r#"
@@ -496,6 +497,192 @@ async fn test_show_plugins_csv_format_empty() -> Result<()> {
             assert_eq!(lines.len(), 1, "Should only have header line, no data rows");
         }
     }
+
+    Ok(())
+}
+
+fn create_multifile_plugin(plugin_dir: &Path, plugin_name: &str) -> Result<()> {
+    let plugin_path = plugin_dir.join(plugin_name);
+    fs::create_dir(&plugin_path)?;
+
+    let init_code = r#"
+from .utils import process_table
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    for table_batch in table_batches:
+        count = process_table(table_batch)
+        influxdb3_local.info(f"Processed {count} rows from {table_batch['table_name']}")
+"#;
+    fs::write(plugin_path.join("__init__.py"), init_code)?;
+
+    let utils_code = r#"
+def process_table(table_batch):
+    return len(table_batch["rows"])
+"#;
+    fs::write(plugin_path.join("utils.py"), utils_code)?;
+
+    Ok(())
+}
+
+#[test_log::test(tokio::test)]
+async fn test_multifile_plugin_wal_trigger() -> Result<()> {
+    let plugin_dir = TempDir::new()?;
+    let plugin_dir_path = plugin_dir.path();
+
+    create_multifile_plugin(plugin_dir_path, "my_multifile_plugin")?;
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir_path.to_str().unwrap())
+        .spawn()
+        .await;
+
+    server.create_database("test_db").run()?;
+
+    server
+        .create_trigger(
+            "test_db",
+            "multifile_trigger",
+            "my_multifile_plugin",
+            "all_tables",
+        )
+        .run()?;
+
+    server
+        .write_lp_to_db(
+            "test_db",
+            "cpu,host=server01 value=42.0",
+            influxdb3_client::Precision::Second,
+        )
+        .await?;
+
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    let result = server
+        .query_sql("_internal")
+        .with_sql("SELECT * FROM system.plugin_files WHERE plugin_name = 'multifile_trigger' ORDER BY file_name")
+        .run()?;
+
+    let parsed = result.as_array().expect("Expected array result");
+
+    assert_eq!(
+        parsed.len(),
+        2,
+        "Should have 2 files (__init__.py and utils.py)"
+    );
+
+    let file_names: Vec<&str> = parsed
+        .iter()
+        .map(|f| f["file_name"].as_str().unwrap())
+        .collect();
+
+    assert!(
+        file_names.contains(&"__init__.py"),
+        "Should contain __init__.py"
+    );
+    assert!(file_names.contains(&"utils.py"), "Should contain utils.py");
+
+    for file in parsed {
+        assert_eq!(file["plugin_name"], "multifile_trigger");
+        assert!(file["size_bytes"].as_i64().unwrap() > 0);
+        assert!(file["last_modified"].as_i64().unwrap() > 0);
+    }
+
+    Ok(())
+}
+
+#[test_log::test(tokio::test)]
+async fn test_multifile_plugin_nested_structure() -> Result<()> {
+    let plugin_dir = TempDir::new()?;
+    let plugin_dir_path = plugin_dir.path();
+
+    let plugin_path = plugin_dir_path.join("nested_plugin");
+    fs::create_dir(&plugin_path)?;
+
+    let models_dir = plugin_path.join("models");
+    fs::create_dir(&models_dir)?;
+
+    let init_code = r#"
+from .models.processor import process_data
+
+def process_writes(influxdb3_local, table_batches, args=None):
+    result = process_data(table_batches)
+    influxdb3_local.info(f"Processed {result} batches")
+"#;
+    fs::write(plugin_path.join("__init__.py"), init_code)?;
+
+    let processor_code = r#"
+def process_data(batches):
+    return len(batches)
+"#;
+    fs::write(models_dir.join("processor.py"), processor_code)?;
+    fs::write(models_dir.join("__init__.py"), "")?;
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir_path.to_str().unwrap())
+        .spawn()
+        .await;
+
+    server.create_database("test_db").run()?;
+
+    server
+        .create_trigger("test_db", "nested_trigger", "nested_plugin", "all_tables")
+        .run()?;
+
+    let result = server
+        .query_sql("_internal")
+        .with_sql("SELECT file_name FROM system.plugin_files WHERE plugin_name = 'nested_trigger' ORDER BY file_name")
+        .run()?;
+
+    let parsed = result.as_array().expect("Expected array result");
+
+    assert_eq!(
+        parsed.len(),
+        3,
+        "Should have 3 files (__init__.py at root and models/__init__.py and models/processor.py)"
+    );
+
+    let file_names: Vec<&str> = parsed
+        .iter()
+        .map(|f| f["file_name"].as_str().unwrap())
+        .collect();
+
+    assert!(
+        file_names.contains(&"__init__.py"),
+        "Should contain root __init__.py"
+    );
+    assert!(
+        file_names.contains(&"models/__init__.py"),
+        "Should contain models/__init__.py"
+    );
+    assert!(
+        file_names.contains(&"models/processor.py"),
+        "Should contain models/processor.py"
+    );
+
+    Ok(())
+}
+
+#[test_log::test(tokio::test)]
+async fn test_multifile_plugin_missing_init_py() -> Result<()> {
+    let plugin_dir = TempDir::new()?;
+    let plugin_dir_path = plugin_dir.path();
+
+    let plugin_path = plugin_dir_path.join("bad_plugin");
+    fs::create_dir(&plugin_path)?;
+    fs::write(plugin_path.join("utils.py"), "def helper(): pass")?;
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir_path.to_str().unwrap())
+        .spawn()
+        .await;
+
+    server.create_database("test_db").run()?;
+
+    let result = server
+        .create_trigger("test_db", "bad_trigger", "bad_plugin", "all_tables")
+        .run();
+
+    assert!(result.is_err(), "Should fail when __init__.py is missing");
 
     Ok(())
 }
