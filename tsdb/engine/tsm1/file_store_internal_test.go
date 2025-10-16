@@ -4,7 +4,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
-var TestMmapInitFailOption = func(err error) tsmReaderOption {
+var TestMmapInitFailOption = func(err error) TsmReaderOption {
 	return func(r *TSMReader) {
 		r.accessor = &badBlockAccessor{error: err}
 	}
