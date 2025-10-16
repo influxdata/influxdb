@@ -219,7 +219,16 @@ func TestCompactor_CompactFull(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 3; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -655,7 +664,16 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -756,7 +774,16 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -858,7 +885,16 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -965,7 +1001,16 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	r := MustOpenTSMReader(files[0])
+	r := MustOpenTSMReader(files[0], tsm1.WithParseFileNameFunc(tsm1.DefaultParseFileName))
+
+	s := r.Stats()
+	if s.Generation != expGen {
+		t.Fatalf("wrong generation for new file in Stats: got %v, exp %v", s.Generation, expGen)
+	}
+
+	if s.Sequence != expSeq {
+		t.Fatalf("wrong sequence for new file in Stats: got %v, exp %v", s.Sequence, expSeq)
+	}
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -1571,28 +1616,30 @@ func TestCacheKeyIterator_Abort(t *testing.T) {
 	}
 }
 
-func normalizeExtFileStat(efs []tsm1.ExtFileStat, defaultBlockCount int) []tsm1.ExtFileStat {
+func normalizeExtFileStat(t *testing.T, efs []tsm1.ExtFileStat, defaultBlockCount int) []tsm1.ExtFileStat {
+	var err error
 	efsNorm := make([]tsm1.ExtFileStat, 0, len(efs))
 	for _, f := range efs {
 		if f.FirstBlockCount == 0 {
 			f.FirstBlockCount = defaultBlockCount
 		}
+		f.Generation, f.Sequence, err = tsm1.DefaultParseFileName(f.Path)
+		require.NoErrorf(t, err, "failed to parse file name: %s", f.Path)
 		efsNorm = append(efsNorm, f)
 	}
-
 	return efsNorm
 }
 
 type ffsOpt func(ffs *fakeFileStore)
 
-func withExtFileStats(efs []tsm1.ExtFileStat) ffsOpt {
+func withExtFileStats(t *testing.T, efs []tsm1.ExtFileStat) ffsOpt {
 	return func(ffs *fakeFileStore) {
-		ffs.PathsFn = func() []tsm1.ExtFileStat { return normalizeExtFileStat(efs, ffs.defaultBlockCount) }
+		ffs.PathsFn = func() []tsm1.ExtFileStat { return normalizeExtFileStat(t, efs, ffs.defaultBlockCount) }
 	}
 }
 
-func withFileStats(fs []tsm1.FileStat) ffsOpt {
-	return withExtFileStats(tsm1.FileStats(fs).ToExtFileStats())
+func withFileStats(t *testing.T, fs []tsm1.FileStat) ffsOpt {
+	return withExtFileStats(t, tsm1.FileStats(fs).ToExtFileStats())
 }
 
 func withDefaultBlockCount(blockCount int) ffsOpt {
@@ -1625,7 +1672,7 @@ func TestDefaultPlanner_Plan_Min(t *testing.T) {
 		},
 	}
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(fileStats)), tsdb.DefaultCompactFullWriteColdDuration,
+		newFakeFileStore(withFileStats(t, fileStats)), tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
 	tsm, pLen := cp.Plan(time.Now())
@@ -1671,7 +1718,7 @@ func TestDefaultPlanner_Plan_CombineSequence(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -1732,7 +1779,7 @@ func TestDefaultPlanner_Plan_MultipleGroups(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3],
@@ -1820,7 +1867,7 @@ func TestDefaultPlanner_PlanLevel_SmallestCompactionStep(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -1872,7 +1919,7 @@ func TestDefaultPlanner_PlanLevel_SplitFile(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -1924,7 +1971,7 @@ func TestDefaultPlanner_PlanLevel_IsolatedHighLevel(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -1966,7 +2013,7 @@ func TestDefaultPlanner_PlanLevel3_MinFiles(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -1997,7 +2044,7 @@ func TestDefaultPlanner_PlanLevel2_MinFiles(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2040,7 +2087,7 @@ func TestDefaultPlanner_PlanLevel_Tombstone(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2096,7 +2143,7 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2185,7 +2232,7 @@ func TestDefaultPlanner_PlanLevel_InUse(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2248,7 +2295,7 @@ func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2281,7 +2328,7 @@ func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2332,7 +2379,7 @@ func TestDefaultPlanner_Plan_FullOnCold(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		time.Nanosecond,
 	)
 
@@ -2365,7 +2412,7 @@ func TestDefaultPlanner_Plan_SkipMaxSizeFiles(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2399,7 +2446,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		},
 	}
 
-	ffs := newFakeFileStore(withFileStats(testSet), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
+	ffs := newFakeFileStore(withFileStats(t, testSet), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
 
 	cp := tsm1.NewDefaultPlanner(ffs, time.Nanosecond)
 
@@ -2436,7 +2483,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		},
 	}
 
-	overFs := newFakeFileStore(withFileStats(over), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
+	overFs := newFakeFileStore(withFileStats(t, over), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
 	cp.FileStore = overFs
 
 	plan, pLen = cp.Plan(time.Now().Add(-time.Second))
@@ -2515,7 +2562,7 @@ func TestDefaultPlanner_Plan_TwoGenLevel3(t *testing.T) {
 		},
 	}
 
-	fs := newFakeFileStore(withFileStats(data), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
+	fs := newFakeFileStore(withFileStats(t, data), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock))
 
 	cp := tsm1.NewDefaultPlanner(fs, time.Hour)
 
@@ -2549,7 +2596,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 		},
 	}
 
-	ffs := newFakeFileStore(withFileStats(testSet), withDefaultBlockCount(100))
+	ffs := newFakeFileStore(withFileStats(t, testSet), withDefaultBlockCount(100))
 
 	cp := tsm1.NewDefaultPlanner(
 		ffs,
@@ -2577,7 +2624,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 		},
 	}
 
-	overFs := newFakeFileStore(withFileStats(over), withDefaultBlockCount(100))
+	overFs := newFakeFileStore(withFileStats(t, over), withDefaultBlockCount(100))
 
 	cp.FileStore = overFs
 	cGroups, pLen := cp.Plan(time.Now().Add(-time.Second))
@@ -2615,7 +2662,7 @@ func TestDefaultPlanner_Plan_CompactsMiddleSteps(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(data)),
+		newFakeFileStore(withFileStats(t, data)),
 		tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
@@ -2636,7 +2683,7 @@ func TestDefaultPlanner_Plan_CompactsMiddleSteps(t *testing.T) {
 
 func TestDefaultPlanner_Plan_LargeGeneration(t *testing.T) {
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(
+		newFakeFileStore(withFileStats(t,
 			[]tsm1.FileStat{
 				{
 					Path: "000000278-000000006.tsm",
@@ -2672,7 +2719,7 @@ func TestDefaultPlanner_Plan_LargeGeneration(t *testing.T) {
 
 func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 	cp := tsm1.NewDefaultPlanner(
-		newFakeFileStore(withFileStats(
+		newFakeFileStore(withFileStats(t,
 			[]tsm1.FileStat{
 				{
 					Path: "000000001-000000001.tsm",
@@ -2858,7 +2905,7 @@ func TestIsGroupOptimized(t *testing.T) {
 		},
 	}
 
-	ffs := newFakeFileStore(withExtFileStats(testSet))
+	ffs := newFakeFileStore(withExtFileStats(t, testSet))
 	cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
 
 	e := MustOpenEngine(tsdb.InmemIndexName)
@@ -4485,7 +4532,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ffs := newFakeFileStore(withExtFileStats(test.files), withDefaultBlockCount(test.defaultBlockCount))
+			ffs := newFakeFileStore(withExtFileStats(t, test.files), withDefaultBlockCount(test.defaultBlockCount))
 			cp := tsm1.NewDefaultPlanner(ffs, test.testShardTime)
 
 			e.MaxPointsPerBlock = tsdb.DefaultMaxPointsPerBlock
@@ -4604,17 +4651,17 @@ func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	return name
 }
 
-func MustTSMReader(dir string, gen int, values map[string][]tsm1.Value) *tsm1.TSMReader {
-	return MustOpenTSMReader(MustWriteTSM(dir, gen, values))
+func MustTSMReader(dir string, gen int, values map[string][]tsm1.Value, options ...tsm1.TsmReaderOption) *tsm1.TSMReader {
+	return MustOpenTSMReader(MustWriteTSM(dir, gen, values), options...)
 }
 
-func MustOpenTSMReader(name string) *tsm1.TSMReader {
+func MustOpenTSMReader(name string, options ...tsm1.TsmReaderOption) *tsm1.TSMReader {
 	f, err := os.Open(name)
 	if err != nil {
 		panic(fmt.Sprintf("open file: %v", err))
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := tsm1.NewTSMReader(f, options...)
 	if err != nil {
 		panic(fmt.Sprintf("new reader: %v", err))
 	}
@@ -4645,7 +4692,7 @@ func (w *fakeFileStore) LastModified() time.Time {
 }
 
 func (w *fakeFileStore) TSMReader(path string) (*tsm1.TSMReader, error) {
-	r := MustOpenTSMReader(path)
+	r := MustOpenTSMReader(path, tsm1.WithParseFileNameFunc(w.ParseFileName))
 	w.readers = append(w.readers, r)
 	r.Ref()
 	return r, nil
@@ -4660,4 +4707,9 @@ func (w *fakeFileStore) Close() {
 
 func (w *fakeFileStore) ParseFileName(path string) (int, int, error) {
 	return tsm1.DefaultParseFileName(path)
+}
+
+func (w *fakeFileStore) SupportsCompactionPlanning() bool {
+	// Our ParseFileName is hard-coded to always use default.
+	return true
 }
