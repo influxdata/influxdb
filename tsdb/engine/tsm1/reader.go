@@ -62,6 +62,10 @@ type TSMReader struct {
 	deleteMu sync.Mutex
 
 	firstBlockCountCache blockCountCache
+
+	parseFileNameFunc ParseFileNameFunc
+	generation        int
+	sequence          int
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -221,18 +225,24 @@ func (b *BlockIterator) Err() error {
 	return b.err
 }
 
-type tsmReaderOption func(*TSMReader)
+type TsmReaderOption func(*TSMReader)
 
 // WithMadviseWillNeed is an option for specifying whether to provide a MADV_WILL need hint to the kernel.
-var WithMadviseWillNeed = func(willNeed bool) tsmReaderOption {
+var WithMadviseWillNeed = func(willNeed bool) TsmReaderOption {
 	return func(r *TSMReader) {
 		r.madviseWillNeed = willNeed
 	}
 }
 
-// TODO(DSB) - add a tsmReaderOption in a test call that has the mmmapAccessor mock a failure
+var WithParseFileNameFunc = func(f ParseFileNameFunc) TsmReaderOption {
+	return func(r *TSMReader) {
+		r.parseFileNameFunc = f
+	}
+}
+
+// TODO(DSB) - add a TsmReaderOption in a test call that has the mmmapAccessor mock a failure
 // NewTSMReader returns a new TSMReader from the given file.
-func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
+func NewTSMReader(f *os.File, options ...TsmReaderOption) (*TSMReader, error) {
 	t := &TSMReader{}
 	for _, option := range options {
 		option(t)
@@ -261,6 +271,11 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 
 	if err := t.applyTombstones(); err != nil {
 		return nil, err
+	}
+
+	err = t.parseAndCacheFileName(t.Path())
+	if nil != err {
+		return nil, fmt.Errorf("failed creating new TSM reader: %w", err)
 	}
 
 	return t, nil
@@ -421,7 +436,27 @@ func (t *TSMReader) Remove() error {
 func (t *TSMReader) Rename(path string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.accessor.rename(path)
+
+	if err := t.accessor.rename(path); err != nil {
+		return fmt.Errorf("failure renaming to %q: %w", path, err)
+	}
+
+	if err := t.parseAndCacheFileName(path); err != nil {
+		return fmt.Errorf("rename failed: %w", err)
+	}
+	return nil
+}
+
+func (t *TSMReader) parseAndCacheFileName(path string) error {
+	if t.parseFileNameFunc != nil {
+		var err error
+		t.generation, t.sequence, err = t.parseFileNameFunc(path)
+		return err
+	} else {
+		// If parseFileNameFunc is nil, we are in a test or another TSMReader use
+		// that does not involve compaction planning, and was not created by the FileStore
+		return nil
+	}
 }
 
 // Remove removes any underlying files stored on disk for this reader.
@@ -631,6 +666,7 @@ func (t *TSMReader) firstBlockCount() (int, error) {
 func (t *TSMReader) Stats() FileStat {
 	minTime, maxTime := t.index.TimeRange()
 	minKey, maxKey := t.index.KeyRange()
+
 	return FileStat{
 		Path:         t.Path(),
 		Size:         t.Size(),
@@ -640,6 +676,8 @@ func (t *TSMReader) Stats() FileStat {
 		MinKey:       minKey,
 		MaxKey:       maxKey,
 		HasTombstone: t.tombstoner.HasTombstones(),
+		Generation:   t.generation,
+		Sequence:     t.sequence,
 	}
 }
 

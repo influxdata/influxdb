@@ -225,7 +225,7 @@ type FileStore struct {
 
 	copyFiles bool
 
-	readerOptions []tsmReaderOption
+	readerOptions []TsmReaderOption
 
 	// newReaderBlockCount keeps track of the current new reader block requests.
 	// If non-zero, no new TSMReader objects may be created.
@@ -240,6 +240,8 @@ type FileStat struct {
 	LastModified     int64
 	MinTime, MaxTime int64
 	MinKey, MaxKey   []byte
+	Generation       int
+	Sequence         int
 }
 
 type FileStats []FileStat
@@ -293,7 +295,7 @@ func (f FileStat) ContainsKey(key []byte) bool {
 }
 
 // NewFileStore returns a new instance of FileStore based on the given directory.
-func NewFileStore(dir string, options ...tsmReaderOption) *FileStore {
+func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 	logger := zap.NewNop()
 	fs := &FileStore{
 		dir:          dir,
@@ -309,10 +311,15 @@ func NewFileStore(dir string, options ...tsmReaderOption) *FileStore {
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
 		copyFiles:     runtime.GOOS == "windows",
-		readerOptions: options,
+		readerOptions: append([]TsmReaderOption{WithParseFileNameFunc(DefaultParseFileName)}, options...),
 	}
 	fs.purger.fileStore = fs
 	return fs
+}
+
+// SupportsCompactionPlanning returns true if f supports all functionality needed for compaction planning.
+func (f *FileStore) SupportsCompactionPlanning() bool {
+	return f.parseFileName != nil
 }
 
 // WithObserver sets the observer for the file store.
@@ -322,9 +329,13 @@ func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
 
 func (f *FileStore) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	f.parseFileName = parseFileNameFunc
+	f.readerOptions = append(f.readerOptions, WithParseFileNameFunc(f.parseFileName))
 }
 
 func (f *FileStore) ParseFileName(path string) (int, int, error) {
+	if f == nil || f.parseFileName == nil {
+		return 0, 0, fmt.Errorf("failed parsing %s: file store is not initialized", path)
+	}
 	return f.parseFileName(path)
 }
 
@@ -603,7 +614,7 @@ func (f *FileStore) Open() error {
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
-		generation, _, err := f.parseFileName(fn)
+		generation, _, err := f.ParseFileName(fn)
 		if err != nil {
 			return fmt.Errorf("error parsing %q in FileStore.Open: %w", fn, err)
 		}
@@ -1356,12 +1367,12 @@ func DefaultParseFileName(name string) (int, int, error) {
 
 	generation, err := strconv.ParseUint(id[:idx], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+		return 0, 0, fmt.Errorf("cannot parse generation number; file %s is named incorrectly: %w", name, err)
 	}
 
 	sequence, err := strconv.ParseUint(id[idx+1:], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+		return 0, 0, fmt.Errorf("cannot parse sequence number; file %s is named incorrectly: %w", name, err)
 	}
 
 	return int(generation), int(sequence), nil
