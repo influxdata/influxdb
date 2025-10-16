@@ -706,8 +706,6 @@ func (c *DefaultPlanner) isInUse(t *tsmGeneration) bool {
 
 // findGenerations groups all the TSM files by generation based
 // on their filename, then returns the generations in descending order (newest first).
-// If skipInUse is true, tsm files that are part of an existing compaction plan
-// are not returned.
 func (c *DefaultPlanner) findGenerations() tsmGenerations {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

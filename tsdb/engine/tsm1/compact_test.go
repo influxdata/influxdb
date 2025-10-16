@@ -3323,6 +3323,154 @@ func TestEnginePlanCompactions(t *testing.T) {
 			},
 		},
 		{
+			name: "Customer problem with v1.12.2 in a large shard (excerpted file list)",
+			files: []tsm1.ExtFileStat{
+				// Generation 4736 - Level 4 files (sequence 6-12)
+				{FileStat: tsm1.FileStat{Path: "000004736-000000006.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000004736-000000007.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000004736-000000008.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000004736-000000009.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000004736-000000010.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000004736-000000011.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000004736-000000012.tsm", Size: 2097152000}}, // 2.0G
+				// Generation 6784 - Level 4 files (sequence 6-9)
+				{FileStat: tsm1.FileStat{Path: "000006784-000000006.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000006784-000000007.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000006784-000000008.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000006784-000000009.tsm", Size: 1468006400}}, // 1.4G
+				// Generation 7296 - Level 4 files (sequence 6-7)
+				{FileStat: tsm1.FileStat{Path: "000007296-000000006.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000007296-000000007.tsm", Size: 1258291200}}, // 1.2G
+				// Generation 7424 - Level 4 files (sequence 4-5)
+				{FileStat: tsm1.FileStat{Path: "000007424-000000004.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000007424-000000005.tsm", Size: 1468006400}}, // 1.4G
+				// Generation 7456 - Level 2 file
+				{FileStat: tsm1.FileStat{Path: "000007456-000000002.tsm", Size: 1363148800}}, // 1.3G
+				// Generation 7560 - Level 4 files (sequence 4-5)
+				{FileStat: tsm1.FileStat{Path: "000007560-000000004.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000007560-000000005.tsm", Size: 1363148800}}, // 1.3G
+				// Generation 7688 - Level 4 files (sequence 4-5)
+				{FileStat: tsm1.FileStat{Path: "000007688-000000004.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000007688-000000005.tsm", Size: 1363148800}}, // 1.3G
+				// Generation 7816 - Level 4 files (sequence 4-5)
+				{FileStat: tsm1.FileStat{Path: "000007816-000000004.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000007816-000000005.tsm", Size: 1468006400}}, // 1.4G
+				// Generation 7944 - Level 4 files (sequence 4-5)
+				{FileStat: tsm1.FileStat{Path: "000007944-000000004.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000007944-000000005.tsm", Size: 1468006400}}, // 1.4G
+				// Generation 8072 - Level 4 files (sequence 4-5)
+				{FileStat: tsm1.FileStat{Path: "000008072-000000004.tsm", Size: 2147483648}}, // 2.1G
+				{FileStat: tsm1.FileStat{Path: "000008072-000000005.tsm", Size: 1363148800}}, // 1.3G
+				// Generation 30592 - Level 2 file
+				{FileStat: tsm1.FileStat{Path: "000030592-000000002.tsm", Size: 1153433600}}, // 1.1G
+				// Generation 30600 - Level 2 file
+				{FileStat: tsm1.FileStat{Path: "000030600-000000002.tsm", Size: 1258291200}}, // 1.2G
+				// Generation 30608 - Level 2 file
+				{FileStat: tsm1.FileStat{Path: "000030608-000000002.tsm", Size: 1572864000}}, // 1.5G
+				// Generation 30616 - Level 2 file
+				{FileStat: tsm1.FileStat{Path: "000030616-000000002.tsm", Size: 1153433600}}, // 1.1G
+				// Generation 30617 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030617-000000001.tsm", Size: 67108864}}, // 64M
+				// Generation 30618 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030618-000000001.tsm", Size: 80740352}}, // 77M
+				// Generation 30619 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030619-000000001.tsm", Size: 118489088}}, // 113M
+				// Generation 30620 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030620-000000001.tsm", Size: 181403648}}, // 173M
+				// Generation 30621 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030621-000000001.tsm", Size: 198180864}}, // 189M
+				// Generation 30622 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030622-000000001.tsm", Size: 320864256}}, // 306M
+				// Generation 30623 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030623-000000001.tsm", Size: 584056832}}, // 557M
+				// Generation 30624 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030624-000000001.tsm", Size: 828375040}}, // 790M
+				// Generation 30625 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030625-000000001.tsm", Size: 308281344}}, // 294M
+				// Generation 30626 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030626-000000001.tsm", Size: 204472320}}, // 195M
+				// Generation 30627 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030627-000000001.tsm", Size: 163577856}}, // 156M
+				// Generation 30628 - Level 1 file
+				{FileStat: tsm1.FileStat{Path: "000030628-000000001.tsm", Size: 251658240}}, // 240M
+			},
+			expectedResult: func() TestLevelResults {
+				return TestLevelResults{
+					level1Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
+								"000030617-000000001.tsm",
+								"000030618-000000001.tsm",
+								"000030619-000000001.tsm",
+								"000030620-000000001.tsm",
+								"000030621-000000001.tsm",
+								"000030622-000000001.tsm",
+								"000030623-000000001.tsm",
+								"000030624-000000001.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level2Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
+								"000030592-000000002.tsm",
+								"000030600-000000002.tsm",
+								"000030608-000000002.tsm",
+								"000030616-000000002.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level4Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
+								"000007296-000000006.tsm",
+								"000007296-000000007.tsm",
+								"000007424-000000004.tsm",
+								"000007424-000000005.tsm",
+								"000007456-000000002.tsm",
+								"000007560-000000004.tsm",
+								"000007560-000000005.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+						{
+							tsm1.CompactionGroup{
+								"000007688-000000004.tsm",
+								"000007688-000000005.tsm",
+								"000007816-000000004.tsm",
+								"000007816-000000005.tsm",
+								"000007944-000000004.tsm",
+								"000007944-000000005.tsm",
+								"000008072-000000004.tsm",
+								"000008072-000000005.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+					level5Groups: []tsm1.PlannedCompactionGroup{
+						{
+							tsm1.CompactionGroup{
+								"000004736-000000006.tsm",
+								"000004736-000000007.tsm",
+								"000004736-000000008.tsm",
+								"000004736-000000009.tsm",
+								"000004736-000000010.tsm",
+								"000004736-000000011.tsm",
+								"000004736-000000012.tsm",
+								"000006784-000000006.tsm",
+								"000006784-000000007.tsm",
+								"000006784-000000008.tsm",
+								"000006784-000000009.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+					},
+				}
+			},
+		},
+		{
 			name: "1.12.0 RC0 Planner issue mock data from cluster",
 			files: []tsm1.ExtFileStat{
 				{FileStat: tsm1.FileStat{Path: "000029202-000000004.tsm", Size: 2254857830}},
