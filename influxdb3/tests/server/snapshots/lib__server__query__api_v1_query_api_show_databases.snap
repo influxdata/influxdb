@@ -1,0 +1,6 @@
+---
+source: influxdb3/tests/server/query.rs
+description: SHOW DATABASES
+expression: response
+---
+{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["_internal"],["foo"],["bar"]]}]}]}

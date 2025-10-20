@@ -1458,7 +1458,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?branch=tjh%2Fiox_v1_q
 dependencies = [
  "http 1.3.1",
  "iox_http_util",
- "reqwest 0.12.24",
+ "reqwest",
  "rustls 0.23.34",
  "thiserror 2.0.17",
  "tonic 0.12.3",
@@ -1722,7 +1722,7 @@ checksum = "5877d3fbf742507b66bc2a1945106bd30dd8504019d596901ddd012a4dd01740"
 dependencies = [
  "chrono",
  "once_cell",
- "winnow",
+ "winnow 0.6.26",
 ]
 
 [[package]]
@@ -1916,60 +1916,6 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "arrow-ipc",
- "arrow-schema",
- "async-trait",
- "bytes",
- "bzip2 0.6.1",
- "chrono",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-catalog-listing 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource-csv 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource-json 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource-parquet 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-aggregate 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-nested 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-table 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-window 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-optimizer 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-optimizer 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-sql 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "flate2",
- "futures",
- "hex",
- "itertools 0.14.0",
- "log",
- "object_store",
- "parking_lot",
- "parquet",
- "rand 0.9.2",
- "regex",
- "sqlparser",
- "tempfile",
- "tokio",
- "url",
- "uuid",
- "xz2",
- "zstd",
-]
-
-[[package]]
-name = "datafusion"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
@@ -1979,29 +1925,29 @@ dependencies = [
  "bytes",
  "bzip2 0.6.1",
  "chrono",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-catalog-listing 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource-csv 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource-json 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource-parquet 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-aggregate 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-nested 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-table 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-window 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-optimizer 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-optimizer 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-sql 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-catalog",
+ "datafusion-catalog-listing",
+ "datafusion-common",
+ "datafusion-common-runtime",
+ "datafusion-datasource",
+ "datafusion-datasource-csv",
+ "datafusion-datasource-json",
+ "datafusion-datasource-parquet",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-expr-common",
+ "datafusion-functions",
+ "datafusion-functions-aggregate",
+ "datafusion-functions-nested",
+ "datafusion-functions-table",
+ "datafusion-functions-window",
+ "datafusion-optimizer",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
+ "datafusion-physical-optimizer",
+ "datafusion-physical-plan",
+ "datafusion-session",
+ "datafusion-sql",
  "flate2",
  "futures",
  "hex",
@@ -2024,45 +1970,20 @@ dependencies = [
 [[package]]
 name = "datafusion-catalog"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-trait",
- "dashmap",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-sql 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "futures",
- "itertools 0.14.0",
- "log",
- "object_store",
- "parking_lot",
- "tokio",
-]
-
-[[package]]
-name = "datafusion-catalog"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
  "async-trait",
  "dashmap",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-sql 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-common-runtime",
+ "datafusion-datasource",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-physical-expr",
+ "datafusion-physical-plan",
+ "datafusion-session",
+ "datafusion-sql",
  "futures",
  "itertools 0.14.0",
  "log",
@@ -2074,70 +1995,23 @@ dependencies = [
 [[package]]
 name = "datafusion-catalog-listing"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-trait",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "futures",
- "log",
- "object_store",
- "tokio",
-]
-
-[[package]]
-name = "datafusion-catalog-listing"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
  "async-trait",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-catalog",
+ "datafusion-common",
+ "datafusion-datasource",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
+ "datafusion-physical-plan",
+ "datafusion-session",
  "futures",
  "log",
  "object_store",
  "tokio",
-]
-
-[[package]]
-name = "datafusion-common"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "ahash",
- "arrow",
- "arrow-ipc",
- "base64 0.22.1",
- "chrono",
- "half",
- "hashbrown 0.14.5",
- "hex",
- "indexmap 2.12.0",
- "libc",
- "log",
- "object_store",
- "parquet",
- "paste",
- "recursive",
- "sqlparser",
- "tokio",
- "web-time",
 ]
 
 [[package]]
@@ -2168,56 +2042,11 @@ dependencies = [
 [[package]]
 name = "datafusion-common-runtime"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "futures",
- "log",
- "tokio",
-]
-
-[[package]]
-name = "datafusion-common-runtime"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "futures",
  "log",
  "tokio",
-]
-
-[[package]]
-name = "datafusion-datasource"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-compression",
- "async-trait",
- "bytes",
- "bzip2 0.6.1",
- "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "flate2",
- "futures",
- "glob",
- "itertools 0.14.0",
- "log",
- "object_store",
- "parquet",
- "rand 0.9.2",
- "tempfile",
- "tokio",
- "tokio-util",
- "url",
- "xz2",
- "zstd",
 ]
 
 [[package]]
@@ -2231,14 +2060,14 @@ dependencies = [
  "bytes",
  "bzip2 0.6.1",
  "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-common-runtime",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
+ "datafusion-physical-plan",
+ "datafusion-session",
  "flate2",
  "futures",
  "glob",
@@ -2258,45 +2087,21 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-csv"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-trait",
- "bytes",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "futures",
- "object_store",
- "regex",
- "tokio",
-]
-
-[[package]]
-name = "datafusion-datasource-csv"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
  "async-trait",
  "bytes",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-catalog",
+ "datafusion-common",
+ "datafusion-common-runtime",
+ "datafusion-datasource",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
+ "datafusion-physical-plan",
+ "datafusion-session",
  "futures",
  "object_store",
  "regex",
@@ -2306,80 +2111,24 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-json"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-trait",
- "bytes",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "futures",
- "object_store",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "datafusion-datasource-json"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
  "async-trait",
  "bytes",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-catalog",
+ "datafusion-common",
+ "datafusion-common-runtime",
+ "datafusion-datasource",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
+ "datafusion-physical-plan",
+ "datafusion-session",
  "futures",
  "object_store",
  "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "datafusion-datasource-parquet"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-trait",
- "bytes",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-aggregate 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-optimizer 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-pruning 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "futures",
- "hex",
- "itertools 0.14.0",
- "log",
- "object_store",
- "parking_lot",
- "parquet",
- "rand 0.9.2",
  "tokio",
 ]
 
@@ -2391,19 +2140,19 @@ dependencies = [
  "arrow",
  "async-trait",
  "bytes",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-aggregate 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-optimizer 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-pruning 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-session 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-catalog",
+ "datafusion-common",
+ "datafusion-common-runtime",
+ "datafusion-datasource",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-functions-aggregate",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
+ "datafusion-physical-optimizer",
+ "datafusion-physical-plan",
+ "datafusion-pruning",
+ "datafusion-session",
  "futures",
  "hex",
  "itertools 0.14.0",
@@ -2418,30 +2167,7 @@ dependencies = [
 [[package]]
 name = "datafusion-doc"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-
-[[package]]
-name = "datafusion-doc"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
-
-[[package]]
-name = "datafusion-execution"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "dashmap",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "futures",
- "log",
- "object_store",
- "parking_lot",
- "rand 0.9.2",
- "tempfile",
- "url",
-]
 
 [[package]]
 name = "datafusion-execution"
@@ -2450,8 +2176,8 @@ source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652
 dependencies = [
  "arrow",
  "dashmap",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-expr",
  "futures",
  "log",
  "object_store",
@@ -2464,38 +2190,17 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-trait",
- "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-aggregate-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-window-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "indexmap 2.12.0",
- "paste",
- "recursive",
- "serde_json",
- "sqlparser",
-]
-
-[[package]]
-name = "datafusion-expr"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
  "async-trait",
  "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-aggregate-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-window-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-doc",
+ "datafusion-expr-common",
+ "datafusion-functions-aggregate-common",
+ "datafusion-functions-window-common",
+ "datafusion-physical-expr-common",
  "indexmap 2.12.0",
  "paste",
  "recursive",
@@ -2506,53 +2211,13 @@ dependencies = [
 [[package]]
 name = "datafusion-expr-common"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "indexmap 2.12.0",
- "itertools 0.14.0",
- "paste",
-]
-
-[[package]]
-name = "datafusion-expr-common"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
  "indexmap 2.12.0",
  "itertools 0.14.0",
  "paste",
-]
-
-[[package]]
-name = "datafusion-functions"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "arrow-buffer",
- "base64 0.22.1",
- "blake2",
- "blake3",
- "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-macros 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "hex",
- "itertools 0.14.0",
- "log",
- "md-5",
- "rand 0.9.2",
- "regex",
- "sha2",
- "unicode-segmentation",
- "uuid",
 ]
 
 [[package]]
@@ -2566,12 +2231,12 @@ dependencies = [
  "blake2",
  "blake3",
  "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-macros 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-doc",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-expr-common",
+ "datafusion-macros",
  "hex",
  "itertools 0.14.0",
  "log",
@@ -2586,53 +2251,21 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-aggregate"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "ahash",
- "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-aggregate-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-macros 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "half",
- "log",
- "paste",
-]
-
-[[package]]
-name = "datafusion-functions-aggregate"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "ahash",
  "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-aggregate-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-macros 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-doc",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-functions-aggregate-common",
+ "datafusion-macros",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
  "half",
  "log",
  "paste",
-]
-
-[[package]]
-name = "datafusion-functions-aggregate-common"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "ahash",
- "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
 ]
 
 [[package]]
@@ -2642,30 +2275,9 @@ source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652
 dependencies = [
  "ahash",
  "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
-]
-
-[[package]]
-name = "datafusion-functions-nested"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "arrow-ord",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-aggregate 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-aggregate-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-macros 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "itertools 0.14.0",
- "log",
- "paste",
+ "datafusion-common",
+ "datafusion-expr-common",
+ "datafusion-physical-expr-common",
 ]
 
 [[package]]
@@ -2675,32 +2287,17 @@ source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652
 dependencies = [
  "arrow",
  "arrow-ord",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-aggregate 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-aggregate-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-macros 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-doc",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-functions",
+ "datafusion-functions-aggregate",
+ "datafusion-functions-aggregate-common",
+ "datafusion-macros",
+ "datafusion-physical-expr-common",
  "itertools 0.14.0",
  "log",
- "paste",
-]
-
-[[package]]
-name = "datafusion-functions-table"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-trait",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "parking_lot",
  "paste",
 ]
 
@@ -2711,10 +2308,10 @@ source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652
 dependencies = [
  "arrow",
  "async-trait",
- "datafusion-catalog 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-catalog",
+ "datafusion-common",
+ "datafusion-expr",
+ "datafusion-physical-plan",
  "parking_lot",
  "paste",
 ]
@@ -2722,33 +2319,16 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-window"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-window-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-macros 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "log",
- "paste",
-]
-
-[[package]]
-name = "datafusion-functions-window"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-doc 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-window-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-macros 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-doc",
+ "datafusion-expr",
+ "datafusion-functions-window-common",
+ "datafusion-macros",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
  "log",
  "paste",
 ]
@@ -2756,29 +2336,10 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-window-common"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
-]
-
-[[package]]
-name = "datafusion-functions-window-common"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
-]
-
-[[package]]
-name = "datafusion-macros"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "quote",
- "syn 2.0.108",
+ "datafusion-common",
+ "datafusion-physical-expr-common",
 ]
 
 [[package]]
@@ -2786,28 +2347,9 @@ name = "datafusion-macros"
 version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-expr",
  "quote",
  "syn 2.0.108",
-]
-
-[[package]]
-name = "datafusion-optimizer"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "indexmap 2.12.0",
- "itertools 0.14.0",
- "log",
- "recursive",
- "regex",
- "regex-syntax",
 ]
 
 [[package]]
@@ -2817,10 +2359,10 @@ source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652
 dependencies = [
  "arrow",
  "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-expr",
+ "datafusion-expr-common",
+ "datafusion-physical-expr",
  "indexmap 2.12.0",
  "itertools 0.14.0",
  "log",
@@ -2832,36 +2374,15 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "ahash",
- "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-aggregate-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "half",
- "hashbrown 0.14.5",
- "indexmap 2.12.0",
- "itertools 0.14.0",
- "log",
- "paste",
- "petgraph 0.8.3",
-]
-
-[[package]]
-name = "datafusion-physical-expr"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "ahash",
  "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-aggregate-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-expr",
+ "datafusion-expr-common",
+ "datafusion-functions-aggregate-common",
+ "datafusion-physical-expr-common",
  "half",
  "hashbrown 0.14.5",
  "indexmap 2.12.0",
@@ -2874,46 +2395,14 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr-common"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "ahash",
- "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "hashbrown 0.14.5",
- "itertools 0.14.0",
-]
-
-[[package]]
-name = "datafusion-physical-expr-common"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "ahash",
  "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-expr-common",
  "hashbrown 0.14.5",
  "itertools 0.14.0",
-]
-
-[[package]]
-name = "datafusion-physical-optimizer"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-pruning 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "itertools 0.14.0",
- "log",
- "recursive",
 ]
 
 [[package]]
@@ -2922,46 +2411,17 @@ version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-pruning 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-expr-common",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
+ "datafusion-physical-plan",
+ "datafusion-pruning",
  "itertools 0.14.0",
  "log",
  "recursive",
-]
-
-[[package]]
-name = "datafusion-physical-plan"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "ahash",
- "arrow",
- "arrow-ord",
- "arrow-schema",
- "async-trait",
- "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-functions-window-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "futures",
- "half",
- "hashbrown 0.14.5",
- "indexmap 2.12.0",
- "itertools 0.14.0",
- "log",
- "parking_lot",
- "pin-project-lite",
- "tokio",
 ]
 
 [[package]]
@@ -2975,13 +2435,13 @@ dependencies = [
  "arrow-schema",
  "async-trait",
  "chrono",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-functions-window-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-common-runtime",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-functions-window-common",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
  "futures",
  "half",
  "hashbrown 0.14.5",
@@ -2996,58 +2456,18 @@ dependencies = [
 [[package]]
 name = "datafusion-pruning"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "arrow-schema",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "itertools 0.14.0",
- "log",
-]
-
-[[package]]
-name = "datafusion-pruning"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
  "arrow-schema",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-datasource 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-datasource",
+ "datafusion-expr-common",
+ "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
+ "datafusion-physical-plan",
  "itertools 0.14.0",
  "log",
-]
-
-[[package]]
-name = "datafusion-session"
-version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "async-trait",
- "dashmap",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-sql 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "futures",
- "itertools 0.14.0",
- "log",
- "object_store",
- "parking_lot",
- "tokio",
 ]
 
 [[package]]
@@ -3058,13 +2478,13 @@ dependencies = [
  "arrow",
  "async-trait",
  "dashmap",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-common-runtime 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-execution 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-physical-plan 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-sql 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-common-runtime",
+ "datafusion-execution",
+ "datafusion-expr",
+ "datafusion-physical-expr",
+ "datafusion-physical-plan",
+ "datafusion-sql",
  "futures",
  "itertools 0.14.0",
  "log",
@@ -3076,28 +2496,12 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "49.0.2"
-source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc#a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc"
-dependencies = [
- "arrow",
- "bigdecimal",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
- "indexmap 2.12.0",
- "log",
- "recursive",
- "regex",
- "sqlparser",
-]
-
-[[package]]
-name = "datafusion-sql"
-version = "49.0.2"
 source = "git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d#ee81b1cc652bde6c131973d091b178836692112d"
 dependencies = [
  "arrow",
  "bigdecimal",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-expr",
  "indexmap 2.12.0",
  "log",
  "recursive",
@@ -3111,7 +2515,7 @@ version = "0.1.0"
 source = "git+https://github.com/influxdata/influxdb3_core?branch=tjh%2Fiox_v1_query_api-crate#c8c07bd88d20b8742ecb879477a5412971f86d5c"
 dependencies = [
  "async-trait",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "futures",
  "object_store",
  "pin-project",
@@ -3449,7 +2853,7 @@ dependencies = [
  "arrow-flight",
  "arrow_util",
  "bytes",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "futures",
  "generated_types",
  "iox_query",
@@ -4350,7 +3754,7 @@ dependencies = [
  "rand 0.8.5",
  "rcgen",
  "regex",
- "reqwest 0.11.27",
+ "reqwest",
  "rustls 0.23.34",
  "secrecy",
  "serde",
@@ -4368,7 +3772,7 @@ dependencies = [
  "tokio-util",
  "tokio_metrics_bridge",
  "tonic 0.12.3",
- "tower 0.4.13",
+ "tower 0.5.2",
  "trace",
  "trace_exporters",
  "trace_http",
@@ -4408,7 +3812,7 @@ dependencies = [
  "chrono",
  "dashmap",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
+ "datafusion",
  "futures",
  "indexmap 2.12.0",
  "influxdb3_catalog",
@@ -4488,7 +3892,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "clap",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
+ "datafusion",
  "futures",
  "home",
  "http 1.3.1",
@@ -4526,7 +3930,7 @@ dependencies = [
  "influxdb3_wal",
  "iox_query_params",
  "mockito",
- "reqwest 0.11.27",
+ "reqwest",
  "secrecy",
  "serde",
  "serde_json",
@@ -4551,11 +3955,17 @@ version = "3.7.0-nightly"
 dependencies = [
  "anyhow",
  "async-trait",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
+ "datafusion",
+ "futures",
+ "humantime",
+ "influxdb3_catalog",
  "influxdb_influxql_parser",
  "iox_query",
+ "iox_query_influxql",
  "iox_query_params",
+ "schema",
  "thiserror 1.0.69",
+ "tokio",
  "trace",
  "trace_http",
  "tracker",
@@ -4579,7 +3989,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "rand 0.8.5",
- "reqwest 0.11.27",
+ "reqwest",
  "secrecy",
  "serde",
  "serde_json",
@@ -4633,7 +4043,7 @@ dependencies = [
  "parking_lot",
  "parquet_file",
  "pyo3",
- "reqwest 0.11.27",
+ "reqwest",
  "serde_json",
  "tempfile",
  "test-log",
@@ -4679,7 +4089,7 @@ dependencies = [
  "arrow-schema",
  "async-trait",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
+ "datafusion",
  "datafusion_util",
  "futures",
  "influxdb3_authz",
@@ -4736,7 +4146,7 @@ dependencies = [
  "chrono",
  "csv",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
+ "datafusion",
  "flate2",
  "futures",
  "hashbrown 0.15.5",
@@ -4793,7 +4203,7 @@ dependencies = [
  "tokio-rustls 0.25.0",
  "tokio-util",
  "tonic 0.12.3",
- "tower 0.4.13",
+ "tower 0.5.2",
  "trace",
  "trace_exporters",
  "trace_http",
@@ -4828,7 +4238,7 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
+ "datafusion",
  "iox_system_tables",
  "iox_time",
  "observability_deps",
@@ -4845,7 +4255,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "async-trait",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
+ "datafusion",
  "hashbrown 0.15.5",
  "hex",
  "indexmap 2.12.0",
@@ -4881,7 +4291,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "proptest",
- "reqwest 0.11.27",
+ "reqwest",
  "serde",
  "serde_json",
  "sysinfo",
@@ -4969,7 +4379,7 @@ dependencies = [
  "crossbeam-channel",
  "dashmap",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc)",
+ "datafusion",
  "datafusion_util",
  "executor",
  "futures",
@@ -5053,7 +4463,7 @@ dependencies = [
  "iox_query_params",
  "prost 0.13.5",
  "rand 0.9.2",
- "reqwest 0.12.24",
+ "reqwest",
  "schema",
  "serde_json",
  "thiserror 2.0.17",
@@ -5125,7 +4535,7 @@ dependencies = [
  "bytes",
  "chrono",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "datafusion_util",
  "executor",
  "futures",
@@ -5164,7 +4574,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono-tz",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "datafusion_util",
  "generated_types",
  "influxdb_influxql_parser",
@@ -5205,7 +4615,7 @@ version = "0.1.0"
 source = "git+https://github.com/influxdata/influxdb3_core?branch=tjh%2Fiox_v1_query_api-crate#c8c07bd88d20b8742ecb879477a5412971f86d5c"
 dependencies = [
  "arrow",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "generated_types",
  "serde",
  "serde_json",
@@ -5221,7 +4631,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?branch=tjh%2Fiox_v1_q
 dependencies = [
  "arrow",
  "async-trait",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "futures",
  "workspace-hack",
 ]
@@ -5247,7 +4657,7 @@ dependencies = [
  "authz",
  "bytes",
  "chrono",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "futures",
  "generated_types",
  "http 1.3.1",
@@ -5635,7 +5045,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?branch=tjh%2Fiox_v1_q
 dependencies = [
  "arrow",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "datafusion_util",
  "futures",
  "metric",
@@ -5660,7 +5070,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?branch=tjh%2Fiox_v1_q
 dependencies = [
  "metric",
  "prometheus",
- "reqwest 0.12.24",
+ "reqwest",
  "tracing",
  "workspace-hack",
 ]
@@ -6025,7 +5435,7 @@ dependencies = [
  "percent-encoding",
  "quick-xml",
  "rand 0.9.2",
- "reqwest 0.12.24",
+ "reqwest",
  "ring",
  "rustls-pemfile 2.2.0",
  "serde",
@@ -6285,7 +5695,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "datafusion_util",
  "futures",
  "generated_types",
@@ -6614,7 +6024,7 @@ dependencies = [
  "arrow",
  "async-trait",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "datafusion_util",
  "futures",
  "itertools 0.13.0",
@@ -6668,6 +6078,15 @@ checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
  "syn 2.0.108",
+]
+
+[[package]]
+name = "proc-macro-crate"
+version = "3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "219cb19e96be00ab2e37d6e299658a0cfa83e52429179969b0f0121b4ac46983"
+dependencies = [
+ "toml_edit",
 ]
 
 [[package]]
@@ -6920,7 +6339,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?branch=tjh%2Fiox_v1_q
 dependencies = [
  "arrow",
  "chrono",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "regex",
  "regex-syntax",
  "schema",
@@ -7207,49 +6626,6 @@ checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
 name = "reqwest"
-version = "0.11.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd67538700a17451e7cba03ac727fb961abb7607553461627b97de0b89cf4a62"
-dependencies = [
- "base64 0.21.7",
- "bytes",
- "encoding_rs",
- "futures-core",
- "futures-util",
- "h2 0.3.27",
- "http 0.2.12",
- "http-body 0.4.6",
- "hyper 0.14.32",
- "hyper-rustls 0.24.2",
- "ipnet",
- "js-sys",
- "log",
- "mime",
- "once_cell",
- "percent-encoding",
- "pin-project-lite",
- "rustls 0.21.12",
- "rustls-pemfile 1.0.4",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sync_wrapper 0.1.2",
- "system-configuration",
- "tokio",
- "tokio-rustls 0.24.1",
- "tokio-util",
- "tower-service",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-streams",
- "web-sys",
- "webpki-roots 0.25.4",
- "winreg",
-]
-
-[[package]]
-name = "reqwest"
 version = "0.12.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d0946410b9f7b082a427e4ef5c8ff541a88b357bc6c637c40db3a68ac70a36f"
@@ -7362,24 +6738,24 @@ dependencies = [
 
 [[package]]
 name = "rstest"
-version = "0.18.2"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97eeab2f3c0a199bc4be135c36c924b6590b88c377d416494288c14f2db30199"
+checksum = "f5a3193c063baaa2a95a33f03035c8a72b83d97a54916055ba22d35ed3839d49"
 dependencies = [
- "futures",
  "futures-timer",
+ "futures-util",
  "rstest_macros",
- "rustc_version",
 ]
 
 [[package]]
 name = "rstest_macros"
-version = "0.18.2"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d428f8247852f894ee1be110b375111b586d4fa431f6c46e64ba5a0dcccbe605"
+checksum = "9c845311f0ff7951c5506121a9ad75aec44d083c31583b2ea5a30bcb0b0abba0"
 dependencies = [
  "cfg-if",
  "glob",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "regex",
@@ -7813,7 +7189,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?branch=tjh%2Fiox_v1_q
 dependencies = [
  "arrow",
  "arrow-flight",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "executor",
  "object_store",
  "tonic 0.12.3",
@@ -7830,7 +7206,7 @@ dependencies = [
  "authz",
  "bytes",
  "data_types",
- "datafusion 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion",
  "error_reporting",
  "flightsql",
  "futures",
@@ -8355,27 +7731,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "system-configuration"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba3a3adc5c275d719af8cb4272ea1c4a6d668a777f37e115f6d11ddbc1c8e0e7"
-dependencies = [
- "bitflags 1.3.2",
- "core-foundation 0.9.4",
- "system-configuration-sys",
-]
-
-[[package]]
-name = "system-configuration-sys"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
 name = "tagptr"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8438,7 +7793,7 @@ dependencies = [
  "ordered-float 5.1.0",
  "parking_lot",
  "prometheus-parse",
- "reqwest 0.12.24",
+ "reqwest",
  "serde",
  "tempfile",
  "thiserror 2.0.17",
@@ -8754,6 +8109,36 @@ dependencies = [
  "tokio",
  "tracing",
  "workspace-hack",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cdb639ebbc97961c51720f858597f7f24c4fc295327923af55b74c3c724533"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.23.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6485ef6d0d9b5d0ec17244ff7eb05310113c3f316f2d14200d4de56b3cb98f8d"
+dependencies = [
+ "indexmap 2.12.0",
+ "toml_datetime",
+ "toml_parser",
+ "winnow 0.7.13",
+]
+
+[[package]]
+name = "toml_parser"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0cbe268d35bdb4bb5a56a2de88d0ad0eb70af5384a99d648cd4b3d04039800e"
+dependencies = [
+ "winnow 0.7.13",
 ]
 
 [[package]]
@@ -9415,12 +8800,6 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "0.25.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
-
-[[package]]
-name = "webpki-roots"
 version = "0.26.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
@@ -9867,13 +9246,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "winreg"
-version = "0.50.0"
+name = "winnow"
+version = "0.7.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
+checksum = "21a0236b59786fed61e2a80582dd500fe61f18b5dca67a4a067d0bc9039339cf"
 dependencies = [
- "cfg-if",
- "windows-sys 0.48.0",
+ "memchr",
 ]
 
 [[package]]
@@ -9911,8 +9289,8 @@ dependencies = [
  "crossbeam-utils",
  "crypto-bigint 0.5.5",
  "crypto-common",
- "datafusion-common 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
- "datafusion-expr 49.0.2 (git+https://github.com/influxdata/arrow-datafusion.git?rev=ee81b1cc652bde6c131973d091b178836692112d)",
+ "datafusion-common",
+ "datafusion-expr",
  "digest",
  "either",
  "fastrand",
@@ -9966,7 +9344,7 @@ dependencies = [
  "regex",
  "regex-automata",
  "regex-syntax",
- "reqwest 0.12.24",
+ "reqwest",
  "ring",
  "rustls 0.23.34",
  "rustls-pemfile 2.2.0",

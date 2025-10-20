@@ -1,4 +1,5 @@
 use core::str;
+use std::time::Duration;
 
 use crate::server::TestServer;
 use futures::StreamExt;
@@ -1797,6 +1798,69 @@ async fn api_v1_query_group_by_with_nulls() {
             insta::assert_json_snapshot!(values);
         });
     }
+}
+
+#[tokio::test]
+async fn api_v1_query_api_show_databases_and_retention_policies() {
+    let server = TestServer::spawn().await;
+
+    server.api_v3_create_database("foo", None).await.unwrap();
+    server
+        .api_v3_create_database("bar", Some(Duration::from_secs(30 * 24 * 60 * 60)))
+        .await
+        .unwrap();
+
+    let response = server
+        .api_v1_query(&[("q", "SHOW DATABASES")], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::with_settings!({
+        description => "SHOW DATABASES",
+    }, {
+        insta::assert_snapshot!(response);
+    });
+
+    let response = server
+        .api_v1_query(&[("q", "SHOW RETENTION POLICIES"), ("db", "foo")], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::with_settings!({
+        description => "SHOW RETENTION POLICIES on foo db",
+    }, {
+        insta::assert_snapshot!(response);
+    });
+
+    let response = server
+        .api_v1_query(&[("q", "SHOW RETENTION POLICIES"), ("db", "bar")], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::with_settings!({
+        description => "SHOW RETENTION POLICIES on bar db",
+    }, {
+        insta::assert_snapshot!(response);
+    });
+
+    let response = server
+        .api_v1_query(&[("q", "SHOW RETENTION POLICIES"), ("db", "frodo")], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::with_settings!({
+        description => "SHOW RETENTION POLICIES on non-existent db",
+    }, {
+        insta::assert_snapshot!(response);
+    });
 }
 
 #[tokio::test]

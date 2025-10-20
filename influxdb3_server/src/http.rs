@@ -35,7 +35,9 @@ use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::HardDeletionTime;
 use influxdb3_catalog::log::FieldDataType;
 use influxdb3_id::TokenId;
-use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
+use influxdb3_internal_api::query_executor::{
+    QueryExecutor, QueryExecutorError, ShowDatabases, ShowRetentionPolicies,
+};
 use influxdb3_process::{
     INFLUXDB3_BUILD, INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, ProcessUuidWrapper,
 };
@@ -2374,7 +2376,13 @@ pub(crate) async fn route_request(
                 Some(http_server.authorizer.upcast()),
                 http_server.common_state.trace_collector(),
                 INFLUXDB3_VERSION.to_string(),
-            );
+            )
+            .with_show_databases(ShowDatabases::new(Arc::clone(
+                &http_server.common_state.catalog,
+            )))
+            .with_show_retention_policies(ShowRetentionPolicies::new(Arc::clone(
+                &http_server.common_state.catalog,
+            )));
             match handler.route_request(req).await {
                 Ok(r) => Ok(r),
                 Err(e) => return Ok(e.into_response()),

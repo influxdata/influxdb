@@ -761,13 +761,7 @@ impl Drop for TestServer {
 }
 
 impl TestServer {
-    /// Write some line protocol to the server
-    pub async fn write_lp_to_db(
-        &self,
-        database: &str,
-        lp: impl ToString,
-        precision: Precision,
-    ) -> Result<(), influxdb3_client::Error> {
+    fn maybe_authorized_client(&self) -> influxdb3_client::Client {
         let mut client = influxdb3_client::Client::new(
             self.client_addr(),
             Some("../testing-certs/rootCA.pem".into()),
@@ -777,10 +771,32 @@ impl TestServer {
             client = client.with_auth_token(token);
         }
         client
+    }
+
+    /// Write some line protocol to the server
+    pub async fn write_lp_to_db(
+        &self,
+        database: &str,
+        lp: impl ToString,
+        precision: Precision,
+    ) -> Result<(), influxdb3_client::Error> {
+        let client = self.maybe_authorized_client();
+        client
             .api_v3_write_lp(database)
             .body(lp.to_string())
             .precision(precision)
             .send()
+            .await
+    }
+
+    pub async fn api_v3_create_database(
+        &self,
+        database: &str,
+        retention_period: Option<Duration>,
+    ) -> Result<(), influxdb3_client::Error> {
+        let client = self.maybe_authorized_client();
+        client
+            .api_v3_configure_db_create(database, retention_period)
             .await
     }
 
@@ -791,14 +807,7 @@ impl TestServer {
         tags: Vec<String>,
         fields: Vec<(String, FieldType)>,
     ) -> Result<(), influxdb3_client::Error> {
-        let mut client = influxdb3_client::Client::new(
-            self.client_addr(),
-            Some("../testing-certs/rootCA.pem".into()),
-        )
-        .unwrap();
-        if let Some(token) = &self.auth_token {
-            client = client.with_auth_token(token);
-        }
+        let client = self.maybe_authorized_client();
 
         client
             .api_v3_configure_table_create(database, table, tags, fields)

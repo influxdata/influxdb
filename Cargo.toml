@@ -84,8 +84,8 @@ criterion = { version = "0.5", features = ["html_reports"] }
 crossbeam-channel = "0.5.11"
 csv = "1.3.0"
 # See https://github.com/influxdata/arrow-datafusion/pull/73 for contents
-datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc" }
-datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "a9cf9aca9ebf0d6c04e0861d2baebffa0ba77dbc" }
+datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "ee81b1cc652bde6c131973d091b178836692112d" }
+datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "ee81b1cc652bde6c131973d091b178836692112d" }
 dashmap = "6.1.0"
 dotenvy = "0.15.7"
 flate2 = "1.0.27"
@@ -112,25 +112,25 @@ mockito = { version = "1.4.0", default-features = false }
 mockall = { version = "0.13.0" }
 non-empty-string = "0.2.5"
 num_cpus = "1.16.0"
-object_store = { version = "0.12.3", features = ["aws", "azure", "gcp"] }
+object_store = { version = "0.12.4", features = ["aws", "azure", "gcp"] }
 parking_lot = { version = "0.12.1", features = ["serde"] }
 paste = "1.0.15"
 parquet = {version = "55", features = ["object_store"]}
-pbjson = "0.6.0"
-pbjson-build = "0.6.2"
-pbjson-types = "0.6.0"
+pbjson = "0.8"
+pbjson-build = "0.8"
+pbjson-types = "0.7"
 pin-project-lite = "0.2"
 pretty_assertions = { version = "1.4.0", features = ["unstable"] }
-prost = "0.12.6"
-prost-build = "0.12.6"
-prost-types = "0.12.6"
+prost = "0.13"
+prost-build = "0.13"
+prost-types = "0.13"
 proptest = { version = "1", default-features = false, features = ["std"] }
 pyo3 = { version = "0.24.1", features = ["experimental-async"]}
 rand = "0.8.5"
 rcgen = "0.13.2"
 regex = "1.11.1"
-reqwest = { version = "0.11.27", default-features = false, features = ["rustls-tls", "stream", "json"] }
-rstest = "0.18"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+rstest = "0.26"
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", default-features = false, features = ["ring", "std"] }
 rustls-pemfile = "2.2.0"
@@ -157,7 +157,7 @@ tonic = { version = "0.12.3", features = ["tls", "tls-roots"] }
 tonic-build = "0.12.3"
 tonic-health = "0.12.3"
 tonic-reflection = "0.12.3"
-tower = "0.4.13"
+tower = "0.5"
 twox-hash = "2.1.0"
 unicode-segmentation = "1.11.0"
 url = "2.5.0"
