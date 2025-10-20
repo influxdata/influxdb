@@ -1,7 +1,7 @@
 package binary
 
 //go:generate protoc --go_out=. tools_binary.proto
-//go:generate stringer -type=MessageType .
+//go:generate stringer -type=MessageType
 
 import "errors"
 
