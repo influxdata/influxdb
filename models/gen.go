@@ -1,3 +1,3 @@
 package models
 
-//go:generate stringer -type=FieldType
+//go:generate stringer -type=FieldType .
