@@ -179,7 +179,7 @@ Usage: influx_inspect report [flags] <directory>
             Defaults to "false".
 `
 
-	fmt.Fprintf(cmd.Stdout, "%s", usage)
+	fmt.Fprint(cmd.Stdout, usage)
 }
 
 type ShardDetails struct {

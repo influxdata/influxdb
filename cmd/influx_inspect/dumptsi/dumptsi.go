@@ -512,7 +512,7 @@ or it should specify one or more .tsi/.tsl files. If no flags are specified
 then summary stats are provided for each file.
 `
 
-	fmt.Fprintf(cmd.Stdout, "%s", usage)
+	fmt.Fprint(cmd.Stdout, usage)
 }
 
 // deletedString returns "(deleted)" if v is true.

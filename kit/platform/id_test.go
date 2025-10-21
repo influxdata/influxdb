@@ -85,7 +85,7 @@ func TestDecodeFromString(t *testing.T) {
 	var id platform.ID
 	err := id.DecodeFromString("020f755c3c082000")
 	if err != nil {
-		t.Errorf("%s", err.Error())
+		t.Error(err.Error())
 	}
 	want := []byte{48, 50, 48, 102, 55, 53, 53, 99, 51, 99, 48, 56, 50, 48, 48, 48}
 	got, _ := id.Encode()
@@ -171,12 +171,12 @@ func TestMarshalling(t *testing.T) {
 	init := "ca55e77eca55e77e"
 	id1, err := platform.IDFromString(init)
 	if err != nil {
-		t.Errorf("%s", err.Error())
+		t.Error(err.Error())
 	}
 
 	serialized, err := json.Marshal(id1)
 	if err != nil {
-		t.Errorf("%s", err.Error())
+		t.Error(err.Error())
 	}
 
 	var id2 platform.ID
