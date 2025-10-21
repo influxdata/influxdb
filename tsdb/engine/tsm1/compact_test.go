@@ -3720,7 +3720,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 				}
 			},
 		},
-		// Start of nested test cases????
 		{
 			name: "Mock another planned level inside scheduler aggress blocks end",
 			files: []tsm1.ExtFileStat{
@@ -4114,6 +4113,13 @@ func TestEnginePlanCompactions(t *testing.T) {
 				{FileStat: tsm1.FileStat{Path: "000017076-000000004.tsm", Size: 2147483648}, FirstBlockCount: 567}, // 2.1GB
 				{FileStat: tsm1.FileStat{Path: "000017094-000000004.tsm", Size: 2147483648}, FirstBlockCount: 245}, // 2.1GB
 				{FileStat: tsm1.FileStat{Path: "000017095-000000005.tsm", Size: 1503238553}, FirstBlockCount: 334}, // 1.4GB
+				{FileStat: tsm1.FileStat{Path: "000017096-000000003.tsm", Size: 1503238553}, FirstBlockCount: 334}, // 1.4GB
+				{FileStat: tsm1.FileStat{Path: "000017097-000000002.tsm", Size: 1503238553}, FirstBlockCount: 334}, // 1.4GB
+				{FileStat: tsm1.FileStat{Path: "000017097-000000003.tsm", Size: 1503238553}, FirstBlockCount: 334}, // 1.4GB
+				{FileStat: tsm1.FileStat{Path: "000017098-000000002.tsm", Size: 1503238553}, FirstBlockCount: 334}, // 1.4GB
+				{FileStat: tsm1.FileStat{Path: "000017099-000000002.tsm", Size: 1503238553}, FirstBlockCount: 334}, // 1.4GB
+				{FileStat: tsm1.FileStat{Path: "000017100-000000001.tsm", Size: 1503238553}, FirstBlockCount: 334}, // 1.4GB
+				{FileStat: tsm1.FileStat{Path: "000017101-000000002.tsm", Size: 1503238553}, FirstBlockCount: 334}, // 1.4GB
 			},
 			testShardTime: -1,
 			expectedResult: func() TestLevelResults {
@@ -4123,6 +4129,16 @@ func TestEnginePlanCompactions(t *testing.T) {
 						{
 							tsm1.CompactionGroup{
 								"000016090-000000002.tsm",
+							},
+							tsdb.DefaultMaxPointsPerBlock,
+						},
+						{
+							tsm1.CompactionGroup{
+								"000017097-000000002.tsm",
+								"000017097-000000003.tsm",
+								"000017098-000000002.tsm",
+								"000017099-000000002.tsm",
+								"000017100-000000001.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
@@ -4149,6 +4165,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 							tsm1.CompactionGroup{
 								"000017094-000000004.tsm",
 								"000017095-000000005.tsm",
+								"000017096-000000003.tsm",5
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
