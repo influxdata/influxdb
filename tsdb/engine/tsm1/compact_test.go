@@ -4165,7 +4165,7 @@ func TestEnginePlanCompactions(t *testing.T) {
 							tsm1.CompactionGroup{
 								"000017094-000000004.tsm",
 								"000017095-000000005.tsm",
-								"000017096-000000003.tsm",5
+								"000017096-000000003.tsm",
 							},
 							tsdb.DefaultMaxPointsPerBlock,
 						},
