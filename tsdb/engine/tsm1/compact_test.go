@@ -2843,6 +2843,123 @@ func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
 
 }
 
+// TestDefaultPlanner_Plan_SizeDisparitySkipsLargerGenerations ensures that when iterating
+// through level 4+ generations, if a generation is less than half the size of the previous
+// generation, earlier larger generations are skipped. This tests the logic at compact.go:609-614.
+func TestDefaultPlanner_Plan_SizeDisparitySkipsLargerGenerations(t *testing.T) {
+	data := []tsm1.FileStat{
+		// Gen 1: 2GB, level 4, full blocks - would normally be skipped
+		{Path: "01-04.tsm", Size: tsdb.MaxTSMFileSize},
+		// Gen 2: 2GB, level 4, full blocks - would normally be skipped
+		{Path: "02-04.tsm", Size: tsdb.MaxTSMFileSize},
+		// Gen 3: 500MB, level 4 - less than half of gen 2's size (1536MB)
+		// This triggers start = i (gen 3), causing gens 1 and 2 to be skipped
+		{Path: "03-04.tsm", Size: 500 * 1024 * 1024},
+		// Gen 4: 600MB, level 4 - should be included
+		{Path: "04-04.tsm", Size: 600 * 1024 * 1024},
+		// Gen 5: 700MB, level 4 - should be included
+		{Path: "05-04.tsm", Size: 700 * 1024 * 1024},
+		// Gen 6: 800MB, level 4 - should be included
+		{Path: "06-04.tsm", Size: 800 * 1024 * 1024},
+	}
+
+	cp := tsm1.NewDefaultPlanner(
+		newFakeFileStore(withFileStats(t, data), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock)),
+		tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	// Call Plan which should skip gens 1 and 2 due to size disparity
+	tsm, pLen := cp.Plan(time.Now())
+
+	// Should return 1 compaction group containing gens 3, 4, 5, 6 (4 files)
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("compaction group count mismatch: got %v, exp %v", got, exp)
+	}
+	if pLen != int64(len(tsm)) {
+		t.Fatalf("plan length mismatch: got %v, exp %v", pLen, len(tsm))
+	}
+
+	// Verify that gens 3-6 are included (4 files) and gens 1-2 are excluded
+	if exp, got := 4, len(tsm[0]); got != exp {
+		t.Fatalf("tsm file count in group mismatch: got %v, exp %v", got, exp)
+	}
+
+	// Verify the correct files are in the plan (should be gens 3-6)
+	expectedFiles := []string{"03-04.tsm", "04-04.tsm", "05-04.tsm", "06-04.tsm"}
+	for i, expFile := range expectedFiles {
+		if got, exp := tsm[0][i], expFile; got != exp {
+			t.Fatalf("file mismatch at index %d: got %v, exp %v", i, got, exp)
+		}
+	}
+
+	// Verify gens 1 and 2 are NOT in the plan
+	for _, file := range tsm[0] {
+		if file == "01-04.tsm" || file == "02-04.tsm" {
+			t.Fatalf("unexpected file in plan: %v (should have been skipped due to size disparity)", file)
+		}
+	}
+}
+
+// TestDefaultPlanner_Plan_LookAheadPreventsSkip ensures that a generation that would
+// normally be skipped (over 2GB with full blocks and no tombstones) is NOT skipped if
+// the next generation is at level 3 or lower. This tests the logic at compact.go:530-533.
+func TestDefaultPlanner_Plan_LookAheadPreventsSkip(t *testing.T) {
+	data := []tsm1.FileStat{
+		// Gen 1: 2GB, level 4, full blocks, no tombstones
+		// Would normally be skipped, but shouldn't because gen 2 is level 3
+		{Path: "01-04.tsm", Size: tsdb.MaxTSMFileSize},
+		// Gen 2: level 3 (sequence 3), under 2GB
+		// Having this at level 3 should prevent gen 1 from being skipped
+		{Path: "02-03.tsm", Size: 500 * 1024 * 1024},
+		// Gen 3: level 4, under 2GB
+		{Path: "03-04.tsm", Size: 600 * 1024 * 1024},
+		// Gen 4: level 4, under 2GB
+		{Path: "04-04.tsm", Size: 700 * 1024 * 1024},
+	}
+
+	cp := tsm1.NewDefaultPlanner(
+		newFakeFileStore(withFileStats(t, data), withDefaultBlockCount(tsdb.DefaultMaxPointsPerBlock)),
+		time.Nanosecond, // Short cold duration to trigger full compaction
+	)
+
+	// Call Plan with a past lastWrite time to trigger full compaction path
+	tsm, pLen := cp.Plan(time.Now().Add(-time.Second))
+
+	// Should return 1 compaction group
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("compaction group count mismatch: got %v, exp %v", got, exp)
+	}
+	if pLen != int64(len(tsm)) {
+		t.Fatalf("plan length mismatch: got %v, exp %v", pLen, len(tsm))
+	}
+
+	// All 4 generations should be included because gen 1 should NOT be skipped
+	// due to the look-ahead logic seeing gen 2 at level 3
+	if exp, got := 4, len(tsm[0]); got != exp {
+		t.Fatalf("tsm file count in group mismatch: got %v, exp %v", got, exp)
+	}
+
+	// Verify gen 1 (01-04.tsm) is included in the plan
+	found := false
+	for _, file := range tsm[0] {
+		if file == "01-04.tsm" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("gen 1 (01-04.tsm) was skipped but should have been included due to look-ahead logic")
+	}
+
+	// Verify all expected files are in the plan
+	expectedFiles := []string{"01-04.tsm", "02-03.tsm", "03-04.tsm", "04-04.tsm"}
+	for i, expFile := range expectedFiles {
+		if got, exp := tsm[0][i], expFile; got != exp {
+			t.Fatalf("file mismatch at index %d: got %v, exp %v", i, got, exp)
+		}
+	}
+}
+
 func TestIsGroupOptimized(t *testing.T) {
 	testSetNoExt := []tsm1.FileStat{
 		{
