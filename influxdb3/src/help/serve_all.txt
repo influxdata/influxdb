@@ -23,21 +23,23 @@ Examples:
 
 {}
   --node-id <NODE_ID>              Node identifier used as prefix in object store file paths
-                                  [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
+                                    [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
   --object-store <STORE>           Object storage to use
-                                  [possible values: memory, memory-throttled, file, s3, google, azure]
+                                    [possible values: memory, memory-throttled, file, s3, google, azure]
 
 {}
   --http-bind <ADDR>               Address for HTTP API requests [default: 0.0.0.0:8181]
-                                  [env: INFLUXDB3_HTTP_BIND_ADDR=]
-  --log-filter <FILTER>            Logs: filter directive [env: LOG_FILTER=]
+                                    [env: INFLUXDB3_HTTP_BIND_ADDR=]
+  --log-filter <FILTER>            Logs: filter directive
+                                    [default: info,iox_query::query_log=warn,influxdb3_query_executor::enterprise=warn]
+                                    [env: LOG_FILTER=]
   --tls-key <KEY_FILE>             The path to the key file for TLS to be enabled
-                                  [env: INFLUXDB3_TLS_KEY=]
+                                    [env: INFLUXDB3_TLS_KEY=]
   --tls-cert <CERT_FILE>           The path to the cert file for TLS to be enabled
-                                  [env: INFLUXDB3_TLS_CERT=]
+                                    [env: INFLUXDB3_TLS_CERT=]
   --tls-minimum-version <VERSION>  The minimum version for TLS. Valid values are
                                    tls-1.2 and tls-1.3, default is tls-1.2
-                                  [env: INFLUXDB3_TLS_MINIMUM_VERSION=]
+                                    [env: INFLUXDB3_TLS_MINIMUM_VERSION=]
   --without-auth                   Run InfluxDB 3 server without authorization
   --disable-authz <RESOURCES>      Optionally disable authz by passing in a comma separated
                                    list of resources. Valid values are health, ping, and metrics.
@@ -46,28 +48,28 @@ Examples:
   --admin-token-recovery-http-bind <ADDR>
                                    Address for HTTP API for admin token recovery requests [default: 127.0.0.1:8182]
                                    WARNING: This endpoint allows unauthenticated admin token regeneration - use with caution!
-                                   [env: INFLUXDB3_ADMIN_TOKEN_RECOVERY_HTTP_BIND_ADDR]
+                                    [env: INFLUXDB3_ADMIN_TOKEN_RECOVERY_HTTP_BIND_ADDR]
   --admin-token-file <FILE>        File containing offline admin tokens. Used for automated
                                    deployments where the admin token is pre-generated and loaded at startup.
-                                   [env: INFLUXDB3_ADMIN_TOKEN_FILE=]
+                                    [env: INFLUXDB3_ADMIN_TOKEN_FILE=]
 
 
 {}
   --data-dir <DIR>                 Location to store files locally [env: INFLUXDB3_DB_DIR=]
   --bucket <BUCKET>                Bucket name for cloud object storage [env: INFLUXDB3_BUCKET=]
   --gen1-duration <DURATION>       Duration for Parquet file arrangement [default: 10m]
-                                  [env: INFLUXDB3_GEN1_DURATION=]
+                                    [env: INFLUXDB3_GEN1_DURATION=]
   --gen1-lookback-duration <DURATION>
                                    The amount of time that the server looks back on startup
                                    when populating the in-memory index of gen1 files.
-                                  [env: INFLUXDB3_GEN1_LOOKBACK_DURATION=]
+                                    [env: INFLUXDB3_GEN1_LOOKBACK_DURATION=]
   --delete-grace-period <DURATION> Grace period for hard deleted databases and tables before they are
                                    removed permanently from the catalog [default: 24h]
-                                   [env: INFLUXDB3_DELETE_GRACE_PERIOD=]
+                                    [env: INFLUXDB3_DELETE_GRACE_PERIOD=]
   --retention-check-interval <INTERVAL>
                                    The interval at which retention policies are checked and enforced.
                                    Enter as a human-readable time, e.g., '30m', '1h', etc. [default: 30m]
-                                  [env: INFLUXDB3_RETENTION_CHECK_INTERVAL=]
+                                    [env: INFLUXDB3_RETENTION_CHECK_INTERVAL=]
 
 {}
   --aws-access-key-id <KEY>        S3 access key ID [env: AWS_ACCESS_KEY_ID=] [default: ]
@@ -97,7 +99,7 @@ Examples:
                                    InfluxDB3 will attempt to update its in-memory credentials
                                    from this file then retry the object store request.
 
-                                  [env: AWS_CREDENTIALS_FILE]
+                                    [env: AWS_CREDENTIALS_FILE]
 
 {}
   --google-service-account <PATH>  Path to Google credentials JSON [env: GOOGLE_SERVICE_ACCOUNT=]
@@ -121,7 +123,7 @@ Examples:
 {}
   --object-store-connection-limit <LIMIT>
                                   Connection limit for network object stores [default: 16]
-                                  [env: OBJECT_STORE_CONNECTION_LIMIT=]
+                                   [env: OBJECT_STORE_CONNECTION_LIMIT=]
   --object-store-http2-only        Force HTTP/2 for object stores [env: OBJECT_STORE_HTTP2_ONLY=]
   --object-store-http2-max-frame-size <SIZE>
                                   HTTP/2 max frame size [env: OBJECT_STORE_HTTP2_MAX_FRAME_SIZE=]
@@ -133,135 +135,135 @@ Examples:
   --object-store-tls-allow-insecure
                                   Skip TLS certificate verification for object storage.
                                   WARNING: This is insecure and should only be used for testing
-                                  [env: OBJECT_STORE_TLS_ALLOW_INSECURE=]
+                                   [env: OBJECT_STORE_TLS_ALLOW_INSECURE=]
   --object-store-tls-ca <PATH>   Path to custom CA certificate file (PEM format) for object storage.
                                   Use when your object store uses a certificate signed by a private CA
                                   [env: OBJECT_STORE_TLS_CA=]
 
 {}
   --max-http-request-size <SIZE>   Maximum size of HTTP requests [default: 10485760]
-                                  [env: INFLUXDB3_MAX_HTTP_REQUEST_SIZE=]
+                                    [env: INFLUXDB3_MAX_HTTP_REQUEST_SIZE=]
 
 {}
   --exec-mem-pool-bytes <SIZE>     Memory pool size for query execution [default: 20%]
-                                  [env: INFLUXDB3_EXEC_MEM_POOL_BYTES=]
+                                    [env: INFLUXDB3_EXEC_MEM_POOL_BYTES=]
   --parquet-mem-cache-size <SIZE>  In-memory Parquet cache size [default: 20%]
-                                  [env: INFLUXDB3_PARQUET_MEM_CACHE_SIZE=]
+                                    [env: INFLUXDB3_PARQUET_MEM_CACHE_SIZE=]
   --force-snapshot-mem-threshold <THRESH>
                                   Internal buffer threshold [default: 50%]
-                                  [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD=]
+                                   [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD=]
   --parquet-mem-cache-prune-percentage <PCT>
                                   Percentage to prune from cache [default: 0.1]
-                                  [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE=]
+                                   [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE=]
   --parquet-mem-cache-prune-interval <INTERVAL>
                                   Cache prune check interval [default: 1s]
-                                  [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL=]
+                                   [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL=]
   --parquet-mem-cache-query-path-duration <DURATION>
                                   Duration to check for query path caching [default: 5h]
-                                  [env: INFLUXDB3_PARQUET_MEM_CACHE_QUERY_PATH_DURATION=]
+                                   [env: INFLUXDB3_PARQUET_MEM_CACHE_QUERY_PATH_DURATION=]
   --disable-parquet-mem-cache     Disable in-memory Parquet cache [env: INFLUXDB3_DISABLE_PARQUET_MEM_CACHE=]
   --table-index-cache-max-entries <N>
                                   Maximum number of table indices to cache in
                                   memory. Set to 0 for unlimited cache size. [default: 100]
-                                  [env: INFLUXDB3_TABLE_INDEX_CACHE_MAX_ENTRIES=]
+                                   [env: INFLUXDB3_TABLE_INDEX_CACHE_MAX_ENTRIES=]
   --table-index-cache-concurrency-limit <N>
                                   Maximum concurrent operations between table index cache and object store.
                                   This limits how many parallel requests can be made to object storage
                                   when loading or updating table indices. [default: 20]
-                                  [env: INFLUXDB3_TABLE_INDEX_CACHE_CONCURRENCY_LIMIT=]
+                                   [env: INFLUXDB3_TABLE_INDEX_CACHE_CONCURRENCY_LIMIT=]
 
 {}
   --wal-flush-interval <INTERVAL>  Interval to flush data to WAL file [default: 1s]
-                                  [env: INFLUXDB3_WAL_FLUSH_INTERVAL=]
+                                    [env: INFLUXDB3_WAL_FLUSH_INTERVAL=]
   --wal-snapshot-size <SIZE>       Number of WAL files per snapshot [default: 600]
-                                  [env: INFLUXDB3_WAL_SNAPSHOT_SIZE=]
+                                    [env: INFLUXDB3_WAL_SNAPSHOT_SIZE=]
   --wal-max-write-buffer-size <SIZE>
                                   Max write requests in buffer [default: 100000]
-                                  [env: INFLUXDB3_WAL_MAX_WRITE_BUFFER_SIZE=]
+                                   [env: INFLUXDB3_WAL_MAX_WRITE_BUFFER_SIZE=]
   --wal-replay-concurrency-limit <LIMIT>
                                   Concurrency limit during WAL replay [default: max(num_cpus, 10)]
                                   Setting this number too high can lead to OOM.
                                   The default is dynamically determined.
-                                  [env: INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT=]
+                                   [env: INFLUXDB3_WAL_REPLAY_CONCURRENCY_LIMIT=]
   --snapshotted-wal-files-to-keep <N>
                                   Number of snapshotted WAL files to retain [default: 300]
-                                  [env: INFLUXDB3_NUM_WAL_FILES_TO_KEEP=]
+                                   [env: INFLUXDB3_NUM_WAL_FILES_TO_KEEP=]
 
 {}
   --last-cache-eviction-interval <INTERVAL>
                                   Last-N-Value cache eviction interval [default: 10s]
-                                  [env: INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL=]
+                                   [env: INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL=]
   --distinct-cache-eviction-interval <INTERVAL>
                                   Distinct Value cache eviction interval [default: 10s]
-                                  [env: INFLUXDB3_DISTINCT_CACHE_EVICTION_INTERVAL=]
-  --query-log-size <SIZE>          Size of the query log [default: 1000]
-                                  [env: INFLUXDB3_QUERY_LOG_SIZE=]
-  --query-file-limit <LIMIT>       Max parquet files allowed in a query
-                                  [env: INFLUXDB3_QUERY_FILE_LIMIT=]
+                                   [env: INFLUXDB3_DISTINCT_CACHE_EVICTION_INTERVAL=]
+  --query-log-size <SIZE>         Size of the query log [default: 1000]
+                                   [env: INFLUXDB3_QUERY_LOG_SIZE=]
+  --query-file-limit <LIMIT>      Max parquet files allowed in a query
+                                   [env: INFLUXDB3_QUERY_FILE_LIMIT=]
 
 {}
   --datafusion-num-threads <N>     Max DataFusion runtime threads
-                                  [env: INFLUXDB3_DATAFUSION_NUM_THREADS=]
+                                    [env: INFLUXDB3_DATAFUSION_NUM_THREADS=]
   --datafusion-runtime-type <TYPE> DataFusion runtime type [default: multi-thread]
-                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_TYPE=]
-                                  [possible values: current-thread, multi-thread, multi-thread-alt]
+                                    [env: INFLUXDB3_DATAFUSION_RUNTIME_TYPE=]
+                                    [possible values: current-thread, multi-thread, multi-thread-alt]
   --datafusion-max-parquet-fanout <N>
                                   Parquet file fanout limit [default: 1000]
-                                  [env: INFLUXDB3_DATAFUSION_MAX_PARQUET_FANOUT=]
+                                   [env: INFLUXDB3_DATAFUSION_MAX_PARQUET_FANOUT=]
   --datafusion-use-cached-parquet-loader
                                   Use cached parquet loader
-                                  [env: INFLUXDB3_DATAFUSION_USE_CACHED_PARQUET_LOADER=]
-  --datafusion-config <CONFIG>     Custom DataFusion configuration [default: ]
-                                  [env: INFLUXDB3_DATAFUSION_CONFIG=]
+                                   [env: INFLUXDB3_DATAFUSION_USE_CACHED_PARQUET_LOADER=]
+  --datafusion-config <CONFIG>    Custom DataFusion configuration [default: ]
+                                   [env: INFLUXDB3_DATAFUSION_CONFIG=]
   --datafusion-runtime-disable-lifo-slot <BOOL>
                                   Disable LIFO slot [possible values: true, false]
-                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_DISABLE_LIFO_SLOT=]
+                                   [env: INFLUXDB3_DATAFUSION_RUNTIME_DISABLE_LIFO_SLOT=]
   --datafusion-runtime-event-interval <N>
                                   Scheduler ticks for polling external events
-                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_EVENT_INTERVAL=]
+                                   [env: INFLUXDB3_DATAFUSION_RUNTIME_EVENT_INTERVAL=]
   --datafusion-runtime-global-queue-interval <N>
                                   Scheduler ticks for polling global task queue
-                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_GLOBAL_QUEUE_INTERVAL=]
+                                   [env: INFLUXDB3_DATAFUSION_RUNTIME_GLOBAL_QUEUE_INTERVAL=]
   --datafusion-runtime-max-blocking-threads <N>
                                   Thread limit for DataFusion runtime
-                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_MAX_BLOCKING_THREADS=]
+                                   [env: INFLUXDB3_DATAFUSION_RUNTIME_MAX_BLOCKING_THREADS=]
   --datafusion-runtime-max-io-events-per-tick <N>
                                   Max events per tick
-                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_MAX_IO_EVENTS_PER_TICK=]
+                                   [env: INFLUXDB3_DATAFUSION_RUNTIME_MAX_IO_EVENTS_PER_TICK=]
   --datafusion-runtime-thread-keep-alive <DURATION>
                                   Blocking pool thread timeout
-                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_THREAD_KEEP_ALIVE=]
+                                   [env: INFLUXDB3_DATAFUSION_RUNTIME_THREAD_KEEP_ALIVE=]
   --datafusion-runtime-thread-priority <PRIORITY>
                                   Thread priority [default: 10]
-                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_THREAD_PRIORITY=]
+                                   [env: INFLUXDB3_DATAFUSION_RUNTIME_THREAD_PRIORITY=]
 
 {}
   --log-destination <DEST>         Logs: destination [default: stdout]
-                                  [env: LOG_DESTINATION=]
+                                    [env: LOG_DESTINATION=]
   --log-format <FORMAT>            Logs: message format [default: full]
-                                  [env: LOG_FORMAT=]
+                                    [env: LOG_FORMAT=]
   --traces-exporter <TYPE>         Tracing: exporter type [default: none]
-                                  [env: TRACES_EXPORTER=]
+                                    [env: TRACES_EXPORTER=]
   --traces-exporter-jaeger-agent-host <HOST>
                                   Jaeger agent hostname [default: 0.0.0.0]
-                                  [env: TRACES_EXPORTER_JAEGER_AGENT_HOST=]
+                                   [env: TRACES_EXPORTER_JAEGER_AGENT_HOST=]
   --traces-exporter-jaeger-agent-port <PORT>
                                   Jaeger agent port [default: 6831]
-                                  [env: TRACES_EXPORTER_JAEGER_AGENT_PORT=]
+                                   [env: TRACES_EXPORTER_JAEGER_AGENT_PORT=]
   --traces-exporter-jaeger-service-name <NAME>
                                   Jaeger service name [default: iox-conductor]
-                                  [env: TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
+                                   [env: TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
   --traces-exporter-jaeger-trace-context-header-name <NAME>
                                   Header for trace context [default: uber-trace-id]
-                                  [env: TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
+                                   [env: TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
   --traces-jaeger-debug-name <NAME>
                                   Header for force sampling [default: jaeger-debug-id]
-                                  [env: TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
-  --traces-jaeger-tags <TAGS>      Key-value pairs for tracing spans
-                                  [env: TRACES_EXPORTER_JAEGER_TAGS=]
+                                   [env: TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
+  --traces-jaeger-tags <TAGS>     Key-value pairs for tracing spans
+                                   [env: TRACES_EXPORTER_JAEGER_TAGS=]
   --traces-jaeger-max-msgs-per-second <N>
                                   Max messages per second [default: 1000]
-                                  [env: TRACES_JAEGER_MAX_MSGS_PER_SECOND=]
+                                   [env: TRACES_JAEGER_MAX_MSGS_PER_SECOND=]
 
 
 {}
