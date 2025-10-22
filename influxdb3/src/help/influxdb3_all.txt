@@ -24,29 +24,29 @@ InfluxDB 3 Core Server and Command Line Tools
 
 {}
   --io-runtime-type <TYPE>           IO tokio runtime type [env: INFLUXDB3_IO_RUNTIME_TYPE=]
-                                     [default: multi-thread]
-                                     [possible values: multi-thread, multi-thread-alt]
+                                      [default: multi-thread]
+                                      [possible values: multi-thread, multi-thread-alt]
   --io-runtime-disable-lifo-slot <BOOL>
                                      Disable LIFO slot of IO runtime
-                                     [env: INFLUXDB3_IO_RUNTIME_DISABLE_LIFO_SLOT=]
-                                     [possible values: true, false]
-  --io-runtime-event-interval <N>   Scheduler ticks before polling for external events
-                                     [env: INFLUXDB3_IO_RUNTIME_EVENT_INTERVAL=]
+                                      [env: INFLUXDB3_IO_RUNTIME_DISABLE_LIFO_SLOT=]
+                                      [possible values: true, false]
+  --io-runtime-event-interval <N>    Scheduler ticks before polling for external events
+                                      [env: INFLUXDB3_IO_RUNTIME_EVENT_INTERVAL=]
   --io-runtime-global-queue-interval <N>
                                      Scheduler ticks before polling global task queue
-                                     [env: INFLUXDB3_IO_RUNTIME_GLOBAL_QUEUE_INTERVAL=]
+                                      [env: INFLUXDB3_IO_RUNTIME_GLOBAL_QUEUE_INTERVAL=]
   --io-runtime-max-blocking-threads <N>
                                      Thread limit for IO runtime
-                                     [env: INFLUXDB3_IO_RUNTIME_MAX_BLOCKING_THREADS=]
+                                      [env: INFLUXDB3_IO_RUNTIME_MAX_BLOCKING_THREADS=]
   --io-runtime-max-io-events-per-tick <N>
                                      Max events processed per tick
-                                     [env: INFLUXDB3_IO_RUNTIME_MAX_IO_EVENTS_PER_TICK=]
+                                      [env: INFLUXDB3_IO_RUNTIME_MAX_IO_EVENTS_PER_TICK=]
   --io-runtime-thread-keep-alive <DURATION>
                                      Blocking pool thread timeout
-                                     [env: INFLUXDB3_IO_RUNTIME_THREAD_KEEP_ALIVE=]
+                                      [env: INFLUXDB3_IO_RUNTIME_THREAD_KEEP_ALIVE=]
   --io-runtime-thread-priority <PRIORITY>
                                      Thread priority for runtime workers
-                                     [env: INFLUXDB3_IO_RUNTIME_THREAD_PRIORITY=]
+                                      [env: INFLUXDB3_IO_RUNTIME_THREAD_PRIORITY=]
   --num-io-threads <N>               Set maximum IO runtime threads [env: INFLUXDB3_NUM_THREADS=]
 
 {}

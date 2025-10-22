@@ -17,29 +17,31 @@ Examples
 
 {}
   --node-id <NODE_ID>              Node identifier used as prefix in object store file paths
-                                  [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
+                                    [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
   --object-store <OBJECT_STORE>    Which object storage to use.
-                                  [env: INFLUXDB3_OBJECT_STORE=]
-                                  [possible values: memory, memory-throttled, file, s3, google, azure]
+                                    [env: INFLUXDB3_OBJECT_STORE=]
+                                    [possible values: memory, memory-throttled, file, s3, google, azure]
 
 {}
   --http-bind <ADDR>               Address for HTTP API requests [default: 0.0.0.0:8181]
-                                  [env: INFLUXDB3_HTTP_BIND_ADDR=]
-  --log-filter <FILTER>            Logs: filter directive [env: LOG_FILTER=]
+                                    [env: INFLUXDB3_HTTP_BIND_ADDR=]
+  --log-filter <FILTER>            Logs: filter directive
+                                    [default: info,iox_query::query_log=warn,influxdb3_query_executor::query_planner=warn]
+                                    [env: LOG_FILTER=]
   --tls-key <KEY_FILE>             The path to the key file for TLS to be enabled
-                                  [env: INFLUXDB3_TLS_KEY=]
+                                    [env: INFLUXDB3_TLS_KEY=]
   --tls-cert <CERT_FILE>           The path to the cert file for TLS to be enabled
-                                  [env: INFLUXDB3_TLS_CERT=]
+                                    [env: INFLUXDB3_TLS_CERT=]
   --tls-minimum-version <VERSION>  The minimum version for TLS. Valid values are
                                    tls-1.2 and tls-1.3, default is tls-1.2
-                                  [env: INFLUXDB3_TLS_MINIMUM_VERSION=]
+                                    [env: INFLUXDB3_TLS_MINIMUM_VERSION=]
   --without-auth                   Run InfluxDB 3 server without authorization
   --disable-authz <RESOURCES>      Optionally disable authz by passing in a comma separated
                                    list of resources. Valid values are health, ping, and metrics.
                                    To disable auth for multiple resources pass in a list, eg.
                                    `--disable-authz health,ping`
   --admin-token-file <FILE>        File containing offline admin tokens
-                                  [env: INFLUXDB3_ADMIN_TOKEN_FILE=]
+                                    [env: INFLUXDB3_ADMIN_TOKEN_FILE=]
 
 {}
   --data-dir <DIR>                 Location to store files locally [env: INFLUXDB3_DB_DIR=]
@@ -51,7 +53,7 @@ Examples
   --aws-default-region <REGION>    S3 region [default: us-east-1] [env: AWS_DEFAULT_REGION=]
   --aws-credentials-file <PATH>    S3 credentials file. Overrides '--aws-access-key-id' and
                                    '--aws-secret-access-key'.
-                                  [env: AWS_CREDENTIALS_FILE]
+                                   [env: AWS_CREDENTIALS_FILE]
 
 {}
   --google-service-account <PATH>  Path to Google credentials JSON [env: GOOGLE_SERVICE_ACCOUNT=]
