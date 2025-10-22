@@ -42,16 +42,14 @@ impl ParquetFilePath {
     /// `chunk_time` into a date time string with format `'YYYY-MM-DD/HH-MM'`
     pub fn new(
         host_prefix: &str,
-        db_name: &str,
         db_id: u32,
-        table_name: &str,
         table_id: u32,
         chunk_time: i64,
         wal_file_sequence_number: WalFileSequenceNumber,
     ) -> Self {
         let date_time = DateTime::<Utc>::from_timestamp_nanos(chunk_time);
         let path = ObjPath::from(format!(
-            "{host_prefix}/dbs/{db_name}-{db_id}/{table_name}-{table_id}/{date_string}/{wal_seq:010}.{ext}",
+            "{host_prefix}/dbs/{db_id}/{table_id}/{date_string}/{wal_seq:010}.{ext}",
             date_string = date_time.format("%Y-%m-%d/%H-%M"),
             wal_seq = wal_file_sequence_number.as_u64(),
             ext = PARQUET_FILE_EXTENSION
@@ -420,9 +418,7 @@ fn parquet_file_path_new() {
     assert_eq!(
         *ParquetFilePath::new(
             "my_host",
-            "my_db",
             0,
-            "my_table",
             0,
             Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7)
                 .unwrap()
@@ -430,7 +426,7 @@ fn parquet_file_path_new() {
                 .unwrap(),
             WalFileSequenceNumber::new(1337),
         ),
-        ObjPath::from("my_host/dbs/my_db-0/my_table-0/2038-01-19/03-14/0000001337.parquet")
+        ObjPath::from("my_host/dbs/0/0/2038-01-19/03-14/0000001337.parquet")
     );
 }
 
@@ -439,9 +435,7 @@ fn parquet_file_percent_encoded() {
     assert_eq!(
         ParquetFilePath::new(
             "..",
-            "..",
             0,
-            "..",
             0,
             Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7)
                 .unwrap()
@@ -451,7 +445,7 @@ fn parquet_file_percent_encoded() {
         )
         .as_ref()
         .as_ref(),
-        "%2E%2E/dbs/..-0/..-0/2038-01-19/03-14/0000000100.parquet"
+        "%2E%2E/dbs/0/0/2038-01-19/03-14/0000000100.parquet"
     );
 }
 
