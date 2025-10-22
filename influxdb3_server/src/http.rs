@@ -776,20 +776,15 @@ impl HttpApi {
     async fn write_lp(&self, req: Request) -> Result<Response> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
-        self.write_lp_inner(params, req, false).await
+        self.write_lp_inner(params, req).await
     }
 
-    async fn write_lp_inner(
-        &self,
-        params: WriteParams,
-        req: Request,
-        accept_rp: bool,
-    ) -> Result<Response> {
-        validate_db_name(&params.db, accept_rp)?;
+    async fn write_lp_inner(&self, params: WriteParams, req: Request) -> Result<Response> {
+        validate_db_name(&params.db)?;
+        // NamespaceName contains additional validation; do it early
+        let database = NamespaceName::new(params.db)?;
         let body = self.read_body(req).await?;
         let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
-
-        let database = NamespaceName::new(params.db)?;
 
         let default_time = self.time_provider.now();
 
@@ -1419,7 +1414,7 @@ impl HttpApi {
             db,
             retention_period,
         } = self.read_body_json(req).await?;
-        validate_db_name(&db, false)?;
+        validate_db_name(&db)?;
         self.write_buffer
             .catalog()
             .create_database_opts(
@@ -1558,7 +1553,7 @@ impl HttpApi {
             tags,
             fields,
         } = self.read_body_json(req).await?;
-        validate_db_name(&db, false)?;
+        validate_db_name(&db)?;
         self.write_buffer
             .catalog()
             .create_table(
@@ -1881,16 +1876,21 @@ impl From<authz::Error> for AuthenticationError {
 ///
 /// A valid name:
 /// - Starts with a letter or a number
-/// - Is ASCII not UTF-8
-/// - Contains only letters, numbers, underscores or hyphens
-/// - if `accept_rp` is true, then a single slash ('/') is allowed, separating
-///   the database name from the retention policy name, e.g., '<db_name>/<rp_name>'
-fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameError> {
+/// - Is ASCII, not UTF-8
+/// - Contains only letters, numbers, underscores, or hyphens, or a single forward slash
+/// - If a single slash ('/') is used, it separates the database name
+///   from the retention policy name, e.g., '<db_name>/<rp_name>' to comply
+///   with v1 database naming schemes.
+/// - is not too long
+fn validate_db_name(name: &str) -> Result<(), ValidateDbNameError> {
     if name.is_empty() {
         return Err(ValidateDbNameError::Empty);
     }
+    if name.len() > MAXIMUM_DATABASE_NAME_LENGTH {
+        return Err(ValidateDbNameError::NameTooLong);
+    }
     let mut is_first_char = true;
-    let mut rp_seperator_found = false;
+    let mut rp_separator_found_already = false;
     let mut last_char = None;
     for grapheme in name.graphemes(true) {
         if grapheme.len() > 1 {
@@ -1899,14 +1899,16 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
         }
         let char = grapheme.as_bytes()[0] as char;
         if !is_first_char {
-            match (accept_rp, rp_seperator_found, char) {
-                (true, true, V1_NAMESPACE_RP_SEPARATOR) => {
+            match (rp_separator_found_already, char) {
+                (true, V1_NAMESPACE_RP_SEPARATOR) => {
                     return Err(ValidateDbNameError::InvalidRetentionPolicy);
                 }
-                (true, false, V1_NAMESPACE_RP_SEPARATOR) => {
-                    rp_seperator_found = true;
+                (false, V1_NAMESPACE_RP_SEPARATOR) => {
+                    rp_separator_found_already = true;
                 }
-                (false, _, char)
+                (_, char)
+                                    // note: V1_NAMESPACE_RP_SEPARATOR doesn't need to be in the allow list here as
+                                    // it is caught in the matches above
                     if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') =>
                 {
                     return Err(ValidateDbNameError::InvalidChar);
@@ -1929,10 +1931,15 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
     Ok(())
 }
 
+// v1 supports 255 chars for the database name and 255 chars for the
+// retention policy name; we support those combined with a forward slash so
+// 255*2+1, but iox name spaces are limited to a max of 64
+const MAXIMUM_DATABASE_NAME_LENGTH: usize = 64;
+
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 pub enum ValidateDbNameError {
     #[error(
-        "invalid character in database name: must be ASCII, \
+        "invalid character in database or rp name: must be ASCII, \
         containing only letters, numbers, underscores, or hyphens"
     )]
     InvalidChar,
@@ -1945,6 +1952,8 @@ pub enum ValidateDbNameError {
     InvalidRetentionPolicy,
     #[error("db name cannot be empty")]
     Empty,
+    #[error("db name too long: max {}", MAXIMUM_DATABASE_NAME_LENGTH)]
+    NameTooLong,
 }
 
 async fn record_batch_stream_to_body(
@@ -2311,7 +2320,7 @@ pub(crate) async fn route_request(
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req, true).await
+            http_server.write_lp_inner(params, req).await
         }
         (Method::POST, all_paths::API_V2_WRITE) => {
             let params = match http_server
@@ -2325,7 +2334,7 @@ pub(crate) async fn route_request(
                 Err(e) => return Ok(e.into_response()),
             };
             match http_server
-                .write_lp_inner(params, req, false)
+                .write_lp_inner(params, req)
                 .await
                 .map_err(V2WriteApiError)
             {
@@ -2440,6 +2449,12 @@ pub(crate) async fn route_request(
             let ip = client_ip.as_deref().unwrap_or(UNKNOWN_VAL);
             match db.as_ref() {
                 Some(db) => {
+                    // don't log the entirety of excessively long database names; we know those are invalid.
+                    let db = if db.len() > MAXIMUM_DATABASE_NAME_LENGTH {
+                        &db[..MAXIMUM_DATABASE_NAME_LENGTH]
+                    } else {
+                        db
+                    };
                     error!(%error, %method, path = uri.path(), ?content_length, database = %db, client_ip = %ip, "Error while handling request")
                 }
                 None => {
@@ -2539,7 +2554,7 @@ mod tests {
     use http::{HeaderMap, HeaderValue, header::ACCEPT};
     use http::{Request, Uri};
 
-    use super::{extract_client_ip, extract_db_from_query_param};
+    use super::{MAXIMUM_DATABASE_NAME_LENGTH, extract_client_ip, extract_db_from_query_param};
     use crate::http::AuthenticationError;
 
     use super::QueryFormat;
@@ -2557,8 +2572,8 @@ mod tests {
     use std::sync::Arc;
 
     macro_rules! assert_validate_db_name {
-        ($name:literal, $accept_rp:literal, $expected:pat) => {
-            let actual = validate_db_name($name, $accept_rp);
+        ($name:expr, $expected:pat) => {
+            let actual = validate_db_name($name);
             assert!(matches!(&actual, $expected), "got: {actual:?}",);
         };
     }
@@ -2578,22 +2593,32 @@ mod tests {
 
     #[test]
     fn test_validate_db_name() {
-        assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
-        assert!(validate_db_name("foo/bar", true).is_ok());
+        assert!(validate_db_name("foo/bar").is_ok());
+        assert!(validate_db_name("foo-bar").is_ok());
+        assert!(validate_db_name("foo_bar").is_ok());
+        assert!(validate_db_name("f").is_ok());
+        assert!(validate_db_name("1").is_ok());
+        assert!(validate_db_name("1/2").is_ok());
+        assert!(validate_db_name("1/-").is_ok());
+        assert!(validate_db_name("1/_").is_ok());
+        assert!(validate_db_name(&"1".repeat(MAXIMUM_DATABASE_NAME_LENGTH)).is_ok());
+        assert_validate_db_name!(
+            &"1".repeat(MAXIMUM_DATABASE_NAME_LENGTH + 1),
+            Err(ValidateDbNameError::NameTooLong)
+        );
         assert_validate_db_name!(
             "foo/bar/baz",
-            true,
             Err(ValidateDbNameError::InvalidRetentionPolicy)
         );
-        assert_validate_db_name!(
-            "foo/",
-            true,
-            Err(ValidateDbNameError::InvalidRetentionPolicy)
-        );
-        assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
-        assert_validate_db_name!("foo/bar/baz", false, Err(ValidateDbNameError::InvalidChar));
-        assert_validate_db_name!("_foo", false, Err(ValidateDbNameError::InvalidStartChar));
-        assert_validate_db_name!("", false, Err(ValidateDbNameError::Empty));
+        assert_validate_db_name!("foo/", Err(ValidateDbNameError::InvalidRetentionPolicy));
+        assert_validate_db_name!("foo///", Err(ValidateDbNameError::InvalidRetentionPolicy));
+        assert_validate_db_name!("foo?bar", Err(ValidateDbNameError::InvalidChar));
+        assert_validate_db_name!("foo#bar", Err(ValidateDbNameError::InvalidChar));
+        assert_validate_db_name!("foo@bar/baz", Err(ValidateDbNameError::InvalidChar));
+        assert_validate_db_name!("_foo", Err(ValidateDbNameError::InvalidStartChar));
+        assert_validate_db_name!("-foo", Err(ValidateDbNameError::InvalidStartChar));
+        assert_validate_db_name!("/", Err(ValidateDbNameError::InvalidStartChar));
+        assert_validate_db_name!("", Err(ValidateDbNameError::Empty));
     }
 
     #[tokio::test]

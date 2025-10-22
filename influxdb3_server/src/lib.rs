@@ -815,7 +815,7 @@ mod tests {
         // Check that invalid database names are rejected
         let resp = write_lp(
             &server,
-            "this/_is_fine",
+            "this#_is_fine",
             "cpu,host=b val=2 155\n",
             None,
             true,
@@ -831,7 +831,7 @@ mod tests {
         assert_eq!(
             body,
             "{\
-                \"error\":\"invalid character in database name: must be ASCII, containing only letters, numbers, underscores, or hyphens\"\
+                \"error\":\"invalid character in database or rp name: must be ASCII, containing only letters, numbers, underscores, or hyphens\"\
             }"
         );
 
@@ -1853,10 +1853,11 @@ mod tests {
     ) -> Response {
         let server = server.into();
         let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let database = urlencoding::encode(database.into().as_ref());
         let url = format!(
             "{}/api/v3/write_lp?db={}&accept_partial={accept_partial}&precision={}",
             server,
-            database.into(),
+            database,
             precision.into(),
         );
         println!("{url}");
