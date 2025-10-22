@@ -701,9 +701,7 @@ mod tests {
 
         let path = ParquetFilePath::new(
             "test_host",
-            "db_one",
             0,
-            "table_one",
             0,
             Utc::now().timestamp_nanos_opt().unwrap(),
             WalFileSequenceNumber::new(1),

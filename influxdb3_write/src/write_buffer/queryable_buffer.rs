@@ -210,9 +210,7 @@ impl QueryableBuffer {
                             chunk_time: chunk.chunk_time,
                             path: ParquetFilePath::new(
                                 self.persister.node_identifier_prefix(),
-                                db_schema.name.as_ref(),
                                 database_id.get(),
-                                table_name.as_ref(),
                                 table_id.get(),
                                 chunk.chunk_time,
                                 snapshot_details.last_wal_sequence_number,
