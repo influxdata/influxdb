@@ -408,7 +408,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	}
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		var err = fmt.Errorf(string(body))
+		var err = errors.New(string(body))
 		response.Err = err
 		return &response, err
 	}
@@ -454,7 +454,7 @@ func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, w
 	}
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		err := fmt.Errorf(string(body))
+		err := errors.New(string(body))
 		response.Err = err
 		return &response, err
 	}
