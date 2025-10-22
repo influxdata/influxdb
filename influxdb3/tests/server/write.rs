@@ -340,7 +340,7 @@ async fn writes_with_different_schema_should_fail() {
                 message: _
             }
         ),
-        "the request should hae failed with an API Error"
+        "the request should have failed with an API Error"
     );
 }
 
