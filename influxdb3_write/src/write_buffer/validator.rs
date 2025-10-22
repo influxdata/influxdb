@@ -264,10 +264,14 @@ fn validate_and_qualify_v1_line(
             error_message: error.to_string(),
         })?
         .ord_id();
-    let timestamp_ns = line
-        .timestamp
-        .map(|ts| apply_precision_to_timestamp(precision, ts))
-        .unwrap_or(ingest_time.timestamp_nanos());
+    let timestamp_ns = precision
+        .to_nanos(line.timestamp, ingest_time.timestamp_nanos())
+        .map_err(|error| WriteLineError {
+            original_line: line.to_string(),
+            line_number: line_number + 1,
+            error_message: error.to_string(),
+        })?;
+
     fields.push(Field::new(time_col_id, FieldData::Timestamp(timestamp_ns)));
 
     Ok(QualifiedLine {
@@ -401,25 +405,6 @@ struct QualifiedLine {
     row: Row,
     index_count: usize,
     field_count: usize,
-}
-
-fn apply_precision_to_timestamp(precision: Precision, ts: i64) -> i64 {
-    let multiplier = match precision {
-        Precision::Auto => match crate::guess_precision(ts) {
-            Precision::Second => 1_000_000_000,
-            Precision::Millisecond => 1_000_000,
-            Precision::Microsecond => 1_000,
-            Precision::Nanosecond => 1,
-
-            Precision::Auto => unreachable!(),
-        },
-        Precision::Second => 1_000_000_000,
-        Precision::Millisecond => 1_000_000,
-        Precision::Microsecond => 1_000,
-        Precision::Nanosecond => 1,
-    };
-
-    ts * multiplier
 }
 
 #[cfg(test)]

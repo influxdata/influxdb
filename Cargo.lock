@@ -3697,11 +3697,11 @@ dependencies = [
  "humantime-serde",
  "hyper 1.7.0",
  "influxdb3_authz",
- "influxdb3_cache",
  "influxdb3_catalog",
  "iox_http",
  "iox_query_params",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
  "uuid",
 ]
