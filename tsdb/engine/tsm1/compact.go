@@ -576,7 +576,6 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	// Walk the generations in reverse to find the last level 4 generation
 	// The backwards iteration is to keep nested lower level generations from preventing
 	// compactions of higher level, later generations.
-	// Test: https://goplay.tools/snippet/t5qSsHiaWqW
 	for i := len(generations) - 1; i >= 0; i-- {
 		if generations[i].level() >= 4 {
 			end = i + 1
