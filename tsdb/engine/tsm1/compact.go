@@ -3,7 +3,7 @@ package tsm1
 // Compactions are the process of creating read-optimized TSM files.
 // The files are created by converting write-optimized WAL entries
 // to read-optimized TSM format.  They can also be created from existing
-// TSM files when there are tombstone records that neeed to be removed, points
+// TSM files when there are tombstone records that need to be removed, points
 // that were overwritten by later writes and need to updated, or multiple
 // smaller TSM files need to be merged to reduce file counts and improve
 // compression ratios.
@@ -70,8 +70,11 @@ func (e errCompactionInProgress) Unwrap() error {
 }
 
 func (e errCompactionInProgress) Is(target error) bool {
-	_, ok := target.(errCompactionInProgress)
-	return ok
+	switch target.(type) {
+	case errCompactionInProgress, *errCompactionInProgress:
+		return true
+	}
+	return false
 }
 
 type errCompactionAborted struct {
@@ -146,7 +149,7 @@ type CompactionPlanner interface {
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
 // multiple generations of TSM files into larger files in stages.  It attempts
-// to minimize the number of TSM files on disk while rolling up a bounder number
+// to minimize the number of TSM files on disk while rolling up a bounded number
 // of files.
 type DefaultPlanner struct {
 	FileStore fileStore
@@ -161,11 +164,6 @@ type DefaultPlanner struct {
 	lastPlanCheck time.Time
 
 	mu sync.RWMutex
-	// lastFindGenerations is the last time findGenerations was run
-	lastFindGenerations time.Time
-
-	// lastGenerations is the last set of generations found by findGenerations
-	lastGenerations tsmGenerations
 
 	// forceFull causes the next full plan requests to plan any files
 	// that may need to be compacted.  Normally, these files are skipped and scheduled
@@ -244,6 +242,10 @@ func (t *tsmGeneration) count() int {
 	return len(t.files)
 }
 
+func (t *tsmGeneration) String() string {
+	return fmt.Sprintf("generation %d: level %d with %d files", t.id, t.level(), t.count())
+}
+
 // hasTombstones returns true if there are keys removed for any of the files.
 func (t *tsmGeneration) hasTombstones() bool {
 	for _, f := range t.files {
@@ -307,7 +309,7 @@ func (c *DefaultPlanner) generationsFullyCompacted(gens tsmGenerations) (bool, s
 // FullyCompacted returns true if the shard is fully compacted.
 // Used to check if an optimization can occur and shard hot-ness.
 func (c *DefaultPlanner) FullyCompacted() (bool, string) {
-	return c.generationsFullyCompacted(c.findGenerations(false))
+	return c.generationsFullyCompacted(c.findGenerations())
 }
 
 // ForceFull causes the planner to return a full compaction plan the next time
@@ -318,6 +320,8 @@ func (c *DefaultPlanner) ForceFull() {
 	defer c.mu.Unlock()
 	c.forceFull = true
 }
+
+type leveltestFnType func(currentLevel int, candidateLevel int) bool
 
 // PlanLevel returns a set of TSM files to rewrite for a specific level.
 func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
@@ -333,7 +337,7 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 	// Determine the generations from all files on disk.  We need to treat
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
-	generations := c.findGenerations(true)
+	generations := c.findGenerations()
 
 	// If there is only one generation and no tombstones, then there's nothing to
 	// do.
@@ -341,41 +345,16 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 		return nil, 0
 	}
 
-	// Group each generation by level such that two adjacent generations in the same
-	// level become part of the same group.
-	var currentGen tsmGenerations
-	var groups []tsmGenerations
-	for i := 0; i < len(generations); i++ {
-		cur := generations[i]
-
-		// See if this generation is orphaned which would prevent it from being further
-		// compacted until a final full compaction runs.
-		if i < len(generations)-1 {
-			if cur.level() < generations[i+1].level() {
-				currentGen = append(currentGen, cur)
-				continue
-			}
-		}
-
-		if len(currentGen) == 0 || currentGen.level() == cur.level() {
-			currentGen = append(currentGen, cur)
-			continue
-		}
-		groups = append(groups, currentGen)
-
-		currentGen = tsmGenerations{}
-		currentGen = append(currentGen, cur)
-	}
-
-	if len(currentGen) > 0 {
-		groups = append(groups, currentGen)
-	}
+	groups := c.groupAdjacentGenerations(generations,
+		func(currentLevel int, candidateLevel int) bool { return currentLevel == candidateLevel })
 
 	// Remove any groups in the wrong level
 	var levelGroups []tsmGenerations
-	for _, cur := range groups {
+	levelGroupIndices := make(map[int]int)
+	for i, cur := range groups {
 		if cur.level() == level {
 			levelGroups = append(levelGroups, cur)
+			levelGroupIndices[len(levelGroups)-1] = i
 		}
 	}
 
@@ -385,7 +364,7 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 	}
 
 	var cGroups []CompactionGroup
-	for _, group := range levelGroups {
+	for i, group := range levelGroups {
 		for _, chunk := range group.chunk(minGenerations) {
 			var cGroup CompactionGroup
 			var hasTombstones bool
@@ -399,6 +378,14 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 			}
 
 			if len(chunk) < minGenerations && !hasTombstones {
+				for j := levelGroupIndices[i] + 1; j < len(groups); j++ {
+					if groups[j].level() >= level {
+						// There are later generations of higher level, so this
+						// group should be processed to go up a level.
+						cGroups = append(cGroups, cGroup)
+						break
+					}
+				}
 				continue
 			}
 
@@ -411,6 +398,45 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 	}
 
 	return cGroups, int64(len(cGroups))
+}
+
+func (c *DefaultPlanner) groupAdjacentGenerations(generations tsmGenerations, levelTestFn leveltestFnType) []tsmGenerations {
+	// Group each generation by level such that two adjacent generations in the same
+	// level become part of the same group.
+	// generations in use halt the accumulation of a group
+	// Capture orphaned generations that are followed by a higher level generation
+	var currentGen tsmGenerations
+	var groups tsmGenerationGroups
+
+	moveToNextGroup := func() {
+		if len(currentGen) > 0 {
+			groups = append(groups, currentGen)
+			currentGen = tsmGenerations{}
+		}
+	}
+	for i := 0; i < len(generations); i++ {
+		if c.isInUse(generations[i]) {
+			moveToNextGroup()
+			// Do not put this generation in the groups
+			continue
+		} else {
+			// Either add the first generation to a new group
+			if (len(currentGen) <= 0) ||
+				// Or continue the group at the same level
+				(levelTestFn(currentGen.level(), generations[i].level()) ||
+					// Or pick up orphaned TSM files.
+					(i < len(generations)-1 && generations[i].level() < generations[i+1].level())) {
+				// add this generation to the current group
+				currentGen = append(currentGen, generations[i])
+			} else {
+				// Start a new group of generations
+				moveToNextGroup()
+				currentGen = append(currentGen, generations[i])
+			}
+		}
+	}
+	moveToNextGroup()
+	return groups
 }
 
 // PlanOptimize returns all TSM files if they are in different generations in order
@@ -429,67 +455,31 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 	// Determine the generations from all files on disk.  We need to treat
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
-	generations := c.findGenerations(true)
+	generations := c.findGenerations()
 	fullyCompacted, _ := c.generationsFullyCompacted(generations)
 
 	if fullyCompacted || time.Since(lastWrite) < c.compactFullWriteColdDuration {
 		return nil, 0, 0
 	}
 
-	// Group each generation by level such that two adjacent generations in the same
-	// level become part of the same group.
-	var currentGen tsmGenerations
-	var groups []tsmGenerations
-	for i := 0; i < len(generations); i++ {
-		cur := generations[i]
-
-		// See if this generation is orphan'd which would prevent it from being further
-		// compacted until a final full compactin runs.
-		if i < len(generations)-1 {
-			if cur.level() < generations[i+1].level() {
-				currentGen = append(currentGen, cur)
-				continue
-			}
-		}
-
-		if len(currentGen) == 0 || currentGen.level() >= cur.level() {
-			currentGen = append(currentGen, cur)
-			continue
-		}
-		groups = append(groups, currentGen)
-
-		currentGen = tsmGenerations{}
-		currentGen = append(currentGen, cur)
-	}
-
-	if len(currentGen) > 0 {
-		groups = append(groups, currentGen)
-	}
-
-	// Only optimize level 4 files since using lower-levels will collide
-	// with the level planners. If this is a single generation optimization
-	// do not skip any levels.
-	var levelGroups []tsmGenerations
-	if len(generations) == 1 {
-		levelGroups = append(levelGroups, groups...)
-	} else {
-		for _, cur := range groups {
-			if cur.level() == 4 {
-				levelGroups = append(levelGroups, cur)
-			}
-		}
-	}
+	groups := c.groupAdjacentGenerations(generations, func(currentLevel int, candidateLevel int) bool { return currentLevel >= candidateLevel })
 
 	var cGroups []CompactionGroup
-	for _, group := range levelGroups {
+	for _, group := range groups {
 		var cGroup CompactionGroup
-		for _, gen := range group {
-			for _, file := range gen.files {
-				cGroup = append(cGroup, file.Path)
+		// Optimize level 4 generation groups since using lower-levels will collide
+		// with the level planners. If this is a single-generation optimization,
+		// do not skip any levels.
+		if group.level() == 4 || len(generations) == 1 {
+			for _, gen := range group {
+				for _, file := range gen.files {
+					cGroup = append(cGroup, file.Path)
+				}
 			}
 		}
-
-		cGroups = append(cGroups, cGroup)
+		if len(cGroup) > 0 {
+			cGroups = append(cGroups, cGroup)
+		}
 	}
 
 	if !c.acquire(cGroups) {
@@ -502,7 +492,7 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 // Plan returns a set of TSM files to rewrite for level 4 or higher.  The planning returns
 // multiple groups if possible to allow compactions to run concurrently.
 func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
-	generations := c.findGenerations(true)
+	generations := c.findGenerations()
 
 	c.mu.RLock()
 	forceFull := c.forceFull
@@ -510,7 +500,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
 	if forceFull || c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
-
+		// We are NOT paying attention to maintaining adjacency in compaction here; groups may contain non-contiguous generations.
+		// presumably because there are no overwrites or backfills
 		// Reset the full schedule if we planned because of it.
 		if forceFull {
 			c.mu.Lock()
@@ -523,13 +514,17 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		for i, group := range generations {
 			var skip bool
 
+			if c.isInUse(group) {
+				continue
+			}
+
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
 			if len(generations) > 2 && group.size() > uint64(tsdb.MaxTSMFileSize) && group.files[0].FirstBlockCount >= tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
 				skip = true
 			}
 
 			// We need to look at the level of the next file because it may need to be combined with this generation
-			// but won't get picked up on it's own if this generation is skipped.  This allows the most recently
+			// but won't get picked up on its own if this generation is skipped.  This allows the most recently
 			// created files to get picked up by the full compaction planner and avoids having a few less optimally
 			// compressed files.
 			if i < len(generations)-1 {
@@ -578,11 +573,14 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	// each generation in descending break once we see a file less than 4.
 	end := 0
 	start := 0
-	for i, g := range generations {
-		if g.level() <= 3 {
+	// Walk the generations in reverse to find the last level 4 generation
+	// The backwards iteration is to keep nested lower level generations from preventing
+	// compactions of higher level, later generations.
+	for i := len(generations) - 1; i >= 0; i-- {
+		if generations[i].level() >= 4 {
+			end = i + 1
 			break
 		}
-		end = i + 1
 	}
 
 	// As compactions run, the oldest files get bigger.  We don't want to re-compact them during
@@ -615,75 +613,71 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		}
 	}
 
-	// step is how may files to compact in a group.  We want to clamp it at 4 but also stil
+	// step is how may generations in a generationGroup.  We want to clamp it at 4 but also still
 	// return groups smaller than 4.
-	step := 4
-	if step > end {
-		step = end
-	}
+	const step = 4
 
 	// slice off the generations that we'll examine
 	generations = generations[start:end]
 
 	// Loop through the generations in groups of size step and see if we can compact all (or
-	// some of them as group)
-	groups := []tsmGenerations{}
-	for i := 0; i < len(generations); i += step {
-		var skipGroup bool
-		startIndex := i
+	// some of them as generationGroup)
+	var groups tsmGenerationGroups
+	var currentGroup tsmGenerations
 
-		for j := i; j < i+step && j < len(generations); j++ {
-			gen := generations[j]
-			lvl := gen.level()
+	for i := 0; i < len(generations); {
+		moveToNextGroup := func() {
+			if len(currentGroup) > 0 {
+				i += len(currentGroup)
+				groups = append(groups, currentGroup)
+				currentGroup = nil
+			} else {
+				i++
+			}
+		}
 
-			// Skip compacting this group if there happens to be any lower level files in the
-			// middle.  These will get picked up by the level compactors.
-			if lvl <= 3 {
-				skipGroup = true
+		currentGroup = make(tsmGenerations, 0, step)
+		// Group
+		for j := 0; j < step && (j+i) < len(generations); j++ {
+			gen := generations[j+i]
+
+			// We used to discard groups of level 3 or under here, on the theory
+			// that the level planner would pick them up.  But, if they are not in-use,
+			// then they weren't picked up and should be rolled up in here.
+			if c.isInUse(gen) {
 				break
 			}
 
 			// Skip the file if it's over the max size and it contains a full block
 			if gen.size() >= uint64(tsdb.MaxTSMFileSize) && gen.files[0].FirstBlockCount >= tsdb.DefaultMaxPointsPerBlock && !gen.hasTombstones() {
-				startIndex++
-				continue
+				break
 			}
+			currentGroup = append(currentGroup, gen)
 		}
-
-		if skipGroup {
-			continue
-		}
-
-		endIndex := i + step
-		if endIndex > len(generations) {
-			endIndex = len(generations)
-		}
-		if endIndex-startIndex > 0 {
-			groups = append(groups, generations[startIndex:endIndex])
-		}
+		moveToNextGroup()
 	}
 
 	if len(groups) == 0 {
 		return nil, 0
 	}
 
-	// With the groups, we need to evaluate whether the group as a whole can be compacted
-	compactable := []tsmGenerations{}
-	for _, group := range groups {
+	// With the groups, we need to evaluate whether the generationGroup as a whole can be compacted
+	var compactable tsmGenerationGroups
+	for _, generationGroup := range groups {
 		// if we don't have enough generations to compact, skip it
-		if len(group) < 4 && !group.hasTombstones() {
+		if len(generationGroup) < 4 && !generationGroup.hasTombstones() {
 			continue
 		}
-		compactable = append(compactable, group)
+		compactable = append(compactable, generationGroup)
 	}
 
 	// All the files to be compacted must be compacted in order.  We need to convert each
-	// group to the actual set of files in that group to be compacted.
+	// generationGroup to the actual set of files in that generationGroup to be compacted.
 	var tsmFiles []CompactionGroup
-	for _, c := range compactable {
+	for _, generationGroup := range compactable {
 		var cGroup CompactionGroup
-		for _, group := range c {
-			for _, f := range group.files {
+		for _, generation := range generationGroup {
+			for _, f := range generation.files {
 				cGroup = append(cGroup, f.Path)
 			}
 		}
@@ -697,29 +691,27 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	return tsmFiles, int64(len(tsmFiles))
 }
 
+func (c *DefaultPlanner) isInUse(t *tsmGeneration) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for i := range t.files {
+		if _, ok := c.filesInUse[t.files[i].Path]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // findGenerations groups all the TSM files by generation based
 // on their filename, then returns the generations in descending order (newest first).
-// If skipInUse is true, tsm files that are part of an existing compaction plan
-// are not returned.
-func (c *DefaultPlanner) findGenerations(skipInUse bool) tsmGenerations {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *DefaultPlanner) findGenerations() tsmGenerations {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-	last := c.lastFindGenerations
-	lastGen := c.lastGenerations
-
-	if !last.IsZero() && c.FileStore.LastModified().Equal(last) {
-		return lastGen
-	}
-
-	genTime := c.FileStore.LastModified()
 	tsmStats := c.FileStore.Stats()
 	generations := make(map[int]*tsmGeneration, len(tsmStats))
 	for _, f := range tsmStats {
-		// Skip any files that are assigned to a current compaction plan
-		if _, ok := c.filesInUse[f.Path]; skipInUse && ok {
-			continue
-		}
 
 		group := generations[f.Generation]
 		if group == nil {
@@ -737,13 +729,13 @@ func (c *DefaultPlanner) findGenerations(skipInUse bool) tsmGenerations {
 		sort.Sort(orderedGenerations)
 	}
 
-	c.lastFindGenerations = genTime
-	c.lastGenerations = orderedGenerations
-
 	return orderedGenerations
 }
 
 func (c *DefaultPlanner) acquire(groups []CompactionGroup) bool {
+	if len(groups) <= 0 {
+		return true
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -1951,6 +1943,17 @@ func (a tsmGenerations) level() int {
 	return level
 }
 
+func (a tsmGenerations) String() string {
+	var b strings.Builder
+	for i, g := range a {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(g.String())
+	}
+	return b.String()
+}
+
 func (a tsmGenerations) chunk(size int) []tsmGenerations {
 	var chunks []tsmGenerations
 	for len(a) > 0 {
@@ -1977,6 +1980,8 @@ func (a tsmGenerations) IsSorted() bool {
 	}
 	return true
 }
+
+type tsmGenerationGroups []tsmGenerations
 
 type latencies struct {
 	i      int
