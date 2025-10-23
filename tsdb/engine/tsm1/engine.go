@@ -750,7 +750,7 @@ func (e *Engine) Open(ctx context.Context) error {
 
 	if e.WALEnabled {
 		if err := e.WAL.Open(); err != nil {
-			return fmt.Errorf("error opening WAL for %q: %w", fieldPath, err)
+			return fmt.Errorf("error opening WAL for %q: %w", e.WAL.Path(), err)
 		}
 	}
 
