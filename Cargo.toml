@@ -93,6 +93,8 @@ futures = "0.3.31"
 futures-util = "0.3.31"
 hashbrown = { version = "0.15.1", features = ["serde"] }
 hex = "0.4.3"
+home = "0.5.12"
+hostname = "0.4.1"
 http = {version = "1"}
 http-body = {version = "1"}
 http-body-util = {version = "0.1"}
