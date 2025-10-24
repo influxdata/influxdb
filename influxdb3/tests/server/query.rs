@@ -1,11 +1,12 @@
 use core::str;
+use std::time::Duration;
 
 use crate::server::TestServer;
 use futures::StreamExt;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
-use reqwest::StatusCode;
-use reqwest::header::{ACCEPT, HeaderMap, HeaderValue};
+use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue};
+use reqwest::{Method, StatusCode};
 use serde::Serialize;
 use serde_json::{Value, json};
 use test_helpers::assert_contains;
@@ -716,7 +717,10 @@ async fn api_v1_query_sql_not_found() {
         ("db", "foo"),
     ];
     let resp = server.api_v1_query(&params, None).await;
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    assert_eq!(resp.status(), StatusCode::OK);
+    let actual = resp.json::<Value>().await.unwrap();
+    let expected = json!({"results":[{"statement_id":0,"error":"Cannot retrieve database: External error: database not found: foo"}]});
+    assert_eq!(expected, actual, "json response did not match");
 }
 
 #[tokio::test]
@@ -884,11 +888,11 @@ async fn api_v1_query_json_format() {
                         "host",
                         "usage"
                       ],
-                      "name": "mem",
+                      "name": "cpu",
                       "values": [
-                        ["2065-01-07T17:28:54Z", "a", 0.5],
-                        ["2065-01-07T17:28:55Z", "a", 0.6],
-                        ["2065-01-07T17:28:56Z", "a", 0.7]
+                        ["2065-01-07T17:28:51Z", "a", 0.9],
+                        ["2065-01-07T17:28:52Z", "a", 0.89],
+                        ["2065-01-07T17:28:53Z", "a", 0.85]
                       ]
                     },
                     {
@@ -897,11 +901,11 @@ async fn api_v1_query_json_format() {
                         "host",
                         "usage"
                       ],
-                      "name": "cpu",
+                      "name": "mem",
                       "values": [
-                        ["2065-01-07T17:28:51Z", "a", 0.9],
-                        ["2065-01-07T17:28:52Z", "a", 0.89],
-                        ["2065-01-07T17:28:53Z", "a", 0.85]
+                        ["2065-01-07T17:28:54Z", "a", 0.5],
+                        ["2065-01-07T17:28:55Z", "a", 0.6],
+                        ["2065-01-07T17:28:56Z", "a", 0.7]
                       ]
                     }
                   ],
@@ -1022,7 +1026,7 @@ async fn api_v1_query_csv_format() {
             expected: "name,tags,time,host,usage\n\
             cpu,,2998574931000000000,a,0.9\n\
             cpu,,2998574932000000000,a,0.89\n\
-            cpu,,2998574933000000000,a,0.85\n\r\n",
+            cpu,,2998574933000000000,a,0.85\n",
         },
         // Basic Query with multiple measurements:
         TestCase {
@@ -1030,12 +1034,12 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM cpu, mem",
             expected: "name,tags,time,host,usage\n\
-            mem,,2998574934000000000,a,0.5\n\
-            mem,,2998574935000000000,a,0.6\n\
-            mem,,2998574936000000000,a,0.7\n\
             cpu,,2998574931000000000,a,0.9\n\
             cpu,,2998574932000000000,a,0.89\n\
-            cpu,,2998574933000000000,a,0.85\n\r\n",
+            cpu,,2998574933000000000,a,0.85\n\
+            mem,,2998574934000000000,a,0.5\n\
+            mem,,2998574935000000000,a,0.6\n\
+            mem,,2998574936000000000,a,0.7\n",
         },
         // Basic Query with db in query string:
         TestCase {
@@ -1045,7 +1049,7 @@ async fn api_v1_query_csv_format() {
             expected: "name,tags,time,host,usage\n\
           cpu,,2998574931000000000,a,0.9\n\
           cpu,,2998574932000000000,a,0.89\n\
-          cpu,,2998574933000000000,a,0.85\n\r\n",
+          cpu,,2998574933000000000,a,0.85\n",
         },
         // Basic Query epoch parameter set:
         TestCase {
@@ -1055,7 +1059,7 @@ async fn api_v1_query_csv_format() {
             expected: "name,tags,time,host,usage\n\
         cpu,,2998574931,a,0.9\n\
         cpu,,2998574932,a,0.89\n\
-        cpu,,2998574933,a,0.85\n\r\n",
+        cpu,,2998574933,a,0.85\n",
         },
     ];
 
@@ -1137,9 +1141,11 @@ async fn api_v1_query_chunked() {
                 json!({
                   "results": [
                     {
+                      "partial": true,
                       "series": [
                         {
                           "name": "cpu",
+                          "partial": true,
                           "columns": ["time","host","usage"],
                           "values": [
                             [2998574931u32, "a", 0.9],
@@ -1177,6 +1183,7 @@ async fn api_v1_query_chunked() {
                 json!({
                   "results": [
                     {
+                      "partial": true,
                       "series": [
                         {
                           "name": "cpu",
@@ -1220,9 +1227,11 @@ async fn api_v1_query_chunked() {
                 json!({
                   "results": [
                     {
+                      "partial": true,
                       "series": [
                         {
                           "name": "cpu",
+                          "partial": true,
                           "columns": ["time","host","usage"],
                           "values": [
                             [2998574931u32, "a", 0.9],
@@ -1237,6 +1246,7 @@ async fn api_v1_query_chunked() {
                 json!({
                   "results": [
                     {
+                      "partial": true,
                       "series": [
                         {
                           "name": "cpu",
@@ -1253,9 +1263,11 @@ async fn api_v1_query_chunked() {
                 json!({
                   "results": [
                     {
+                      "partial": true,
                       "series": [
                         {
                           "name": "mem",
+                          "partial": true,
                           "columns": ["time","host","usage"],
                           "values": [
                             [2998574934u32, "a", 0.5],
@@ -1359,7 +1371,7 @@ async fn api_v1_query_data_conversion() {
                       ],
                       "name": "weather",
                       "values": [
-                        ["2065-01-07T17:28:50Z", "us-midwest", 82, 82.0, "too warm", true],
+                        ["2065-01-07T17:28:50Z", "us-midwest", 82, 82, "too warm", true],
                       ]
                     }
                   ],
@@ -1412,13 +1424,13 @@ async fn api_v1_query_uri_and_body() {
 
     #[derive(Debug, Serialize)]
     struct Params<'a> {
-        #[serde(rename = "q")]
-        query: Option<&'a str>,
+        q: Option<&'a str>,
         db: Option<&'a str>,
     }
 
     struct TestCase<'a> {
         description: &'a str,
+        method: Method,
         uri: Option<Params<'a>>,
         body: Option<Params<'a>>,
         expected_status: StatusCode,
@@ -1428,8 +1440,9 @@ async fn api_v1_query_uri_and_body() {
     let test_cases = [
         TestCase {
             description: "query and db in uri",
+            method: Method::GET,
             uri: Some(Params {
-                query: Some("SELECT * FROM cpu"),
+                q: Some("SELECT * FROM cpu"),
                 db: Some("foo"),
             }),
             body: None,
@@ -1471,53 +1484,63 @@ async fn api_v1_query_uri_and_body() {
         },
         TestCase {
             description: "query in uri, db in body",
+            method: Method::POST,
             uri: Some(Params {
-                query: Some("SELECT * FROM cpu"),
+                q: Some("SELECT * FROM cpu"),
                 db: None,
             }),
             body: Some(Params {
-                query: None,
+                q: None,
                 db: Some("foo"),
             }),
             expected_status: StatusCode::OK,
             // don't care about the response:
-            expected_body: None,
+            expected_body: Some(
+                json!({"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","usage"],"values":[["2065-01-08T21:15:31Z","a",0.9],["2065-01-08T21:15:31Z","b",0.89],["2065-01-08T21:15:31Z","c",0.85]]}]}]}),
+            ),
         },
         TestCase {
             description: "query in uri, db in uri overwritten by db in body",
+            method: Method::POST,
             uri: Some(Params {
-                query: Some("SELECT * FROM cpu"),
+                q: Some("SELECT * FROM cpu"),
                 db: Some("not_a_valid_db"),
             }),
             body: Some(Params {
-                query: None,
+                q: None,
                 db: Some("foo"),
             }),
             expected_status: StatusCode::OK,
-            expected_body: None,
+            expected_body: Some(
+                json!({"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","usage"],"values":[["2065-01-08T21:15:31Z","a",0.9],["2065-01-08T21:15:31Z","b",0.89],["2065-01-08T21:15:31Z","c",0.85]]}]}]}),
+            ),
         },
         TestCase {
             description: "query in uri, db in uri overwritten by db in body, db not valid",
+            method: Method::POST,
             uri: Some(Params {
-                query: Some("SELECT * FROM cpu"),
+                q: Some("SELECT * FROM cpu"),
                 db: Some("foo"),
             }),
             body: Some(Params {
-                query: None,
+                q: None,
                 db: Some("not_a_valid_db"),
             }),
             // db does not exist:
-            expected_status: StatusCode::NOT_FOUND,
-            expected_body: None,
+            expected_status: StatusCode::OK,
+            expected_body: Some(
+                json!({"results":[{"statement_id":0,"error":"Cannot retrieve database: External error: database not found: not_a_valid_db"}]}),
+            ),
         },
         TestCase {
             description: "db in uri, query in body",
+            method: Method::POST,
             uri: Some(Params {
-                query: None,
+                q: None,
                 db: Some("foo"),
             }),
             body: Some(Params {
-                query: Some("SELECT * FROM mem"),
+                q: Some("SELECT * FROM mem"),
                 db: None,
             }),
             expected_status: StatusCode::OK,
@@ -1558,48 +1581,56 @@ async fn api_v1_query_uri_and_body() {
         },
         TestCase {
             description: "no query specified",
+            method: Method::POST,
             uri: Some(Params {
-                query: None,
+                q: None,
                 db: Some("foo"),
             }),
-            body: Some(Params {
-                query: None,
-                db: None,
-            }),
+            body: Some(Params { q: None, db: None }),
             expected_status: StatusCode::BAD_REQUEST,
-            expected_body: None,
+            expected_body: Some(
+                json!({"error":"expected a query to be provided in the query string or body"}),
+            ),
         },
     ];
 
     for t in test_cases {
+        println!("test: {desc}", desc = t.description);
         let url = format!("{base}/query", base = server.client_addr());
-        // test both GET and POST:
-        for mut req in [server.http_client.get(&url), server.http_client.post(&url)] {
-            println!("test: {desc}", desc = t.description);
-            if let Some(ref uri) = t.uri {
-                req = req.query(uri);
-            }
-            if let Some(ref body) = t.body {
-                req = req.body(serde_urlencoded::to_string(body).expect("serialize body"));
-            }
-            let resp = req.send().await.expect("send request");
-            let status = resp.status();
-            assert_eq!(
-                t.expected_status, status,
-                "status code did not match expectation"
-            );
-            if let Some(ref expected_body) = t.expected_body {
-                let actual = resp.json::<Value>().await.expect("parse JSON body");
-                if expected_body != &actual {
-                    // use a panic so we can format the output for copy/paste more easily:
-                    panic!(
-                        "JSON body did not match expectation,\n\
+        let mut req = if let Method::GET = t.method {
+            server.http_client.get(&url)
+        } else if let Method::POST = t.method {
+            server.http_client.post(&url)
+        } else {
+            panic!("unexpected method");
+        };
+        if let Some(ref uri) = t.uri {
+            req = req.query(uri);
+        }
+        if let Some(ref body) = t.body {
+            req = req.body(serde_urlencoded::to_string(body).expect("serialize body"));
+            req = req.header(CONTENT_TYPE, "application/x-www-form-urlencoded");
+        }
+        let resp = req.send().await.expect("send request");
+        let status = resp.status();
+        if let Some(ref expected_body) = t.expected_body {
+            let actual = resp.json::<Value>().await.expect("parse JSON body");
+            if expected_body != &actual {
+                // use a panic so we can format the output for copy/paste more easily:
+                panic!(
+                    "JSON body did not match expectation,\n\
                         expected:\n{expected_body:#}\n\
                         actual:\n{actual:#}"
-                    );
-                }
+                );
             }
+        } else {
+            let body = resp.text().await.expect("repsonse body");
+            println!("response body: \n{body}\n");
         }
+        assert_eq!(
+            t.expected_status, status,
+            "status code did not match expectation"
+        );
     }
 }
 
@@ -1703,8 +1734,8 @@ async fn test_influxql_group_by_tag_called_name() {
         .await
         .unwrap();
     println!("response when grouping by `label`:\n\n{resp:#}\n");
-    assert_eq!(resp.pointer("/results/0/series/0/tags/label").unwrap(), "b");
-    assert_eq!(resp.pointer("/results/0/series/1/tags/label").unwrap(), "a");
+    assert_eq!(resp.pointer("/results/0/series/0/tags/label").unwrap(), "a");
+    assert_eq!(resp.pointer("/results/0/series/1/tags/label").unwrap(), "b");
 
     // query grouping on `\"name\"`, i.e., quoted, should also be fine:
     let quoted_query_str = "SELECT time, \"name\", label, value FROM bar GROUP BY \"name\" LIMIT 1";
@@ -1715,8 +1746,8 @@ async fn test_influxql_group_by_tag_called_name() {
         .await
         .unwrap();
     println!("response when grouping by `\"name\"`:\n\n{resp:#}\n");
-    assert_eq!(resp.pointer("/results/0/series/0/tags/name").unwrap(), "b");
-    assert_eq!(resp.pointer("/results/0/series/1/tags/name").unwrap(), "a");
+    assert_eq!(resp.pointer("/results/0/series/0/tags/name").unwrap(), "a");
+    assert_eq!(resp.pointer("/results/0/series/1/tags/name").unwrap(), "b");
 }
 
 #[tokio::test]
@@ -1767,6 +1798,69 @@ async fn api_v1_query_group_by_with_nulls() {
             insta::assert_json_snapshot!(values);
         });
     }
+}
+
+#[tokio::test]
+async fn api_v1_query_api_show_databases_and_retention_policies() {
+    let server = TestServer::spawn().await;
+
+    server.api_v3_create_database("foo", None).await.unwrap();
+    server
+        .api_v3_create_database("bar", Some(Duration::from_secs(30 * 24 * 60 * 60)))
+        .await
+        .unwrap();
+
+    let response = server
+        .api_v1_query(&[("q", "SHOW DATABASES")], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::with_settings!({
+        description => "SHOW DATABASES",
+    }, {
+        insta::assert_snapshot!(response);
+    });
+
+    let response = server
+        .api_v1_query(&[("q", "SHOW RETENTION POLICIES"), ("db", "foo")], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::with_settings!({
+        description => "SHOW RETENTION POLICIES on foo db",
+    }, {
+        insta::assert_snapshot!(response);
+    });
+
+    let response = server
+        .api_v1_query(&[("q", "SHOW RETENTION POLICIES"), ("db", "bar")], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::with_settings!({
+        description => "SHOW RETENTION POLICIES on bar db",
+    }, {
+        insta::assert_snapshot!(response);
+    });
+
+    let response = server
+        .api_v1_query(&[("q", "SHOW RETENTION POLICIES"), ("db", "frodo")], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::with_settings!({
+        description => "SHOW RETENTION POLICIES on non-existent db",
+    }, {
+        insta::assert_snapshot!(response);
+    });
 }
 
 #[tokio::test]
