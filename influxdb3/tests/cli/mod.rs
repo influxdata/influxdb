@@ -3970,31 +3970,6 @@ async fn test_db_name_cannot_start_with_underscore_on_create_table() {
     );
 }
 
-#[test_log::test(tokio::test)]
-async fn test_serve_command_error_msg() {
-    let output = assert_cmd::Command::cargo_bin("influxdb3")
-        .unwrap()
-        .args(["serve", "--node-id", "node-1"])
-        .output()
-        .unwrap()
-        .stderr
-        .clone();
-
-    let full_cmd = "influxdb3 serve --object-store <object-store> <--node-id <PREFIX>|--node-id-from-env <FROM_ENV_VAR>>";
-    assert_object_store_error_msg(output, full_cmd);
-}
-
-fn assert_object_store_error_msg(error_output: Vec<u8>, full_command: &str) {
-    let str_msg = String::from_utf8(error_output).unwrap();
-    assert_contains!(&str_msg, full_command);
-
-    assert_contains!(
-        &str_msg,
-        "error: the following required arguments were not provided:
-  --object-store <object-store>"
-    );
-}
-
 #[test_log::test]
 fn test_create_token_requires_subcommand() {
     // Test that 'create token' command shows help instead of panicking when no subcommand is provided

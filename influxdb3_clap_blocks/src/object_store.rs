@@ -392,7 +392,6 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE"),
                     ignore_case = true,
                     action,
-                    required = true,
                     default_value = "file",
                     verbatim_doc_comment
                 )]
@@ -1520,14 +1519,6 @@ mod tests {
                 Self::Sink(o) => o.make_object_store(),
             }
         }
-    }
-
-    #[test]
-    fn object_store_flag_is_required() {
-        // Since object-store is now required, parsing should fail without it
-        assert!(ObjectStoreConfig::try_parse_from(["server"]).is_err());
-        assert!(SourceObjectStoreConfig::try_parse_from(["server"]).is_err());
-        assert!(SinkObjectStoreConfig::try_parse_from(["server"]).is_err());
     }
 
     #[test]
