@@ -36,7 +36,7 @@ use iox_query::QueryChunk;
 use iox_time::Time;
 use observability_deps::tracing::debug;
 use schema::TIME_COLUMN_NAME;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::{fmt::Debug, sync::Arc};
 use thiserror::Error;
 
@@ -131,11 +131,31 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
 
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
 /// returning an error for any invalid lines. This is the error information for a single invalid line.
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct WriteLineError {
     pub original_line: String,
     pub line_number: usize,
     pub error_message: String,
+}
+
+impl Serialize for WriteLineError {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("WriteLineError", 3)?;
+        const TRUNCATE_LIMIT: usize = 20;
+        let truncated_line = if self.original_line.len() > TRUNCATE_LIMIT {
+            &self.original_line[..TRUNCATE_LIMIT]
+        } else {
+            &self.original_line
+        };
+        state.serialize_field("error_message", &self.error_message)?;
+        state.serialize_field("line_number", &self.line_number)?;
+        state.serialize_field("original_line", truncated_line)?;
+        state.end()
+    }
 }
 
 /// A write that has been validated against the catalog schema, written to the WAL (if configured), and buffered in

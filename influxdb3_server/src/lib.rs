@@ -761,9 +761,9 @@ mod tests {
             "{\
                 \"error\":\"parsing failed for write_lp endpoint\",\
                 \"data\":{\
-                    \"original_line\":\"cpu,host=a val= 123\",\
+                    \"error_message\":\"No fields were provided\",\
                     \"line_number\":1,\
-                    \"error_message\":\"No fields were provided\"\
+                    \"original_line\":\"cpu,host=a val= 123\"\
                 }\
             }"
         );
@@ -788,9 +788,9 @@ mod tests {
             "{\
                 \"error\":\"partial write of line protocol occurred\",\
                 \"data\":[{\
-                    \"original_line\":\"cpu,host=a val= 123\",\
+                    \"error_message\":\"No fields were provided\",\
                     \"line_number\":2,\
-                    \"error_message\":\"No fields were provided\"\
+                    \"original_line\":\"cpu,host=a val= 123\"\
                 }]\
             }"
         );
