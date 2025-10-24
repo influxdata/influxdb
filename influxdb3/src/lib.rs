@@ -10,7 +10,7 @@ clippy::clone_on_ref_ptr,
 clippy::future_not_send
 )]
 
-use clap::{CommandFactory, Parser, parser::ValueSource};
+use clap::{CommandFactory, FromArgMatches, Parser, parser::ValueSource};
 use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::{TokioDatafusionConfig, TokioIoConfig};
 use influxdb3_process::VERSION_STRING;
@@ -113,6 +113,12 @@ enum Command {
     Write(commands::write::Config),
 }
 
+impl Command {
+    fn serve_name() -> String {
+        "serve".into()
+    }
+}
+
 pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
     #[cfg(unix)]
     install_crash_handler(); // attempt to render a useful stacktrace to stderr
@@ -156,7 +162,101 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
         }
 
         match config.command {
-            None => println!("command required, -h/--help/--help-all for help"),
+            None => {
+                // special handling for no subcommand at all
+                //
+                // in this case, default to Command::Serve, with a set of defaults are not
+                // normal defaults for when the serve subcommand has been explicitly used, but
+                // we need to be mindful that env vars _might_ be set that apply once we add the serve
+                // subcommand so we cannot specify more flags until we know env vars aren't set.
+                // By definition there's no serve config, we add our own args and reparse.
+                // We could build a commands::serve::Config directly but then we have to specify
+                // every field of every struct in the config.
+
+                let mut args_with_serve = args.clone();
+                args_with_serve.push(Command::serve_name());
+
+                // There is one required param that we need to be set --node-id; the rest
+                // of the serve flags have defaults defined in the derive statements.
+                // The error from clap is MissingRequiredArgument but doesn't say which
+
+                // hostname should be sufficiently constant for multiple runs
+                let hostname = get_hostname_or_primary();
+                let hostname_node_id = format!("{}-node", hostname);
+
+                let push_node_id = |mut v: Vec<String>, hostname: String| -> Vec<String> {
+                    let node_id = format!("{}-node", hostname);
+                    v.push("--node-id".to_string());
+                    v.push(node_id);
+                    v
+                };
+
+                type FlagCaseActions = Vec<fn(Vec<String>, String) -> Vec<String>>;
+                let cases: Vec<FlagCaseActions> = vec![
+                    // order of these matters because node id can come from an env var
+                    vec![],                // node id  provided via env vars
+                    vec![push_node_id],    // no node id provided
+                ];
+                let mut matches: Option<clap::ArgMatches> = None;
+                for (i, case) in cases.iter().enumerate() {
+                    let mut args = args_with_serve.clone();
+                    for f in case {
+                        args = f(args, hostname.clone());
+                    }
+                    matches = Some(match Config::command().try_get_matches_from(args.clone()) {
+                        Ok(m) => m,
+                        Err(err)
+                        if err.kind() == clap::error::ErrorKind::MissingRequiredArgument
+                            && i != cases.len() - 1 =>
+                            {
+                                // an error and we're not on the last attempt!
+                                continue;
+                            }
+                        Err(err) => {
+                            let mut cmd = Config::command();
+                            let err = err.format(&mut cmd);
+                            err.exit();
+                        }
+                    });
+                    break;
+                }
+
+                let matches = matches.unwrap(); // guaranteed
+                let config: Config = match Config::from_arg_matches(&matches) {
+                    Ok(config) => config,
+                    Err(e) => {
+                        // should be unreachable
+                        let mut cmd = Config::command();
+                        let err = e.format(&mut cmd);
+                        err.exit();
+                    }
+                };
+
+                if let Some(Command::Serve(serve_config)) = config.command {
+                    let configured_node_id = match serve_config.node_id.get_node_id() {
+                        Ok(id) => id,
+                        Err(e) => {
+                            eprintln!("Serve command failed: {e}\n");
+                            std::process::exit(ReturnCode::Failure as _)
+                        }
+                    };
+
+                    if configured_node_id == hostname_node_id {
+                        eprintln!(
+                            "Using auto-generated node id: {}. For production deployments, explicitly set --node-id",
+                            hostname_node_id
+                        );
+                    }
+                    let _tracing_guard =
+                        handle_init_logs(init_logs_and_tracing(&serve_config.logging_config));
+                    if let Err(e) = commands::serve::command(serve_config, user_params).await {
+                        eprintln!("Serve command failed: {e}");
+                        std::process::exit(ReturnCode::Failure as _)
+                    }
+                } else {
+                    unreachable!("unreachable because we set the serve command explicitly")
+                }
+            }
             Some(Command::Enable(config)) => {
                 if let Err(e) = commands::enable::command(config).await {
                     eprintln!("Enable command failed: {e}");
@@ -229,6 +329,14 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
     });
 
     Ok(())
+}
+
+/// Get the system hostname, falling back to "primary" if unavailable
+fn get_hostname_or_primary() -> String {
+    hostname::get()
+        .ok()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or("primary".to_string())
 }
 
 /// Print the help for the cli if asked for and then exit the program
