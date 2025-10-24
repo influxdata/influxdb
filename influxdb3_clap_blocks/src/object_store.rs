@@ -23,6 +23,7 @@ use std::{
     cmp::Ordering, convert::Infallible, fs, num::NonZeroUsize, ops::Range, path::PathBuf,
     sync::Arc, time::Duration,
 };
+use std::ffi::OsString;
 use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use url::Url;
@@ -86,11 +87,19 @@ pub enum ParseError {
 /// The AWS region to use for Amazon S3 based object storage if none is
 /// specified.
 pub const FALLBACK_AWS_REGION: &str = "us-east-1";
+pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb";
 
 /// A `clap` `value_parser` which returns `None` when given an empty string and
 /// `Some(NonEmptyString)` otherwise.
 fn parse_optional_string(s: &str) -> Result<Option<NonEmptyString>, Infallible> {
     Ok(NonEmptyString::new(s.to_string()).ok())
+}
+
+fn default_data_dir() -> OsString {
+    home::home_dir()
+        .expect("No data-dir specified and could not find user's home directory")
+        .join(DEFAULT_DATA_DIRECTORY_NAME)
+        .into_os_string()
 }
 
 /// Endpoint for S3 & Co.
@@ -384,6 +393,7 @@ macro_rules! object_store_config_inner {
                     ignore_case = true,
                     action,
                     required = true,
+                    default_value = "file"
                     verbatim_doc_comment
                 )]
                 pub object_store: ObjectStoreType,
@@ -415,6 +425,7 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "data-dir"),
                     long = gen_name!($prefix, "data-dir"),
                     env = gen_env!($prefix, "INFLUXDB3_DB_DIR"),
+                    default_value = default_data_dir(),
                     action
                 )]
                 pub database_directory: Option<PathBuf>,
