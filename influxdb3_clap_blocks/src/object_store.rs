@@ -17,6 +17,7 @@ use object_store::{
 use observability_deps::tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
+use std::ffi::OsString;
 #[cfg(any(feature = "aws", feature = "azure", feature = "gcp"))]
 use std::io::Read;
 use std::{
@@ -86,11 +87,19 @@ pub enum ParseError {
 /// The AWS region to use for Amazon S3 based object storage if none is
 /// specified.
 pub const FALLBACK_AWS_REGION: &str = "us-east-1";
+pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb";
 
 /// A `clap` `value_parser` which returns `None` when given an empty string and
 /// `Some(NonEmptyString)` otherwise.
 fn parse_optional_string(s: &str) -> Result<Option<NonEmptyString>, Infallible> {
     Ok(NonEmptyString::new(s.to_string()).ok())
+}
+
+fn default_data_dir() -> OsString {
+    home::home_dir()
+        .expect("No data-dir specified and could not find user's home directory")
+        .join(DEFAULT_DATA_DIRECTORY_NAME)
+        .into_os_string()
 }
 
 /// Endpoint for S3 & Co.
@@ -383,7 +392,7 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE"),
                     ignore_case = true,
                     action,
-                    required = true,
+                    default_value = "file",
                     verbatim_doc_comment
                 )]
                 pub object_store: ObjectStoreType,
@@ -415,6 +424,7 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "data-dir"),
                     long = gen_name!($prefix, "data-dir"),
                     env = gen_env!($prefix, "INFLUXDB3_DB_DIR"),
+                    default_value = default_data_dir(),
                     action
                 )]
                 pub database_directory: Option<PathBuf>,
@@ -1487,7 +1497,7 @@ mod tests {
     use clap::Parser;
     use iox_time::{MockProvider, Time};
     use object_store::ObjectStore;
-    use std::{env, str::FromStr, sync::Mutex};
+    use std::{str::FromStr, sync::Mutex};
     use tempfile::TempDir;
 
     /// The current object store store configurations.
@@ -1509,14 +1519,6 @@ mod tests {
                 Self::Sink(o) => o.make_object_store(),
             }
         }
-    }
-
-    #[test]
-    fn object_store_flag_is_required() {
-        // Since object-store is now required, parsing should fail without it
-        assert!(ObjectStoreConfig::try_parse_from(["server"]).is_err());
-        assert!(SourceObjectStoreConfig::try_parse_from(["server"]).is_err());
-        assert!(SinkObjectStoreConfig::try_parse_from(["server"]).is_err());
     }
 
     #[test]
@@ -1840,43 +1842,6 @@ mod tests {
             "{}",
             object_store
         )
-    }
-
-    #[test]
-    fn file_config_missing_params() {
-        // this test tests for failure to configure the object store because of data-dir configuration missing
-        // if the INFLUXDB3_DB_DIR env variable is set, the test fails because the configuration is
-        // actually present.
-        unsafe {
-            env::remove_var("INFLUXDB3_DB_DIR");
-        }
-
-        let configs = vec![
-            StoreConfigs::Base(
-                ObjectStoreConfig::try_parse_from(["server", "--object-store", "file"]).unwrap(),
-            ),
-            StoreConfigs::Source(
-                SourceObjectStoreConfig::try_parse_from([
-                    "server",
-                    "--source-object-store",
-                    "file",
-                ])
-                .unwrap(),
-            ),
-            StoreConfigs::Sink(
-                SinkObjectStoreConfig::try_parse_from(["server", "--sink-object-store", "file"])
-                    .unwrap(),
-            ),
-        ];
-
-        for config in configs {
-            let err = config.make_object_store().unwrap_err().to_string();
-            assert_eq!(
-                err,
-                "Specified File for the object store, required configuration missing for \
-            data-dir"
-            );
-        }
     }
 
     #[tokio::test]
