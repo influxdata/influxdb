@@ -3079,7 +3079,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3165,7 +3165,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_authz"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "async-trait",
  "authz",
@@ -3182,7 +3182,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_cache"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3217,7 +3217,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_catalog"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3268,7 +3268,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_clap_blocks"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3301,7 +3301,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_client"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "bytes",
  "hashbrown 0.15.5",
@@ -3321,7 +3321,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_id"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "indexmap 2.11.4",
  "serde",
@@ -3331,7 +3331,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_internal_api"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3347,7 +3347,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_load_generator"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3376,7 +3376,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_process"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "cargo_metadata",
  "iox_time",
@@ -3385,7 +3385,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_processing_engine"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3428,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_py_api"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -3455,7 +3455,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_query_executor"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3505,7 +3505,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_server"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3588,7 +3588,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_shutdown"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "futures",
  "futures-util",
@@ -3603,7 +3603,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_sys_events"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -3622,7 +3622,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_system_tables"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -3654,7 +3654,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_telemetry"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "futures",
  "futures-util",
@@ -3675,7 +3675,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_test_helpers"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3688,7 +3688,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_types"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3708,7 +3708,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_wal"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "async-trait",
  "bitcode",
@@ -3736,7 +3736,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_write"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3964,7 +3964,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql_rewrite"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "influxdb_influxql_parser",
  "thiserror 1.0.69",
@@ -4753,7 +4753,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_utils"
-version = "3.6.0-nightly"
+version = "3.6.0-0.rc.1"
 dependencies = [
  "async-trait",
  "backon",
