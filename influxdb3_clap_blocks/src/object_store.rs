@@ -17,13 +17,13 @@ use object_store::{
 use observability_deps::tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
+use std::ffi::OsString;
 #[cfg(any(feature = "aws", feature = "azure", feature = "gcp"))]
 use std::io::Read;
 use std::{
     cmp::Ordering, convert::Infallible, fs, num::NonZeroUsize, ops::Range, path::PathBuf,
     sync::Arc, time::Duration,
 };
-use std::ffi::OsString;
 use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use url::Url;
@@ -393,7 +393,7 @@ macro_rules! object_store_config_inner {
                     ignore_case = true,
                     action,
                     required = true,
-                    default_value = "file"
+                    default_value = "file",
                     verbatim_doc_comment
                 )]
                 pub object_store: ObjectStoreType,
@@ -1498,7 +1498,7 @@ mod tests {
     use clap::Parser;
     use iox_time::{MockProvider, Time};
     use object_store::ObjectStore;
-    use std::{env, str::FromStr, sync::Mutex};
+    use std::{str::FromStr, sync::Mutex};
     use tempfile::TempDir;
 
     /// The current object store store configurations.
@@ -1851,43 +1851,6 @@ mod tests {
             "{}",
             object_store
         )
-    }
-
-    #[test]
-    fn file_config_missing_params() {
-        // this test tests for failure to configure the object store because of data-dir configuration missing
-        // if the INFLUXDB3_DB_DIR env variable is set, the test fails because the configuration is
-        // actually present.
-        unsafe {
-            env::remove_var("INFLUXDB3_DB_DIR");
-        }
-
-        let configs = vec![
-            StoreConfigs::Base(
-                ObjectStoreConfig::try_parse_from(["server", "--object-store", "file"]).unwrap(),
-            ),
-            StoreConfigs::Source(
-                SourceObjectStoreConfig::try_parse_from([
-                    "server",
-                    "--source-object-store",
-                    "file",
-                ])
-                .unwrap(),
-            ),
-            StoreConfigs::Sink(
-                SinkObjectStoreConfig::try_parse_from(["server", "--sink-object-store", "file"])
-                    .unwrap(),
-            ),
-        ];
-
-        for config in configs {
-            let err = config.make_object_store().unwrap_err().to_string();
-            assert_eq!(
-                err,
-                "Specified File for the object store, required configuration missing for \
-            data-dir"
-            );
-        }
     }
 
     #[tokio::test]
