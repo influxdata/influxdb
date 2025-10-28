@@ -90,6 +90,13 @@ pub struct CreateDatabaseOptions {
     pub retention_period: Option<Duration>,
 }
 
+impl CreateDatabaseOptions {
+    pub fn retention_period(mut self, retention_period: Duration) -> Self {
+        self.retention_period = Some(retention_period);
+        self
+    }
+}
+
 #[derive(Default, Debug, Clone, Copy)]
 pub struct CreateTableOptions {
     pub field_family_mode: FieldFamilyMode,

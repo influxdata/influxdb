@@ -28,6 +28,7 @@ use hyper_util::server::conn::auto::Builder as ConnectionBuilder;
 use hyper_util::server::graceful::GracefulShutdown;
 use hyper_util::service::TowerToHyperService;
 use influxdb3_authz::AuthProvider;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_telemetry::store::TelemetryStore;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
@@ -88,6 +89,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
 pub struct CommonServerState {
+    catalog: Arc<Catalog>,
     metrics: Arc<metric::Registry>,
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
@@ -96,12 +98,14 @@ pub struct CommonServerState {
 
 impl CommonServerState {
     pub fn new(
+        catalog: Arc<Catalog>,
         metrics: Arc<metric::Registry>,
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         telemetry_store: Arc<TelemetryStore>,
     ) -> Self {
         Self {
+            catalog,
             metrics,
             trace_exporter,
             trace_header_parser,
@@ -1747,6 +1751,7 @@ mod tests {
         );
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let common_state = crate::CommonServerState::new(
+            Arc::clone(&catalog),
             Arc::clone(&metrics),
             None,
             trace_header_parser,

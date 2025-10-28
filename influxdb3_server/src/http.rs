@@ -35,7 +35,9 @@ use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::HardDeletionTime;
 use influxdb3_catalog::log::FieldDataType;
 use influxdb3_id::TokenId;
-use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
+use influxdb3_internal_api::query_executor::{
+    QueryExecutor, QueryExecutorError, ShowDatabases, ShowRetentionPolicies,
+};
 use influxdb3_process::{
     INFLUXDB3_BUILD, INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, ProcessUuidWrapper,
 };
@@ -57,6 +59,7 @@ use iox_http_util::{
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::{Time, TimeProvider};
+use iox_v1_query_api::V1HttpHandler;
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use serde::Deserialize;
 use serde::Serialize;
@@ -74,8 +77,6 @@ use thiserror::Error;
 use trace::ctx::SpanContext;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
-
-mod v1;
 
 pub(crate) const UNKNOWN_VAL: &str = "unknown";
 
@@ -231,9 +232,6 @@ pub enum Error {
         from your request"
     )]
     InfluxqlDatabaseMismatch { param_db: String, query_db: String },
-
-    #[error("v1 query API error: {0}")]
-    V1Query(#[from] v1::QueryError),
 
     #[error("Operation with object store failed: {0}")]
     ObjectStore(#[from] object_store::Error),
@@ -425,6 +423,29 @@ impl IntoResponse for V2WriteApiError {
             self.0.to_string()
         };
         let response = V2ErrorResponse { code, message };
+        let body = bytes_to_response_body(serde_json::to_vec(&response).unwrap());
+        ResponseBuilder::new().status(status).body(body).unwrap()
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct V1ErrorResponse {
+    error: String,
+}
+
+impl IntoResponse for iox_v1_query_api::HttpError {
+    fn into_response(self) -> Response {
+        let (status, error) = match self {
+            Self::NotFound(s) => (StatusCode::NOT_FOUND, s),
+            Self::Unauthorized(s) => {
+                // Ensure opaque error message on unauthorized:
+                warn!(error = s, "unauthorized access attemot to /query API");
+                (StatusCode::UNAUTHORIZED, "unauthorized access".to_string())
+            }
+            Self::Invalid(s) => (StatusCode::BAD_REQUEST, s),
+            Self::InternalError(s) => (StatusCode::INTERNAL_SERVER_ERROR, s),
+        };
+        let response = V1ErrorResponse { error };
         let body = bytes_to_response_body(serde_json::to_vec(&response).unwrap());
         ResponseBuilder::new().status(status).body(body).unwrap()
     }
@@ -2349,7 +2370,24 @@ pub(crate) async fn route_request(
         (Method::GET | Method::POST, all_paths::API_V3_QUERY_INFLUXQL) => {
             http_server.query_influxql(req).await
         }
-        (Method::GET | Method::POST, all_paths::API_V1_QUERY) => http_server.v1_query(req).await,
+        (Method::GET | Method::POST, all_paths::API_V1_QUERY) => {
+            let handler = V1HttpHandler::new(
+                Arc::clone(&http_server.query_executor) as _,
+                Some(http_server.authorizer.upcast()),
+                http_server.common_state.trace_collector(),
+                INFLUXDB3_VERSION.to_string(),
+            )
+            .with_show_databases(ShowDatabases::new(Arc::clone(
+                &http_server.common_state.catalog,
+            )))
+            .with_show_retention_policies(ShowRetentionPolicies::new(Arc::clone(
+                &http_server.common_state.catalog,
+            )));
+            match handler.route_request(req).await {
+                Ok(r) => Ok(r),
+                Err(e) => return Ok(e.into_response()),
+            }
+        }
         (Method::GET, all_paths::API_V3_HEALTH | all_paths::API_V1_HEALTH) => http_server.health(),
         (Method::GET | Method::POST, all_paths::API_PING) => http_server.ping(),
         (Method::GET, all_paths::API_METRICS) => http_server.handle_metrics(),
