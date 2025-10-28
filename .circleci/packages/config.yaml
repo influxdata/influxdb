@@ -114,3 +114,9 @@ packages:
       - source: LICENSE-MIT
         target: usr/share/influxdb3/LICENSE-MIT
     source: .circleci/packages/influxdb3
+    deb:
+      recommends:
+        - influxdata-archive-keyring
+    rpm:
+      recommends:
+        - influxdata-archive-keyring
