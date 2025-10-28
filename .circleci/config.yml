@@ -471,37 +471,22 @@ jobs:
             - bin
 
   build-packages:
-    machine:
-      image: ubuntu-2204:current
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:c92ea43b5529b9c4f93478c26d128b3a5aa811559e1fa634cdb476241f8d7620
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
     steps:
+      - checkout
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
-      - run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo -E apt-get update
-          sudo -E apt-get install --no-install-recommends --yes \
-            asciidoc        \
-            build-essential \
-            git             \
-            python3         \
-            rpm             \
-            ruby-dev        \
-            xmlto
-
-          sudo gem install fpm
-
-          python3 -m pip install -r .circleci/scripts/package/requirements.txt
-
-          # Unfortunately, this must be executed as root. This is so permission
-          # modifying commands (chown, chmod, etc.) succeed.
-          sudo --preserve-env=CIRCLE_TAG,CIRCLE_SHA1 .circleci/scripts/package/build.py
-      - store_artifacts:
-          path: artifacts/
+      - run: packager .circleci/packages/config.yaml
       - persist_to_workspace:
           root: .
           paths:
             - artifacts
+      - store_artifacts:
+          path: artifacts/
 
   sign-packages:
     circleci_ip_ranges: true
