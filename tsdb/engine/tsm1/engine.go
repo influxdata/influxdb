@@ -2176,7 +2176,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 	startOptHoldoff := func(dur time.Duration) {
 		optHoldoffStart = time.Now()
 		optHoldoffDuration = dur
-		e.logger.Info("optimize compaction holdoff timer started", logger.Shard(e.id), zap.Duration("duration", optHoldoffDuration), zap.Time("endTime", optHoldoffStart.Add(optHoldoffDuration)))
+		e.logger.Debug("optimize compaction holdoff timer started", logger.Shard(e.id), zap.Duration("duration", optHoldoffDuration), zap.Time("endTime", optHoldoffStart.Add(optHoldoffDuration)))
 	}
 	startOptHoldoff(initialOptimizationHoldoff)
 
