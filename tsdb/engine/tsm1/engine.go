@@ -2284,6 +2284,7 @@ func makePlannedCompactionGroup(groups []CompactionGroup, pointsPerBlock int) []
 }
 
 func (e *Engine) planCompactionsLevel(level int) []PlannedCompactionGroup {
+
 	groups, _ := e.CompactionPlan.PlanLevel(level)
 	return makePlannedCompactionGroup(groups, tsdb.DefaultMaxPointsPerBlock)
 }
