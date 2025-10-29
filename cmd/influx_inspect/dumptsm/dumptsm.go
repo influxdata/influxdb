@@ -268,7 +268,7 @@ Usage: influx_inspect dumptsm [flags] <path
             Only display index and block data match this key substring
 `
 
-	fmt.Fprintf(cmd.Stdout, usage)
+	fmt.Fprint(cmd.Stdout, usage)
 }
 
 var (
