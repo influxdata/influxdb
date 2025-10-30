@@ -21,7 +21,7 @@ PORT=8181
 
 # Set the default (latest) version here. Users may specify a version using the
 # --version arg (handled below)
-INFLUXDB_VERSION="3.5.0"
+INFLUXDB_VERSION="3.6.0"
 EDITION="Core"
 EDITION_TAG="core"
 
@@ -118,21 +118,21 @@ find_available_port() {
 # Function to set up Quick Start defaults for both Core and Enterprise
 setup_quick_start_defaults() {
     edition="${1:-core}"
-    
-    NODE_ID="node0" 
+
+    NODE_ID="node0"
     STORAGE_TYPE="File Storage"
     STORAGE_PATH="$HOME/.influxdb/data"
     PLUGIN_PATH="$HOME/.influxdb/plugins"
     STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
     STORAGE_FLAGS_ECHO="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
     START_SERVICE="y"  # Always set for Quick Start
-    
+
     # Enterprise-specific settings
     if [ "$edition" = "enterprise" ]; then
         CLUSTER_ID="cluster0"
         LICENSE_FILE_PATH="${STORAGE_PATH}/${CLUSTER_ID}/trial_or_home_license"
     fi
-    
+
     # Create directories
     mkdir -p "${STORAGE_PATH}"
     mkdir -p "${PLUGIN_PATH}"
@@ -185,7 +185,7 @@ configure_azure_storage() {
     STORAGE_FLAGS="$STORAGE_FLAGS --azure-storage-access-key=${AZURE_KEY}"
 }
 
-# Function to configure Google Cloud storage  
+# Function to configure Google Cloud storage
 configure_google_cloud_storage() {
     echo
     printf "${BOLD}Google Cloud Storage Configuration${NC}\n"
@@ -212,7 +212,7 @@ setup_license_for_quick_start() {
         echo
         printf "Enter choice (1-2): "
         read -r LICENSE_CHOICE
-        
+
         case "${LICENSE_CHOICE:-1}" in
             1)
                 LICENSE_TYPE="trial"
@@ -227,7 +227,7 @@ setup_license_for_quick_start() {
                 LICENSE_DESC="Trial"
                 ;;
         esac
-        
+
         printf "Enter your email: "
         read -r LICENSE_EMAIL
         while [ -z "$LICENSE_EMAIL" ]; do
@@ -308,10 +308,10 @@ prompt_storage_configuration() {
 perform_server_health_check() {
     timeout_seconds="${1:-30}"
     is_enterprise="${2:-false}"
-    
+
     SUCCESS=0
     EMAIL_MESSAGE_SHOWN=false
-    
+
     for i in $(seq 1 "$timeout_seconds"); do
         # on systems without a usable lsof, sleep a second to see if the pid is
         # still there to give influxdb a chance to error out in case an already
@@ -338,12 +338,12 @@ perform_server_health_check() {
             printf "├─${DIM} Checking license activation - please verify your email${NC}\n"
             EMAIL_MESSAGE_SHOWN=true
         fi
-        
+
         # Show progress updates every 15 seconds after initial grace period
         if [ "$is_enterprise" = "true" ] && [ "$i" -gt 5 ] && [ $((i % 15)) -eq 0 ]; then
             printf "├─${DIM} Waiting for license verification (%s/%ss)${NC}\n" "$i" "$timeout_seconds"
         fi
-        
+
         sleep 1
     done
 
@@ -364,7 +364,7 @@ perform_server_health_check() {
                 printf "   ├─ Network connectivity issues\n"
                 printf "   └─ Port %s conflicts\n" "$PORT"
             fi
-            
+
             # Kill the background process if it's still running
             if kill -0 "$PID" 2>/dev/null; then
                 printf "   Stopping background server process...\n"
@@ -380,7 +380,7 @@ perform_server_health_check() {
 # Function to display Enterprise server command
 display_enterprise_server_command() {
     is_quick_start="${1:-false}"
-    
+
     if [ "$is_quick_start" = "true" ]; then
         # Quick Start format
         printf "└─${DIM} Command: ${NC}\n"
@@ -608,12 +608,12 @@ if [ "${EDITION}" = "Core" ]; then
         # Ensure port is available; if not, find a new one.
         ORIGINAL_PORT="$PORT"
         find_available_port false
-        
+
         # Show port result
         if [ "$PORT" != "$ORIGINAL_PORT" ]; then
             printf "├─${DIM} Found available port: %s (%s-%s in use)${NC}\n" "$PORT" "$ORIGINAL_PORT" "$((PORT - 1))"
         fi
-        
+
         # Show the command being executed
         printf "└─${DIM} Command:${NC}\n"
         printf "${DIM}    influxdb3 serve \\\\${NC}\n"
@@ -652,7 +652,7 @@ else
             # Quick Start - use defaults and check for existing license
             setup_quick_start_defaults enterprise
             setup_license_for_quick_start
-            
+
             STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
             STORAGE_FLAGS_ECHO="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
             START_SERVICE="y"
@@ -670,7 +670,7 @@ else
             # Same as option 1
             setup_quick_start_defaults enterprise
             setup_license_for_quick_start
-            
+
             STORAGE_FLAGS="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
             STORAGE_FLAGS_ECHO="--object-store=file --data-dir ${STORAGE_PATH} --plugin-dir ${PLUGIN_PATH}"
             START_SERVICE="y"
@@ -700,12 +700,12 @@ else
         # Ensure port is available; if not, find a new one.
         ORIGINAL_PORT="$PORT"
         find_available_port false
-        
+
         # Show port result
         if [ "$PORT" != "$ORIGINAL_PORT" ]; then
             printf "├─${DIM} Found available port: %s (%s-%s in use)${NC}\n" "$PORT" "$ORIGINAL_PORT" "$((PORT - 1))"
         fi
-        
+
         # Show the command being executed
         display_enterprise_server_command true
 
@@ -718,10 +718,10 @@ else
             "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         fi
         PID="$!"
-        
+
         printf "├─${DIM} Server started in background (PID: %s)${NC}\n" "$PID"
-        
-        perform_server_health_check 90 true 
+
+        perform_server_health_check 90 true
 
     elif [ "$START_SERVICE" = "y" ] && [ "$STARTUP_CHOICE" = "2" ]; then
         # Enterprise Custom Start flow
@@ -773,7 +773,7 @@ else
         printf "├─ You may need to check your email for verification\n"
         printf "└─ Email: "
         read -r LICENSE_EMAIL
-        
+
         while [ -z "$LICENSE_EMAIL" ]; do
             printf "├─ Email address is required. Please enter your email: "
             read -r LICENSE_EMAIL
@@ -804,10 +804,10 @@ else
         # Start server in background
         "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         PID="$!"
-        
+
         printf "├─${DIM} Server started in background (PID: %s)${NC}\n" "$PID"
-        
-        perform_server_health_check 90 true 
+
+        perform_server_health_check 90 true
 
     else
         echo
