@@ -25,9 +25,9 @@ const _MessageType_name = "HeaderTypeBucketHeaderTypeBucketFooterTypeSeriesHeade
 var _MessageType_index = [...]uint8{0, 10, 26, 42, 58, 73, 90, 108, 125, 141, 157}
 
 func (i MessageType) String() string {
-	i -= 1
-	if i >= MessageType(len(_MessageType_index)-1) {
-		return "MessageType(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	idx := int(i) - 1
+	if i < 1 || idx >= len(_MessageType_index)-1 {
+		return "MessageType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _MessageType_name[_MessageType_index[i]:_MessageType_index[i+1]]
+	return _MessageType_name[_MessageType_index[idx]:_MessageType_index[idx+1]]
 }
