@@ -3,6 +3,7 @@ package http
 import (
 	"compress/gzip"
 	"context"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -190,7 +191,8 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	requestBytes = parsed.RawSize
 
 	if err := h.PointsWriter.WritePoints(ctx, org.ID, bucket.ID, parsed.Points); err != nil {
-		if partialErr, ok := err.(tsdb.PartialWriteError); ok {
+		var partialErr tsdb.PartialWriteError
+		if goerrors.As(err, &partialErr) {
 			h.HandleHTTPError(ctx, &errors.Error{
 				Code: errors.EUnprocessableEntity,
 				Op:   opWriteHandler,
@@ -200,6 +202,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		h.log.Error("Error handling Write", zap.Error(err))
 		h.HandleHTTPError(ctx, &errors.Error{
 			Code: errors.EInternal,
 			Op:   opWriteHandler,
