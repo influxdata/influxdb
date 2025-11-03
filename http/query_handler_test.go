@@ -291,7 +291,7 @@ func TestFluxService_Check(t *testing.T) {
 		Checks:  check.Responses{},
 	}
 	if !cmp.Equal(want, got) {
-		t.Errorf("unexpected response -want/+got: " + cmp.Diff(want, got))
+		t.Error("unexpected response -want/+got: " + cmp.Diff(want, got))
 	}
 }
 
@@ -309,7 +309,7 @@ func TestFluxQueryService_Check(t *testing.T) {
 		Checks:  check.Responses{},
 	}
 	if !cmp.Equal(want, got) {
-		t.Errorf("unexpected response -want/+got: " + cmp.Diff(want, got))
+		t.Error("unexpected response -want/+got: " + cmp.Diff(want, got))
 	}
 }
 

@@ -105,7 +105,7 @@ func main() {
 func mustReadAll(path string) []byte {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		errExit(err.Error())
+		errExit("%s", err.Error())
 	}
 
 	return data
@@ -123,7 +123,7 @@ func readData(path string) interface{} {
 func fileMode(path string) os.FileMode {
 	stat, err := os.Stat(path)
 	if err != nil {
-		errExit(err.Error())
+		errExit("%s", err.Error())
 	}
 	return stat.Mode()
 }
