@@ -69,13 +69,13 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	err := sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	pt.SetTime(time.Unix(2, 3))
 	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	validateIndex := func() {
@@ -101,7 +101,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	pt.SetTime(time.Unix(2, 6))
 	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 }
 
@@ -139,7 +139,7 @@ func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 
 	err := sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	if err := sh.Close(); err != nil {
@@ -197,7 +197,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 
 	err := sh.WritePoints(points, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	// Writing one more series should exceed the series limit.
@@ -225,7 +225,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Fatalf("statistics for shard not found")
+			t.Fatal("statistics for shard not found")
 		}
 	}
 }
@@ -275,7 +275,7 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 
 	err := sh.WritePoints(points, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	// Writing one more series should exceed the series limit.
@@ -411,7 +411,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 	err := sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	pt = models.MustNewPoint(
@@ -423,7 +423,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	if got, exp := sh.SeriesN(), int64(1); got != exp {
@@ -703,7 +703,7 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 
 	err := sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	if got, exp := sh.SeriesN(), int64(1); got != exp {
@@ -1054,15 +1054,15 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 
 		err := sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 		if err == nil {
-			t.Fatalf("expected shard disabled error")
+			t.Fatal("expected shard disabled error")
 		}
 		if err != tsdb.ErrShardDisabled {
-			t.Fatalf(err.Error())
+			t.Fatal(err.Error())
 		}
 		m := &influxql.Measurement{Name: "cpu"}
 		_, got := sh.CreateIterator(context.Background(), m, query.IteratorOptions{})
 		if err == nil {
-			t.Fatalf("expected shard disabled error")
+			t.Fatal("expected shard disabled error")
 		}
 		if exp := tsdb.ErrShardDisabled; got != exp {
 			t.Fatalf("got %v, expected %v", got, exp)
@@ -1717,7 +1717,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	fields = mf2.FieldsByString(measurement)
 	field := fields.Field(fieldName)
 	if field == nil {
-		t.Fatalf("field is null")
+		t.Fatal("field is null")
 	}
 
 	if got, exp := field.Type, influxql.Float; got != exp {
@@ -1894,7 +1894,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	fields = mf2.FieldsByString(measurement)
 	field := fields.Field(fieldName)
 	if field == nil {
-		t.Fatalf("field is null")
+		t.Fatal("field is null")
 	}
 
 	if got, exp := field.Type, influxql.Float; got != exp {
