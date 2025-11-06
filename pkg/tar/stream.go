@@ -16,7 +16,7 @@ import (
 // possibly writing each file to a tar writer stream.  By default StreamFile is used, which will result in all files
 // being written.  A custom writeFunc can be passed so that each file may be written, modified+written, or skipped
 // depending on the custom logic.
-func Stream(w io.Writer, dir, relativePath string, writeFunc func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error) error {
+func Stream(w io.Writer, dir, relativePath string, bufSize uint64, writeFunc func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer, bufSize uint64) error) error {
 	tw := tar.NewWriter(w)
 	defer tw.Close()
 
@@ -41,30 +41,31 @@ func Stream(w io.Writer, dir, relativePath string, writeFunc func(f os.FileInfo,
 			return err
 		}
 
-		return writeFunc(f, filepath.Join(relativePath, subDir), path, tw)
+		return writeFunc(f, filepath.Join(relativePath, subDir), path, tw, bufSize)
 	})
 }
 
 // Generates a filtering function for Stream that checks an incoming file, and only writes the file to the stream if
 // its mod time is later than since.  Example: to tar only files newer than a certain datetime, use
 // tar.Stream(w, dir, relativePath, SinceFilterTarFile(datetime))
-func SinceFilterTarFile(since time.Time) func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
-	return func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
+func SinceFilterTarFile(since time.Time) func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer, bufSize uint64) error {
+	return func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer, bufSize uint64) error {
 		if f.ModTime().After(since) {
-			return StreamFile(f, shardRelativePath, fullPath, tw)
+			return StreamFile(f, shardRelativePath, fullPath, tw, bufSize)
 		}
 		return nil
 	}
 }
 
 // stream a single file to tw, extending the header name using the shardRelativePath
-func StreamFile(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
-	return StreamRenameFile(f, f.Name(), shardRelativePath, fullPath, tw)
+func StreamFile(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer, bufSize uint64) error {
+	return StreamRenameFile(f, f.Name(), shardRelativePath, fullPath, tw, bufSize)
 }
 
 // / Stream a single file to tw, using tarHeaderFileName instead of the actual filename
 // e.g., when we want to write a *.tmp file using the original file's non-tmp name.
-func StreamRenameFile(f os.FileInfo, tarHeaderFileName, relativePath, fullPath string, tw *tar.Writer) error {
+func StreamRenameFile(f os.FileInfo, tarHeaderFileName, relativePath, fullPath string, tw *tar.Writer, bufSize uint64) error {
+	buf := make([]byte, bufSize)
 	h, err := tar.FileInfoHeader(f, f.Name())
 	if err != nil {
 		return err
@@ -86,7 +87,7 @@ func StreamRenameFile(f os.FileInfo, tarHeaderFileName, relativePath, fullPath s
 
 	defer fr.Close()
 
-	_, err = io.CopyN(tw, fr, h.Size)
+	_, err = io.CopyBuffer(tw, fr, buf)
 
 	return err
 }
