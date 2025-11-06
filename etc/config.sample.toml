@@ -167,6 +167,13 @@
   # increase in cache size may lead to an increase in heap usage.
   series-id-set-cache-size = 100
 
+  # TarStreamBufferWindow is the size of tar buffer window size in bytes while running tar
+	# streaming operations such as renaming and copying tar files during backups.
+	# The default value is 1MB. This should only change if backups are having performance issues
+  # and you understand that this value is a heuristic that may need to be tweaked.
+  # Rarely should this ever be changed.
+	# tar-stream-buffer-window = 1048576
+
 ###
 ### [coordinator]
 ###

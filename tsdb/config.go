@@ -191,10 +191,9 @@ type Config struct {
 	// slow disks.
 	TSMWillNeed bool `toml:"tsm-use-madv-willneed"`
 
-	// TarStreamBufferWindow is the size of tar buffer window size while running tar
+	// TarStreamBufferWindow is the size of tar buffer window size in bytes while running tar
 	// streaming operations such as renaming and copying tar files during backups.
-	// The default value is 1MB. This should only change if backups are having performance
-	// issues.
+	// The default value is 1MB. This should only change if backups are having performance issues.
 	TarStreamBufferWindow uint64 `toml:"tar-stream-buffer-window"`
 }
 
