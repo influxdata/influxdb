@@ -85,9 +85,9 @@ const (
 	// MaxTSMFileSize is the maximum size of TSM files.
 	MaxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 
-	// DefaultTarStreamBufferWindow is the default window size to use during tar file streaming.
+	// DefaultTarStreamBufferSize is the default window size to use during tar file streaming.
 	// This impacts backups and should only be modified if backups are having performance issues.
-	DefaultTarStreamBufferWindow = uint64(1024 * 1024) // 1MB
+	DefaultTarStreamBufferSize = uint64(1024 * 1024) // 1MB
 )
 
 var SingleGenerationReasonText string = SingleGenerationReason()
@@ -191,10 +191,10 @@ type Config struct {
 	// slow disks.
 	TSMWillNeed bool `toml:"tsm-use-madv-willneed"`
 
-	// TarStreamBufferWindow is the size of tar buffer window size in bytes while running tar
+	// TarStreamBufferSize is the size of tar buffer window size in bytes while running tar
 	// streaming operations such as renaming and copying tar files during backups.
 	// The default value is 1MB. This should only change if backups are having performance issues.
-	TarStreamBufferWindow uint64 `toml:"tar-stream-buffer-window"`
+	TarStreamBufferSize uint64 `toml:"tar-stream-buffer-size"`
 }
 
 // NewConfig returns the default configuration for tsdb.
@@ -227,7 +227,7 @@ func NewConfig() Config {
 		TraceLoggingEnabled: false,
 		TSMWillNeed:         false,
 
-		TarStreamBufferWindow: DefaultTarStreamBufferWindow,
+		TarStreamBufferSize: DefaultTarStreamBufferSize,
 	}
 }
 
