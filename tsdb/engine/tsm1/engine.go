@@ -289,6 +289,8 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		optimizedCompactionLimiter:    opt.OptimizedCompactionLimiter,
 		Scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
 		seriesIDSets:                  opt.SeriesIDSets,
+
+		TarStreamBufferSize: opt.Config.TarStreamBufferWindow,
 	}
 
 	// Feature flag to enable per-series type checking, by default this is off and
