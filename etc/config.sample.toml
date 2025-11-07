@@ -168,10 +168,10 @@
   series-id-set-cache-size = 100
 
   # The size of tar buffer window size in bytes while running tar
-	# streaming operations such as renaming and copying tar files during backups.
-	# The default value is 1MB. This should only change if backups are having performance issues
+  # streaming operations such as renaming and copying tar files during backups.
+  # The default value is 1MB. This should only change if backups are having performance issues
   # and you understand that this value is a heuristic that may need to be tweaked.
-	# tar-stream-buffer-size = 1048576
+  # tar-stream-buffer-size = 1048576
 
 ###
 ### [coordinator]
