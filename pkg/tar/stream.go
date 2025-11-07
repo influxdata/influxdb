@@ -88,11 +88,13 @@ func StreamRenameFile(f os.FileInfo, tarHeaderFileName, relativePath, fullPath s
 	defer fr.Close()
 
 	bytesWritten, err := io.CopyBuffer(tw, fr, buf)
-	if bytesWritten != h.Size {
+	if err != nil {
+		return err
+	} else if bytesWritten != h.Size {
 		return fmt.Errorf("error while copying buffer, expected %d bytes but wrote %d", h.Size, bytesWritten)
 	}
 
-	return err
+	return nil
 }
 
 // Restore reads a tar archive from r and extracts all of its files into dir,
