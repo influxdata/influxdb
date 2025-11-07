@@ -63,7 +63,6 @@ struct Config {
 // the CLI command
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, clap::Parser)]
-#[allow(clippy::large_enum_variant)]
 enum Command {
     /// Perform a query against a running InfluxDB 3 Core server
     Query(commands::query::Config),
