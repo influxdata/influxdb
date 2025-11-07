@@ -277,9 +277,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("unrecognized index %s", c.Index)
 	}
 
-	// Set default for TarStreamBufferSize if not configured
-	if c.TarStreamBufferSize == 0 {
-		c.TarStreamBufferSize = DefaultTarStreamBufferSize
+	if c.TarStreamBufferSize <= 0 {
+		return fmt.Errorf("tar-stream-buffer-size cannot be zero and must be non-negative")
 	}
 
 	return nil
