@@ -87,7 +87,10 @@ func StreamRenameFile(f os.FileInfo, tarHeaderFileName, relativePath, fullPath s
 
 	defer fr.Close()
 
-	_, err = io.CopyBuffer(tw, fr, buf)
+	bytesWritten, err := io.CopyBuffer(tw, fr, buf)
+	if bytesWritten != h.Size {
+		return fmt.Errorf("error while copying buffer, expected %d bytes but wrote %d", h.Size, bytesWritten)
+	}
 
 	return err
 }
