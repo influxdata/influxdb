@@ -65,6 +65,11 @@ func StreamFile(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Write
 // / Stream a single file to tw, using tarHeaderFileName instead of the actual filename
 // e.g., when we want to write a *.tmp file using the original file's non-tmp name.
 func StreamRenameFile(f os.FileInfo, tarHeaderFileName, relativePath, fullPath string, tw *tar.Writer, bufSize uint64) error {
+	// We NEVER want this to be 0 (or less). This is just a safety harness.
+	// influxd will panic if we pass a 0 size buffer into CopyBuffer.
+	if bufSize <= 0 {
+		bufSize = 1024 * 1024 // 1MB
+	}
 	buf := make([]byte, bufSize)
 	h, err := tar.FileInfoHeader(f, f.Name())
 	if err != nil {
