@@ -29,6 +29,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     // Core parameters
     "node-id",
     "node-id-from-env",
+    "cluster-id",
     "http-bind",
     "max-http-request-size",
     "object-store",
