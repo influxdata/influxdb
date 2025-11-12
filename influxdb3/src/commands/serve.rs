@@ -552,6 +552,20 @@ pub struct Config {
         action
     )]
     pub delete_grace_period: humantime::Duration,
+
+    /// The cluster-id is an enterprise config option to identify nodes belonging to the same cluster.
+    /// Core OSS is single node only. We've seen folks install Core OSS thinking they installed Enterprise.
+    /// They use --cluster-id and get the error `unexpected argument` which is confusing. So we generate
+    /// a custom error message if they use this arg.
+    #[clap(long = "cluster-id", value_parser=fail_cluster_id)]
+    pub cluster_id: Option<String>,
+}
+
+pub fn fail_cluster_id(_: &str) -> Result<String, anyhow::Error> {
+    Err(anyhow::anyhow!(
+        "You've incorrectly specified a cluster-id for InfluxDB 3 Core OSS.\n\nCluster-id is an InfluxDB 3 Enterprise parameter. \
+    \nDid you install Core in an upgrade or run Core by mistake?\n\nRemove --cluster-id to run InfluxDB 3 Core OSS."
+    ))
 }
 
 #[derive(Clone, Debug, clap::Args)]
