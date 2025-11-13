@@ -35,6 +35,7 @@ mod tests {
     use pyo3::prepare_freethreaded_python;
     use std::sync::Arc;
     use std::time::Duration;
+    use chrono::{TimeZone, Utc};
 
     #[tokio::test]
     async fn py_plugin_call_api_exposes_only_allowed_methods() {
@@ -42,15 +43,6 @@ mod tests {
 
         let db_name: Arc<str> = Arc::from("test_db");
         let schema = Arc::new(DatabaseSchema::new(DbId::from(0), Arc::clone(&db_name)));
-
-        let write_batch = WriteBatch {
-            catalog_sequence: 0,
-            database_id: DbId::from(0),
-            database_name: Arc::clone(&db_name),
-            table_chunks: SerdeVecMap::<TableId, TableChunks>::new(),
-            min_time_ns: 0,
-            max_time_ns: 0,
-        };
 
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -63,7 +55,7 @@ mod tests {
         let query_executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
 
         let plugin = r#"
-def process_writes(influxdb3_local, table_batches, args=None):
+def process_scheduled_call(influxdb3_local, table_batches, args=None):
     allowed = {"info", "warn", "error", "query", "write", "cache", "write_to_db"}
     attrs = {name for name in dir(influxdb3_local) if not name.startswith("__")}
     extras = attrs - allowed
@@ -72,12 +64,13 @@ def process_writes(influxdb3_local, table_batches, args=None):
         raise RuntimeError(f"unexpected attributes: extras={sorted(extras)}, missing={sorted(missing)}")
 "#;
 
-        let result = system_py::execute_python_with_batch(
+        let schedule_time = Utc.timestamp_opt(0, 0).unwrap();
+
+        let result = system_py::execute_schedule_trigger(
             plugin,
-            &write_batch,
+            schedule_time,
             schema,
             query_executor,
-            None,
             None,
             &None::<HashMap<String, String>>,
             py_cache,
