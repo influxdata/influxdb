@@ -1077,8 +1077,10 @@ pub(crate) fn run_test_schedule_plugin(
 mod tests {
     use super::*;
     use crate::virtualenv::init_pyo3;
+    use chrono::{TimeZone, Utc};
     use hashbrown::HashMap;
-    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+    use influxdb3_id::DbId;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_write::Precision;
     use influxdb3_write::write_buffer::validator::WriteValidator;
@@ -1208,6 +1210,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             .await
             .unwrap(),
         );
+        catalog.create_database("foo").await.unwrap();
         let namespace = NamespaceName::new("foodb").unwrap();
         let validator =
             WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog)).unwrap();
@@ -1287,5 +1290,41 @@ def process_writes(influxdb3_local, table_batches, args=None):
         assert_eq!(response.errors.len(), 1);
         let expected_error = "line protocol parse error on write to db foodb: WriteLineError { original_line: \"cpu,host=A f1=not_an_int\", line_number: 2, error_message: \"invalid column type for column 'f1', expected iox::column_type::field::integer, got iox::column_type::field::string\" }";
         assert_eq!(response.errors[0], expected_error);
+    }
+
+    #[tokio::test]
+    async fn test_schedule_plugin_py_api_surface_area() {
+        init_pyo3();
+
+        let code = r#"
+def process_scheduled_call(influxdb3_local, call_time, args=None):
+    allowed = {"info", "warn", "error", "query", "write", "cache", "write_to_db"}
+    attrs = {name for name in dir(influxdb3_local) if not name.startswith("__")}
+    extras = attrs - allowed
+    missing = allowed - attrs
+    if extras or missing:
+        raise RuntimeError(f"unexpected attributes: extras={sorted(extras)}, missing={sorted(missing)}")
+"#;
+
+        let cache = Arc::new(Mutex::new(CacheStore::new(
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+            Duration::from_secs(10),
+        )));
+
+        let result = influxdb3_py_api::system_py::execute_schedule_trigger(
+            code,
+            Utc.timestamp_opt(0, 0).unwrap(),
+            Arc::new(DatabaseSchema::new(DbId::from(0), Arc::from("test_db"))),
+            Arc::new(UnimplementedQueryExecutor),
+            None,
+            &None::<HashMap<String, String>>,
+            PyCache::new_test_cache(cache, "_shared_test".to_string()),
+            None,
+        );
+
+        assert!(
+            result.is_ok(),
+            "PyPluginCallApi exposes unexpected Python methods: {result:?}"
+        );
     }
 }
