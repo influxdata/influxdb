@@ -278,7 +278,7 @@ func (c *Config) Validate() error {
 	}
 
 	if c.TarStreamBufferSize <= 0 {
-		return fmt.Errorf("tar-stream-buffer-size cannot be zero and must be non-negative")
+		return fmt.Errorf("tar-stream-buffer-size cannot be %d, value must be greater than zero and non-negative", c.TarStreamBufferSize)
 	}
 
 	return nil
