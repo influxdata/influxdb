@@ -53,6 +53,8 @@ pub(super) fn run_cmd_with_result(
     input: Option<&str>,
     command_args: Vec<&str>,
 ) -> std::result::Result<String, anyhow::Error> {
+    // See https://github.com/influxdata/influxdb/issues/26975
+    #[allow(deprecated)]
     let mut child_process = Command::cargo_bin("influxdb3")?
         .args(&command_args)
         .args(args)

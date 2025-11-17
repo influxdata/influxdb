@@ -7,7 +7,7 @@ use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use arrow_array::{Array, BooleanArray};
 use async_trait::async_trait;
-use data_types::NamespaceId;
+use data_types::{Namespace, NamespaceId};
 use datafusion::catalog::{CatalogProvider, SchemaProvider, Session};
 use datafusion::common::arrow::array::StringArray;
 use datafusion::common::arrow::datatypes::{DataType, Field, Schema as DatafusionSchema};
@@ -491,6 +491,13 @@ impl QueryDatabase for QueryExecutorImpl {
             query_log: Arc::clone(&self.query_log),
             system_schema_provider,
         }))))
+    }
+
+    async fn list_namespaces(
+        &self,
+        _span: Option<Span>,
+    ) -> Result<Vec<Namespace>, DataFusionError> {
+        Ok(self.catalog.list_namespaces())
     }
 
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {

@@ -80,13 +80,13 @@ async fn queries_table() {
         let batches = collect_stream(response).await;
         assert_batches_sorted_eq!(
             [
-                "+---------+------------+--------------------------------------------------------------------------------+---------+---------+-----------+",
-                "| phase   | query_type | query_text                                                                     | success | running | cancelled |",
-                "+---------+------------+--------------------------------------------------------------------------------+---------+---------+-----------+",
-                "| success | flightsql  | CommandStatementQuerySELECT * FROM cpu                                         | true    | false   | false     |",
-                "| success | flightsql  | CommandStatementQuerySELECT COUNT(*) FROM system.queries WHERE running = false | true    | false   | false     |",
-                "| success | flightsql  | CommandStatementQuerySELECT usage, time FROM cpu                               | true    | false   | false     |",
-                "+---------+------------+--------------------------------------------------------------------------------+---------+---------+-----------+",
+                "+---------+------------+---------------------------------------------------------------------------------+---------+---------+-----------+",
+                "| phase   | query_type | query_text                                                                      | success | running | cancelled |",
+                "+---------+------------+---------------------------------------------------------------------------------+---------+---------+-----------+",
+                "| success | flightsql  | CommandStatementQuery SELECT * FROM cpu                                         | true    | false   | false     |",
+                "| success | flightsql  | CommandStatementQuery SELECT COUNT(*) FROM system.queries WHERE running = false | true    | false   | false     |",
+                "| success | flightsql  | CommandStatementQuery SELECT usage, time FROM cpu                               | true    | false   | false     |",
+                "+---------+------------+---------------------------------------------------------------------------------+---------+---------+-----------+",
             ],
             &batches
         );

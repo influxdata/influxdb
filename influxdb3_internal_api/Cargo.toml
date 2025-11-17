@@ -9,18 +9,26 @@ license.workspace = true
 # Core Crates
 influxdb_influxql_parser.workspace = true
 iox_query.workspace = true
+iox_query_influxql.workspace = true
 iox_query_params.workspace = true
+schema.workspace = true
 trace.workspace = true
 trace_http.workspace = true
 tracker.workspace = true
 
 # Local Crates
+influxdb3_catalog = { path = "../influxdb3_catalog" }
 
 # Crates.io dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 datafusion.workspace = true
+humantime.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+futures.workspace = true
 
 [lints]
 workspace = true
