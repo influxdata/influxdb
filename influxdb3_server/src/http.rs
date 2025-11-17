@@ -437,9 +437,8 @@ impl IntoResponse for iox_v1_query_api::HttpError {
     fn into_response(self) -> Response {
         let (status, error) = match self {
             Self::NotFound(s) => (StatusCode::NOT_FOUND, s),
-            Self::Unauthorized(s) => {
+            Self::Unauthorized(_) => {
                 // Ensure opaque error message on unauthorized:
-                warn!(error = s, "unauthorized access attemot to /query API");
                 (StatusCode::UNAUTHORIZED, "unauthorized access".to_string())
             }
             Self::Invalid(s) => (StatusCode::BAD_REQUEST, s),
