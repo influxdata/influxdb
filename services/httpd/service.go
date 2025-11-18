@@ -4,6 +4,7 @@ package httpd // import "github.com/influxdata/influxdb/services/httpd"
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"go.uber.org/zap"
 )
 
@@ -50,14 +52,15 @@ const (
 
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
-	ln        net.Listener
-	addr      string
-	https     bool
-	cert      string
-	key       string
-	limit     int
-	tlsConfig *tls.Config
-	err       chan error
+	ln         net.Listener
+	addr       string
+	https      bool
+	cert       string
+	key        string
+	limit      int
+	tlsConfig  *tls.Config
+	certLoader *tlsconfig.TLSCertLoader
+	err        chan error
 
 	httpServer http.Server
 
@@ -95,9 +98,6 @@ func NewService(c Config) *Service {
 	if s.tlsConfig == nil {
 		s.tlsConfig = new(tls.Config)
 	}
-	if s.key == "" {
-		s.key = s.cert
-	}
 	if c.UnixSocketGroup != nil {
 		s.unixSocketGroup = int(*c.UnixSocketGroup)
 	}
@@ -113,13 +113,18 @@ func (s *Service) Open() error {
 
 	// Open listener.
 	if s.https {
-		cert, err := tls.LoadX509KeyPair(s.cert, s.key)
-		if err != nil {
+		if certLoader, err := tlsconfig.NewTLSCertLoader(s.cert, s.key, tlsconfig.WithLogger(s.Logger)); err == nil {
+			s.certLoader = certLoader
+		} else {
 			return err
 		}
 
 		tlsConfig := s.tlsConfig.Clone()
-		tlsConfig.Certificates = []tls.Certificate{cert}
+		tlsConfig.GetCertificate = s.certLoader.GetCertificate
+		// Also set GetCertificate on Handler.Config.TLS for testability
+		if s.Handler.Config.TLS != nil {
+			s.Handler.Config.TLS.GetCertificate = s.certLoader.GetCertificate
+		}
 
 		listener, err := tls.Listen("tcp", s.addr, tlsConfig)
 		if err != nil {
@@ -217,6 +222,13 @@ func (s *Service) Close() error {
 			return err
 		}
 	}
+	if s.certLoader != nil {
+		cl := s.certLoader
+		s.certLoader = nil
+		if err := cl.Close(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -224,6 +236,32 @@ func (s *Service) Close() error {
 func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "httpd"))
 	s.Handler.Logger = s.Logger
+}
+
+// VerifyReloadedConfig checks if c can be applied. If it can be, a function
+// that will apply the reloaded configuration is returned. No function is
+// returned if no action is required.
+func (s *Service) VerifyReloadedConfig(c Config) (func() error, error) {
+	// Let the user know that changing the https-enabled setting doesn't work.
+	if s.https != c.HTTPSEnabled {
+		return nil, fmt.Errorf("httpd: can not change https-enabled on a running server")
+	}
+
+	if s.https {
+		// Sanity check to make sure we have a certLoader. Shouldn't be possible.
+		if s.certLoader == nil {
+			return nil, errors.New("httpd: no certLoader available")
+		}
+
+		// Make sure the specified certificate will load correctly and return an apply function.
+		if apply, err := s.certLoader.VerifyLoad(c.HTTPSCertificate, c.HTTPSPrivateKey); err == nil {
+			return apply, nil
+		} else {
+			return nil, fmt.Errorf("httpd: error loading certificate at (%q, %q): %w", c.HTTPSCertificate, c.HTTPSPrivateKey, err)
+		}
+	}
+
+	return nil, nil
 }
 
 // Err returns a channel for fatal errors that occur on the listener.
