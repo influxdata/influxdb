@@ -472,7 +472,7 @@ fn maybe_print_help() {
             Some(SubCommand::Serve) => {
                 println!(
                     include_str!("help/serve_all.txt"),
-                    "Run the InfluxDB 3 Core server".bold(),
+                    "Run the InfluxDB 3 Core Server".bold(),
                     "Usage: influxdb3 serve".bold(),
                     "Required:".bold().underline(),
                     "Server Configuration:".bold().underline(),
