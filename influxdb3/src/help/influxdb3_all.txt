@@ -54,4 +54,4 @@ InfluxDB 3 Core Server and Command Line Tools
   -V, --version     Print version information
 
 Run 'influxdb3 <COMMAND> --help' for more information on a specific command.
-For more help on how to use InfluxDB 3 Core, go to https://docs.influxdata.com/core/
+For more help on how to use InfluxDB 3 Core, go to https://docs.influxdata.com/influxdb3/core/
