@@ -236,9 +236,9 @@ Examples:
                                                         [env: INFLUXDB3_DATAFUSION_RUNTIME_EVENT_INTERVAL=]
   --datafusion-runtime-global-queue-interval <N>      Scheduler ticks for polling global task queue
                                                         [env: INFLUXDB3_DATAFUSION_RUNTIME_GLOBAL_QUEUE_INTERVAL=]
-  --datafusion-runtime-max-blocking-threads <N>        Thread limit for DataFusion runtime
+  --datafusion-runtime-max-blocking-threads <N>       Thread limit for DataFusion runtime
                                                         [env: INFLUXDB3_DATAFUSION_RUNTIME_MAX_BLOCKING_THREADS=]
-  --datafusion-runtime-max-io-events-per-tick <N>      Max events per tick
+  --datafusion-runtime-max-io-events-per-tick <N>     Max events per tick
                                                         [env: INFLUXDB3_DATAFUSION_RUNTIME_MAX_IO_EVENTS_PER_TICK=]
   --datafusion-runtime-thread-keep-alive <DURATION>   Blocking pool thread timeout
                                                         [env: INFLUXDB3_DATAFUSION_RUNTIME_THREAD_KEEP_ALIVE=]
@@ -258,8 +258,7 @@ Examples:
                                                                 [env: TRACES_EXPORTER_JAEGER_AGENT_PORT=]
   --traces-exporter-jaeger-service-name <NAME>                 Jaeger service name [default: iox-conductor]
                                                                 [env: TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
-  --traces-exporter-jaeger-trace-context-header-name <NAME>
-                                                               Header for trace context [default: uber-trace-id]
+  --traces-exporter-jaeger-trace-context-header-name <NAME>    Header for trace context [default: uber-trace-id]
                                                                 [env: TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
   --traces-jaeger-debug-name <NAME>                            Header for force sampling [default: jaeger-debug-id]
                                                                 [env: TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
