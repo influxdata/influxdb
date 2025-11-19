@@ -97,12 +97,14 @@ func TestEnqueueScan(t *testing.T) {
 			}
 
 			// Check queue position
+			// The sleep is not ideal, but we need to let the queue process some before closing it and there's not
+			// currently a great way to check if it has run any.
+			time.Sleep(50 * time.Millisecond)
 			closeRq(rq)
 			scan, err := rq.queue.NewScanner()
 			t.Cleanup(func() {
 				require.NoError(t, rq.queue.Close())
 			})
-
 			if tt.writeFuncReturn == nil {
 				require.ErrorIs(t, err, io.EOF)
 			} else {
