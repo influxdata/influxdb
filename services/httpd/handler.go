@@ -692,6 +692,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		ReadOnly:        r.Method == "GET",
 		NodeID:          nodeID,
 		Authorizer:      fineAuthorizer,
+		UserID:          user.ID(),
 	}
 
 	if h.Config.AuthEnabled {

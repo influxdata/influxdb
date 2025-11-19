@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	queryFieldNames []string = []string{"qid", "query", "database", "duration", "status"}
+	queryFieldNames []string = []string{"qid", "query", "database", "duration", "status", "user"}
 )
 
 func (t TaskStatus) String() string {
@@ -145,7 +145,7 @@ func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStateme
 
 		d = prettyTime(d)
 
-		values = append(values, []interface{}{id, qi.query, qi.database, d.String(), qi.status.String()})
+		values = append(values, []interface{}{id, qi.query, qi.database, d.String(), qi.status.String(), qi.userID})
 	}
 
 	return []*models.Row{{
@@ -172,7 +172,8 @@ func (t *TaskManager) LogCurrentQueries(logFunc func(string, ...zap.Field)) {
 			zap.String(queryFieldNames[1], queryInfo.Query),
 			zap.String(queryFieldNames[2], queryInfo.Database),
 			zap.String(queryFieldNames[3], prettyTime(queryInfo.Duration).String()),
-			zap.String(queryFieldNames[4], queryInfo.Status.String()))
+			zap.String(queryFieldNames[4], queryInfo.Status.String()),
+			zap.String(queryFieldNames[5], queryInfo.User))
 	}
 }
 
@@ -208,6 +209,7 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, opt ExecutionOptions, inter
 	query := &Task{
 		query:     q.String(),
 		database:  opt.Database,
+		userID:    opt.UserID,
 		status:    RunningTask,
 		startTime: time.Now(),
 		closing:   make(chan struct{}),
@@ -223,8 +225,8 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, opt ExecutionOptions, inter
 
 			select {
 			case <-timer.C:
-				t.Logger.Warn(fmt.Sprintf("Detected slow query: %s (qid: %d, database: %s, threshold: %s)",
-					query.query, qid, query.database, t.LogQueriesAfter))
+				t.Logger.Warn(fmt.Sprintf("Detected slow query: %s (qid: %d, database: %s, user: %s, threshold: %s)",
+					query.query, qid, query.database, query.userID, t.LogQueriesAfter))
 			case <-closing:
 			}
 			return nil
@@ -279,6 +281,7 @@ type QueryInfo struct {
 	Database string        `json:"database"`
 	Duration time.Duration `json:"duration"`
 	Status   TaskStatus    `json:"status"`
+	User     string        `json:"user"`
 }
 
 // Queries returns a list of all running queries with information about them.
@@ -295,6 +298,7 @@ func (t *TaskManager) Queries() []QueryInfo {
 			Database: qi.database,
 			Duration: now.Sub(qi.startTime),
 			Status:   qi.status,
+			User:     qi.userID,
 		})
 	}
 	return queries
@@ -323,6 +327,7 @@ func (t *TaskManager) waitForQuery(qid uint64, interrupt <-chan struct{}, closin
 				"query killed for exceeding timeout limit",
 				zap.String("query", t.queries[qid].query),
 				zap.String("database", t.queries[qid].database),
+				zap.String("user", t.queries[qid].userID),
 				zap.String("timeout", prettyTime(t.QueryTimeout).String()),
 			)
 		}
