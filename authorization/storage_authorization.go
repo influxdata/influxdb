@@ -705,7 +705,7 @@ func (s *Store) filterAuthorizationsFn(filter influxdb.AuthorizationFilter) func
 		}
 
 		return func(a *influxdb.Authorization) bool {
-			if a.Token == token {
+			if subtle.ConstantTimeCompare([]byte(a.Token), []byte(token)) == 1 {
 				return true
 			}
 			return slices.Contains(allHashes, a.HashedToken)
