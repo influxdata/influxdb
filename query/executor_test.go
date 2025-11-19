@@ -318,6 +318,8 @@ func TestQueryExecutor_Abort(t *testing.T) {
 }
 
 func TestQueryExecutor_ShowQueries(t *testing.T) {
+	const testUser = "Fred"
+	const userColumn = 5
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
@@ -336,12 +338,16 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := e.ExecuteQuery(q, query.ExecutionOptions{}, nil)
+	results := e.ExecuteQuery(q, query.ExecutionOptions{UserID: testUser}, nil)
 	result := <-results
 	if len(result.Series) != 1 {
 		t.Errorf("expected %d series, got %d", 1, len(result.Series))
 	} else if len(result.Series[0].Values) != 1 {
 		t.Errorf("expected %d row, got %d", 1, len(result.Series[0].Values))
+	} else if result.Series[0].Values[0][userColumn] != testUser {
+		t.Errorf("unexpected user: %s", result.Series[0].Values[0][0])
+	} else if result.Series[0].Columns[userColumn] != "user" {
+		t.Errorf("unexpected column: %s", result.Series[0].Columns[5])
 	}
 	if result.Err != nil {
 		t.Errorf("unexpected error: %s", result.Err)

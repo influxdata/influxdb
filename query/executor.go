@@ -201,6 +201,9 @@ type ExecutionOptions struct {
 
 	// AbortCh is a channel that signals when results are no longer desired by the caller.
 	AbortCh <-chan struct{}
+
+	// UserID is the ID of the user executing the query.
+	UserID string
 }
 
 type (
@@ -470,6 +473,7 @@ func (e *Executor) recover(query *influxql.Query, results chan *Result) {
 type Task struct {
 	query     string
 	database  string
+	userID    string
 	status    TaskStatus
 	startTime time.Time
 	closing   chan struct{}
