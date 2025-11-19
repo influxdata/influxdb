@@ -663,7 +663,7 @@ func UpdateAuthorization(
 				err: &errors.Error{
 					Code: errors.EInvalid,
 					Op:   influxdb.OpUpdateAuthorization,
-					Msg:  "unknown authorization status",
+					Msg:  "encodeAuthorization: unknown authorization status",
 				},
 			},
 		},

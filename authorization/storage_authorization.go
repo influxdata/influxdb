@@ -24,17 +24,25 @@ var (
 	ErrNoTokenAvailable    = goerrors.New("no token available for authorization")
 )
 
+func getNamedAuthBucket(tx kv.Tx, bucketName []byte) (kv.Bucket, error) {
+	b, err := tx.Bucket(bucketName)
+	if err != nil {
+		return nil, UnexpectedAuthBucketError(bucketName, err)
+	}
+
+	return b, nil
+}
+
+func authBucket(tx kv.Tx) (kv.Bucket, error) {
+	return getNamedAuthBucket(tx, authBucketName)
+}
+
 func authIndexKey(n string) []byte {
 	return []byte(n)
 }
 
 func authIndexBucket(tx kv.Tx) (kv.Bucket, error) {
-	b, err := tx.Bucket([]byte(authIndex))
-	if err != nil {
-		return nil, UnexpectedAuthIndexError(err)
-	}
-
-	return b, nil
+	return getNamedAuthBucket(tx, authIndexName)
 }
 
 func hashedAuthIndexKey(n string) []byte {
@@ -42,12 +50,7 @@ func hashedAuthIndexKey(n string) []byte {
 }
 
 func hashedAuthIndexBucket(tx kv.Tx) (kv.Bucket, error) {
-	b, err := tx.Bucket([]byte(hashedAuthIndex))
-	if err != nil {
-		return nil, UnexpectedAuthIndexError(err)
-	}
-
-	return b, nil
+	return getNamedAuthBucket(tx, hashedAuthIndexName)
 }
 
 func (s *Store) encodeAuthorization(a *influxdb.Authorization) ([]byte, error) {
@@ -58,7 +61,7 @@ func (s *Store) encodeAuthorization(a *influxdb.Authorization) ([]byte, error) {
 	default:
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
-			Msg:  "unknown authorization status",
+			Msg:  "encodeAuthorization: unknown authorization status",
 		}
 	}
 
@@ -73,12 +76,20 @@ func (s *Store) encodeAuthorization(a *influxdb.Authorization) ([]byte, error) {
 		redactedAuth.Token = ""
 		a = &redactedAuth
 	}
-	return json.Marshal(a)
+	if d, err := json.Marshal(a); err == nil {
+		return d, nil
+	} else {
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "encodeAuthorization: marshalling error",
+			Err:  err,
+		}
+	}
 }
 
 func decodeAuthorization(b []byte, a *influxdb.Authorization) error {
 	if err := json.Unmarshal(b, a); err != nil {
-		return err
+		return fmt.Errorf("decodeAuthorization: %w", err)
 	}
 	if a.Status == "" {
 		a.Status = influxdb.Active
@@ -97,10 +108,10 @@ func (s *Store) transformToken(a *influxdb.Authorization) error {
 	if a.Token != "" && a.HashedToken != "" {
 		match, err := s.hasher.Match(a.HashedToken, a.Token)
 		if err != nil {
-			return fmt.Errorf("error matching tokens: %w", err)
+			return fmt.Errorf("transformToken: error matching tokens: %w", err)
 		}
 		if !match {
-			return ErrHashedTokenMismatch
+			return fmt.Errorf("transformToken: %w", ErrHashedTokenMismatch)
 		}
 	}
 
@@ -113,7 +124,7 @@ func (s *Store) transformToken(a *influxdb.Authorization) error {
 			// Note that even if a.HashedToken is set, we will regenerate it here. This ensures
 			// that a.HashedToken will be stored using the currently configured hashing algorithm.
 			if hashedToken, err := s.hasher.Hash(a.Token); err != nil {
-				return fmt.Errorf("error hashing token for token %d (%s): %w", a.ID, a.Description, err)
+				return fmt.Errorf("transformToken: error hashing token for token %d (%s): %w", a.ID, a.Description, err)
 			} else {
 				a.HashedToken = hashedToken
 			}
@@ -140,13 +151,13 @@ func (s *Store) CreateAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 
 	// if the provided ID is invalid, or already maps to an existing Auth, then generate a new one
 	if !a.ID.Valid() {
-		id, err := s.generateSafeID(ctx, tx, authBucket)
+		id, err := s.generateSafeID(ctx, tx, authBucketName)
 		if err != nil {
 			return nil
 		}
 		a.ID = id
 	} else if err := uniqueID(ctx, tx, a.ID); err != nil {
-		id, err := s.generateSafeID(ctx, tx, authBucket)
+		id, err := s.generateSafeID(ctx, tx, authBucketName)
 		if err != nil {
 			return nil
 		}
@@ -171,7 +182,7 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 		return nil, ErrInvalidAuthID
 	}
 
-	b, err := tx.Bucket(authBucket)
+	b, err := authBucket(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +340,7 @@ func (s *Store) ListAuthorizations(ctx context.Context, tx kv.Tx, f influxdb.Aut
 
 // forEachAuthorization will iterate through all authorizations while fn returns true.
 func (s *Store) forEachAuthorization(ctx context.Context, tx kv.Tx, pred kv.CursorPredicateFunc, fn func(*influxdb.Authorization) bool) error {
-	b, err := tx.Bucket(authBucket)
+	b, err := authBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -402,9 +413,9 @@ func (s *Store) commitAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 		}
 	}
 
-	b, err := tx.Bucket(authBucket)
+	b, err := authBucket(tx)
 	if err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInternal))
+		return err // authBucket already wraps the error
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
@@ -429,13 +440,13 @@ func (s *Store) deleteIndices(ctx context.Context, tx kv.Tx, token, hashedToken 
 
 	if token != "" {
 		if err := authIdx.Delete([]byte(token)); err != nil {
-			return err
+			return fmt.Errorf("deleteIndices: error deleting from authIndex: %w", err)
 		}
 	}
 
 	if hashedToken != "" {
 		if err := hashedAuthIdx.Delete([]byte(hashedToken)); err != nil {
-			return err
+			return fmt.Errorf("deleteIndices: error deleting from hashedAuthIndex: %w", err)
 		}
 	}
 
@@ -492,7 +503,7 @@ func (s *Store) DeleteAuthorization(ctx context.Context, tx kv.Tx, id platform.I
 		return ErrInvalidAuthID
 	}
 
-	b, err := tx.Bucket(authBucket)
+	b, err := authBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -509,22 +520,23 @@ func (s *Store) DeleteAuthorization(ctx context.Context, tx kv.Tx, id platform.I
 }
 
 func (s *Store) uniqueAuthTokenByIndex(ctx context.Context, tx kv.Tx, index, key []byte) error {
-	err := unique(ctx, tx, index, key)
-	if err == kv.NotUniqueError {
+	if err := unique(ctx, tx, index, key); err == nil {
+		return nil
+	} else if err == kv.NotUniqueError {
 		// by returning a generic error we are trying to hide when
 		// a token is non-unique.
 		return influxdb.ErrUnableToCreateToken
+	} else {
+		// otherwise, this is some sort of internal server error and we
+		// should provide some debugging information.
+		return fmt.Errorf("error in uniqueAuthTokenByIndex for index %q: %w", index, err)
 	}
-
-	// otherwise, this is some sort of internal server error and we
-	// should provide some debugging information.
-	return err
 }
 
 func (s *Store) uniqueAuthToken(ctx context.Context, tx kv.Tx, a *influxdb.Authorization) error {
 	// Check if the raw token is unique.
 	if a.Token != "" {
-		if err := s.uniqueAuthTokenByIndex(ctx, tx, authIndex, authIndexKey(a.Token)); err != nil {
+		if err := s.uniqueAuthTokenByIndex(ctx, tx, authIndexName, authIndexKey(a.Token)); err != nil {
 			return err
 		}
 	}
@@ -544,7 +556,7 @@ func (s *Store) uniqueAuthToken(ctx context.Context, tx kv.Tx, a *influxdb.Autho
 	}
 
 	for _, hashedToken := range allHashedTokens {
-		if err := s.uniqueAuthTokenByIndex(ctx, tx, hashedAuthIndex, hashedAuthIndexKey(hashedToken)); err != nil {
+		if err := s.uniqueAuthTokenByIndex(ctx, tx, hashedAuthIndexName, hashedAuthIndexKey(hashedToken)); err != nil {
 			if !s.ignoreMissingHashIndex || !goerrors.Is(err, kv.ErrBucketNotFound) {
 				return err
 			}
@@ -555,9 +567,9 @@ func (s *Store) uniqueAuthToken(ctx context.Context, tx kv.Tx, a *influxdb.Autho
 }
 
 func unique(ctx context.Context, tx kv.Tx, indexBucket, indexKey []byte) error {
-	bucket, err := tx.Bucket(indexBucket)
+	bucket, err := getNamedAuthBucket(tx, indexBucket)
 	if err != nil {
-		return kv.UnexpectedIndexError(err)
+		return err
 	}
 
 	_, err = bucket.Get(indexKey)
@@ -582,9 +594,9 @@ func uniqueID(ctx context.Context, tx kv.Tx, id platform.ID) error {
 		return ErrInvalidAuthID
 	}
 
-	b, err := tx.Bucket(authBucket)
+	b, err := authBucket(tx)
 	if err != nil {
-		return errors.ErrInternalServiceError(err)
+		return err // authBucket already wraps the error
 	}
 
 	_, err = b.Get(encodedID)

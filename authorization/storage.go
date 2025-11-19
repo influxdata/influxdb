@@ -118,9 +118,9 @@ var (
 )
 
 var (
-	authBucket      = []byte("authorizationsv1")
-	authIndex       = []byte("authorizationindexv1")
-	hashedAuthIndex = []byte("authorizationhashedindexv1")
+	authBucketName      = []byte("authorizationsv1")
+	authIndexName       = []byte("authorizationindexv1")
+	hashedAuthIndexName = []byte("authorizationhashedindexv1")
 )
 
 type Store struct {
@@ -199,13 +199,13 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 	}
 
 	if err := s.setup(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error during authorization store setup: %w", err)
 	}
 
 	if s.hasher == nil {
 		hasher, err := s.autogenerateHasher(ctx, s.hasherVariantName)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error creating authorization store during autogenerateHasher: %w", err)
 		}
 		s.hasher = hasher
 	}
@@ -334,7 +334,7 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 
 func (s *Store) setup(ctx context.Context) error {
 	return s.View(ctx, func(tx kv.Tx) error {
-		if _, err := tx.Bucket(authBucket); err != nil {
+		if _, err := authBucket(tx); err != nil {
 			return err
 		}
 		if _, err := authIndexBucket(tx); err != nil {
@@ -392,7 +392,7 @@ func (s *Store) uniqueID(ctx context.Context, tx kv.Tx, bucket []byte, id platfo
 		}
 	}
 
-	b, err := tx.Bucket(bucket)
+	b, err := getNamedAuthBucket(tx, bucket)
 	if err != nil {
 		return err
 	}

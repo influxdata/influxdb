@@ -22,6 +22,7 @@ const (
 )
 
 func TestAuth(t *testing.T) {
+	const initialTokenCount = 10
 	generateToken := func(i int) string { return fmt.Sprintf("randomtoken%d", i) }
 
 	checkIndexCounts := func(t *testing.T, tx kv.Tx, expAuthIndexCount, expHashedAuthIndexCount int) {
@@ -43,7 +44,7 @@ func TestAuth(t *testing.T) {
 	}
 
 	setup := func(t *testing.T, useHashedTokens bool, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
-		for i := 1; i <= 10; i++ {
+		for i := 1; i <= initialTokenCount; i++ {
 			err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
 				ID:     platform.ID(i),
 				Token:  generateToken(i),
@@ -55,7 +56,7 @@ func TestAuth(t *testing.T) {
 		}
 
 		// Perform sanity checks on Token vs HashedToken and indices.
-		for i := 1; i <= 10; i++ {
+		for i := 1; i <= initialTokenCount; i++ {
 			expToken := generateToken(i)
 			a, err := store.GetAuthorizationByToken(context.Background(), tx, expToken)
 			require.NoError(t, err)
@@ -72,9 +73,9 @@ func TestAuth(t *testing.T) {
 
 		var expAuthIndexCount, expHashedAuthIndexCount int
 		if useHashedTokens {
-			expHashedAuthIndexCount = 10
+			expHashedAuthIndexCount = initialTokenCount
 		} else {
-			expAuthIndexCount = 10
+			expAuthIndexCount = initialTokenCount
 		}
 		checkIndexCounts(t, tx, expAuthIndexCount, expHashedAuthIndexCount)
 	}
@@ -101,10 +102,10 @@ func TestAuth(t *testing.T) {
 			results: func(t *testing.T, useHashedTokens bool, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
 				auths, err := store.ListAuthorizations(context.Background(), tx, influxdb.AuthorizationFilter{})
 				require.NoError(t, err)
-				require.Len(t, auths, 10)
+				require.Len(t, auths, initialTokenCount)
 
 				expected := []*influxdb.Authorization{}
-				for i := 1; i <= 10; i++ {
+				for i := 1; i <= initialTokenCount; i++ {
 					a := &influxdb.Authorization{
 						ID:     platform.ID(i),
 						Token:  generateToken(i),
@@ -124,9 +125,9 @@ func TestAuth(t *testing.T) {
 
 				var expAuthIndexCount, expHashedAuthIndexCount int
 				if useHashedTokens {
-					expHashedAuthIndexCount = 10
+					expHashedAuthIndexCount = initialTokenCount
 				} else {
-					expAuthIndexCount = 10
+					expAuthIndexCount = initialTokenCount
 				}
 				checkIndexCounts(t, tx, expAuthIndexCount, expHashedAuthIndexCount)
 			},
@@ -135,7 +136,7 @@ func TestAuth(t *testing.T) {
 			name:  "read",
 			setup: setup,
 			results: func(t *testing.T, useHashedTokens bool, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
-				for i := 1; i <= 10; i++ {
+				for i := 1; i <= initialTokenCount; i++ {
 					expectedAuth := &influxdb.Authorization{
 						ID:     platform.ID(i),
 						Token:  generateToken(i),
@@ -161,9 +162,9 @@ func TestAuth(t *testing.T) {
 
 				var expAuthIndexCount, expHashedAuthIndexCount int
 				if useHashedTokens {
-					expHashedAuthIndexCount = 10
+					expHashedAuthIndexCount = initialTokenCount
 				} else {
-					expAuthIndexCount = 10
+					expAuthIndexCount = initialTokenCount
 				}
 				checkIndexCounts(t, tx, expAuthIndexCount, expHashedAuthIndexCount)
 			},
@@ -172,7 +173,7 @@ func TestAuth(t *testing.T) {
 			name:  "update",
 			setup: setup,
 			update: func(t *testing.T, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
-				for i := 1; i <= 10; i++ {
+				for i := 1; i <= initialTokenCount; i++ {
 					auth, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					require.NoError(t, err)
 
@@ -187,7 +188,7 @@ func TestAuth(t *testing.T) {
 			},
 			results: func(t *testing.T, useHashedTokens bool, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
 
-				for i := 1; i <= 10; i++ {
+				for i := 1; i <= initialTokenCount; i++ {
 					auth, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					require.NoError(t, err)
 
@@ -209,9 +210,9 @@ func TestAuth(t *testing.T) {
 				}
 				var expAuthIndexCount, expHashedAuthIndexCount int
 				if useHashedTokens {
-					expHashedAuthIndexCount = 10
+					expHashedAuthIndexCount = initialTokenCount
 				} else {
-					expAuthIndexCount = 10
+					expAuthIndexCount = initialTokenCount
 				}
 				checkIndexCounts(t, tx, expAuthIndexCount, expHashedAuthIndexCount)
 			},
@@ -220,13 +221,13 @@ func TestAuth(t *testing.T) {
 			name:  "delete",
 			setup: setup,
 			update: func(t *testing.T, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
-				for i := 1; i <= 10; i++ {
+				for i := 1; i <= initialTokenCount; i++ {
 					err := store.DeleteAuthorization(context.Background(), tx, platform.ID(i))
 					require.NoError(t, err)
 				}
 			},
 			results: func(t *testing.T, useHashedTokens bool, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
-				for i := 1; i <= 10; i++ {
+				for i := 1; i <= initialTokenCount; i++ {
 					a, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					require.ErrorIs(t, err, authorization.ErrAuthNotFound)
 					require.Nil(t, a)
@@ -240,7 +241,7 @@ func TestAuth(t *testing.T) {
 			name:  "set Token and HashedToken",
 			setup: setup,
 			update: func(t *testing.T, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
-				for i := 1; i <= 10; i++ {
+				for i := 1; i <= initialTokenCount; i++ {
 					auth, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					require.NoError(t, err)
 
@@ -264,7 +265,7 @@ func TestAuth(t *testing.T) {
 				}
 			},
 			results: func(t *testing.T, useHashedTokens bool, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
-				for i := 1; i <= 10; i++ {
+				for i := 1; i <= initialTokenCount; i++ {
 					authByID, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					require.NoError(t, err)
 					if !useHashedTokens {
@@ -285,10 +286,10 @@ func TestAuth(t *testing.T) {
 
 				if !useHashedTokens {
 					// All unhashed index entries.
-					checkIndexCounts(t, tx, 10, 0)
+					checkIndexCounts(t, tx, initialTokenCount, 0)
 				} else {
 					// All hashed index entries.
-					checkIndexCounts(t, tx, 0, 10)
+					checkIndexCounts(t, tx, 0, initialTokenCount)
 				}
 			},
 		},

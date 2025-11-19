@@ -66,7 +66,7 @@ func NewAuthorizationHasher(opts ...AuthorizationHasherOption) (*AuthorizationHa
 	}
 
 	if len(options.decoderVariants) == 0 {
-		return nil, ErrNoDecoders
+		return nil, fmt.Errorf("error in NewAuthorizationHasher: %w", ErrNoDecoders)
 	}
 
 	// Create the hasher used for hashing new tokens before storage.
