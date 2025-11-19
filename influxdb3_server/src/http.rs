@@ -2474,13 +2474,13 @@ pub(crate) async fn route_request(
     };
 
     // TODO: Move logging to TraceLayer
-    match response {
+    let mut response = match response {
         Ok(mut response) => {
             response
                 .headers_mut()
                 .insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
             debug!(?response, "Successfully processed request");
-            Ok(response)
+            response
         }
         Err(error) => {
             let ip = client_ip.as_deref().unwrap_or(UNKNOWN_VAL);
@@ -2498,9 +2498,26 @@ pub(crate) async fn route_request(
                     error!(%error, %method, path = uri.path(), ?content_length, client_ip = %ip, "Error while handling request")
                 }
             }
-            Ok(error.into_response())
+            error.into_response()
         }
+    };
+
+    // Add cluster-uuid header to all responses
+    let uuid_string = http_server
+        .write_buffer
+        .catalog()
+        .catalog_uuid()
+        .to_string();
+    if let Ok(header) = HeaderValue::from_str(&uuid_string) {
+        response
+            .headers_mut()
+            .insert(all_paths::API_HEADER_CLUSTER_UUID, header);
+    } else {
+        // uuid to a header should always be successful but don't panic if lightning strikes
+        warn!("failed to convert cluster uuid to a header value")
     }
+
+    Ok(response)
 }
 
 fn extract_client_ip<T>(req: &http::Request<T>) -> Option<String> {
