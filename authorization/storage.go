@@ -4,6 +4,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/go-crypt/crypt"
@@ -202,8 +203,16 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 		return nil, fmt.Errorf("error during authorization store setup: %w", err)
 	}
 
+	foundVariants, err := s.findHashVariants(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error creating authorization store during findVariants: %w", err)
+	}
+	if len(foundVariants) > 0 && !useHashedTokens {
+		s.log.Warn("Token hashing is disabled, but hashed tokens found in authorization store. Was influxd accidentally started without --use-hashed-tokens?")
+	}
+
 	if s.hasher == nil {
-		hasher, err := s.autogenerateHasher(ctx, s.hasherVariantName)
+		hasher, err := s.autogenerateHasher(ctx, foundVariants, s.hasherVariantName)
 		if err != nil {
 			return nil, fmt.Errorf("error creating authorization store during autogenerateHasher: %w", err)
 		}
@@ -220,10 +229,8 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 	return s.Store, nil
 }
 
-// autogenerateHasher generates an AuthorizationHasher that hashes using variantName.
-// The decoders include variantName plus any other variants that are detected in the
-// store.
-func (s *Store) autogenerateHasher(ctx context.Context, variantName string) (*AuthorizationHasher, error) {
+// findHashVariants scans all authorizations and returns a list of hash variants found.
+func (s *Store) findHashVariants(ctx context.Context) ([]influxdb2_algo.Variant, error) {
 	// Determine which variants are present in the store.
 	tempDecoder := crypt.NewDecoder()
 	if err := influxdb2_algo.RegisterDecoder(tempDecoder); err != nil {
@@ -251,16 +258,25 @@ func (s *Store) autogenerateHasher(ctx context.Context, variantName string) (*Au
 				if influxdbDigest, ok := digest.(*influxdb2_algo.Digest); ok {
 					foundVariants[influxdbDigest.Variant] = struct{}{}
 				}
+			} else {
+				s.log.Warn("error decoding hash variant for token during hash variant inventory", zap.Error(err), zap.Uint64("tokenID", uint64(a.ID)))
 			}
 		}
 	}
 
+	return slices.Collect(maps.Keys(foundVariants)), nil
+}
+
+// autogenerateHasher generates an AuthorizationHasher that hashes using variantName.
+// The decoders include variantName plus any other variants that are included in
+// foundVariants.
+func (s *Store) autogenerateHasher(ctx context.Context, foundVariants []influxdb2_algo.Variant, variantName string) (*AuthorizationHasher, error) {
 	var decoderVariants []influxdb2_algo.Variant
 	// Make sure we have the hasher variant we will make in there and that it is first in the list,
 	// so that it is the first one we try to lookup a given token.
 	hasherVariant := influxdb2_algo.NewVariant(variantName)
 	decoderVariants = append(decoderVariants, hasherVariant)
-	for variant := range foundVariants {
+	for _, variant := range foundVariants {
 		// Avoid having 2 hasherVariant decoders.
 		if variant != hasherVariant {
 			decoderVariants = append(decoderVariants, variant)
