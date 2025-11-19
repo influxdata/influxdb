@@ -685,6 +685,11 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	// Parse whether this is an async command.
 	async := r.FormValue("async") == "true"
 
+	var userName string
+
+	if user != nil {
+		userName = user.ID()
+	}
 	opts := query.ExecutionOptions{
 		Database:        db,
 		RetentionPolicy: r.FormValue("rp"),
@@ -692,7 +697,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		ReadOnly:        r.Method == "GET",
 		NodeID:          nodeID,
 		Authorizer:      fineAuthorizer,
-		UserID:          user.ID(),
+		UserID:          userName,
 	}
 
 	if h.Config.AuthEnabled {
