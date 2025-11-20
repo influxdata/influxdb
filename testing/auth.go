@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 
 var authorizationCmpOptions = cmp.Options{
 	cmpopts.EquateEmpty(),
-	cmpopts.IgnoreFields(influxdb.Authorization{}, "ID", "Token", "CreatedAt", "UpdatedAt"),
+	cmpopts.IgnoreFields(influxdb.Authorization{}, "ID", "Token", "HashedToken", "CreatedAt", "UpdatedAt"),
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
@@ -663,7 +664,7 @@ func UpdateAuthorization(
 				err: &errors.Error{
 					Code: errors.EInvalid,
 					Op:   influxdb.OpUpdateAuthorization,
-					Msg:  "unknown authorization status",
+					Msg:  "encodeAuthorization: unknown authorization status",
 				},
 			},
 		},
@@ -857,6 +858,13 @@ func FindAuthorizationByToken(
 
 			if diff := cmp.Diff(authorization, tt.wants.authorization, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorization is different -got/+want\ndiff %s", diff)
+			}
+
+			// Verify that lookup by the hashed token does not work.
+			if authorization.IsHashedTokenSet() {
+				a, err := s.FindAuthorizationByToken(ctx, authorization.HashedToken)
+				require.ErrorContains(t, err, "authorization not found")
+				require.Nil(t, a)
 			}
 		})
 	}

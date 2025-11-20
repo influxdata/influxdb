@@ -292,9 +292,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	var authSvc platform.AuthorizationService
 	{
-		authStore, err := authorization.NewStore(m.kvStore)
+		hasherVariantName := authorization.DefaultHashVariantName // This value could come from opts in the future.
+		authStoreLogger := m.log.With(zap.String("store", "auth"))
+		authStore, err := authorization.NewStore(ctx, m.kvStore, opts.UseHashedTokens, authorization.WithAuthorizationHashVariantName(hasherVariantName), authorization.WithLogger(authStoreLogger))
 		if err != nil {
-			m.log.Error("Failed creating new authorization store", zap.Error(err))
+			m.log.Error("Failed creating new authorization store", zap.Error(err), zap.Bool("UseHashedTokens", opts.UseHashedTokens), zap.String("hasherVariant", hasherVariantName))
 			return err
 		}
 		authSvc = authorization.NewService(authStore, ts)
