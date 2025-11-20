@@ -707,7 +707,7 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP:   &o.UseHashedTokens,
 			Flag:    "use-hashed-tokens",
 			Default: o.UseHashedTokens,
-			Desc:    "enable token hashing",
+			Desc:    "enable storing hashed API tokens on disk (improves security, but prevents downgrades to < 2.8)",
 		},
 	}
 }

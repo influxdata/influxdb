@@ -82,8 +82,9 @@ into BoltDB. Raw tokens are not stored.
 To verify tokens when hashed tokens are enabled, the presented token's hash is calculated and used
 for token index lookup. The rest of the authorization flow is unchanged.
 
-The hashed token index is separate from the raw token index. Newer versions also verify that the token
-is not a valid PHC string before starting authorization. This prevents the following attack:
+The hashed token index is separate from the raw token index. In addition, the token presented by the API
+is rejected if it is a PHC encoded hash before starting authorization. The separate index and rejected
+PHC tokens from the API prevent the following attack:
 1. Hashed token is extracted from BoltDB.
 2. Token hashing is disabled.
 3. The hashed token is presented to the API, which will misinterpret it as a raw token and allow access.
@@ -300,17 +301,16 @@ func (s *Store) hashedTokenMigration(ctx context.Context) error {
 	// Figure out which authorization records need to be updated.
 	var authsNeedingUpdate []*influxdb.Authorization
 	err := s.View(ctx, func(tx kv.Tx) error {
-		s.forEachAuthorization(ctx, tx, nil, func(a *influxdb.Authorization) bool {
+		return s.forEachAuthorization(ctx, tx, nil, func(a *influxdb.Authorization) bool {
 			if a.IsHashedTokenClear() {
 				if a.IsTokenSet() {
 					authsNeedingUpdate = append(authsNeedingUpdate, a)
 				} else {
-					s.log.Warn("found authorization without any token set during hashed token migration", zap.Uint64("ID", uint64(a.ID)), zap.String("description", a.Description))
+					s.log.Warn("during hashed token migration, found authorization without any token set", zap.Uint64("ID", uint64(a.ID)), zap.String("description", a.Description))
 				}
 			}
 			return true
 		})
-		return nil
 	})
 	if err != nil {
 		return err

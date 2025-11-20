@@ -20,7 +20,6 @@ import (
 var (
 	ErrNilAuthorization    = goerrors.New("authorization cannot be nil")
 	ErrHashedTokenMismatch = goerrors.New("HashedToken does not match Token")
-	ErrIncorrectToken      = goerrors.New("token is incorrect for authorization")
 	ErrNoTokenAvailable    = goerrors.New("no token available for authorization")
 )
 

@@ -137,7 +137,6 @@ type postAuthorizationRequest struct {
 type authResponse struct {
 	ID          platform.ID          `json:"id"`
 	Token       string               `json:"token"`
-	HashedToken string               `json:"hashedToken"`
 	Status      influxdb.Status      `json:"status"`
 	Description string               `json:"description"`
 	OrgID       platform.ID          `json:"orgID"`
@@ -167,7 +166,6 @@ func (h *AuthHandler) newAuthResponse(ctx context.Context, a *influxdb.Authoriza
 	res := &authResponse{
 		ID:          a.ID,
 		Token:       a.Token,
-		HashedToken: a.HashedToken,
 		Status:      a.Status,
 		Description: a.Description,
 		OrgID:       a.OrgID,
@@ -199,7 +197,6 @@ func (a *authResponse) toInfluxdb() *influxdb.Authorization {
 	res := &influxdb.Authorization{
 		ID:          a.ID,
 		Token:       a.Token,
-		HashedToken: a.HashedToken,
 		Status:      a.Status,
 		Description: a.Description,
 		OrgID:       a.OrgID,

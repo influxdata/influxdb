@@ -2,15 +2,16 @@ package influxdb2
 
 import (
 	"crypto/subtle"
+	"errors"
 	"fmt"
 
 	"github.com/go-crypt/crypt/algorithm"
 )
 
-// NewDigest creates a new plaintext.Digest using the plaintext.Variant.
-func NewDigest(password string) (digest Digest) {
-	return NewSHA256Digest(password)
-}
+// ErrDigestInvalid is an error returned when a hash digest has an invalid or unsupported properties. It is NOT
+// returned on token or password mismatches. It is equivalent to go-crypt's algorithm.ErrPasswordInvalid
+// error, but with a message that makes more sense for our usage with tokens.
+var ErrDigestInvalid = errors.New("hashed token or password is invalid")
 
 // NewSHA256Digest creates a new influxdb2.Digest using the SHA256 for the hash.
 func NewSHA256Digest(password string) (digest Digest) {
@@ -48,7 +49,7 @@ func (d *Digest) MatchAdvanced(password string) (match bool, err error) {
 // MatchBytesAdvanced is the same as MatchBytes except if there is an error it returns that as well.
 func (d *Digest) MatchBytesAdvanced(passwordBytes []byte) (match bool, err error) {
 	if len(d.key) == 0 {
-		return false, fmt.Errorf(algorithm.ErrFmtDigestMatch, AlgName, fmt.Errorf("%w: key has 0 bytes", algorithm.ErrPasswordInvalid))
+		return false, fmt.Errorf(algorithm.ErrFmtDigestMatch, AlgName, fmt.Errorf("%w: key has 0 bytes", ErrDigestInvalid))
 	}
 
 	input := d.Variant.Hash(passwordBytes)

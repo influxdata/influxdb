@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -706,7 +707,6 @@ func FindAuthorizationByToken(
 		authorization *influxdb.Authorization
 	}
 
-	// VALIS: Add tests to make sure look-up by hashed token does /not/ work
 	tests := []struct {
 		name   string
 		fields AuthorizationFields
@@ -859,6 +859,13 @@ func FindAuthorizationByToken(
 			if diff := cmp.Diff(authorization, tt.wants.authorization, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorization is different -got/+want\ndiff %s", diff)
 			}
+
+			// Verify that lookup by the hashed token does not work.
+			if authorization.IsHashedTokenSet() {
+				a, err := s.FindAuthorizationByToken(ctx, authorization.HashedToken)
+				require.ErrorContains(t, err, "authorization not found")
+				require.Nil(t, a)
+			}
 		})
 	}
 }
@@ -875,7 +882,6 @@ func FindAuthorizations(
 		token  string
 	}
 
-	// VALIS: Do we need tests that set HashedToken, or tests with Token and HashedToken set?
 	type wants struct {
 		authorizations []*influxdb.Authorization
 		err            error
