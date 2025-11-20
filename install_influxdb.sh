@@ -72,7 +72,7 @@
 # CONFIGURATION OPTIONS:
 #   Command Line Arguments:
 #     [enterprise]        Install Enterprise edition (default: Core)
-#     --version VERSION   Specify InfluxDB version (default: 3.6.0)
+#     --version VERSION   Specify InfluxDB version (default: 3.7.0)
 #
 #   Interactive Prompts (Binary Installation):
 #     Installation Type:  Docker Compose or Binary
@@ -309,6 +309,9 @@ check_docker() {
     if ! docker info >/dev/null 2>&1; then
         return 1
     fi
+    if ! docker compose version >/dev/null 2>&1; then
+        return 1
+    fi
     return 0
 }
 
@@ -532,6 +535,9 @@ generate_docker_compose_yaml() {
     LICENSE_EMAIL="$3"
     DOCKER_DIR="$4"
 
+    USER_UID=$(id -u)
+    USER_GID=$(id -g)
+
     # Determine edition-specific values
     if [ "$EDITION_TYPE" = "enterprise" ]; then
         SERVICE_NAME="influxdb3-enterprise"
@@ -551,6 +557,7 @@ services:
   ${SERVICE_NAME}:
     image: ${IMAGE_NAME}
     container_name: ${SERVICE_NAME}
+    user: "${USER_UID}:${USER_GID}"
     ports:
       - "${INFLUXDB_PORT}:8181"
     command:
@@ -1211,7 +1218,7 @@ case "$INSTALL_TYPE" in
     1)
         # Docker Compose installation
         if ! check_docker; then
-            printf "\n${RED}Error:${NC} Docker is not installed or not running.\n"
+            printf "\n${RED}Error:${NC} Docker is not installed or not running, or you are not in the Docker user group.\n"
             printf "Please install Docker Desktop or Docker Engine with the compose plugin and try again.\n"
             printf "Visit: ${BLUE}https://www.docker.com/${NC}\n\n"
             exit 1
