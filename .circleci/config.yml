@@ -350,7 +350,9 @@ jobs:
       - run:
           name: staticcheck
           command: |
-            go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+            # we want stable versions like @2025.1.1 or @2026.1, but we need
+            # this commit to address a staticcheck failure
+            go install honnef.co/go/tools/cmd/staticcheck@8273271481d0419ff572b946dd3dc3c8044e4cb9
             staticcheck ./...
           when: always
 
