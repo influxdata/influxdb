@@ -252,7 +252,7 @@ func (s *Store) findHashVariants(ctx context.Context) ([]influxdb2_algo.Variant,
 
 	foundVariants := make(map[influxdb2_algo.Variant]struct{})
 	for _, a := range auths {
-		if a.HashedToken != "" {
+		if a.IsHashedTokenSet() {
 			digest, err := tempDecoder.Decode(a.HashedToken)
 			if err == nil {
 				if influxdbDigest, ok := digest.(*influxdb2_algo.Digest); ok {
@@ -301,8 +301,8 @@ func (s *Store) hashedTokenMigration(ctx context.Context) error {
 	var authsNeedingUpdate []*influxdb.Authorization
 	err := s.View(ctx, func(tx kv.Tx) error {
 		s.forEachAuthorization(ctx, tx, nil, func(a *influxdb.Authorization) bool {
-			if a.HashedToken == "" {
-				if a.Token != "" {
+			if a.IsHashedTokenClear() {
+				if a.IsTokenSet() {
 					authsNeedingUpdate = append(authsNeedingUpdate, a)
 				} else {
 					s.log.Warn("found authorization without any token set during hashed token migration", zap.Uint64("ID", uint64(a.ID)), zap.String("description", a.Description))

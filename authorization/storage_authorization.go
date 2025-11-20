@@ -73,7 +73,7 @@ func (s *Store) encodeAuthorization(a *influxdb.Authorization) ([]byte, error) {
 		// user-facing output. The empty string signals that the plaintext token is not available and that
 		// the hashed token should be used instead.
 		redactedAuth := *a
-		redactedAuth.Token = ""
+		redactedAuth.ClearToken()
 		a = &redactedAuth
 	}
 	if d, err := json.Marshal(a); err == nil {
@@ -105,7 +105,7 @@ func decodeAuthorization(b []byte, a *influxdb.Authorization) error {
 // error is returned.
 func (s *Store) transformToken(a *influxdb.Authorization) error {
 	// Verify Token and HashedToken match if both are set.
-	if a.Token != "" && a.HashedToken != "" {
+	if a.BothTokensSet() {
 		match, err := s.hasher.Match(a.HashedToken, a.Token)
 		if err != nil {
 			return fmt.Errorf("transformToken: error matching tokens: %w", err)
@@ -115,7 +115,7 @@ func (s *Store) transformToken(a *influxdb.Authorization) error {
 		}
 	}
 
-	if a.Token != "" {
+	if a.IsTokenSet() {
 		if s.useHashedTokens {
 			// Need to generate HashedToken from Token. Redaction of the hashed token takes
 			// place when the record is written to the KV store. In some cases the client
@@ -130,7 +130,7 @@ func (s *Store) transformToken(a *influxdb.Authorization) error {
 			}
 		} else {
 			// Token hashing disabled, a.Token is available, clear a.HashedToken if set.
-			a.HashedToken = ""
+			a.ClearHashedToken()
 		}
 	}
 
@@ -208,11 +208,11 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 // compared first. Otherwise, auth.HashedToken is used to verify token. If neither field in auth is set, then
 // the comparison fails.
 func (s *Store) validateToken(auth *influxdb.Authorization, token string) (bool, error) {
-	if auth.Token != "" {
+	if auth.IsTokenSet() {
 		return subtle.ConstantTimeCompare([]byte(auth.Token), []byte(token)) == 1, nil
 	}
 
-	if auth.HashedToken != "" {
+	if auth.IsHashedTokenSet() {
 		match, err := s.hasher.Match(auth.HashedToken, token)
 		if err != nil {
 			return false, fmt.Errorf("error matching hashed token %d (%s) for validation: %w", auth.ID, auth.Description, err)
@@ -380,6 +380,11 @@ func (s *Store) commitAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 		return errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInternal))
 	}
 
+	// Sanity check that a is actually set. Shouldn't be possible during normal operation.
+	if a.NoTokensSet() {
+		return fmt.Errorf("commitAuthorization: %w", ErrNoTokenAvailable)
+	}
+
 	v, err := s.encodeAuthorization(a)
 	if err != nil {
 		return errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInvalid))
@@ -390,7 +395,7 @@ func (s *Store) commitAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 		return errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.ENotFound))
 	}
 
-	if !s.useHashedTokens && a.Token != "" {
+	if !s.useHashedTokens && a.IsTokenSet() {
 		idx, err := authIndexBucket(tx)
 		if err != nil {
 			return errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInternal))
@@ -401,7 +406,11 @@ func (s *Store) commitAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 		}
 	}
 
-	if a.HashedToken != "" {
+	// If we have a hashed token, we need to add it to the index even if hashed tokens are not
+	// available. This is because if hashed tokens are enabled and then disabled, we will
+	// only have hashed tokens available for some authorization records. They would be unusable
+	// if we did not maintain their hashed indices.
+	if a.IsHashedTokenSet() {
 		idx, err := hashedAuthIndexBucket(tx)
 		// Don't ignore a missing index here, we want an error.
 		if err != nil {
@@ -438,13 +447,13 @@ func (s *Store) deleteIndices(ctx context.Context, tx kv.Tx, token, hashedToken 
 		return err
 	}
 
-	if token != "" {
+	if influxdb.IsAuthTokenSet(token) {
 		if err := authIdx.Delete([]byte(token)); err != nil {
 			return fmt.Errorf("deleteIndices: error deleting from authIndex: %w", err)
 		}
 	}
 
-	if hashedToken != "" {
+	if influxdb.IsAuthTokenSet(hashedToken) {
 		if err := hashedAuthIdx.Delete([]byte(hashedToken)); err != nil {
 			return fmt.Errorf("deleteIndices: error deleting from hashedAuthIndex: %w", err)
 		}
@@ -472,12 +481,12 @@ func (s *Store) UpdateAuthorization(ctx context.Context, tx kv.Tx, id platform.I
 
 	// Delete dangling indices from old raw tokens or hashed tokens.
 	var removedToken string
-	if initialToken != "" && (a.Token != initialToken || s.useHashedTokens) {
+	if influxdb.IsAuthTokenSet(initialToken) && (a.Token != initialToken || s.useHashedTokens) {
 		removedToken = initialToken
 	}
 
 	var removedHashedToken string
-	if initialHashedToken != "" && a.HashedToken != initialHashedToken {
+	if influxdb.IsAuthTokenSet(initialHashedToken) && a.HashedToken != initialHashedToken {
 		removedHashedToken = initialHashedToken
 	}
 
@@ -535,7 +544,7 @@ func (s *Store) uniqueAuthTokenByIndex(ctx context.Context, tx kv.Tx, index, key
 
 func (s *Store) uniqueAuthToken(ctx context.Context, tx kv.Tx, a *influxdb.Authorization) error {
 	// Check if the raw token is unique.
-	if a.Token != "" {
+	if a.IsTokenSet() {
 		if err := s.uniqueAuthTokenByIndex(ctx, tx, authIndexName, authIndexKey(a.Token)); err != nil {
 			return err
 		}
@@ -544,10 +553,10 @@ func (s *Store) uniqueAuthToken(ctx context.Context, tx kv.Tx, a *influxdb.Autho
 	// If Token is available, check for the uniqueness of the hashed version of Token using all
 	// potential hashing schemes. If HashedToken was directly given, we must also check for it.
 	allHashedTokens := make([]string, 0, s.hasher.AllHashesCount()+1)
-	if a.HashedToken != "" {
+	if a.IsHashedTokenSet() {
 		allHashedTokens = append(allHashedTokens, a.HashedToken)
 	}
-	if a.Token != "" {
+	if a.IsTokenSet() {
 		allRawHashes, err := s.hasher.AllHashes(a.Token)
 		if err != nil {
 			return err

@@ -117,7 +117,7 @@ func TestAuth(t *testing.T) {
 						hashedToken, err := hasher.Hash(a.Token)
 						require.NoError(t, err)
 						a.HashedToken = hashedToken
-						a.Token = ""
+						a.ClearToken()
 					}
 					expected = append(expected, a)
 				}
@@ -148,7 +148,7 @@ func TestAuth(t *testing.T) {
 						hashedToken, err := hasher.Hash(expectedAuth.Token)
 						require.NoError(t, err)
 						expectedAuth.HashedToken = hashedToken
-						expectedAuth.Token = ""
+						expectedAuth.ClearToken()
 					}
 
 					authByID, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
@@ -203,7 +203,7 @@ func TestAuth(t *testing.T) {
 						hashedToken, err := hasher.Hash(expectedAuth.Token)
 						require.NoError(t, err)
 						expectedAuth.HashedToken = hashedToken
-						expectedAuth.Token = ""
+						expectedAuth.ClearToken()
 					}
 
 					require.Equal(t, expectedAuth, auth)

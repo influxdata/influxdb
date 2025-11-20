@@ -53,7 +53,7 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *influxdb.Authoriza
 		return ErrTokenAlreadyExistsError
 	}
 
-	if a.Token == "" && a.HashedToken == "" {
+	if a.NoTokensSet() {
 		token, err := s.tokenGenerator.Token()
 		if err != nil {
 			return &errors.Error{
