@@ -21,8 +21,9 @@ const _precision_name = "MillisecondNanosecondMicrosecondSecondMinuteHour"
 var _precision_index = [...]uint8{0, 11, 21, 32, 38, 44, 48}
 
 func (i precision) String() string {
-	if i >= precision(len(_precision_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_precision_index)-1 {
 		return "precision(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _precision_name[_precision_index[i]:_precision_index[i+1]]
+	return _precision_name[_precision_index[idx]:_precision_index[idx+1]]
 }
