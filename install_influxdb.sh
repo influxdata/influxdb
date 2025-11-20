@@ -46,7 +46,7 @@
 #     - POSIX-compliant shell (sh or bash)
 #     - curl (for downloading binaries and verification)
 #     - tar (for extracting archives)
-#     - OpenSSL or similar (for SHA256 verification)
+#     - shasum (macOS) or sha256sum (Linux) for SHA256 verification
 #
 #   Docker Compose Method:
 #     - Docker engine must be running and responding
@@ -137,6 +137,8 @@
 # SECTION 1: SCRIPT CONFIGURATION
 # ==============================================================================
 
+export LC_ALL=C
+
 readonly GREEN='\033[0;32m'
 readonly BLUE='\033[0;34m'
 readonly BOLD='\033[1m'
@@ -154,7 +156,6 @@ INFLUXDB_PORT=8181  # Can be changed if port is in use
 EXPLORER_PORT=8888  # Can be changed if port is in use
 readonly EXPLORER_IMAGE="influxdata/influxdb3-ui"
 readonly MANUAL_TOKEN_MSG="MANUAL_TOKEN_CREATION_REQUIRED"
-readonly DOCKER_OUTPUT_FILTER='grep -v "version.*obsolete" | grep -v "Creating$" | grep -v "Created$" | grep -v "Starting$" | grep -v "Started$" | grep -v "Running$"'
 
 ARCHITECTURE=$(uname -m)
 ARTIFACT=""
@@ -286,7 +287,11 @@ open_browser_url() {
 
 # Utility function to generate session secret
 generate_session_secret() {
-    openssl rand -hex 32 2>/dev/null || date +%s | shasum -a 256 | head -c 32
+    if [ "${OS}" = "Darwin" ]; then
+        head -c 64 /dev/urandom | shasum -a 256 | cut -d ' ' -f 1
+    else
+        head -c 64 /dev/urandom | sha256sum | cut -d ' ' -f 1
+    fi
 }
 
 # ==============================================================================
@@ -372,7 +377,13 @@ pull_docker_image() {
 
 # Utility function to filter Docker Compose output
 filter_docker_output() {
-    eval "$DOCKER_OUTPUT_FILTER" || true
+    grep -v "version.*obsolete" | \
+    grep -v "Creating$" | \
+    grep -v "Created$" | \
+    grep -v "Starting$" | \
+    grep -v "Started$" | \
+    grep -v "Running$" \
+    || true
 }
 
 # --- Filesystem Setup ---
@@ -390,7 +401,7 @@ create_docker_directories() {
     mkdir -p "$DOCKER_DIR/explorer/config"
 
     chmod 700 "$DOCKER_DIR/explorer/db" 2>/dev/null || true
-    chmod 755 "$DOCKER_DIR/explorer/config" 2>/dev/null || true
+    chmod 750 "$DOCKER_DIR/explorer/config" 2>/dev/null || true
 }
 
 # --- Health Checks ---
@@ -618,7 +629,7 @@ configure_explorer_via_file() {
 }
 EOF
 
-    chmod 644 "$DOCKER_DIR/explorer/config/config.json"
+    chmod 640 "$DOCKER_DIR/explorer/config/config.json"
 
     return 0
 }
@@ -739,8 +750,6 @@ setup_docker_compose() {
     if ! wait_for_container_ready "$CONTAINER_NAME" "startup time:" 60 "$EDITION_TYPE" "$LICENSE_TYPE"; then
         return 1
     fi
-
-    sleep 2
 
     # Check for existing token in Explorer config, or create new one
     CONFIG_FILE="$DOCKER_DIR/explorer/config/config.json"
@@ -1203,8 +1212,8 @@ case "$INSTALL_TYPE" in
         # Docker Compose installation
         if ! check_docker; then
             printf "\n${RED}Error:${NC} Docker is not installed or not running.\n"
-            printf "Please install Docker Desktop and try again.\n"
-            printf "Visit: ${BLUE}https://www.docker.com/products/docker-desktop${NC}\n\n"
+            printf "Please install Docker Desktop or Docker Engine with the compose plugin and try again.\n"
+            printf "Visit: ${BLUE}https://www.docker.com/${NC}\n\n"
             exit 1
         fi
         
