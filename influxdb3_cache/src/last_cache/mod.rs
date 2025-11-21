@@ -6,7 +6,7 @@ mod cache;
 pub use cache::CreateLastCacheArgs;
 mod metrics;
 mod provider;
-pub use provider::LastCacheProvider;
+pub use provider::{LastCacheProvider, background_catalog_update};
 mod table_function;
 use schema::InfluxColumnType;
 pub use table_function::{LAST_CACHE_UDTF_NAME, LastCacheFunction};

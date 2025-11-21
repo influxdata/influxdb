@@ -14,8 +14,8 @@ pub enum CatalogError {
     #[error("attempted to create a resource that already exists")]
     AlreadyExists,
 
-    #[error("the requested resource was not found")]
-    NotFound,
+    #[error("the requested resource was not found: {0}")]
+    NotFound(String),
 
     #[error("attempted to delete resource that was already deleted")]
     AlreadyDeleted,

@@ -221,14 +221,14 @@ impl ProcessingEngineManagerImpl {
         query_executor: Arc<dyn QueryExecutor>,
         time_provider: Arc<dyn TimeProvider>,
         sys_event_store: Arc<SysEventStore>,
-    ) -> Arc<Self> {
+    ) -> Result<Arc<Self>, environment::PluginEnvironmentError> {
         // if given a plugin dir, try to initialize the virtualenv.
-        if let Some(plugin_dir) = &environment.plugin_dir {
+        if environment.plugin_dir.is_some() {
             {
-                environment
-                    .package_manager
-                    .init_pyenv(plugin_dir, environment.virtual_env_location.as_ref())
-                    .expect("unable to initialize python environment");
+                environment.package_manager.init_pyenv(
+                    environment.plugin_dir.as_deref(),
+                    environment.virtual_env_location.as_ref(),
+                )?;
                 virtualenv::init_pyo3();
             }
         }
@@ -254,7 +254,7 @@ impl ProcessingEngineManagerImpl {
 
         background_catalog_update(Arc::clone(&pem), catalog_sub);
 
-        pem
+        Ok(pem)
     }
 
     pub fn node_id(&self) -> Arc<str> {
@@ -456,7 +456,7 @@ impl LocalPlugin {
                         *last_read = SystemTime::now();
                         *code = Arc::from(new_code);
                     } else {
-                        error!("error reading plugin file {:?}", self.plugin_path);
+                        error!(plugin_path = ?self.plugin_path, "error reading plugin file");
                     }
                 }
 
@@ -504,7 +504,7 @@ impl LocalPluginDirectory {
                 *last_read = SystemTime::now();
                 *code = Arc::from(new_code);
             } else {
-                error!("error reading plugin entry point {:?}", self.entry_point);
+                error!(entry_point = ?self.entry_point, "error reading plugin entry point");
             }
         }
 
@@ -786,7 +786,7 @@ impl ProcessingEngineManagerImpl {
             .await?;
 
         rx.await.map_err(|e| {
-            error!(%e, "error receiving response from plugin");
+            error!(error = %e, "error receiving response from plugin");
             ProcessingEngineError::RequestHandlerDown
         })
     }
@@ -1436,7 +1436,7 @@ mod tests {
             )
             .await?;
 
-        let Err(CatalogError::NotFound) = pem
+        let Err(CatalogError::NotFound(_)) = pem
             .catalog
             .enable_processing_engine_trigger("foo", "nonexistent_trigger")
             .await
@@ -1528,7 +1528,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
                 time_provider,
                 sys_event_store,
             )
-            .await,
+            .await
+            .unwrap(),
             file,
         )
     }
@@ -1648,7 +1649,7 @@ def helper_function():
             "test_host".to_string(),
             Arc::clone(&time_provider),
         ));
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
             .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -1693,7 +1694,8 @@ def helper_function():
             time_provider,
             sys_event_store,
         )
-        .await;
+        .await
+        .unwrap();
 
         let plugin_code = pem.read_plugin_code("my_plugin").await.unwrap();
 
@@ -1744,7 +1746,7 @@ def helper_function():
             "test_host".to_string(),
             Arc::clone(&time_provider),
         ));
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
             .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -1789,7 +1791,8 @@ def helper_function():
             time_provider,
             sys_event_store,
         )
-        .await;
+        .await
+        .unwrap();
 
         let result = pem.read_plugin_code("my_plugin").await;
         assert!(result.is_err());
@@ -1908,7 +1911,7 @@ def helper_function():
             "test_host".to_string(),
             Arc::clone(&time_provider),
         ));
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
             .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -1954,7 +1957,8 @@ def helper_function():
                 time_provider,
                 sys_event_store,
             )
-            .await,
+            .await
+            .unwrap(),
         );
 
         // Create the DB and trigger first

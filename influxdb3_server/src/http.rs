@@ -15,7 +15,7 @@ use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::FutureExt;
 use futures::{StreamExt, TryStreamExt};
-use http::header::ACCESS_CONTROL_ALLOW_ORIGIN;
+use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_LENGTH};
 use http_body_util::BodyExt;
 use hyper::HeaderMap;
 use hyper::header::AUTHORIZATION;
@@ -64,7 +64,6 @@ use observability_deps::tracing::{debug, error, info, trace, warn};
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
@@ -79,6 +78,119 @@ use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
 pub(crate) const UNKNOWN_VAL: &str = "unknown";
+
+/// Maximum length for untrusted input when logging to prevent log flooding
+const MAX_PATH_LENGTH_FOR_LOGGING: usize = 256;
+const MAX_CONTENT_LENGTH_HEADER_FOR_LOGGING: usize = 128;
+const MAX_CLIENT_IP_FOR_LOGGING: usize = 128;
+
+/// Truncate a string for logging untrusted input to prevent log flooding
+fn truncate_for_logging(s: &str, max_len: usize) -> &str {
+    if s.len() > max_len { &s[..max_len] } else { s }
+}
+
+/// Error type for routing that can handle both standard errors and V2 write API errors
+#[derive(Debug)]
+enum RoutingError {
+    Standard(Error),
+    V2Write(V2WriteApiError),
+    LegacyWrite(WriteParseError),
+    Authentication(AuthenticationError),
+    Authorization(ResourceAuthorizationError),
+    NotFound,
+    MethodNotAllowed(&'static str),
+}
+
+impl std::fmt::Display for RoutingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Standard(e) => write!(f, "{}", e),
+            Self::V2Write(e) => write!(f, "{}", e.0),
+            Self::LegacyWrite(e) => write!(f, "{}", e),
+            Self::Authentication(e) => write!(f, "{}", e),
+            Self::Authorization(e) => write!(f, "{}", e),
+            Self::NotFound => write!(f, "not found"),
+            Self::MethodNotAllowed(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+impl std::error::Error for RoutingError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Standard(e) => Some(e),
+            Self::V2Write(e) => Some(&e.0),
+            Self::LegacyWrite(e) => Some(e),
+            Self::Authentication(e) => Some(e),
+            Self::Authorization(e) => Some(e),
+            Self::NotFound => None,
+            Self::MethodNotAllowed(_) => None,
+        }
+    }
+}
+
+impl IntoResponse for RoutingError {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Standard(e) => e.into_response(),
+            Self::V2Write(e) => e.into_response(),
+            Self::LegacyWrite(e) => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: e.to_string(),
+                    data: None,
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = bytes_to_response_body(serialized);
+                let status = match e {
+                    WriteParseError::NotImplemented => StatusCode::NOT_FOUND,
+                    WriteParseError::SingleTenantError(e) => StatusCode::from(&e),
+                    WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
+                };
+                ResponseBuilder::new().status(status).body(body).unwrap()
+            }
+            Self::Authentication(e) => e.into_response(),
+            Self::Authorization(e) => e.into_response(),
+            Self::NotFound => ResponseBuilder::new()
+                .status(StatusCode::NOT_FOUND)
+                .body(bytes_to_response_body(Bytes::from("Not found")))
+                .unwrap(),
+            Self::MethodNotAllowed(msg) => ResponseBuilder::new()
+                .status(StatusCode::METHOD_NOT_ALLOWED)
+                .body(bytes_to_response_body(Bytes::from(msg)))
+                .unwrap(),
+        }
+    }
+}
+
+impl From<Error> for RoutingError {
+    fn from(e: Error) -> Self {
+        Self::Standard(e)
+    }
+}
+
+impl From<V2WriteApiError> for RoutingError {
+    fn from(e: V2WriteApiError) -> Self {
+        Self::V2Write(e)
+    }
+}
+
+impl From<WriteParseError> for RoutingError {
+    fn from(e: WriteParseError) -> Self {
+        Self::LegacyWrite(e)
+    }
+}
+
+impl From<AuthenticationError> for RoutingError {
+    fn from(e: AuthenticationError) -> Self {
+        Self::Authentication(e)
+    }
+}
+
+impl From<ResourceAuthorizationError> for RoutingError {
+    fn from(e: ResourceAuthorizationError) -> Self {
+        Self::Authorization(e)
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -108,7 +220,7 @@ pub enum Error {
 
     /// The client disconnected.
     #[error("client disconnected")]
-    ClientHangup(Box<dyn StdError + Send + Sync>),
+    ClientHangup(Box<dyn std::error::Error + Send + Sync>),
 
     /// The client sent a request body that exceeds the configured maximum.
     #[error("max request size ({0} bytes) exceeded")]
@@ -251,6 +363,12 @@ pub enum Error {
     #[error(transparent)]
     Influxdb3TypesHttp(#[from] influxdb3_types::http::Error),
 
+    #[error("Authorization error: {0}")]
+    ResourceAuthorization(#[from] ResourceAuthorizationError),
+
+    #[error("Authentication error: {0}")]
+    Authentication(#[from] AuthenticatorError),
+
     #[error("The following Database does not exist: {0}")]
     MissingDb(String),
 
@@ -265,12 +383,6 @@ pub enum Error {
 
     #[error("Timestamp is out of range")]
     TimestampOutOfRange,
-
-    #[error("Authorization error: {0}")]
-    ResourceAuthorization(#[from] ResourceAuthorizationError),
-
-    #[error("Authentication error: {0}")]
-    Authentication(#[from] AuthenticatorError),
 
     #[error("Current node mode does not use the processing engine")]
     NoProcessingEngine,
@@ -291,6 +403,38 @@ pub(crate) enum AuthenticationError {
     Forbidden,
     #[error("to str error: {0}")]
     ToStr(#[from] hyper::header::ToStrError),
+}
+
+impl IntoResponse for AuthenticationError {
+    fn into_response(self) -> Response {
+        let code = match self {
+            Self::Unauthenticated => StatusCode::UNAUTHORIZED,
+            Self::MalformedRequest => StatusCode::BAD_REQUEST,
+            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::ToStr(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+
+        ResponseBuilder::new()
+            .status(code)
+            .body(bytes_to_response_body(format!(r#"{{"error": "{self}"}}"#)))
+            .unwrap()
+    }
+}
+
+impl IntoResponse for ResourceAuthorizationError {
+    fn into_response(self) -> Response {
+        let code = match &self {
+            Self::Unauthorized => StatusCode::FORBIDDEN,
+            Self::ResourceNotSupported(e) => {
+                error!(?e, "Resource type not supported");
+                StatusCode::FORBIDDEN
+            }
+        };
+        ResponseBuilder::new()
+            .status(code)
+            .body(bytes_to_response_body(format!(r#"{{"error": "{self}"}}"#)))
+            .unwrap()
+    }
 }
 
 /// The /v2/write API expects errors to be JSON formatted like so:
@@ -347,7 +491,7 @@ impl V2WriteApiError {
                 | CatalogError::FieldTypeMismatch { .. }
                 | CatalogError::SeriesKeyMismatch { .. }
                 | CatalogError::DuplicateColumn { .. } => V2WriteErrorCode::Invalid,
-                CatalogError::NotFound
+                CatalogError::NotFound(_)
                 | CatalogError::DatabaseNotFound { .. }
                 | CatalogError::TableNotFound { .. } => V2WriteErrorCode::NotFound,
                 _ => V2WriteErrorCode::InternalError,
@@ -461,26 +605,23 @@ trait IntoResponse {
     fn into_response(self) -> Response;
 }
 
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
 impl IntoResponse for CatalogError {
     fn into_response(self) -> Response {
-        match self {
-            Self::NotFound => ResponseBuilder::new()
-                .status(StatusCode::NOT_FOUND)
-                .body(bytes_to_response_body(self.to_string()))
-                .unwrap(),
-            Self::AlreadyExists | Self::AlreadyDeleted => ResponseBuilder::new()
-                .status(StatusCode::CONFLICT)
-                .body(bytes_to_response_body(self.to_string()))
-                .unwrap(),
+        let resp_or_code: Either<Response, StatusCode> = match self {
+            Self::NotFound(_) => Either::Right(StatusCode::NOT_FOUND),
+            Self::AlreadyExists | Self::AlreadyDeleted => Either::Right(StatusCode::CONFLICT),
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType
             | Self::ReservedColumn(_)
             | Self::DuplicateColumn { .. }
-            | Self::InvalidColumnType { .. } => ResponseBuilder::new()
-                .status(StatusCode::BAD_REQUEST)
-                .body(bytes_to_response_body(self.to_string()))
-                .unwrap(),
+            | Self::InvalidColumnType { .. }
+            | Self::NodeAlreadyStopped { .. } => Either::Right(StatusCode::BAD_REQUEST),
             Self::TooManyColumns(_)
             | Self::TooManyTables(_)
             | Self::TooManyDbs(_)
@@ -492,18 +633,22 @@ impl IntoResponse for CatalogError {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = bytes_to_response_body(serialized);
-                ResponseBuilder::new()
-                    .status(StatusCode::UNPROCESSABLE_ENTITY)
-                    .body(body)
-                    .unwrap()
+                Either::Left(
+                    ResponseBuilder::new()
+                        .status(StatusCode::UNPROCESSABLE_ENTITY)
+                        .body(body)
+                        .unwrap(),
+                )
             }
-            _ => {
-                let body = bytes_to_response_body(self.to_string());
-                ResponseBuilder::new()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(body)
-                    .unwrap()
-            }
+            _ => Either::Right(StatusCode::INTERNAL_SERVER_ERROR),
+        };
+
+        match resp_or_code {
+            Either::Left(resp) => resp,
+            Either::Right(code) => ResponseBuilder::new()
+                .status(code)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
         }
     }
 }
@@ -718,17 +863,26 @@ impl IntoResponse for Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
+            Self::Authentication(_) => ResponseBuilder::new()
+                .status(StatusCode::UNAUTHORIZED)
+                .body(bytes_to_response_body("".to_string()))
+                .unwrap(),
+            Self::ResourceAuthorization(_) => ResponseBuilder::new()
+                .status(StatusCode::FORBIDDEN)
+                .body(bytes_to_response_body("".to_string()))
+                .unwrap(),
             Self::ParsingTimestamp(_) | Self::TimestampOutOfRange => ResponseBuilder::new()
                 .status(StatusCode::BAD_REQUEST)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            _ => {
-                let body = bytes_to_response_body(self.to_string());
-                ResponseBuilder::new()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(body)
-                    .unwrap()
-            }
+            Self::NoProcessingEngine => ResponseBuilder::new()
+                .status(StatusCode::METHOD_NOT_ALLOWED)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
+            _ => ResponseBuilder::new()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
         }
     }
 }
@@ -745,24 +899,6 @@ pub struct HttpApi {
     max_request_bytes: usize,
     authorizer: Arc<dyn AuthProvider>,
     legacy_write_param_unifier: SingleTenantRequestUnifier,
-}
-
-/// Wrapper for HttpApi used by the recovery endpoint that includes a shutdown token
-pub(crate) struct RecoveryHttpApi {
-    http_api: Arc<HttpApi>,
-    cancellation_token: tokio_util::sync::CancellationToken,
-}
-
-impl RecoveryHttpApi {
-    pub(crate) fn new(
-        http_api: Arc<HttpApi>,
-        cancellation_token: tokio_util::sync::CancellationToken,
-    ) -> Self {
-        Self {
-            http_api,
-            cancellation_token,
-        }
-    }
 }
 
 impl HttpApi {
@@ -978,6 +1114,7 @@ impl HttpApi {
             .get(&CONTENT_ENCODING)
             .map(|v| v.to_str().map_err(Error::NonUtf8ContentEncodingHeader))
             .transpose()?;
+        let content_length = req.headers().get(&CONTENT_LENGTH).cloned();
         let ungzip = match encoding {
             None | Some("identity") => false,
             Some("gzip") => true,
@@ -986,7 +1123,22 @@ impl HttpApi {
 
         let mut payload = req.into_body();
 
-        let mut body = BytesMut::new();
+        // we can't trust the content-length header, but if it's present and seems reasonable,
+        // defined here as a quarter of the max or less, we will preallocate that amount
+        // This may allocate unnecessarily if actual content is smaller, if the first frame
+        // is bigger than the max or if the client has already hung up. All the more reason to
+        // allocate less than the max.
+        // todo(pjb): We could also reject the request right now if the content-length is bigger than the max, but
+        //  the tradeoffs aren't as clear to me.
+        let quarter_of_max: usize = self.max_request_bytes / 4;
+        let mut body = match content_length
+            .as_ref()
+            .and_then(|len| len.to_str().ok())
+            .and_then(|len_str| len_str.parse().ok())
+        {
+            Some(len) if len < quarter_of_max => BytesMut::with_capacity(len),
+            _ => BytesMut::new(),
+        };
         while let Some(frame) = payload.frame().await {
             let frame = frame.map_err(Error::ClientHangup)?;
             if let Some(chunk) = frame.data_ref() {
@@ -1006,7 +1158,7 @@ impl HttpApi {
 
         // Unzip the gzip-encoded content
         use std::io::Read;
-        let decoder = flate2::read::GzDecoder::new(&body[..]);
+        let decoder = flate2::read::MultiGzDecoder::new(&body[..]);
 
         // Read at most max_request_bytes bytes to prevent a decompression bomb
         // based DoS.
@@ -1014,13 +1166,13 @@ impl HttpApi {
         // In order to detect if the entire stream ahs been read, or truncated,
         // read an extra byte beyond the limit and check the resulting data
         // length - see the max_request_size_truncation test.
-        let mut decoder = decoder.take(self.max_request_bytes as u64 + 1);
+        let mut decoder = decoder.take((self.max_request_bytes as u64).saturating_add(1));
         let mut decoded_data = Vec::new();
         decoder
             .read_to_end(&mut decoded_data)
             .map_err(Error::InvalidGzip)?;
 
-        // If the length is max_size+1, the body is at least max_size+1 bytes in
+        // If the length is max_size+1, the decoded data is at least max_size+1 bytes in
         // length, and possibly longer, but truncated.
         if decoded_data.len() > self.max_request_bytes {
             return Err(Error::RequestSizeExceeded(self.max_request_bytes));
@@ -1222,6 +1374,7 @@ impl HttpApi {
             .map_err(Into::into)
     }
 
+    /// Create a new last value cache given the [`LastCacheCreateRequest`] arguments in the request body.
     async fn configure_last_cache_create(&self, req: Request) -> Result<Response> {
         let LastCacheCreateRequest {
             db,
@@ -1525,12 +1678,23 @@ impl HttpApi {
 
         match update_req.retention_period {
             Some(duration) => {
+                info!(
+                    database = %update_req.db,
+                    retention_period_secs = duration.as_secs(),
+                    "setting retention period for database"
+                );
+
                 self.write_buffer
                     .catalog()
                     .set_retention_period_for_database(&update_req.db, duration)
                     .await?;
             }
             None => {
+                info!(
+                    database = %update_req.db,
+                    "clearing retention period for database"
+                );
+
                 self.write_buffer
                     .catalog()
                     .clear_retention_period_for_database(&update_req.db)
@@ -1613,8 +1777,7 @@ impl HttpApi {
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(empty_response_body())
-            .unwrap())
+            .body(empty_response_body())?)
     }
 
     async fn delete_token(&self, req: Request) -> Result<Response> {
@@ -1626,8 +1789,7 @@ impl HttpApi {
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
-            .body(empty_response_body())
-            .unwrap())
+            .body(empty_response_body())?)
     }
 
     async fn read_body_json<ReqBody: DeserializeOwned>(&self, req: Request) -> Result<ReqBody> {
@@ -1659,6 +1821,12 @@ impl HttpApi {
             .parse::<humantime::Duration>()
             .map_err(Error::ParsingHumanTime)?
             .into();
+
+        info!(
+            database = %create_req.db,
+            retention_period_secs = duration.as_secs(),
+            "setting retention period for database"
+        );
 
         catalog
             .set_retention_period_for_database(create_req.db.as_str(), duration)
@@ -1914,7 +2082,7 @@ fn validate_db_name(name: &str) -> Result<(), ValidateDbNameError> {
     let mut last_char = None;
     for grapheme in name.graphemes(true) {
         if grapheme.len() > 1 {
-            // In the case of a unicode we need to handle multibyte chars
+            // We don't support multibyte unicode chars
             return Err(ValidateDbNameError::InvalidChar);
         }
         let char = grapheme.as_bytes()[0] as char;
@@ -1927,8 +2095,8 @@ fn validate_db_name(name: &str) -> Result<(), ValidateDbNameError> {
                     rp_separator_found_already = true;
                 }
                 (_, char)
-                                    // note: V1_NAMESPACE_RP_SEPARATOR doesn't need to be in the allow list here as
-                                    // it is caught in the matches above
+                    // note: V1_NAMESPACE_RP_SEPARATOR doesn't need to be in the allow list here as
+                    // it is caught in the matches above
                     if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') =>
                 {
                     return Err(ValidateDbNameError::InvalidChar);
@@ -2176,101 +2344,114 @@ async fn record_batch_stream_to_body(
     }
 }
 
-/// This is used to trigger a shutdown when it's dropped.
-#[derive(Clone)]
-struct ShutdownTrigger {
-    token: tokio_util::sync::CancellationToken,
+fn extract_client_ip<T>(req: &http::Request<T>) -> Option<String> {
+    req.headers()
+        .get("x-forwarded-for")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.split(',').next()) // Take first IP if multiple
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            req.headers()
+                .get("x-real-ip")
+                .and_then(|h| h.to_str().ok())
+                .map(|s| s.to_string())
+        })
+        .or_else(|| {
+            // Fall back to socket address from request extensions
+            req.extensions()
+                .get::<Option<std::net::SocketAddr>>()
+                .map(|socket_addr| {
+                    socket_addr
+                        .map(|addr| addr.ip().to_string())
+                        .unwrap_or_else(|| UNKNOWN_VAL.to_string())
+                })
+        })
 }
 
-impl ShutdownTrigger {
-    fn new(token: tokio_util::sync::CancellationToken) -> Self {
-        Self { token }
-    }
+fn extract_db_from_query_param(uri: &http::Uri) -> Option<String> {
+    uri.query()
+        .and_then(|query| serde_urlencoded::from_str::<Vec<(String, String)>>(query).ok())
+        .and_then(|params| params.into_iter().find(|(k, _)| k == "db"))
+        .map(|(_, v)| v)
 }
 
-impl Drop for ShutdownTrigger {
-    fn drop(&mut self) {
-        self.token.cancel();
-    }
-}
-
-pub(crate) async fn route_admin_token_recovery_request(
-    recovery_api: Arc<RecoveryHttpApi>,
-    req: hyper::Request<hyper::body::Incoming>,
+pub(crate) async fn route_request(
+    http_server: Arc<HttpApi>,
+    req: Request,
+    started_without_auth: bool,
+    paths_without_authz: &'static Vec<&'static str>,
 ) -> Result<Response, Infallible> {
+    // extract from the request for logging before we pass it to perform_routing, which consumes it
     let method = req.method().clone();
     let uri = req.uri().clone();
-    trace!(request = ?req,"Processing request");
-    let content_length = req.headers().get("content-length").cloned();
+    let content_length = req
+        .headers()
+        .get(&CONTENT_LENGTH)
+        .and_then(|h| h.to_str().ok())
+        .map(|s| truncate_for_logging(s, MAX_CONTENT_LENGTH_HEADER_FOR_LOGGING).to_string());
+    let db = extract_db_from_query_param(&uri);
+    let client_ip = extract_client_ip(&req);
 
-    // Convert incoming request to iox_http_util request
-    let (parts, body) = req.into_parts();
-    let collected = match http_body_util::BodyExt::collect(body).await {
-        Ok(collected) => collected,
-        Err(e) => {
-            error!("Failed to collect request body: {}", e);
-            return Ok(ResponseBuilder::new()
-                .status(StatusCode::BAD_REQUEST)
-                .body(bytes_to_response_body("Failed to read request body"))
-                .unwrap());
-        }
-    };
-    let bytes = collected.to_bytes();
-    let iox_body = iox_http_util::bytes_to_request_body(bytes);
-    let req = iox_http_util::Request::from_parts(parts, iox_body);
+    let response = perform_routing(
+        Arc::clone(&http_server),
+        req,
+        started_without_auth,
+        paths_without_authz,
+    )
+    .await;
 
-    let response = match (method.clone(), uri.path()) {
-        (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
-            info!("Regenerating admin token without password through token recovery API request");
-            let result = recovery_api.http_api.regenerate_admin_token(req).await;
-
-            // If token regeneration was successful, trigger shutdown of the recovery endpoint
-            if let Ok(response) = result {
-                info!("Admin token regenerated successfully, shutting down recovery endpoint");
-                let cancellation_token = recovery_api.cancellation_token.clone();
-                let mut res_builder = ResponseBuilder::new();
-                let extensions = res_builder.extensions_mut().unwrap();
-                let shutdown_trigger = ShutdownTrigger::new(cancellation_token);
-                extensions.insert(shutdown_trigger);
-
-                Ok(res_builder
-                    .status(response.status())
-                    .body(response.into_body())
-                    .unwrap())
-            } else {
-                result
-            }
-        }
-        _ => {
-            let body = bytes_to_response_body("not found");
-            Ok(ResponseBuilder::new()
-                .status(StatusCode::NOT_FOUND)
-                .body(body)
-                .unwrap())
-        }
-    };
-
-    match response {
+    // TODO: Move logging to TraceLayer
+    let mut response = match response {
         Ok(mut response) => {
             response
                 .headers_mut()
                 .insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
             debug!(?response, "Successfully processed request");
-            Ok(response)
+            response
         }
         Err(error) => {
-            error!(%error, %method, path = uri.path(), ?content_length, "Error while handling request");
-            Ok(error.into_response())
+            let path = truncate_for_logging(uri.path(), MAX_PATH_LENGTH_FOR_LOGGING);
+            let ip = client_ip
+                .as_deref()
+                .map(|s| truncate_for_logging(s, MAX_CLIENT_IP_FOR_LOGGING))
+                .unwrap_or(UNKNOWN_VAL);
+            match db.as_ref() {
+                Some(db) => {
+                    let db = truncate_for_logging(db, MAXIMUM_DATABASE_NAME_LENGTH);
+                    error!(%error, %method, %path, ?content_length, database = %db, client_ip = %ip, "Error while handling request")
+                }
+                None => {
+                    error!(%error, %method, %path, ?content_length, client_ip = %ip, "Error while handling request")
+                }
+            }
+            error.into_response()
         }
+    };
+
+    // Add cluster-uuid header to all responses
+    let uuid_string = http_server
+        .write_buffer
+        .catalog()
+        .catalog_uuid()
+        .to_string();
+    if let Ok(header) = HeaderValue::from_str(&uuid_string) {
+        response
+            .headers_mut()
+            .insert(all_paths::API_HEADER_CLUSTER_UUID, header);
+    } else {
+        // uuid to a header should always be successful but don't panic if lightning strikes
+        warn!("failed to convert cluster uuid to a header value")
     }
+
+    Ok(response)
 }
 
-pub(crate) async fn route_request(
+async fn perform_routing(
     http_server: Arc<HttpApi>,
     mut req: Request,
     started_without_auth: bool,
     paths_without_authz: &'static Vec<&'static str>,
-) -> Result<Response, Infallible> {
+) -> Result<Response, RoutingError> {
     let method = req.method().clone();
     let uri = req.uri().clone();
 
@@ -2293,37 +2474,26 @@ pub(crate) async fn route_request(
             .expect("Able to always create a valid response type for CORS"));
     }
 
-    if started_without_auth && uri.path().starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
-        return Ok(ResponseBuilder::new()
-            .status(StatusCode::METHOD_NOT_ALLOWED)
-            .body(bytes_to_response_body(Bytes::from(
-                "endpoint disabled, started without auth",
-            )))
-            .unwrap());
+    let path = uri.path();
+
+    if started_without_auth && path.starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
+        return Err(RoutingError::MethodNotAllowed(
+            "endpoint disabled, started without auth",
+        ));
     }
 
-    let path = uri.path();
     // admin token creation should be allowed without authentication
     // and any endpoints that are disabled
     if path == all_paths::API_V3_CONFIGURE_ADMIN_TOKEN || paths_without_authz.contains(&path) {
         trace!(?uri, "not authenticating request");
     } else {
         trace!(?uri, "authenticating request");
-        if let Some(authentication_error) = authenticate(&http_server, &mut req).await {
-            return authentication_error;
-        }
+        http_server.authenticate_request(&mut req).await?;
     }
 
     trace!(request = ?req,"Processing request");
-    let content_length = req.headers().get("content-length").cloned();
-    // Extract database name from query parameters before req is consumed
-    // This is ok for now as write endpoint expects db in query param
-    let db = extract_db_from_query_param(&uri);
 
-    // Extract client IP from headers (check common reverse proxy headers first)
-    let client_ip = extract_client_ip(&req);
-
-    let response = match (method.clone(), path) {
+    match (method.clone(), path) {
         (Method::DELETE, all_paths::API_V3_CONFIGURE_TOKEN) => http_server.delete_token(req).await,
         (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN) => {
             http_server.create_admin_token(req).await
@@ -2335,32 +2505,29 @@ pub(crate) async fn route_request(
             http_server.create_named_admin_token(req).await
         }
         (Method::POST, all_paths::API_LEGACY_WRITE) => {
-            let params = match http_server.legacy_write_param_unifier.parse_v1(&req).await {
-                Ok(p) => p.into(),
-                Err(e) => return Ok(legacy_write_error_to_response(e)),
-            };
+            let params = http_server
+                .legacy_write_param_unifier
+                .parse_v1(&req)
+                .await
+                .map_err(RoutingError::LegacyWrite)?
+                .into();
 
             http_server.write_lp_inner(params, req).await
         }
         (Method::POST, all_paths::API_V2_WRITE) => {
-            let params = match http_server
+            let params = http_server
                 .legacy_write_param_unifier
                 .parse_v2(&req)
                 .await
                 .map_err(Error::LegacyWriteParse)
                 .map_err(V2WriteApiError)
-            {
-                Ok(p) => p.into(),
-                Err(e) => return Ok(e.into_response()),
-            };
-            match http_server
+                .map_err(RoutingError::V2Write)?
+                .into();
+            Ok(http_server
                 .write_lp_inner(params, req)
                 .await
                 .map_err(V2WriteApiError)
-            {
-                Ok(r) => Ok(r),
-                Err(e) => return Ok(e.into_response()),
-            }
+                .map_err(RoutingError::V2Write)?)
         }
         (Method::POST, all_paths::API_V3_WRITE) => http_server.write_lp(req).await,
         (Method::GET | Method::POST, all_paths::API_V3_QUERY_SQL) => {
@@ -2464,6 +2631,96 @@ pub(crate) async fn route_request(
         (Method::PUT, all_paths::API_V3_PLUGINS_DIRECTORY) => {
             http_server.replace_plugin_directory(req).await
         }
+        _ => return Err(RoutingError::NotFound),
+    }
+    .map_err(Into::into)
+}
+
+/// Wrapper for HttpApi used by the recovery endpoint that includes a shutdown token
+pub(crate) struct RecoveryHttpApi {
+    http_api: Arc<HttpApi>,
+    cancellation_token: tokio_util::sync::CancellationToken,
+}
+
+impl RecoveryHttpApi {
+    pub(crate) fn new(
+        http_api: Arc<HttpApi>,
+        cancellation_token: tokio_util::sync::CancellationToken,
+    ) -> Self {
+        Self {
+            http_api,
+            cancellation_token,
+        }
+    }
+}
+
+/// This is used to trigger a shutdown when it's dropped.
+#[derive(Clone)]
+struct ShutdownTrigger {
+    token: tokio_util::sync::CancellationToken,
+}
+
+impl ShutdownTrigger {
+    fn new(token: tokio_util::sync::CancellationToken) -> Self {
+        Self { token }
+    }
+}
+
+impl Drop for ShutdownTrigger {
+    fn drop(&mut self) {
+        self.token.cancel();
+    }
+}
+
+pub(crate) async fn route_admin_token_recovery_request(
+    recovery_api: Arc<RecoveryHttpApi>,
+    req: hyper::Request<hyper::body::Incoming>,
+) -> Result<Response, Infallible> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    trace!(request = ?req,"Processing request");
+    let content_length = req.headers().get("content-length").cloned();
+
+    // Convert incoming request to iox_http_util request
+    let (parts, body) = req.into_parts();
+    let collected = match http_body_util::BodyExt::collect(body).await {
+        Ok(collected) => collected,
+        Err(e) => {
+            error!("Failed to collect request body: {}", e);
+            return Ok(ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body(Bytes::from(
+                    "Failed to read request body",
+                )))
+                .unwrap());
+        }
+    };
+    let bytes = collected.to_bytes();
+    let iox_body = iox_http_util::bytes_to_request_body(bytes);
+    let req = iox_http_util::Request::from_parts(parts, iox_body);
+
+    let response = match (method.clone(), uri.path()) {
+        (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE) => {
+            info!("Regenerating admin token without password through token recovery API request");
+            let result = recovery_api.http_api.regenerate_admin_token(req).await;
+
+            // If token regeneration was successful, trigger shutdown of the recovery endpoint
+            if let Ok(response) = result {
+                info!("Admin token regenerated successfully, shutting down recovery endpoint");
+                let cancellation_token = recovery_api.cancellation_token.clone();
+                let mut res_builder = ResponseBuilder::new();
+                let extensions = res_builder.extensions_mut().unwrap();
+                let shutdown_trigger = ShutdownTrigger::new(cancellation_token);
+                extensions.insert(shutdown_trigger);
+
+                Ok(res_builder
+                    .status(response.status())
+                    .body(response.into_body())
+                    .unwrap())
+            } else {
+                result
+            }
+        }
         _ => {
             let body = bytes_to_response_body("not found");
             Ok(ResponseBuilder::new()
@@ -2473,134 +2730,31 @@ pub(crate) async fn route_request(
         }
     };
 
-    // TODO: Move logging to TraceLayer
+    let error = response
+        .as_ref()
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_else(|| "none".to_string());
+
+    info!(
+        ?method,
+        path = ?uri.path(),
+        ?content_length,
+        error,
+        "token recovery server handled request"
+    );
+
     let mut response = match response {
-        Ok(mut response) => {
-            response
-                .headers_mut()
-                .insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
-            debug!(?response, "Successfully processed request");
-            response
-        }
-        Err(error) => {
-            let ip = client_ip.as_deref().unwrap_or(UNKNOWN_VAL);
-            match db.as_ref() {
-                Some(db) => {
-                    // don't log the entirety of excessively long database names; we know those are invalid.
-                    let db = if db.len() > MAXIMUM_DATABASE_NAME_LENGTH {
-                        &db[..MAXIMUM_DATABASE_NAME_LENGTH]
-                    } else {
-                        db
-                    };
-                    error!(%error, %method, path = uri.path(), ?content_length, database = %db, client_ip = %ip, "Error while handling request")
-                }
-                None => {
-                    error!(%error, %method, path = uri.path(), ?content_length, client_ip = %ip, "Error while handling request")
-                }
-            }
-            error.into_response()
-        }
+        Ok(response) => response,
+        Err(err) => err.into_response(),
     };
 
-    // Add cluster-uuid header to all responses
-    let uuid_string = http_server
-        .write_buffer
-        .catalog()
-        .catalog_uuid()
-        .to_string();
-    if let Ok(header) = HeaderValue::from_str(&uuid_string) {
-        response
-            .headers_mut()
-            .insert(all_paths::API_HEADER_CLUSTER_UUID, header);
-    } else {
-        // uuid to a header should always be successful but don't panic if lightning strikes
-        warn!("failed to convert cluster uuid to a header value")
-    }
+    // Always set CORS headers on all requests
+    response
+        .headers_mut()
+        .insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
 
     Ok(response)
-}
-
-fn extract_client_ip<T>(req: &http::Request<T>) -> Option<String> {
-    req.headers()
-        .get("x-forwarded-for")
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.split(',').next()) // Take first IP if multiple
-        .map(|s| s.trim().to_string())
-        .or_else(|| {
-            req.headers()
-                .get("x-real-ip")
-                .and_then(|h| h.to_str().ok())
-                .map(|s| s.to_string())
-        })
-        .or_else(|| {
-            // Fall back to socket address from request extensions
-            req.extensions()
-                .get::<Option<std::net::SocketAddr>>()
-                .map(|socket_addr| {
-                    socket_addr
-                        .map(|addr| addr.ip().to_string())
-                        .unwrap_or_else(|| UNKNOWN_VAL.to_string())
-                })
-        })
-}
-
-fn extract_db_from_query_param(uri: &http::Uri) -> Option<String> {
-    uri.query()
-        .and_then(|query| serde_urlencoded::from_str::<Vec<(String, String)>>(query).ok())
-        .and_then(|params| params.into_iter().find(|(k, _)| k == "db"))
-        .map(|(_, v)| v)
-}
-
-async fn authenticate(
-    http_server: &Arc<HttpApi>,
-    req: &mut Request,
-) -> Option<std::result::Result<Response, Infallible>> {
-    if let Err(e) = http_server.authenticate_request(req).await {
-        match e {
-            AuthenticationError::Unauthenticated => {
-                return Some(Ok(ResponseBuilder::new()
-                    .status(StatusCode::UNAUTHORIZED)
-                    .body(empty_response_body())
-                    .unwrap()));
-            }
-            AuthenticationError::MalformedRequest => {
-                return Some(Ok(ResponseBuilder::new()
-                    .status(StatusCode::BAD_REQUEST)
-                    .body(bytes_to_response_body(format!(r#"{{"error": "{e}"}}"#)))
-                    .unwrap()));
-            }
-            AuthenticationError::Forbidden => {
-                return Some(Ok(ResponseBuilder::new()
-                    .status(StatusCode::FORBIDDEN)
-                    .body(empty_response_body())
-                    .unwrap()));
-            }
-            // We don't expect this to happen, but if the header is messed up
-            // better to handle it then not at all
-            AuthenticationError::ToStr(_) => {
-                return Some(Ok(ResponseBuilder::new()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(empty_response_body())
-                    .unwrap()));
-            }
-        }
-    }
-    None
-}
-
-fn legacy_write_error_to_response(e: WriteParseError) -> Response {
-    let err: ErrorMessage<()> = ErrorMessage {
-        error: e.to_string(),
-        data: None,
-    };
-    let serialized = serde_json::to_string(&err).unwrap();
-    let body = bytes_to_response_body(serialized);
-    let status = match e {
-        WriteParseError::NotImplemented => StatusCode::NOT_FOUND,
-        WriteParseError::SingleTenantError(e) => StatusCode::from(&e),
-        WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
-    };
-    ResponseBuilder::new().status(status).body(body).unwrap()
 }
 
 #[cfg(test)]
@@ -2906,6 +3060,45 @@ mod tests {
         ));
     }
 
+    fn make_record_stream(records: Option<usize>) -> SendableRecordBatchStream {
+        match records {
+            None => make_record_stream_with_sizes(vec![]),
+            Some(num) => make_record_stream_with_sizes(vec![1; num]),
+        }
+    }
+
+    fn make_record_stream_with_sizes(batch_sizes: Vec<usize>) -> SendableRecordBatchStream {
+        let batch = record_batch!(("a", Int32, [1])).unwrap();
+        let schema = batch.schema();
+
+        // If there are no sizes, return empty stream
+        if batch_sizes.is_empty() {
+            let stream = futures::stream::iter(Vec::new());
+            let adapter = RecordBatchStreamAdapter::new(schema, stream);
+            return Box::pin(adapter);
+        }
+
+        let batches = batch_sizes
+            .into_iter()
+            .map(|size| {
+                if size == 0 {
+                    // Create an empty batch
+                    Ok(RecordBatch::new_empty(Arc::clone(&schema)))
+                } else {
+                    // Create a batch with 'size' rows, all with value 1
+                    Ok(RecordBatch::try_new(
+                        Arc::clone(&schema),
+                        vec![Arc::new(Int32Array::from_iter_values(vec![1; size]))],
+                    )?)
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let stream = futures::stream::iter(batches);
+        let adapter = RecordBatchStreamAdapter::new(schema, stream);
+        Box::pin(adapter)
+    }
+
     #[test]
     fn test_client_ip_extraction_from_socket_address() {
         use hyper::Request;
@@ -2945,45 +3138,6 @@ mod tests {
         let client_ip = extract_client_ip(&req);
 
         assert_eq!(client_ip, Some("10.0.0.1".to_string()));
-    }
-
-    fn make_record_stream(records: Option<usize>) -> SendableRecordBatchStream {
-        match records {
-            None => make_record_stream_with_sizes(vec![]),
-            Some(num) => make_record_stream_with_sizes(vec![1; num]),
-        }
-    }
-
-    fn make_record_stream_with_sizes(batch_sizes: Vec<usize>) -> SendableRecordBatchStream {
-        let batch = record_batch!(("a", Int32, [1])).unwrap();
-        let schema = batch.schema();
-
-        // If there are no sizes, return empty stream
-        if batch_sizes.is_empty() {
-            let stream = futures::stream::iter(Vec::new());
-            let adapter = RecordBatchStreamAdapter::new(schema, stream);
-            return Box::pin(adapter);
-        }
-
-        let batches = batch_sizes
-            .into_iter()
-            .map(|size| {
-                if size == 0 {
-                    // Create an empty batch
-                    Ok(RecordBatch::new_empty(Arc::clone(&schema)))
-                } else {
-                    // Create a batch with 'size' rows, all with value 1
-                    Ok(RecordBatch::try_new(
-                        Arc::clone(&schema),
-                        vec![Arc::new(Int32Array::from_iter_values(vec![1; size]))],
-                    )?)
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let stream = futures::stream::iter(batches);
-        let adapter = RecordBatchStreamAdapter::new(schema, stream);
-        Box::pin(adapter)
     }
 
     #[test]

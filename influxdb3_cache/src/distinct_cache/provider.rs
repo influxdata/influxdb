@@ -271,7 +271,9 @@ impl DistinctCacheProvider {
     }
 }
 
-fn background_catalog_update(
+/// Background task that listens for catalog updates and maintains distinct caches.
+/// This should be started explicitly after creating the provider.
+pub fn background_catalog_update(
     provider: Arc<DistinctCacheProvider>,
     mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {

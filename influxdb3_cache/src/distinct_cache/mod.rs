@@ -3,7 +3,7 @@
 mod cache;
 pub use cache::{CacheError, CreateDistinctCacheArgs};
 mod provider;
-pub use provider::{DistinctCacheProvider, ProviderError};
+pub use provider::{DistinctCacheProvider, ProviderError, background_catalog_update};
 mod table_function;
 pub use table_function::DISTINCT_CACHE_UDTF_NAME;
 pub use table_function::DistinctCacheFunction;

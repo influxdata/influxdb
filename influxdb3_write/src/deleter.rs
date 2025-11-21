@@ -192,7 +192,7 @@ impl Task {
             Task::DeleteDatabase { db_id, catalog } => {
                 info!(?db_id, "Processing delete database task.");
                 match catalog.hard_delete_database(&db_id).await {
-                    Err(CatalogError::NotFound) | Ok(_) => {}
+                    Err(CatalogError::NotFound(_)) | Ok(_) => {}
                     Err(CatalogError::CannotDeleteInternalDatabase) => {
                         // This should not happen
                         error!("Rejected request to delete internal database")
@@ -209,7 +209,7 @@ impl Task {
             } => {
                 info!(?db_id, ?table_id, "Processing delete table task.");
                 match catalog.hard_delete_table(&db_id, &table_id).await {
-                    Err(CatalogError::NotFound) | Ok(_) => {}
+                    Err(CatalogError::NotFound(_)) | Ok(_) => {}
                     Err(err) => {
                         error!(%db_id, %table_id, ?err, "Unexpected error deleting table from catalog.");
                     }

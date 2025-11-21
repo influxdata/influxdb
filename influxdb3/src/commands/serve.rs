@@ -147,6 +147,13 @@ pub enum Error {
 
     #[error("Must set INFLUXDB3_NODE_IDENTIFIER_PREFIX to a valid string value")]
     NodeIdEnvVarMissing,
+
+    #[error(
+        "Python environment initialization failed: {0}\nPlease ensure Python and either pip or uv package manager is installed"
+    )]
+    PythonEnvironmentInitialization(
+        #[source] influxdb3_processing_engine::environment::PluginEnvironmentError,
+    ),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -1104,7 +1111,8 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Arc::clone(&time_provider) as _,
         sys_events_store,
     )
-    .await;
+    .await
+    .map_err(Error::PythonEnvironmentInitialization)?;
 
     // Update query executor with processing engine reference
     query_executor.set_processing_engine(Arc::clone(&processing_engine));

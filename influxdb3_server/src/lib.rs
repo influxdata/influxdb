@@ -30,10 +30,7 @@ use hyper_util::service::TowerToHyperService;
 use influxdb3_authz::AuthProvider;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_telemetry::store::TelemetryStore;
-use observability_deps::tracing::error;
-use observability_deps::tracing::info;
-use observability_deps::tracing::trace;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{error, info, trace, warn};
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufReader;
@@ -531,7 +528,7 @@ pub async fn serve(
         }
     }
 
-    // This explicit select! is needed for gracefule shutdown
+    // This explicit select! is needed for graceful shutdown
     trace!("Starting graceful shutdown, waiting for connections to close");
     tokio::select! {
         _ = graceful.shutdown() => {
@@ -595,9 +592,10 @@ mod tests {
     use crate::{Server, http::HttpApi};
     use chrono::DateTime;
     use datafusion::parquet::data_type::AsBytes;
+    use http::header::{CONTENT_ENCODING, CONTENT_LENGTH};
     use http_body_util::BodyExt;
     use hyper::StatusCode;
-    use hyper_util::client::legacy::{Client, connect::HttpConnector};
+    use hyper_util::client::legacy::Client;
     use hyper_util::rt::TokioExecutor;
     use influxdb3_authz::NoAuthAuthenticator;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
@@ -617,8 +615,8 @@ mod tests {
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::{Bufferer, WriteBuffer};
     use iox_http_util::{
-        RequestBuilder, Response, bytes_to_request_body, bytes_to_response_body,
-        empty_request_body, read_body_bytes_for_tests,
+        RequestBody, RequestBuilder, Response, bytes_to_request_body, empty_request_body,
+        read_body_bytes_for_tests,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, PerQueryMemoryPoolConfig};
     use iox_time::{MockProvider, Time};
@@ -1004,6 +1002,207 @@ mod tests {
         shutdown.cancel();
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_write_lp_with_single_member_gzip() {
+        let (server, shutdown, _) = setup_server(0).await;
+
+        let lp = "cpu,host=a val=1i 100\ncpu,host=b val=2i 200\ncpu,host=c val=3i 300";
+        let payload = create_gzip_bytes(lp);
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(&CONTENT_ENCODING, "gzip".parse().unwrap());
+        headers.insert(&CONTENT_LENGTH, payload.len().to_string().parse().unwrap());
+
+        let resp = write_lp_raw(
+            &server,
+            "foo",
+            bytes_to_request_body(payload),
+            None,
+            false,
+            "nanosecond",
+            Some(headers),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        let res = query(
+            &server,
+            "foo",
+            "SELECT host, val, time FROM cpu ORDER BY time",
+            "csv",
+            None,
+        )
+        .await;
+        let body = read_body_bytes_for_tests(res.into_body()).await;
+        let actual = std::str::from_utf8(body.as_bytes()).unwrap();
+        let expected = "host,val,time\na,1,1970-01-01T00:00:00.000000100\nb,2,1970-01-01T00:00:00.000000200\nc,3,1970-01-01T00:00:00.000000300\n";
+        assert_eq!(actual, expected);
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_write_lp_with_multi_member_gzip() {
+        let (server, shutdown, _) = setup_server(0).await;
+
+        // Member 1: Multiple lines (note trailing newline to ensure proper separation)
+        let lp1 = "cpu,host=a val=1i 100\ncpu,host=b val=2i 200\ncpu,host=c val=3i 300\n";
+        let gz1 = create_gzip_bytes(lp1);
+
+        // Member 2: Single line
+        let lp2 = "mem,host=a used=500i 400\n";
+        let gz2 = create_gzip_bytes(lp2);
+
+        // Member 3: Multiple lines
+        let lp3 = "disk,host=a free=1000i 500\ndisk,host=b free=2000i 600\n";
+        let gz3 = create_gzip_bytes(lp3);
+
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&gz1);
+        payload.extend_from_slice(&gz2);
+        payload.extend_from_slice(&gz3);
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(&CONTENT_ENCODING, "gzip".parse().unwrap());
+        headers.insert(&CONTENT_LENGTH, payload.len().to_string().parse().unwrap());
+
+        let resp = write_lp_raw(
+            &server,
+            "foo",
+            bytes_to_request_body(payload),
+            None,
+            false,
+            "nanosecond",
+            Some(headers),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        // Verify cpu table
+        let res = query(
+            &server,
+            "foo",
+            "SELECT host, val, time FROM cpu ORDER BY time",
+            "csv",
+            None,
+        )
+        .await;
+        let body = read_body_bytes_for_tests(res.into_body()).await;
+        let actual = std::str::from_utf8(body.as_bytes()).unwrap();
+        let expected = "host,val,time\na,1,1970-01-01T00:00:00.000000100\nb,2,1970-01-01T00:00:00.000000200\nc,3,1970-01-01T00:00:00.000000300\n";
+        assert_eq!(actual, expected);
+
+        // Verify mem table
+        let res = query(
+            &server,
+            "foo",
+            "SELECT host, used, time FROM mem ORDER BY time",
+            "csv",
+            None,
+        )
+        .await;
+        let body = read_body_bytes_for_tests(res.into_body()).await;
+        let actual = std::str::from_utf8(body.as_bytes()).unwrap();
+        let expected = "host,used,time\na,500,1970-01-01T00:00:00.000000400\n";
+        assert_eq!(actual, expected);
+
+        // Verify disk table
+        let res = query(
+            &server,
+            "foo",
+            "SELECT host, free, time FROM disk ORDER BY time",
+            "csv",
+            None,
+        )
+        .await;
+        let body = read_body_bytes_for_tests(res.into_body()).await;
+        let actual = std::str::from_utf8(body.as_bytes()).unwrap();
+        let expected = "host,free,time\na,1000,1970-01-01T00:00:00.000000500\nb,2000,1970-01-01T00:00:00.000000600\n";
+        assert_eq!(actual, expected);
+
+        shutdown.cancel();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_write_lp_with_empty_gzip_member() {
+        let (server, shutdown, _) = setup_server(0).await;
+
+        // Member 1: Valid data (note trailing newline)
+        let lp1 = "cpu,host=a val=1i 100\n";
+        let gz1 = create_gzip_bytes(lp1);
+
+        // Member 2: Empty gzip member
+        let gz2 = create_gzip_bytes("");
+
+        // Member 3: Valid data
+        let lp3 = "mem,host=b used=500i 200\n";
+        let gz3 = create_gzip_bytes(lp3);
+
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&gz1);
+        payload.extend_from_slice(&gz2);
+        payload.extend_from_slice(&gz3);
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(&CONTENT_ENCODING, "gzip".parse().unwrap());
+        headers.insert(&CONTENT_LENGTH, payload.len().to_string().parse().unwrap());
+
+        let resp = write_lp_raw(
+            &server,
+            "foo",
+            bytes_to_request_body(payload),
+            None,
+            false,
+            "nanosecond",
+            Some(headers),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        // Verify cpu table
+        let res = query(
+            &server,
+            "foo",
+            "SELECT host, val, time FROM cpu ORDER BY time",
+            "csv",
+            None,
+        )
+        .await;
+        let body = read_body_bytes_for_tests(res.into_body()).await;
+        let actual = std::str::from_utf8(body.as_bytes()).unwrap();
+        let expected = "host,val,time\na,1,1970-01-01T00:00:00.000000100\n";
+        assert_eq!(actual, expected);
+
+        // Verify mem table
+        let res = query(
+            &server,
+            "foo",
+            "SELECT host, used, time FROM mem ORDER BY time",
+            "csv",
+            None,
+        )
+        .await;
+        let body = read_body_bytes_for_tests(res.into_body()).await;
+        let actual = std::str::from_utf8(body.as_bytes()).unwrap();
+        let expected = "host,used,time\nb,500,1970-01-01T00:00:00.000000200\n";
+        assert_eq!(actual, expected);
+
+        shutdown.cancel();
+    }
+
+    fn create_gzip_bytes(data: &str) -> Vec<u8> {
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(data.as_bytes()).unwrap();
+        encoder.finish().unwrap()
+    }
+
     #[tokio::test]
     async fn delete_table_defaults_to_hard_delete_default() {
         let start_time = 0;
@@ -1024,7 +1223,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the table without hard_delete_at parameter
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!("{server}/api/v3/configure/table?db={db_name}&table={table_name}");
 
         let request = RequestBuilder::new()
@@ -1077,7 +1276,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the table with explicit hard_delete_at=never parameter
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!(
             "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=never"
         );
@@ -1131,7 +1330,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the table with explicit hard_delete_at=now parameter
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!(
             "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=now"
         );
@@ -1193,7 +1392,7 @@ mod tests {
         );
 
         // Make a DELETE request to delete the table with explicit hard_delete_at timestamp
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!(
             "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at={future_timestamp}"
         );
@@ -1248,7 +1447,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the table with explicit hard_delete_at=default parameter
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!(
             "{server}/api/v3/configure/table?db={db_name}&table={table_name}&hard_delete_at=default"
         );
@@ -1301,7 +1500,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=never parameter
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=never");
 
         let request = RequestBuilder::new()
@@ -1349,7 +1548,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the database without hard_delete_at parameter
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!("{server}/api/v3/configure/database?db={db_name}");
 
         let request = RequestBuilder::new()
@@ -1398,7 +1597,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=now parameter
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=now");
 
         let request = RequestBuilder::new()
@@ -1446,7 +1645,7 @@ mod tests {
         .await;
 
         // Make a DELETE request to delete the database with explicit hard_delete_at=default parameter
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!("{server}/api/v3/configure/database?db={db_name}&hard_delete_at=default");
 
         let request = RequestBuilder::new()
@@ -1502,7 +1701,7 @@ mod tests {
         );
 
         // Make a DELETE request to delete the database with explicit hard_delete_at timestamp
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let url = format!(
             "{server}/api/v3/configure/database?db={db_name}&hard_delete_at={future_timestamp}"
         );
@@ -1711,19 +1910,37 @@ mod tests {
         );
         let frontend_shutdown = CancellationToken::new();
         let shutdown_manager = ShutdownManager::new(frontend_shutdown.clone());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+
+        // Start background catalog update for last cache in tests
+        {
+            use influxdb3_cache::last_cache::background_catalog_update;
+            let subscription = catalog.subscribe_to_updates("last_cache_test").await;
+            background_catalog_update(Arc::clone(&last_cache), subscription);
+        }
+
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+
+        // Start background catalog update for distinct cache in tests
+        {
+            use influxdb3_cache::distinct_cache::background_catalog_update;
+            let subscription = catalog.subscribe_to_updates("distinct_cache_test").await;
+            background_catalog_update(Arc::clone(&distinct_cache), subscription);
+        }
+
         let write_buffer_impl = influxdb3_write::write_buffer::WriteBufferImpl::new(
             influxdb3_write::write_buffer::WriteBufferImplArgs {
                 persister: Arc::clone(&persister),
                 catalog: Arc::clone(&catalog),
-                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
-                    .await
-                    .unwrap(),
-                distinct_cache: DistinctCacheProvider::new_from_catalog(
-                    Arc::clone(&time_provider) as _,
-                    Arc::clone(&catalog),
-                )
-                .await
-                .unwrap(),
+                last_cache,
+                distinct_cache,
                 time_provider: Arc::clone(&time_provider) as _,
                 executor: Arc::clone(&exec),
                 wal_config: WalConfig::test_config(),
@@ -1792,7 +2009,8 @@ mod tests {
             Arc::clone(&time_provider) as _,
             sys_events_store,
         )
-        .await;
+        .await
+        .unwrap();
 
         // We declare this as a static so that the lifetimes workout here and that
         // it lives long enough.
@@ -1856,8 +2074,29 @@ mod tests {
         accept_partial: bool,
         precision: impl Into<String> + Send,
     ) -> Response {
+        write_lp_raw(
+            server,
+            database,
+            bytes_to_request_body(lp.into()),
+            authorization,
+            accept_partial,
+            precision,
+            None,
+        )
+        .await
+    }
+
+    pub(crate) async fn write_lp_raw(
+        server: impl Into<String> + Send,
+        database: impl Into<String> + Send,
+        payload: RequestBody,
+        authorization: Option<&str>,
+        accept_partial: bool,
+        precision: impl Into<String> + Send,
+        headers: Option<hyper::HeaderMap>,
+    ) -> Response {
         let server = server.into();
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         let database = urlencoding::encode(database.into().as_ref());
         let url = format!(
             "{}/api/v3/write_lp?db={}&accept_partial={accept_partial}&precision={}",
@@ -1871,24 +2110,22 @@ mod tests {
         if let Some(authorization) = authorization {
             builder = builder.header(hyper::header::AUTHORIZATION, authorization);
         };
+        if let Some(headers) = headers {
+            for (key, value) in &headers {
+                builder = builder.header(key, value);
+            }
+        }
         let request = builder
-            .body(bytes_to_request_body(lp.into()))
+            .body(payload)
             .expect("failed to construct HTTP request");
 
-        let hyper_response = client
+        let response = client
             .request(request)
             .await
             .expect("http error sending write");
 
-        // Convert hyper response to expected Response type
-        let (parts, body) = hyper_response.into_parts();
-        let body_bytes = body
-            .collect()
-            .await
-            .expect("Failed to read body")
-            .to_bytes();
-        let response_body = bytes_to_response_body(body_bytes);
-        http::Response::from_parts(parts, response_body)
+        // Convert Response<Incoming> to Response<UnsyncBoxBody>
+        response.map(|body| body.map_err(|e| Box::new(e) as _).boxed_unsync())
     }
 
     pub(crate) async fn query(
@@ -1898,7 +2135,7 @@ mod tests {
         format: impl Into<String> + Send,
         authorization: Option<&str>,
     ) -> Response {
-        let client = Client::builder(TokioExecutor::new()).build(HttpConnector::new());
+        let client = Client::builder(TokioExecutor::new()).build_http();
         // query escaped for uri
         let query = urlencoding::encode(&query.into());
         let url = format!(
@@ -1918,19 +2155,12 @@ mod tests {
             .body(empty_request_body())
             .expect("failed to construct HTTP request");
 
-        let hyper_response = client
+        let response = client
             .request(request)
             .await
             .expect("http error sending query");
 
-        // Convert hyper response to expected Response type
-        let (parts, body) = hyper_response.into_parts();
-        let body_bytes = body
-            .collect()
-            .await
-            .expect("Failed to read body")
-            .to_bytes();
-        let response_body = bytes_to_response_body(body_bytes);
-        http::Response::from_parts(parts, response_body)
+        // Convert Response<Incoming> to Response<UnsyncBoxBody>
+        response.map(|body| body.map_err(|e| Box::new(e) as _).boxed_unsync())
     }
 }
