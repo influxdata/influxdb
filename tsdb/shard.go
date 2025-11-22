@@ -698,8 +698,9 @@ func (s *Shard) WritePoints(ctx context.Context, points []models.Point) (rErr er
 	var writeError error
 	s.stats.writes.Observe(float64(len(points)))
 	defer func() {
-		if rErr != nil {
+		if rErr != nil && !errors.Is(rErr, context.DeadlineExceeded) && !errors.Is(rErr, context.Canceled) {
 			s.stats.writesErr.Observe(float64(len(points)))
+			s.logger.Error("writing points to engine failed", zap.Error(rErr))
 		}
 	}()
 
