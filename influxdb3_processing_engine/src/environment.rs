@@ -27,7 +27,7 @@ pub enum PluginEnvironmentError {
 pub trait PythonEnvironmentManager: Debug + Send + Sync + 'static {
     fn init_pyenv(
         &self,
-        plugin_dir: &Path,
+        plugin_dir: Option<&Path>,
         virtual_env_location: Option<&PathBuf>,
     ) -> Result<(), PluginEnvironmentError>;
     fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError>;
@@ -55,9 +55,10 @@ fn is_valid_venv(venv_path: &Path) -> bool {
 impl PythonEnvironmentManager for UVManager {
     fn init_pyenv(
         &self,
-        plugin_dir: &Path,
+        plugin_dir: Option<&Path>,
         virtual_env_location: Option<&PathBuf>,
     ) -> Result<(), PluginEnvironmentError> {
+        let plugin_dir = plugin_dir.expect("plugin dir is set if using uv");
         let venv_path = match virtual_env_location {
             Some(path) => path,
             None => &plugin_dir.join(".venv"),
@@ -93,9 +94,10 @@ impl PythonEnvironmentManager for UVManager {
 impl PythonEnvironmentManager for PipManager {
     fn init_pyenv(
         &self,
-        plugin_dir: &Path,
+        plugin_dir: Option<&Path>,
         virtual_env_location: Option<&PathBuf>,
     ) -> Result<(), PluginEnvironmentError> {
+        let plugin_dir = plugin_dir.expect("plugin dir is set if using pip");
         let venv_path = match virtual_env_location {
             Some(path) => path,
             None => &plugin_dir.join(".venv"),
@@ -142,7 +144,7 @@ impl PythonEnvironmentManager for PipManager {
 impl PythonEnvironmentManager for DisabledManager {
     fn init_pyenv(
         &self,
-        _plugin_dir: &Path,
+        _plugin_dir: Option<&Path>,
         _virtual_env_location: Option<&PathBuf>,
     ) -> Result<(), PluginEnvironmentError> {
         Ok(())
@@ -169,7 +171,7 @@ pub struct DisabledPackageManager;
 impl PythonEnvironmentManager for DisabledPackageManager {
     fn init_pyenv(
         &self,
-        _plugin_dir: &Path,
+        _plugin_dir: Option<&Path>,
         _virtual_env_location: Option<&PathBuf>,
     ) -> Result<(), PluginEnvironmentError> {
         // Allow normal initialization - the processing engine should still work

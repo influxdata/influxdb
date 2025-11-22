@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 mod serialize;
 pub use serialize::{SerdeVecMap, SerdeVecSet};
 
-pub trait CatalogId: Default + Hash + Eq + Copy + Ord + Serialize {
+pub trait CatalogId: Default + Hash + Eq + Copy + Ord + Serialize + Display {
     type Integer;
 
     const MAX: Self;

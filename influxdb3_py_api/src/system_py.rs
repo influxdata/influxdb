@@ -731,7 +731,10 @@ pub fn execute_schedule_trigger(
 
         let py_datetime = PyDateTime::from_timestamp(py, schedule_time.timestamp() as f64, None)
             .map_err(|e| {
-                anyhow::Error::new(e).context("error converting the schedule time to Python time")
+                anyhow::Error::new(e).context(format!(
+                    "error converting the schedule time {schedule_time} to Python time: \
+                likely python build or libpython issue"
+                ))
             })?;
 
         py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)

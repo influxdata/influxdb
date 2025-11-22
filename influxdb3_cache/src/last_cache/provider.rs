@@ -354,7 +354,9 @@ impl LastCacheProvider {
     }
 }
 
-fn background_catalog_update(
+/// Background task that listens for catalog updates and maintains last value caches.
+/// This should be started explicitly after creating the provider.
+pub fn background_catalog_update(
     provider: Arc<LastCacheProvider>,
     mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {

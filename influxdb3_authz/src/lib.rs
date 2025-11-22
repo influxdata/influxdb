@@ -36,10 +36,13 @@ pub enum AccessRequest {
     Admin,
 }
 
-#[derive(Debug, Clone, Copy, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum ResourceAuthorizationError {
     #[error("unauthorized to perform requested action with the token")]
     Unauthorized,
+
+    #[error("resource type not supported, {0}")]
+    ResourceNotSupported(String),
 }
 
 #[derive(Debug, thiserror::Error)]

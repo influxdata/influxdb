@@ -3959,13 +3959,13 @@ mod tests {
         let fake_db_id = DbId::from(999);
         let fake_table_id = TableId::from(123);
         let result = catalog.hard_delete_table(&fake_db_id, &fake_table_id).await;
-        assert!(matches!(result, Err(CatalogError::NotFound)));
+        assert!(matches!(result, Err(CatalogError::NotFound(_))));
 
         // Create database but try to delete non-existent table
         catalog.create_database("test").await.unwrap();
         let db_id = catalog.db_name_to_id("test").unwrap();
         let result = catalog.hard_delete_table(&db_id, &fake_table_id).await;
-        assert!(matches!(result, Err(CatalogError::NotFound)));
+        assert!(matches!(result, Err(CatalogError::NotFound(_))));
     }
 
     #[test_log::test(tokio::test)]
@@ -4149,7 +4149,7 @@ mod tests {
         // Try to delete non-existent database
         let fake_db_id = DbId::from(999);
         let result = catalog.hard_delete_database(&fake_db_id).await;
-        assert!(matches!(result, Err(CatalogError::NotFound)));
+        assert!(matches!(result, Err(CatalogError::NotFound(_))));
     }
 
     #[test_log::test(tokio::test)]

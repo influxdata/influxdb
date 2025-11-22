@@ -129,9 +129,6 @@ pub enum Error {
     #[error("error from wal: {0}")]
     WalError(#[from] influxdb3_wal::Error),
 
-    #[error("cannot write to a read-only server")]
-    NoWriteInReadOnly,
-
     #[error("error in distinct value cache: {0}")]
     DistinctCacheError(#[from] distinct_cache::ProviderError),
 
