@@ -263,8 +263,8 @@ type twoCounterObserver struct {
 }
 
 func (t twoCounterObserver) Observe(f float64) {
-	t.sum.Inc()
-	t.count.Add(f)
+	t.count.Inc()
+	t.sum.Add(f)
 }
 
 var _ prometheus.Observer = twoCounterObserver{}
