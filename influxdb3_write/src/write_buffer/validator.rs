@@ -421,8 +421,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
 
-    #[tokio::test]
-    async fn write_validator_v1() -> Result<(), Error> {
+    async fn setup_catalog() -> (Arc<Catalog>, NamespaceName<'static>) {
         let node_id = Arc::from("sample-host-id");
         let obj_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -432,6 +431,12 @@ mod tests {
                 .await
                 .unwrap(),
         );
+        (catalog, namespace)
+    }
+
+    #[tokio::test]
+    async fn write_validator_v1_initial_write() -> Result<(), Error> {
+        let (catalog, namespace) = setup_catalog().await;
         let expected_sequence = catalog.sequence_number().next();
         let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog))?
             .v1_parse_lines_and_catalog_updates(
@@ -460,6 +465,25 @@ mod tests {
             .unwrap();
         assert_eq!(batch.row_count(), 1);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn write_validator_v1_idempotent_write() -> Result<(), Error> {
+        let (catalog, namespace) = setup_catalog().await;
+
+        // Initial write to establish schema
+        WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog))?
+            .v1_parse_lines_and_catalog_updates(
+                "cpu,tag1=foo val1=\"bar\" 1234",
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Auto,
+            )?
+            .commit_catalog_changes()
+            .await?
+            .unwrap_success();
+
         // Validate another write, the result should be very similar, but now the catalog
         // has the table/columns added, so it will excercise a different code path:
         let expected_sequence = catalog.sequence_number();
@@ -481,6 +505,26 @@ mod tests {
         assert_eq!(result.index_count, 1);
         assert_eq!(expected_sequence, catalog.sequence_number());
         assert!(result.errors.is_empty());
+        assert_eq!(result.valid_data.database_name.as_ref(), namespace.as_str());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn write_validator_v1_schema_evolution() -> Result<(), Error> {
+        let (catalog, namespace) = setup_catalog().await;
+
+        // Initial write
+        WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog))?
+            .v1_parse_lines_and_catalog_updates(
+                "cpu,tag1=foo val1=\"bar\" 1234",
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Auto,
+            )?
+            .commit_catalog_changes()
+            .await?
+            .unwrap_success();
 
         // Validate another write, this time adding a new field:
         let expected_sequence = catalog.sequence_number().next();
@@ -502,6 +546,7 @@ mod tests {
         assert_eq!(result.index_count, 1);
         assert!(result.errors.is_empty());
         assert_eq!(expected_sequence, catalog.sequence_number());
+        assert_eq!(result.valid_data.database_name.as_ref(), namespace.as_str());
 
         Ok(())
     }
