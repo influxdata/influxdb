@@ -2,7 +2,8 @@ package httpd_test
 
 import (
 	"crypto/tls"
-	"crypto/x509"
+	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
@@ -86,6 +87,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Create service with HTTPS enabled
 		config := httpd.Config{
+			BindAddress:      "localhost:",
 			HTTPSEnabled:     true,
 			HTTPSCertificate: ss1.CertPath,
 			HTTPSPrivateKey:  ss1.KeyPath,
@@ -102,6 +104,20 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 		initialCert, err := tlsconfig.LoadCertificate(ss1.CertPath, ss1.KeyPath)
 		require.NoError(t, err)
 		initialSerial := initialCert.Leaf.SerialNumber
+
+		// Verify the certificate is in use.
+		{
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := http.Client{Transport: transport}
+			pingURI := fmt.Sprintf("https://%s/ping", s.Addr())
+			resp, err := client.Get(pingURI)
+			require.NoError(t, err)
+			require.NotNil(t, resp.TLS)
+			require.NotEmpty(t, resp.TLS.PeerCertificates)
+			require.Equal(t, initialSerial, resp.TLS.PeerCertificates[0].SerialNumber)
+		}
 
 		// Create new certificates for reload
 		ss2 := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("reloaded.example.com"))
@@ -125,13 +141,19 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 		// Apply the certificate reload
 		require.NoError(t, applyFunc())
 
-		// Verify the certificate was actually loaded by calling GetCertificate via the tls.Config
-		activeCert, err := s.Handler.Config.TLS.GetCertificate(nil)
-		require.NoError(t, err)
-		require.NotNil(t, activeCert)
-		activeCertParsed, err := x509.ParseCertificate(activeCert.Certificate[0])
-		require.NoError(t, err)
-		require.Equal(t, newSerial.String(), activeCertParsed.SerialNumber.String(), "active certificate should match the reloaded certificate")
+		// Verify the new certificate is in use.
+		{
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := http.Client{Transport: transport}
+			pingURI := fmt.Sprintf("https://%s/ping", s.Addr())
+			resp, err := client.Get(pingURI)
+			require.NoError(t, err)
+			require.NotNil(t, resp.TLS)
+			require.NotEmpty(t, resp.TLS.PeerCertificates)
+			require.Equal(t, newSerial, resp.TLS.PeerCertificates[0].SerialNumber)
+		}
 	})
 
 	t.Run("HTTPS enabled, VerifyLoad fails", func(t *testing.T) {
@@ -163,7 +185,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 		require.Nil(t, applyFunc)
 	})
 
-	t.Run("HTTPS enabled, same certificate paths", func(t *testing.T) {
+	t.Run("HTTPS enabled, no certificate change", func(t *testing.T) {
 		// Create initial certificates
 		ss := selfsigned.NewSelfSignedCert(t)
 
@@ -186,6 +208,20 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 		require.NoError(t, err)
 		expectedSerial := cert.Leaf.SerialNumber
 
+		// Verify the certificate is in use.
+		{
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := http.Client{Transport: transport}
+			pingURI := fmt.Sprintf("https://%s/ping", s.Addr())
+			resp, err := client.Get(pingURI)
+			require.NoError(t, err)
+			require.NotNil(t, resp.TLS)
+			require.NotEmpty(t, resp.TLS.PeerCertificates)
+			require.Equal(t, expectedSerial, resp.TLS.PeerCertificates[0].SerialNumber)
+		}
+
 		// Verify reload with same certificate paths (common case for reloading updated files)
 		newConfig := httpd.Config{
 			HTTPSEnabled:     true,
@@ -200,11 +236,17 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 		require.NoError(t, applyFunc())
 
 		// Verify the certificate is loaded correctly
-		activeCert, err := s.Handler.Config.TLS.GetCertificate(nil)
-		require.NoError(t, err)
-		require.NotNil(t, activeCert)
-		activeCertParsed, err := x509.ParseCertificate(activeCert.Certificate[0])
-		require.NoError(t, err)
-		require.Equal(t, expectedSerial.String(), activeCertParsed.SerialNumber.String())
+		{
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := http.Client{Transport: transport}
+			pingURI := fmt.Sprintf("https://%s/ping", s.Addr())
+			resp, err := client.Get(pingURI)
+			require.NoError(t, err)
+			require.NotNil(t, resp.TLS)
+			require.NotEmpty(t, resp.TLS.PeerCertificates)
+			require.Equal(t, expectedSerial, resp.TLS.PeerCertificates[0].SerialNumber)
+		}
 	})
 }

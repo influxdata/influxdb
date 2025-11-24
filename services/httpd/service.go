@@ -121,10 +121,6 @@ func (s *Service) Open() error {
 
 		tlsConfig := s.tlsConfig.Clone()
 		tlsConfig.GetCertificate = s.certLoader.GetCertificate
-		// Also set GetCertificate on Handler.Config.TLS for testability
-		if s.Handler.Config.TLS != nil {
-			s.Handler.Config.TLS.GetCertificate = s.certLoader.GetCertificate
-		}
 
 		listener, err := tls.Listen("tcp", s.addr, tlsConfig)
 		if err != nil {
