@@ -1929,6 +1929,17 @@ func (a TagKeysSlice) Len() int           { return len(a) }
 func (a TagKeysSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a TagKeysSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measurement }
 
+type FieldKeys struct {
+	Measurement string
+	Keys        []string
+}
+
+type FieldKeysSlice []FieldKeys
+
+func (a FieldKeysSlice) Len() int           { return len(a) }
+func (a FieldKeysSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a FieldKeysSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measurement }
+
 // TagKeys returns the tag keys in the given database, matching the condition.
 func (s *Store) TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]TagKeys, error) {
 	if len(shardIDs) == 0 {
@@ -2071,6 +2082,82 @@ func (s *Store) TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs
 		results = append(results, TagKeys{
 			Measurement: string(name),
 			Keys:        finalKeys,
+		})
+	}
+	return results, nil
+}
+
+func (s *Store) FieldKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]FieldKeys, error) {
+	if len(shardIDs) == 0 {
+		return nil, nil
+	}
+
+	measurementExpr, _, err := influxql.PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if ok && tag.Val == "_name" {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
+	s.mu.RLock()
+	for _, sid := range shardIDs {
+		shard, ok := s.shards[sid]
+		if !ok {
+			continue
+		}
+
+		if is.SeriesFile == nil {
+			sfile, err := shard.SeriesFile()
+			if err != nil {
+				s.mu.RUnlock()
+				return nil, err
+			}
+			is.SeriesFile = sfile
+		}
+
+		index, err := shard.Index()
+		if err != nil {
+			s.mu.RUnlock()
+			return nil, err
+		}
+		is.Indexes = append(is.Indexes, index)
+	}
+	s.mu.RUnlock()
+
+	is = is.DedupeInmemIndexes()
+	names, err := is.MeasurementNamesByExpr(nil, measurementExpr)
+	if err != nil {
+		return nil, err
+	}
+
+	shards := Shards(s.Shards(shardIDs))
+	var results []FieldKeys
+	for _, name := range names {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		keys := shards.FieldKeysByMeasurement(name)
+		if len(keys) == 0 {
+			continue
+		}
+
+		results = append(results, FieldKeys{
+			Measurement: string(name),
+			Keys:        keys,
 		})
 	}
 	return results, nil

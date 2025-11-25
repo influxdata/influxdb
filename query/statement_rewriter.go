@@ -12,8 +12,6 @@ var matchAllRegex = regexp.MustCompile(`.+`)
 // RewriteStatement rewrites stmt into a new statement, if applicable.
 func RewriteStatement(stmt influxql.Statement) (influxql.Statement, error) {
 	switch stmt := stmt.(type) {
-	case *influxql.ShowFieldKeysStatement:
-		return rewriteShowFieldKeysStatement(stmt)
 	case *influxql.ShowFieldKeyCardinalityStatement:
 		return rewriteShowFieldKeyCardinalityStatement(stmt)
 	case *influxql.ShowMeasurementsStatement:
@@ -35,30 +33,6 @@ func RewriteStatement(stmt influxql.Statement) (influxql.Statement, error) {
 	default:
 		return stmt, nil
 	}
-}
-
-func rewriteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement) (influxql.Statement, error) {
-	var sources influxql.Sources
-	if stmt.RetentionPolicy == "" {
-		sources = rewriteSources(stmt.Sources, "_fieldKeys", stmt.Database)
-	} else {
-		sources = rewriteSourcesWithRp(stmt.Sources, "_fieldKeys", stmt.Database, stmt.RetentionPolicy)
-	}
-
-	return &influxql.SelectStatement{
-		Fields: influxql.Fields([]*influxql.Field{
-			{Expr: &influxql.VarRef{Val: "fieldKey"}},
-			{Expr: &influxql.VarRef{Val: "fieldType"}},
-		}),
-		Sources:    sources,
-		Condition:  rewriteSourcesCondition(stmt.Sources, nil),
-		Offset:     stmt.Offset,
-		Limit:      stmt.Limit,
-		SortFields: stmt.SortFields,
-		OmitTime:   true,
-		Dedupe:     true,
-		IsRawQuery: true,
-	}, nil
 }
 
 func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinalityStatement) (influxql.Statement, error) {
@@ -473,13 +447,6 @@ func rewriteShowTagKeyCardinalityStatement(stmt *influxql.ShowTagKeyCardinalityS
 //
 // rewriteSources also sets the default database where necessary.
 func rewriteSources(sources influxql.Sources, systemIterator, defaultDatabase string) influxql.Sources {
-	return rewriteSourcesWithRp(sources, systemIterator, defaultDatabase, "")
-}
-
-// rewriteSourcesWithRp rewrites sources to include the provided system iterator and retention policy.
-//
-// rewriteSourcesWithRp also sets the default database and retention policy where necessary.
-func rewriteSourcesWithRp(sources influxql.Sources, systemIterator, defaultDatabase, retentionPolicy string) influxql.Sources {
 	newSources := influxql.Sources{}
 	for _, src := range sources {
 		if src == nil {
@@ -492,20 +459,14 @@ func rewriteSourcesWithRp(sources influxql.Sources, systemIterator, defaultDatab
 		}
 
 		newM := mm.Clone()
-		if retentionPolicy != "" {
-			rp := mm.RetentionPolicy
-			newM.SystemIterator, newM.Database, newM.RetentionPolicy = systemIterator, database, rp
-		} else {
-			newM.SystemIterator, newM.Database = systemIterator, database
-		}
+		newM.SystemIterator, newM.Database = systemIterator, database
 		newSources = append(newSources, newM)
 	}
 
 	if len(newSources) <= 0 {
 		return append(newSources, &influxql.Measurement{
-			Database:        defaultDatabase,
-			SystemIterator:  systemIterator,
-			RetentionPolicy: retentionPolicy,
+			Database:       defaultDatabase,
+			SystemIterator: systemIterator,
 		})
 	}
 	return newSources
