@@ -196,5 +196,3 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/influxdata/influxql v1.4.1 => github.com/influxdata/influxql v1.4.2-0.20251124223048-1ed3286e67de

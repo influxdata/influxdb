@@ -1115,20 +1115,62 @@ func (e *StatementExecutor) executeShowFieldKeys(ctx *query.ExecutionContext, q 
 	}
 
 	valuer := &influxql.NowValuer{Now: time.Now()}
-	cond, timeRange, err := influxql.ConditionExpr(nil, valuer)
+	baseCond, timeRange, err := influxql.ConditionExpr(nil, valuer)
 	if err != nil {
 		return err
 	}
 
-	rps := []string{}
-	if q.RetentionPolicy != "" {
-		rps = append(rps, q.RetentionPolicy)
-	} else {
-		for _, m := range q.Sources.Measurements() {
-			if len(m.RetentionPolicy) > 0 {
-				rps = append(rps, m.RetentionPolicy)
-				break
+	var measurementCond influxql.Expr
+	for _, source := range q.Sources {
+		mm := source.(*influxql.Measurement)
+		var expr influxql.Expr
+		if mm.Regex != nil {
+			expr = &influxql.BinaryExpr{
+				Op:  influxql.EQREGEX,
+				LHS: &influxql.VarRef{Val: "_name"},
+				RHS: &influxql.RegexLiteral{Val: mm.Regex.Val},
 			}
+		} else if mm.Name != "" {
+			expr = &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_name"},
+				RHS: &influxql.StringLiteral{Val: mm.Name},
+			}
+		}
+
+		if expr != nil {
+			if measurementCond == nil {
+				measurementCond = expr
+			} else {
+				measurementCond = &influxql.BinaryExpr{
+					Op:  influxql.OR,
+					LHS: measurementCond,
+					RHS: expr,
+				}
+			}
+		}
+	}
+
+	var cond influxql.Expr
+	if measurementCond != nil {
+		if baseCond != nil {
+			cond = &influxql.BinaryExpr{
+				Op:  influxql.AND,
+				LHS: baseCond,
+				RHS: measurementCond,
+			}
+		} else {
+			cond = measurementCond
+		}
+	} else {
+		cond = baseCond
+	}
+
+	rps := []string{}
+	for _, m := range q.Sources.Measurements() {
+		if len(m.RetentionPolicy) > 0 {
+			rps = append(rps, m.RetentionPolicy)
+			break
 		}
 	}
 	if len(rps) == 0 {

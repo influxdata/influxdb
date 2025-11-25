@@ -8680,19 +8680,25 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 		&Query{
 			name:    `show field keys`,
 			command: `SHOW FIELD KEYS`,
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["fieldKey","fieldType"],"values":[["field1","float"],["field2","float"],["field3","float"]]},{"name":"disk","columns":["fieldKey","fieldType"],"values":[["field8","float"],["field9","float"]]},{"name":"gpu","columns":["fieldKey","fieldType"],"values":[["field4","float"],["field5","float"],["field6","float"],["field7","float"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"rp0.cpu","columns":["fieldKey","fieldType"],"values":[["field1","float"],["field2","float"],["field3","float"]]},{"name":"rp0.disk","columns":["fieldKey","fieldType"],"values":[["field8","float"],["field9","float"]]},{"name":"rp0.gpu","columns":["fieldKey","fieldType"],"values":[["field4","float"],["field5","float"],["field6","float"],["field7","float"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show field keys from measurement`,
 			command: `SHOW FIELD KEYS FROM cpu`,
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["fieldKey","fieldType"],"values":[["field1","float"],["field2","float"],["field3","float"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"rp0.cpu","columns":["fieldKey","fieldType"],"values":[["field1","float"],["field2","float"],["field3","float"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show field keys measurement with regex`,
 			command: `SHOW FIELD KEYS FROM /[cg]pu/`,
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["fieldKey","fieldType"],"values":[["field1","float"],["field2","float"],["field3","float"]]},{"name":"gpu","columns":["fieldKey","fieldType"],"values":[["field4","float"],["field5","float"],["field6","float"],["field7","float"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"rp0.cpu","columns":["fieldKey","fieldType"],"values":[["field1","float"],["field2","float"],["field3","float"]]},{"name":"rp0.gpu","columns":["fieldKey","fieldType"],"values":[["field4","float"],["field5","float"],["field6","float"],["field7","float"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show field keys measurement with retention policy`,
+			command: `SHOW FIELD KEYS FROM rp0./[cg]pu/`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"rp0.cpu","columns":["fieldKey","fieldType"],"values":[["field1","float"],["field2","float"],["field3","float"]]},{"name":"rp0.gpu","columns":["fieldKey","fieldType"],"values":[["field4","float"],["field5","float"],["field6","float"],["field7","float"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
