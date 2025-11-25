@@ -7194,7 +7194,7 @@ func TestServer_Query_ShowQueries_Future(t *testing.T) {
 		&Query{
 			name:    `show field keys`,
 			command: "SHOW FIELD KEYS",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["fieldKey","fieldType"],"values":[["value","float"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"rp0.cpu","columns":["fieldKey","fieldType"],"values":[["value","float"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
