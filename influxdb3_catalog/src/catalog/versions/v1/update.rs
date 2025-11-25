@@ -211,7 +211,7 @@ impl Catalog {
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
             let Some(node) = self.node(node_id) else {
-                return Err(crate::CatalogError::NotFound);
+                return Err(crate::CatalogError::NotFound(node_id.to_string()));
             };
             if !node.is_running() {
                 return Err(crate::CatalogError::NodeAlreadyStopped {
@@ -259,16 +259,16 @@ impl Catalog {
 
     pub async fn soft_delete_database(
         &self,
-        name: &str,
+        db_name: &str,
         hard_delete_time: HardDeletionTime,
     ) -> Result<OrderedCatalogBatch> {
         self.catalog_update_with_retry(|| {
-            if name == INTERNAL_DB_NAME {
+            if db_name == INTERNAL_DB_NAME {
                 return Err(CatalogError::CannotDeleteInternalDatabase);
             };
 
-            let Some(db) = self.db_schema(name) else {
-                return Err(CatalogError::NotFound);
+            let Some(db) = self.db_schema(db_name) else {
+                return Err(CatalogError::NotFound(db_name.to_string()));
             };
 
             // If the request specifies the default hard-delete time, and the schema has an existing hard_delete_time,
@@ -338,10 +338,10 @@ impl Catalog {
     ) -> Result<OrderedCatalogBatch> {
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(db_name.to_string()));
             };
             let Some(tbl_def) = db.table_definition(table_name) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(table_name.to_string()));
             };
 
             // If the request specifies the default hard-delete time, and the schema has an existing hard_delete_time,
@@ -402,10 +402,10 @@ impl Catalog {
         info!(?db_id, ?table_id, "Hard delete table.");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema_by_id(db_id) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(format!("database id: {}", db_id)));
             };
             let Some(_table_def) = db.table_definition_by_id(table_id) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(format!("table id: {}", table_id)));
             };
 
             let deletion_time = self.time_provider.now().timestamp_nanos();
@@ -431,7 +431,7 @@ impl Catalog {
         info!(?db_id, "Hard delete database.");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema_by_id(db_id) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(format!("database id: {}", db_id)));
             };
 
             // Prevent deletion of internal database
@@ -461,10 +461,10 @@ impl Catalog {
         info!(db_name, table_name, cache_name = ?cache_name, "create distinct cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(db_name.to_string()));
             };
             let Some(mut tbl) = db.table_definition(table_name) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(table_name.to_string()));
             };
             if columns.is_empty() {
                 return Err(CatalogError::invalid_configuration(
@@ -546,10 +546,10 @@ impl Catalog {
         info!(db_name, table_name, cache_name = ?cache_name, "create last cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(db_name.to_string()));
             };
             let Some(mut tbl) = db.table_definition(table_name) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(table_name.to_string()));
             };
 
             fn is_valid_last_cache_key_col(def: &ColumnDefinition) -> bool {
@@ -667,7 +667,7 @@ impl Catalog {
         info!(db_name, trigger_name, "create processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(mut db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound);
+                return Err(CatalogError::NotFound(db_name.to_string()));
             };
             let trigger = TriggerSpecificationDefinition::from_string_rep(trigger_specification)?;
             if db.processing_engine_triggers.contains_name(trigger_name) {
@@ -709,7 +709,7 @@ impl Catalog {
             "create new retention policy"
         );
         let Some(db) = self.db_schema(db_name) else {
-            return Err(CatalogError::NotFound);
+            return Err(CatalogError::NotFound(db_name.to_string()));
         };
         self.catalog_update_with_retry(|| {
             Ok(CatalogBatch::database(
@@ -814,7 +814,7 @@ impl DatabaseCatalogTransaction {
         column_type: FieldDataType,
     ) -> Result<ColumnId> {
         let Some(table_def) = self.database_schema.table_definition(table_name) else {
-            return Err(CatalogError::NotFound);
+            return Err(CatalogError::NotFound(table_name.to_string()));
         };
         match table_def.column_definition(column_name) {
             Some(def) if def.data_type == column_type.into() => Ok(def.id),

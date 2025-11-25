@@ -14,6 +14,7 @@ use influxdb3_py_api::system_py::{CacheStore, PyCache};
 use influxdb3_sys_events::SysEventStore;
 
 use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
+use influxdb3_types::logging::ErrorOneLine;
 use influxdb3_wal::Gen1Duration;
 use influxdb3_write::Precision;
 
@@ -270,7 +271,7 @@ mod python_plugin {
                                                     }
                                                     WalEvent::Shutdown(shutdown) => {
                                                         if shutdown.send(()).is_err() {
-                                                            error!("failed to send back shutdown for trigger {}", trigger_definition.trigger_name);
+                                                            error!(trigger_name = %trigger_definition.trigger_name, "failed to send back shutdown for trigger");
                                                         }
                                                         break;
                                                     }
@@ -294,7 +295,7 @@ mod python_plugin {
                                 match result {
                                     PluginNextState::SuccessfulRun => {}
                                     PluginNextState::LogError(error_log) => {
-                                        error!("trigger failed with error {error_log}");
+                                        error!(error = %error_log, "trigger failed");
                                         self.logger.log(LogLevel::Error, error_log);
                                     },
                                     PluginNextState::Disable(_) => {
@@ -306,7 +307,7 @@ mod python_plugin {
                                                 }
                                                 WalEvent::Shutdown(shutdown) => {
                                                     if shutdown.send(()).is_err() {
-                                                        error!("failed to send back shutdown for trigger {}", self.trigger_definition.trigger_name);
+                                                        error!(trigger_name = %self.trigger_definition.trigger_name, "failed to send back shutdown for trigger");
                                                     }
                                                     break;
                                                 }
@@ -316,7 +317,7 @@ mod python_plugin {
                                 }
                             }
                             Err(err) => {
-                                error!(?self.trigger_definition, "error processing wal contents: {err}");
+                                error!(error = %err, ?self.trigger_definition, "error processing wal contents");
                             }
                         }
                     }
@@ -371,7 +372,7 @@ mod python_plugin {
                                         PluginNextState::SuccessfulRun => {}
                                         PluginNextState::LogError(err) => {
                                             self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {err}"));
-                                            error!(?self.trigger_definition, "error running scheduled plugin: {err}");
+                                            error!(error = %err, ?self.trigger_definition, "error running scheduled plugin");
                                         }
                                         PluginNextState::Disable(trigger_definition) => {
                                             warn!("disabling trigger {} due to error", trigger_definition.trigger_name);
@@ -390,7 +391,7 @@ mod python_plugin {
                                 }
                                 Err(err) => {
                                     self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {err}"));
-                                    error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
+                                    error!(error = %err, ?self.trigger_definition, "error running scheduled plugin");
                                 }
                             }
 
@@ -412,14 +413,14 @@ mod python_plugin {
                         match result {
                             Err(e) => {
                                 self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {e}"));
-                                error!(?self.trigger_definition, "error running async scheduled plugin: {e}");
+                                error!(error = %e, ?self.trigger_definition, "error running async scheduled plugin");
                             }
                             Ok(result) => {
                                 match result {
                                     PluginNextState::SuccessfulRun => {}
                                     PluginNextState::LogError(err) => {
                                         self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {err}"));
-                                        error!(?self.trigger_definition, "error running async scheduled plugin: {err}");
+                                        error!(error = %err, ?self.trigger_definition, "error running async scheduled plugin");
                                     }
                                     PluginNextState::Disable(trigger_definition) => {
                                         warn!("disabling trigger {} due to error", trigger_definition.trigger_name);
@@ -504,9 +505,9 @@ mod python_plugin {
                                 for error in errors {
                                     self.logger.log(
                                         LogLevel::Error,
-                                        format!("error running request plugin: {error}"),
+                                        format!("error running request plugin: {error:#}"),
                                     );
-                                    error!(?self.trigger_definition, "error running request plugin: {error}");
+                                    error!(error = %ErrorOneLine(&error), ?self.trigger_definition, "error running request plugin");
                                 }
 
                                 let response_status = StatusCode::from_u16(response_code)
@@ -531,7 +532,7 @@ mod python_plugin {
                                     LogLevel::Error,
                                     format!("error running request plugin: {e}"),
                                 );
-                                error!(?self.trigger_definition, "error running request plugin: {e}");
+                                error!(error = %e, ?self.trigger_definition, "error running request plugin");
                                 let body = serde_json::json!({"error": e.to_string()}).to_string();
                                 ResponseBuilder::new()
                                     .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -639,9 +640,9 @@ mod python_plugin {
                                     for error in errors {
                                         self.logger.log(
                                             LogLevel::Error,
-                                            format!("error running wal plugin: {error}"),
+                                            format!("error running wal plugin: {error:#}"),
                                         );
-                                        error!(?self.trigger_definition, "error running wal plugin: {error}");
+                                        error!(error = %ErrorOneLine(&error), ?self.trigger_definition, "error running wal plugin");
                                     }
                                     break;
                                 }
@@ -652,7 +653,7 @@ mod python_plugin {
                                                 LogLevel::Error,
                                                 format!("error executing against batch {err}"),
                                             );
-                                            error!(?self.trigger_definition, "error running against batch: {err}");
+                                            error!(error = %err, ?self.trigger_definition, "error running against batch");
                                             break; // Exit retry loop after logging
                                         }
                                         ErrorBehavior::Retry => {
@@ -679,7 +680,10 @@ mod python_plugin {
 
         /// Handles the return state from the plugin, writing back lines and handling any errors.
         /// It returns a vec of error messages that can be used to log or report back to the user.
-        async fn handle_return_state(&self, plugin_return_state: PluginReturnState) -> Vec<String> {
+        async fn handle_return_state(
+            &self,
+            plugin_return_state: PluginReturnState,
+        ) -> Vec<anyhow::Error> {
             let ingest_time = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap();
@@ -698,13 +702,14 @@ mod python_plugin {
                         false,
                     )
                     .await
+                    .context("error writing back lines")
             {
-                errors.push(format!("error writing back lines: {e}"));
+                errors.push(e);
             }
 
             for (db_name, lines) in plugin_return_state.write_db_lines {
                 let Ok(namespace_name) = NamespaceName::new(db_name.clone()) else {
-                    errors.push(format!("invalid database name: {db_name}"));
+                    errors.push(anyhow!("invalid database name: {db_name}"));
                     continue;
                 };
 
@@ -719,8 +724,9 @@ mod python_plugin {
                         false,
                     )
                     .await
+                    .context(format!("error writing back lines to {db_name}"))
                 {
-                    errors.push(format!("error writing back lines to {db_name}: {e}"));
+                    errors.push(e);
                 }
             }
 
@@ -838,7 +844,7 @@ mod python_plugin {
                         let errors = plugin.handle_return_state(result).await;
                         // TODO: here is one spot we'll pick up errors to put into the plugin system table
                         for error in errors {
-                            error!(?plugin.trigger_definition, "error running schedule plugin: {error}");
+                            error!(error = %ErrorOneLine(&error), ?plugin.trigger_definition, "error running schedule plugin");
                         }
                         return Ok(PluginNextState::SuccessfulRun);
                     }
