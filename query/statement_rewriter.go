@@ -43,7 +43,7 @@ func rewriteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement) (influ
 			{Expr: &influxql.VarRef{Val: "fieldKey"}},
 			{Expr: &influxql.VarRef{Val: "fieldType"}},
 		}),
-		Sources:    rewriteSources(stmt.Sources, "_fieldKeys", stmt.Database),
+		Sources:    rewriteSourcesWithRp(stmt.Sources, "_fieldKeys", stmt.Database, stmt.RetentionPolicy),
 		Condition:  rewriteSourcesCondition(stmt.Sources, nil),
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
@@ -415,6 +415,7 @@ func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.
 
 	return &influxql.ShowTagKeysStatement{
 		Database:   stmt.Database,
+		Sources:    stmt.Sources,
 		Condition:  condition,
 		SortFields: stmt.SortFields,
 		Limit:      stmt.Limit,
@@ -465,6 +466,13 @@ func rewriteShowTagKeyCardinalityStatement(stmt *influxql.ShowTagKeyCardinalityS
 //
 // rewriteSources also sets the default database where necessary.
 func rewriteSources(sources influxql.Sources, systemIterator, defaultDatabase string) influxql.Sources {
+	return rewriteSourcesWithRp(sources, systemIterator, defaultDatabase, "")
+}
+
+// rewriteSourcesWithRp rewrites sources to include the provided system iterator and retention policy.
+//
+// rewriteSourcesWithRp also sets the default database and retention policy where necessary.
+func rewriteSourcesWithRp(sources influxql.Sources, systemIterator, defaultDatabase, defaultRetentionPolicy string) influxql.Sources {
 	newSources := influxql.Sources{}
 	for _, src := range sources {
 		if src == nil {
@@ -472,19 +480,21 @@ func rewriteSources(sources influxql.Sources, systemIterator, defaultDatabase st
 		}
 		mm := src.(*influxql.Measurement)
 		database := mm.Database
+		rp := mm.RetentionPolicy
 		if database == "" {
 			database = defaultDatabase
 		}
 
 		newM := mm.Clone()
-		newM.SystemIterator, newM.Database = systemIterator, database
+		newM.SystemIterator, newM.Database, newM.RetentionPolicy = systemIterator, database, rp
 		newSources = append(newSources, newM)
 	}
 
 	if len(newSources) <= 0 {
 		return append(newSources, &influxql.Measurement{
-			Database:       defaultDatabase,
-			SystemIterator: systemIterator,
+			Database:        defaultDatabase,
+			RetentionPolicy: defaultRetentionPolicy,
+			SystemIterator:  systemIterator,
 		})
 	}
 	return newSources
