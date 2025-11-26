@@ -1932,6 +1932,7 @@ func (a TagKeysSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measu
 type FieldKeys struct {
 	Measurement string
 	Keys        []string
+	Types       map[string]influxql.DataType
 }
 
 type FieldKeysSlice []FieldKeys
@@ -2150,14 +2151,24 @@ func (s *Store) FieldKeys(ctx context.Context, auth query.FineAuthorizer, shardI
 		default:
 		}
 
+		if !is.measurementAuthorizedSeries(auth, name, nil) {
+			continue
+		}
+
 		keys := shards.FieldKeysByMeasurement(name)
 		if len(keys) == 0 {
 			continue
 		}
 
+		fields, _, err := shards.FieldDimensions([]string{string(name)})
+		if err != nil {
+			return nil, err
+		}
+
 		results = append(results, FieldKeys{
 			Measurement: string(name),
 			Keys:        keys,
+			Types:       fields,
 		})
 	}
 	return results, nil

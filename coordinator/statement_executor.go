@@ -1166,7 +1166,7 @@ func (e *StatementExecutor) executeShowFieldKeys(ctx *query.ExecutionContext, q 
 		cond = baseCond
 	}
 
-	rps := []string{}
+	var rps []string
 	for _, m := range q.Sources.Measurements() {
 		if len(m.RetentionPolicy) > 0 {
 			rps = append(rps, m.RetentionPolicy)
@@ -1179,7 +1179,7 @@ func (e *StatementExecutor) executeShowFieldKeys(ctx *query.ExecutionContext, q 
 		}
 	}
 
-	fieldKeys := make(map[string]map[string]struct{})
+	fieldKeys := make(map[string]map[string]influxql.DataType)
 	for _, rpName := range rps {
 		var allGroups []meta.ShardGroupInfo
 		sgis, err := e.MetaClient.ShardGroupsByTimeRange(q.Database, rpName, timeRange.MinTime(), timeRange.MaxTime())
@@ -1203,10 +1203,12 @@ func (e *StatementExecutor) executeShowFieldKeys(ctx *query.ExecutionContext, q 
 		for _, m := range keys {
 			measurementName := rpName + "." + m.Measurement
 			if fieldKeys[measurementName] == nil {
-				fieldKeys[measurementName] = make(map[string]struct{})
+				fieldKeys[measurementName] = make(map[string]influxql.DataType)
 			}
 			for _, key := range m.Keys {
-				fieldKeys[measurementName][key] = struct{}{}
+				if typ, ok := m.Types[key]; ok {
+					fieldKeys[measurementName][key] = typ
+				}
 			}
 		}
 	}
@@ -1247,7 +1249,8 @@ func (e *StatementExecutor) executeShowFieldKeys(ctx *query.ExecutionContext, q 
 			Values:  make([][]interface{}, len(keyList)),
 		}
 		for i, key := range keyList {
-			row.Values[i] = []interface{}{key, "float"}
+			typ := keys[key]
+			row.Values[i] = []interface{}{key, typ.String()}
 		}
 
 		if err := ctx.Send(&query.Result{Series: []*models.Row{row}}); err != nil {
