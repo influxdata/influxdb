@@ -1211,8 +1211,15 @@ func (e *StatementExecutor) executeShowFieldKeys(ctx *query.ExecutionContext, q 
 		}
 	}
 
+	measurementNames := make([]string, 0, len(fieldKeys))
+	for name := range fieldKeys {
+		measurementNames = append(measurementNames, name)
+	}
+	sort.Strings(measurementNames)
+
 	emitted := false
-	for measurementName, keys := range fieldKeys {
+	for _, measurementName := range measurementNames {
+		keys := fieldKeys[measurementName]
 		keyList := make([]string, 0, len(keys))
 		for k := range keys {
 			keyList = append(keyList, k)
