@@ -396,7 +396,6 @@ func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.
 
 	return &influxql.ShowTagKeysStatement{
 		Database:   stmt.Database,
-		Sources:    stmt.Sources,
 		Condition:  condition,
 		SortFields: stmt.SortFields,
 		Limit:      stmt.Limit,
