@@ -94,7 +94,7 @@ impl Display for ServeInvocationMethod {
             ServeInvocationMethod::InstallScript => f.write_str("install-script"),
             ServeInvocationMethod::DockerHub => f.write_str("docker-hub"),
             ServeInvocationMethod::DockerOther => f.write_str("docker-other"),
-            ServeInvocationMethod::Custom(i) => f.write_str(format!("{}", i).as_str()),
+            ServeInvocationMethod::Custom(i) => write!(f, "{i}"),
             ServeInvocationMethod::Tests => f.write_str("tests"),
             ServeInvocationMethod::Unknown => f.write_str("unknown"),
         }

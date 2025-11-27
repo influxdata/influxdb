@@ -72,7 +72,7 @@ long_about = r#"InfluxDB 3 Core server and command line tools
 
 Examples:
     # Run the InfluxDB 3 Core server
-    influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
+    influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node-id my_node_name
 
     # Display all commands short form
     influxdb3 -h
@@ -81,10 +81,10 @@ Examples:
     influxdb3 --help
 
     # Run the InfluxDB 3 Core server with extra verbose logging
-    influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
+    influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --node-id my_node_name
 
     # Run InfluxDB 3 Core with full debug logging specified with LOG_FILTER
-    LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
+    LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node-id my_node_name
 "#
 )]
 struct Config {
@@ -314,7 +314,7 @@ fn serve_main(
 
         commands::serve::command(serve_config, user_params).await
     }) {
-        eprintln!("Serve command failed: {e}\n");
+        eprintln!("Serve command failed: {e}");
 
         std::process::exit(ReturnCode::Failure as _)
     }

@@ -115,7 +115,7 @@ pub enum Error {
     #[error("invalid token: {0}")]
     InvalidToken(#[from] hex::FromHexError),
 
-    #[error("failed to initialized write buffer: {0:?}")]
+    #[error("failed to initialize write buffer: {0:?}")]
     WriteBufferInit(#[source] anyhow::Error),
 
     #[error("failed to initialize catalog: {0}")]
