@@ -14,7 +14,7 @@ use object_store::{
     path::Path,
     throttle::{ThrottleConfig, ThrottledStore},
 };
-use observability_deps::tracing::{info, warn};
+use observability_deps::tracing::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use std::ffi::OsString;
@@ -44,7 +44,7 @@ pub enum ParseError {
     },
 
     #[snafu(display(
-        "Specified {:?} for the object store, required configuration missing for {}",
+        "Specified '{:?}' for the object store; required configuration missing for {}",
         object_store,
         missing
     ))]
@@ -97,7 +97,7 @@ fn parse_optional_string(s: &str) -> Result<Option<NonEmptyString>, Infallible> 
 
 fn default_data_dir() -> OsString {
     home::home_dir()
-        .expect("No data-dir specified and could not find user's home directory")
+        .expect("Could not find user's home directory")
         .join(DEFAULT_DATA_DIRECTORY_NAME)
         .into_os_string()
 }
@@ -424,9 +424,11 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "data-dir"),
                     long = gen_name!($prefix, "data-dir"),
                     env = gen_env!($prefix, "INFLUXDB3_DB_DIR"),
-                    default_value = default_data_dir(),
                     action
                 )]
+                // default_value_if makes the default value conditional on the object-store type being "file"
+                #[arg(default_value_if(gen_name!($prefix, "object-store"),
+                clap_builder::builder::ArgPredicate::Equals("file".into()), default_data_dir()))]
                 pub database_directory: Option<PathBuf>,
 
                 /// When using Amazon S3 as the object store, set this to an access key that
@@ -447,8 +449,8 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "AWS_ACCESS_KEY_ID"),
                     value_parser = parse_optional_string,
                     default_value = "",
-                    action,
                     hide_env_values = true,
+                    action
                 )]
                 pub aws_access_key_id: std::option::Option<NonEmptyString>,
 
@@ -469,8 +471,8 @@ macro_rules! object_store_config_inner {
                     env = gen_env!($prefix, "AWS_SECRET_ACCESS_KEY"),
                     value_parser = parse_optional_string,
                     default_value = "",
-                    action,
                     hide_env_values = true,
+                    action
                 )]
                 pub aws_secret_access_key: std::option::Option<NonEmptyString>,
 
@@ -516,8 +518,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "aws-session-token"),
                     long = gen_name!($prefix, "aws-session-token"),
                     env = gen_env!($prefix, "AWS_SESSION_TOKEN"),
-                    action,
                     hide_env_values = true,
+                    action
                 )]
                 pub aws_session_token: Option<String>,
 
@@ -573,8 +575,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "google-service-account"),
                     long = gen_name!($prefix, "google-service-account"),
                     env = gen_env!($prefix, "GOOGLE_SERVICE_ACCOUNT"),
-                    action,
                     hide_env_values = true,
+                    action
                 )]
                 pub google_service_account: Option<String>,
 
@@ -603,8 +605,8 @@ macro_rules! object_store_config_inner {
                     id = gen_name!($prefix, "azure-storage-access-key"),
                     long = gen_name!($prefix, "azure-storage-access-key"),
                     env = gen_env!($prefix, "AZURE_STORAGE_ACCESS_KEY"),
-                    action,
                     hide_env_values = true,
+                    action
                 )]
                 pub azure_storage_access_key: Option<String>,
 
@@ -787,6 +789,8 @@ macro_rules! object_store_config_inner {
                 #[cfg(any(feature = "aws", feature = "azure", feature = "gcp"))]
                 fn client_options(&self) -> Result<object_store::ClientOptions, ParseError> {
                     let mut options = object_store::ClientOptions::new();
+
+                    options = options.with_timeout(self.request_timeout);
 
                     if self.http2_only {
                         options = options.with_http2_only();
@@ -1283,7 +1287,7 @@ impl AwsCredentialReloader {
         let file_credentials = match Self::get_file_credentials(&self.path).await {
             Ok(c) => c,
             Err(e) => {
-                info!(error = ?e, path = ?self.path, "could not read aws credentials file");
+                error!(error = ?e, path = ?self.path, "could not read aws credentials file");
                 return None;
             }
         };
@@ -1314,12 +1318,14 @@ impl CredentialProvider for AwsCredentialReloader {
     }
 }
 
+#[cfg(any(test, feature = "aws"))]
 #[derive(Debug, Clone)]
 struct ReauthingObjectStore {
     inner: Arc<dyn ObjectStore>,
     credential_reloader: Arc<AwsCredentialReloader>,
 }
 
+#[cfg(any(test, feature = "aws"))]
 impl ReauthingObjectStore {
     fn new_arc(
         inner: Arc<dyn ObjectStore>,
@@ -1332,12 +1338,14 @@ impl ReauthingObjectStore {
     }
 }
 
+#[cfg(any(test, feature = "aws"))]
 impl std::fmt::Display for ReauthingObjectStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.inner)
     }
 }
 
+#[cfg(any(test, feature = "aws"))]
 macro_rules! retry_if_unauthenticated {
     ($self:ident, $expression:expr) => {
         match $expression {
@@ -1364,6 +1372,7 @@ macro_rules! retry_if_unauthenticated {
     }
 }
 
+#[cfg(any(test, feature = "aws"))]
 #[async_trait]
 impl object_store::ObjectStore for ReauthingObjectStore {
     async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {

@@ -55,6 +55,8 @@ pub(crate) struct TelemetryPayload {
     // called cluster_uuid in licensing service. Calling it as `cluster_uuid` here makes it easier
     // when mapping telemetry and licensing data
     pub cluster_uuid: Arc<str>,
+    // invocation information
+    pub serve_invocation_method: u64,
     // cpu
     pub cpu_utilization_percent_min_1m: f32,
     pub cpu_utilization_percent_max_1m: f32,
@@ -131,6 +133,7 @@ mod tests {
     use reqwest::Url;
     use std::sync::Arc;
 
+    use crate::ServeInvocationMethod;
     use crate::sender::{TelemetryPayload, TelemetrySender};
 
     #[test_log::test(tokio::test)]
@@ -174,8 +177,9 @@ mod tests {
             storage_type: Arc::from("sample-str"),
             instance_id: Arc::from("sample-str"),
             cores: 10,
-            cluster_uuid: Arc::from("cluster_uuid"),
             product_type: "OSS",
+            cluster_uuid: Arc::from("cluster_uuid"),
+            serve_invocation_method: ServeInvocationMethod::Tests.as_u64(),
             cpu_utilization_percent_min_1m: 100.0,
             cpu_utilization_percent_max_1m: 100.0,
             cpu_utilization_percent_avg_1m: 100.0,

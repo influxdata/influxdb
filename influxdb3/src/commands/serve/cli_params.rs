@@ -107,6 +107,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     // Telemetry
     "telemetry-endpoint",
     "disable-telemetry-upload",
+    "serve-invocation-method",
     // TLS parameters
     "tls-minimum-version",
     // Python integration

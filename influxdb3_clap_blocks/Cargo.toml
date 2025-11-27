@@ -12,8 +12,12 @@ observability_deps.workspace = true
 
 # crates.io dependencies
 async-trait.workspace = true
+bytes.workspace = true
 clap.workspace = true
+clap_builder.workspace = true
 datafusion.workspace = true
+futures.workspace = true
+home.workspace = true
 http.workspace = true
 humantime.workspace = true
 iox_time.workspace = true
@@ -23,17 +27,14 @@ metric.workspace = true
 non-empty-string.workspace = true
 object_store.workspace = true
 paste.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 snafu.workspace = true
 sysinfo.workspace = true
 tokio.workspace = true
 trace_exporters.workspace = true
 trogging.workspace = true
 url.workspace = true
-bytes.workspace = true
-futures.workspace = true
-serde_json.workspace = true
-serde.workspace = true
-home.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
