@@ -797,6 +797,29 @@ func (c *compiledField) compileCountHll(args []influxql.Expr) error {
 	}
 }
 
+// TODO: Finish query compiler for built-in "date_part" function
+func (c *compiledField) compileDatePart(args []influxql.Expr) error {
+	name := "date_part"
+
+	if exp, got := 2, len(args); exp != got {
+		return fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
+	}
+
+	tstamp, ok := args[0].(*influxql.StringLiteral)
+	if !ok {
+		return fmt.Errorf("date_part: first argument must be a string")
+	} else if tstamp.Val != "time" {
+		// if tstamp != "time" then we need to check if
+		return fmt.Errorf("date_part: second argument must be a timestamp")
+	}
+
+	method, ok := args[1].(*influxql.StringLiteral)
+	if !ok {
+		return fmt.Errorf("date_part: second argument must be a string")
+	}
+
+}
+
 func (c *compiledField) compileHoltWinters(args []influxql.Expr, withFit bool) error {
 	name := "holt_winters"
 	if withFit {
