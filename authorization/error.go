@@ -50,12 +50,12 @@ func ErrInvalidAuthIDError(err error) *errors.Error {
 	}
 }
 
-// UnexpectedAuthIndexError is used when the error comes from an internal system.
-func UnexpectedAuthIndexError(err error) *errors.Error {
+// UnexpectedAuthBucketError is used when the error comes from an internal system.
+func UnexpectedAuthBucketError(index []byte, err error) *errors.Error {
 	var e *errors.Error
 	if !errors2.As(err, &e) {
 		e = &errors.Error{
-			Msg:  fmt.Sprintf("unexpected error retrieving auth index; Err: %v", err),
+			Msg:  fmt.Sprintf("unexpected error retrieving auth bucket %q; Err: %v", index, err),
 			Code: errors.EInternal,
 			Err:  err,
 		}

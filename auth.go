@@ -20,7 +20,8 @@ var ErrUnableToCreateToken = &errors.Error{
 // Authorization is an authorization. 🎉
 type Authorization struct {
 	ID          platform.ID  `json:"id"`
-	Token       string       `json:"token"`
+	Token       string       `json:"token,omitempty"`
+	HashedToken string       `json:"hashedToken,omitempty"`
 	Status      Status       `json:"status"`
 	Description string       `json:"description"`
 	OrgID       platform.ID  `json:"orgID"`
@@ -35,7 +36,60 @@ type AuthorizationUpdate struct {
 	Description *string `json:"description,omitempty"`
 }
 
+const (
+	// authTokenClearValue is used to indicate Token or HashedToken are cleared (not set).
+	authTokenClearValue = ""
+)
+
+// IsAuthTokenSet returns true if token is considered set. Applies
+// to be both unhashed tokens (Authorization.Token) and
+// hashed tokens (Authorization.HashedToken).
+func IsAuthTokenSet(token string) bool {
+	return token != authTokenClearValue
+}
+
+// IsTokenSet returns true if Token is set.
+func (a *Authorization) IsTokenSet() bool {
+	return IsAuthTokenSet(a.Token)
+}
+
+// IsTokenClear returns true if Token is unset.
+func (a *Authorization) IsTokenClear() bool {
+	return !a.IsTokenSet()
+}
+
+// ClearToken clears Token.
+func (a *Authorization) ClearToken() {
+	a.Token = authTokenClearValue
+}
+
+// IsHashedTokenSet returns true if HashedToken is set.
+func (a *Authorization) IsHashedTokenSet() bool {
+	return IsAuthTokenSet(a.HashedToken)
+}
+
+// IsHashedTokenClear returns true if Token is unset.
+func (a *Authorization) IsHashedTokenClear() bool {
+	return !a.IsHashedTokenSet()
+}
+
+// ClearToken clears HashedToken.
+func (a *Authorization) ClearHashedToken() {
+	a.HashedToken = authTokenClearValue
+}
+
+// NoTokensSet returns true if neither Token nor HashedToken is set.
+func (a *Authorization) NoTokensSet() bool {
+	return a.IsTokenClear() && a.IsHashedTokenClear()
+}
+
+// BothTokensSet returns true if both Token and Hashed token is set.
+func (a *Authorization) BothTokensSet() bool {
+	return a.IsTokenSet() && a.IsHashedTokenSet()
+}
+
 // Valid ensures that the authorization is valid.
+// Valid does not check if tokens are set properly.
 func (a *Authorization) Valid() error {
 	for _, p := range a.Permissions {
 		if p.Resource.OrgID != nil && *p.Resource.OrgID != a.OrgID {
