@@ -9,11 +9,13 @@ clippy::clone_on_ref_ptr,
 // See https://github.com/influxdata/influxdb_iox/pull/1671
 clippy::future_not_send
 )]
+#![allow(unused_crate_dependencies)]
 
-use clap::{CommandFactory, FromArgMatches, Parser, parser::ValueSource};
+use clap::{CommandFactory, FromArgMatches, parser::ValueSource};
 use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::{TokioDatafusionConfig, TokioIoConfig};
 use influxdb3_process::VERSION_STRING;
+use influxdb3_telemetry::ServeInvocationMethod;
 use observability_deps::tracing::warn;
 use owo_colors::OwoColorize;
 use std::collections::HashMap;
@@ -66,6 +68,24 @@ clap::Arg::new("help-all")
 .global(true)
 ),
 about = "InfluxDB 3 Core server and command line tools",
+long_about = r#"InfluxDB 3 Core server and command line tools
+
+Examples:
+    # Run the InfluxDB 3 Core server
+    influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node-id my_node_name
+
+    # Display all commands short form
+    influxdb3 -h
+
+    # Display all commands long form
+    influxdb3 --help
+
+    # Run the InfluxDB 3 Core server with extra verbose logging
+    influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --node-id my_node_name
+
+    # Run InfluxDB 3 Core with full debug logging specified with LOG_FILTER
+    LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node-id my_node_name
+"#
 )]
 struct Config {
     #[clap(flatten)]
@@ -115,7 +135,9 @@ enum Command {
 
 impl Command {
     fn serve_name() -> String {
-        "serve".into()
+        // I'd like this to be programmatically derived from Serve variant above without
+        // needing to make the Config value...
+        "serve".to_string()
     }
 }
 
@@ -143,14 +165,142 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
     TokioDatafusionConfig::copy_deprecated_env_aliases();
 
     // Note the help code above *must* run before this function call
-    let config = Config::parse_from(args.clone());
+    let matches = Config::command().get_matches_from(args.clone());
 
-    // Extract user-provided parameters for the serve command
-    let user_params = extract_user_params(&args);
+    let config: Config = match Config::from_arg_matches(&matches) {
+        Ok(config) => config,
+        Err(e) => {
+            // Format the error with command context to include usage information
+            let mut cmd = Config::command();
+            let err = e.format(&mut cmd);
+            err.exit();
+        }
+    };
 
-    let tokio_runtime = config.runtime_config.builder()?.build()?;
+    let Config {
+        command,
+        runtime_config,
+    } = config;
 
-    tokio_runtime.block_on(async move {
+    match command {
+        Some(Command::Serve(serve_config)) => serve_main(serve_config, &matches, runtime_config),
+        None => {
+            // special handling for no subcommand at all
+            //
+            // in this case, default to Command::Serve, with a set of defaults are not
+            // normal defaults for when the serve subcommand has been explicitly used, but
+            // we need to be mindful that env vars _might_ be set that apply once we add the serve
+            // subcommand so we cannot specify more flags until we know env vars aren't set.
+            // By definition there's no serve config, we add our own args and reparse.
+            // We could build a commands::serve::Config directly but then we have to specify
+            // every field of every struct in the config.
+
+            let mut args_with_serve = args.clone();
+            args_with_serve.push(Command::serve_name());
+
+            // There is one required param that we need to be set --node-id; the rest
+            // of the serve flags have defaults defined in the derive statements.
+            // The error from clap is MissingRequiredArgument but doesn't say which
+
+            // hostname should be sufficiently constant for multiple runs
+            let hostname = get_hostname_or_primary();
+            let hostname_node_id = format!("{}-node", hostname);
+
+            let push_node_id = |mut v: Vec<String>, hostname: String| -> Vec<String> {
+                let node_id = format!("{}-node", hostname);
+                v.push("--node-id".to_string());
+                v.push(node_id);
+                v
+            };
+
+            type FlagCaseActions = Vec<fn(Vec<String>, String) -> Vec<String>>;
+            let cases: Vec<FlagCaseActions> = vec![
+                // order of these matters because node id can come from an env var
+                vec![],             // node id provided via env vars
+                vec![push_node_id], // no node id provided
+            ];
+
+            // explicitly indicate that we're starting with implied serve subcommand
+            args_with_serve.push("--serve-invocation-method".to_string());
+            args_with_serve.push(ServeInvocationMethod::QuickStart.to_string());
+
+            let mut matches: Option<clap_builder::ArgMatches> = None;
+            for (i, case) in cases.iter().enumerate() {
+                let mut args = args_with_serve.clone();
+                for f in case {
+                    args = f(args, hostname.clone());
+                }
+                matches = Some(match Config::command().try_get_matches_from(args.clone()) {
+                    Ok(m) => m,
+                    Err(err)
+                        if err.kind() == clap::error::ErrorKind::MissingRequiredArgument
+                            && i != cases.len() - 1 =>
+                    {
+                        // an error and we're not on the last attempt!
+                        continue;
+                    }
+                    Err(err) => {
+                        let mut cmd = Config::command();
+                        let err = err.format(&mut cmd);
+                        err.exit();
+                    }
+                });
+                break;
+            }
+
+            let matches = matches.unwrap(); // guaranteed
+            let config: Config = match Config::from_arg_matches(&matches) {
+                Ok(config) => config,
+                Err(e) => {
+                    // should be unreachable
+                    let mut cmd = Config::command();
+                    let err = e.format(&mut cmd);
+                    err.exit();
+                }
+            };
+
+            if let Some(Command::Serve(serve_config)) = config.command {
+                let configured_node_id = match serve_config.node_id.get_node_id() {
+                    Ok(id) => id,
+                    Err(e) => {
+                        eprintln!("Serve command failed: {e}\n");
+                        std::process::exit(ReturnCode::Failure as _)
+                    }
+                };
+
+                if configured_node_id == hostname_node_id {
+                    eprintln!(
+                        "Using auto-generated node id: {}. For production deployments, explicitly set --node-id",
+                        hostname_node_id
+                    );
+                }
+                serve_main(serve_config, &matches, config.runtime_config)
+            } else {
+                unreachable!("unreachable because we set the serve command explicitly")
+            }
+        }
+        other => non_serve_main(other, runtime_config),
+    }
+}
+
+/// Get the system hostname, falling back to "primary" if unavailable
+fn get_hostname_or_primary() -> String {
+    hostname::get()
+        .ok()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or("primary".to_string())
+}
+
+fn serve_main(
+    serve_config: commands::serve::Config,
+    matches: &clap::ArgMatches,
+    runtime_config: TokioIoConfig,
+) -> Result<(), std::io::Error> {
+    // Extract user-provided parameters only for serve command
+    let user_params = extract_user_params(matches);
+
+    let tokio_runtime = runtime_config.builder()?.build()?;
+    if let Err(e) = tokio_runtime.block_on(async move {
         fn handle_init_logs(r: Result<TroggingGuard, trogging::Error>) -> TroggingGuard {
             match r {
                 Ok(guard) => guard,
@@ -160,103 +310,26 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
                 }
             }
         }
+        let _tracing_guard = handle_init_logs(init_logs_and_tracing(&serve_config.logging_config));
 
-        match config.command {
-            None => {
-                // special handling for no subcommand at all
-                //
-                // in this case, default to Command::Serve, with a set of defaults are not
-                // normal defaults for when the serve subcommand has been explicitly used, but
-                // we need to be mindful that env vars _might_ be set that apply once we add the serve
-                // subcommand so we cannot specify more flags until we know env vars aren't set.
-                // By definition there's no serve config, we add our own args and reparse.
-                // We could build a commands::serve::Config directly but then we have to specify
-                // every field of every struct in the config.
+        commands::serve::command(serve_config, user_params).await
+    }) {
+        eprintln!("Serve command failed: {e}");
 
-                let mut args_with_serve = args.clone();
-                args_with_serve.push(Command::serve_name());
+        std::process::exit(ReturnCode::Failure as _)
+    }
+    Ok(())
+}
 
-                // There is one required param that we need to be set --node-id; the rest
-                // of the serve flags have defaults defined in the derive statements.
-                // The error from clap is MissingRequiredArgument but doesn't say which
+fn non_serve_main(
+    command: Option<Command>,
+    runtime_config: TokioIoConfig,
+) -> Result<(), std::io::Error> {
+    let tokio_runtime = runtime_config.builder()?.build()?;
 
-                // hostname should be sufficiently constant for multiple runs
-                let hostname = get_hostname_or_primary();
-                let hostname_node_id = format!("{}-node", hostname);
-
-                let push_node_id = |mut v: Vec<String>, hostname: String| -> Vec<String> {
-                    let node_id = format!("{}-node", hostname);
-                    v.push("--node-id".to_string());
-                    v.push(node_id);
-                    v
-                };
-
-                type FlagCaseActions = Vec<fn(Vec<String>, String) -> Vec<String>>;
-                let cases: Vec<FlagCaseActions> = vec![
-                    // order of these matters because node id can come from an env var
-                    vec![],                // node id  provided via env vars
-                    vec![push_node_id],    // no node id provided
-                ];
-                let mut matches: Option<clap::ArgMatches> = None;
-                for (i, case) in cases.iter().enumerate() {
-                    let mut args = args_with_serve.clone();
-                    for f in case {
-                        args = f(args, hostname.clone());
-                    }
-                    matches = Some(match Config::command().try_get_matches_from(args.clone()) {
-                        Ok(m) => m,
-                        Err(err)
-                        if err.kind() == clap::error::ErrorKind::MissingRequiredArgument
-                            && i != cases.len() - 1 =>
-                            {
-                                // an error and we're not on the last attempt!
-                                continue;
-                            }
-                        Err(err) => {
-                            let mut cmd = Config::command();
-                            let err = err.format(&mut cmd);
-                            err.exit();
-                        }
-                    });
-                    break;
-                }
-
-                let matches = matches.unwrap(); // guaranteed
-                let config: Config = match Config::from_arg_matches(&matches) {
-                    Ok(config) => config,
-                    Err(e) => {
-                        // should be unreachable
-                        let mut cmd = Config::command();
-                        let err = e.format(&mut cmd);
-                        err.exit();
-                    }
-                };
-
-                if let Some(Command::Serve(serve_config)) = config.command {
-                    let configured_node_id = match serve_config.node_id.get_node_id() {
-                        Ok(id) => id,
-                        Err(e) => {
-                            eprintln!("Serve command failed: {e}\n");
-                            std::process::exit(ReturnCode::Failure as _)
-                        }
-                    };
-
-                    if configured_node_id == hostname_node_id {
-                        eprintln!(
-                            "Using auto-generated node id: {}. For production deployments, explicitly set --node-id",
-                            hostname_node_id
-                        );
-                    }
-                    let _tracing_guard =
-                        handle_init_logs(init_logs_and_tracing(&serve_config.logging_config));
-                    if let Err(e) = commands::serve::command(serve_config, user_params).await {
-                        eprintln!("Serve command failed: {e}");
-                        std::process::exit(ReturnCode::Failure as _)
-                    }
-                } else {
-                    unreachable!("unreachable because we set the serve command explicitly")
-                }
-            }
+    tokio_runtime.block_on(async move {
+        match command {
+            None => eprintln!("command required, -h/--help/--help-all for help"),
             Some(Command::Enable(config)) => {
                 if let Err(e) = commands::enable::command(config).await {
                     eprintln!("Enable command failed: {e}");
@@ -281,13 +354,8 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Some(Command::Serve(config)) => {
-                let _tracing_guard =
-                    handle_init_logs(init_logs_and_tracing(&config.logging_config));
-                if let Err(e) = commands::serve::command(config, user_params).await {
-                    eprintln!("Serve command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
+            Some(Command::Serve(_)) => {
+                unreachable!("serve command must be handled in a different tokio runtime")
             }
             Some(Command::Install(config)) => {
                 if let Err(e) = commands::install::command(config).await {
@@ -329,14 +397,6 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
     });
 
     Ok(())
-}
-
-/// Get the system hostname, falling back to "primary" if unavailable
-fn get_hostname_or_primary() -> String {
-    hostname::get()
-        .ok()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or("primary".to_string())
 }
 
 /// Print the help for the cli if asked for and then exit the program
@@ -616,73 +676,57 @@ fn init_logs_and_tracing(
     trogging::install_global(subscriber)
 }
 
-/// Extract user-provided parameters from command line arguments
-fn extract_user_params(args: &[String]) -> HashMap<String, String> {
+/// Extract user-provided parameters from ArgMatches using clap's ids()
+/// Returns a simple map of CLI argument name -> string value for all user-provided arguments
+fn extract_user_params(matches: &clap::ArgMatches) -> HashMap<String, String> {
     let mut params = HashMap::new();
 
-    // Parse the arguments to check if we're in the serve subcommand
-    let matches = match Config::try_parse_from(args) {
-        Ok(config) => {
-            // Check if it's a serve command
-            if matches!(config.command, Some(Command::Serve(_))) {
-                // Re-parse to get ArgMatches for inspection
-                Config::command().try_get_matches_from(args).ok()
-            } else {
-                None
-            }
-        }
-        Err(_) => None,
+    // Check if we're in the serve subcommand
+    let serve_matches = if let Some(("serve", sub_matches)) = matches.subcommand() {
+        sub_matches
+    } else {
+        return params; // Only handle serve command for now
     };
 
-    if let Some(matches) = matches {
-        // Check if we're in the serve subcommand
-        if let Some(("serve", sub_matches)) = matches.subcommand() {
-            // Get the serve command metadata
-            let serve_cmd = commands::serve::Config::command();
+    // Get the serve command metadata
+    let serve_cmd = commands::serve::Config::command();
 
-            // Iterate through all arguments defined in the serve command
-            for arg in serve_cmd.get_arguments() {
-                let id = arg.get_id();
-                let id_str = id.as_str();
+    // Iterate through all arguments defined in the serve command
+    for arg in serve_cmd.get_arguments() {
+        let id = arg.get_id();
+        let id_str = id.as_str();
 
-                // Only include arguments that were explicitly provided by the user
-                let source = sub_matches.value_source(id_str);
-                if source == Some(ValueSource::CommandLine)
-                    || source == Some(ValueSource::EnvVariable)
-                {
-                    // Get display name (prefer long, then short, then id)
-                    let display_name = arg
-                        .get_long()
-                        .map(|s| s.to_string())
-                        .or_else(|| arg.get_short().map(|c| c.to_string()))
-                        .unwrap_or_else(|| id.to_string());
+        // Only include arguments that were explicitly provided by the user
+        let source = serve_matches.value_source(id_str);
+        if source == Some(ValueSource::CommandLine) || source == Some(ValueSource::EnvVariable) {
+            // Get display name (prefer long, then short, then id)
+            let display_name = arg
+                .get_long()
+                .map(|s| s.to_string())
+                .or_else(|| arg.get_short().map(|c| c.to_string()))
+                .unwrap_or_else(|| id.to_string());
 
-                    // Skip internal clap arguments
-                    if display_name == "help"
-                        || display_name == "version"
-                        || display_name == "help-all"
-                    {
-                        continue;
-                    }
+            // Skip internal clap arguments
+            if display_name == "help" || display_name == "version" || display_name == "help-all" {
+                continue;
+            }
 
-                    // Get the raw values as strings
-                    if let Some(raw_vals) = sub_matches.get_raw(id_str) {
-                        let values: Vec<String> = raw_vals
-                            .map(|os_str| os_str.to_string_lossy().to_string())
-                            .collect();
+            // Get the raw values as strings
+            if let Some(raw_vals) = serve_matches.get_raw(id_str) {
+                let values: Vec<String> = raw_vals
+                    .map(|os_str| os_str.to_string_lossy().to_string())
+                    .collect();
 
-                        if values.len() == 1 {
-                            // Single value
-                            params.insert(display_name, values[0].clone());
-                        } else if !values.is_empty() {
-                            // Multiple values - join with comma
-                            params.insert(display_name, values.join(","));
-                        }
-                    } else if sub_matches.get_flag(id_str) {
-                        // Boolean flag without value
-                        params.insert(display_name, "true".to_string());
-                    }
+                if values.len() == 1 {
+                    // Single value
+                    params.insert(display_name, values[0].clone());
+                } else if !values.is_empty() {
+                    // Multiple values - join with comma
+                    params.insert(display_name, values.join(","));
                 }
+            } else if serve_matches.get_flag(id_str) {
+                // Boolean flag without value
+                params.insert(display_name, "true".to_string());
             }
         }
     }

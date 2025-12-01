@@ -75,14 +75,15 @@ byteorder = "1.3.4"
 bytes = "1.9"
 cargo_metadata = "0.19.2"
 chrono = "0.4"
-cron = "0.15"
 clap = { version = "4", features = ["derive", "env", "string"] }
+clap_builder = "4.5.47"
 clru = "0.6.2"
-owo-colors = "4.2.0"
 crc32fast = "1.2.0"
 criterion = { version = "0.5", features = ["html_reports"] }
+cron = "0.15"
 crossbeam-channel = "0.5.11"
 csv = "1.3.0"
+owo-colors = "4.2.0"
 # Use DataFusion fork (see below)
 datafusion = { version = "49" }
 dashmap = "6.1.0"

@@ -86,7 +86,7 @@ fn main() -> Result<(), std::io::Error> {
     let tokio_runtime = get_runtime(None)?;
     tokio_runtime.block_on(async move {
         match config.command {
-            None => println!("command required, --help for help"),
+            None => eprintln!("command required, --help for help"),
             Some(Command::Query(config)) => {
                 if let Err(e) = commands::query::command(config).await {
                     eprintln!("Query command exited: {e:?}");

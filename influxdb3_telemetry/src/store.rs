@@ -7,7 +7,7 @@ use num::Float;
 use observability_deps::tracing::{debug, warn};
 
 use crate::{
-    ParquetMetrics, ProcessingEngineMetrics,
+    ParquetMetrics, ProcessingEngineMetrics, ServeInvocationMethod,
     bucket::EventsBucket,
     metrics::{Cpu, Memory, Queries, Writes},
     sampler::sample_metrics,
@@ -24,6 +24,7 @@ pub struct CreateTelemetryStoreArgs {
     pub persisted_files: Option<Arc<dyn ParquetMetrics>>,
     pub telemetry_endpoint: String,
     pub catalog_uuid: String,
+    pub serve_invocation_method: ServeInvocationMethod,
     pub processing_engine_metrics: Arc<dyn ProcessingEngineMetrics>,
 }
 
@@ -60,6 +61,7 @@ impl TelemetryStore {
             persisted_files,
             telemetry_endpoint,
             catalog_uuid,
+            serve_invocation_method,
             processing_engine_metrics,
         }: CreateTelemetryStoreArgs,
     ) -> Arc<Self> {
@@ -78,6 +80,7 @@ impl TelemetryStore {
             storage_type,
             cores,
             catalog_uuid,
+            serve_invocation_method,
         );
         let store = Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
@@ -118,6 +121,7 @@ impl TelemetryStore {
             storage_type,
             cores,
             sample_catalog_uuid,
+            ServeInvocationMethod::Tests,
         );
         Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
@@ -186,6 +190,7 @@ struct TelemetryStoreInner {
     influx_version: Arc<str>,
     storage_type: Arc<str>,
     start_timer: Instant,
+    serve_invocation_method: ServeInvocationMethod,
     cores: usize,
     cpu: Cpu,
     catalog_uuid: String,
@@ -212,6 +217,7 @@ impl TelemetryStoreInner {
         storage_type: Arc<str>,
         cores: usize,
         catalog_uuid: String,
+        serve_invocation_method: ServeInvocationMethod,
     ) -> Self {
         TelemetryStoreInner {
             os,
@@ -221,6 +227,7 @@ impl TelemetryStoreInner {
             cores,
             catalog_uuid,
             start_timer: Instant::now(),
+            serve_invocation_method,
             cpu: Cpu::default(),
             memory: Memory::default(),
             per_minute_events_bucket: EventsBucket::new(),
@@ -246,6 +253,8 @@ impl TelemetryStoreInner {
             // cluster_uuid == catalog_uuid
             cluster_uuid: Arc::from(self.catalog_uuid.as_str()),
             uptime_secs: self.start_timer.elapsed().as_secs(),
+
+            serve_invocation_method: self.serve_invocation_method.as_u64(),
 
             cpu_utilization_percent_min_1m: self.cpu.utilization.min,
             cpu_utilization_percent_max_1m: self.cpu.utilization.max,
@@ -386,6 +395,7 @@ mod tests {
             persisted_files: Some(parqet_file_metrics),
             telemetry_endpoint: "http://localhost/telemetry".to_owned(),
             catalog_uuid: "catalog_but_cluster_uuid".to_owned(),
+            serve_invocation_method: ServeInvocationMethod::Tests,
             processing_engine_metrics: Arc::from(SampleMetrics) as Arc<dyn ProcessingEngineMetrics>,
         })
         .await;
