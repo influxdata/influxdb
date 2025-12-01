@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
