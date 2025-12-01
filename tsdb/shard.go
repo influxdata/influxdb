@@ -713,7 +713,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		name := p.Name()
 		mf := engine.MeasurementFields(name)
 		// Check with the field validator.
-		newFields, partialWriteError := ValidateAndCreateFields(mf, p, s.options.Config.SkipFieldSizeValidation)
+		newFields, partialWriteError := ValidateAndCreateFields(mf, p, s.options.Config.SkipFieldSizeValidation, s.logger)
 		createdFieldsToSave = append(createdFieldsToSave, newFields...)
 
 		if partialWriteError != nil {

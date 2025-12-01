@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 const MaxFieldValueLength = 1048576
@@ -14,7 +14,7 @@ const MaxFieldValueLength = 1048576
 // ValidateAndCreateFields will return a PartialWriteError if:
 //   - the point has inconsistent fields, or
 //   - the point has fields that are too long
-func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) ([]*FieldCreate, *PartialWriteError) {
+func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool, logger *zap.Logger) ([]*FieldCreate, *PartialWriteError) {
 	pointSize := point.StringSize()
 	iter := point.FieldIterator()
 	var fieldsToCreate []*FieldCreate
@@ -42,6 +42,7 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 		fieldKey := iter.FieldKey()
 		// Skip fields name "time", they are illegal.
 		if bytes.Equal(fieldKey, timeBytes) {
+			logger.Warn("invalid field name \"time\" for measurement, dropping \"time\" field during write.")
 			continue
 		}
 
