@@ -129,7 +129,7 @@ type PartialWriteError struct {
 }
 
 func (e PartialWriteError) Error() string {
-	message := fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
+	message := fmt.Sprintf("partial write: %s dropped_points=%d", e.Reason, e.Dropped)
 	if len(e.Database) > 0 {
 		message = fmt.Sprintf("%s for database: %s", message, e.Database)
 	}
@@ -713,16 +713,25 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		name := p.Name()
 		mf := engine.MeasurementFields(name)
 		// Check with the field validator.
-		newFields, partialWriteError := ValidateAndCreateFields(mf, p, s.options.Config.SkipFieldSizeValidation, s.logger)
+		newFields, partialWriteError := ValidateAndCreateFields(mf, p, s.options.Config.SkipFieldSizeValidation)
 		createdFieldsToSave = append(createdFieldsToSave, newFields...)
 
-		if partialWriteError != nil {
+		if partialWriteError != nil && partialWriteError.Dropped > 0 {
 			if reason == "" {
 				reason = partialWriteError.Reason
 			}
 			dropped += partialWriteError.Dropped
 			atomic.AddInt64(&s.stats.WritePointsDropped, int64(partialWriteError.Dropped))
 			continue
+			// Sometimes we will drop fields like 'time' but not an entire point
+			// we want to inform the writer that something occurred.
+		} else if partialWriteError != nil && partialWriteError.Dropped <= 0 {
+			err = &PartialWriteError{
+				Reason:          partialWriteError.Reason,
+				Dropped:         partialWriteError.Dropped,
+				Database:        s.Database(),
+				RetentionPolicy: s.RetentionPolicy(),
+			}
 		}
 		points[j] = points[i]
 		j++

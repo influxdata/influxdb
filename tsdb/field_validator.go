@@ -7,7 +7,6 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
-	"go.uber.org/zap"
 )
 
 const MaxFieldValueLength = 1048576
@@ -15,10 +14,11 @@ const MaxFieldValueLength = 1048576
 // ValidateAndCreateFields will return a PartialWriteError if:
 //   - the point has inconsistent fields, or
 //   - the point has fields that are too long
-func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool, logger *zap.Logger) ([]*FieldCreate, *PartialWriteError) {
+func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) ([]*FieldCreate, *PartialWriteError) {
 	pointSize := point.StringSize()
 	iter := point.FieldIterator()
 	var fieldsToCreate []*FieldCreate
+	var partialWriteError *PartialWriteError
 
 	// We return fieldsToCreate even on error, because other writes
 	// in parallel may depend on these previous fields having been
@@ -43,7 +43,12 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 		fieldKey := iter.FieldKey()
 		// Skip fields name "time", they are illegal.
 		if bytes.Equal(fieldKey, timeBytes) {
-			logger.Warn("invalid field name \"time\" for measurement, dropping \"time\" field during write.")
+			partialWriteError = &PartialWriteError{
+				Reason: fmt.Sprintf(
+					"invalid field name: input field \"%s\" on measurement \"%s\" is invalid. Field \"%s\" has been stripped from point.",
+					"time", string(point.Name()), "time"),
+				Dropped: 0,
+			}
 			continue
 		}
 
@@ -72,7 +77,7 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 			fieldsToCreate = append(fieldsToCreate, &FieldCreate{point.Name(), f})
 		}
 	}
-	return fieldsToCreate, nil
+	return fieldsToCreate, partialWriteError
 }
 
 // dataTypeFromModelsFieldType returns the influxql.DataType that corresponds to the
