@@ -503,6 +503,10 @@ func TestShardWriteDropField(t *testing.T) {
 	pointsOK := values["writePointsOk"].(int64)
 
 	require.Equal(t, int64(2), pointsOK, "should have written 2 points successfully")
+
+	mf := sh.MeasurementFields([]byte("cpu"))
+	require.NotNil(t, mf, "measurement fields should not be nil")
+	require.Equal(t, 2, mf.FieldN(), "measurement fields should have 2 values")
 }
 
 // Tests concurrently writing to the same shard with different field types which
