@@ -337,9 +337,8 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	err := sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
+	require.Error(t, err, "expected partial write error")
 
 	mf := sh.MeasurementFields([]byte("cpu"))
 	if mf == nil {
