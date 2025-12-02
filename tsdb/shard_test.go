@@ -435,6 +435,77 @@ func TestShardWriteAddNewField(t *testing.T) {
 	}
 }
 
+func TestShardWriteDropField(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "shard_test")
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		require.NoError(t, err, "error removing temp dir")
+	}(tmpDir)
+
+	tmpShard := filepath.Join(tmpDir, "shard")
+	tmpWal := filepath.Join(tmpDir, "wal")
+
+	sfile := MustOpenSeriesFile()
+	defer func(sfile *SeriesFile) {
+		err := sfile.Close()
+		require.NoError(t, err, "error closing series file")
+	}(sfile)
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
+
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	err := sh.Open()
+	require.NoError(t, err, "error opening shard")
+
+	defer func(sh *tsdb.Shard) {
+		err := sh.Close()
+		require.NoError(t, err, "error closing shard")
+	}(sh)
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
+	require.NoError(t, err, "error writing point")
+
+	pt = models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0, "value2": 2.0, "time": time.Now().Unix()},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
+	require.Error(t, err, "writing point should error with partial write")
+	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid. Field \"time\" has been stripped from point. dropped=0 for database: T")
+
+	// Point should not be written and fully dropped due to having a single "time" field
+	pt = models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"time": time.Now().Unix()},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
+	require.Error(t, err, "writing point should error with partial write")
+	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid dropped=1 for database: T")
+
+	require.Equal(t, int64(1), sh.SeriesN(), "wrong number of series")
+	stats := sh.Statistics(nil)
+	require.GreaterOrEqual(t, len(stats), 1, "wrong number of stats")
+	values := stats[0].Values
+	pointsOK := values["writePointsOk"].(int64)
+
+	require.Equal(t, int64(2), pointsOK, "should have written 2 points successfully")
+}
+
 // Tests concurrently writing to the same shard with different field types which
 // can trigger a panic when the shard is snapshotted to TSM files.
 func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
