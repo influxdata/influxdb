@@ -129,7 +129,7 @@ type PartialWriteError struct {
 }
 
 func (e PartialWriteError) Error() string {
-	message := fmt.Sprintf("partial write: %s dropped_points=%d", e.Reason, e.Dropped)
+	message := fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
 	if len(e.Database) > 0 {
 		message = fmt.Sprintf("%s for database: %s", message, e.Database)
 	}
