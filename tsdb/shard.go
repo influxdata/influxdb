@@ -573,8 +573,7 @@ func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 
 	points, fieldsToCreate, err := s.validateSeriesAndFields(points, tracker)
 	if err != nil {
-		var pwErr *PartialWriteError
-		if !errors.As(err, &pwErr) {
+		if _, ok := err.(PartialWriteError); !ok {
 			return err
 		}
 		// There was a partial write (points dropped), hold onto the error to return
@@ -727,7 +726,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 			// Sometimes we will drop fields like 'time' but not an entire point
 			// we want to inform the writer that something occurred.
 		} else if partialWriteError != nil && partialWriteError.Dropped <= 0 {
-			err = &PartialWriteError{
+			err = PartialWriteError{
 				Reason:          partialWriteError.Reason,
 				Dropped:         partialWriteError.Dropped,
 				Database:        s.Database(),
@@ -738,7 +737,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		j++
 	}
 	if dropped > 0 {
-		err = &PartialWriteError{Reason: reason, Dropped: dropped, Database: s.database, RetentionPolicy: s.retentionPolicy}
+		err = PartialWriteError{Reason: reason, Dropped: dropped, Database: s.database, RetentionPolicy: s.retentionPolicy}
 	}
 
 	return points[:j], createdFieldsToSave, err
