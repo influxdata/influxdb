@@ -1,6 +1,7 @@
 package query
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -797,27 +798,13 @@ func (c *compiledField) compileCountHll(args []influxql.Expr) error {
 	}
 }
 
-// TODO: Finish query compiler for built-in "date_part" function
 func (c *compiledField) compileDatePart(args []influxql.Expr) error {
-	name := "date_part"
-
-	if exp, got := 2, len(args); exp != got {
-		return fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
+	tstamp, expression, err := ValidateDatePart(args)
+	if err != nil {
+		return err
 	}
 
-	tstamp, ok := args[0].(*influxql.StringLiteral)
-	if !ok {
-		return fmt.Errorf("date_part: first argument must be a string")
-	} else if tstamp.Val != "time" {
-		// if tstamp != "time" then we need to check if
-		return fmt.Errorf("date_part: second argument must be a timestamp")
-	}
-
-	method, ok := args[1].(*influxql.StringLiteral)
-	if !ok {
-		return fmt.Errorf("date_part: second argument must be a string")
-	}
-
+	return nil
 }
 
 func (c *compiledField) compileHoltWinters(args []influxql.Expr, withFit bool) error {
@@ -1066,7 +1053,13 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 		return nil
 	case *influxql.Call:
 		if !isMathFunction(expr) {
-			return fmt.Errorf("invalid function call in condition: %s", expr)
+			switch expr.Name {
+			case "date_part":
+				_, _, err := ValidateDatePart(expr.Args)
+				return err
+			default:
+				return fmt.Errorf("invalid function call in condition: %s", expr)
+			}
 		}
 
 		// How many arguments are we expecting?
