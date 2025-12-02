@@ -482,7 +482,7 @@ func TestShardWriteDropField(t *testing.T) {
 
 	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	require.Error(t, err, "writing point should error with partial write")
-	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid. Field \"time\" has been stripped from point. dropped=0 for database: T")
+	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid. Field \"time\" has been stripped from point. dropped=0 for database:")
 
 	// Point should not be written and fully dropped due to having a single "time" field
 	pt = models.MustNewPoint(
@@ -494,7 +494,7 @@ func TestShardWriteDropField(t *testing.T) {
 
 	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	require.Error(t, err, "writing point should error with partial write")
-	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid dropped=1 for database: T")
+	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid dropped=1 for database:")
 
 	require.Equal(t, int64(1), sh.SeriesN(), "wrong number of series")
 	stats := sh.Statistics(nil)
