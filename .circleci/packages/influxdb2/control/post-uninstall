@@ -2,7 +2,6 @@
 
 function disable_systemd {
     systemctl disable influxdb
-    rm -f /lib/systemd/system/influxdb.service
 }
 
 function disable_update_rcd {
