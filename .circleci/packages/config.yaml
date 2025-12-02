@@ -59,6 +59,11 @@ packages:
         group:  root
         perms:  0755
         target: usr/lib/influxdb/scripts/influxd-systemd-start.sh
+
+      - owner:  root
+        group:  root
+        perms:  0644
+        target: lib/systemd/system/influxdb.service
     source: .circleci/packages/influxdb2
     deb:
       recommends:
