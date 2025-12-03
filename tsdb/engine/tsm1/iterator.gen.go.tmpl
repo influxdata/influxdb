@@ -225,6 +225,7 @@ func new{{.Name}}Iterator(name string, tags query.Tags, opt query.IteratorOption
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
+			query.DatePartValuer{},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -273,6 +274,10 @@ func (itr *{{.name}}Iterator) Next() (*query.{{.Name}}Point, error) {
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+		}
+
+		if itr.opt.Condition != nil {
+		    itr.m["time"] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.

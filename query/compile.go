@@ -1,7 +1,6 @@
 package query
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -796,15 +795,6 @@ func (c *compiledField) compileCountHll(args []influxql.Expr) error {
 	default:
 		return c.compileSymbol("count_hll", arg0)
 	}
-}
-
-func (c *compiledField) compileDatePart(args []influxql.Expr) error {
-	tstamp, expression, err := ValidateDatePart(args)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (c *compiledField) compileHoltWinters(args []influxql.Expr, withFit bool) error {

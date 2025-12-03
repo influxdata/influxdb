@@ -227,6 +227,7 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
+			query.DatePartValuer{},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -275,6 +276,10 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+		}
+
+		if itr.opt.Condition != nil {
+			itr.m["time"] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
@@ -707,6 +712,7 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
+			query.DatePartValuer{},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -755,6 +761,10 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+		}
+
+		if itr.opt.Condition != nil {
+			itr.m["time"] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
@@ -1187,6 +1197,7 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
+			query.DatePartValuer{},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -1235,6 +1246,10 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+		}
+
+		if itr.opt.Condition != nil {
+			itr.m["time"] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
@@ -1667,6 +1682,7 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
+			query.DatePartValuer{},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -1715,6 +1731,10 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+		}
+
+		if itr.opt.Condition != nil {
+			itr.m["time"] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
@@ -2147,6 +2167,7 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
+			query.DatePartValuer{},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -2195,6 +2216,10 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+		}
+
+		if itr.opt.Condition != nil {
+			itr.m["time"] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.

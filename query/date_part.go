@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/influxdata/influxql"
 	"strings"
+	"time"
 )
 
 type DatePartExpr int
@@ -74,6 +75,50 @@ func ParseDatePartExpr(t string) (DatePartExpr, bool) {
 	return 0, false
 }
 
+func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (interface{}, bool) {
+	switch expr {
+	case Year:
+		return int64(t.Year()), true
+	case Quarter:
+		month := t.Month()
+		return int64((month-1)/3 + 1), true
+	case Month:
+		return int64(t.Month()), true
+	case Week:
+		_, week := t.ISOWeek()
+		return int64(week), true
+	case Day:
+		return int64(t.Day()), true
+	case Hour:
+		return int64(t.Hour()), true
+	case Minute:
+		return int64(t.Minute()), true
+	case Second:
+		return int64(t.Second()), true
+	case Millisecond:
+		return int64(t.Nanosecond() / 1e6), true
+	case Microsecond:
+		return int64(t.Nanosecond() / 1e3), true
+	case Nanosecond:
+		return int64(t.Nanosecond()), true
+	case DOW:
+		return int64(t.Weekday()), true
+	case DOY:
+		return int64(t.YearDay()), true
+	case Epoch:
+		return t.Unix(), true
+	case ISODOW:
+		// ISO 8601: Monday=1, Sunday=7
+		dow := int64(t.Weekday())
+		if dow == 0 {
+			return int64(7), true // Sunday
+		}
+		return dow, true
+	default:
+		return nil, false
+	}
+}
+
 func ValidateDatePart(args []influxql.Expr) (*influxql.VarRef, DatePartExpr, error) {
 	if exp, got := 2, len(args); exp != got {
 		return nil, 0, fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
@@ -90,15 +135,67 @@ func ValidateDatePart(args []influxql.Expr) (*influxql.VarRef, DatePartExpr, err
 		}
 	}
 
-	expressionRef, ok := args[1].(*influxql.VarRef)
-	if !ok {
+	// TODO(DB): Might want to support VarRef too i.e.
+	// date_part(time, 'DOW') should be equivalent to date_part(time, DOW)
+	var exprStr string
+	switch expressionRef := args[1].(type) {
+	case *influxql.StringLiteral:
+		exprStr = expressionRef.Val
+		break
+	default:
 		return nil, 0, errors.New("date_part: second argument must be a string")
 	}
 
-	expression, ok := ParseDatePartExpr(expressionRef.Val)
+	expression, ok := ParseDatePartExpr(exprStr)
 	if !ok {
 		return nil, 0, fmt.Errorf("date_part: second argument must be one of the following: [%s]", strings.Join(AvailableDatePartExprs, ","))
 	}
 
 	return tstamp, expression, nil
+}
+
+type DatePartValuer struct{}
+
+var _ influxql.CallValuer = DatePartValuer{}
+
+func (DatePartValuer) Value(key string) (interface{}, bool) { return nil, false }
+
+func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) {
+	if name != "date_part" {
+		return nil, false
+	}
+	if len(args) != 2 {
+		return nil, false
+	}
+
+	timestampRaw, ok := args[0].(int64)
+	if !ok {
+		return nil, false
+	}
+
+	exprStr, ok := args[1].(string)
+	if !ok {
+		return nil, false
+	}
+
+	expr, ok := ParseDatePartExpr(exprStr)
+	if !ok {
+		return nil, false
+	}
+
+	timestamp := time.Unix(0, timestampRaw).UTC()
+	return ExtractDatePartExpr(timestamp, expr)
+}
+
+type DatePartTypeMapper struct{}
+
+func (DatePartTypeMapper) MapType(measurement *influxql.Measurement, field string) influxql.DataType {
+	return influxql.Unknown
+}
+
+func (DatePartTypeMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
+	if name == "date_part" {
+		return influxql.Integer, nil
+	}
+	return influxql.Unknown, nil
 }
