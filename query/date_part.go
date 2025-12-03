@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxql"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxql"
 )
 
 type DatePartExpr int
