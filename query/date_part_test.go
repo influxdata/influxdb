@@ -43,9 +43,7 @@ func TestParseDatePartExpr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, ok := query.ParseDatePartExpr(tt.input)
 			require.Equal(t, tt.ok, ok, "ok should match")
-			if tt.ok {
-				require.Equal(t, tt.expected, result, "parsed value should match")
-			}
+			require.Equal(t, tt.expected, result, "parsed value should match")
 		})
 	}
 }
@@ -62,8 +60,8 @@ func TestValidateDatePart(t *testing.T) {
 		{
 			name: "valid with time and DOW",
 			args: []influxql.Expr{
-				&influxql.VarRef{Val: "time"},
 				&influxql.StringLiteral{Val: "DOW"},
+				&influxql.VarRef{Val: "time"},
 			},
 			expectError: false,
 			expectField: "time",
@@ -72,8 +70,8 @@ func TestValidateDatePart(t *testing.T) {
 		{
 			name: "valid with time and string literal",
 			args: []influxql.Expr{
-				&influxql.VarRef{Val: "time"},
 				&influxql.StringLiteral{Val: "year"},
+				&influxql.VarRef{Val: "time"},
 			},
 			expectError: false,
 			expectField: "time",
@@ -104,18 +102,18 @@ func TestValidateDatePart(t *testing.T) {
 			errorMsg:    "invalid number of arguments",
 		},
 		{
-			name: "invalid - first arg not VarRef",
+			name: "invalid - first arg not StringLiteral",
 			args: []influxql.Expr{
 				&influxql.IntegerLiteral{Val: 123},
-				&influxql.VarRef{Val: "DOW"},
+				&influxql.VarRef{Val: "time"},
 			},
 			expectError: true,
 			errorMsg:    "first argument must be",
 		},
 		{
-			name: "invalid - second arg not VarRef or String",
+			name: "invalid - second arg not a VarRef",
 			args: []influxql.Expr{
-				&influxql.VarRef{Val: "time"},
+				&influxql.StringLiteral{Val: "dow"},
 				&influxql.IntegerLiteral{Val: 123},
 			},
 			expectError: true,
@@ -124,11 +122,11 @@ func TestValidateDatePart(t *testing.T) {
 		{
 			name: "invalid - unknown date part expression",
 			args: []influxql.Expr{
-				&influxql.VarRef{Val: "time"},
 				&influxql.VarRef{Val: "invalid_expr"},
+				&influxql.VarRef{Val: "time"},
 			},
 			expectError: true,
-			errorMsg:    "second argument must be a string",
+			errorMsg:    "first argument must be a string",
 		},
 	}
 
@@ -166,91 +164,91 @@ func TestDatePartValuer_Call(t *testing.T) {
 		{
 			name:     "dow - Monday",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "dow"},
+			args:     []interface{}{"dow", testTimestamp},
 			expected: int64(1), // Monday
 			ok:       true,
 		},
 		{
 			name:     "doy - 15th day of year",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "doy"},
+			args:     []interface{}{"doy", testTimestamp},
 			expected: int64(15),
 			ok:       true,
 		},
 		{
 			name:     "year",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "year"},
+			args:     []interface{}{"year", testTimestamp},
 			expected: int64(2024),
 			ok:       true,
 		},
 		{
 			name:     "month - January",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "month"},
+			args:     []interface{}{"month", testTimestamp},
 			expected: int64(1),
 			ok:       true,
 		},
 		{
 			name:     "day",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "day"},
+			args:     []interface{}{"day", testTimestamp},
 			expected: int64(15),
 			ok:       true,
 		},
 		{
 			name:     "hour",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "hour"},
+			args:     []interface{}{"hour", testTimestamp},
 			expected: int64(14),
 			ok:       true,
 		},
 		{
 			name:     "minute",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "minute"},
+			args:     []interface{}{"minute", testTimestamp},
 			expected: int64(30),
 			ok:       true,
 		},
 		{
 			name:     "second",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "second"},
+			args:     []interface{}{"second", testTimestamp},
 			expected: int64(45),
 			ok:       true,
 		},
 		{
 			name:     "epoch",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "epoch"},
+			args:     []interface{}{"epoch", testTimestamp},
 			expected: testTime.Unix(),
 			ok:       true,
 		},
 		{
 			name:     "isodow - Monday",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "isodow"},
+			args:     []interface{}{"isodow", testTimestamp},
 			expected: int64(1), // Monday in ISO
 			ok:       true,
 		},
 		{
 			name:     "quarter - Q1",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "quarter"},
+			args:     []interface{}{"quarter", testTimestamp},
 			expected: int64(1),
 			ok:       true,
 		},
 		{
 			name:     "week",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "week"},
+			args:     []interface{}{"week", testTimestamp},
 			expected: int64(3), // Approximate
 			ok:       true,
 		},
 		{
 			name:     "wrong function name",
 			funcName: "other_function",
-			args:     []interface{}{testTimestamp, "dow"},
+			args:     []interface{}{"dow", testTimestamp},
 			expected: nil,
 			ok:       false,
 		},
@@ -271,28 +269,28 @@ func TestDatePartValuer_Call(t *testing.T) {
 		{
 			name:     "wrong number of args - 3",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "dow", "extra"},
+			args:     []interface{}{"dow", testTimestamp, "extra"},
 			expected: nil,
 			ok:       false,
 		},
 		{
 			name:     "invalid timestamp type",
 			funcName: "date_part",
-			args:     []interface{}{"not a timestamp", "dow"},
+			args:     []interface{}{"dow", "not a timestamp"},
 			expected: nil,
 			ok:       false,
 		},
 		{
 			name:     "invalid expression type",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, 123},
+			args:     []interface{}{123, testTimestamp},
 			expected: nil,
 			ok:       false,
 		},
 		{
 			name:     "unknown date part expression",
 			funcName: "date_part",
-			args:     []interface{}{testTimestamp, "invalid"},
+			args:     []interface{}{"invalid", testTimestamp},
 			expected: nil,
 			ok:       false,
 		},

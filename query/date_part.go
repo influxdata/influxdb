@@ -124,31 +124,29 @@ func ValidateDatePart(args []influxql.Expr) (*influxql.VarRef, DatePartExpr, err
 		return nil, 0, fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
 	}
 
-	tstamp, ok := args[0].(*influxql.VarRef)
-	if !ok {
-		return nil, 0, errors.New("date_part: first argument must be a string")
-		// check if tstamp.Val is "time" keyword or an actual timestamp
-	} else if !bytes.Equal([]byte(tstamp.Val), timeBytes) {
-		lit := influxql.StringLiteral{Val: tstamp.Val}
-		if !lit.IsTimeLiteral() {
-			return nil, 0, errors.New("date_part: first argument must be a timestamp or 'time' keyword")
-		}
-	}
-
-	// TODO(DB): Might want to support VarRef too i.e.
-	// date_part(time, 'DOW') should be equivalent to date_part(time, DOW)
 	var exprStr string
-	switch expressionRef := args[1].(type) {
+	switch expressionRef := args[0].(type) {
 	case *influxql.StringLiteral:
 		exprStr = expressionRef.Val
 		break
 	default:
-		return nil, 0, errors.New("date_part: second argument must be a string")
+		return nil, 0, errors.New("date_part: first argument must be a string")
 	}
 
 	expression, ok := ParseDatePartExpr(exprStr)
 	if !ok {
-		return nil, 0, fmt.Errorf("date_part: second argument must be one of the following: [%s]", strings.Join(AvailableDatePartExprs, ","))
+		return nil, 0, fmt.Errorf("date_part: first argument must be one of the following: [%s]", strings.Join(AvailableDatePartExprs, ","))
+	}
+
+	tstamp, ok := args[1].(*influxql.VarRef)
+	if !ok {
+		return nil, 0, errors.New("date_part: second argument must be a variable reference")
+		// check if tstamp.Val is "time" keyword or an actual timestamp
+	} else if !bytes.Equal([]byte(tstamp.Val), timeBytes) {
+		lit := influxql.StringLiteral{Val: tstamp.Val}
+		if !lit.IsTimeLiteral() {
+			return nil, 0, errors.New("date_part: second argument must be a timestamp or 'time' keyword")
+		}
 	}
 
 	return tstamp, expression, nil
@@ -168,17 +166,17 @@ func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) 
 		return nil, false
 	}
 
-	timestampRaw, ok := args[0].(int64)
-	if !ok {
-		return nil, false
-	}
-
-	exprStr, ok := args[1].(string)
+	exprStr, ok := args[0].(string)
 	if !ok {
 		return nil, false
 	}
 
 	expr, ok := ParseDatePartExpr(exprStr)
+	if !ok {
+		return nil, false
+	}
+
+	timestampRaw, ok := args[1].(int64)
 	if !ok {
 		return nil, false
 	}
