@@ -125,16 +125,12 @@ func ValidateDatePart(args []influxql.Expr) (*influxql.VarRef, DatePartExpr, err
 		return nil, 0, fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
 	}
 
-	var exprStr string
-	switch expressionRef := args[0].(type) {
-	case *influxql.StringLiteral:
-		exprStr = expressionRef.Val
-		break
-	default:
+	exprStr, ok := args[0].(*influxql.StringLiteral)
+	if !ok {
 		return nil, 0, errors.New("date_part: first argument must be a string")
 	}
 
-	expression, ok := ParseDatePartExpr(exprStr)
+	expression, ok := ParseDatePartExpr(exprStr.Val)
 	if !ok {
 		return nil, 0, fmt.Errorf("date_part: first argument must be one of the following: [%s]", strings.Join(AvailableDatePartExprs, ","))
 	}
