@@ -76,7 +76,7 @@ func ParseDatePartExpr(t string) (DatePartExpr, bool) {
 	return 0, false
 }
 
-func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (interface{}, bool) {
+func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
 	switch expr {
 	case Year:
 		return int64(t.Year()), true
@@ -116,7 +116,7 @@ func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (interface{}, bool) {
 		}
 		return dow, true
 	default:
-		return nil, false
+		return 0, false
 	}
 }
 
