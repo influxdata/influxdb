@@ -88,7 +88,7 @@ var (
 
 var (
 	// Static objects to prevent small allocs.
-	timeBytes = []byte("time")
+	TimeBytes = []byte("time")
 )
 
 // A ShardError implements the error interface, and contains extra
@@ -631,7 +631,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		tags := p.Tags()
 
 		// Drop any series w/ a "time" tag, these are illegal
-		if v := tags.Get(timeBytes); v != nil {
+		if v := tags.Get(TimeBytes); v != nil {
 			dropped++
 			if reason == "" {
 				reason = fmt.Sprintf(
@@ -689,7 +689,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		iter := p.FieldIterator()
 		validField := false
 		for iter.Next() {
-			if bytes.Equal(iter.FieldKey(), timeBytes) {
+			if bytes.Equal(iter.FieldKey(), TimeBytes) {
 				continue
 			}
 			validField = true
