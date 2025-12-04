@@ -315,15 +315,15 @@ func TestDatePartValuer_Call_Sunday(t *testing.T) {
 	sundayTimestamp := sunday.UnixNano()
 
 	t.Run("dow - Sunday is 0", func(t *testing.T) {
-		result, ok := valuer.Call("date_part", []interface{}{sundayTimestamp, "dow"})
+		result, ok := valuer.Call("date_part", []interface{}{"dow", sundayTimestamp})
 		require.True(t, ok)
-		require.Equal(t, int64(0), result) // Sunday = 0
+		require.Equal(t, int64(0), result, "dow check") // Sunday = 0
 	})
 
 	t.Run("isodow - Sunday is 7", func(t *testing.T) {
-		result, ok := valuer.Call("date_part", []interface{}{sundayTimestamp, "isodow"})
+		result, ok := valuer.Call("date_part", []interface{}{"isodow", sundayTimestamp})
 		require.True(t, ok)
-		require.Equal(t, int64(7), result) // Sunday = 7 in ISO
+		require.Equal(t, int64(7), result, "isdow check") // Sunday = 7 in ISO
 	})
 }
 
