@@ -1,4 +1,5 @@
 #!/bin/sh -e
+# shellcheck disable=SC2059
 
 ################################################################################
 # InfluxDB 3 Installation Script
@@ -148,8 +149,8 @@ readonly YELLOW='\033[1;33m'
 readonly RED='\033[0;31m'
 readonly NC='\033[0m' # No Color
 
-# No diagnostics for: 'printf "...${FOO}"'
-# shellcheck disable=SC2059
+# Note: SC2059 (variables in printf format strings) is disabled at file level
+# because color variables (BOLD, NC, etc.) are readonly constants used throughout.
 
 # Docker Compose Constants
 INFLUXDB_PORT=8181  # Can be changed if port is in use
@@ -421,7 +422,7 @@ wait_for_container_ready() {
     ELAPSED=0
     EMAIL_MESSAGE_SHOWN=false
 
-    while [ $ELAPSED -lt $TIMEOUT ]; do
+    while [ $ELAPSED -lt "$TIMEOUT" ]; do
         if docker logs "$CONTAINER_NAME" 2>&1 | grep -q "$READY_MESSAGE"; then
             printf "${NC}\n"
             return 0
@@ -463,9 +464,9 @@ wait_for_explorer_ready() {
     printf "└─ Starting Explorer"
     ELAPSED=0
 
-    while [ $ELAPSED -lt $TIMEOUT ]; do
-        if curl -s http://localhost:$EXPLORER_PORT >/dev/null 2>&1; then
-            API_RESPONSE=$(curl -s http://localhost:$EXPLORER_PORT/api/health 2>&1)
+    while [ $ELAPSED -lt "$TIMEOUT" ]; do
+        if curl -s "http://localhost:$EXPLORER_PORT" >/dev/null 2>&1; then
+            API_RESPONSE=$(curl -s "http://localhost:$EXPLORER_PORT/api/health" 2>&1)
             if echo "$API_RESPONSE" | grep -q "ok\|status\|healthy" 2>/dev/null; then
                 printf "${NC}\n"
                 return 0
@@ -492,7 +493,7 @@ create_operator_token() {
     TOKEN=""
 
     while [ $RETRY -lt $MAX_RETRIES ] && [ -z "$TOKEN" ]; do
-        TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -m 5 -X POST http://localhost:$INFLUXDB_PORT/api/v3/configure/token/admin 2>&1)
+        TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -m 5 -X POST "http://localhost:$INFLUXDB_PORT/api/v3/configure/token/admin" 2>&1)
 
         # Extract HTTP status code (last line)
         HTTP_CODE=$(echo "$TOKEN_RESPONSE" | tail -n1)
@@ -1372,6 +1373,8 @@ if [ "${EDITION}" = "Core" ]; then
         printf "├─${DIM}   --http-bind='0.0.0.0:%s' \\\\${NC}\n" "$PORT"
         printf "└─${DIM}   %s${NC}\n" "$STORAGE_FLAGS_ECHO"
 
+        # STORAGE_FLAGS must word-split into multiple arguments
+        # shellcheck disable=SC2086
         "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         PID="$!"
 
@@ -1407,6 +1410,8 @@ if [ "${EDITION}" = "Core" ]; then
         LOG_FILE="$INSTALL_LOC/logs/$(date +%Y%m%d_%H%M%S).log"
 
         # Start server in background
+        # STORAGE_FLAGS must word-split into multiple arguments
+        # shellcheck disable=SC2086
         "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         PID="$!"
 
@@ -1429,11 +1434,8 @@ else
     STARTUP_CHOICE=${STARTUP_CHOICE:-1}
 
     case "$STARTUP_CHOICE" in
-        1|*)
+        1)
             # Quick Start - use defaults and check for existing license
-            if [ "$STARTUP_CHOICE" != "1" ]; then
-                printf "Invalid choice. Using Quick Start (option 1).\n"
-            fi
             setup_quick_start_defaults enterprise
             setup_license_for_quick_start
             START_SERVICE="y"
@@ -1445,6 +1447,13 @@ else
         3)
             # Skip startup
             START_SERVICE="n"
+            ;;
+        *)
+            # Invalid choice - default to Quick Start
+            printf "Invalid choice. Using Quick Start (option 1).\n"
+            setup_quick_start_defaults enterprise
+            setup_license_for_quick_start
+            START_SERVICE="y"
             ;;
     esac
 
@@ -1481,6 +1490,8 @@ else
         display_enterprise_server_command true
 
         # Start server in background with or without license flags
+        # STORAGE_FLAGS must word-split into multiple arguments
+        # shellcheck disable=SC2086
         if [ -n "$LICENSE_TYPE" ] && [ -n "$LICENSE_EMAIL" ]; then
             # New license needed
             "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
@@ -1574,6 +1585,8 @@ else
         display_enterprise_server_command false
 
         # Start server in background
+        # STORAGE_FLAGS must word-split into multiple arguments
+        # shellcheck disable=SC2086
         "$INSTALL_LOC/$BINARY_NAME" serve --cluster-id="$CLUSTER_ID" --node-id="$NODE_ID" --license-type="$LICENSE_TYPE" --license-email="$LICENSE_EMAIL" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS >> "$LOG_FILE" 2>&1 &
         PID="$!"
 
