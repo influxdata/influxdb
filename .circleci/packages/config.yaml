@@ -10,11 +10,13 @@ sources:
     target: artifacts/
     arch:   amd64
     plat:   linux
+    build_linux_archive: true
 
   - binary: /tmp/workspace/bin/influxd_linux_arm64/
     target: artifacts/
     arch:   arm64
     plat:   linux
+    build_linux_archive: true
 
   - binary: /tmp/workspace/bin/influxd_darwin_amd64/
     target: artifacts/
