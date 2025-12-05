@@ -3400,6 +3400,7 @@ dependencies = [
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_client",
+ "influxdb3_id",
  "influxdb3_internal_api",
  "influxdb3_py_api",
  "influxdb3_shutdown",

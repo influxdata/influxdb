@@ -157,15 +157,6 @@ impl PyPluginCallApi {
         Ok(())
     }
 
-    fn log_args_to_string(&self, args: &Bound<'_, PyTuple>) -> PyResult<String> {
-        let line = args
-            .try_iter()?
-            .map(|arg| arg?.str()?.extract::<String>())
-            .collect::<Result<Vec<String>, _>>()?
-            .join(" ");
-        Ok(line)
-    }
-
     fn write(&self, line_builder: &Bound<'_, PyAny>) -> PyResult<()> {
         // Get the built line from the LineBuilder object
         let line = line_builder.getattr("build")?.call0()?;
@@ -321,6 +312,15 @@ impl PyPluginCallApi {
         if let Some(logger) = &self.logger {
             logger.log(level, log_line);
         }
+    }
+
+    fn log_args_to_string(&self, args: &Bound<'_, PyTuple>) -> PyResult<String> {
+        let line = args
+            .try_iter()?
+            .map(|arg| arg?.str()?.extract::<String>())
+            .collect::<Result<Vec<String>, _>>()?
+            .join(" ");
+        Ok(line)
     }
 }
 
