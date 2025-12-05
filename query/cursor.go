@@ -164,6 +164,7 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 	}
 
 	m := make(map[string]interface{})
+	mapValuer := influxql.MapValuer(m)
 	return scannerCursorBase{
 		fields:  exprs,
 		m:       m,
@@ -173,7 +174,8 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 		valuer: influxql.ValuerEval{
 			Valuer: influxql.MultiValuer(
 				MathValuer{},
-				influxql.MapValuer(m),
+				&DatePartValuer{Valuer: mapValuer},
+				mapValuer,
 			),
 			IntegerFloatDivision: true,
 		},
@@ -203,6 +205,15 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == "time" {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
+		}
+		if call, ok := expr.(*influxql.Call); ok {
+			for _, arg := range call.Args {
+				// We transform "time" -> "val%d" inside x
+				if ref, ok := arg.(*influxql.VarRef); ok && ref.Val == "time" {
+					//t := time.Unix(0, row.Time).In(cur.loc)
+					continue
+				}
+			}
 		}
 		v := cur.valuer.Eval(expr)
 		if fv, ok := v.(float64); ok && math.IsNaN(fv) {

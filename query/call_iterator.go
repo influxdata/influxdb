@@ -1445,6 +1445,37 @@ func newCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, er
 	}
 }
 
+func newDatePartIterator(input Iterator, expr DatePartExpr, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, IntegerPointEmitter) {
+			fn := NewFloatDatePartReducer(expr)
+			return fn, fn
+		}
+		return newFloatStreamIntegerIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerDatePartReducer(expr)
+			return fn, fn
+		}
+		return newIntegerStreamIntegerIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, IntegerPointEmitter) {
+			fn := NewUnsignedDatePartReducer(expr)
+			return fn, fn
+		}
+		return newUnsignedStreamIntegerIterator(input, createFn, opt), nil
+	case StringIterator:
+		createFn := func() (StringPointAggregator, IntegerPointEmitter) {
+			fn := NewStringDatePartReducer(expr)
+			return fn, fn
+		}
+		return newStringStreamIntegerIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported date_part iterator type: %T", input)
+	}
+}
+
 // newHoltWintersIterator returns an iterator for operating on a holt_winters() call.
 func newHoltWintersIterator(input Iterator, opt IteratorOptions, h, m int, includeFitData bool, interval time.Duration) (Iterator, error) {
 	switch input := input.(type) {

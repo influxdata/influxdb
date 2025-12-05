@@ -18,6 +18,7 @@ import (
 var DefaultTypeMapper = influxql.MultiTypeMapper(
 	FunctionTypeMapper{},
 	MathTypeMapper{},
+	DatePartTypeMapper{},
 )
 
 // SelectOptions are options that customize the select call.
@@ -555,6 +556,29 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				percentile = float64(arg.Val)
 			}
 			return newPercentileIterator(input, opt, percentile)
+		case "date_part":
+			_, datePartExpr, err := ValidateDatePart(expr.Args)
+			if err != nil {
+				return nil, err
+			}
+
+			// date_part operates on the timestamp, not field values.
+			// If the second argument is 'time', we need to iterate over the measurement's series
+			// to get the timestamps. We build an auxiliary iterator which will give us all points.
+			var input Iterator
+			if ref, ok := expr.Args[1].(*influxql.VarRef); ok && ref.Val == "time" {
+				// Clear the Expr so the storage engine knows to iterate over all available data
+				auxOpt := opt
+				auxOpt.Expr = nil
+				input, err = buildAuxIterator(ctx, b.ic, b.sources, auxOpt)
+			} else {
+				input, err = buildExprIterator(ctx, expr.Args[1], b.ic, b.sources, opt, b.selector, false)
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			return newDatePartIterator(input, datePartExpr, opt)
 		default:
 			return nil, fmt.Errorf("unsupported call: %s", expr.Name)
 		}
@@ -924,6 +948,10 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 		// as stored in the symbol table.
 		switch n := n.(type) {
 		case *influxql.Call:
+			if n.Name == "date_part" {
+				// Don't need to visit children
+				return nil
+			}
 			if isMathFunction(n) {
 				return v
 			}

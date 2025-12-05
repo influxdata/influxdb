@@ -92,7 +92,7 @@ func (m FunctionTypeMapper) CallType(name string, args []influxql.DataType) (inf
 		"chande_momentum_oscillator",
 		"holt_winters", "holt_winters_with_fit":
 		return influxql.Float, nil
-	case "elapsed":
+	case "elapsed", "date_part":
 		return influxql.Integer, nil
 	default:
 		// TODO(jsternberg): Do not use default for this.

@@ -1,0 +1,340 @@
+package query
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/influxdata/influxql"
+)
+
+type DatePartExpr int
+
+const (
+	Year DatePartExpr = iota
+	Quarter
+	Month
+	Week
+	Day
+	Hour
+	Minute
+	Second
+	Millisecond
+	Microsecond
+	Nanosecond
+	DOW
+	DOY
+	Epoch
+	ISODOW
+)
+
+var AvailableDatePartExprs = []string{
+	"year", "quarter", "month", "week", "day",
+	"hour", "minute", "second",
+	"millisecond", "microsecond", "nanosecond",
+	"dow", "doy", "epoch", "isodow",
+}
+
+var timeBytes = []byte("time")
+
+func ParseDatePartExpr(t string) (DatePartExpr, bool) {
+	switch strings.ToLower(t) {
+	case "year":
+		return Year, true
+	case "quarter":
+		return Quarter, true
+	case "month":
+		return Month, true
+	case "week":
+		return Week, true
+	case "day":
+		return Day, true
+	case "hour":
+		return Hour, true
+	case "minute":
+		return Minute, true
+	case "second":
+		return Second, true
+	case "millisecond":
+		return Millisecond, true
+	case "microsecond":
+		return Microsecond, true
+	case "nanosecond":
+		return Nanosecond, true
+	case "dow":
+		return DOW, true
+	case "doy":
+		return DOY, true
+	case "epoch":
+		return Epoch, true
+	case "isodow":
+		return ISODOW, true
+	}
+
+	return 0, false
+}
+
+func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
+	switch expr {
+	case Year:
+		return int64(t.Year()), true
+	case Quarter:
+		month := t.Month()
+		return int64((month-1)/3 + 1), true
+	case Month:
+		return int64(t.Month()), true
+	case Week:
+		_, week := t.ISOWeek()
+		return int64(week), true
+	case Day:
+		return int64(t.Day()), true
+	case Hour:
+		return int64(t.Hour()), true
+	case Minute:
+		return int64(t.Minute()), true
+	case Second:
+		return int64(t.Second()), true
+	case Millisecond:
+		return int64(t.Nanosecond() / 1e6), true
+	case Microsecond:
+		return int64(t.Nanosecond() / 1e3), true
+	case Nanosecond:
+		return int64(t.Nanosecond()), true
+	case DOW:
+		return int64(t.Weekday()), true
+	case DOY:
+		return int64(t.YearDay()), true
+	case Epoch:
+		return t.Unix(), true
+	case ISODOW:
+		// ISO 8601: Monday=1, Sunday=7
+		dow := int64(t.Weekday())
+		if dow == 0 {
+			return int64(7), true // Sunday
+		}
+		return dow, true
+	default:
+		return 0, false
+	}
+}
+
+func ValidateDatePart(args []influxql.Expr) (*influxql.VarRef, DatePartExpr, error) {
+	if exp, got := 2, len(args); exp != got {
+		return nil, 0, fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
+	}
+
+	exprStr, ok := args[0].(*influxql.StringLiteral)
+	if !ok {
+		return nil, 0, errors.New("date_part: first argument must be a string")
+	}
+
+	expression, ok := ParseDatePartExpr(exprStr.Val)
+	if !ok {
+		return nil, 0, fmt.Errorf("date_part: first argument must be one of the following: [%s]", strings.Join(AvailableDatePartExprs, ","))
+	}
+
+	tstamp, ok := args[1].(*influxql.VarRef)
+	if !ok {
+		return nil, 0, errors.New("date_part: second argument must be a variable reference")
+		// check if tstamp.Val is "time" keyword or an actual timestamp
+	} else if !bytes.Equal([]byte(tstamp.Val), timeBytes) {
+		lit := influxql.StringLiteral{Val: tstamp.Val}
+		if !lit.IsTimeLiteral() {
+			return nil, 0, errors.New("date_part: second argument must be a timestamp or 'time' keyword")
+		}
+	}
+
+	return tstamp, expression, nil
+}
+
+type DatePartValuer struct {
+	Valuer influxql.MapValuer
+}
+
+var _ influxql.CallValuer = DatePartValuer{}
+
+func (v DatePartValuer) Value(key string) (interface{}, bool) {
+	return v.Valuer.Value(key)
+}
+
+func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) {
+	if name != "date_part" {
+		return nil, false
+	}
+	if len(args) != 2 {
+		return nil, false
+	}
+
+	exprStr, ok := args[0].(string)
+	if !ok {
+		return nil, false
+	}
+
+	expr, ok := ParseDatePartExpr(exprStr)
+	if !ok {
+		return nil, false
+	}
+
+	timestampRaw, ok := args[1].(int64)
+	if !ok {
+		return nil, false
+	}
+
+	timestamp := time.Unix(0, timestampRaw).UTC()
+	return ExtractDatePartExpr(timestamp, expr)
+}
+
+type DatePartTypeMapper struct{}
+
+func (DatePartTypeMapper) MapType(measurement *influxql.Measurement, field string) influxql.DataType {
+	return influxql.Unknown
+}
+
+func (DatePartTypeMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
+	if name == "date_part" {
+		return influxql.Integer, nil
+	}
+	return influxql.Unknown, nil
+}
+
+// FloatDatePartReducer extracts a date part from float point timestamps
+type FloatDatePartReducer struct {
+	datePartExpr DatePartExpr
+	curr         FloatPoint
+}
+
+func NewFloatDatePartReducer(expr DatePartExpr) *FloatDatePartReducer {
+	return &FloatDatePartReducer{
+		datePartExpr: expr,
+		curr:         FloatPoint{Nil: true},
+	}
+}
+
+func (r *FloatDatePartReducer) AggregateFloat(p *FloatPoint) {
+	r.curr = *p
+}
+
+func (r *FloatDatePartReducer) Emit() []IntegerPoint {
+	if r.curr.Nil {
+		return nil
+	}
+
+	timestamp := time.Unix(0, r.curr.Time).UTC()
+	value, ok := ExtractDatePartExpr(timestamp, r.datePartExpr)
+	if !ok {
+		return nil
+	}
+
+	return []IntegerPoint{{
+		Time:  r.curr.Time,
+		Value: value,
+		Aux:   r.curr.Aux,
+	}}
+}
+
+// IntegerDatePartReducer extracts a date part from integer point timestamps
+type IntegerDatePartReducer struct {
+	datePartExpr DatePartExpr
+	curr         IntegerPoint
+}
+
+func NewIntegerDatePartReducer(expr DatePartExpr) *IntegerDatePartReducer {
+	return &IntegerDatePartReducer{
+		datePartExpr: expr,
+		curr:         IntegerPoint{Nil: true},
+	}
+}
+
+func (r *IntegerDatePartReducer) AggregateInteger(p *IntegerPoint) {
+	r.curr = *p
+}
+
+func (r *IntegerDatePartReducer) Emit() []IntegerPoint {
+	if r.curr.Nil {
+		return nil
+	}
+
+	timestamp := time.Unix(0, r.curr.Time).UTC()
+	value, ok := ExtractDatePartExpr(timestamp, r.datePartExpr)
+	if !ok {
+		return nil
+	}
+
+	return []IntegerPoint{{
+		Time:  r.curr.Time,
+		Value: value,
+		Aux:   r.curr.Aux,
+	}}
+}
+
+// UnsignedDatePartReducer extracts a date part from unsigned point timestamps
+type UnsignedDatePartReducer struct {
+	datePartExpr DatePartExpr
+	curr         UnsignedPoint
+}
+
+func NewUnsignedDatePartReducer(expr DatePartExpr) *UnsignedDatePartReducer {
+	return &UnsignedDatePartReducer{
+		datePartExpr: expr,
+		curr:         UnsignedPoint{Nil: true},
+	}
+}
+
+func (r *UnsignedDatePartReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.curr = *p
+}
+
+func (r *UnsignedDatePartReducer) Emit() []IntegerPoint {
+	if r.curr.Nil {
+		return nil
+	}
+
+	timestamp := time.Unix(0, r.curr.Time).UTC()
+	value, ok := ExtractDatePartExpr(timestamp, r.datePartExpr)
+	if !ok {
+		return nil
+	}
+
+	return []IntegerPoint{{
+		Time:  r.curr.Time,
+		Value: value,
+		Aux:   r.curr.Aux,
+	}}
+}
+
+// StringDatePartReducer extracts a date part from string point timestamps
+type StringDatePartReducer struct {
+	datePartExpr DatePartExpr
+	curr         StringPoint
+}
+
+func NewStringDatePartReducer(expr DatePartExpr) *StringDatePartReducer {
+	return &StringDatePartReducer{
+		datePartExpr: expr,
+		curr:         StringPoint{Nil: true},
+	}
+}
+
+func (r *StringDatePartReducer) AggregateString(p *StringPoint) {
+	r.curr = *p
+}
+
+func (r *StringDatePartReducer) Emit() []IntegerPoint {
+	if r.curr.Nil {
+		return nil
+	}
+
+	timestamp := time.Unix(0, r.curr.Time).UTC()
+	value, ok := ExtractDatePartExpr(timestamp, r.datePartExpr)
+	if !ok {
+		return nil
+	}
+
+	return []IntegerPoint{{
+		Time:  r.curr.Time,
+		Value: value,
+		Aux:   r.curr.Aux,
+	}}
+}
