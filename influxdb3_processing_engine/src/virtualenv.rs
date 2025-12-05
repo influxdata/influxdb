@@ -137,9 +137,9 @@ pub fn init_pyo3() {
     }
 
     PYTHON_INIT.call_once(|| {
-        pyo3::prepare_freethreaded_python();
+        Python::initialize();
 
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // This sets the signal handler fo SIGINT to be the default, allowing CTRL+C to work.
             // See https://github.com/PyO3/pyo3/issues/3218.
             py.run(

@@ -30,8 +30,8 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::{PyAnyMethods, PyModule};
 use pyo3::types::{PyBytes, PyDateTime, PyDict, PyList, PyTuple};
 use pyo3::{
-    Bound, IntoPyObject, Py, PyAny, PyObject, PyResult, Python, create_exception, pyclass,
-    pymethods, pymodule,
+    Bound, IntoPyObject, Py, PyAny, PyResult, Python, create_exception, pyclass, pymethods,
+    pymodule,
 };
 use std::collections::BTreeMap;
 use std::ffi::CString;
@@ -219,8 +219,8 @@ impl PyPluginCallApi {
 
         let batches: Vec<RecordBatch> = res?;
 
-        Python::with_gil(|py| {
-            let mut rows: Vec<PyObject> = Vec::new();
+        Python::attach(|py| {
+            let mut rows: Vec<Py<PyAny>> = Vec::new();
 
             for batch in batches {
                 let num_rows = batch.num_rows();
@@ -553,7 +553,7 @@ pub fn execute_python_with_batch(
     } else {
         None
     };
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         // import the LineBuilder for use in the python code
         // Run LineBuilder code in the main namespace
         py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
@@ -589,7 +589,7 @@ pub fn execute_python_with_batch(
             dict.set_item("table_name", table_def.table_name.as_ref())
                 .context("failed to set table_name")?;
 
-            let mut rows: Vec<PyObject> = Vec::new();
+            let mut rows: Vec<Py<PyAny>> = Vec::new();
             for chunk in table_chunks.chunk_time_to_chunk.values() {
                 for row in &chunk.rows {
                     let py_row = PyDict::new(py);
@@ -726,7 +726,7 @@ pub fn execute_schedule_trigger(
     } else {
         None
     };
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         // import the LineBuilder for use in the python code
 
         let py_datetime = PyDateTime::from_timestamp(py, schedule_time.timestamp() as f64, None)
@@ -829,7 +829,7 @@ pub fn execute_request_trigger(
     } else {
         None
     };
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         // import the LineBuilder for use in the python code
         py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
             .map_err(|e| {
@@ -938,7 +938,7 @@ fn process_flask_response(
     }
 
     // Check if it's a tuple
-    if let Ok(tuple) = result.downcast::<PyTuple>() {
+    if let Ok(tuple) = result.cast::<PyTuple>() {
         let tuple_len = tuple.len()?;
         if tuple_len > 0 && tuple_len <= 3 {
             // Extract response part (first element)
@@ -954,7 +954,7 @@ fn process_flask_response(
                 // Check if the second item is a status code or headers
                 if let Ok(status_code) = second.extract::<i64>() {
                     status = status_code.try_into().unwrap_or(500);
-                } else if let Ok(header_dict) = second.downcast::<PyDict>() {
+                } else if let Ok(header_dict) = second.cast::<PyDict>() {
                     // It's headers
                     let additional_headers: std::collections::HashMap<String, String> =
                         header_dict.extract()?;
@@ -964,7 +964,7 @@ fn process_flask_response(
                 // If there's a third item, it must be headers
                 if tuple_len == 3 {
                     let header_item = tuple.get_item(2)?;
-                    let Ok(header_dict) = header_item.downcast::<PyDict>() else {
+                    let Ok(header_dict) = header_item.cast::<PyDict>() else {
                         bail!("expected a dictionary in header item");
                     };
                     let additional_headers: std::collections::HashMap<String, String> =
@@ -1313,8 +1313,8 @@ impl PyCache {
         key: String,
         default: Option<Py<PyAny>>,
         use_global: Option<bool>,
-    ) -> PyResult<PyObject> {
-        Python::with_gil(|py| {
+    ) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| {
             let cache_id = self.cache_id(use_global);
             let result = self.cache_store.lock().get(cache_id, py, &key);
 
