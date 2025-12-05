@@ -205,7 +205,10 @@ func (c *compiledStatement) compile(stmt *influxql.SelectStatement) error {
 }
 
 func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error {
-	valuer := MathValuer{}
+	valuer := influxql.MultiValuer(
+		MathValuer{},
+		DatePartValuer{},
+	)
 
 	c.Fields = make([]*compiledField, 0, len(stmt.Fields))
 	for _, f := range stmt.Fields {
@@ -222,7 +225,7 @@ func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error 
 		}
 
 		// Append this field to the list of processed fields and compile it.
-		f.Expr = influxql.Reduce(f.Expr, &valuer)
+		f.Expr = influxql.Reduce(f.Expr, valuer)
 		field := &compiledField{
 			global:        c,
 			Field:         f,
@@ -311,6 +314,8 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 		case "holt_winters", "holt_winters_with_fit":
 			withFit := expr.Name == "holt_winters_with_fit"
 			return c.compileHoltWinters(expr.Args, withFit)
+		case "date_part":
+			return c.compileDatePart(expr.Args)
 		default:
 			return c.compileFunction(expr)
 		}
@@ -845,6 +850,15 @@ func (c *compiledField) compileDistinct(args []influxql.Expr, nested bool) error
 		c.global.HasDistinct = true
 	}
 	c.global.OnlySelectors = false
+	return nil
+}
+
+func (c *compiledField) compileDatePart(args []influxql.Expr) error {
+	_, _, err := ValidateDatePart(args)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

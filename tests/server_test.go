@@ -8255,6 +8255,111 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
+		// SELECT statement tests - date_part as a column
+		&Query{
+			name:    `SELECT date_part dow as column`,
+			command: `SELECT date_part('dow', time) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","date_part"],"values":[` +
+				`["2023-01-01T00:00:00Z",0],` + // Sunday
+				`["2023-01-16T10:30:45Z",1]` + // Monday
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part with alias`,
+			command: `SELECT date_part('dow', time) AS day_of_week FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","day_of_week"],"values":[` +
+				`["2023-01-01T00:00:00Z",0],` +
+				`["2023-01-16T10:30:45Z",1]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT multiple date parts`,
+			command: `SELECT date_part('year', time) AS year, date_part('month', time) AS month, date_part('day', time) AS day FROM db0.rp0.cpu WHERE time = '2024-02-29T12:00:00Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","year","month","day"],"values":[` +
+				`["2024-02-29T12:00:00Z",2024,2,29]` + // Leap year day
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part with field`,
+			command: `SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE host = 'server01' ORDER BY time LIMIT 3`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` + // Sunday
+				`["2023-01-16T10:30:45Z",2,1],` + // Monday
+				`["2023-04-15T14:20:30Z",3,6]` + // Saturday
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part hour and minute`,
+			command: `SELECT date_part('hour', time) AS hour, date_part('minute', time) AS minute FROM db0.rp0.cpu WHERE time = '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","hour","minute"],"values":[` +
+				`["2023-01-16T10:30:45Z",10,30]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part year and quarter`,
+			command: `SELECT date_part('year', time) AS year, date_part('quarter', time) AS quarter FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-12-31T23:59:59Z' ORDER BY time`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","year","quarter"],"values":[` +
+				`["2023-01-01T00:00:00Z",2023,1],` +
+				`["2023-01-16T10:30:45Z",2023,1],` +
+				`["2023-04-15T14:20:30Z",2023,2],` +
+				`["2023-07-19T08:15:22Z",2023,3],` +
+				`["2023-10-27T16:45:10Z",2023,4],` +
+				`["2023-12-31T23:59:59Z",2023,4]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part doy (day of year)`,
+			command: `SELECT date_part('doy', time) AS day_of_year FROM db0.rp0.cpu WHERE time = '2023-01-01T00:00:00Z' OR time = '2023-12-31T23:59:59Z' ORDER BY time`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","day_of_year"],"values":[` +
+				`["2023-01-01T00:00:00Z",1],` +
+				`["2023-12-31T23:59:59Z",365]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part isodow`,
+			command: `SELECT date_part('isodow', time) AS iso_day FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","iso_day"],"values":[` +
+				`["2023-01-01T00:00:00Z",7],` + // Sunday = 7 in ISO
+				`["2023-01-16T10:30:45Z",1]` + // Monday = 1 in ISO
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part epoch`,
+			command: `SELECT date_part('epoch', time) AS epoch FROM db0.rp0.cpu WHERE time = '2024-01-01T00:00:00Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","epoch"],"values":[` +
+				`["2024-01-01T00:00:00Z",1704067200]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part with GROUP BY`,
+			command: `SELECT date_part('dow', time) AS dow, COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-12-31T23:59:59Z' GROUP BY date_part('dow', time) ORDER BY dow`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","dow","count"],"values":[` +
+				`[0,0,2],` + // 2 Sundays
+				`[0,1,1],` + // 1 Monday
+				`[0,3,1],` + // 1 Wednesday
+				`[0,5,1],` + // 1 Friday
+				`[0,6,1]` + // 1 Saturday
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part with multiple fields and WHERE`,
+			command: `SELECT host, value, date_part('month', time) AS month FROM db0.rp0.cpu WHERE date_part('year', time) = 2024 AND date_part('month', time) <= 2 ORDER BY time`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value","month"],"values":[` +
+				`["2024-01-01T00:00:00Z","server02",7,1],` +
+				`["2024-02-29T12:00:00Z","server02",8,2]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	var initialized bool
@@ -8264,6 +8369,62 @@ func TestServer_Query_DatePart(t *testing.T) {
 				err := test.init(s)
 				require.NoError(t, err, "init error")
 				initialized = true
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
+	}
+}
+
+func TestServer_Query_DatePart_SELECT_Simple(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write two simple data points
+	writes := []string{
+		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T00:00:00Z").UnixNano()), // Sunday
+		fmt.Sprintf(`cpu,host=server01 value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-01-16T10:30:45Z").UnixNano()), // Monday
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		// Test 1: Just date_part
+		{
+			name:    `SELECT just date_part`,
+			command: `SELECT date_part('dow', time) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","date_part"],"values":[["2023-01-01T00:00:00Z",0],["2023-01-16T10:30:45Z",1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// Test 2: date_part with field
+		{
+			name:    `SELECT value and date_part`,
+			command: `SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","dow"],"values":[["2023-01-01T00:00:00Z",1,0],["2023-01-16T10:30:45Z",2,1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	for i, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
+			}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
 			}
 			if err := query.Execute(s); err != nil {
 				t.Error(query.Error(err))
