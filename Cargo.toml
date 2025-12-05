@@ -64,7 +64,7 @@ arrow-flight = { version = "55", features = ["flight-sql-experimental"] }
 arrow-ipc = { version = "55" }
 arrow-json = "55"
 arrow-schema = { version = "55" }
-assert_cmd = "2.0.14"
+assert_cmd = "2.1.1"
 async-trait = "0.1"
 backon = { version = "1.5.0", features = ["tokio"] }
 backtrace = "0.3"
@@ -133,7 +133,6 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 rstest = "0.26"
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", default-features = false, features = ["ring", "std"] }
-rustls-pemfile = "2.2.0"
 secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }
 # serde_json is set to 1.0.127 to prevent a conflict with core, if that gets updated upstream, this

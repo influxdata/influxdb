@@ -69,7 +69,6 @@ humantime.workspace = true
 mime.workspace = true
 object_store.workspace = true
 regex.workspace = true
-rustls-pemfile.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_urlencoded.workspace = true

@@ -32,8 +32,6 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_telemetry::store::TelemetryStore;
 use observability_deps::tracing::{error, info, trace, warn};
 use std::fmt::Debug;
-use std::fs::File;
-use std::io::BufReader;
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
@@ -42,8 +40,8 @@ use tokio::net::TcpListener;
 use tokio::time::Instant;
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls;
-use tokio_rustls::rustls::pki_types::CertificateDer;
-use tokio_rustls::rustls::pki_types::PrivateKeyDer;
+use tokio_rustls::rustls::pki_types::pem::PemObject;
+use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use tokio_rustls::rustls::{ServerConfig, SupportedProtocolVersion};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
@@ -569,20 +567,12 @@ fn setup_tls(
     ),
     Error,
 > {
-    let certs = {
-        let cert_file = File::open(cert_file)?;
-        let mut buf_reader = BufReader::new(cert_file);
-        rustls_pemfile::certs(&mut buf_reader)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| Error::TlsConfig(format!("Error reading certs: {e}")))?
-    };
-    let key = {
-        let key_file = File::open(key_file)?;
-        let mut buf_reader = BufReader::new(key_file);
-        rustls_pemfile::private_key(&mut buf_reader)
-            .map_err(|e| Error::TlsConfig(format!("Error reading private key: {e}")))?
-            .ok_or_else(|| Error::TlsConfig("No private key found".to_string()))?
-    };
+    let certs = CertificateDer::pem_file_iter(cert_file)
+        .map_err(|e| Error::TlsConfig(format!("Error reading certs: {e}")))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| Error::TlsConfig(format!("Error reading certs: {e}")))?;
+    let key = PrivateKeyDer::from_pem_file(key_file)
+        .map_err(|e| Error::TlsConfig(format!("Error reading private key: {e}")))?;
     Ok((tcp_listener, certs, key))
 }
 

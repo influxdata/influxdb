@@ -9,6 +9,10 @@ ignore = [
     # Keep this here until our transisent dependencies no longer
     # need it
     "RUSTSEC-2024-0436",
+    # rustls-pemfile is unmaintained but still used as a transitive dependency
+    # from object_store. We've removed our direct dependency and migrated to
+    # rustls-pki-types. Remove once object_store updates.
+    "RUSTSEC-2025-0134",
 ]
 git-fetch-with-cli = true
 

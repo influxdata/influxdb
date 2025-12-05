@@ -7,7 +7,6 @@ use std::{
 
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{FlightClient, decode::FlightRecordBatchStream};
-use assert_cmd::cargo::CommandCargoExt;
 use futures::TryStreamExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use influxdb3_client::Precision;
@@ -403,9 +402,7 @@ impl TestServer {
         let admin_token_recover_tmp_dir_path = admin_token_recover_tmp_dir.keep();
         let tcp_addr_file_2 = admin_token_recover_tmp_dir_path.join("tcp-listener");
 
-        // See https://github.com/influxdata/influxdb/issues/26975x
-        #[allow(deprecated)]
-        let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
+        let mut command = Command::new(assert_cmd::cargo_bin!("influxdb3"));
         let mut command = command
             .arg("serve")
             .arg("--disable-telemetry-upload")
