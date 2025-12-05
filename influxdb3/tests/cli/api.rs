@@ -1,6 +1,5 @@
 use crate::server::TestServer;
 use anyhow::{Result, bail};
-use assert_cmd::cargo::CommandCargoExt;
 use influxdb3_types::http::FieldType;
 use serde_json::Value;
 use std::io::Write;
@@ -53,9 +52,7 @@ pub(super) fn run_cmd_with_result(
     input: Option<&str>,
     command_args: Vec<&str>,
 ) -> std::result::Result<String, anyhow::Error> {
-    // See https://github.com/influxdata/influxdb/issues/26975
-    #[allow(deprecated)]
-    let mut child_process = Command::cargo_bin("influxdb3")?
+    let mut child_process = Command::new(assert_cmd::cargo_bin!("influxdb3"))
         .args(&command_args)
         .args(args)
         .stdin(Stdio::piped())

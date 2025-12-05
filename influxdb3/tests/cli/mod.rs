@@ -5,7 +5,7 @@ mod offline_tokens;
 mod system_tables;
 
 use crate::server::{ConfigProvider, TestServer};
-use assert_cmd::Command as AssertCmd;
+use assert_cmd::cargo::cargo_bin_cmd;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 use reqwest::StatusCode;
@@ -72,10 +72,7 @@ fn test_telemetry_disabled_with_debug_msg() {
     let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
 
     // validate we get a debug message indicating upload disabled
-    // See https://github.com/influxdata/influxdb/issues/26975
-    #[allow(deprecated)]
-    let output = AssertCmd::cargo_bin("influxdb3")
-        .unwrap()
+    let output = cargo_bin_cmd!("influxdb3")
         .args(serve_args)
         .arg("-vv")
         .arg("--disable-telemetry-upload")
@@ -103,10 +100,7 @@ fn test_telemetry_disabled() {
 
     let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
     // validate no message when debug output disabled
-    // See https://github.com/influxdata/influxdb/issues/26975
-    #[allow(deprecated)]
-    let output = AssertCmd::cargo_bin("influxdb3")
-        .unwrap()
+    let output = cargo_bin_cmd!("influxdb3")
         .args(serve_args)
         .arg("-v")
         .arg("--disable-telemetry-upload")
@@ -136,10 +130,7 @@ fn test_telemetry_enabled_with_debug_msg() {
         "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
 
     // validate debug output shows which endpoint we are hitting when telemetry enabled
-    // See https://github.com/influxdata/influxdb/issues/26975
-    #[allow(deprecated)]
-    let output = AssertCmd::cargo_bin("influxdb3")
-        .unwrap()
+    let output = cargo_bin_cmd!("influxdb3")
         .args(serve_args)
         .arg("-vv")
         .arg("--telemetry-endpoint")
@@ -170,10 +161,7 @@ fn test_telementry_enabled() {
         "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
 
     // validate no telemetry endpoint reported when debug output not enabled
-    // See https://github.com/influxdata/influxdb/issues/26975
-    #[allow(deprecated)]
-    let output = AssertCmd::cargo_bin("influxdb3")
-        .unwrap()
+    let output = cargo_bin_cmd!("influxdb3")
         .args(serve_args)
         .arg("-v")
         .arg("--telemetry-endpoint")
@@ -3981,10 +3969,7 @@ async fn test_db_name_cannot_start_with_underscore_on_create_table() {
 #[test_log::test]
 fn test_create_token_requires_subcommand() {
     // Test that 'create token' command shows help instead of panicking when no subcommand is provided
-    // See https://github.com/influxdata/influxdb/issues/26975
-    #[allow(deprecated)]
-    let output = assert_cmd::Command::cargo_bin("influxdb3")
-        .unwrap()
+    let output = cargo_bin_cmd!("influxdb3")
         .args(["create", "token"])
         .output()
         .unwrap();
@@ -4000,10 +3985,7 @@ fn test_create_token_requires_subcommand() {
     assert_not_contains!(&stderr, "thread 'main' panicked");
 
     // Test that --name alone also shows the error
-    // See https://github.com/influxdata/influxdb/issues/26975
-    #[allow(deprecated)]
-    let output_name_only = assert_cmd::Command::cargo_bin("influxdb3")
-        .unwrap()
+    let output_name_only = cargo_bin_cmd!("influxdb3")
         .args(["create", "token", "--name", "test"])
         .output()
         .unwrap();
@@ -4016,10 +3998,7 @@ fn test_create_token_requires_subcommand() {
     );
 
     // Test that --help works properly (help goes to stdout when explicitly requested)
-    // See https://github.com/influxdata/influxdb/issues/26975
-    #[allow(deprecated)]
-    let output_help = assert_cmd::Command::cargo_bin("influxdb3")
-        .unwrap()
+    let output_help = cargo_bin_cmd!("influxdb3")
         .args(["create", "token", "--help"])
         .output()
         .unwrap();

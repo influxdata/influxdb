@@ -3564,7 +3564,6 @@ dependencies = [
  "parquet_file",
  "pretty_assertions",
  "regex",
- "rustls-pemfile",
  "schema",
  "serde",
  "serde_json",
