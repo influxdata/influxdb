@@ -57,6 +57,12 @@ func NewCallIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 		return NewSumHllIterator(input, opt)
 	case "merge_hll":
 		return NewMergeHllIterator(input, opt)
+	case "date_part":
+		_, datePartExpr, err := ValidateDatePart(opt.Expr.(*influxql.Call).Args)
+		if err != nil {
+			return nil, err
+		}
+		return newDatePartIterator(input, datePartExpr, opt)
 	default:
 		return nil, fmt.Errorf("unsupported function call: %s", name)
 	}

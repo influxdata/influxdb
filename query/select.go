@@ -561,15 +561,21 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 			if err != nil {
 				return nil, err
 			}
+			b.selector = true
 
 			// date_part operates on the timestamp, not field values.
 			// If the second argument is 'time', we need to iterate over the measurement's series
-			// to get the timestamps. We build an auxiliary iterator which will give us all points.
+			// to get the timestamps. We build an iterator that reads any available field just
+			// to get the point timestamps.
 			var input Iterator
 			if ref, ok := expr.Args[1].(*influxql.VarRef); ok && ref.Val == "time" {
-				// Clear the Expr so the storage engine knows to iterate over all available data
+				if opt.Aux == nil {
+					opt.Aux = []influxql.VarRef{
+						{Val: "foo", Type: influxql.String},
+					}
+				}
+				opt.Expr = &influxql.Wildcard{Type: influxql.FIELD}
 				auxOpt := opt
-				auxOpt.Expr = nil
 				input, err = buildAuxIterator(ctx, b.ic, b.sources, auxOpt)
 			} else {
 				input, err = buildExprIterator(ctx, expr.Args[1], b.ic, b.sources, opt, b.selector, false)
@@ -720,6 +726,7 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 	if len(valueMapper.calls) == 0 {
 		// If all of the auxiliary keys are of an unknown type,
 		// do not construct the iterator and return a null cursor.
+		// TODO(DB): HERE IS WHERE WE MAKE THE NULL CURSOR
 		if !hasValidType(auxKeys) {
 			return newNullCursor(fields), nil
 		}
@@ -948,14 +955,17 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 		// as stored in the symbol table.
 		switch n := n.(type) {
 		case *influxql.Call:
-			if n.Name == "date_part" {
-				// Don't need to visit children
-				return nil
-			}
 			if isMathFunction(n) {
 				return v
 			}
-			v.calls[n] = struct{}{}
+			if n.Name == "date_part" {
+				// Add date_part to calls so it uses the call iterator path
+				// Continue to create symbol and add to table
+				v.calls[n] = struct{}{}
+				// Fall through to create symbol - return nil at end prevents visiting children
+			} else {
+				v.calls[n] = struct{}{}
+			}
 		case *influxql.VarRef:
 			v.refs[n] = struct{}{}
 		default:

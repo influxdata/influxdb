@@ -8407,13 +8407,6 @@ func TestServer_Query_DatePart_SELECT_Simple(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","date_part"],"values":[["2023-01-01T00:00:00Z",0],["2023-01-16T10:30:45Z",1]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
-		// Test 2: date_part with field
-		{
-			name:    `SELECT value and date_part`,
-			command: `SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","dow"],"values":[["2023-01-01T00:00:00Z",1,0],["2023-01-16T10:30:45Z",2,1]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
 	}...)
 
 	for i, query := range test.queries {

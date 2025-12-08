@@ -200,20 +200,14 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		row.Values = make([]interface{}, len(cur.columns))
 	}
 
+	// Set the timestamp in the map so date_part can access it
+	cur.m["time"] = row.Time
+
 	for i, expr := range cur.fields {
 		// A special case if the field is time to reduce memory allocations.
 		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == "time" {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
-		}
-		if call, ok := expr.(*influxql.Call); ok {
-			for _, arg := range call.Args {
-				// We transform "time" -> "val%d" inside x
-				if ref, ok := arg.(*influxql.VarRef); ok && ref.Val == "time" {
-					//t := time.Unix(0, row.Time).In(cur.loc)
-					continue
-				}
-			}
 		}
 		v := cur.valuer.Eval(expr)
 		if fv, ok := v.(float64); ok && math.IsNaN(fv) {
