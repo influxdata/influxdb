@@ -43,12 +43,15 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 		fieldKey := iter.FieldKey()
 		// Skip fields name "time", they are illegal.
 		if bytes.Equal(fieldKey, TimeBytes) {
-			partialWriteError = &PartialWriteError{
-				Reason: fmt.Sprintf(
-					"invalid field name: input field \"%[1]s\" on measurement \"%s\" is invalid. Field \"%[1]s\" has been stripped from point.",
-					string(fieldKey), string(point.Name())),
-				Dropped: 0,
+			if partialWriteError == nil {
+				partialWriteError = &PartialWriteError{
+					Reason: fmt.Sprintf(
+						"invalid field name: input field \"%[1]s\" on measurement \"%s\" is invalid. Field \"%[1]s\" has been stripped from point.",
+						fieldKey, point.Name()),
+					Dropped: 0,
+				}
 			}
+
 			continue
 		}
 

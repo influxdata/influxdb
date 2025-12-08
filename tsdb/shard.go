@@ -725,7 +725,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 			continue
 			// Sometimes we will drop fields like 'time' but not an entire point
 			// we want to inform the writer that something occurred.
-		} else if partialWriteError != nil && partialWriteError.Dropped <= 0 {
+		} else if partialWriteError != nil {
 			partialWriteError.Database = s.Database()
 			partialWriteError.RetentionPolicy = s.RetentionPolicy()
 			err = *partialWriteError
