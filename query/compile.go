@@ -1028,11 +1028,19 @@ func (c *compiledStatement) validateFields() error {
 	if c.HasDistinct && (len(c.FunctionCalls) != 1 || c.HasAuxiliaryFields) {
 		return errors.New("aggregate function distinct() cannot be combined with other functions or fields")
 	}
+	// validate is we are using date_part
+	isDatePart := false
+	for _, f := range c.stmt.Fields {
+		if fn, ok := f.Expr.(*influxql.Call); ok && fn.Name == "date_part" {
+			isDatePart = true
+			break
+		}
+	}
 	// Validate we are using a selector or raw query if auxiliary fields are required.
 	if c.HasAuxiliaryFields {
 		if !c.OnlySelectors {
 			return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
-		} else if len(c.FunctionCalls) > 1 {
+		} else if len(c.FunctionCalls) > 1 && !isDatePart {
 			return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
 		}
 	}
