@@ -1645,10 +1645,12 @@ impl HttpApi {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        // pull out the request headers into a hashmap
+        // pull out the request headers into a hashmap, excluding the authorization header
+        // to prevent credentials from being passed to plugins
         let headers = req
             .headers()
             .iter()
+            .filter(|(k, _)| *k != AUTHORIZATION)
             .map(|(k, v)| (k.to_string(), v.to_str().unwrap().to_string()))
             .collect();
 

@@ -2712,6 +2712,53 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
 }
 
 #[test_log::test(tokio::test)]
+async fn test_request_plugin_and_trigger_no_auth_header() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Check if authorization header is present (case-insensitive)
+    if "authorization" in {k.lower() for k in request_headers.keys()}:
+        raise Exception("Authorization header should not be passed to plugins")
+    return {"status": "ok"}
+"#;
+
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let db_name = "foo";
+
+    server.create_database(db_name).run().unwrap();
+
+    let trigger_path = "foo";
+    let result = server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:bar")
+        .run()
+        .unwrap();
+
+    debug!(result = ?result, "create trigger");
+    assert_contains!(&result, "Trigger foo created successfully");
+
+    // send an HTTP request to the server WITH an Authorization header
+    let client = server.http_client();
+    let response = client
+        .post(format!("{}/api/v3/engine/bar", server.client_addr()))
+        .header("Authorization", "Bearer super-secret-token")
+        .send()
+        .await
+        .unwrap();
+    // If the plugin received the Authorization header, it would raise an exception
+    // and return 500. A 200 response means the header was filtered out.
+    assert_eq!(response.status(), 200);
+    let body = response.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body, json!({"status": "ok"}));
+}
+
+#[test_log::test(tokio::test)]
 async fn test_flask_dict_json_response() {
     let plugin_code = r#"
 def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
