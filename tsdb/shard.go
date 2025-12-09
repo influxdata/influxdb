@@ -88,7 +88,7 @@ var (
 
 var (
 	// Static objects to prevent small allocs.
-	timeBytes = []byte("time")
+	TimeBytes = []byte("time")
 )
 
 // A ShardError implements the error interface, and contains extra
@@ -631,7 +631,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		tags := p.Tags()
 
 		// Drop any series w/ a "time" tag, these are illegal
-		if v := tags.Get(timeBytes); v != nil {
+		if v := tags.Get(TimeBytes); v != nil {
 			dropped++
 			if reason == "" {
 				reason = fmt.Sprintf(
@@ -689,7 +689,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		iter := p.FieldIterator()
 		validField := false
 		for iter.Next() {
-			if bytes.Equal(iter.FieldKey(), timeBytes) {
+			if bytes.Equal(iter.FieldKey(), TimeBytes) {
 				continue
 			}
 			validField = true
@@ -716,13 +716,19 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		newFields, partialWriteError := ValidateAndCreateFields(mf, p, s.options.Config.SkipFieldSizeValidation)
 		createdFieldsToSave = append(createdFieldsToSave, newFields...)
 
-		if partialWriteError != nil {
+		if partialWriteError != nil && partialWriteError.Dropped > 0 {
 			if reason == "" {
 				reason = partialWriteError.Reason
 			}
 			dropped += partialWriteError.Dropped
 			atomic.AddInt64(&s.stats.WritePointsDropped, int64(partialWriteError.Dropped))
 			continue
+			// Sometimes we will drop fields like 'time' but not an entire point
+			// we want to inform the writer that something occurred.
+		} else if partialWriteError != nil {
+			partialWriteError.Database = s.Database()
+			partialWriteError.RetentionPolicy = s.RetentionPolicy()
+			err = *partialWriteError
 		}
 		points[j] = points[i]
 		j++
