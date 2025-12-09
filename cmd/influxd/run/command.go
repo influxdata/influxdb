@@ -65,27 +65,38 @@ func NewCommand() *Command {
 	}
 }
 
-// Run parses the config from args and runs the server.
-func (cmd *Command) Run(args ...string) error {
+func (cmd *Command) LoadConfig(args ...string) (Options, *Config, error) {
+	fail := func(err error) (Options, *Config, error) { return Options{}, nil, err }
+
 	// Parse the command line flags.
 	options, err := cmd.ParseFlags(args...)
 	if err != nil {
-		return err
+		return fail(fmt.Errorf("error parsing command line: %w", err))
 	}
 
 	config, err := cmd.ParseConfig(options.GetConfigPath())
 	if err != nil {
-		return fmt.Errorf("parse config: %s", err)
+		return fail(fmt.Errorf("error parsing config file: %s", err))
 	}
 
 	// Apply any environment variables on top of the parsed config
 	if err := config.ApplyEnvOverrides(cmd.Getenv); err != nil {
-		return fmt.Errorf("apply env config: %v", err)
+		return fail(fmt.Errorf("error applying env config: %v", err))
 	}
 
 	// Validate the configuration.
 	if err := config.Validate(); err != nil {
-		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
+		return fail(fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err))
+	}
+
+	return options, config, nil
+}
+
+// Run parses the config from args and runs the server.
+func (cmd *Command) Run(args ...string) error {
+	options, config, err := cmd.LoadConfig(args...)
+	if err != nil {
+		return err
 	}
 
 	var logErr error
@@ -177,6 +188,22 @@ func (cmd *Command) Close() error {
 		return cmd.Server.Close()
 	}
 	return nil
+}
+
+// ReloadConfig reloads the configuration and applies select configuration values to the running server.
+func (cmd *Command) ReloadConfig(args ...string) {
+	log, logEnd := logger.NewOperation(cmd.Logger, "Reloading select configuration settings", "config_reload")
+	defer logEnd()
+
+	_, reloadedConfig, err := cmd.LoadConfig(args...)
+	if err != nil {
+		log.Error("error reloading config", zap.Error(err))
+		return
+	}
+
+	if err := cmd.Server.ApplyReloadedConfig(reloadedConfig, log); err != nil {
+		log.Error("error applying reloaded config; some config values may have been applied", zap.Error(err))
+	}
 }
 
 func (cmd *Command) monitorServerErrors() {
