@@ -928,14 +928,14 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 			if isMathFunction(n) {
 				return v
 			}
-			if n.Name == "date_part" {
+			if n.Name == DatePartString {
 				// Special handling for date_part manually symbolize the time argument
 				if len(n.Args) >= 2 {
 					if timeRef, ok := n.Args[1].(*influxql.VarRef); ok && timeRef.Val == "time" {
 						timeKey := timeRef.String()
 						if _, exists := v.symbols[timeKey]; !exists {
 							v.symbols[timeKey] = influxql.VarRef{
-								Val:  "date_part_time_val",
+								Val:  DatePartString,
 								Type: influxql.Time,
 							}
 							v.refs[timeRef] = struct{}{}

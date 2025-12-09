@@ -10,6 +10,11 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+const (
+	DatePartString     = "date_part"
+	DatePartTimeString = "date_part_time"
+)
+
 type DatePartExpr int
 
 const (
@@ -155,14 +160,14 @@ var _ influxql.CallValuer = DatePartValuer{}
 
 func (v DatePartValuer) Value(key string) (interface{}, bool) {
 	// Convert the special date_part symbol back to "time"
-	if key == "date_part_time_val" {
+	if key == DatePartString {
 		key = "time"
 	}
 	return v.Valuer.Value(key)
 }
 
 func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) {
-	if name != "date_part" {
+	if name != DatePartString {
 		return nil, false
 	}
 	if len(args) != 2 {
@@ -195,7 +200,7 @@ func (DatePartTypeMapper) MapType(measurement *influxql.Measurement, field strin
 }
 
 func (DatePartTypeMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
-	if name == "date_part" {
+	if name == DatePartString {
 		return influxql.Integer, nil
 	}
 	return influxql.Unknown, nil

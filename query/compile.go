@@ -320,7 +320,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 		case "holt_winters", "holt_winters_with_fit":
 			withFit := expr.Name == "holt_winters_with_fit"
 			return c.compileHoltWinters(expr.Args, withFit)
-		case "date_part":
+		case DatePartString:
 			return c.compileDatePart(expr.Args)
 		default:
 			return c.compileFunction(expr)
@@ -1065,7 +1065,7 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 	case *influxql.Call:
 		if !isMathFunction(expr) {
 			switch expr.Name {
-			case "date_part":
+			case DatePartString:
 				_, _, err := ValidateDatePart(expr.Args)
 				return err
 			default:
