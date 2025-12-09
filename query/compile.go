@@ -1060,8 +1060,7 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 		if !isMathFunction(expr) {
 			switch expr.Name {
 			case DatePartString:
-				err := ValidateDatePart(expr.Args)
-				return err
+				return ValidateDatePart(expr.Args)
 			default:
 				return fmt.Errorf("invalid function call in condition: %s", expr)
 			}
