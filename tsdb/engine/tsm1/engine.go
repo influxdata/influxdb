@@ -64,7 +64,6 @@ var (
 	// Ensure Engine implements the interface.
 	_ tsdb.Engine = &Engine{}
 	// Static objects to prevent small allocs.
-	timeBytes              = []byte("time")
 	keyFieldSeparatorBytes = []byte(keyFieldSeparator)
 	emptyBytes             = []byte{}
 )
@@ -1318,11 +1317,6 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 		iter := p.FieldIterator()
 		t := p.Time().UnixNano()
 		for iter.Next() {
-			// Skip fields name "time", they are illegal
-			if bytes.Equal(iter.FieldKey(), timeBytes) {
-				continue
-			}
-
 			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
 
 			if e.seriesTypeMap != nil {

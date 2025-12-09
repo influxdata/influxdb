@@ -18,6 +18,7 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 	pointSize := point.StringSize()
 	iter := point.FieldIterator()
 	var fieldsToCreate []*FieldCreate
+	var partialWriteError *PartialWriteError
 
 	// We return fieldsToCreate even on error, because other writes
 	// in parallel may depend on these previous fields having been
@@ -41,7 +42,16 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 
 		fieldKey := iter.FieldKey()
 		// Skip fields name "time", they are illegal.
-		if bytes.Equal(fieldKey, timeBytes) {
+		if bytes.Equal(fieldKey, TimeBytes) {
+			if partialWriteError == nil {
+				partialWriteError = &PartialWriteError{
+					Reason: fmt.Sprintf(
+						"invalid field name: input field \"%[1]s\" on measurement \"%s\" is invalid. Field \"%[1]s\" has been stripped from point.",
+						fieldKey, point.Name()),
+					Dropped: 0,
+				}
+			}
+
 			continue
 		}
 
@@ -70,7 +80,7 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 			fieldsToCreate = append(fieldsToCreate, &FieldCreate{point.Name(), f})
 		}
 	}
-	return fieldsToCreate, nil
+	return fieldsToCreate, partialWriteError
 }
 
 // dataTypeFromModelsFieldType returns the influxql.DataType that corresponds to the
