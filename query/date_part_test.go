@@ -132,16 +132,13 @@ func TestValidateDatePart(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field, expr, err := query.ValidateDatePart(tt.args)
+			err := query.ValidateDatePart(tt.args)
 
 			if tt.expectError {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.errorMsg)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, field)
-				require.Equal(t, tt.expectField, field.Val)
-				require.Equal(t, tt.expectExpr, expr)
 			}
 		})
 	}

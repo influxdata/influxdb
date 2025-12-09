@@ -126,31 +126,31 @@ func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
 	}
 }
 
-func ValidateDatePart(args []influxql.Expr) (*influxql.VarRef, DatePartExpr, error) {
+func ValidateDatePart(args []influxql.Expr) error {
 	if exp, got := 2, len(args); exp != got {
-		return nil, 0, fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
+		return fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
 	}
 
 	exprStr, ok := args[0].(*influxql.StringLiteral)
 	if !ok {
-		return nil, 0, errors.New("date_part: first argument must be a string")
+		return errors.New("date_part: first argument must be a string")
 	}
 
-	expression, ok := ParseDatePartExpr(exprStr.Val)
+	_, ok = ParseDatePartExpr(exprStr.Val)
 	if !ok {
-		return nil, 0, fmt.Errorf("date_part: first argument must be one of the following: [%s]", strings.Join(AvailableDatePartExprs, ","))
+		return fmt.Errorf("date_part: first argument must be one of the following: [%s]", strings.Join(AvailableDatePartExprs, ","))
 	}
 
 	tstamp, ok := args[1].(*influxql.VarRef)
 	if !ok {
-		return nil, 0, errors.New("date_part: second argument must be a variable reference")
+		return errors.New("date_part: second argument must be a variable reference")
 	} else if !bytes.Equal([]byte(tstamp.Val), timeBytes) {
 		// check if tstamp.Val is "time" keyword currently, we only support using time as the second argument
 		// this may seem redundant, but we would like to keep consistency with SQL date_part
-		return nil, 0, errors.New("date_part: second argument must be time VarRef")
+		return errors.New("date_part: second argument must be time VarRef")
 	}
 
-	return tstamp, expression, nil
+	return nil
 }
 
 type DatePartValuer struct {
