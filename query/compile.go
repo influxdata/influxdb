@@ -314,8 +314,6 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 		case "holt_winters", "holt_winters_with_fit":
 			withFit := expr.Name == "holt_winters_with_fit"
 			return c.compileHoltWinters(expr.Args, withFit)
-		case DatePartString:
-			return c.compileDatePart(expr.Args)
 		default:
 			return c.compileFunction(expr)
 		}
@@ -396,6 +394,10 @@ func (c *compiledField) compileFunction(expr *influxql.Call) error {
 	// Validate the function call and mark down some meta properties
 	// related to the function for query validation.
 	switch expr.Name {
+	case DatePartString:
+		// If function is "date_part" compilation happens during DatePartValuer.Call method
+		// We should just early return so we can proceed through the rest of the query path
+		return nil
 	case "max", "min", "first", "last":
 		// top/bottom are not included here since they are not typical functions.
 	case "count", "sum", "mean", "median", "mode", "stddev", "spread", "sum_hll":
@@ -850,15 +852,6 @@ func (c *compiledField) compileDistinct(args []influxql.Expr, nested bool) error
 		c.global.HasDistinct = true
 	}
 	c.global.OnlySelectors = false
-	return nil
-}
-
-func (c *compiledField) compileDatePart(args []influxql.Expr) error {
-	_, _, err := ValidateDatePart(args)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
