@@ -158,15 +158,16 @@ workflows:
           requires:
             - build-packages
       - sign-packages:
-          <<: *release_filter
+          #<<: *release_filter
+          <<: *any_filter
           requires:
             - build-packages
-      - s3-publish-packages:
-          <<: *release_filter
-          requires:
-            - test-linux-packages
-            - build-packages
-            - sign-packages
+      #- s3-publish-packages:
+      #    <<: *release_filter
+      #    requires:
+      #      - test-linux-packages
+      #      - build-packages
+      #      - sign-packages
       - changelog:
           <<: *release_filter
           workflow: release
@@ -440,6 +441,11 @@ jobs:
       - run:
           name: Get InfluxDB Version
           command: |
+            git checkout v2.8.0
+            export CIRCLE_TAG=v2.8.0
+            export CIRCLE_SHA1=40a633239e25dde9efcf0f21d5950897051cf8a9
+            export CIRCLE_BRANCH=2.8
+            
             PREFIX=2.x .circleci/scripts/get-version
       - run:
           name: Generate UI assets
@@ -447,6 +453,11 @@ jobs:
       - run:
           name: Build binaries
           command: |
+            git checkout v2.8.0
+            export CIRCLE_TAG=v2.8.0
+            export CIRCLE_SHA1=40a633239e25dde9efcf0f21d5950897051cf8a9
+            export CIRCLE_BRANCH=2.8
+
             build_type="<< parameters.build-type >>"
 
             # release builds occur from the "build" pipeline
@@ -481,7 +492,12 @@ jobs:
       - checkout
       - attach_workspace:
           at: /tmp/workspace
-      - run: packager .circleci/packages/config.yaml
+      - run: |
+          export CIRCLE_TAG=v2.8.0
+          export CIRCLE_SHA1=40a633239e25dde9efcf0f21d5950897051cf8a9
+          export CIRCLE_BRANCH=2.8
+
+          packager .circleci/packages/config.yaml
       - persist_to_workspace:
           root: .
           paths:
@@ -531,22 +547,22 @@ jobs:
       - store_artifacts:
           path: /tmp/workspace/artifacts
 
-  s3-publish-packages:
-    docker:
-      - image: cimg/base:current
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - aws-cli/setup:
-          # NOTE(bnpfeife): `region` is substituted differently than
-          # `aws_access_key_id` and `aws_secret_access_key`. As such,
-          # it requires the '$' prefix.
-          region:                $RELEASE_AWS_REGION
-          aws_access_key_id:     RELEASE_AWS_ACCESS_KEY_ID
-          aws_secret_access_key: RELEASE_AWS_SECRET_ACCESS_KEY
-      - aws-s3/sync:
-          to:   s3://dl.influxdata.com/influxdb/releases/
-          from: /tmp/workspace/artifacts
+  #s3-publish-packages:
+  #  docker:
+  #    - image: cimg/base:current
+  #  steps:
+  #    - attach_workspace:
+  #        at: /tmp/workspace
+  ##    - aws-cli/setup:
+   #       # NOTE(bnpfeife): `region` is substituted differently than
+   #       # `aws_access_key_id` and `aws_secret_access_key`. As such,
+   #       # it requires the '$' prefix.
+   #       region:                $RELEASE_AWS_REGION
+   #       aws_access_key_id:     RELEASE_AWS_ACCESS_KEY_ID
+   #       aws_secret_access_key: RELEASE_AWS_SECRET_ACCESS_KEY
+   #   - aws-s3/sync:
+   #       to:   s3://dl.influxdata.com/influxdb/releases/
+   #       from: /tmp/workspace/artifacts
 
   build-docker-nightly:
     parameters:
