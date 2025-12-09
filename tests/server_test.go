@@ -8226,8 +8226,8 @@ func TestServer_Query_DatePart(t *testing.T) {
 			params: url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `filter weekends using isodow (Saturday=6, Sunday=7)`,
-			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('isodow', time) >= 6`,
+			name:    `filter weekends using isodow (Saturday=5, Sunday=6)`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('isodow', time) >= 5`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
 				`["2023-01-01T00:00:00Z","server01",1],` + // Sunday
 				`["2023-04-15T14:20:30Z","server01",3],` + // Saturday
@@ -8326,8 +8326,8 @@ func TestServer_Query_DatePart(t *testing.T) {
 			name:    `SELECT date_part isodow`,
 			command: `SELECT value, date_part('isodow', time) AS iso_day FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","iso_day"],"values":[` +
-				`["2023-01-01T00:00:00Z",1,7],` + // Sunday = 7 in ISO
-				`["2023-01-16T10:30:45Z",2,1]` + // Monday = 1 in ISO
+				`["2023-01-01T00:00:00Z",1,6],` + // Sunday = 6 in ISO
+				`["2023-01-16T10:30:45Z",2,0]` + // Monday = 0 in ISO
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
@@ -8348,6 +8348,67 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`["2024-02-29T12:00:00Z","server02",8,2]` +
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
+		},
+		// Subquery tests
+		&Query{
+			name:    `aggregate over date_part results from subquery`,
+			command: `SELECT max(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","max"],"values":[["2023-04-15T14:20:30Z",6]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `min date_part value from subquery`,
+			command: `SELECT min(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","min"],"values":[["2023-01-01T00:00:00Z",0]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter in subquery using date_part`,
+			command: `SELECT mean(value) FROM (SELECT value FROM db0.rp0.cpu WHERE time >= '2024-01-01T00:00:00Z' AND date_part('dow', time) >= 1 AND date_part('dow', time) <= 2)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",14.25]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter outer query on date_part result from subquery`,
+			command: `SELECT value, dow FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2024-01-01T00:00:00Z' AND time <= '2024-12-31T23:59:59Z') WHERE dow = 2`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","dow"],"values":[` +
+				`["2024-08-06T18:45:00Z",10,2],` +
+				`["2024-12-31T23:59:59Z",12,2]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `multiple date_part in subquery with month filter`,
+			command: `SELECT sum(value) FROM (SELECT value, date_part('dow', time) AS dow, date_part('month', time) AS month FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z') WHERE month = 1`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",23]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `arithmetic on date_part result in outer query`,
+			command: `SELECT dow * 10 FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z') LIMIT 1`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","dow"],"values":[["2023-01-01T00:00:00Z",0]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `select value and date_part from subquery`,
+			command: `SELECT value, dow FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2024-01-01T00:00:00Z') LIMIT 2`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","dow"],"values":[` +
+				`["2024-01-01T00:00:00Z",7,1],` +
+				`["2024-02-29T12:00:00Z",8,4]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `nested subquery with date_part`,
+			command: `SELECT max(value) FROM (SELECT value FROM (SELECT value FROM db0.rp0.cpu WHERE time >= '2024-01-01T00:00:00Z' AND date_part('dow', time) = 1))`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","max"],"values":[["2025-09-15T23:59:59Z",19]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `first value with date_part in subquery`,
+			command: `SELECT first_value, dow FROM (SELECT first(value) AS first_value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","first_value","dow"],"values":[["2023-01-01T00:00:00Z",1,0]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
 

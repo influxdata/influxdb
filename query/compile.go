@@ -1039,10 +1039,10 @@ func (c *compiledStatement) validateFields() error {
 			for _, call := range c.FunctionCalls {
 				if call.Name != DatePartString {
 					nonDatePartCount++
+					if nonDatePartCount > 1 {
+						return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
+					}
 				}
-			}
-			if nonDatePartCount > 1 {
-				return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
 			}
 		}
 	}

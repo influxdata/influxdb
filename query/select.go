@@ -18,7 +18,6 @@ import (
 var DefaultTypeMapper = influxql.MultiTypeMapper(
 	FunctionTypeMapper{},
 	MathTypeMapper{},
-	DatePartTypeMapper{},
 )
 
 // SelectOptions are options that customize the select call.
@@ -935,7 +934,7 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 						timeKey := timeRef.String()
 						if _, exists := v.symbols[timeKey]; !exists {
 							v.symbols[timeKey] = influxql.VarRef{
-								Val:  DatePartString,
+								Val:  DatePartTimeString,
 								Type: influxql.Time,
 							}
 							v.refs[timeRef] = struct{}{}

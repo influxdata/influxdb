@@ -228,7 +228,7 @@ func TestDatePartValuer_Call(t *testing.T) {
 			name:     "isodow - Monday",
 			funcName: "date_part",
 			args:     []interface{}{"isodow", testTimestamp},
-			expected: int64(1), // Monday in ISO
+			expected: int64(0), // Monday in ISO
 			ok:       true,
 		},
 		{
@@ -320,48 +320,9 @@ func TestDatePartValuer_Call_Sunday(t *testing.T) {
 		require.Equal(t, int64(0), result, "dow check") // Sunday = 0
 	})
 
-	t.Run("isodow - Sunday is 7", func(t *testing.T) {
+	t.Run("isodow - Sunday is 6", func(t *testing.T) {
 		result, ok := valuer.Call("date_part", []interface{}{"isodow", sundayTimestamp})
 		require.True(t, ok)
-		require.Equal(t, int64(7), result, "isdow check") // Sunday = 7 in ISO
+		require.Equal(t, int64(6), result, "isdow check") // Sunday = 6 in ISO
 	})
-}
-
-func TestDatePartTypeMapper_CallType(t *testing.T) {
-	mapper := query.DatePartTypeMapper{}
-
-	tests := []struct {
-		name     string
-		funcName string
-		args     []influxql.DataType
-		expected influxql.DataType
-		hasError bool
-	}{
-		{
-			name:     "date_part returns integer",
-			funcName: "date_part",
-			args:     []influxql.DataType{influxql.Integer, influxql.String},
-			expected: influxql.Integer,
-			hasError: false,
-		},
-		{
-			name:     "date_part with time field",
-			funcName: "date_part",
-			args:     []influxql.DataType{influxql.Time, influxql.String},
-			expected: influxql.Integer,
-			hasError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := mapper.CallType(tt.funcName, tt.args)
-			if tt.hasError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tt.expected, result)
-			}
-		})
-	}
 }

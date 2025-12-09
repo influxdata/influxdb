@@ -120,6 +120,13 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT first(value), date_part('dow', time) FROM cpu`,
 		`SELECT last(value), date_part('dow', time) FROM cpu`,
 		`SELECT max(value), date_part('dow', time) FROM cpu`,
+		// date_part in subqueries
+		`SELECT max(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM cpu)`,
+		`SELECT mean(value) FROM (SELECT value FROM cpu WHERE date_part('dow', time) = 1)`,
+		`SELECT value FROM (SELECT value, date_part('month', time) AS month FROM cpu) WHERE month = 1`,
+		`SELECT value, date_part('year', time) FROM (SELECT * FROM cpu WHERE value > 10)`,
+		`SELECT avg(hour) FROM (SELECT value, date_part('hour', time) AS hour FROM cpu GROUP BY time(1h))`,
+		`SELECT value, dow, month FROM (SELECT value, date_part('dow', time) AS dow, date_part('month', time) AS month FROM cpu)`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)
@@ -382,6 +389,11 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT value, first(value), last(value) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
 		// Multiple selectors WITH date_part should also error
 		{s: `SELECT value, first(value), last(value), date_part('dow', time) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
+		// date_part subquery validation - cannot be sole field
+		{s: `SELECT dow FROM (SELECT date_part('dow', time) AS dow FROM cpu)`, err: `field must contain at least one variable`},
+		{s: `SELECT max(dow) FROM (SELECT date_part('dow', time) AS dow FROM cpu)`, err: `field must contain at least one variable`},
+		{s: `SELECT date_part('dow', value) FROM (SELECT value FROM cpu)`, err: `date_part: second argument must be time VarRef`},
+		{s: `SELECT value, dow FROM (SELECT value, date_part('invalid', time) AS dow FROM cpu)`, err: `date_part: first argument must be one of the following`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)

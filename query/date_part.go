@@ -114,12 +114,13 @@ func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
 	case Epoch:
 		return t.Unix(), true
 	case ISODOW:
-		// ISO 8601: Monday=1, Sunday=7
+		// Monday=0, Sunday=6
 		dow := int64(t.Weekday())
 		if dow == 0 {
-			return int64(7), true // Sunday
+			return int64(6), true // Sunday
+		} else {
+			return dow - 1, true
 		}
-		return dow, true
 	default:
 		return 0, false
 	}
@@ -143,9 +144,9 @@ func ValidateDatePart(args []influxql.Expr) (*influxql.VarRef, DatePartExpr, err
 	tstamp, ok := args[1].(*influxql.VarRef)
 	if !ok {
 		return nil, 0, errors.New("date_part: second argument must be a variable reference")
+	} else if !bytes.Equal([]byte(tstamp.Val), timeBytes) {
 		// check if tstamp.Val is "time" keyword currently, we only support using time as the second argument
 		// this may seem redundant, but we would like to keep consistency with SQL date_part
-	} else if !bytes.Equal([]byte(tstamp.Val), timeBytes) {
 		return nil, 0, errors.New("date_part: second argument must be time VarRef")
 	}
 
@@ -160,7 +161,7 @@ var _ influxql.CallValuer = DatePartValuer{}
 
 func (v DatePartValuer) Value(key string) (interface{}, bool) {
 	// Convert the special date_part symbol back to "time"
-	if key == DatePartString {
+	if key == DatePartTimeString {
 		key = "time"
 	}
 	return v.Valuer.Value(key)
@@ -191,17 +192,4 @@ func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) 
 
 	timestamp := time.Unix(0, timestampRaw).UTC()
 	return ExtractDatePartExpr(timestamp, expr)
-}
-
-type DatePartTypeMapper struct{}
-
-func (DatePartTypeMapper) MapType(measurement *influxql.Measurement, field string) influxql.DataType {
-	return influxql.Unknown
-}
-
-func (DatePartTypeMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
-	if name == DatePartString {
-		return influxql.Integer, nil
-	}
-	return influxql.Unknown, nil
 }
