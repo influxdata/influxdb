@@ -90,6 +90,12 @@ type compiledStatement struct {
 	Options CompileOptions
 
 	stmt *influxql.SelectStatement
+
+	// IsDatePart is set to true when running date_part inside the selector
+	// Since date_part requires the use of 'time' as an auxiliary field, we want to
+	// allow multiple date_part's in a SELECT. We need to be able to bypass the check
+	// for multiple function calls if they are all date_part.
+	IsDatePart bool
 }
 
 func newCompiler(opt CompileOptions) *compiledStatement {
@@ -855,6 +861,7 @@ func (c *compiledField) compileDistinct(args []influxql.Expr, nested bool) error
 
 func (c *compiledField) compileDatePart(args []influxql.Expr) error {
 	_, _, err := ValidateDatePart(args)
+	c.global.IsDatePart = true
 	if err != nil {
 		return err
 	}
@@ -1028,19 +1035,11 @@ func (c *compiledStatement) validateFields() error {
 	if c.HasDistinct && (len(c.FunctionCalls) != 1 || c.HasAuxiliaryFields) {
 		return errors.New("aggregate function distinct() cannot be combined with other functions or fields")
 	}
-	// validate is we are using date_part
-	isDatePart := false
-	for _, f := range c.stmt.Fields {
-		if fn, ok := f.Expr.(*influxql.Call); ok && fn.Name == "date_part" {
-			isDatePart = true
-			break
-		}
-	}
 	// Validate we are using a selector or raw query if auxiliary fields are required.
 	if c.HasAuxiliaryFields {
 		if !c.OnlySelectors {
 			return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
-		} else if len(c.FunctionCalls) > 1 && !isDatePart {
+		} else if len(c.FunctionCalls) > 1 && !c.IsDatePart {
 			return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
 		}
 	}

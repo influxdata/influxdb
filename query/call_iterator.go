@@ -57,12 +57,6 @@ func NewCallIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 		return NewSumHllIterator(input, opt)
 	case "merge_hll":
 		return NewMergeHllIterator(input, opt)
-	case "date_part":
-		_, datePartExpr, err := ValidateDatePart(opt.Expr.(*influxql.Call).Args)
-		if err != nil {
-			return nil, err
-		}
-		return newDatePartIterator(input, datePartExpr, opt)
 	default:
 		return nil, fmt.Errorf("unsupported function call: %s", name)
 	}
@@ -1448,37 +1442,6 @@ func newCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, er
 		return newUnsignedStreamUnsignedIterator(input, createFn, opt), nil
 	default:
 		return nil, fmt.Errorf("unsupported cumulative sum iterator type: %T", input)
-	}
-}
-
-func newDatePartIterator(input Iterator, expr DatePartExpr, opt IteratorOptions) (Iterator, error) {
-	switch input := input.(type) {
-	case FloatIterator:
-		createFn := func() (FloatPointAggregator, IntegerPointEmitter) {
-			fn := NewFloatDatePartReducer(expr)
-			return fn, fn
-		}
-		return newFloatStreamIntegerIterator(input, createFn, opt), nil
-	case IntegerIterator:
-		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
-			fn := NewIntegerDatePartReducer(expr)
-			return fn, fn
-		}
-		return newIntegerStreamIntegerIterator(input, createFn, opt), nil
-	case UnsignedIterator:
-		createFn := func() (UnsignedPointAggregator, IntegerPointEmitter) {
-			fn := NewUnsignedDatePartReducer(expr)
-			return fn, fn
-		}
-		return newUnsignedStreamIntegerIterator(input, createFn, opt), nil
-	case StringIterator:
-		createFn := func() (StringPointAggregator, IntegerPointEmitter) {
-			fn := NewStringDatePartReducer(expr)
-			return fn, fn
-		}
-		return newStringStreamIntegerIterator(input, createFn, opt), nil
-	default:
-		return nil, fmt.Errorf("unsupported date_part iterator type: %T", input)
 	}
 }
 

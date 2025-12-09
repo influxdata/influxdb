@@ -556,31 +556,6 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				percentile = float64(arg.Val)
 			}
 			return newPercentileIterator(input, opt, percentile)
-		case "date_part":
-			_, datePartExpr, err := ValidateDatePart(expr.Args)
-			if err != nil {
-				return nil, err
-			}
-			b.selector = true
-			opt.Ordered = true
-
-			// date_part operates on the timestamp, not field values.
-			// If the second argument is 'time', we need to iterate over the measurement's series
-			// to get the timestamps. We build an iterator that reads any available field just
-			// to get the point timestamps.
-			var input Iterator
-			if ref, ok := expr.Args[1].(*influxql.VarRef); ok && ref.Val == "time" {
-				auxOpt := opt
-				auxOpt.Expr = nil
-				input, err = buildAuxIterator(ctx, b.ic, b.sources, auxOpt)
-			} else {
-				input, err = buildExprIterator(ctx, expr.Args[1], b.ic, b.sources, opt, b.selector, false)
-			}
-			if err != nil {
-				return nil, err
-			}
-
-			return newDatePartIterator(input, datePartExpr, opt)
 		default:
 			return nil, fmt.Errorf("unsupported call: %s", expr.Name)
 		}
@@ -952,6 +927,22 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 		case *influxql.Call:
 			if isMathFunction(n) {
 				return v
+			}
+			if n.Name == "date_part" {
+				// Special handling for date_part manually symbolize the time argument
+				if len(n.Args) >= 2 {
+					if timeRef, ok := n.Args[1].(*influxql.VarRef); ok && timeRef.Val == "time" {
+						timeKey := timeRef.String()
+						if _, exists := v.symbols[timeKey]; !exists {
+							v.symbols[timeKey] = influxql.VarRef{
+								Val:  "date_part_time_val",
+								Type: influxql.Time,
+							}
+							v.refs[timeRef] = struct{}{}
+						}
+					}
+				}
+				return nil
 			}
 			v.calls[n] = struct{}{}
 		case *influxql.VarRef:

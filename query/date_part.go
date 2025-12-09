@@ -138,12 +138,10 @@ func ValidateDatePart(args []influxql.Expr) (*influxql.VarRef, DatePartExpr, err
 	tstamp, ok := args[1].(*influxql.VarRef)
 	if !ok {
 		return nil, 0, errors.New("date_part: second argument must be a variable reference")
-		// check if tstamp.Val is "time" keyword or an actual timestamp
+		// check if tstamp.Val is "time" keyword currently, we only support using time as the second argument
+		// this may seem redundant, but we would like to keep consistency with SQL date_part
 	} else if !bytes.Equal([]byte(tstamp.Val), timeBytes) {
-		lit := influxql.StringLiteral{Val: tstamp.Val}
-		if !lit.IsTimeLiteral() {
-			return nil, 0, errors.New("date_part: second argument must be a timestamp or 'time' keyword")
-		}
+		return nil, 0, errors.New("date_part: second argument must be time VarRef")
 	}
 
 	return tstamp, expression, nil
@@ -156,6 +154,10 @@ type DatePartValuer struct {
 var _ influxql.CallValuer = DatePartValuer{}
 
 func (v DatePartValuer) Value(key string) (interface{}, bool) {
+	// Convert the special date_part symbol back to "time"
+	if key == "date_part_time_val" {
+		key = "time"
+	}
 	return v.Valuer.Value(key)
 }
 
@@ -197,144 +199,4 @@ func (DatePartTypeMapper) CallType(name string, args []influxql.DataType) (influ
 		return influxql.Integer, nil
 	}
 	return influxql.Unknown, nil
-}
-
-// FloatDatePartReducer extracts a date part from float point timestamps
-type FloatDatePartReducer struct {
-	datePartExpr DatePartExpr
-	curr         FloatPoint
-}
-
-func NewFloatDatePartReducer(expr DatePartExpr) *FloatDatePartReducer {
-	return &FloatDatePartReducer{
-		datePartExpr: expr,
-		curr:         FloatPoint{Nil: true},
-	}
-}
-
-func (r *FloatDatePartReducer) AggregateFloat(p *FloatPoint) {
-	r.curr = *p
-}
-
-func (r *FloatDatePartReducer) Emit() []IntegerPoint {
-	if r.curr.Nil {
-		return nil
-	}
-
-	timestamp := time.Unix(0, r.curr.Time).UTC()
-	value, ok := ExtractDatePartExpr(timestamp, r.datePartExpr)
-	if !ok {
-		return nil
-	}
-
-	return []IntegerPoint{{
-		Time:  r.curr.Time,
-		Value: value,
-		Aux:   r.curr.Aux,
-	}}
-}
-
-// IntegerDatePartReducer extracts a date part from integer point timestamps
-type IntegerDatePartReducer struct {
-	datePartExpr DatePartExpr
-	curr         IntegerPoint
-}
-
-func NewIntegerDatePartReducer(expr DatePartExpr) *IntegerDatePartReducer {
-	return &IntegerDatePartReducer{
-		datePartExpr: expr,
-		curr:         IntegerPoint{Nil: true},
-	}
-}
-
-func (r *IntegerDatePartReducer) AggregateInteger(p *IntegerPoint) {
-	r.curr = *p
-}
-
-func (r *IntegerDatePartReducer) Emit() []IntegerPoint {
-	if r.curr.Nil {
-		return nil
-	}
-
-	timestamp := time.Unix(0, r.curr.Time).UTC()
-	value, ok := ExtractDatePartExpr(timestamp, r.datePartExpr)
-	if !ok {
-		return nil
-	}
-
-	return []IntegerPoint{{
-		Time:  r.curr.Time,
-		Value: value,
-		Aux:   r.curr.Aux,
-	}}
-}
-
-// UnsignedDatePartReducer extracts a date part from unsigned point timestamps
-type UnsignedDatePartReducer struct {
-	datePartExpr DatePartExpr
-	curr         UnsignedPoint
-}
-
-func NewUnsignedDatePartReducer(expr DatePartExpr) *UnsignedDatePartReducer {
-	return &UnsignedDatePartReducer{
-		datePartExpr: expr,
-		curr:         UnsignedPoint{Nil: true},
-	}
-}
-
-func (r *UnsignedDatePartReducer) AggregateUnsigned(p *UnsignedPoint) {
-	r.curr = *p
-}
-
-func (r *UnsignedDatePartReducer) Emit() []IntegerPoint {
-	if r.curr.Nil {
-		return nil
-	}
-
-	timestamp := time.Unix(0, r.curr.Time).UTC()
-	value, ok := ExtractDatePartExpr(timestamp, r.datePartExpr)
-	if !ok {
-		return nil
-	}
-
-	return []IntegerPoint{{
-		Time:  r.curr.Time,
-		Value: value,
-		Aux:   r.curr.Aux,
-	}}
-}
-
-// StringDatePartReducer extracts a date part from string point timestamps
-type StringDatePartReducer struct {
-	datePartExpr DatePartExpr
-	curr         StringPoint
-}
-
-func NewStringDatePartReducer(expr DatePartExpr) *StringDatePartReducer {
-	return &StringDatePartReducer{
-		datePartExpr: expr,
-		curr:         StringPoint{Nil: true},
-	}
-}
-
-func (r *StringDatePartReducer) AggregateString(p *StringPoint) {
-	r.curr = *p
-}
-
-func (r *StringDatePartReducer) Emit() []IntegerPoint {
-	if r.curr.Nil {
-		return nil
-	}
-
-	timestamp := time.Unix(0, r.curr.Time).UTC()
-	value, ok := ExtractDatePartExpr(timestamp, r.datePartExpr)
-	if !ok {
-		return nil
-	}
-
-	return []IntegerPoint{{
-		Time:  r.curr.Time,
-		Value: value,
-		Aux:   r.curr.Aux,
-	}}
 }
