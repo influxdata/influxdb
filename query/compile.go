@@ -395,9 +395,7 @@ func (c *compiledField) compileFunction(expr *influxql.Call) error {
 	// related to the function for query validation.
 	switch expr.Name {
 	case DatePartString:
-		// If function is "date_part" compilation happens during DatePartValuer.Call method
-		// We should just early return so we can proceed through the rest of the query path
-		return nil
+		return ValidateDatePart(expr.Args)
 	case "max", "min", "first", "last":
 		// top/bottom are not included here since they are not typical functions.
 	case "count", "sum", "mean", "median", "mode", "stddev", "spread", "sum_hll":
