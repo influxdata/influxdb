@@ -279,7 +279,7 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		if itr.opt.Condition != nil {
-			itr.m["time"] = seek
+			itr.m[query.TimeString] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
@@ -764,7 +764,7 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 		}
 
 		if itr.opt.Condition != nil {
-			itr.m["time"] = seek
+			itr.m[query.TimeString] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
@@ -1249,7 +1249,7 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 		}
 
 		if itr.opt.Condition != nil {
-			itr.m["time"] = seek
+			itr.m[query.TimeString] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
@@ -1734,7 +1734,7 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 		}
 
 		if itr.opt.Condition != nil {
-			itr.m["time"] = seek
+			itr.m[query.TimeString] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
@@ -2219,7 +2219,7 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 		}
 
 		if itr.opt.Condition != nil {
-			itr.m["time"] = seek
+			itr.m[query.TimeString] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.

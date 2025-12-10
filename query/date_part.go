@@ -7,12 +7,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 )
 
 const (
-	DatePartString     = "date_part"
+	// DatePartString is the name of date_part function
+	DatePartString = "date_part"
+
+	// DatePartTimeString is a symbol used to represent a reference variable
+	// for the current timestamp from a given point. It is used during time
+	// lookup on the query path.
 	DatePartTimeString = "date_part_time"
+
+	// TimeString is a variable representing the string "time"
+	TimeString = "time"
+
+	// DatePartArgCount is the amount of arguments required for date_part function
+	DatePartArgCount = 2
 )
 
 type DatePartExpr int
@@ -42,8 +54,6 @@ var AvailableDatePartExprs = []string{
 	"millisecond", "microsecond", "nanosecond",
 	"dow", "doy", "epoch", "isodow",
 }
-
-var timeBytes = []byte("time")
 
 func ParseDatePartExpr(t string) (DatePartExpr, bool) {
 	switch strings.ToLower(t) {
@@ -130,7 +140,7 @@ func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
 }
 
 func ValidateDatePart(args []influxql.Expr) error {
-	if exp, got := 2, len(args); exp != got {
+	if exp, got := DatePartArgCount, len(args); exp != got {
 		return fmt.Errorf("invalid number of arguments for date_part, expected %d, got %d", exp, got)
 	}
 
@@ -147,7 +157,7 @@ func ValidateDatePart(args []influxql.Expr) error {
 	tstamp, ok := args[1].(*influxql.VarRef)
 	if !ok {
 		return errors.New("date_part: second argument must be a variable reference")
-	} else if !bytes.Equal([]byte(tstamp.Val), timeBytes) {
+	} else if !bytes.Equal([]byte(tstamp.Val), models.TimeBytes) {
 		// check if tstamp.Val is "time" keyword currently, we only support using time as the second argument
 		// this may seem redundant, but we would like to keep consistency with SQL date_part
 		return errors.New("date_part: second argument must be time VarRef")
@@ -165,7 +175,7 @@ var _ influxql.CallValuer = DatePartValuer{}
 func (v DatePartValuer) Value(key string) (interface{}, bool) {
 	// Convert the special date_part symbol back to "time"
 	if key == DatePartTimeString {
-		key = "time"
+		key = TimeString
 	}
 	return v.Valuer.Value(key)
 }
@@ -174,7 +184,7 @@ func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) 
 	if name != DatePartString {
 		return nil, false
 	}
-	if len(args) != 2 {
+	if len(args) != DatePartArgCount {
 		return nil, false
 	}
 

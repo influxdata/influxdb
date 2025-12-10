@@ -929,8 +929,8 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 			}
 			if n.Name == DatePartString {
 				// Special handling for date_part manually symbolize the time argument
-				if len(n.Args) >= 2 {
-					if timeRef, ok := n.Args[1].(*influxql.VarRef); ok && timeRef.Val == "time" {
+				if len(n.Args) >= DatePartArgCount {
+					if timeRef, ok := n.Args[1].(*influxql.VarRef); ok && timeRef.Val == TimeString {
 						timeKey := timeRef.String()
 						if _, exists := v.symbols[timeKey]; !exists {
 							v.symbols[timeKey] = influxql.VarRef{

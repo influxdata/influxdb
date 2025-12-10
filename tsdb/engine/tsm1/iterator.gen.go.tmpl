@@ -277,7 +277,7 @@ func (itr *{{.name}}Iterator) Next() (*query.{{.Name}}Point, error) {
 		}
 
 		if itr.opt.Condition != nil {
-		    itr.m["time"] = seek
+		    itr.m[query.TimeString] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
