@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query/internal/gota"
 	"github.com/influxdata/influxql"
@@ -930,7 +931,7 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 			if n.Name == DatePartString {
 				// Special handling for date_part manually symbolize the time argument
 				if len(n.Args) >= DatePartArgCount {
-					if timeRef, ok := n.Args[1].(*influxql.VarRef); ok && timeRef.Val == TimeString {
+					if timeRef, ok := n.Args[1].(*influxql.VarRef); ok && timeRef.Val == models.TimeString {
 						timeKey := timeRef.String()
 						if _, exists := v.symbols[timeKey]; !exists {
 							v.symbols[timeKey] = influxql.VarRef{

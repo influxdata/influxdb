@@ -42,6 +42,9 @@ var (
 
 	// Static objects to prevent small allocs.
 	TimeBytes = []byte("time")
+
+	// TimeString is a variable representing the string "time"
+	TimeString = string(TimeBytes)
 )
 
 // SafeCalcTime safely calculates the time given. Will return error if the time is outside the

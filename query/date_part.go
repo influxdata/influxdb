@@ -20,9 +20,6 @@ const (
 	// lookup on the query path.
 	DatePartTimeString = "date_part_time"
 
-	// TimeString is a variable representing the string "time"
-	TimeString = "time"
-
 	// DatePartArgCount is the amount of arguments required for date_part function
 	DatePartArgCount = 2
 )
@@ -175,7 +172,7 @@ var _ influxql.CallValuer = DatePartValuer{}
 func (v DatePartValuer) Value(key string) (interface{}, bool) {
 	// Convert the special date_part symbol back to "time"
 	if key == DatePartTimeString {
-		key = TimeString
+		key = models.TimeString
 	}
 	return v.Valuer.Value(key)
 }

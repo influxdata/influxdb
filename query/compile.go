@@ -98,7 +98,7 @@ func newCompiler(opt CompileOptions) *compiledStatement {
 	}
 	return &compiledStatement{
 		OnlySelectors: true,
-		TimeFieldName: "time",
+		TimeFieldName: models.TimeString,
 		Options:       opt,
 	}
 }
@@ -217,7 +217,7 @@ func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error 
 		// Such as SELECT time, max(value) FROM cpu will be SELECT max(value) FROM cpu
 		// and SELECT time AS timestamp, max(value) FROM cpu will return "timestamp"
 		// as the column name for the time.
-		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == "time" {
+		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			if f.Alias != "" {
 				c.TimeFieldName = f.Alias
 			}
@@ -937,7 +937,7 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 		case *influxql.Call:
 			// Ensure the call is time() and it has one or two duration arguments.
 			// If we already have a duration
-			if expr.Name != "time" {
+			if expr.Name != models.TimeString {
 				return errors.New("only time() calls allowed in dimensions")
 			} else if got := len(expr.Args); got < 1 || got > 2 {
 				return errors.New("time dimension expected 1 or 2 arguments")

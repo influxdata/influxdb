@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/pkg/metrics"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/pkg/tracing/fields"
 	"github.com/influxdata/influxdb/query"
@@ -277,7 +278,7 @@ func (itr *{{.name}}Iterator) Next() (*query.{{.Name}}Point, error) {
 		}
 
 		if itr.opt.Condition != nil {
-		    itr.m[query.TimeString] = seek
+		    itr.m[models.TimeString] = seek
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.

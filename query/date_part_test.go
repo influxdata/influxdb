@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/stretchr/testify/require"
@@ -322,4 +323,23 @@ func TestDatePartValuer_Call_Sunday(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, int64(6), result, "isdow check") // Sunday = 6 in ISO
 	})
+}
+
+func TestDatePartValuer_Value(t *testing.T) {
+	now := time.Now().UnixNano()
+	mapValuer := influxql.MapValuer{}
+	mapValuer[models.TimeString] = now
+
+	valuer := query.DatePartValuer{
+		Valuer: mapValuer,
+	}
+
+	// Valuer should return nil when passed a string that isn't DatePartTimeString
+	val, ok := valuer.Value("foo")
+	require.False(t, ok)
+	require.Nil(t, val)
+
+	val, ok = valuer.Value(query.DatePartTimeString)
+	require.True(t, ok)
+	require.Equal(t, now, val)
 }
