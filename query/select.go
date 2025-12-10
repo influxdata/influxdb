@@ -644,7 +644,7 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 		// Add a field with the variable "time" if we have not omitted time.
 		fields = append(fields, &influxql.Field{
 			Expr: &influxql.VarRef{
-				Val:  "time",
+				Val:  models.TimeString,
 				Type: influxql.Time,
 			},
 		})

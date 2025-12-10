@@ -62,20 +62,20 @@ func TestValidateDatePart(t *testing.T) {
 			name: "valid with time and DOW",
 			args: []influxql.Expr{
 				&influxql.StringLiteral{Val: "DOW"},
-				&influxql.VarRef{Val: "time"},
+				&influxql.VarRef{Val: models.TimeString},
 			},
 			expectError: false,
-			expectField: "time",
+			expectField: models.TimeString,
 			expectExpr:  query.DOW,
 		},
 		{
 			name: "valid with time and string literal",
 			args: []influxql.Expr{
 				&influxql.StringLiteral{Val: "year"},
-				&influxql.VarRef{Val: "time"},
+				&influxql.VarRef{Val: models.TimeString},
 			},
 			expectError: false,
-			expectField: "time",
+			expectField: models.TimeString,
 			expectExpr:  query.Year,
 		},
 		{
@@ -87,7 +87,7 @@ func TestValidateDatePart(t *testing.T) {
 		{
 			name: "invalid - wrong number of args (1)",
 			args: []influxql.Expr{
-				&influxql.VarRef{Val: "time"},
+				&influxql.VarRef{Val: models.TimeString},
 			},
 			expectError: true,
 			errorMsg:    "invalid number of arguments",
@@ -95,7 +95,7 @@ func TestValidateDatePart(t *testing.T) {
 		{
 			name: "invalid - wrong number of args (3)",
 			args: []influxql.Expr{
-				&influxql.VarRef{Val: "time"},
+				&influxql.VarRef{Val: models.TimeString},
 				&influxql.VarRef{Val: "DOW"},
 				&influxql.VarRef{Val: "extra"},
 			},
@@ -106,7 +106,7 @@ func TestValidateDatePart(t *testing.T) {
 			name: "invalid - first arg not StringLiteral",
 			args: []influxql.Expr{
 				&influxql.IntegerLiteral{Val: 123},
-				&influxql.VarRef{Val: "time"},
+				&influxql.VarRef{Val: models.TimeString},
 			},
 			expectError: true,
 			errorMsg:    "first argument must be",
@@ -124,7 +124,7 @@ func TestValidateDatePart(t *testing.T) {
 			name: "invalid - unknown date part expression",
 			args: []influxql.Expr{
 				&influxql.VarRef{Val: "invalid_expr"},
-				&influxql.VarRef{Val: "time"},
+				&influxql.VarRef{Val: models.TimeString},
 			},
 			expectError: true,
 			errorMsg:    "first argument must be a string",
