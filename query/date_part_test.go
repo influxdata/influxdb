@@ -34,9 +34,9 @@ func TestParseDatePartExpr(t *testing.T) {
 		{"doy", "doy", query.DOY, true},
 		{"epoch", "epoch", query.Epoch, true},
 		{"isodow", "isodow", query.ISODOW, true},
-		{"invalid", "invalid", 0, false},
-		{"empty", "", 0, false},
-		{"random", "foobar", 0, false},
+		{"invalid", "invalid", query.Invalid, false},
+		{"empty", "", query.Invalid, false},
+		{"random", "foobar", query.Invalid, false},
 	}
 
 	for _, tt := range tests {
