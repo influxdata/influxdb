@@ -33,6 +33,7 @@ const (
 	DOY
 	Epoch
 	ISODOW
+	Invalid
 )
 
 var AvailableDatePartExprs = []string{
@@ -78,7 +79,7 @@ func ParseDatePartExpr(t string) (DatePartExpr, bool) {
 		return ISODOW, true
 	}
 
-	return 0, false
+	return Invalid, false
 }
 
 func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
@@ -121,6 +122,8 @@ func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
 		} else {
 			return dow - 1, true
 		}
+	case Invalid:
+		return 0, false
 	default:
 		return 0, false
 	}
