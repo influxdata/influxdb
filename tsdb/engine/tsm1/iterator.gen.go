@@ -191,6 +191,8 @@ type floatIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.FloatPoint       // reusable buffer
 
@@ -200,11 +202,12 @@ type floatIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string) *floatIterator {
+func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *floatIterator {
 	itr := &floatIterator{
-		cur: cur,
-		aux: aux,
-		opt: opt,
+		cur:        cur,
+		aux:        aux,
+		opt:        opt,
+		timeRefMap: timeRefMap,
 		point: query.FloatPoint{
 			Name: name,
 			Tags: tags,
@@ -281,7 +284,7 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 
 		// Set a reference "time" for the timestamp associated with the iterator
 		// We need access to time for functions that operation on the `time` VarRef
-		if itr.m != nil {
+		if itr.timeRefMap {
 			itr.m[models.TimeString] = seek
 		}
 
@@ -678,6 +681,8 @@ type integerIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.IntegerPoint     // reusable buffer
 
@@ -687,11 +692,12 @@ type integerIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string) *integerIterator {
+func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *integerIterator {
 	itr := &integerIterator{
-		cur: cur,
-		aux: aux,
-		opt: opt,
+		cur:        cur,
+		aux:        aux,
+		opt:        opt,
+		timeRefMap: timeRefMap,
 		point: query.IntegerPoint{
 			Name: name,
 			Tags: tags,
@@ -768,7 +774,7 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 
 		// Set a reference "time" for the timestamp associated with the iterator
 		// We need access to time for functions that operation on the `time` VarRef
-		if itr.m != nil {
+		if itr.timeRefMap {
 			itr.m[models.TimeString] = seek
 		}
 
@@ -1165,6 +1171,8 @@ type unsignedIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.UnsignedPoint    // reusable buffer
 
@@ -1174,11 +1182,12 @@ type unsignedIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions, cur unsignedCursor, aux []cursorAt, conds []cursorAt, condNames []string) *unsignedIterator {
+func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions, cur unsignedCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *unsignedIterator {
 	itr := &unsignedIterator{
-		cur: cur,
-		aux: aux,
-		opt: opt,
+		cur:        cur,
+		aux:        aux,
+		opt:        opt,
+		timeRefMap: timeRefMap,
 		point: query.UnsignedPoint{
 			Name: name,
 			Tags: tags,
@@ -1255,7 +1264,7 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 
 		// Set a reference "time" for the timestamp associated with the iterator
 		// We need access to time for functions that operation on the `time` VarRef
-		if itr.m != nil {
+		if itr.timeRefMap {
 			itr.m[models.TimeString] = seek
 		}
 
@@ -1652,6 +1661,8 @@ type stringIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.StringPoint      // reusable buffer
 
@@ -1661,11 +1672,12 @@ type stringIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string) *stringIterator {
+func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *stringIterator {
 	itr := &stringIterator{
-		cur: cur,
-		aux: aux,
-		opt: opt,
+		cur:        cur,
+		aux:        aux,
+		opt:        opt,
+		timeRefMap: timeRefMap,
 		point: query.StringPoint{
 			Name: name,
 			Tags: tags,
@@ -1742,7 +1754,7 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 
 		// Set a reference "time" for the timestamp associated with the iterator
 		// We need access to time for functions that operation on the `time` VarRef
-		if itr.m != nil {
+		if itr.timeRefMap {
 			itr.m[models.TimeString] = seek
 		}
 
@@ -2139,6 +2151,8 @@ type booleanIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.BooleanPoint     // reusable buffer
 
@@ -2148,11 +2162,12 @@ type booleanIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string) *booleanIterator {
+func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *booleanIterator {
 	itr := &booleanIterator{
-		cur: cur,
-		aux: aux,
-		opt: opt,
+		cur:        cur,
+		aux:        aux,
+		opt:        opt,
+		timeRefMap: timeRefMap,
 		point: query.BooleanPoint{
 			Name: name,
 			Tags: tags,
@@ -2229,7 +2244,7 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 
 		// Set a reference "time" for the timestamp associated with the iterator
 		// We need access to time for functions that operation on the `time` VarRef
-		if itr.m != nil {
+		if itr.timeRefMap {
 			itr.m[models.TimeString] = seek
 		}
 
