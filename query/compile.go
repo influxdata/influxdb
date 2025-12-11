@@ -98,7 +98,7 @@ func newCompiler(opt CompileOptions) *compiledStatement {
 	}
 	return &compiledStatement{
 		OnlySelectors: true,
-		TimeFieldName: "time",
+		TimeFieldName: models.TimeString,
 		Options:       opt,
 	}
 }
@@ -205,7 +205,10 @@ func (c *compiledStatement) compile(stmt *influxql.SelectStatement) error {
 }
 
 func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error {
-	valuer := MathValuer{}
+	valuer := influxql.MultiValuer(
+		MathValuer{},
+		DatePartValuer{},
+	)
 
 	c.Fields = make([]*compiledField, 0, len(stmt.Fields))
 	for _, f := range stmt.Fields {
@@ -214,7 +217,7 @@ func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error 
 		// Such as SELECT time, max(value) FROM cpu will be SELECT max(value) FROM cpu
 		// and SELECT time AS timestamp, max(value) FROM cpu will return "timestamp"
 		// as the column name for the time.
-		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == "time" {
+		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			if f.Alias != "" {
 				c.TimeFieldName = f.Alias
 			}
@@ -222,7 +225,7 @@ func (c *compiledStatement) compileFields(stmt *influxql.SelectStatement) error 
 		}
 
 		// Append this field to the list of processed fields and compile it.
-		f.Expr = influxql.Reduce(f.Expr, &valuer)
+		f.Expr = influxql.Reduce(f.Expr, valuer)
 		field := &compiledField{
 			global:        c,
 			Field:         f,
@@ -391,6 +394,8 @@ func (c *compiledField) compileFunction(expr *influxql.Call) error {
 	// Validate the function call and mark down some meta properties
 	// related to the function for query validation.
 	switch expr.Name {
+	case DatePartString:
+		return ValidateDatePart(expr.Args)
 	case "max", "min", "first", "last":
 		// top/bottom are not included here since they are not typical functions.
 	case "count", "sum", "mean", "median", "mode", "stddev", "spread", "sum_hll":
@@ -926,13 +931,13 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 
 		switch expr := expr.(type) {
 		case *influxql.VarRef:
-			if strings.EqualFold(expr.Val, "time") {
+			if strings.EqualFold(expr.Val, models.TimeString) {
 				return errors.New("time() is a function and expects at least one argument")
 			}
 		case *influxql.Call:
 			// Ensure the call is time() and it has one or two duration arguments.
 			// If we already have a duration
-			if expr.Name != "time" {
+			if expr.Name != models.TimeString {
 				return errors.New("only time() calls allowed in dimensions")
 			} else if got := len(expr.Args); got < 1 || got > 2 {
 				return errors.New("time dimension expected 1 or 2 arguments")
@@ -1019,7 +1024,17 @@ func (c *compiledStatement) validateFields() error {
 		if !c.OnlySelectors {
 			return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
 		} else if len(c.FunctionCalls) > 1 {
-			return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
+			// If there are multiple function calls we want to validate whether they are date_part or not
+			// it is okay to have multiple date_part functions in a single SELECT clause.
+			nonDatePartCount := 0
+			for _, call := range c.FunctionCalls {
+				if call.Name != DatePartString {
+					nonDatePartCount++
+					if nonDatePartCount > 1 {
+						return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
+					}
+				}
+			}
 		}
 	}
 	return nil
@@ -1043,7 +1058,12 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 		return nil
 	case *influxql.Call:
 		if !isMathFunction(expr) {
-			return fmt.Errorf("invalid function call in condition: %s", expr)
+			switch expr.Name {
+			case DatePartString:
+				return ValidateDatePart(expr.Args)
+			default:
+				return fmt.Errorf("invalid function call in condition: %s", expr)
+			}
 		}
 
 		// How many arguments are we expecting?
