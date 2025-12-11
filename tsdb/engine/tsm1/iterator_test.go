@@ -22,7 +22,7 @@ func BenchmarkIntegerIterator_Next(b *testing.B) {
 		&literalValueCursor{value: true},
 	}
 
-	cur := newIntegerIterator("m0", query.Tags{}, opt, &infiniteIntegerCursor{}, aux, nil, nil, false)
+	cur := newIntegerIterator("m0", query.Tags{}, opt, &infiniteIntegerCursor{}, aux, nil, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
