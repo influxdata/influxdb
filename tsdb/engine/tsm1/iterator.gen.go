@@ -279,7 +279,9 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
-		if itr.opt.Condition != nil {
+		// Set a reference "time" for the timestamp associated with the iterator
+		// We need access to time for functions that operation on the `time` VarRef
+		if itr.m != nil {
 			itr.m[models.TimeString] = seek
 		}
 
@@ -764,7 +766,9 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
-		if itr.opt.Condition != nil {
+		// Set a reference "time" for the timestamp associated with the iterator
+		// We need access to time for functions that operation on the `time` VarRef
+		if itr.m != nil {
 			itr.m[models.TimeString] = seek
 		}
 
@@ -1249,7 +1253,9 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
-		if itr.opt.Condition != nil {
+		// Set a reference "time" for the timestamp associated with the iterator
+		// We need access to time for functions that operation on the `time` VarRef
+		if itr.m != nil {
 			itr.m[models.TimeString] = seek
 		}
 
@@ -1734,7 +1740,9 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
-		if itr.opt.Condition != nil {
+		// Set a reference "time" for the timestamp associated with the iterator
+		// We need access to time for functions that operation on the `time` VarRef
+		if itr.m != nil {
 			itr.m[models.TimeString] = seek
 		}
 
@@ -2219,7 +2227,9 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
-		if itr.opt.Condition != nil {
+		// Set a reference "time" for the timestamp associated with the iterator
+		// We need access to time for functions that operation on the `time` VarRef
+		if itr.m != nil {
 			itr.m[models.TimeString] = seek
 		}
 

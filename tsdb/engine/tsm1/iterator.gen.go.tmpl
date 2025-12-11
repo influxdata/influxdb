@@ -277,9 +277,11 @@ func (itr *{{.name}}Iterator) Next() (*query.{{.Name}}Point, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
-		if itr.opt.Condition != nil {
-		    itr.m[models.TimeString] = seek
-		}
+        // Set a reference "time" for the timestamp associated with the iterator
+        // We need access to time for functions that operation on the `time` VarRef
+        if itr.m != nil {
+            itr.m[models.TimeString] = seek
+        }
 
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
