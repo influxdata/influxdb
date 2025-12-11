@@ -202,12 +202,11 @@ type floatIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *floatIterator {
+func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string) *floatIterator {
 	itr := &floatIterator{
-		cur:        cur,
-		aux:        aux,
-		opt:        opt,
-		timeRefMap: timeRefMap,
+		cur: cur,
+		aux: aux,
+		opt: opt,
 		point: query.FloatPoint{
 			Name: name,
 			Tags: tags,
@@ -217,6 +216,9 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 		},
 	}
 	itr.stats = itr.statsBuf
+
+	// Check to see if we need to set "time" as a ref
+	itr.timeRefMap = needTimeRef(opt)
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -692,12 +694,11 @@ type integerIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *integerIterator {
+func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string) *integerIterator {
 	itr := &integerIterator{
-		cur:        cur,
-		aux:        aux,
-		opt:        opt,
-		timeRefMap: timeRefMap,
+		cur: cur,
+		aux: aux,
+		opt: opt,
 		point: query.IntegerPoint{
 			Name: name,
 			Tags: tags,
@@ -707,6 +708,9 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 		},
 	}
 	itr.stats = itr.statsBuf
+
+	// Check to see if we need to set "time" as a ref
+	itr.timeRefMap = needTimeRef(opt)
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -1182,12 +1186,11 @@ type unsignedIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions, cur unsignedCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *unsignedIterator {
+func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions, cur unsignedCursor, aux []cursorAt, conds []cursorAt, condNames []string) *unsignedIterator {
 	itr := &unsignedIterator{
-		cur:        cur,
-		aux:        aux,
-		opt:        opt,
-		timeRefMap: timeRefMap,
+		cur: cur,
+		aux: aux,
+		opt: opt,
 		point: query.UnsignedPoint{
 			Name: name,
 			Tags: tags,
@@ -1197,6 +1200,9 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 		},
 	}
 	itr.stats = itr.statsBuf
+
+	// Check to see if we need to set "time" as a ref
+	itr.timeRefMap = needTimeRef(opt)
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -1672,12 +1678,11 @@ type stringIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *stringIterator {
+func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string) *stringIterator {
 	itr := &stringIterator{
-		cur:        cur,
-		aux:        aux,
-		opt:        opt,
-		timeRefMap: timeRefMap,
+		cur: cur,
+		aux: aux,
+		opt: opt,
 		point: query.StringPoint{
 			Name: name,
 			Tags: tags,
@@ -1687,6 +1692,9 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 		},
 	}
 	itr.stats = itr.statsBuf
+
+	// Check to see if we need to set "time" as a ref
+	itr.timeRefMap = needTimeRef(opt)
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -2162,12 +2170,11 @@ type booleanIterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *booleanIterator {
+func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string) *booleanIterator {
 	itr := &booleanIterator{
-		cur:        cur,
-		aux:        aux,
-		opt:        opt,
-		timeRefMap: timeRefMap,
+		cur: cur,
+		aux: aux,
+		opt: opt,
 		point: query.BooleanPoint{
 			Name: name,
 			Tags: tags,
@@ -2177,6 +2184,9 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 		},
 	}
 	itr.stats = itr.statsBuf
+
+	// Check to see if we need to set "time" as a ref
+	itr.timeRefMap = needTimeRef(opt)
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -2580,3 +2590,27 @@ func (c *booleanDescendingCursor) nextTSM() {
 }
 
 var _ = fmt.Print
+
+// timeRefFns is a string slice of function names that require
+// an available reference to the timestamp of a given point
+var timeRefFns = []string{query.DatePartString}
+
+// needTimeRef iterates through a conditional within our query
+// and returns true if we need a reference to 'time'
+func needTimeRef(opts query.IteratorOptions) bool {
+	if opts.Condition != nil {
+		found := false
+		influxql.WalkFunc(opts.Condition, func(n influxql.Node) {
+			if call, ok := n.(*influxql.Call); ok {
+				for _, fn := range timeRefFns {
+					if call.Name == fn {
+						found = true
+						return
+					}
+				}
+			}
+		})
+		return found
+	}
+	return false
+}

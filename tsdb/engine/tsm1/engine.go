@@ -3320,15 +3320,12 @@ func (e *Engine) createVarRefSeriesIterator(ctx context.Context, ref *influxql.V
 	dimensions := opt.GetDimensions()
 	tags = tags.Subset(dimensions)
 
-	// Check to see if we need to set "time" as a ref
-	timeRefMap := needTimeRef(opt)
-
 	// If it's only auxiliary fields then it doesn't matter what type of iterator we use.
 	if ref == nil {
 		if opt.StripName {
 			name = ""
 		}
-		return newFloatIterator(name, tags, itrOpt, nil, aux, conds, condNames, timeRefMap), nil
+		return newFloatIterator(name, tags, itrOpt, nil, aux, conds, condNames), nil
 	}
 
 	// Remove name if requested.
@@ -3338,15 +3335,15 @@ func (e *Engine) createVarRefSeriesIterator(ctx context.Context, ref *influxql.V
 
 	switch cur := cur.(type) {
 	case floatCursor:
-		return newFloatIterator(name, tags, itrOpt, cur, aux, conds, condNames, timeRefMap), nil
+		return newFloatIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case integerCursor:
-		return newIntegerIterator(name, tags, itrOpt, cur, aux, conds, condNames, timeRefMap), nil
+		return newIntegerIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case unsignedCursor:
-		return newUnsignedIterator(name, tags, itrOpt, cur, aux, conds, condNames, timeRefMap), nil
+		return newUnsignedIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case stringCursor:
-		return newStringIterator(name, tags, itrOpt, cur, aux, conds, condNames, timeRefMap), nil
+		return newStringIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case booleanCursor:
-		return newBooleanIterator(name, tags, itrOpt, cur, aux, conds, condNames, timeRefMap), nil
+		return newBooleanIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	default:
 		panic("unreachable")
 	}
@@ -3616,28 +3613,4 @@ func varRefSliceRemove(a []influxql.VarRef, v string) []influxql.VarRef {
 		}
 	}
 	return other
-}
-
-// timeRefFns is a string slice of function names that require
-// an available reference to the timestamp of a given point
-var timeRefFns = []string{query.DatePartString}
-
-// needTimeRef iterates through a conditional within our query
-// and returns true if we need a reference to 'time'
-func needTimeRef(opts query.IteratorOptions) bool {
-	if opts.Condition != nil {
-		found := false
-		influxql.WalkFunc(opts.Condition, func(n influxql.Node) {
-			if call, ok := n.(*influxql.Call); ok {
-				for _, fn := range timeRefFns {
-					if call.Name == fn {
-						found = true
-						return
-					}
-				}
-			}
-		})
-		return found
-	}
-	return false
 }

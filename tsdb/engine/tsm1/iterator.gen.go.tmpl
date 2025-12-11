@@ -200,12 +200,11 @@ type {{.name}}Iterator struct {
 	valuer    influxql.ValuerEval
 }
 
-func new{{.Name}}Iterator(name string, tags query.Tags, opt query.IteratorOptions, cur {{.name}}Cursor, aux []cursorAt, conds []cursorAt, condNames []string, timeRefMap bool) *{{.name}}Iterator {
+func new{{.Name}}Iterator(name string, tags query.Tags, opt query.IteratorOptions, cur {{.name}}Cursor, aux []cursorAt, conds []cursorAt, condNames []string) *{{.name}}Iterator {
 	itr := &{{.name}}Iterator{
-		cur:        cur,
-		aux:        aux,
-		opt:        opt,
-		timeRefMap: timeRefMap,
+		cur: cur,
+		aux: aux,
+		opt: opt,
 		point: query.{{.Name}}Point{
 			Name: name,
 			Tags: tags,
@@ -215,6 +214,9 @@ func new{{.Name}}Iterator(name string, tags query.Tags, opt query.IteratorOption
 		},
 	}
 	itr.stats = itr.statsBuf
+
+	// Check to see if we need to set "time" as a ref
+    itr.timeRefMap = needTimeRef(opt)
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -620,3 +622,27 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 {{end}}
 
 var _ = fmt.Print
+
+// timeRefFns is a string slice of function names that require
+// an available reference to the timestamp of a given point
+var timeRefFns = []string{query.DatePartString}
+
+// needTimeRef iterates through a conditional within our query
+// and returns true if we need a reference to 'time'
+func needTimeRef(opts query.IteratorOptions) bool {
+	if opts.Condition != nil {
+		found := false
+		influxql.WalkFunc(opts.Condition, func(n influxql.Node) {
+			if call, ok := n.(*influxql.Call); ok {
+				for _, fn := range timeRefFns {
+					if call.Name == fn {
+						found = true
+						return
+					}
+				}
+			}
+		})
+		return found
+	}
+	return false
+}
