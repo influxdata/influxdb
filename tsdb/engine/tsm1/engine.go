@@ -3618,8 +3618,12 @@ func varRefSliceRemove(a []influxql.VarRef, v string) []influxql.VarRef {
 	return other
 }
 
+// timeRefFns is a string slice of function names that require
+// an available reference to the timestamp of a given point
 var timeRefFns = []string{query.DatePartString}
 
+// needTimeRef iterates through a conditional within our query
+// and returns true if we need a reference to 'time'
 func needTimeRef(opts query.IteratorOptions) bool {
 	if opts.Condition != nil {
 		found := false
