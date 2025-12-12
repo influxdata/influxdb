@@ -234,6 +234,11 @@ impl PyPluginCallApi {
 
                         let array = batch.column(col_idx);
 
+                        if array.is_null(row_idx) {
+                            row.set_item(field_name, py.None())?;
+                            continue;
+                        }
+
                         match array.data_type() {
                             DataType::Int64 => {
                                 let array = array.as_any().downcast_ref::<Int64Array>().unwrap();
