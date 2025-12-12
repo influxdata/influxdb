@@ -1071,9 +1071,10 @@ impl HttpApi {
 
     fn health(&self) -> Result<Response> {
         let response_body = "OK";
-        Ok(Response::new(bytes_to_response_body(
-            response_body.to_string(),
-        )))
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "text/plain; charset=utf-8")
+            .body(bytes_to_response_body(response_body.to_string()))?)
     }
 
     fn ping(&self) -> Result<Response> {
@@ -1103,7 +1104,10 @@ impl HttpApi {
         let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
         self.common_state.metrics.report(&mut reporter);
 
-        Ok(Response::new(bytes_to_response_body(body)))
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")
+            .body(bytes_to_response_body(body))?)
     }
 
     /// Parse the request's body into raw bytes, applying the configured size
@@ -1346,6 +1350,7 @@ impl HttpApi {
         {
             Ok(batch) => ResponseBuilder::new()
                 .status(StatusCode::CREATED)
+                .header(CONTENT_TYPE, "application/json")
                 .body(bytes_to_response_body(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
@@ -1401,6 +1406,7 @@ impl HttpApi {
         {
             Ok(batch) => ResponseBuilder::new()
                 .status(StatusCode::CREATED)
+                .header(CONTENT_TYPE, "application/json")
                 .body(bytes_to_response_body(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
@@ -1610,6 +1616,7 @@ impl HttpApi {
 
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
             .body(bytes_to_response_body(body))?)
     }
 
@@ -1625,6 +1632,7 @@ impl HttpApi {
 
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
             .body(bytes_to_response_body(body))?)
     }
 
