@@ -4242,3 +4242,93 @@ async fn test_update_single_file_plugin_still_works() {
     let actual_content = fs::read_to_string(&plugin_file).unwrap();
     assert_eq!(actual_content, updated_content);
 }
+
+/// Test that queries returning sparse field values handle nulls correctly.
+/// Fields that don't exist for certain rows should return None, not default values like 0 or "".
+#[test_log::test(tokio::test)]
+async fn test_query_with_sparse_fields() {
+    use influxdb3_client::Precision;
+
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    query_result = influxdb3_local.query("SELECT * FROM m0 ORDER BY time")
+    influxdb3_local.info("query result: " + str(query_result))
+
+    # Check each row for proper null handling
+    for row in query_result:
+        # Log the sparse fields - they should be None when missing, not 0 or ""
+        influxdb3_local.info(
+            "i64_sparse=" + str(row.get('i64_sparse')) +
+            " f64_sparse=" + str(row.get('f64_sparse')) +
+            " str_sparse=" + str(row.get('str_sparse')) +
+            " bool_sparse=" + str(row.get('bool_sparse'))
+        )"#,
+    );
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+
+    let lp = [
+        // Row 1: has all the sparse fields
+        r#"m0 i64_common=1i,i64_sparse=100i,f64_sparse=1.5,str_sparse="hello",bool_sparse=true 1000"#,
+        // Row 2: missing all sparse fields - should show None, not 0/""/false
+        r#"m0 i64_common=2i 2000"#,
+    ]
+        .join("\n");
+
+    server
+        .write_lp_to_db("testdb", &lp, Precision::Nanosecond)
+        .await
+        .unwrap();
+
+    let result = server
+        .test_wal_plugin("testdb", plugin_filename)
+        .with_line_protocol("dummy,t=v f=1i 100")
+        .run()
+        .expect("Plugin should not panic when handling null field values");
+
+    let log_lines = result["log_lines"]
+        .as_array()
+        .expect("log_lines should be array");
+
+    // Find the log line for row 2 (the one without sparse fields)
+    // It should show None for all sparse fields, not default values
+    let row2_line = log_lines
+        .iter()
+        .filter_map(|l| l.as_str())
+        .find(|s| s.contains("i64_sparse=None"))
+        .expect("Expected row with i64_sparse=None (null handling)");
+
+    // Verify all field types get None treatment
+    assert!(
+        row2_line.contains("f64_sparse=None"),
+        "Expected f64_sparse=None, got: {row2_line}"
+    );
+    assert!(
+        row2_line.contains("str_sparse=None"),
+        "Expected str_sparse=None, got: {row2_line}"
+    );
+    assert!(
+        row2_line.contains("bool_sparse=None"),
+        "Expected bool_sparse=None, got: {row2_line}"
+    );
+
+    // Verify the row with values still works
+    let row1_line = log_lines
+        .iter()
+        .filter_map(|l| l.as_str())
+        .find(|s| s.contains("i64_sparse=100"));
+    assert!(
+        row1_line.is_some(),
+        "Expected row with i64_sparse=100, log lines: {:?}",
+        log_lines
+    );
+
+    assert_eq!(result["errors"], serde_json::json!([]));
+}
