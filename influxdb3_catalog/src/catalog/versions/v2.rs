@@ -4634,10 +4634,11 @@ mod tests {
         });
     }
 
+    // NOTE(tjh): this test was reported as flaky but has since been re-enabled:
+    // https://github.com/influxdata/influxdb_pro/issues/1827
     #[test_log::test(tokio::test(start_paused = true))]
     async fn test_load_from_catalog_checkpoint() {
-        let obj_store =
-            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+        let obj_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let init = async || {
