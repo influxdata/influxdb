@@ -384,12 +384,14 @@ impl WriteBufferImpl {
         if parquet_files.len() > self.query_file_limit {
             return Err(DataFusionError::External(
                 format!(
-                    "Query would exceed file limit of {} parquet files. \
-                     Please specify a smaller time range for your \
-                     query. You can increase the file limit with the \
-                     `--query-file-limit` option in the serve command, however, \
-                     query performance will be slower and the server may get \
-                     OOM killed or become unstable as a result",
+                    "Query would scan {} Parquet files, exceeding the file limit. \
+                     InfluxDB 3 Core caps file access to prevent performance degradation \
+                     and memory issues. Use a narrower time range, or increase the limit \
+                     with --query-file-limit (this may cause slower queries or instability).\n\n\
+                     To remove this limitation, upgrade to InfluxDB 3 Enterprise, which \
+                     automatically compacts files for efficient querying across any time range. \
+                     Free for non-commercial and home use, and free trials for commercial \
+                     evaluation: https://www.influxdata.com/downloads",
                     self.query_file_limit
                 )
                 .into(),

@@ -1198,7 +1198,7 @@ mod tests {
             .query_sql(db_name, "SELECT COUNT(host) FROM CPU", None, None, None)
             .await {
             Ok(_) => panic!("expected to exceed parquet file limit, yet query succeeded"),
-            Err(err) => assert_eq!(err.to_string(), "error while planning query: External error: Query would exceed file limit of 432 parquet files. Please specify a smaller time range for your query. You can increase the file limit with the `--query-file-limit` option in the serve command, however, query performance will be slower and the server may get OOM killed or become unstable as a result".to_string())
+            Err(err) => assert_eq!(err.to_string(), "error while planning query: External error: Query would scan 432 Parquet files, exceeding the file limit. InfluxDB 3 Core caps file access to prevent performance degradation and memory issues. Use a narrower time range, or increase the limit with --query-file-limit (this may cause slower queries or instability).\n\nTo remove this limitation, upgrade to InfluxDB 3 Enterprise, which automatically compacts files for efficient querying across any time range. Free for non-commercial and home use, and free trials for commercial evaluation: https://www.influxdata.com/downloads".to_string())
         }
 
         // Make sure if we specify a smaller time range that queries will still work
@@ -1314,7 +1314,7 @@ mod tests {
             .query_sql(db_name, "SELECT COUNT(host) FROM CPU", None, None, None)
             .await {
             Ok(_) => panic!("expected to exceed parquet file limit, yet query succeeded"),
-            Err(err) => assert_eq!(err.to_string(), "error while planning query: External error: Query would exceed file limit of 3 parquet files. Please specify a smaller time range for your query. You can increase the file limit with the `--query-file-limit` option in the serve command, however, query performance will be slower and the server may get OOM killed or become unstable as a result".to_string())
+            Err(err) => assert_eq!(err.to_string(), "error while planning query: External error: Query would scan 3 Parquet files, exceeding the file limit. InfluxDB 3 Core caps file access to prevent performance degradation and memory issues. Use a narrower time range, or increase the limit with --query-file-limit (this may cause slower queries or instability).\n\nTo remove this limitation, upgrade to InfluxDB 3 Enterprise, which automatically compacts files for efficient querying across any time range. Free for non-commercial and home use, and free trials for commercial evaluation: https://www.influxdata.com/downloads".to_string())
         }
 
         // Make sure if we specify a smaller time range that queries will still work
