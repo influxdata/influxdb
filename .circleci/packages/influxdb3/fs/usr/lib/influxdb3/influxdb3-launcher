@@ -42,12 +42,15 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         # Node configuration
         "http-bind": "INFLUXDB3_HTTP_BIND_ADDR",
         "node-id": "INFLUXDB3_NODE_IDENTIFIER_PREFIX",
+        "node-id-from-env": "INFLUXDB3_NODE_IDENTIFIER_FROM_ENV",
         # Logging (no INFLUXDB3_ prefix)
         "log-destination": "LOG_DESTINATION",
         "log-filter": "LOG_FILTER",
         "log-format": "LOG_FORMAT",
         # Admin token recovery
         "admin-token-recovery-http-bind": "INFLUXDB3_ADMIN_TOKEN_RECOVERY_HTTP_BIND_ADDR",
+        # Authorization
+        "without-auth": "INFLUXDB3_START_WITHOUT_AUTH",
         # Object storage
         "data-dir": "INFLUXDB3_DB_DIR",
         # AWS (AWS_ prefix, not INFLUXDB3_)
@@ -97,7 +100,6 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         # Enterprise cluster configuration
         "cluster-id": "INFLUXDB3_ENTERPRISE_CLUSTER_ID",
         "mode": "INFLUXDB3_ENTERPRISE_MODE",
-        "node-id-from-env": "INFLUXDB3_NODE_IDENTIFIER_FROM_ENV",
         "num-cores": "INFLUXDB3_ENTERPRISE_NUM_CORES",
         # Resource limits
         "max-columns": "INFLUXDB3_ENTERPRISE_PACHA_TREE_MAX_COLUMNS",
