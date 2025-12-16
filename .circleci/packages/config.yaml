@@ -95,28 +95,83 @@ sources:
 
 packages:
   - name:        influxdb3-core
-    description: Monolithic time-series database.
+    description: Monolithic time-series database
+    description_long: |
+      InfluxDB is a database built to collect, process, transform, and store
+      event and time series data. It is ideal for use cases that require
+      real-time ingest and fast query response times to build user interfaces,
+      monitoring, and automation solutions.
     license:     MIT/Apache-2.0
+    rpm_group:   Applications/Databases
+    deb_section: database
     vendor:      InfluxData
     homepage:    https://influxdata.com
     maintainer:
       name:  support
       email: support@influxdata.com
     binaries:
+      # linux, darwin
       - influxdb3
+      # windows
       - influxdb3.exe
     python-runtimes:
       - source: python
+        # IMPORTANT: we intentionally use usr/lib/influxdb3 instead of
+        # usr/lib/influxdb3-{core,enterprise} to facilitate upgrades from core
+        # to enterprise and have plugins continue to work after the upgrade.
+        # This is needed since it allows us to specify the same plugin-dir
+        # (/var/lib/influxdb3/plugins) for both and the venvs will still point
+        # to a usable python in /usr/lib/influxdb3/python/...
         target: usr/lib/influxdb3
     extras:
       - source: LICENSE-APACHE
         target: usr/share/influxdb3/LICENSE-APACHE
+        doc: true
       - source: LICENSE-MIT
         target: usr/share/influxdb3/LICENSE-MIT
+        doc: true
+
+    perm_overrides:
+      - owner: root
+        group: root
+        perms: 0755
+        target: usr/lib/influxdb3/sysv-init.sh
+
+      - owner: root
+        group: root
+        perms: 0644
+        target: lib/systemd/system/influxdb3-core.service
+
     source: .circleci/packages/influxdb3
     deb:
+      conflicts:
+        - influxdb3-enterprise
+      depends:
+        - libc6  # for lintian (will pull in libgcc1 so don't need it here)
       recommends:
         - influxdata-archive-keyring
     rpm:
+      # This tells rpm to do 2 things:
+      # 1. add %dir entries for each of these so that the package owns them.
+      #    Will descend to add entries for subdirectories
+      # 2. sets the rpm-attr for owner/group/perms for 'rpm -V' (owner/groups
+      #    are set in prein)
+      owned_dirs:
+        - owner: root
+          group: influxdb3
+          perms: 0755
+          target: etc/influxdb3
+        - target: usr/lib/influxdb3
+        - target: usr/share/influxdb3
+        - owner: influxdb3
+          group: influxdb3
+          perms: 0755
+          target: var/lib/influxdb3
+        - owner: influxdb3
+          group: influxdb3
+          perms: 0755
+          target: var/log/influxdb3
+      conflicts:
+        - influxdb3-enterprise
       recommends:
         - influxdata-archive-keyring
