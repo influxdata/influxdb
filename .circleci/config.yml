@@ -125,8 +125,19 @@ docker_filter: &docker_filter
 # 2. Click "Trigger Pipeline" in the top-right
 # 3. Adjust the "persist_debug" boolean parameter to true
 # 4. Click "Run Pipeline"
+#
+# You can conditionally persist quick-release tarballs and packages for your PR
+# (so they show up in the 'Artifacts' tab of the build-quick-release-for-prs
+# (tarballs) and build-linux-packages-for-prs (packages) jobs) by:
+# 1. Go to https://app.circleci.com/pipelines/github/influxdata/influxdb?branch=<branch-name> (<- change this!)
+# 2. Click "Trigger Pipeline" in the top-right
+# 3. Adjust the "build_and_persist_packages" boolean parameter to true
+# 4. Click "Run Pipeline"
 parameters:
   persist_debug:
+    type: boolean
+    default: false
+  build_and_persist_packages:
     type: boolean
     default: false
   # Consistent environment setup for Python Build Standalone
@@ -516,7 +527,7 @@ jobs:
 
   build-packages:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:c92ea43b5529b9c4f93478c26d128b3a5aa811559e1fa634cdb476241f8d7620
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:5b461463f21a3647a7260ad5b0d8398e657106f1cfa44eb8f21e95257a14eb7f
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -868,3 +879,80 @@ workflows:
           requires:
             - build-docker-amd64
             - build-docker-arm64
+
+  # Conditional package building for PRs (when build_and_persist_packages parameter is true)
+  ci-build-packages-for-prs:
+    when: << pipeline.parameters.build_and_persist_packages >>
+    jobs:
+      - fetch-python:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+      - build-release:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+          name: build-quick-release-for-prs-<< matrix.target >>
+          matrix:
+            parameters:
+              profile:
+                - quick-release
+              target:
+                - aarch64-apple-darwin
+                - aarch64-unknown-linux-gnu
+                - x86_64-pc-windows-gnu
+                - x86_64-unknown-linux-gnu
+          requires:
+            - fetch-python
+      - build-packages:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+          name: build-linux-packages-for-prs
+          requires:
+            - build-quick-release-for-prs-aarch64-apple-darwin
+            - build-quick-release-for-prs-aarch64-unknown-linux-gnu
+            - build-quick-release-for-prs-x86_64-pc-windows-gnu
+            - build-quick-release-for-prs-x86_64-unknown-linux-gnu
+      - check_package_deb_amd64:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+          name: check-linux-packages-for-prs-deb-amd64
+          requires:
+            - build-linux-packages-for-prs
+      - check_package_deb_arm64:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+          name: check-linux-packages-for-prs-deb-arm64
+          requires:
+            - build-linux-packages-for-prs
+      - check_package_rpm_amd64:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+          name: check-linux-packages-for-prs-rpm-amd64
+          requires:
+            - build-linux-packages-for-prs
+      - check_package_rpm_arm64:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+          name: check-linux-packages-for-prs-rpm-arm64
+          requires:
+            - build-linux-packages-for-prs
