@@ -1,0 +1,129 @@
+[Unit]
+Description=InfluxDB 3 Core
+After=network-online.target
+
+[Service]
+# Type=exec needs systemd ≥240; simple keeps RHEL7 (systemd 219) working
+Type=simple
+Restart=on-failure
+KillMode=control-group
+# Use launcher to assist with migrations, etc
+ExecStart=/usr/lib/influxdb3/python/bin/python3 /usr/lib/influxdb3/influxdb3-launcher --exec=/usr/bin/influxdb3 --flavor=core --stamp-dir=/var/lib/influxdb3 --config-toml=/etc/influxdb3/influxdb3-core.conf -- serve
+# Reload not supported; use restart after config changes
+ExecReload=
+WorkingDirectory=/var/lib/influxdb3
+StateDirectory=influxdb3
+# Logs default to journald (StandardOutput/Error); you may optionally set
+# LOG_DESTINATION=file:/var/log/influxdb3/influxdb3.log to use LogsDirectory.
+LogsDirectory=influxdb3
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=65536
+RemoveIPC=true
+
+#
+# Basic security
+#
+User=influxdb3
+Group=influxdb3
+SupplementaryGroups=
+UMask=0027
+
+#
+# Additional security options commonly safe for use. In general, these assume
+# User/Group/Supplementary groups are set to an unprivileged user and as a
+# result, we do not have to exhaustively add directives for blocking privileged
+# actions since they are already blocked by the kernel.
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
+#
+# Disallow gaining privileges via setuid/setgid/fscaps/residual caps
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+# Allow only pseudo devices with no host mount propagation
+PrivateDevices=true
+# Use separate SysV IPC from host
+PrivateIPC=true
+# Use separate /tmp and /var/tmp from host (implies PrivateMounts=)
+PrivateTmp=true
+# Use separate /dev/shm (override with size= to limit size too)
+TemporaryFileSystem=/dev/shm:mode=1777
+# Disallow access to /home (implies PrivateMounts=)
+ProtectHome=true
+# Disallow access to the kernel log ring buffer (needed if PrivateDevices=false)
+ProtectKernelLogs=true
+# Make host files read-only
+ProtectSystem=strict
+# Limit to IPv4, IPv6 and AF_UNIX (eg, disallow AF_NETLINK, AF_PACKET, etc).
+# AF_UNIX is required for DNS resolution but is a tradeoff. In practice:
+#  a) named sockets are generally available if the socket file's permissions
+#     allow it, in which case, the serving process must mediate access.
+#     InaccessiblePaths will be used to disallow access to well-known services
+#     with world-writable permissions
+#  b) abstract sockets can be connected to and the serving process must mediate
+#     access. AppArmor or SELinux can be used to mediate these further
+#  c) anonymous sockets aren't a concern since this process won't have the fd
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# Disallow well-known system services' sockets
+InaccessiblePaths=-/run/avahi-daemon -/run/cups -/run/snapd.socket -/run/dbus/system_bus_socket
+# Disallow well-known desktop services' sockets
+InaccessiblePaths=-/tmp/.X11-unix -/tmp/.XIM-unix -/tmp/.ICE-unix -/tmp/.font-unix -/run/user
+# Disallow use of all namespaces
+RestrictNamespaces=true
+# Limit syscalls (systemd-analyze syscall-filter) to reduce kernel surface.
+# See allowed syscalls for this service with:
+#  $ PAGER= systemctl show -p SystemCallFilter influxdb3.service
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+# Allowed syscalls:
+SystemCallFilter=@system-service
+# Disallow often abused unprivileged syscalls from @system-service:
+# io_uring_setup - create an io_uring instance
+# keyctl - use kernel keyrings
+# userfaultfd - page faults to fd (often disabled in vm.unprivileged_userfaultfd)
+SystemCallFilter=~io_uring_setup keyctl userfaultfd
+LockPersonality=true
+# Allow creating memory mappings that are writable and executable at the same
+# time, which is required by the InfluxDB python processing engine.
+MemoryDenyWriteExecute=false
+
+#
+# Security options known to affect certain plugins
+#
+# Hide processes not owned by this user (see User=, above); note, ProcSubset
+# intentionally not set
+ProtectProc=invisible
+
+#
+# Site-specific security controls
+#
+
+# Network filtering via BPF. IMPORTANT: rule order is:
+#  1) Access # is granted if matches entry in IPAddressAllow
+#  2) otherwise access is denied if matches entry in IPAddressDeny
+#  3) otherwise access is granted
+# For egress, matches against sender; for ingress, matches against receiver.
+# This filtering only matches on IP addresses, not ports (use firewall
+# tools/cloud security groups if you need more flexibility).
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html#Network%20Accounting%20and%20Control
+#
+# Eg: limit communications to only localhost (all ports)
+#IPAddressDeny=any
+#IPAddressAllow=localhost
+#
+# Eg: limit to only public IP ranges
+#IPAddressDeny=0.0.0.0/32      # 0.0.0.0 treated as 127.0.0.1
+#IPAddressDeny=127.0.0.0/8     # IPv4 loopback
+#IPAddressDeny=10.0.0.0/8      # IPv4 internal (RFC1918)
+#IPAddressDeny=172.16.0.0/12   # IPv4 internal (RFC1918)
+#IPAddressDeny=192.168.0.0/16  # IPv4 internal (RFC1918)
+#IPAddressDeny=169.254.0.0/16  # IPv4 link-local (RFC3927)
+#IPAddressDeny=224.0.0.0/4     # IPv4 multicast
+#IPAddressDeny=::1/128         # IPv6 loopback
+#IPAddressDeny=fe80::/64       # IPv6 link-local
+#IPAddressDeny=fc00::/7        # IPv6 unique local addr
+#IPAddressDeny=ff00::/8        # IPv6 multicast
+
+[Install]
+WantedBy=multi-user.target

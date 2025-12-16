@@ -1,1 +1,169 @@
-#!/bin/bash
+#!/bin/sh
+set -e
+
+# Save script arguments for use in functions. This allows functions to check
+# upgrade status without requiring "$@" to be passed through the call chain.
+# - RPM: $1 = 1 for fresh install, 2 for upgrade
+# - DEB: $2 contains old version on upgrade
+PKG_ARG1="$1"
+PKG_ARG2="$2"
+#PKG_ARGS="$*"
+#PKG_ARG_COUNT="$#"
+
+get_pkgname() {
+    if [ -n "$RPM_PACKAGE_NAME" ]; then
+        echo "$RPM_PACKAGE_NAME"
+    elif [ -n "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        echo "$DPKG_MAINTSCRIPT_PACKAGE"
+    elif [ -n "$CI_SUPPORT_RPM_PACKAGE_NAME" ]; then
+        echo "$CI_SUPPORT_RPM_PACKAGE_NAME"
+    else
+        return 1
+    fi
+}
+
+PKG_NAME="$(get_pkgname)" || {
+    echo "ERROR: Unable to determine package name" >&2
+    exit 1
+}
+USER_GROUP="influxdb3"
+CONF_DIR="/etc/influxdb3"
+CONF_FILE="$CONF_DIR/$PKG_NAME.conf"
+DATA_DIR="/var/lib/influxdb3"
+SHARE_DIR="/usr/share/influxdb3"
+
+# for sysv
+LIB_DIR="/usr/lib/influxdb3"
+LOG_DIR="/var/log/influxdb3"
+
+rpm_distro() {
+    # RPM 4.13 doesn't provide RPM_PACKAGE_NAME, so just assume rpm if not deb
+    if [ -z "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        return 0
+    fi
+    return 1
+}
+
+deb_distro() {
+    if [ -n "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        return 0
+    fi
+    return 1
+}
+
+is_upgrade() {
+    # Debian/Ubuntu: $PKG_ARG2 contains old version on upgrade
+    if [ -n "$PKG_ARG2" ]; then
+        return 0
+    fi
+    # RPM: $PKG_ARG1 = 1 for fresh install, 2 for upgrade
+    if [ "$PKG_ARG1" = "2" ]; then
+        return 0
+    fi
+    return 1
+}
+
+install_init() {
+    if [ ! -f /etc/default/"$PKG_NAME" ]; then
+        cat > /etc/default/"$PKG_NAME" <<EOF
+# Enable $PKG_NAME to start
+ENABLED=no
+EOF
+        chmod 644 /etc/default/"$PKG_NAME"
+    fi
+
+    # On upgrade: if service is enabled and running, stop it before replacing script
+    WAS_RUNNING=0
+    if is_upgrade && [ -x /etc/init.d/"$PKG_NAME" ]; then
+        ENABLED=no
+        if [ -f /etc/default/"$PKG_NAME" ]; then
+            # shellcheck disable=SC1090
+            . /etc/default/"$PKG_NAME"
+        fi
+        if [ "$ENABLED" = "yes" ] && /etc/init.d/"$PKG_NAME" status >/dev/null 2>&1; then
+            /etc/init.d/"$PKG_NAME" stop || true
+            WAS_RUNNING=1
+        fi
+    fi
+
+    # Now replace the script
+    flavor=$(echo "$PKG_NAME" | cut -d '-' -f 2)
+    if [ "$flavor" != "core" ] && [ "$flavor" != "enterprise" ]; then
+        echo "ERROR: Invalid package flavor '$flavor' (expected 'core' or 'enterprise')" >&2
+        exit 1
+    fi
+    sed "s|###FLAVOR###|$flavor|g" "$LIB_DIR"/sysv-init.sh > /etc/init.d/"$PKG_NAME"
+    chmod 755 /etc/init.d/"$PKG_NAME"
+
+    # Restart with NEW script if it was running
+    if [ "$WAS_RUNNING" = "1" ]; then
+        /etc/init.d/"$PKG_NAME" start || true
+    fi
+}
+
+install_systemd() {
+    systemctl daemon-reload
+
+    if ! is_upgrade; then
+        # Fresh install: enable, but don't start the service since the user
+        # needs to still configure the software
+        systemctl enable "$PKG_NAME"
+    else
+        # On upgrade: only restart if enabled and running
+        if systemctl is-enabled "$PKG_NAME" >/dev/null 2>&1 && systemctl is-active "$PKG_NAME" >/dev/null 2>&1; then
+            systemctl restart "$PKG_NAME" || true
+        fi
+    fi
+}
+
+install_update_rcd() {
+    update-rc.d "$PKG_NAME" defaults
+}
+
+install_chkconfig() {
+    chkconfig --add "$PKG_NAME"
+}
+
+if deb_distro; then
+    # Ownership for RH-based platforms is set in build.py via the `rpm-attr`
+    # option. We perform ownership change only for Debian-based systems. Moving
+    # these lines out of this if statement would make `rpm -V` fail after
+    # installation.
+    if ! is_upgrade; then
+        chown "$USER_GROUP:$USER_GROUP" "$LOG_DIR"
+        chmod 755 "$LOG_DIR"
+
+        chown "$USER_GROUP:$USER_GROUP" "$DATA_DIR"
+        chmod 755 "$DATA_DIR"
+
+        chown "root:$USER_GROUP" "$CONF_DIR"
+        chmod 755 "$CONF_DIR"
+    fi
+fi
+
+# If CONF_FILE is not present, use sample on fresh install only.
+if ! is_upgrade && [ ! -f "$CONF_FILE" ] && [ -f "$SHARE_DIR/$PKG_NAME.conf" ]; then
+    # set a few default values (cluster-id and mode are enterprise only)
+    sed -e 's,^#data-dir=.*,data-dir="/var/lib/influxdb3/data",' \
+        -e 's,^#plugin-dir=.*,plugin-dir="/var/lib/influxdb3/plugins",' \
+        -e 's,^#object-store=.*,object-store="file",' \
+        -e 's,^#node-id=.*,node-id="primary-node",' \
+        -e 's,^#cluster-id=.*,cluster-id="primary-cluster",' \
+        -e 's,^#mode=.*,mode="all",' \
+        "$SHARE_DIR/$PKG_NAME.conf" > "$CONF_FILE"
+
+    chmod 644 "$CONF_FILE"
+    chown "root:$USER_GROUP" "$CONF_FILE"
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+    install_systemd
+else
+    # Assuming sysv
+    install_init
+    if rpm_distro; then
+        install_chkconfig
+    elif deb_distro; then
+        install_update_rcd
+    fi
+fi
