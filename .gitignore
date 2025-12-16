@@ -13,6 +13,7 @@ testing-certs
 *.tsm
 **/.DS_Store
 **/.vscode
+artifacts/
 heaptrack.*
 massif.out.*
 perf.data*
@@ -25,3 +26,6 @@ valgrind-out.txt
 # .cargo/config.toml is checked in, but glibc builds create .cargo/config to
 # override it, which we can ignore
 .cargo/config
+# shows up, remove it, otherwise it might end up in the build artifacts
+.circleci/packages/.venv/
+.circleci/packages/__pycache__/

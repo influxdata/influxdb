@@ -1,0 +1,75 @@
+#!/bin/sh
+set -e
+
+get_pkgname() {
+    if [ -n "$RPM_PACKAGE_NAME" ]; then
+        echo "$RPM_PACKAGE_NAME"
+    elif [ -n "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        echo "$DPKG_MAINTSCRIPT_PACKAGE"
+    elif [ -n "$CI_SUPPORT_RPM_PACKAGE_NAME" ]; then
+        echo "$CI_SUPPORT_RPM_PACKAGE_NAME"
+    else
+        return 1
+    fi
+}
+PKG_NAME="$(get_pkgname)" || {
+    echo "ERROR: Unable to determine package name" >&2
+    exit 1
+}
+
+rpm_distro() {
+    # RPM 4.13 doesn't provide RPM_PACKAGE_NAME, so just assume rpm if not deb
+    if [ -z "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        return 0
+    fi
+    return 1
+}
+
+deb_distro() {
+    if [ -n "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        return 0
+    fi
+    return 1
+}
+
+disable_systemd() {
+    # Stop the service if running
+    systemctl stop "$PKG_NAME" 2>/dev/null || true
+
+    # Disable the service
+    if systemctl is-enabled "$PKG_NAME" >/dev/null 2>&1; then
+        systemctl disable "$PKG_NAME" || true
+    fi
+
+    systemctl daemon-reload
+}
+
+disable_update_rcd() {
+    # Stop the service if running
+    /etc/init.d/"$PKG_NAME" stop
+
+    update-rc.d -f "$PKG_NAME" remove || true
+    rm -f /etc/init.d/"$PKG_NAME"
+}
+
+disable_chkconfig() {
+    # Stop the service if running
+    /etc/init.d/"$PKG_NAME" stop
+
+    chkconfig --del "$PKG_NAME" || true
+    rm -f /etc/init.d/"$PKG_NAME"
+}
+
+# rpm remove and deb remove, disable the services
+if { rpm_distro && [ "$1" = "0" ]; } || { deb_distro && [ "$1" = "remove" ]; }; then
+    if command -v systemctl >/dev/null 2>&1; then
+        disable_systemd
+    else
+        # Assuming sysv
+        if rpm_distro; then
+            disable_chkconfig
+        elif deb_distro; then
+            disable_update_rcd
+        fi
+    fi
+fi

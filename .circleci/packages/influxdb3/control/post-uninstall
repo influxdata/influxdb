@@ -1,0 +1,49 @@
+#!/bin/sh
+set -e
+
+get_pkgname() {
+    if [ -n "$RPM_PACKAGE_NAME" ]; then
+        echo "$RPM_PACKAGE_NAME"
+    elif [ -n "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        echo "$DPKG_MAINTSCRIPT_PACKAGE"
+    elif [ -n "$CI_SUPPORT_RPM_PACKAGE_NAME" ]; then
+        echo "$CI_SUPPORT_RPM_PACKAGE_NAME"
+    else
+        return 1
+    fi
+}
+PKG_NAME="$(get_pkgname)" || {
+    echo "ERROR: Unable to determine package name" >&2
+    exit 1
+}
+
+rpm_distro() {
+    # RPM 4.13 doesn't provide RPM_PACKAGE_NAME, so just assume rpm if not deb
+    if [ -z "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        return 0
+    fi
+    return 1
+}
+
+deb_distro() {
+    if [ -n "$DPKG_MAINTSCRIPT_PACKAGE" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# rpm remove and deb purge, remove config and log files
+# IMPORTANT: we intentionally don't remove /var/lib/influxdb3 (or the
+# /var/lib/influxdb3/.influxdb3-launcher stamp file) which serves two
+# purposes:
+# 1. avoids data loss
+# 2. it facilitates upgrades from influxdb3-core to influxdb3-enterprise
+# 3. prevents downgrades from influxdb3-enterprise to influxdb3-core
+if { rpm_distro && [ "$1" = "0" ]; } || { deb_distro && [ "$1" = "purge" ]; }; then
+    # InfluxDB is no longer installed, remove package created files
+    rm -f /etc/default/"$PKG_NAME"
+    rm -f /etc/influxdb3/"$PKG_NAME".conf
+    if [ -d /var/log/influxdb3 ]; then
+        rm -f /var/log/influxdb3/*
+    fi
+fi
