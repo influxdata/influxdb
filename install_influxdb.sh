@@ -6,7 +6,7 @@
 #
 # PURPOSE:
 #   Automated setup script for InfluxDB 3 with intelligent installation method
-#   selection and environment-aware configuration management. This script is 
+#   selection and environment-aware configuration management. This script is
 #   designed to be run for quick installation and non-production evaluation.
 #
 # INSTALLATION METHODS:
@@ -72,7 +72,7 @@
 # CONFIGURATION OPTIONS:
 #   Command Line Arguments:
 #     [enterprise]        Install Enterprise edition (default: Core)
-#     --version VERSION   Specify InfluxDB version (default: 3.7.0)
+#     --version VERSION   Specify InfluxDB version (default: 3.8.0)
 #
 #   Interactive Prompts (Binary Installation):
 #     Installation Type:  Docker Compose or Binary
@@ -166,7 +166,7 @@ PORT=8181
 
 # Set the default (latest) version here. Users may specify a version using the
 # --version arg (handled below)
-INFLUXDB_VERSION="3.7.0"
+INFLUXDB_VERSION="3.8.0"
 EDITION="Core"
 EDITION_TAG="core"
 
@@ -1223,7 +1223,7 @@ case "$INSTALL_TYPE" in
             printf "Visit: ${BLUE}https://www.docker.com/${NC}\n\n"
             exit 1
         fi
-        
+
         # Set default installation directory
         DOCKER_DIR="$HOME/.influxdb/docker"
 
