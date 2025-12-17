@@ -1,4 +1,5 @@
 use crate::server::{ConfigProvider, TestServer};
+use serde_json::Value;
 use test_helpers::assert_contains;
 
 #[test_log::test(tokio::test)]
@@ -227,4 +228,70 @@ async fn test_clear_db_retention_period() {
         .expect("query should succeed");
 
     assert_eq!(&result, "[{}]"); // Empty object for none/cleared retention
+}
+
+#[test_log::test(tokio::test)]
+async fn test_update_db_retention_after_delete() {
+    // Testing that updating the retention period of a deleted database should fail.
+
+    let server = TestServer::configure().with_no_admin_token().spawn().await;
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+    let db_name = "retention_deleted_db";
+
+    // Create database
+    server
+        .run(vec!["create", "database", db_name], args)
+        .expect("create database should succeed");
+
+    // Delete database
+    let delete_output = server
+        .delete_database(db_name)
+        .run()
+        .expect("delete database should succeed");
+    assert_contains!(
+        &delete_output,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Get the deleted database name from show databases
+    let show_output = server
+        .show_databases()
+        .with_format("json")
+        .show_deleted(true)
+        .run()
+        .expect("show databases should succeed");
+    let databases: Vec<Value> =
+        serde_json::from_str(&show_output).expect("show databases output should be valid json");
+    let deleted_db_name = databases
+        .into_iter()
+        .find_map(|entry| {
+            let deleted = entry
+                .get("deleted")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let name = entry.get("iox::database").and_then(Value::as_str);
+            match (deleted, name) {
+                (true, Some(name)) if name.starts_with(db_name) => Some(name.to_string()),
+                _ => None,
+            }
+        })
+        .expect("deleted database name should be visible via show databases");
+
+    let err = server
+        .run(
+            vec![
+                "update",
+                "database",
+                "--database",
+                &deleted_db_name,
+                "--retention-period",
+                "3h",
+            ],
+            args,
+        )
+        .expect_err("updating retention on a deleted database should fail");
+    assert_eq!(
+        err.to_string(),
+        "Update command failed: server responded with error [409 Conflict]: attempted to modify resource that was already deleted\n"
+    );
 }

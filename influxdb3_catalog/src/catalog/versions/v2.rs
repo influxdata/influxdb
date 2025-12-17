@@ -4585,6 +4585,88 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
+    async fn retention_period_set_and_clear_after_soft_delete() {
+        // Setting or clearing retention periods on soft-deleted tables or databases should fail.
+
+        let catalog = Catalog::new_in_memory("test").await.unwrap();
+        let db_name = "table_db";
+        let deleted_table = "deleted_table";
+        let new_table = "new_table";
+
+        // Create database and table
+        catalog.create_database(db_name).await.unwrap();
+        let db_id = catalog.db_name_to_id(db_name).unwrap();
+        let deleted_table_id = {
+            catalog
+                .create_table(
+                    db_name,
+                    deleted_table,
+                    &["tag"],
+                    &[("field", FieldDataType::String)],
+                )
+                .await
+                .unwrap();
+            let db_schema = catalog.db_schema(db_name).unwrap();
+            db_schema.table_name_to_id(deleted_table).unwrap()
+        };
+
+        // Delete the table
+        catalog
+            .soft_delete_table(db_name, deleted_table, HardDeletionTime::Default)
+            .await
+            .unwrap();
+
+        // Get the deleted table name as the original table is renamed on delete
+        let deleted_table_name = catalog
+            .db_schema_by_id(&db_id)
+            .and_then(|db_schema| db_schema.table_definition_by_id(&deleted_table_id))
+            .map(|def| Arc::clone(&def.table_name))
+            .expect("soft-deleted table should be addressable by id");
+        assert_ne!(deleted_table_name.as_ref(), deleted_table);
+
+        // Create a new table, delete the database, and ensure
+        // database-level retention operations fail.
+        catalog
+            .create_table(
+                db_name,
+                new_table,
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        catalog
+            .soft_delete_database(db_name, HardDeletionTime::Never)
+            .await
+            .unwrap();
+
+        // Get the deleted database name as the original database is renamed on delete
+        let deleted_db_name = catalog
+            .db_id_to_name(&db_id)
+            .expect("soft-deleted database should be addressable by id");
+        assert_ne!(deleted_db_name.as_ref(), db_name);
+
+        // Database-level retention operations should fail on the deleted database.
+        {
+            let clear_db_result = catalog
+                .clear_retention_period_for_database(&deleted_db_name)
+                .await;
+            assert!(
+                matches!(clear_db_result, Err(CatalogError::AlreadyDeleted)),
+                "clearing retention on a deleted database should fail"
+            );
+            let set_db_result = catalog
+                .set_retention_period_for_database(&deleted_db_name, Duration::from_secs(600))
+                .await;
+            assert!(
+                matches!(set_db_result, Err(CatalogError::AlreadyDeleted)),
+                "setting retention on a deleted database should fail"
+            );
+        }
+    }
+
+    #[test_log::test(tokio::test)]
     async fn test_catalog_file_ordering() {
         let local_disk =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());

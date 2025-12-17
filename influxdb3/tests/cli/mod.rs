@@ -882,7 +882,7 @@ async fn test_delete_table_when_database_deleted() {
 
     assert_contains!(
         result.unwrap_err().to_string(),
-        "Delete command failed: server responded with error [409 Conflict]: attempted to delete resource that was already deleted"
+        "Delete command failed: server responded with error [409 Conflict]: attempted to modify resource that was already deleted"
     );
 }
 
