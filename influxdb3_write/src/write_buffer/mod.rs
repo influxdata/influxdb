@@ -53,7 +53,7 @@ use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use metrics::WriteMetrics;
 use object_store::{ObjectMeta, ObjectStore, path::Path as ObjPath};
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::{debug, trace, warn};
 use parquet_file::storage::DataSourceExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
@@ -244,6 +244,11 @@ impl WriteBufferImpl {
 
         // create the wal instance, which will replay into the queryable buffer and start
         // the background flush task.
+        trace!(
+            ?last_wal_sequence_number,
+            ?last_snapshot_sequence_number,
+            "WriteBufferImpl::new: creating WalObjectStore"
+        );
         let wal = WalObjectStore::new(CreateWalObjectStoreArgs {
             time_provider: Arc::clone(&time_provider),
             object_store: persister.object_store(),

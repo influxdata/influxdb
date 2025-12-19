@@ -23,6 +23,7 @@ use influxdb3_cache::parquet_cache::ParquetFileDataToCache;
 use iox_time::TimeProvider;
 use object_store::ObjectStore;
 use object_store::path::Path as ObjPath;
+use observability_deps::tracing::trace;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
@@ -137,6 +138,11 @@ impl Persister {
         &self,
         mut most_recent_n: usize,
     ) -> Result<Vec<PersistedSnapshotVersion>> {
+        trace!(
+            most_recent_n,
+            node_identifier_prefix = %self.node_identifier_prefix,
+            "load_snapshots: starting"
+        );
         let mut futures = FuturesOrdered::new();
         let mut offset: Option<ObjPath> = None;
 
@@ -182,11 +188,14 @@ impl Persister {
             async fn get_snapshot(
                 location: ObjPath,
                 object_store: Arc<dyn ObjectStore>,
-            ) -> Result<PersistedSnapshotVersion> {
+            ) -> Result<(usize, PersistedSnapshotVersion)> {
                 let bytes = object_store.get(&location).await?.bytes().await?;
-                serde_json::from_slice(&bytes).map_err(Into::into)
+                let size = bytes.len();
+                let snapshot = serde_json::from_slice(&bytes)?;
+                Ok((size, snapshot))
             }
 
+            trace!(count = end, "load_snapshots: queueing snapshot fetches");
             for item in &list[0..end] {
                 futures.push_back(get_snapshot(
                     item.location.clone(),
@@ -204,10 +213,21 @@ impl Persister {
             offset = Some(list[end - 1].location.clone());
         }
 
+        trace!(
+            pending_fetches = futures.len(),
+            "load_snapshots: fetching snapshot contents"
+        );
         let mut results = Vec::new();
+        let mut total_bytes = 0usize;
         while let Some(result) = futures.next().await {
-            results.push(result?);
+            let (size, snapshot) = result?;
+            total_bytes += size;
+            results.push(snapshot);
         }
+        trace!(
+            count = results.len(),
+            total_bytes, "load_snapshots: completed fetching and deserializing"
+        );
         Ok(results)
     }
 

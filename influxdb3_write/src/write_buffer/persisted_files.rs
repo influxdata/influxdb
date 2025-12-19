@@ -13,6 +13,7 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::TableId;
 use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_telemetry::ParquetMetrics;
+use observability_deps::tracing::{trace, warn};
 use parking_lot::RwLock;
 
 type DatabaseToTables = HashMap<DbId, TableToFiles>;
@@ -111,13 +112,20 @@ impl PersistedFiles {
         }
     }
 
-    /// Add all files from a persisted snapshot
+    /// Add all files from a persisted snapshot to the tracked files.
+    ///
+    /// Deduplicates against existing files.
+    ///
+    /// Called from `Replica::reload_snapshots` during replica recovery.
     pub fn add_persisted_snapshot_files(&self, persisted_snapshot: PersistedSnapshot) {
         let mut inner = self.inner.write();
         inner.add_persisted_snapshot(persisted_snapshot);
     }
 
-    /// Add single file to a table
+    /// Add a single parquet file to the tracked files for a specific table.
+    ///
+    /// Called from `QueryableBuffer` after persistence and from `Replica` during
+    /// background cache loading.
     pub fn add_persisted_file(&self, db_id: &DbId, table_id: &TableId, parquet_file: &ParquetFile) {
         let mut inner = self.inner.write();
         inner.add_persisted_file(db_id, table_id, parquet_file);
@@ -292,6 +300,10 @@ impl Inner {
     pub(crate) fn new_from_persisted_snapshots(
         persisted_snapshots: Vec<PersistedSnapshot>,
     ) -> Self {
+        trace!(
+            snapshot_count = persisted_snapshots.len(),
+            "new_from_persisted_snapshots: starting"
+        );
         let mut file_count = 0;
         let mut size_in_mb = 0.0;
         let mut row_count = 0;
@@ -310,6 +322,10 @@ impl Inner {
             },
         );
 
+        trace!(
+            file_count,
+            row_count, size_in_mb, "new_from_persisted_snapshots: completed"
+        );
         Self {
             files,
             parquet_files_count: file_count,
@@ -319,6 +335,9 @@ impl Inner {
         }
     }
 
+    /// Merges all files from a [`PersistedSnapshot`] into the persisted files hierarchy.
+    ///
+    /// Deduplicates incoming files. Called at runtime (not during initial load).
     pub(crate) fn add_persisted_snapshot(&mut self, persisted_snapshot: PersistedSnapshot) {
         self.parquet_files_row_count += persisted_snapshot.row_count;
         self.parquet_files_size_mb += as_mb(persisted_snapshot.parquet_size_bytes);
@@ -329,6 +348,9 @@ impl Inner {
         self.parquet_files_count += file_count;
     }
 
+    /// Adds a single parquet file to the specified database and table.
+    ///
+    /// Creates db/table entries if needed. Skips duplicates.
     pub(crate) fn add_persisted_file(
         &mut self,
         db_id: &DbId,
@@ -355,24 +377,35 @@ fn as_mb(bytes: u64) -> f64 {
     bytes as f64 / factor
 }
 
+/// Merges parquet files from a [`PersistedSnapshot`] into the db/table hierarchy.
+///
+/// Returns `(file_count_delta, removed_size_bytes, removed_row_count)`.
+///
+/// When `initial_load=true` (startup): appends without deduplication.
+/// When `initial_load=false` (runtime): filters duplicates before appending.
+///
+/// Also processes `snapshot.removed_files`, removing matching files by ID.
 fn update_persisted_files_with_snapshot(
     initial_load: bool,
     persisted_snapshot: PersistedSnapshot,
     db_to_tables: &mut HashMap<DbId, HashMap<TableId, Vec<ParquetFile>>>,
 ) -> (u64, u64, u64) {
-    let (mut file_count, mut removed_size, mut removed_row_count) = (0, 0, 0);
+    let (mut file_count, mut removed_size, mut removed_row_count): (u64, u64, u64) = (0, 0, 0);
     persisted_snapshot
         .databases
         .into_iter()
         .for_each(|(db_id, tables)| {
-            let db_tables: &mut HashMap<TableId, Vec<ParquetFile>> =
-                db_to_tables.entry(db_id).or_default();
+            let db_tables: &mut HashMap<TableId, Vec<ParquetFile>> = db_to_tables
+                .entry(db_id)
+                .or_insert_with(|| HashMap::with_capacity(tables.tables.len()));
 
             tables
                 .tables
                 .into_iter()
                 .for_each(|(table_id, mut new_parquet_files)| {
-                    let table_files = db_tables.entry(table_id).or_default();
+                    let table_files = db_tables
+                        .entry(table_id)
+                        .or_insert_with(|| Vec::with_capacity(new_parquet_files.len()));
                     if initial_load {
                         file_count += new_parquet_files.len() as u64;
                         table_files.append(&mut new_parquet_files);
@@ -392,20 +425,36 @@ fn update_persisted_files_with_snapshot(
         .removed_files
         .into_iter()
         .for_each(|(db_id, tables)| {
-            let db_tables: &mut HashMap<TableId, Vec<ParquetFile>> =
-                db_to_tables.entry(db_id).or_default();
+            let Some(db_tables) = db_to_tables.get_mut(&db_id) else {
+                // this can happen if the table(s) to remove from PersistedFiles is further back in
+                // history than the default number of snapshots loaded during server initialization
+                warn!(
+                    db_id = ?db_id,
+                    "expected to remove tables for db in persisted files"
+                );
+                return;
+            };
 
             tables
                 .tables
                 .into_iter()
                 .for_each(|(table_id, remove_parquet_files)| {
-                    let table_files = db_tables.entry(table_id).or_default();
+                    let Some(table_files) = db_tables.get_mut(&table_id) else {
+                        // this can happen if the table(s) to remove from PersistedFiles is further back in
+                        // history than the default number of snapshots loaded during server initialization
+                        warn!(
+                            db_id = ?db_id,
+                            table_id = ?table_id,
+                            "expected to remove table from db in persisted files"
+                        );
+                        return;
+                    };
                     for file in remove_parquet_files {
                         if let Some(idx) = table_files.iter().position(|f| f.id == file.id) {
-                            let file = table_files.remove(idx);
-                            file_count -= 1;
-                            removed_size -= file.size_bytes;
-                            removed_row_count -= file.row_count;
+                            let file = table_files.swap_remove(idx);
+                            file_count = file_count.saturating_sub(1);
+                            removed_size += file.size_bytes;
+                            removed_row_count += file.row_count;
                         }
                     }
                 });
