@@ -79,3 +79,8 @@ query_functions.workspace = true
 test_helpers.workspace = true
 test-log.workspace = true
 rstest.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "persisted_files_bench"
+harness = false

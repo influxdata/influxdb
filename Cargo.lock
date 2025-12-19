@@ -4119,6 +4119,7 @@ dependencies = [
  "bytes",
  "chrono",
  "crc32fast",
+ "criterion",
  "crossbeam-channel",
  "dashmap",
  "data_types",

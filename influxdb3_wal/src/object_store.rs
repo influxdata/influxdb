@@ -12,7 +12,7 @@ use influxdb3_shutdown::{CancellationToken, ShutdownToken};
 use iox_time::TimeProvider;
 use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutMode, PutOptions, PutPayload};
-use observability_deps::tracing::{debug, error, info, warn};
+use observability_deps::tracing::{debug, error, info, trace, warn};
 use std::time::{Duration, Instant};
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
@@ -572,6 +572,10 @@ async fn load_all_wal_file_paths(
     object_store: Arc<dyn ObjectStore>,
     node_identifier_prefix: String,
 ) -> Result<Vec<Path>, crate::Error> {
+    trace!(
+        %node_identifier_prefix,
+        "load_all_wal_file_paths: starting"
+    );
     let mut paths = Vec::new();
     let mut offset: Option<Path> = None;
     let path = Path::from(format!("{node_identifier_prefix}/wal"));
@@ -595,6 +599,7 @@ async fn load_all_wal_file_paths(
         paths.sort();
         offset = Some(paths.last().unwrap().clone())
     }
+    trace!(count = paths.len(), "load_all_wal_file_paths: completed");
     Ok(paths)
 }
 

@@ -734,6 +734,7 @@ mod test_persisted_snapshot_conversion {
             max_time,
             row_count: 0,
             parquet_size_bytes: 0,
+            persisted_at: None,
         }
     }
 

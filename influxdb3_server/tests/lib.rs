@@ -241,6 +241,7 @@ impl TestService {
             Arc::clone(&object_store) as _,
             node_id,
             Arc::clone(&time_provider) as _,
+            None,
         ));
         let write_buffer: Arc<dyn WriteBuffer> = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -264,6 +265,7 @@ impl TestService {
             shutdown: ShutdownManager::new_testing().register(),
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             wal_replay_concurrency_limit: 1,
+            snapshot_markers: vec![],
         })
         .await
         .unwrap();
