@@ -589,10 +589,11 @@ type IteratorOptions struct {
 	Sources []influxql.Source
 
 	// Group by interval and tags.
-	Interval   Interval
-	Dimensions []string            // The final dimensions of the query (stays the same even in subqueries).
-	GroupBy    map[string]struct{} // Dimensions to group points by in intermediate iterators.
-	Location   *time.Location
+	Interval           Interval
+	Dimensions         []string // The final dimensions of the query (stays the same even in subqueries).
+	DatePartDimensions []DatePartDimension
+	GroupBy            map[string]struct{} // Dimensions to group points by in intermediate iterators.
+	Location           *time.Location
 
 	// Fill options.
 	Fill      influxql.FillOption
@@ -681,6 +682,19 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 		if d, ok := d.Expr.(*influxql.VarRef); ok {
 			opt.Dimensions = append(opt.Dimensions, d.Val)
 			opt.GroupBy[d.Val] = struct{}{}
+		}
+
+		if d, ok := d.Expr.(*influxql.Call); ok && d.Name == DatePartString {
+			// This should already be validated during compileDatePartDimensions
+			arg, _ := d.Args[0].(*influxql.StringLiteral)
+			expr, ok := ParseDatePartExpr(arg.Val)
+			if !ok {
+				return opt, fmt.Errorf("invalid date part expression: %s", d.Args[0].String())
+			}
+			opt.DatePartDimensions = append(opt.DatePartDimensions, DatePartDimension{
+				Name: arg.Val,
+				Expr: expr,
+			})
 		}
 	}
 

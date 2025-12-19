@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/metrics"
@@ -277,6 +278,17 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 		// Read from each auxiliary cursor.
 		for i := range itr.opt.Aux {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
+		}
+
+		// Compute and append date part dimension values.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			for _, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux = append(itr.point.Aux, val)
+			}
 		}
 
 		// Read from condition field cursors.
@@ -771,6 +783,17 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
+		// Compute and append date part dimension values.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			for _, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux = append(itr.point.Aux, val)
+			}
+		}
+
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
@@ -1261,6 +1284,17 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 		// Read from each auxiliary cursor.
 		for i := range itr.opt.Aux {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
+		}
+
+		// Compute and append date part dimension values.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			for _, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux = append(itr.point.Aux, val)
+			}
 		}
 
 		// Read from condition field cursors.
@@ -1755,6 +1789,17 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
+		// Compute and append date part dimension values.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			for _, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux = append(itr.point.Aux, val)
+			}
+		}
+
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
@@ -2245,6 +2290,17 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 		// Read from each auxiliary cursor.
 		for i := range itr.opt.Aux {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
+		}
+
+		// Compute and append date part dimension values.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			for _, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux = append(itr.point.Aux, val)
+			}
 		}
 
 		// Read from condition field cursors.

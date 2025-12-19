@@ -1,6 +1,7 @@
 package query
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -66,6 +67,10 @@ type Row struct {
 
 	// Values contains the values within the current row.
 	Values []interface{}
+
+	// GroupingKeys contains values for group by clauses
+	// that are not tags or timestamps
+	GroupingKeys map[string]int64
 }
 
 type Cursor interface {
@@ -217,6 +222,17 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 			// so this can be serialized correctly, but not mistaken for
 			// a null value that needs to be filled.
 			v = NullFloat
+		}
+		if cur.m != nil {
+			if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
+				row.GroupingKeys = make(map[string]int64)
+				dpd, ok := val.(DecodedDatePartKey)
+				if !ok {
+					return false
+				}
+				fmt.Println("Key=", dpd.Expr.String())
+				row.GroupingKeys[dpd.Expr.String()] = dpd.Val
+			}
 		}
 		row.Values[i] = v
 	}

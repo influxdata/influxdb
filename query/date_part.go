@@ -2,6 +2,7 @@ package query
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,6 +23,8 @@ const (
 
 	// DatePartArgCount is the amount of arguments required for date_part function
 	DatePartArgCount = 2
+
+	DatePartDimensionsString = "date_part_dimensions"
 )
 
 type DatePartExpr int
@@ -44,6 +47,44 @@ const (
 	ISODOW
 	Invalid
 )
+
+func (d DatePartExpr) String() string {
+	switch d {
+	case Year:
+		return "year"
+	case Quarter:
+		return "quarter"
+	case Month:
+		return "month"
+	case Week:
+		return "week"
+	case Day:
+		return "day"
+	case Hour:
+		return "hour"
+	case Minute:
+		return "minute"
+	case Second:
+		return "second"
+	case Millisecond:
+		return "millisecond"
+	case Microsecond:
+		return "microsecond"
+	case Nanosecond:
+		return "nanosecond"
+	case DOW:
+		return "dow"
+	case DOY:
+		return "doy"
+	case Epoch:
+		return "epoch"
+	case ISODOW:
+		return "isodow"
+	case Invalid:
+		return "invalid"
+	}
+	return ""
+}
 
 var AvailableDatePartExprs = []string{
 	"year", "quarter", "month", "week", "day",
@@ -202,4 +243,74 @@ func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) 
 
 	timestamp := time.Unix(0, timestampRaw).UTC()
 	return ExtractDatePartExpr(timestamp, expr)
+}
+
+type DatePartDimension struct {
+	Name string
+	Expr DatePartExpr
+}
+
+func ComputeDatePartDimensions(dims []DatePartDimension, timePoint int64) (string, error) {
+	var dp int64
+	buf := make([]byte, len(dims)*8)
+	for i, dim := range dims {
+		output, ok := ExtractDatePartExpr(time.Unix(0, timePoint).UTC(), dim.Expr)
+		if !ok {
+			return "", errors.New("date_part: dimension " + dim.Name + " does not exist")
+		}
+		binary.BigEndian.PutUint64(buf[i*8:], uint64(output))
+		dp += int64(binary.BigEndian.Uint64(buf[i*8:]))
+	}
+
+	return string(buf), nil
+}
+
+type DecodedDatePartKey struct {
+	Expr DatePartExpr
+	Val  int64
+}
+
+func DecodeDatePartDimension(dims []DatePartDimension, datePartKey string) ([]DecodedDatePartKey, error) {
+	output := make([]DecodedDatePartKey, len(dims))
+
+	for i, dim := range dims {
+		output[i].Expr = dim.Expr
+		if len([]byte(datePartKey)) < (i+1)*8 {
+			return nil, errors.New("DecodeDatePartDimension(): datePartKey length not within required range")
+		}
+		output[i].Val = int64(binary.BigEndian.Uint64([]byte(datePartKey[i*8 : (i+1)*8])))
+	}
+
+	return output, nil
+}
+
+// ComputeDatePartKeyFromValues creates a date_part key from pre-computed values in the Aux field.
+// This is used when timestamps have been normalized and we need to extract the grouping key from Aux.
+func ComputeDatePartKeyFromValues(dims []DatePartDimension, auxValues []interface{}) (string, error) {
+	if len(auxValues) < len(dims) {
+		return "", errors.New("ComputeDatePartKeyFromValues: not enough aux values for date_part dimensions")
+	}
+
+	buf := make([]byte, len(dims)*8)
+	for i := range dims {
+		// The aux values are stored as int64 values
+		var val int64
+		switch v := auxValues[i].(type) {
+		case int64:
+			val = v
+		case float64:
+			val = int64(v)
+		case *int64:
+			if v != nil {
+				val = *v
+			}
+		case DecodedDatePartKey:
+			val = v.Val
+		default:
+			return "", fmt.Errorf("ComputeDatePartKeyFromValues: unexpected aux value type: %T", v)
+		}
+		binary.BigEndian.PutUint64(buf[i*8:], uint64(val))
+	}
+
+	return string(buf), nil
 }

@@ -935,52 +935,19 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 				return errors.New("time() is a function and expects at least one argument")
 			}
 		case *influxql.Call:
-			// Ensure the call is time() and it has one or two duration arguments.
-			// If we already have a duration
-			if expr.Name != models.TimeString {
-				return errors.New("only time() calls allowed in dimensions")
-			} else if got := len(expr.Args); got < 1 || got > 2 {
-				return errors.New("time dimension expected 1 or 2 arguments")
-			} else if lit, ok := expr.Args[0].(*influxql.DurationLiteral); !ok {
-				return errors.New("time dimension must have duration argument")
-			} else if c.Interval.Duration != 0 {
-				return errors.New("multiple time dimensions not allowed")
-			} else {
-				c.Interval.Duration = lit.Val
-				if len(expr.Args) == 2 {
-					switch lit := expr.Args[1].(type) {
-					case *influxql.DurationLiteral:
-						c.Interval.Offset = lit.Val % c.Interval.Duration
-					case *influxql.TimeLiteral:
-						c.Interval.Offset = lit.Val.Sub(lit.Val.Truncate(c.Interval.Duration))
-					case *influxql.Call:
-						if lit.Name != "now" {
-							return errors.New("time dimension offset function must be now()")
-						} else if len(lit.Args) != 0 {
-							return errors.New("time dimension offset now() function requires no arguments")
-						}
-						now := c.Options.Now
-						c.Interval.Offset = now.Sub(now.Truncate(c.Interval.Duration))
-
-						// Use the evaluated offset to replace the argument. Ideally, we would
-						// use the interval assigned above, but the query engine hasn't been changed
-						// to use the compiler information yet.
-						expr.Args[1] = &influxql.DurationLiteral{Val: c.Interval.Offset}
-					case *influxql.StringLiteral:
-						// If literal looks like a date time then parse it as a time literal.
-						if lit.IsTimeLiteral() {
-							t, err := lit.ToTimeLiteral(stmt.Location)
-							if err != nil {
-								return err
-							}
-							c.Interval.Offset = t.Val.Sub(t.Val.Truncate(c.Interval.Duration))
-						} else {
-							return errors.New("time dimension offset must be duration or now()")
-						}
-					default:
-						return errors.New("time dimension offset must be duration or now()")
-					}
+			switch expr.Name {
+			case models.TimeString:
+				err := c.compileTimeDimension(expr, stmt)
+				if err != nil {
+					return err
 				}
+			case DatePartString:
+				err := c.compileDatePartDimension(expr)
+				if err != nil {
+					return err
+				}
+			default:
+				return errors.New("only time() and date_part() calls allowed in dimensions")
 			}
 		case *influxql.Wildcard:
 		case *influxql.RegexLiteral:
@@ -990,6 +957,64 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 
 		// Assign the reduced/changed expression to the dimension.
 		d.Expr = expr
+	}
+	return nil
+}
+
+func (c *compiledStatement) compileTimeDimension(expr *influxql.Call, stmt *influxql.SelectStatement) error {
+	// Ensure the call is time() and it has one or two duration arguments.
+	// If we already have a duration
+	if expr.Name != models.TimeString {
+		return errors.New("only time() and date_part() calls allowed in dimensions")
+	} else if got := len(expr.Args); got < 1 || got > 2 {
+		return errors.New("time dimension expected 1 or 2 arguments")
+	} else if lit, ok := expr.Args[0].(*influxql.DurationLiteral); !ok {
+		return errors.New("time dimension must have duration argument")
+	} else if c.Interval.Duration != 0 {
+		return errors.New("multiple time dimensions not allowed")
+	} else {
+		c.Interval.Duration = lit.Val
+		if len(expr.Args) == 2 {
+			switch lit := expr.Args[1].(type) {
+			case *influxql.DurationLiteral:
+				c.Interval.Offset = lit.Val % c.Interval.Duration
+			case *influxql.TimeLiteral:
+				c.Interval.Offset = lit.Val.Sub(lit.Val.Truncate(c.Interval.Duration))
+			case *influxql.Call:
+				if lit.Name != "now" {
+					return errors.New("time dimension offset function must be now()")
+				} else if len(lit.Args) != 0 {
+					return errors.New("time dimension offset now() function requires no arguments")
+				}
+				now := c.Options.Now
+				c.Interval.Offset = now.Sub(now.Truncate(c.Interval.Duration))
+
+				// Use the evaluated offset to replace the argument. Ideally, we would
+				// use the interval assigned above, but the query engine hasn't been changed
+				// to use the compiler information yet.
+				expr.Args[1] = &influxql.DurationLiteral{Val: c.Interval.Offset}
+			case *influxql.StringLiteral:
+				// If literal looks like a date time then parse it as a time literal.
+				if lit.IsTimeLiteral() {
+					t, err := lit.ToTimeLiteral(stmt.Location)
+					if err != nil {
+						return err
+					}
+					c.Interval.Offset = t.Val.Sub(t.Val.Truncate(c.Interval.Duration))
+				} else {
+					return errors.New("time dimension offset must be duration or now()")
+				}
+			default:
+				return errors.New("time dimension offset must be duration or now()")
+			}
+		}
+	}
+	return nil
+}
+
+func (c *compiledStatement) compileDatePartDimension(expr *influxql.Call) error {
+	if err := ValidateDatePart(expr.Args); err != nil {
+		return err
 	}
 	return nil
 }

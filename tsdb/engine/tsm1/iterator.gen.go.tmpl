@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/models"
@@ -275,6 +276,17 @@ func (itr *{{.name}}Iterator) Next() (*query.{{.Name}}Point, error) {
 		// Read from each auxiliary cursor.
 		for i := range itr.opt.Aux {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
+		}
+
+		// Compute and append date part dimension values.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			for _, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux = append(itr.point.Aux, val)
+			}
 		}
 
 		// Read from condition field cursors.

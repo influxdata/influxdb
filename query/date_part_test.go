@@ -1,6 +1,7 @@
 package query_test
 
 import (
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -342,4 +343,257 @@ func TestDatePartValuer_Value(t *testing.T) {
 	val, ok = valuer.Value(query.DatePartTimeString)
 	require.True(t, ok)
 	require.Equal(t, now, val)
+}
+
+func TestComputeDatePartDimensions(t *testing.T) {
+	makeKey := func(values ...int64) string {
+		buf := make([]byte, len(values)*8)
+		for i, v := range values {
+			binary.BigEndian.PutUint64(buf[i*8:], uint64(v))
+		}
+		return string(buf)
+	}
+
+	tests := []struct {
+		name        string
+		dimensions  []query.DatePartDimension
+		timestamp   int64
+		expectedKey string
+		expectError bool
+	}{
+		{
+			name: "single dimension - year",
+			dimensions: []query.DatePartDimension{
+				{Name: "year", Expr: query.Year},
+			},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(2024),
+			expectError: false,
+		},
+		{
+			name: "single dimension - month",
+			dimensions: []query.DatePartDimension{
+				{Name: "month", Expr: query.Month},
+			},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(3),
+			expectError: false,
+		},
+		{
+			name: "single dimension - day",
+			dimensions: []query.DatePartDimension{
+				{Name: "day", Expr: query.Day},
+			},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(15),
+			expectError: false,
+		},
+		{
+			name: "single dimension - dow (Friday)",
+			dimensions: []query.DatePartDimension{
+				{Name: "dow", Expr: query.DOW},
+			},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(), // Friday
+			expectedKey: makeKey(5),
+			expectError: false,
+		},
+		{
+			name: "single dimension - hour",
+			dimensions: []query.DatePartDimension{
+				{Name: "hour", Expr: query.Hour},
+			},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(14),
+			expectError: false,
+		},
+		{
+			name: "multiple dimensions - year and month",
+			dimensions: []query.DatePartDimension{
+				{Name: "year", Expr: query.Year},
+				{Name: "month", Expr: query.Month},
+			},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(2024, 3),
+			expectError: false,
+		},
+		{
+			name: "multiple dimensions - year, month, day",
+			dimensions: []query.DatePartDimension{
+				{Name: "year", Expr: query.Year},
+				{Name: "month", Expr: query.Month},
+				{Name: "day", Expr: query.Day},
+			},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(2024, 3, 15),
+			expectError: false,
+		},
+		{
+			name: "multiple dimensions - year, month, dow",
+			dimensions: []query.DatePartDimension{
+				{Name: "year", Expr: query.Year},
+				{Name: "month", Expr: query.Month},
+				{Name: "dow", Expr: query.DOW},
+			},
+			timestamp:   time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano(), // Sunday
+			expectedKey: makeKey(2023, 1, 0),
+			expectError: false,
+		},
+		{
+			name: "multiple dimensions - dow and hour",
+			dimensions: []query.DatePartDimension{
+				{Name: "dow", Expr: query.DOW},
+				{Name: "hour", Expr: query.Hour},
+			},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(), // Friday 14:30
+			expectedKey: makeKey(5, 14),
+			expectError: false,
+		},
+		{
+			name: "quarter dimension",
+			dimensions: []query.DatePartDimension{
+				{Name: "quarter", Expr: query.Quarter},
+			},
+			timestamp:   time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC).UnixNano(), // Q3
+			expectedKey: makeKey(3),
+			expectError: false,
+		},
+		{
+			name: "epoch dimension",
+			dimensions: []query.DatePartDimension{
+				{Name: "epoch", Expr: query.Epoch},
+			},
+			timestamp:   time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano(), // 1704067200
+			expectedKey: makeKey(1704067200),
+			expectError: false,
+		},
+		{
+			name: "isodow dimension - Monday",
+			dimensions: []query.DatePartDimension{
+				{Name: "isodow", Expr: query.ISODOW},
+			},
+			timestamp:   time.Date(2024, 3, 18, 0, 0, 0, 0, time.UTC).UnixNano(), // Monday
+			expectedKey: makeKey(0),
+			expectError: false,
+		},
+		{
+			name: "isodow dimension - Sunday",
+			dimensions: []query.DatePartDimension{
+				{Name: "isodow", Expr: query.ISODOW},
+			},
+			timestamp:   time.Date(2024, 3, 17, 0, 0, 0, 0, time.UTC).UnixNano(), // Sunday
+			expectedKey: makeKey(6),
+			expectError: false,
+		},
+		{
+			name:        "empty dimensions",
+			dimensions:  []query.DatePartDimension{},
+			timestamp:   time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano(),
+			expectedKey: "",
+			expectError: false,
+		},
+		{
+			name: "year boundary - Dec 31",
+			dimensions: []query.DatePartDimension{
+				{Name: "year", Expr: query.Year},
+				{Name: "month", Expr: query.Month},
+				{Name: "day", Expr: query.Day},
+			},
+			timestamp:   time.Date(2023, 12, 31, 23, 59, 59, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(2023, 12, 31),
+			expectError: false,
+		},
+		{
+			name: "year boundary - Jan 1",
+			dimensions: []query.DatePartDimension{
+				{Name: "year", Expr: query.Year},
+				{Name: "month", Expr: query.Month},
+				{Name: "day", Expr: query.Day},
+			},
+			timestamp:   time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(2024, 1, 1),
+			expectError: false,
+		},
+		{
+			name: "leap year - Feb 29",
+			dimensions: []query.DatePartDimension{
+				{Name: "year", Expr: query.Year},
+				{Name: "month", Expr: query.Month},
+				{Name: "day", Expr: query.Day},
+			},
+			timestamp:   time.Date(2024, 2, 29, 12, 0, 0, 0, time.UTC).UnixNano(),
+			expectedKey: makeKey(2024, 2, 29),
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := query.ComputeDatePartDimensions(tt.dimensions, tt.timestamp)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedKey, result, "computed key should match expected key")
+				expectedLen := len(tt.dimensions) * 8
+				require.Equal(t, expectedLen, len(result), "key length should be 8 bytes per dimension")
+			}
+		})
+	}
+}
+
+func TestComputeDatePartDimensions_KeyConsistency(t *testing.T) {
+	// Test that computing the same dimensions for the same timestamp produces identical keys
+	dims := []query.DatePartDimension{
+		{Name: "year", Expr: query.Year},
+		{Name: "month", Expr: query.Month},
+		{Name: "dow", Expr: query.DOW},
+	}
+
+	timestamp := time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano()
+
+	key1, err1 := query.ComputeDatePartDimensions(dims, timestamp)
+	require.NoError(t, err1)
+
+	key2, err2 := query.ComputeDatePartDimensions(dims, timestamp)
+	require.NoError(t, err2)
+
+	require.Equal(t, key1, key2, "keys should be identical for same inputs")
+}
+
+func TestComputeDatePartDimensions_KeyUniqueness(t *testing.T) {
+	// Test that different timestamps produce different keys
+	dims := []query.DatePartDimension{
+		{Name: "year", Expr: query.Year},
+		{Name: "month", Expr: query.Month},
+	}
+
+	ts1 := time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC).UnixNano()
+	ts2 := time.Date(2024, 4, 15, 14, 30, 0, 0, time.UTC).UnixNano() // Different month
+
+	key1, err1 := query.ComputeDatePartDimensions(dims, ts1)
+	require.NoError(t, err1)
+
+	key2, err2 := query.ComputeDatePartDimensions(dims, ts2)
+	require.NoError(t, err2)
+
+	require.NotEqual(t, key1, key2, "keys should be different for different months")
+}
+
+func TestComputeDatePartDimensions_KeyOrdering(t *testing.T) {
+	// Test that keys can be compared for ordering
+	dims := []query.DatePartDimension{
+		{Name: "year", Expr: query.Year},
+		{Name: "month", Expr: query.Month},
+	}
+
+	// Create keys for Jan 2024, Feb 2024, Mar 2024
+	keyJan, _ := query.ComputeDatePartDimensions(dims, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano())
+	keyFeb, _ := query.ComputeDatePartDimensions(dims, time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC).UnixNano())
+	keyMar, _ := query.ComputeDatePartDimensions(dims, time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC).UnixNano())
+
+	// Keys should be comparable and maintain order
+	require.True(t, keyJan < keyFeb, "Jan key should be less than Feb key")
+	require.True(t, keyFeb < keyMar, "Feb key should be less than Mar key")
+	require.True(t, keyJan < keyMar, "Jan key should be less than Mar key")
 }

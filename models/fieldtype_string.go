@@ -21,9 +21,8 @@ const _FieldType_name = "IntegerFloatBooleanStringEmptyUnsigned"
 var _FieldType_index = [...]uint8{0, 7, 12, 19, 25, 30, 38}
 
 func (i FieldType) String() string {
-	idx := int(i) - 0
-	if i < 0 || idx >= len(_FieldType_index)-1 {
+	if i < 0 || i >= FieldType(len(_FieldType_index)-1) {
 		return "FieldType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _FieldType_name[_FieldType_index[idx]:_FieldType_index[idx+1]]
+	return _FieldType_name[_FieldType_index[i]:_FieldType_index[i+1]]
 }
