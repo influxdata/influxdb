@@ -60,7 +60,7 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 		if b.logger != nil {
 			for _, rpManifest := range rpManifests {
 				for _, sg := range rpManifest.ShardGroups {
-					if len(sg.Shards) <= 0 && sg.DeletedAt != nil {
+					if len(sg.Shards) <= 0 && sg.DeletedAt == nil {
 						b.logger.Warn("Backup: ShardGroup has not been deleted and has no shards",
 							zap.Uint64("shard-group-id", sg.ID), zap.Time("start-time", sg.StartTime),
 							zap.Time("end-time", sg.EndTime))
