@@ -8,11 +8,13 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	"go.uber.org/zap"
 )
 
 type BucketManifestWriter struct {
-	ts *tenant.Service
-	mc *meta.Client
+	ts     *tenant.Service
+	mc     *meta.Client
+	logger *zap.Logger
 }
 
 func NewBucketManifestWriter(ts *tenant.Service, mc *meta.Client) BucketManifestWriter {
@@ -20,6 +22,10 @@ func NewBucketManifestWriter(ts *tenant.Service, mc *meta.Client) BucketManifest
 		ts: ts,
 		mc: mc,
 	}
+}
+
+func (b *BucketManifestWriter) WithLogger(logger *zap.Logger) {
+	b.logger = logger
 }
 
 // WriteManifest writes a bucket manifest describing all of the buckets that exist in the database.
@@ -40,10 +46,27 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 		}
 
 		dbInfo := b.mc.Database(bkt.ID.String())
+		if dbInfo == nil {
+			b.logger.Error("Backup: could not find database", zap.String("id", bkt.ID.String()))
+			continue
+		}
 
 		var description *string
 		if bkt.Description != "" {
 			description = &bkt.Description
+		}
+		rpManifests := retentionPolicyToManifest(dbInfo.RetentionPolicies)
+
+		if b.logger != nil {
+			for _, rpManifest := range rpManifests {
+				for _, sg := range rpManifest.ShardGroups {
+					if len(sg.Shards) <= 0 && sg.DeletedAt != nil {
+						b.logger.Warn("Backup: ShardGroup has not been deleted and has no shards",
+							zap.Uint64("shard-group-id", sg.ID), zap.Time("start-time", sg.StartTime),
+							zap.Time("end-time", sg.EndTime))
+					}
+				}
+			}
 		}
 
 		l = append(l, influxdb.BucketMetadataManifest{
@@ -53,7 +76,7 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 			BucketName:             bkt.Name,
 			Description:            description,
 			DefaultRetentionPolicy: dbInfo.DefaultRetentionPolicy,
-			RetentionPolicies:      retentionPolicyToManifest(dbInfo.RetentionPolicies),
+			RetentionPolicies:      rpManifests,
 		})
 	}
 

@@ -226,6 +226,16 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 		return
 	}
 
+	for _, rps := range b.RetentionPolicies {
+		for _, sg := range rps.ShardGroups {
+			if len(sg.Shards) <= 0 && sg.DeletedAt != nil {
+				h.Logger.Warn("Restore: ShardGroup has not been deleted and has no shards",
+					zap.Uint64("shard-group-id", sg.ID), zap.Time("start-time", sg.StartTime),
+					zap.Time("end-time", sg.EndTime))
+			}
+		}
+	}
+
 	// Create the bucket - This will fail if the bucket already exists.
 	// TODO: Could we support restoring to an existing bucket?
 	var description string
