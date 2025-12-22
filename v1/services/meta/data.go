@@ -291,7 +291,7 @@ func (data *Data) DropShard(id uint64) {
 					shards := sg.Shards
 					data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].Shards = append(shards[:found], shards[found+1:]...)
 
-					if len(shards) == 1 {
+					if len(shards) <= 1 {
 						// We just deleted the last shard in the shard group, but make sure we don't overwrite the timestamp if it
 						// was already deleted.
 						if !data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].Deleted() {
