@@ -51,7 +51,7 @@ func MoveFileWithReplacement(src, dst string) error {
 
 // VerifyFilePermissivenessF checks if permissions on f are as restrictive
 // or more restrictive than maxPerms. if not, then an error is returned.
-// For security reasons, there is no VerifyFilePermissiveness functino
+// For security reasons, there is no VerifyFilePermissiveness function
 // that allows passing a path. This is to prevent TOCTOU (Time-of-Check-Time-of-Use)
 // issues because of race conditions on checking file permissions versus
 // opening the file.

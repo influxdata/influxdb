@@ -311,7 +311,7 @@ func (cl *TLSCertLoader) Load(certPath, keyPath string) (rErr error) {
 	if err == nil {
 		if err := cl.setCertificate(loadedCert); err != nil {
 			// There shouldn't be a way to get here.
-			log.Error("error setting certificate after load")
+			log.Error("error setting certificate after load", zap.Error(err))
 			return err
 		}
 		cl.logX509CertIssues(log, loadedCert.Leaf)
@@ -331,10 +331,10 @@ func (cl *TLSCertLoader) Load(certPath, keyPath string) (rErr error) {
 	return err
 }
 
-// VerifyLoad verifies that the certificate at certPath and keyPath will load without error.
+// PrepareLoad verifies that the certificate at certPath and keyPath will load without error.
 // If the certificate can be loaded, a function that will apply the certificate reload is
 // returned. Otherwise, an error is returned.
-func (cl *TLSCertLoader) VerifyLoad(certPath, keyPath string) (func() error, error) {
+func (cl *TLSCertLoader) PrepareLoad(certPath, keyPath string) (func() error, error) {
 	loadedCert, err := LoadCertificate(certPath, keyPath)
 	if err != nil {
 		return nil, err

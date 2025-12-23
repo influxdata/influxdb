@@ -137,8 +137,8 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 		// Create and load bad cert / key (empty files)
 		tmpdir := t.TempDir()
 		emptyFile, err := os.CreateTemp(tmpdir, "badcert-*.pem")
-		emptyPath := emptyFile.Name()
 		require.NoError(t, err)
+		emptyPath := emptyFile.Name()
 		require.NoError(t, emptyFile.Close())
 
 		loadErr := cl.Load(emptyPath, emptyPath)
@@ -262,7 +262,12 @@ func TestTLSLoader_KeyPermissionsTooOpen(t *testing.T) {
 }
 
 const (
-	testCheckTime    = 333 * time.Millisecond
+	// testCheckTme is the TLS certificate check time in logging tests.
+	testCheckTime = 333 * time.Millisecond
+
+	// testCheckCapture time is how long to capture logs during logging tests. To prevent flaky tests,
+	// it should be more than testCheckTime, but less than 2 * testCheckTime. Furthermore, it should be at least
+	// 100 ms more than testCheckCapture time and more than 100 ms less than 2 * testCheckTime.
 	testCheckCapture = 500 * time.Millisecond
 )
 
@@ -437,7 +442,7 @@ func TestTLSCertLoader_VerifyLoad(t *testing.T) {
 
 	// Test VerifyLoad with a cert pair that will not load properly.
 	{
-		apply, err := cl.VerifyLoad(ss2.CACertPath, ss2.KeyPath) // mismatched cert and key
+		apply, err := cl.PrepareLoad(ss2.CACertPath, ss2.KeyPath) // mismatched cert and key
 		require.ErrorContains(t, err, "private key does not match public key")
 		require.Nil(t, apply)
 
@@ -458,7 +463,7 @@ func TestTLSCertLoader_VerifyLoad(t *testing.T) {
 		require.NotEmpty(t, sn2)
 		require.NotEqual(t, sn1, sn2)
 
-		apply, err := cl.VerifyLoad(ss2.CertPath, ss2.KeyPath)
+		apply, err := cl.PrepareLoad(ss2.CertPath, ss2.KeyPath)
 		require.NoError(t, err)
 		require.NotNil(t, apply)
 

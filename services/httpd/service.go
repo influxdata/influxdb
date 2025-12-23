@@ -12,6 +12,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -24,11 +25,11 @@ import (
 const (
 	statRequest                          = "req"                    // Number of HTTP requests served.
 	statQueryRequest                     = "queryReq"               // Number of query requests served.
-	statWriteRequest                     = "writeReq"               // Number of write requests serverd.
+	statWriteRequest                     = "writeReq"               // Number of write requests served.
 	statPingRequest                      = "pingReq"                // Number of ping requests served.
 	statStatusRequest                    = "statusReq"              // Number of status requests served.
 	statWriteRequestBytesReceived        = "writeReqBytes"          // Sum of all bytes in write requests.
-	statQueryRequestBytesTransmitted     = "queryRespBytes"         // Sum of all bytes returned in query reponses.
+	statQueryRequestBytesTransmitted     = "queryRespBytes"         // Sum of all bytes returned in query responses.
 	statPointsWrittenOK                  = "pointsWrittenOK"        // Number of points written OK.
 	statValuesWrittenOK                  = "valuesWrittenOK"        // Number of values (fields) written OK.
 	statPointsWrittenDropped             = "pointsWrittenDropped"   // Number of points dropped by the storage engine.
@@ -46,33 +47,62 @@ const (
 	statPromReadRequest                  = "promReadReq"            // Number of read requests to the prometheus endpoint.
 	statFluxQueryRequests                = "fluxQueryReq"           // Number of flux query requests served.
 	statFluxQueryRequestDuration         = "fluxQueryReqDurationNs" // Number of (wall-time) nanoseconds spent executing Flux query requests.
-	statFluxQueryRequestBytesTransmitted = "fluxQueryRespBytes"     // Sum of all bytes returned in Flux query reponses.
+	statFluxQueryRequestBytesTransmitted = "fluxQueryRespBytes"     // Sum of all bytes returned in Flux query responses.
 
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
-	ln         net.Listener
-	addr       string
-	https      bool
-	cert       string
-	key        string
-	limit      int
-	tlsConfig  *tls.Config
-	certLoader *tlsconfig.TLSCertLoader
-	err        chan error
+	// Fields above mu are not protected by mu and should be read-only after being
+	// set in NewService.
 
+	addr  string
+	https bool
+
+	unixSocket      bool
+	unixSocketPerm  uint32
+	unixSocketGroup int
+	bindSocket      string
+
+	// cert is the initial TLS certificate to load if https is true. This should not be
+	// exposed to client code because a different certificate might be loaded on a config reload.
+	cert string
+
+	// key is the initial TLS key to load if https is true. This should not be
+	// exposed to client code because a key certificate might be loaded on a config reload.
+	key string
+
+	limit     int
+	tlsConfig *tls.Config
+	err       chan error
+
+	closeFunc func() error
+
+	// Handler for httpd service. Handler is not protected by mu, and should only be modified
+	// before calling Open.
+	Handler    *Handler
 	httpServer http.Server
 
-	unixSocket         bool
-	unixSocketPerm     uint32
-	unixSocketGroup    int
-	bindSocket         string
-	unixSocketListener net.Listener
-
-	Handler *Handler
-
 	Logger *zap.Logger
+
+	// mu protects the fields that follow.
+	mu sync.RWMutex
+
+	ln                 net.Listener
+	unixSocketListener net.Listener
+	certLoader         *tlsconfig.TLSCertLoader
+
+	// tcpServerStarted indicates if httpServer is started for ln, which in turn indicates who is
+	// responsible for closing ln.
+	tcpServerStarted bool
+
+	// unixServerStarted indicates if httpServer is started unixSocketListener, which in turn
+	// indicates who is responsible for closing unixSocketListener.
+	unixServerStarted bool
+
+	// closed indicates if the Service has been closed. This is used to prevent opening the
+	// service after it has been shutdown.
+	closed bool
 }
 
 // NewService returns a new instance of Service.
@@ -85,7 +115,7 @@ func NewService(c Config) *Service {
 		key:            c.HTTPSPrivateKey,
 		limit:          c.MaxConnectionLimit,
 		tlsConfig:      c.TLS,
-		err:            make(chan error),
+		err:            make(chan error, 2), // There could be two serve calls that fail.
 		unixSocket:     c.UnixSocketEnabled,
 		unixSocketPerm: uint32(c.UnixSocketPermissions),
 		bindSocket:     c.BindSocket,
@@ -95,6 +125,7 @@ func NewService(c Config) *Service {
 		},
 		Logger: zap.NewNop(),
 	}
+	s.closeFunc = sync.OnceValue(s.doClose)
 	if s.tlsConfig == nil {
 		s.tlsConfig = new(tls.Config)
 	}
@@ -107,7 +138,14 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.Logger.Info("Starting HTTP service", zap.Bool("authentication", s.Handler.Config.AuthEnabled))
+
+	if s.closed {
+		return fmt.Errorf("attempt to Open http service after Close")
+	}
 
 	s.Handler.Open()
 
@@ -171,7 +209,8 @@ func (s *Service) Open() error {
 			zap.Stringer("addr", listener.Addr()))
 		s.unixSocketListener = listener
 
-		go s.serveUnixSocket()
+		go s.serve(s.unixSocketListener)
+		s.unixServerStarted = true
 	}
 
 	// Enforce a connection limit if one has been given.
@@ -193,64 +232,88 @@ func (s *Service) Open() error {
 	}
 
 	// Begin listening for requests in a separate goroutine.
-	go s.serveTCP()
+	go s.serve(s.ln)
+	s.tcpServerStarted = true
 	return nil
 }
 
-// Close closes the underlying listener.
+// Close shuts down the httpd service, including closing the listeners.
 func (s *Service) Close() error {
+	return s.closeFunc()
+}
+
+// doClose performs the actual work of closing httpd service, including listeners.
+// Do not call doClose directly. Use the sync.OnceValue wrapped version created by
+// NewService in the closeFunc field.
+func (s *Service) doClose() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.Handler.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	s.closed = true
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return err
 	}
 
-	if s.ln != nil {
-		if err := s.ln.Close(); err != nil {
-			return err
+	// Close listeners, but only if the server hasn't started. Once the server starts,
+	// s.httpServer takes over management of the listener.
+	if !s.tcpServerStarted {
+		if s.ln != nil {
+			if err := s.ln.Close(); err != nil {
+				return err
+			}
 		}
 	}
-	if s.unixSocketListener != nil {
-		if err := s.unixSocketListener.Close(); err != nil {
-			return err
+	if !s.unixServerStarted {
+		if s.unixSocketListener != nil {
+			if err := s.unixSocketListener.Close(); err != nil {
+				return err
+			}
 		}
 	}
+
 	if s.certLoader != nil {
-		cl := s.certLoader
-		s.certLoader = nil
-		if err := cl.Close(); err != nil {
+		// It is safe to call certLoader.Close multiple times.
+		if err := s.certLoader.Close(); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
-// WithLogger sets the logger for the service.
+// WithLogger sets the logger for the service. WithLogger should only be called before Open.
 func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "httpd"))
 	s.Handler.Logger = s.Logger
 }
 
-// VerifyReloadedConfig checks if c can be applied. If it can be, a function
+// PrepareReloadConfig checks if c can be applied. If it can be, a function
 // that will apply the reloaded configuration is returned. No function is
 // returned if no action is required.
-func (s *Service) VerifyReloadedConfig(c Config) (func() error, error) {
+func (s *Service) PrepareReloadConfig(c Config) (func() error, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// Let the user know that changing the https-enabled setting doesn't work.
 	if s.https != c.HTTPSEnabled {
 		return nil, fmt.Errorf("httpd: can not change https-enabled on a running server")
 	}
 
 	if s.https {
-		// Sanity check to make sure we have a certLoader. Shouldn't be possible.
+		// Sanity check to make sure we have a certLoader. It's possible this could happen if a
+		// reload signal is sent to the process after NewService but before Open. By returning an
+		// error here the reload will fail and no changes will be made.
 		if s.certLoader == nil {
 			return nil, errors.New("httpd: no certLoader available")
 		}
 
 		// Make sure the specified certificate will load correctly and return an apply function.
-		if apply, err := s.certLoader.VerifyLoad(c.HTTPSCertificate, c.HTTPSPrivateKey); err == nil {
+		if apply, err := s.certLoader.PrepareLoad(c.HTTPSCertificate, c.HTTPSPrivateKey); err == nil {
 			return apply, nil
 		} else {
 			return nil, fmt.Errorf("httpd: error loading certificate at (%q, %q): %w", c.HTTPSCertificate, c.HTTPSPrivateKey, err)
@@ -265,6 +328,9 @@ func (s *Service) Err() <-chan error { return s.err }
 
 // Addr returns the listener's address. Returns nil if listener is closed.
 func (s *Service) Addr() net.Addr {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	if s.ln != nil {
 		return s.ln.Addr()
 	}
@@ -279,24 +345,20 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 // BoundHTTPAddr returns the string version of the address that the HTTP server is listening on.
 // This is useful if you start an ephemeral server in test with bind address localhost:0.
 func (s *Service) BoundHTTPAddr() string {
-	return s.ln.Addr().String()
-}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-// serveTCP serves the handler from the TCP listener.
-func (s *Service) serveTCP() {
-	s.serve(s.ln)
-}
-
-// serveUnixSocket serves the handler from the unix socket listener.
-func (s *Service) serveUnixSocket() {
-	s.serve(s.unixSocketListener)
+	if s.ln != nil {
+		return s.ln.Addr().String()
+	}
+	return "N/A"
 }
 
 // serve serves the handler from the listener.
-func (s *Service) serve(listener net.Listener) {
+func (s *Service) serve(ln net.Listener) {
 	// The listener was closed so exit
 	// See https://github.com/golang/go/issues/4373
-	if err := s.httpServer.Serve(listener); err != nil && !strings.Contains(err.Error(), "closed") {
-		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
+	if err := s.httpServer.Serve(ln); err != nil && !strings.Contains(err.Error(), "closed") {
+		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", ln.Addr(), err)
 	}
 }

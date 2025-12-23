@@ -214,10 +214,10 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// VerifyReloadTLSCertificate verifies that the configured TLS certificate can be reloaded.
+// PrepareReloadTLSCertificates verifies that the configured TLS certificate can be reloaded.
 // If so, then a function that will apply the reloaded certificate is returned. If no reload
 // action is necessary, then nil is returned for the reload function.
-func (s *Service) VerifyReloadTLSCertificate() (func() error, error) {
+func (s *Service) PrepareReloadTLSCertificates() (func() error, error) {
 	if !s.tls {
 		return nil, nil
 	}
@@ -228,7 +228,7 @@ func (s *Service) VerifyReloadTLSCertificate() (func() error, error) {
 		return nil, errors.New("opentsdb: no certLoader available")
 	}
 
-	if apply, err := s.certLoader.VerifyLoad(s.cert, s.privateKey); err == nil {
+	if apply, err := s.certLoader.PrepareLoad(s.cert, s.privateKey); err == nil {
 		return apply, nil
 	} else {
 		return nil, fmt.Errorf("opentsdb: TLS certificate reload failed (%q, %q): %w", s.cert, s.privateKey, err)

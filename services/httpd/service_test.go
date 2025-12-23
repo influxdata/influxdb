@@ -26,7 +26,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 		newConfig := httpd.Config{
 			HTTPSEnabled: false,
 		}
-		applyFunc, err := s.VerifyReloadedConfig(newConfig)
+		applyFunc, err := s.PrepareReloadConfig(newConfig)
 		require.NoError(t, err)
 		require.Nil(t, applyFunc, "no apply function should be returned when HTTPS is disabled")
 	})
@@ -46,14 +46,15 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Open service to initialize certLoader
 		require.NoError(t, s.Open())
-		defer s.Close()
+		defer func() {
+			require.NoError(t, s.Close())
+		}()
 
 		// Try to verify reload with HTTPS disabled
 		newConfig := httpd.Config{
 			HTTPSEnabled: false,
 		}
-		applyFunc, err := s.VerifyReloadedConfig(newConfig)
-		require.Error(t, err)
+		applyFunc, err := s.PrepareReloadConfig(newConfig)
 		require.ErrorContains(t, err, "can not change https-enabled on a running server")
 		require.Nil(t, applyFunc)
 	})
@@ -75,8 +76,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSCertificate: ss.CertPath,
 			HTTPSPrivateKey:  ss.KeyPath,
 		}
-		applyFunc, err := s.VerifyReloadedConfig(newConfig)
-		require.Error(t, err)
+		applyFunc, err := s.PrepareReloadConfig(newConfig)
 		require.ErrorContains(t, err, "can not change https-enabled on a running server")
 		require.Nil(t, applyFunc)
 	})
@@ -98,7 +98,9 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Open service to initialize certLoader
 		require.NoError(t, s.Open())
-		defer s.Close()
+		defer func() {
+			require.NoError(t, s.Close())
+		}()
 
 		// Get the initial certificate serial number for comparison
 		initialCert, err := tlsconfig.LoadCertificate(ss1.CertPath, ss1.KeyPath)
@@ -134,7 +136,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSCertificate: ss2.CertPath,
 			HTTPSPrivateKey:  ss2.KeyPath,
 		}
-		applyFunc, err := s.VerifyReloadedConfig(newConfig)
+		applyFunc, err := s.PrepareReloadConfig(newConfig)
 		require.NoError(t, err)
 		require.NotNil(t, applyFunc, "apply function should be returned for successful verification")
 
@@ -171,7 +173,9 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Open service to initialize certLoader
 		require.NoError(t, s.Open())
-		defer s.Close()
+		defer func() {
+			require.NoError(t, s.Close())
+		}()
 
 		// Try to verify reload with non-existent certificate (one example of VerifyLoad failure)
 		newConfig := httpd.Config{
@@ -179,8 +183,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSCertificate: "/nonexistent/path/cert.pem",
 			HTTPSPrivateKey:  "/nonexistent/path/key.pem",
 		}
-		applyFunc, err := s.VerifyReloadedConfig(newConfig)
-		require.Error(t, err)
+		applyFunc, err := s.PrepareReloadConfig(newConfig)
 		require.ErrorContains(t, err, "error loading certificate")
 		require.Nil(t, applyFunc)
 	})
@@ -201,7 +204,9 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Open service to initialize certLoader
 		require.NoError(t, s.Open())
-		defer s.Close()
+		defer func() {
+			require.NoError(t, s.Close())
+		}()
 
 		// Get the certificate serial number
 		cert, err := tlsconfig.LoadCertificate(ss.CertPath, ss.KeyPath)
@@ -228,7 +233,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSCertificate: ss.CertPath,
 			HTTPSPrivateKey:  ss.KeyPath,
 		}
-		applyFunc, err := s.VerifyReloadedConfig(newConfig)
+		applyFunc, err := s.PrepareReloadConfig(newConfig)
 		require.NoError(t, err)
 		require.NotNil(t, applyFunc, "apply function should be returned even for same paths")
 

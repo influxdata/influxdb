@@ -74,9 +74,10 @@ func (cmd *Command) LoadConfig(args ...string) (Options, *Config, error) {
 		return fail(fmt.Errorf("error parsing command line: %w", err))
 	}
 
-	config, err := cmd.ParseConfig(options.GetConfigPath())
+	configPath := options.GetConfigPath()
+	config, err := cmd.ParseConfig(configPath)
 	if err != nil {
-		return fail(fmt.Errorf("error parsing config file: %s", err))
+		return fail(fmt.Errorf("error parsing config file (%q): %s", configPath, err))
 	}
 
 	// Apply any environment variables on top of the parsed config

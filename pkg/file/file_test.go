@@ -157,7 +157,9 @@ func TestVerifyFilePermissivenessF(t *testing.T) {
 
 		f, err := os.Open(tmpFile)
 		require.NoError(t, err)
-		defer f.Close()
+		defer func() {
+			require.NoError(t, f.Close())
+		}()
 
 		err = file.VerifyFilePermissivenessF(f, 0644)
 		require.NoError(t, err)
@@ -171,7 +173,9 @@ func TestVerifyFilePermissivenessF(t *testing.T) {
 
 		f, err := os.Open(tmpFile)
 		require.NoError(t, err)
-		defer f.Close()
+		defer func() {
+			require.NoError(t, f.Close())
+		}()
 
 		err = file.VerifyFilePermissivenessF(f, 0644)
 		require.Error(t, err)
@@ -189,7 +193,9 @@ func TestVerifyFilePermissivenessF(t *testing.T) {
 
 		f, err := os.Open(tmpFile)
 		require.NoError(t, err)
-		defer f.Close()
+		defer func() {
+			require.NoError(t, f.Close())
+		}()
 
 		err = file.VerifyFilePermissivenessF(f, 0644)
 		require.NoError(t, err)
@@ -203,7 +209,9 @@ func TestVerifyFilePermissivenessF(t *testing.T) {
 
 		f, err := os.Open(tmpFile)
 		require.NoError(t, err)
-		defer f.Close()
+		defer func() {
+			require.NoError(t, f.Close())
+		}()
 
 		// Should pass with 0600 max
 		err = file.VerifyFilePermissivenessF(f, 0600)

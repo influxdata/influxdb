@@ -590,7 +590,7 @@ func (s *Server) ApplyReloadedConfig(config *Config, log *zap.Logger) error {
 	var applyFuncs []func() error
 
 	if s.HttpdService != nil {
-		if af, err := s.HttpdService.VerifyReloadedConfig(config.HTTPD); err == nil {
+		if af, err := s.HttpdService.PrepareReloadConfig(config.HTTPD); err == nil {
 			applyFuncs = append(applyFuncs, af)
 		} else {
 			log.Error("error reloading httpd service config, no new configuration applied", zap.Error(err))
@@ -603,7 +603,7 @@ func (s *Server) ApplyReloadedConfig(config *Config, log *zap.Logger) error {
 	// the OpenTSDB services they created, we will just reload the TLS certificate
 	// at the currently configured paths.
 	for _, srv := range s.OpenTSDBServices {
-		if af, err := srv.VerifyReloadTLSCertificate(); err == nil {
+		if af, err := srv.PrepareReloadTLSCertificates(); err == nil {
 			applyFuncs = append(applyFuncs, af)
 		} else {
 			log.Error("error reloading OpenTSDB service TLS certificate, no new configuration applied", zap.Error(err),
