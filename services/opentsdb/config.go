@@ -31,6 +31,7 @@ const (
 	DefaultBatchPending = 5
 
 	// DefaultCertificate is the default location of the certificate used when TLS is enabled.
+	// For defaults, we assume this also contains the private key.
 	DefaultCertificate = "/etc/ssl/influxdb.pem"
 )
 
@@ -43,6 +44,7 @@ type Config struct {
 	ConsistencyLevel string        `toml:"consistency-level"`
 	TLSEnabled       bool          `toml:"tls-enabled"`
 	Certificate      string        `toml:"certificate"`
+	PrivateKey       string        `toml:"private-key"`
 	BatchSize        int           `toml:"batch-size"`
 	BatchPending     int           `toml:"batch-pending"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
@@ -58,7 +60,7 @@ func NewConfig() Config {
 		RetentionPolicy:  DefaultRetentionPolicy,
 		ConsistencyLevel: DefaultConsistencyLevel,
 		TLSEnabled:       false,
-		Certificate:      DefaultCertificate,
+		Certificate:      DefaultCertificate, // TLSCertLoader will default PrivateKey if PrivateKey remains empty.
 		BatchSize:        DefaultBatchSize,
 		BatchPending:     DefaultBatchPending,
 		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
