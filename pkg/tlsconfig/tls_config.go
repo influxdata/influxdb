@@ -24,9 +24,7 @@ func (c Config) Validate() error {
 
 func (c Config) Parse() (out *tls.Config, err error) {
 	if len(c.Ciphers) > 0 {
-		if out == nil {
-			out = new(tls.Config)
-		}
+		out = new(tls.Config)
 
 		for _, name := range c.Ciphers {
 			cipher, ok := ciphersMap[strings.ToUpper(name)]
