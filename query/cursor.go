@@ -1,7 +1,6 @@
 package query
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -225,12 +224,10 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		}
 		if cur.m != nil {
 			if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
-				row.GroupingKeys = make(map[string]int64)
 				dpd, ok := val.(DecodedDatePartKey)
 				if !ok {
 					return false
 				}
-				fmt.Println("Key=", dpd.Expr.String())
 				row.GroupingKeys[dpd.Expr.String()] = dpd.Val
 			}
 		}

@@ -1106,7 +1106,6 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
