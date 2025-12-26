@@ -1003,6 +1003,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         n_snapshots_to_load_on_start: n_snapshots_to_load_on_start as usize,
         shutdown: shutdown_manager.register(),
         wal_replay_concurrency_limit: config.wal_replay_concurrency_limit,
+        snapshot_markers: vec![],
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;

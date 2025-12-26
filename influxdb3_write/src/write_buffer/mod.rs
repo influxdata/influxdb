@@ -12,7 +12,7 @@ pub mod validator;
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
     LastCacheManager, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion, Precision,
-    WriteBuffer, WriteLineError,
+    SnapshotMarker, WriteBuffer, WriteLineError,
     chunk::ParquetChunk,
     persister::{Persister, PersisterError},
     write_buffer::{
@@ -186,6 +186,9 @@ pub struct WriteBufferImplArgs {
     pub n_snapshots_to_load_on_start: usize,
     pub shutdown: ShutdownToken,
     pub wal_replay_concurrency_limit: usize,
+    /// Snapshot markers from compacted data, used to filter out already-compacted snapshots.
+    /// Empty in OSS mode. In enterprise mode, populated from CompactedData.
+    pub snapshot_markers: Vec<SnapshotMarker>,
 }
 
 impl WriteBufferImpl {
@@ -205,11 +208,19 @@ impl WriteBufferImpl {
             n_snapshots_to_load_on_start,
             shutdown,
             wal_replay_concurrency_limit,
+            snapshot_markers,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
+        // Find the compaction cutoff for this node from the snapshot markers
+        let node_id = persister.node_identifier_prefix();
+        let compacted_through = snapshot_markers
+            .iter()
+            .find(|m| m.node_id.as_ref() == node_id)
+            .map(|m| m.snapshot_sequence_number);
+
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
-            .load_snapshots(n_snapshots_to_load_on_start)
+            .load_snapshots(n_snapshots_to_load_on_start, compacted_through)
             .await?
             .into_iter()
             // map the persisted snapshots into the newest version
@@ -869,6 +880,7 @@ mod tests {
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: 1,
+            snapshot_markers: vec![],
         })
         .await
         .unwrap();
@@ -980,6 +992,7 @@ mod tests {
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: 1,
+            snapshot_markers: vec![],
         })
         .await
         .unwrap();
@@ -1076,6 +1089,7 @@ mod tests {
                 n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
                 shutdown: ShutdownManager::new_testing().register(),
                 wal_replay_concurrency_limit: 1,
+                snapshot_markers: vec![],
             })
             .await
             .unwrap()
@@ -1240,7 +1254,11 @@ mod tests {
         let mut ticks = 0;
         loop {
             ticks += 1;
-            let persisted = write_buffer.persister.load_snapshots(1000).await.unwrap();
+            let persisted = write_buffer
+                .persister
+                .load_snapshots(1000, None)
+                .await
+                .unwrap();
             if !persisted.is_empty() {
                 assert_eq!(persisted.len(), 1);
                 assert_eq!(persisted[0].v1_ref().min_time, 10000000000);
@@ -1339,6 +1357,7 @@ mod tests {
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: 1,
+            snapshot_markers: vec![],
         })
         .await
         .unwrap();
@@ -3405,7 +3424,7 @@ mod tests {
     async fn verify_snapshot_count(n: usize, persister: &Arc<Persister>) {
         let mut checks = 0;
         loop {
-            let persisted_snapshots = persister.load_snapshots(1000).await.unwrap();
+            let persisted_snapshots = persister.load_snapshots(1000, None).await.unwrap();
             if persisted_snapshots.len() > n {
                 panic!(
                     "checking for {} snapshots but found {}",
@@ -3536,6 +3555,7 @@ mod tests {
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: 1,
+            snapshot_markers: vec![],
         })
         .await
         .unwrap();

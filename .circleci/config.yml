@@ -126,9 +126,9 @@ docker_filter: &docker_filter
 # 3. Adjust the "persist_debug" boolean parameter to true
 # 4. Click "Run Pipeline"
 #
-# You can conditionally persist quick-release tarballs and packages for your PR
-# (so they show up in the 'Artifacts' tab of the build-quick-release-for-prs
-# (tarballs) and build-linux-packages-for-prs (packages) jobs) by:
+# You can conditionally persist tarballs and packages for your PR (so they show
+# up in the 'Artifacts' tab of the build-for-prs (tarballs) and
+# build-linux-packages-for-prs (packages) jobs) by:
 # 1. Go to https://app.circleci.com/pipelines/github/influxdata/influxdb?branch=<branch-name> (<- change this!)
 # 2. Click "Trigger Pipeline" in the top-right
 # 3. Adjust the "build_and_persist_packages" boolean parameter to true
@@ -140,6 +140,9 @@ parameters:
   build_and_persist_packages:
     type: boolean
     default: false
+  pr_build_profile:
+    type: string
+    default: "quick-release"
   # Consistent environment setup for Python Build Standalone
   PBS_DATE:
     type: string
@@ -921,11 +924,11 @@ workflows:
               only: /.*/
             tags:
               ignore: /.*/
-          name: build-quick-release-for-prs-<< matrix.target >>
+          name: build-for-prs-<< matrix.target >>
           matrix:
             parameters:
               profile:
-                - quick-release
+                - << pipeline.parameters.pr_build_profile >>
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
@@ -941,10 +944,10 @@ workflows:
               ignore: /.*/
           name: build-linux-packages-for-prs
           requires:
-            - build-quick-release-for-prs-aarch64-apple-darwin
-            - build-quick-release-for-prs-aarch64-unknown-linux-gnu
-            - build-quick-release-for-prs-x86_64-pc-windows-gnu
-            - build-quick-release-for-prs-x86_64-unknown-linux-gnu
+            - build-for-prs-aarch64-apple-darwin
+            - build-for-prs-aarch64-unknown-linux-gnu
+            - build-for-prs-x86_64-pc-windows-gnu
+            - build-for-prs-x86_64-unknown-linux-gnu
       - check_package_deb_amd64:
           filters:
             branches:

@@ -185,6 +185,17 @@ impl PersistedSnapshotVersion {
     }
 }
 
+/// Marker indicating which snapshots have been compacted for a given node.
+/// Used to filter out already-compacted snapshots during initialization.
+#[derive(Debug, Clone)]
+pub struct SnapshotMarker {
+    /// The node identifier this marker applies to
+    pub node_id: Arc<str>,
+    /// The last snapshot sequence number that was compacted for this node.
+    /// All snapshots with sequence numbers <= this have been compacted.
+    pub snapshot_sequence_number: SnapshotSequenceNumber,
+}
+
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {

@@ -20,6 +20,7 @@ use futures_util::pin_mut;
 use futures_util::stream::TryStreamExt;
 use futures_util::stream::{FuturesOrdered, StreamExt};
 use influxdb3_cache::parquet_cache::ParquetFileDataToCache;
+use influxdb3_wal::SnapshotSequenceNumber;
 use iox_time::TimeProvider;
 use object_store::ObjectStore;
 use object_store::path::Path as ObjPath;
@@ -134,12 +135,17 @@ impl Persister {
     /// Loads the most recently persisted N snapshot parquet file lists from object storage.
     ///
     /// This is intended to be used on server start.
+    ///
+    /// If `compacted_through` is provided, snapshots with sequence numbers <= that value
+    /// will be skipped, as they have already been compacted.
     pub async fn load_snapshots(
         &self,
         mut most_recent_n: usize,
+        compacted_through: Option<SnapshotSequenceNumber>,
     ) -> Result<Vec<PersistedSnapshotVersion>> {
         trace!(
             most_recent_n,
+            ?compacted_through,
             node_identifier_prefix = %self.node_identifier_prefix,
             "load_snapshots: starting"
         );
@@ -196,11 +202,28 @@ impl Persister {
             }
 
             trace!(count = end, "load_snapshots: queueing snapshot fetches");
+            let mut skipped = 0usize;
             for item in &list[0..end] {
+                // Skip snapshots that have already been compacted
+                if let Some(cutoff) = compacted_through
+                    && let Some(seq) =
+                        SnapshotInfoFilePath::parse_sequence_number(item.location.as_ref())
+                    && seq <= cutoff
+                {
+                    skipped += 1;
+                    continue;
+                }
+
                 futures.push_back(get_snapshot(
                     item.location.clone(),
                     Arc::clone(&self.object_store),
                 ));
+            }
+            if skipped > 0 {
+                trace!(
+                    skipped,
+                    "load_snapshots: skipped already-compacted snapshots"
+                );
             }
 
             if end == 0 {
@@ -468,7 +491,7 @@ mod tests {
         persister.persist_snapshot(&info_file_2).await.unwrap();
         persister.persist_snapshot(&info_file_3).await.unwrap();
 
-        let snapshots = persister.load_snapshots(2).await.unwrap();
+        let snapshots = persister.load_snapshots(2, None).await.unwrap();
         assert_eq!(snapshots.len(), 2);
         // The most recent files are first
         assert_eq!(snapshots[0].v1_ref().next_file_id.as_u64(), 2);
@@ -499,7 +522,7 @@ mod tests {
             parquet_size_bytes: 0,
         });
         persister.persist_snapshot(&info_file).await.unwrap();
-        let snapshots = persister.load_snapshots(2).await.unwrap();
+        let snapshots = persister.load_snapshots(2, None).await.unwrap();
         // We asked for the most recent 2 but there should only be 1
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].v1_ref().wal_file_sequence_number.as_u64(), 0);
@@ -528,7 +551,7 @@ mod tests {
             });
             persister.persist_snapshot(&info_file).await.unwrap();
         }
-        let snapshots = persister.load_snapshots(1500).await.unwrap();
+        let snapshots = persister.load_snapshots(1500, None).await.unwrap();
         // We asked for the most recent 1500 so there should be 1001 of them
         assert_eq!(snapshots.len(), 1001);
         assert_eq!(snapshots[0].v1_ref().next_file_id.as_u64(), 1000);
@@ -581,7 +604,7 @@ mod tests {
             .persist_snapshot(&PersistedSnapshotVersion::V1(info_file))
             .await
             .unwrap();
-        let snapshots = persister.load_snapshots(10).await.unwrap();
+        let snapshots = persister.load_snapshots(10, None).await.unwrap();
         assert_eq!(snapshots.len(), 1);
 
         assert_eq!(snapshots[0].v1_ref().wal_file_sequence_number.as_u64(), 0);
@@ -603,7 +626,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let persister = Persister::new(Arc::new(store), "test_host", time_provider);
 
-        let snapshots = persister.load_snapshots(100).await.unwrap();
+        let snapshots = persister.load_snapshots(100, None).await.unwrap();
         assert!(snapshots.is_empty());
     }
 

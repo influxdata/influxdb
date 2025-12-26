@@ -317,7 +317,7 @@ impl Inner {
                     update_persisted_files_with_snapshot(true, persisted_snapshot, &mut files);
                 file_count += parquet_files_added;
                 size_in_mb -= as_mb(removed_size);
-                row_count -= removed_row_count;
+                row_count = row_count.saturating_sub(removed_row_count);
                 files
             },
         );
@@ -343,7 +343,9 @@ impl Inner {
         self.parquet_files_size_mb += as_mb(persisted_snapshot.parquet_size_bytes);
         let (file_count, removed_file_size, removed_row_count) =
             update_persisted_files_with_snapshot(false, persisted_snapshot, &mut self.files);
-        self.parquet_files_row_count -= removed_row_count;
+        self.parquet_files_row_count = self
+            .parquet_files_row_count
+            .saturating_sub(removed_row_count);
         self.parquet_files_size_mb -= as_mb(removed_file_size);
         self.parquet_files_count += file_count;
     }
