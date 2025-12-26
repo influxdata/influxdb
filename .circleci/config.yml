@@ -681,7 +681,7 @@ jobs:
       - run:
           name: "Set Cargo profile based on branch"
           command: |
-            if [ "$CIRCLE_BRANCH" = "main" ]; then
+            if [ "$CIRCLE_BRANCH" = "main" ] || [ -z "${CIRCLE_TAG+x}" ]; then
               echo "export DOCKER_PROFILE=release" >> "$BASH_ENV"
             else
               echo "export DOCKER_PROFILE=quick-release" >> "$BASH_ENV"
