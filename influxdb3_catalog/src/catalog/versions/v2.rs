@@ -4653,14 +4653,14 @@ mod tests {
                 .clear_retention_period_for_database(&deleted_db_name)
                 .await;
             assert!(
-                matches!(clear_db_result, Err(CatalogError::AlreadyDeleted)),
+                matches!(clear_db_result, Err(CatalogError::AlreadyDeleted(_))),
                 "clearing retention on a deleted database should fail"
             );
             let set_db_result = catalog
                 .set_retention_period_for_database(&deleted_db_name, Duration::from_secs(600))
                 .await;
             assert!(
-                matches!(set_db_result, Err(CatalogError::AlreadyDeleted)),
+                matches!(set_db_result, Err(CatalogError::AlreadyDeleted(_))),
                 "setting retention on a deleted database should fail"
             );
         }
@@ -5968,7 +5968,7 @@ mod tests {
                 .soft_delete_table(&deleted_db_name, "test_table", HardDeletionTime::Default)
                 .await;
             assert!(
-                matches!(result, Err(CatalogError::AlreadyDeleted)),
+                matches!(result, Err(CatalogError::AlreadyDeleted(_))),
                 "expected table delete to fail for deleted database, got {result:?}"
             );
         }
@@ -5990,7 +5990,7 @@ mod tests {
                 .soft_delete_table(&deleted_db_name, "test_table", HardDeletionTime::Default)
                 .await;
             assert!(
-                matches!(result, Err(CatalogError::AlreadyDeleted)),
+                matches!(result, Err(CatalogError::AlreadyDeleted(_))),
                 "expected table delete to fail for deleted database, got {result:?}"
             );
         }
@@ -6324,7 +6324,7 @@ mod tests {
 
         // Should get AlreadyDeleted error since hard_delete_time doesn't change
         assert!(
-            matches!(result, Err(CatalogError::AlreadyDeleted)),
+            matches!(result, Err(CatalogError::AlreadyDeleted(_))),
             "Expected AlreadyDeleted error, got {result:?}"
         );
 
@@ -6411,7 +6411,7 @@ mod tests {
 
             // Should always get AlreadyDeleted since nothing changes
             assert!(
-                matches!(result, Err(CatalogError::AlreadyDeleted)),
+                matches!(result, Err(CatalogError::AlreadyDeleted(_))),
                 "Call {i} expected AlreadyDeleted error, got {result:?}"
             );
 
@@ -6539,7 +6539,7 @@ mod tests {
 
         // Should get AlreadyDeleted error since hard_delete_time doesn't change
         assert!(
-            matches!(result, Err(CatalogError::AlreadyDeleted)),
+            matches!(result, Err(CatalogError::AlreadyDeleted(_))),
             "Expected AlreadyDeleted error, got {result:?}"
         );
 
@@ -6652,7 +6652,7 @@ mod tests {
 
             // Should always get AlreadyDeleted since nothing changes
             assert!(
-                matches!(result, Err(CatalogError::AlreadyDeleted)),
+                matches!(result, Err(CatalogError::AlreadyDeleted(_))),
                 "Call {i} expected AlreadyDeleted error, got {result:?}"
             );
 

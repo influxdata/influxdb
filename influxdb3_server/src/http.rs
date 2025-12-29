@@ -614,7 +614,7 @@ impl IntoResponse for CatalogError {
     fn into_response(self) -> Response {
         let resp_or_code: Either<Response, StatusCode> = match self {
             Self::NotFound(_) => Either::Right(StatusCode::NOT_FOUND),
-            Self::AlreadyExists | Self::AlreadyDeleted => Either::Right(StatusCode::CONFLICT),
+            Self::AlreadyExists | Self::AlreadyDeleted(_) => Either::Right(StatusCode::CONFLICT),
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType

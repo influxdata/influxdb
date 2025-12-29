@@ -290,8 +290,8 @@ async fn test_update_db_retention_after_delete() {
             args,
         )
         .expect_err("updating retention on a deleted database should fail");
-    assert_eq!(
-        err.to_string(),
-        "Update command failed: server responded with error [409 Conflict]: attempted to modify resource that was already deleted\n"
+    assert_contains!(
+        &err.to_string(),
+        "Update command failed: server responded with error [409 Conflict]: attempted to modify resource that was already deleted: "
     );
 }

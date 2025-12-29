@@ -350,7 +350,7 @@ impl Catalog {
 
             let hard_delete_changed = db.hard_delete_time != resolved_hard_delete_time;
             if db.deleted && !hard_delete_changed {
-                return Err(CatalogError::AlreadyDeleted);
+                return Err(CatalogError::AlreadyDeleted(db_name.to_string()));
             }
             let deletion_time = self.time_provider.now().timestamp_nanos();
             let database_id = db.id;
@@ -443,7 +443,7 @@ impl Catalog {
 
             let hard_delete_changed = tbl_def.hard_delete_time != resolved_hard_delete_time;
             if tbl_def.deleted && !hard_delete_changed {
-                return Err(CatalogError::AlreadyDeleted);
+                return Err(CatalogError::AlreadyDeleted(table_name.to_string()));
             }
             let deletion_time = self.time_provider.now().timestamp_nanos();
             Ok(CatalogBatch::database(
@@ -1030,7 +1030,7 @@ impl Catalog {
         // Checking `deleted` is sufficient here. We include both `deleted` and `hard_delete_time`
         // checks to prevent future regressions.
         if db.deleted || db.hard_delete_time.is_some() {
-            return Err(CatalogError::AlreadyDeleted);
+            return Err(CatalogError::AlreadyDeleted(db_name.to_string()));
         }
 
         Ok(db)

@@ -17,8 +17,8 @@ pub enum CatalogError {
     #[error("the requested resource was not found: {0}")]
     NotFound(String),
 
-    #[error("attempted to modify resource that was already deleted")]
-    AlreadyDeleted,
+    #[error("attempted to modify resource that was already deleted: {0}")]
+    AlreadyDeleted(String),
 
     #[error("invalid configuration provided: {message}")]
     InvalidConfiguration { message: Box<str> },
