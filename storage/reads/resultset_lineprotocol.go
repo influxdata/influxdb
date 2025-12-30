@@ -26,7 +26,7 @@ func ResultSetToLineProtocol(wr io.Writer, rs ResultSet) (err error) {
 		line = append(line[:0], name...)
 		if tags.Len() > 2 {
 			tags = tags[1 : len(tags)-1] // take first and last elements which are measurement and field keys
-			line = tags.AppendHashKey(line)
+			line = tags.AppendHashKey(line, true)
 		}
 
 		line = append(line, ' ')
