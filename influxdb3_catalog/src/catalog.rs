@@ -30,6 +30,7 @@ use crate::{CatalogError, Result};
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
 pub const INTERNAL_DB_NAME: &str = "_internal";
+pub const INTERNAL_DB_RETENTION_PERIOD: Duration = Duration::from_secs(60 * 60 * 24 * 7); // Default to 7 days
 
 pub const TIME_COLUMN_NAME: &str = "time";
 pub const CHUNK_ORDER_COLUMN_NAME: &str = "__chunk_order";

@@ -33,8 +33,8 @@ use uuid::Uuid;
 
 use crate::catalog::{
     CATALOG_WRITE_PERMIT, CatalogSequenceNumber, CatalogWritePermit, DEFAULT_OPERATOR_TOKEN_NAME,
-    DeletedSchema, DeletionStatus, INTERNAL_DB_NAME, IfNotDeleted, RESERVED_COLUMN_NAMES,
-    Repository, TIME_COLUMN_NAME, TokenRepository, create_token_and_hash,
+    DeletedSchema, DeletionStatus, INTERNAL_DB_NAME, INTERNAL_DB_RETENTION_PERIOD, IfNotDeleted,
+    RESERVED_COLUMN_NAMES, Repository, TIME_COLUMN_NAME, TokenRepository, create_token_and_hash,
     make_new_name_using_deleted_time,
 };
 
@@ -724,7 +724,12 @@ impl Catalog {
 }
 
 async fn create_internal_db(catalog: &Catalog) {
-    let result = catalog.create_database(INTERNAL_DB_NAME).await;
+    let result = catalog
+        .create_database_opts(
+            INTERNAL_DB_NAME,
+            CreateDatabaseOptions::default().retention_period(INTERNAL_DB_RETENTION_PERIOD),
+        )
+        .await;
     // what is the best outcome if "_internal" cannot be created?
     match result {
         Ok(_) => info!("created internal database"),
