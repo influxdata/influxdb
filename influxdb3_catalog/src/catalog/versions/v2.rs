@@ -33,8 +33,8 @@ use uuid::Uuid;
 
 use crate::catalog::{
     CATALOG_WRITE_PERMIT, CatalogSequenceNumber, CatalogWritePermit, DEFAULT_OPERATOR_TOKEN_NAME,
-    DeletedSchema, DeletionStatus, INTERNAL_DB_NAME, IfNotDeleted, RESERVED_COLUMN_NAMES,
-    Repository, TIME_COLUMN_NAME, TokenRepository, create_token_and_hash,
+    DeletedSchema, DeletionStatus, INTERNAL_DB_NAME, INTERNAL_DB_RETENTION_PERIOD, IfNotDeleted,
+    RESERVED_COLUMN_NAMES, Repository, TIME_COLUMN_NAME, TokenRepository, create_token_and_hash,
     make_new_name_using_deleted_time,
 };
 
@@ -724,7 +724,12 @@ impl Catalog {
 }
 
 async fn create_internal_db(catalog: &Catalog) {
-    let result = catalog.create_database(INTERNAL_DB_NAME).await;
+    let result = catalog
+        .create_database_opts(
+            INTERNAL_DB_NAME,
+            CreateDatabaseOptions::default().retention_period(INTERNAL_DB_RETENTION_PERIOD),
+        )
+        .await;
     // what is the best outcome if "_internal" cannot be created?
     match result {
         Ok(_) => info!("created internal database"),
@@ -5827,6 +5832,94 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
+    async fn test_delete_table_when_database_deleted() {
+        // Testing: deleting a table from a database that has already been soft deleted
+        // should not succeed.
+
+        let now = Time::from_timestamp_nanos(1_000_000_000);
+        let db_name_1 = "test_db_1";
+        let db_name_2 = "test_db_2";
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test-catalog",
+            Arc::clone(&time_provider) as _,
+            CatalogArgs::default(),
+        )
+        .await
+        .unwrap();
+
+        // Create databases and tables
+        catalog.create_database(db_name_1).await.unwrap();
+        catalog
+            .create_table(
+                db_name_1,
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        catalog.create_database(db_name_2).await.unwrap();
+        catalog
+            .create_table(
+                db_name_2,
+                "test_table",
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+
+        let db_id_1 = catalog.db_name_to_id(db_name_1).unwrap();
+        let db_id_2 = catalog.db_name_to_id(db_name_2).unwrap();
+
+        // Soft delete the database, but never hard delete
+        {
+            catalog
+                .soft_delete_database(db_name_1, HardDeletionTime::Never)
+                .await
+                .unwrap();
+
+            let deleted_db_name = catalog
+                .db_schema_by_id(&db_id_1)
+                .expect("deleted db schema should exist")
+                .name();
+
+            // Soft delete the table from the deleted database -- should fail
+            let result = catalog
+                .soft_delete_table(&deleted_db_name, "test_table", HardDeletionTime::Default)
+                .await;
+            assert!(
+                matches!(result, Err(CatalogError::AlreadyDeleted(_))),
+                "expected table delete to fail for deleted database, got {result:?}"
+            );
+        }
+
+        // Soft delete the database with a default deletion timestamp
+        {
+            catalog
+                .soft_delete_database(db_name_2, HardDeletionTime::Default)
+                .await
+                .unwrap();
+
+            let deleted_db_name = catalog
+                .db_schema_by_id(&db_id_2)
+                .expect("deleted db schema should exist")
+                .name();
+
+            // Soft delete the table from the deleted database -- should fail
+            let result = catalog
+                .soft_delete_table(&deleted_db_name, "test_table", HardDeletionTime::Default)
+                .await;
+            assert!(
+                matches!(result, Err(CatalogError::AlreadyDeleted(_))),
+                "expected table delete to fail for deleted database, got {result:?}"
+            );
+        }
+    }
+
+    #[test_log::test(tokio::test)]
     async fn test_table_deletion_status_existing_not_deleted() {
         let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
         catalog.create_database("test_db").await.unwrap();
@@ -6154,7 +6247,7 @@ mod tests {
 
         // Should get AlreadyDeleted error since hard_delete_time doesn't change
         assert!(
-            matches!(result, Err(CatalogError::AlreadyDeleted)),
+            matches!(result, Err(CatalogError::AlreadyDeleted(_))),
             "Expected AlreadyDeleted error, got {result:?}"
         );
 
@@ -6241,7 +6334,7 @@ mod tests {
 
             // Should always get AlreadyDeleted since nothing changes
             assert!(
-                matches!(result, Err(CatalogError::AlreadyDeleted)),
+                matches!(result, Err(CatalogError::AlreadyDeleted(_))),
                 "Call {i} expected AlreadyDeleted error, got {result:?}"
             );
 
@@ -6369,7 +6462,7 @@ mod tests {
 
         // Should get AlreadyDeleted error since hard_delete_time doesn't change
         assert!(
-            matches!(result, Err(CatalogError::AlreadyDeleted)),
+            matches!(result, Err(CatalogError::AlreadyDeleted(_))),
             "Expected AlreadyDeleted error, got {result:?}"
         );
 
@@ -6482,7 +6575,7 @@ mod tests {
 
             // Should always get AlreadyDeleted since nothing changes
             assert!(
-                matches!(result, Err(CatalogError::AlreadyDeleted)),
+                matches!(result, Err(CatalogError::AlreadyDeleted(_))),
                 "Call {i} expected AlreadyDeleted error, got {result:?}"
             );
 

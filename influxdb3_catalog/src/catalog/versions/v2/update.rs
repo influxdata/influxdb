@@ -350,7 +350,7 @@ impl Catalog {
 
             let hard_delete_changed = db.hard_delete_time != resolved_hard_delete_time;
             if db.deleted && !hard_delete_changed {
-                return Err(CatalogError::AlreadyDeleted);
+                return Err(CatalogError::AlreadyDeleted(db_name.to_string()));
             }
             let deletion_time = self.time_provider.now().timestamp_nanos();
             let database_id = db.id;
@@ -431,6 +431,13 @@ impl Catalog {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound(db_name.to_string()));
             };
+
+            // Checking `deleted` is sufficient here. We include both `deleted` and `hard_delete_time`
+            // checks to prevent future regressions.
+            if db.deleted || db.hard_delete_time.is_some() {
+                // If the database is already soft-deleted, prevent soft-deleting tables within it.
+                return Err(CatalogError::AlreadyDeleted(db_name.to_string()));
+            }
             let Some(tbl_def) = db.table_definition(table_name) else {
                 return Err(CatalogError::NotFound(table_name.to_string()));
             };
@@ -445,7 +452,7 @@ impl Catalog {
 
             let hard_delete_changed = tbl_def.hard_delete_time != resolved_hard_delete_time;
             if tbl_def.deleted && !hard_delete_changed {
-                return Err(CatalogError::AlreadyDeleted);
+                return Err(CatalogError::AlreadyDeleted(table_name.to_string()));
             }
             let deletion_time = self.time_provider.now().timestamp_nanos();
             Ok(CatalogBatch::database(
