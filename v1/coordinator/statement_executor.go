@@ -367,23 +367,43 @@ func (e *StatementExecutor) getDefaultRP(ctx context.Context, database string, e
 }
 
 func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q *influxql.DeleteSeriesStatement, database string, ectx *query.ExecutionContext) error {
-	mapping, err := e.getDefaultRP(ctx, database, ectx)
-	if err != nil {
-		return err
+	var errs error
+
+	if len(q.Sources) == 0 || q.Sources[0].(*influxql.Measurement) == nil {
+		return errors.New("empty query sources; this should never happen")
+	}
+	// There should only be a single retention policy during delete
+	rp := q.Sources[0].(*influxql.Measurement).RetentionPolicy
+
+	mappingsFilter := influxdb.DBRPMappingFilter{OrgID: &ectx.OrgID, Database: &database}
+	if rp == "" {
+		defaultRP := true
+		mappingsFilter.Default = &defaultRP
+	} else {
+		mappingsFilter.RetentionPolicy = &rp
 	}
 
-	// Require write for DELETE queries
-	_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+	mappings, _, err := e.DBRP.FindMany(ctx, mappingsFilter)
 	if err != nil {
-		return ectx.Send(ctx, &query.Result{
-			Err: fmt.Errorf("insufficient permissions"),
-		})
+		return err
+	} else if len(mappings) == 0 {
+		return fmt.Errorf("no dbrp mappings found: db=%s, rp=%s, please check to make sure db and rp exist", database, rp)
 	}
 
 	// Convert "now()" to current time.
 	q.Condition = influxql.Reduce(q.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
-	return e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition)
+	// Require write for DELETE queries
+	for _, mapping := range mappings {
+		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+		if err != nil {
+			return ectx.Send(ctx, &query.Result{
+				Err: fmt.Errorf("insufficient permissions"),
+			})
+		}
+		errs = errors.Join(errs, e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition))
+	}
+	return errs
 }
 
 func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context, q *influxql.DropMeasurementStatement, database string, ectx *query.ExecutionContext) error {
