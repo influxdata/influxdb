@@ -6582,6 +6582,18 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"gpu","columns":["time","host","region","val"],"values":[["2000-01-06T00:00:00Z","serverA","uswest",200]]}]}]}`,
 			params:  url.Values{"db": []string{"db2"}},
 		},
+		{
+			name:    "Error on non-existent retention policy",
+			command: `DELETE FROM nonexistent.cpu`,
+			exp:     `{"results":[{"statement_id":0,"error":"no dbrp mappings found: db=db0, rp=nonexistent, please check to make sure db and rp exist"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		{
+			name:    "Verify rp1 still has remaining point after partial delete",
+			command: `SELECT * FROM rp1.cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-05T00:00:00Z","serverA","uswest",200]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	test.Run(ctx, t, s)
