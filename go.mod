@@ -37,7 +37,7 @@ require (
 	github.com/influxdata/flux v0.197.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influx-cli/v2 v2.7.1-0.20250130214939-76d1c4d9b777
-	github.com/influxdata/influxql v1.2.0
+	github.com/influxdata/influxql v1.3.0
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839
 	github.com/influxdata/pkg-config v0.3.0
 	github.com/jmoiron/sqlx v1.3.4
