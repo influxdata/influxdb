@@ -369,12 +369,17 @@ func (e *StatementExecutor) getDefaultRP(ctx context.Context, database string, e
 func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q *influxql.DeleteSeriesStatement, database string, ectx *query.ExecutionContext) error {
 	var errs error
 
-	if len(q.Sources) == 0 || q.Sources[0].(*influxql.Measurement) == nil {
-		return errors.New("empty query sources; this should never happen")
+	if len(q.Sources) == 0 {
+		return errors.New("empty query sources")
 	}
 	// There should only be a single retention policy during delete
-	rp := q.Sources[0].(*influxql.Measurement).RetentionPolicy
+	// Currently wildcard retention policies are not valid in DELETE statements
+	m, ok := q.Sources[0].(*influxql.Measurement)
+	if !ok {
+		return fmt.Errorf("expected influxql.Measurement, got %T", q.Sources[0])
+	}
 
+	rp := m.RetentionPolicy
 	mappingsFilter := influxdb.DBRPMappingFilter{OrgID: &ectx.OrgID, Database: &database}
 	if rp == "" {
 		defaultRP := true
@@ -393,7 +398,6 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 	// Convert "now()" to current time.
 	q.Condition = influxql.Reduce(q.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
-	// Require write for DELETE queries
 	for _, mapping := range mappings {
 		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
 		if err != nil {
@@ -401,6 +405,7 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 				Err: fmt.Errorf("insufficient permissions"),
 			})
 		}
+		// Require write for DELETE queries
 		errs = errors.Join(errs, e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition))
 	}
 	return errs
