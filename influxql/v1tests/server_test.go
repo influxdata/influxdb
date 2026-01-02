@@ -6582,13 +6582,12 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"gpu","columns":["time","host","region","val"],"values":[["2000-01-06T00:00:00Z","serverA","uswest",200]]}]}]}`,
 			params:  url.Values{"db": []string{"db2"}},
 		},
-		// TODO(db): Find out why this doesn't fail parsing
-		//{
-		//	name:    "Delete with wildcard in retention policy should fail parsing",
-		//	command: `DELETE FROM /rp*/.gpu`,
-		//	exp:     `{"error":"error parsing query: found ., expected ; at line 1, char 18"}`,
-		//	params:  url.Values{"db": []string{"db2"}},
-		//},
+		{
+			name:    "Delete with wildcard in retention policy should fail parsing",
+			command: `DELETE FROM /rp*/.gpu`,
+			exp:     `{"error":"error parsing query: found ., expected ; at line 1, char 18"}`,
+			params:  url.Values{"db": []string{"db2"}},
+		},
 	}...)
 
 	test.Run(ctx, t, s)

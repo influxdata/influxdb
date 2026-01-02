@@ -138,7 +138,6 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(DB): I think this just finds the bucket
 	bucket, err := h.findBucket(ctx, auth.OrgID, req.Database, req.RetentionPolicy)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, sw)
