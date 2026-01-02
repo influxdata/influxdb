@@ -399,13 +399,13 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 	q.Condition = influxql.Reduce(q.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
 	for _, mapping := range mappings {
+		// Require write for DELETE queries
 		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
 		if err != nil {
 			return ectx.Send(ctx, &query.Result{
 				Err: fmt.Errorf("insufficient permissions"),
 			})
 		}
-		// Require write for DELETE queries
 		errs = errors.Join(errs, e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition))
 	}
 	return errs
