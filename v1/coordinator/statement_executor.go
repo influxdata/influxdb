@@ -368,18 +368,18 @@ func (e *StatementExecutor) getDefaultRP(ctx context.Context, database string, e
 
 func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q *influxql.DeleteSeriesStatement, database string, ectx *query.ExecutionContext) error {
 	var errs error
+	var rp string
 
-	if len(q.Sources) == 0 {
-		return errors.New("empty query sources")
-	}
-	// There should only be a single retention policy during delete
-	// Currently wildcard retention policies are not valid in DELETE statements
-	m, ok := q.Sources[0].(*influxql.Measurement)
-	if !ok {
-		return fmt.Errorf("expected influxql.Measurement, got %T", q.Sources[0])
+	if len(q.Sources) > 0 {
+		// There should only be a single retention policy during delete
+		// Currently wildcard retention policies are not valid in DELETE statements
+		m, ok := q.Sources[0].(*influxql.Measurement)
+		if !ok {
+			return fmt.Errorf("expected influxql.Measurement, got %T", q.Sources[0])
+		}
+		rp = m.RetentionPolicy
 	}
 
-	rp := m.RetentionPolicy
 	mappingsFilter := influxdb.DBRPMappingFilter{OrgID: &ectx.OrgID, Database: &database}
 	if rp == "" {
 		defaultRP := true
