@@ -457,7 +457,7 @@ async fn test_delete_database_with_hard_delete_timestamp() {
         .expect("create database");
 
     // Delete with a specific timestamp
-    let timestamp = "2025-12-31T23:59:59Z";
+    let timestamp = "2125-12-31T23:59:59Z";
     let result = server
         .delete_database(db_name)
         .with_hard_delete(timestamp)
@@ -1039,7 +1039,7 @@ async fn test_delete_table_with_hard_delete_timestamp() {
     let server = TestServer::spawn().await;
     let db_name = "test_hard_delete_table_timestamp";
     let table_name = "network";
-    let timestamp = "2025-12-31T23:59:59Z";
+    let timestamp = "2125-12-31T23:59:59Z";
 
     // Create database and write data to create table
     server
