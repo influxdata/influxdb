@@ -117,6 +117,10 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "plugin-repo",
     // Other parameters
     "tcp-listener-file-path",
+    // Tokio console parameters
+    "tokio-console-enabled",
+    "tokio-console-event-buffer-capacity",
+    "tokio-console-client-buffer-capacity",
 ];
 
 const REDACTED_STR: &str = "*******";
