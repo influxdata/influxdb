@@ -1346,7 +1346,7 @@ async fn api_v3_configure_table_delete_with_hard_delete_at_timestamp() {
     let server = TestServer::spawn().await;
     let client = server.http_client();
     let url = format!(
-        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}&hard_delete_at=2025-12-31T23:59:59Z",
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}&hard_delete_at=2125-12-31T23:59:59Z",
         base = server.client_addr()
     );
 
