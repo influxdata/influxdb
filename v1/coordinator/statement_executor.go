@@ -406,6 +406,7 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 				Err: fmt.Errorf("insufficient permissions"),
 			})
 		}
+
 		errs = errors.Join(errs, e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition))
 	}
 	return errs
