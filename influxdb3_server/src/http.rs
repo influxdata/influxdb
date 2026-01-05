@@ -1104,6 +1104,9 @@ impl HttpApi {
         let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
         self.common_state.metrics.report(&mut reporter);
 
+        // Add required OpenMetrics EOF marker
+        body.extend_from_slice(b"# EOF\n");
+
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")
