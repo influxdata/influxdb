@@ -6606,6 +6606,12 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
 		},
+		{
+			name:    "Verify rp1 unaffected by DELETE WHERE without FROM",
+			command: `SELECT * FROM rp1.cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-05T00:00:00Z","serverA","uswest",200]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	test.Run(ctx, t, s)
