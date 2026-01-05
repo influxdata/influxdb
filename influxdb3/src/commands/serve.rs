@@ -12,8 +12,8 @@ use influxdb3_cache::{
 use influxdb3_catalog::{CatalogError, catalog::Catalog};
 use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
-    datafusion::IoxQueryDatafusionConfig, memory_size::MemorySize, object_store::ObjectStoreConfig,
-    socket_addr::SocketAddr, tokio::TokioDatafusionConfig,
+    datafusion::IoxQueryDatafusionConfig, memory_size::MemorySizeMb,
+    object_store::ObjectStoreConfig, socket_addr::SocketAddr, tokio::TokioDatafusionConfig,
 };
 use influxdb3_process::{
     INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_START_TIME, PROCESS_UUID_STR, ProcessUuidGetter,
@@ -669,36 +669,6 @@ impl From<&TlsMinimumVersion> for &'static [&'static SupportedProtocolVersion] {
             TlsMinimumVersion::Tls1_2 => TLS1_2,
             TlsMinimumVersion::Tls1_3 => TLS1_3,
         }
-    }
-}
-
-/// Specified size of the Parquet cache in megabytes (MB)
-#[derive(Debug, Clone, Copy)]
-pub struct MemorySizeMb(usize);
-
-impl MemorySizeMb {
-    /// Express this cache size in terms of bytes (B)
-    fn as_num_bytes(&self) -> usize {
-        self.0
-    }
-}
-
-impl FromStr for MemorySizeMb {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
-        let num_bytes = if s.contains("%") {
-            let mem_size = MemorySize::from_str(s)?;
-            mem_size.bytes()
-        } else if let Some(suffix) = s.strip_suffix('b') {
-            usize::from_str(suffix)
-                .map_err(|_| "failed to parse value as unsigned integer".to_string())?
-        } else {
-            let num_mb = usize::from_str(s)
-                .map_err(|_| "failed to parse value as unsigned integer".to_string())?;
-            num_mb * 1000 * 1000
-        };
-        Ok(Self(num_bytes))
     }
 }
 
