@@ -6610,3 +6610,132 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 
 	test.Run(ctx, t, s)
 }
+
+// Test deletion of series scoped to a specific retention policy outside of the default
+func TestServer_Query_DropOutsideDefaultRP(t *testing.T) {
+	s := OpenServer(t)
+	defer s.Close()
+
+	ctx := context.Background()
+	client := s.MustNewAdminClient()
+
+	// Create additional buckets for different retention policies
+	bucketRP1 := influxdb.Bucket{
+		OrgID: s.DefaultOrgID,
+		Name:  "db0/rp1",
+	}
+	bucketDB1RP1 := influxdb.Bucket{
+		OrgID: s.DefaultOrgID,
+		Name:  "db1/rp1",
+	}
+
+	require.NoError(t, client.CreateBucket(ctx, &bucketRP1))
+	require.NoError(t, client.CreateBucket(ctx, &bucketDB1RP1))
+
+	// Create DBRP mappings for db0
+	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
+		Database:        "db0",
+		RetentionPolicy: "rp1",
+		Default:         false,
+		OrganizationID:  s.DefaultOrgID,
+		BucketID:        bucketRP1.ID,
+	}))
+
+	// Create DBRP mappings for db1
+	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
+		Database:        "db1",
+		RetentionPolicy: "rp1",
+		Default:         false,
+		OrganizationID:  s.DefaultOrgID,
+		BucketID:        bucketDB1RP1.ID,
+	}))
+
+	// Set up test with default rp0 for db0
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		// Writes to db0/rp0 (default bucket)
+		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-02T00:00:00Z").UnixNano())},
+		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
+
+		// Writes to db0/rp1
+		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
+		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-04T00:00:00Z").UnixNano())},
+		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-05T00:00:00Z").UnixNano())},
+
+		// Writes to db1/rp1
+		&Write{bucketID: bucketDB1RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-03-01T00:00:00Z").UnixNano())},
+	}
+
+	test.addQueries([]*Query{
+		{
+			name:    "Show series is present in retention policy 0",
+			command: `SHOW SERIES`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
+		{
+			name:    "Show series is present in retention policy 1",
+			command: `SHOW SERIES`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp1"}},
+		},
+		// SELECT from db0/rp0 (default)
+		{
+			name:    "Select all from cpu in db0/rp0",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2],["2000-01-02T00:00:00Z","serverA","uswest",100],["2000-01-03T00:00:00Z","serverA","uswest",200]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// SELECT from db0/rp1
+		{
+			name:    "Select all from cpu in db0/rp1",
+			command: `SELECT * FROM "db0"."rp1".cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-03T00:00:00Z","serverA","uswest",200],["2000-01-04T00:00:00Z","serverA","uswest",200],["2000-01-05T00:00:00Z","serverA","uswest",200]]}]}]}`,
+			params:  url.Values{},
+		},
+		// SELECT from db1/rp1
+		{
+			name:    "Select all from cpu in db1/rp1",
+			command: `SELECT * FROM "db1"."rp1".cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-03-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+			params:  url.Values{},
+		},
+		// DROP the cpu measurement
+		{
+			name:    "Drop cpu measurement",
+			command: `DROP MEASUREMENT cpu`,
+			exp:     `{}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		{
+			name:    "Drop cpu measurement",
+			command: `DROP MEASUREMENT cpu`,
+			exp:     `{}`,
+			params:  url.Values{"db": []string{"db1"}},
+		},
+		// SELECT from db0/rp0 (default)
+		{
+			name:    "Select all from cpu in db0/rp0",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"statement_id":0}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// SELECT from db0/rp1
+		{
+			name:    "Select all from cpu in db0/rp1",
+			command: `SELECT * FROM "db0"."rp1".cpu`,
+			exp:     `{"results":[{"statement_id":0}]}`,
+			params:  url.Values{},
+		},
+		// SELECT from db1/rp1
+		{
+			name:    "Select all from cpu in db1/rp1",
+			command: `SELECT * FROM "db1"."rp1".cpu`,
+			exp:     `{"results":[{"statement_id":0}]}`,
+			params:  url.Values{},
+		},
+	}...)
+
+	test.Run(ctx, t, s)
+}

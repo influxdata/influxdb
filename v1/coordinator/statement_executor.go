@@ -367,7 +367,7 @@ func (e *StatementExecutor) getDefaultRP(ctx context.Context, database string, e
 }
 
 func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q *influxql.DeleteSeriesStatement, database string, ectx *query.ExecutionContext) error {
-	var errs error
+	var rerr error
 	var rp string
 
 	if len(q.Sources) > 0 {
@@ -407,26 +407,34 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 			})
 		}
 
-		errs = errors.Join(errs, e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition))
+		rerr = errors.Join(rerr, e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition))
 	}
-	return errs
+	return rerr
 }
 
 func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context, q *influxql.DropMeasurementStatement, database string, ectx *query.ExecutionContext) error {
-	mapping, err := e.getDefaultRP(ctx, database, ectx)
+	var rerr error
+	mappings, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilter{
+		OrgID:    &ectx.OrgID,
+		Database: &database,
+	})
 	if err != nil {
 		return err
 	}
 
-	// Require write for DROP MEASUREMENT queries
-	_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
-	if err != nil {
-		return ectx.Send(ctx, &query.Result{
-			Err: fmt.Errorf("insufficient permissions"),
-		})
+	for _, mapping := range mappings {
+		// Require write for DROP MEASUREMENT queries
+		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+		if err != nil {
+			return ectx.Send(ctx, &query.Result{
+				Err: fmt.Errorf("insufficient permissions"),
+			})
+		}
+
+		rerr = errors.Join(e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name))
 	}
 
-	return e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name)
+	return rerr
 }
 
 type measurementRow struct {
