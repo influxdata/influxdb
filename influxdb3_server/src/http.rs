@@ -1104,6 +1104,11 @@ impl HttpApi {
         let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
         self.common_state.metrics.report(&mut reporter);
 
+        // Ensure the response ends with a newline (EOF marker)
+        if !body.ends_with(b"\n") {
+            body.extend(b"\n");
+        }
+
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")
