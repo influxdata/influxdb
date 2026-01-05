@@ -414,6 +414,9 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 
 func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context, q *influxql.DropMeasurementStatement, database string, ectx *query.ExecutionContext) error {
 	var rerr error
+	// When running DROP MEASUREMENT we want to ensure that the measurement
+	// is dropped from all retention policy that is mapped to our bucket.
+	// This is specifically for backwards compatibility with influxdb 1.x
 	mappings, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilter{
 		OrgID:    &ectx.OrgID,
 		Database: &database,
