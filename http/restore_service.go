@@ -230,6 +230,8 @@ func (h *RestoreHandler) handleRestoreBucketMetadata(w http.ResponseWriter, r *h
 		for _, sg := range rps.ShardGroups {
 			if len(sg.Shards) <= 0 && sg.DeletedAt == nil {
 				h.Logger.Warn("Restore: ShardGroup has not been deleted and has no shards",
+					zap.String("bucket", b.BucketID.String()),
+					zap.String("rp", rps.Name),
 					zap.Uint64("shard-group-id", sg.ID), zap.Time("start-time", sg.StartTime),
 					zap.Time("end-time", sg.EndTime))
 			}
