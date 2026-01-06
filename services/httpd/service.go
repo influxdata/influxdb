@@ -158,7 +158,7 @@ func (s *Service) Open() error {
 		}
 
 		tlsConfig := s.tlsConfig.Clone()
-		tlsConfig.GetCertificate = s.certLoader.GetCertificate
+		s.certLoader.SetupTLSConfig(tlsConfig)
 
 		listener, err := tls.Listen("tcp", s.addr, tlsConfig)
 		if err != nil {

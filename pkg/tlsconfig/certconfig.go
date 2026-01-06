@@ -30,10 +30,11 @@ const (
 )
 
 var (
-	ErrCertificateNil           = errors.New("TLS certificate is nil")
-	ErrCertificateEmpty         = errors.New("TLS certificate is empty")
-	ErrLoadedCertificateInvalid = errors.New("LoadedCertificate is invalid")
-	ErrPathEmpty                = errors.New("empty path")
+	ErrCertificateNil            = errors.New("TLS certificate is nil")
+	ErrCertificateEmpty          = errors.New("TLS certificate is empty")
+	ErrCertificateRequestInfoNil = errors.New("CertificateRequestInfo is nil")
+	ErrLoadedCertificateInvalid  = errors.New("LoadedCertificate is invalid")
+	ErrPathEmpty                 = errors.New("empty path")
 )
 
 // LoadedCertificate encapsulates information about a loaded certificate.
@@ -275,6 +276,18 @@ func (cl *TLSCertLoader) Certificate() *tls.Certificate {
 	return cl.cert
 }
 
+// SetupTLSConfig modifies tlsConfig to use cl for server and client certificates.
+// tlsConfig may be nil. If other fields like tlsConfig.Certificates or
+// tlsConfig.NameToCertificate have been set, then cl's certificate may not be used
+// as expected.
+func (cl *TLSCertLoader) SetupTLSConfig(tlsConfig *tls.Config) {
+	if tlsConfig == nil {
+		return
+	}
+	tlsConfig.GetCertificate = cl.GetCertificate
+	tlsConfig.GetClientCertificate = cl.GetClientCertificate
+}
+
 // GetCertificate is for use with a tls.Config's GetCertificate member. This allows a
 // tls.Config to dynamically update its certificate when Load changes the active
 // certificate.
@@ -288,6 +301,23 @@ func (cl *TLSCertLoader) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate,
 		// then we keep using the currently loaded certificate.
 		return nil, ErrCertificateNil
 	}
+}
+
+// GetClientCertificate is for use with a tls.Config's GetClientCertificate member. This allows a
+// tls.Config to dynamically update its client certificates when Load changes the active
+// certificate.
+func (cl *TLSCertLoader) GetClientCertificate(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	if cri == nil {
+		return new(tls.Certificate), ErrCertificateRequestInfoNil
+	}
+	cert := cl.Certificate()
+	if cert == nil {
+		return new(tls.Certificate), ErrCertificateNil
+	}
+	if err := cri.SupportsCertificate(cert); err != nil {
+		return new(tls.Certificate), err
+	}
+	return cert, nil
 }
 
 // Leaf returns the parsed x509 certificate of the currently loaded certificate.
