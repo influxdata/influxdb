@@ -42,6 +42,12 @@ type CertOptions struct {
 
 	// CombinedFile indicates if the certificate and key should be combined into a single file
 	CombinedFile bool
+
+	// CAOrganization sets the CA certificate's Subject.Organization field
+	CAOrganization string
+
+	// CACommonName sets the CA certificate's Subject.CommonName field
+	CACommonName string
 }
 
 type CertOpt func(*CertOptions)
@@ -82,6 +88,13 @@ func WithCombinedFile() CertOpt {
 	}
 }
 
+func WithCASubject(organization, commonName string) CertOpt {
+	return func(o *CertOptions) {
+		o.CAOrganization = organization
+		o.CACommonName = commonName
+	}
+}
+
 func NewSelfSignedCert(t *testing.T, opts ...CertOpt) *Cert {
 	t.Helper()
 	tmpdir := t.TempDir()
@@ -108,6 +121,14 @@ func NewSelfSignedCert(t *testing.T, opts ...CertOpt) *Cert {
 		options.NotAfter = time.Now().Add(7 * 24 * time.Hour)
 	}
 
+	if options.CAOrganization == "" {
+		options.CAOrganization = "my_test_ca"
+	}
+
+	if options.CACommonName == "" {
+		options.CACommonName = "My Test CA"
+	}
+
 	// Sanity check options.
 	require.NotEmpty(t, options.DNSNames)
 
@@ -129,8 +150,8 @@ func NewSelfSignedCert(t *testing.T, opts ...CertOpt) *Cert {
 		BasicConstraintsValid: true,
 
 		Subject: pkix.Name{
-			Organization: []string{"my_test_ca"},
-			CommonName:   "My Test CA",
+			Organization: []string{options.CAOrganization},
+			CommonName:   options.CACommonName,
 		},
 
 		IsCA: true,
