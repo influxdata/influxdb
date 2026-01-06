@@ -1,7 +1,9 @@
 package tlsconfig
 
 import (
+	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"math/big"
 	"os"
@@ -487,4 +489,140 @@ func TestTLSCertLoader_VerifyLoad(t *testing.T) {
 		require.NotEqual(t, leaf1, cl.Leaf())
 		require.Equal(t, sn2, cl.Leaf().SerialNumber.String())
 	}
+}
+
+func TestTLSCertLoader_GetClientCertificate(t *testing.T) {
+	ss := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("client.influxdata.edge"))
+
+	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath)
+	require.NoError(t, err)
+	require.NotNil(t, cl)
+	defer func() {
+		require.NoError(t, cl.Close())
+	}()
+
+	// Test happy path: certificate supports the request.
+	// The selfsigned package creates RSA certificates, so we use RSA signature schemes.
+	t.Run("supported certificate", func(t *testing.T) {
+		cri := &tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{
+				tls.PKCS1WithSHA256,
+				tls.PKCS1WithSHA384,
+				tls.PKCS1WithSHA512,
+			},
+		}
+
+		cert, err := cl.GetClientCertificate(cri)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		require.Equal(t, cl.Certificate(), cert)
+	})
+
+	t.Run("nil CertificateRequestInfo", func(t *testing.T) {
+		cert, err := cl.GetClientCertificate(nil)
+		require.ErrorIs(t, err, ErrCertificateRequestInfoNil)
+		require.NotNil(t, cert)
+		require.Empty(t, cert.Certificate)
+	})
+
+	// Test unsupported certificate: CertificateRequestInfo only accepts Ed25519,
+	// but our certificate uses RSA.
+	t.Run("unsupported certificate", func(t *testing.T) {
+		cri := &tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{
+				tls.Ed25519, // Our RSA cert doesn't support this
+			},
+		}
+
+		cert, err := cl.GetClientCertificate(cri)
+		require.ErrorContains(t, err, "doesn't support any of the certificate's signature algorithms")
+		// GetClientCertificate must return a non-nil certificate even on error
+		// (per the tls.Config.GetClientCertificate contract).
+		require.NotNil(t, cert)
+		// The returned certificate should be an empty certificate, not the loaded one.
+		require.NotEqual(t, cl.Certificate(), cert)
+		require.Empty(t, cert.Certificate)
+	})
+
+	// Test with AcceptableCAs that include our CA.
+	t.Run("acceptable CA", func(t *testing.T) {
+		// Verify that if we change cri to ss's CA subject then we do get cert.
+		caCert, err := os.ReadFile(ss.CACertPath)
+		require.NoError(t, err)
+
+		// Parse the CA cert to get its RawSubject for AcceptableCAs.
+		block, _ := pem.Decode(caCert)
+		require.NotNil(t, block)
+		parsedCA, err := x509.ParseCertificate(block.Bytes)
+		require.NoError(t, err)
+
+		cri := &tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{
+				tls.PKCS1WithSHA256,
+			},
+			AcceptableCAs: [][]byte{parsedCA.RawSubject},
+		}
+
+		cert, err := cl.GetClientCertificate(cri)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		require.Equal(t, cl.Certificate(), cert)
+	})
+
+	// Test with AcceptableCAs that don't include our CA.
+	t.Run("unacceptable CA", func(t *testing.T) {
+		// Create a certificate with a different CA subject.
+		ss2 := selfsigned.NewSelfSignedCert(t,
+			selfsigned.WithCASubject("different_org", "Different CA"),
+		)
+		caCert2, err := os.ReadFile(ss2.CACertPath)
+		require.NoError(t, err)
+
+		// Parse the CA cert to get its RawSubject for AcceptableCAs.
+		block2, _ := pem.Decode(caCert2)
+		require.NotNil(t, block2)
+		parsedCA2, err := x509.ParseCertificate(block2.Bytes)
+		require.NoError(t, err)
+
+		cri := &tls.CertificateRequestInfo{
+			SignatureSchemes: []tls.SignatureScheme{
+				tls.PKCS1WithSHA256,
+			},
+			AcceptableCAs: [][]byte{parsedCA2.RawSubject},
+		}
+
+		cert, err := cl.GetClientCertificate(cri)
+		require.ErrorContains(t, err, "not signed by an acceptable CA")
+		require.NotNil(t, cert)
+		require.Empty(t, cert.Certificate)
+	})
+}
+
+func TestTLSCertLoader_SetupTLSConfig(t *testing.T) {
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath)
+	require.NoError(t, err)
+	require.NotNil(t, cl)
+	defer func() {
+		require.NoError(t, cl.Close())
+	}()
+
+	t.Run("nil config", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			cl.SetupTLSConfig(nil)
+		})
+	})
+
+	t.Run("sets callbacks", func(t *testing.T) {
+		tlsConfig := &tls.Config{}
+
+		require.Nil(t, tlsConfig.GetCertificate)
+		require.Nil(t, tlsConfig.GetClientCertificate)
+
+		cl.SetupTLSConfig(tlsConfig)
+
+		require.NotNil(t, tlsConfig.GetCertificate)
+		require.NotNil(t, tlsConfig.GetClientCertificate)
+	})
 }
