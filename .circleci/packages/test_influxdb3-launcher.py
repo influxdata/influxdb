@@ -147,150 +147,6 @@ class TestCheckExecutable(unittest.TestCase):
             self.launcher.os.name = original_os_name  # type: ignore[attr-defined]
 
 
-class TestReadConfigEnv(unittest.TestCase):
-    """Tests for read_config_env() function"""
-
-    def setUp(self):
-        self.launcher = load_launcher_module()
-        self.temp_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    def _write_config(self, content):
-        """Helper to write a config file and return its path"""
-        config_path = os.path.join(self.temp_dir, "test.conf")
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        return config_path
-
-    def test_simple_variables(self):
-        """Test simple variable parsing"""
-        config_path = self._write_config("FOO=bar\nBAZ=qux\n")
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO": "bar", "BAZ": "qux"})
-
-    def test_double_quoted_values(self):
-        """Test double-quoted values"""
-        config_path = self._write_config('FOO="bar"\nBAZ="qux with spaces"\n')
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO": "bar", "BAZ": "qux with spaces"})
-
-    def test_single_quoted_values(self):
-        """Test single-quoted values"""
-        config_path = self._write_config("FOO='bar'\nBAZ='qux with spaces'\n")
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO": "bar", "BAZ": "qux with spaces"})
-
-    def test_mixed_quoting(self):
-        """Test mixed quoted and unquoted values"""
-        config_path = self._write_config('FOO=abc\nBAR="def"\nBAZ="efg \'hij"\n')
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO": "abc", "BAR": "def", "BAZ": "efg 'hij"})
-
-    def test_empty_value(self):
-        """Test empty values"""
-        config_path = self._write_config("FOO=\nBAR=value\n")
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO": "", "BAR": "value"})
-
-    def test_comments_ignored(self):
-        """Test that comments are ignored"""
-        config_path = self._write_config(
-            "# This is a comment\nFOO=bar\n# Another comment\nBAZ=qux\n"
-        )
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO": "bar", "BAZ": "qux"})
-
-    def test_blank_lines_ignored(self):
-        """Test that blank lines are ignored"""
-        config_path = self._write_config("FOO=bar\n\n\nBAZ=qux\n")
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO": "bar", "BAZ": "qux"})
-
-    def test_invalid_lines_skipped(self):
-        """Test that invalid lines are skipped"""
-        config_path = self._write_config(
-            "FOO=bar\n"
-            "this is not valid\n"
-            "BAZ=qux\n"
-            "lowercase=ignored\n"
-            "MIX3d_Case=ignored\n"
-            "VALID=accepted\n"
-        )
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO": "bar", "BAZ": "qux", "VALID": "accepted"})
-
-    def test_underscore_in_name(self):
-        """Test variable names with underscores"""
-        config_path = self._write_config(
-            "FOO_BAR=value1\n_LEADING=value2\nTRAILING_=value3\n"
-        )
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(
-            env_vars, {"FOO_BAR": "value1", "_LEADING": "value2", "TRAILING_": "value3"}
-        )
-
-    def test_digits_in_name(self):
-        """Test variable names with digits"""
-        config_path = self._write_config("FOO123=value1\nBAR_456_BAZ=value2\n")
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {"FOO123": "value1", "BAR_456_BAZ": "value2"})
-
-    def test_nonexistent_config(self):
-        """Test with non-existent config file"""
-        with self.assertRaises(SystemExit) as cm:
-            self.launcher.read_config_env("/nonexistent/config.conf")
-        self.assertEqual(cm.exception.code, 1)
-
-    def test_config_is_directory(self):
-        """Test with directory instead of file"""
-        with self.assertRaises(SystemExit) as cm:
-            self.launcher.read_config_env(self.temp_dir)
-        self.assertEqual(cm.exception.code, 1)
-
-    def test_empty_config_file(self):
-        """Test with empty config file"""
-        config_path = self._write_config("")
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(env_vars, {})
-
-    def test_mismatched_quotes_opening(self):
-        """Test that opening quote without closing quote causes an error"""
-        config_path = self._write_config('FOO="bar\n')
-        with self.assertRaises(SystemExit) as cm:
-            self.launcher.read_config_env(config_path)
-        self.assertEqual(cm.exception.code, 1)
-
-    def test_mismatched_quotes_closing(self):
-        """Test that closing quote without opening quote causes an error"""
-        config_path = self._write_config('FOO=bar"\n')
-        with self.assertRaises(SystemExit) as cm:
-            self.launcher.read_config_env(config_path)
-        self.assertEqual(cm.exception.code, 1)
-
-    def test_mismatched_quote_types(self):
-        """Test that mixing single and double quotes causes an error"""
-        config_path = self._write_config("FOO=\"bar'\n")
-        with self.assertRaises(SystemExit) as cm:
-            self.launcher.read_config_env(config_path)
-        self.assertEqual(cm.exception.code, 1)
-
-    def test_special_characters_in_value(self):
-        """Test special characters in values"""
-        config_path = self._write_config(
-            'PATH="/usr/bin:/usr/local/bin"\nURL="https://example.com?foo=bar&baz=qux"\n'
-        )
-        env_vars = self.launcher.read_config_env(config_path)
-        self.assertEqual(
-            env_vars,
-            {
-                "PATH": "/usr/bin:/usr/local/bin",
-                "URL": "https://example.com?foo=bar&baz=qux",
-            },
-        )
-
-
 class TestReadConfigTOML(unittest.TestCase):
     """Tests for read_config_toml() function"""
 
@@ -423,10 +279,11 @@ class TestReadConfigTOML(unittest.TestCase):
         self.assertEqual(cm.exception.code, 1)
 
     def test_empty_config_file(self):
-        """Test with empty TOML config file"""
+        """Test with empty TOML config file fails validation"""
         config_path = self._write_toml_config("")
-        env_vars = self.launcher.read_config_toml(config_path, "core")
-        self.assertEqual(env_vars, {})
+        with self.assertRaises(SystemExit) as cm:
+            self.launcher.read_config_toml(config_path, "core")
+        self.assertEqual(cm.exception.code, 1)
 
     def test_invalid_toml(self):
         """Test with invalid TOML syntax"""
@@ -600,7 +457,7 @@ class TestValidateRequiredKeys(unittest.TestCase):
         with open(toml_path, "w") as f:
             f.write('object-store = "file"\n[extra]\nfoo = "bar"\n')
         try:
-            result = self.launcher.read_config(toml_path, None, "core")
+            result = self.launcher.read_config_toml(toml_path, "core")
             self.assertEqual(result, {"INFLUXDB3_OBJECT_STORE": "file"})
         finally:
             os.remove(toml_path)
@@ -634,8 +491,8 @@ class TestValidateRequiredKeys(unittest.TestCase):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-class TestReadConfig(unittest.TestCase):
-    """Tests for read_config() function"""
+class TestReadConfigTOMLValidation(unittest.TestCase):
+    """Tests for read_config_toml() with flavor-based validation"""
 
     def setUp(self):
         self.launcher = load_launcher_module()
@@ -651,47 +508,18 @@ class TestReadConfig(unittest.TestCase):
             f.write(content)
         return path
 
-    def _write_env(self, content):
-        """Helper to write ENV config"""
-        path = os.path.join(self.temp_dir, "test.env")
-        with open(path, "w") as f:
-            f.write(content)
-        return path
-
-    def test_only_toml_core(self):
-        """Test with only TOML config for core flavor"""
+    def test_toml_core(self):
+        """Test with TOML config for core flavor"""
         toml_path = self._write_toml('object-store = "file"\n')
-        result = self.launcher.read_config(toml_path, None, "core")
+        result = self.launcher.read_config_toml(toml_path, "core")
         self.assertEqual(result, {"INFLUXDB3_OBJECT_STORE": "file"})
-
-    def test_only_env_core(self):
-        """Test with only ENV config for core flavor"""
-        env_path = self._write_env("INFLUXDB3_OBJECT_STORE=file\n")
-        result = self.launcher.read_config(None, env_path, "core")
-        self.assertEqual(result, {"INFLUXDB3_OBJECT_STORE": "file"})
-
-    def test_both_toml_and_env_toml_takes_precedence(self):
-        """Test with both TOML and ENV, only TOML is read"""
-        toml_path = self._write_toml('object-store = "file"\nnode-id = "from-toml"\n')
-        env_path = self._write_env(
-            "INFLUXDB3_OBJECT_STORE=file\nINFLUXDB3_NODE_IDENTIFIER_PREFIX=from-env\n"
-        )
-        result = self.launcher.read_config(toml_path, env_path, "core")
-        # TOML takes precedence, ENV is ignored
-        self.assertEqual(
-            result,
-            {
-                "INFLUXDB3_OBJECT_STORE": "file",
-                "INFLUXDB3_NODE_IDENTIFIER_PREFIX": "from-toml",
-            },
-        )
 
     def test_enterprise_with_license_file(self):
         """Test enterprise flavor with license file"""
         toml_path = self._write_toml(
             'object-store = "file"\nlicense-file = "/path/to/license.jwt"\n'
         )
-        result = self.launcher.read_config(toml_path, None, "enterprise")
+        result = self.launcher.read_config_toml(toml_path, "enterprise")
         self.assertEqual(
             result,
             {
@@ -702,12 +530,12 @@ class TestReadConfig(unittest.TestCase):
 
     def test_enterprise_with_license_email_and_type(self):
         """Test enterprise flavor with license email and type"""
-        env_path = self._write_env(
-            "INFLUXDB3_OBJECT_STORE=file\n"
-            "INFLUXDB3_ENTERPRISE_LICENSE_EMAIL=test@example.com\n"
-            "INFLUXDB3_ENTERPRISE_LICENSE_TYPE=trial\n"
+        toml_path = self._write_toml(
+            'object-store = "file"\n'
+            'license-email = "test@example.com"\n'
+            'license-type = "trial"\n'
         )
-        result = self.launcher.read_config(None, env_path, "enterprise")
+        result = self.launcher.read_config_toml(toml_path, "enterprise")
         self.assertEqual(
             result,
             {
@@ -716,11 +544,6 @@ class TestReadConfig(unittest.TestCase):
                 "INFLUXDB3_ENTERPRISE_LICENSE_TYPE": "trial",
             },
         )
-
-    def test_read_config_no_files_returns_empty(self):
-        """No config files should return empty env dict"""
-        result = self.launcher.read_config(None, None, "core")
-        self.assertEqual(result, {})
 
 
 class TestWritePidfile(unittest.TestCase):
@@ -1004,9 +827,9 @@ class TestDaemonize(unittest.TestCase):
         original_dup2 = os.dup2
         original_close = os.close
         original_write_pidfile = self.launcher.write_pidfile
-        original_platform = self.launcher.PLATFORM_SUPPORTS_FORK
+        original_platform = getattr(self.launcher, "PLATFORM_SUPPORTS_FORK")
         try:
-            self.launcher.PLATFORM_SUPPORTS_FORK = True
+            setattr(self.launcher, "PLATFORM_SUPPORTS_FORK", True)
             os.fork = fake_fork  # type: ignore[assignment]
             os.setsid = fake_setsid  # type: ignore[assignment]
             signal.signal = fake_signal  # type: ignore[assignment]
@@ -1033,7 +856,7 @@ class TestDaemonize(unittest.TestCase):
             os.dup2 = original_dup2  # type: ignore[assignment]
             os.close = original_close  # type: ignore[assignment]
             self.launcher.write_pidfile = original_write_pidfile  # type: ignore[assignment]
-            self.launcher.PLATFORM_SUPPORTS_FORK = original_platform
+            setattr(self.launcher, "PLATFORM_SUPPORTS_FORK", original_platform)
 
     def test_daemonize_unsupported_platform(self):
         """Test that daemonize fails gracefully on unsupported platforms"""
@@ -1155,11 +978,11 @@ class TestRun(unittest.TestCase):
     )
     def test_run_restores_sighup_before_exec(self):
         """run() should reset SIGHUP to default if it was ignored"""
-        called_handler = {"handler": None}
+        called_handler: list = [None]
 
         def mock_execve(path, args, env):
             # Capture handler at exec time
-            called_handler["handler"] = signal.getsignal(signal.SIGHUP)
+            called_handler[0] = signal.getsignal(signal.SIGHUP)
             raise SystemExit(0)
 
         original_handler = signal.getsignal(signal.SIGHUP)
@@ -1171,7 +994,7 @@ class TestRun(unittest.TestCase):
                 self.launcher.run("/usr/bin/influxdb3", [], {})
             self.assertEqual(cm.exception.code, 0)
 
-            self.assertEqual(called_handler["handler"], signal.SIG_DFL)
+            self.assertEqual(called_handler[0], signal.SIG_DFL)
         finally:
             signal.signal(signal.SIGHUP, original_handler)
 
@@ -1180,10 +1003,10 @@ class TestRun(unittest.TestCase):
     )
     def test_run_keeps_sighup_default(self):
         """If SIGHUP already default, run() should leave it unchanged"""
-        called_handler = {"handler": None}
+        called_handler: list = [None]
 
         def mock_execve(path, args, env):
-            called_handler["handler"] = signal.getsignal(signal.SIGHUP)
+            called_handler[0] = signal.getsignal(signal.SIGHUP)
             raise SystemExit(0)
 
         original_handler = signal.getsignal(signal.SIGHUP)
@@ -1195,7 +1018,7 @@ class TestRun(unittest.TestCase):
                 self.launcher.run("/usr/bin/influxdb3", [], {})
             self.assertEqual(cm.exception.code, 0)
 
-            self.assertEqual(called_handler["handler"], signal.SIG_DFL)
+            self.assertEqual(called_handler[0], signal.SIG_DFL)
         finally:
             signal.signal(signal.SIGHUP, original_handler)
 
@@ -1227,9 +1050,9 @@ class TestMain(unittest.TestCase):
         os.chmod(exec_path, 0o755)
         return exec_path
 
-    def _create_config(self, content):
-        """Create a config file and return its path"""
-        config_path = os.path.join(self.temp_dir, "test.conf")
+    def _create_toml_config(self, content):
+        """Create a TOML config file and return its path"""
+        config_path = os.path.join(self.temp_dir, "test.toml")
         with open(config_path, "w") as f:
             f.write(content)
         return config_path
@@ -1237,13 +1060,13 @@ class TestMain(unittest.TestCase):
     def test_missing_required_flavor(self):
         """Test that missing --flavor causes error"""
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
 
         argv = [
             "launcher",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1266,13 +1089,13 @@ class TestMain(unittest.TestCase):
 
     def test_missing_required_exec(self):
         """Test that missing --exec causes error"""
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
 
         argv = [
             "launcher",
             "--flavor",
             "core",
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1286,7 +1109,7 @@ class TestMain(unittest.TestCase):
     def test_missing_required_stamp_dir(self):
         """Test that missing --stamp-dir causes error"""
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
 
         argv = [
             "launcher",
@@ -1294,7 +1117,7 @@ class TestMain(unittest.TestCase):
             "core",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--",
         ]
@@ -1306,7 +1129,7 @@ class TestMain(unittest.TestCase):
     def test_invalid_flavor(self):
         """Test that invalid flavor value causes error"""
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
 
         argv = [
             "launcher",
@@ -1314,7 +1137,7 @@ class TestMain(unittest.TestCase):
             "invalid",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1335,8 +1158,8 @@ class TestMain(unittest.TestCase):
         stderr_output = f.getvalue()
         self.assertIn("invalid choice", stderr_output.lower())
 
-    def test_missing_both_configs(self):
-        """Test that missing both config options causes error"""
+    def test_missing_config_toml(self):
+        """Test that missing --config-toml causes error"""
         exec_path = self._create_executable()
 
         argv = [
@@ -1368,7 +1191,7 @@ class TestMain(unittest.TestCase):
         os.execve = mock_execve
 
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
 
         argv = [
             "launcher",
@@ -1376,7 +1199,7 @@ class TestMain(unittest.TestCase):
             "core",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1407,7 +1230,7 @@ class TestMain(unittest.TestCase):
         os.execve = mock_execve
 
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
 
         argv = [
             "launcher",
@@ -1415,7 +1238,7 @@ class TestMain(unittest.TestCase):
             "core",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1442,7 +1265,7 @@ class TestMain(unittest.TestCase):
         os.execve = mock_execve
 
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
         pidfile = os.path.join(self.temp_dir, "test.pid")
 
         argv = [
@@ -1451,7 +1274,7 @@ class TestMain(unittest.TestCase):
             "core",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1471,27 +1294,10 @@ class TestMain(unittest.TestCase):
             pid = int(f.read().strip())
         self.assertEqual(pid, os.getpid())
 
-    def test_config_toml_precedence(self):
-        """Test that TOML config is used when both configs provided"""
-        # Mock execve to capture what would be passed
-        called_with = {}
-
-        def mock_execve(path, args, env):
-            called_with["path"] = path
-            called_with["args"] = args
-            called_with["env"] = env
-            raise SystemExit(0)
-
-        os.execve = mock_execve
-
+    def test_core_missing_object_store(self):
+        """Test that Core without object-store fails with error"""
         exec_path = self._create_executable()
-        toml_path = os.path.join(self.temp_dir, "test.toml")
-        with open(toml_path, "w") as f:
-            f.write('object-store = "file"\nnode-id = "from-toml"\n')
-
-        env_path = self._create_config(
-            "INFLUXDB3_OBJECT_STORE=file\nINFLUXDB3_NODE_IDENTIFIER_PREFIX=from-env\n"
-        )
+        config_path = self._create_toml_config('foo = "bar"\n')
 
         argv = [
             "launcher",
@@ -1500,35 +1306,6 @@ class TestMain(unittest.TestCase):
             "--exec",
             exec_path,
             "--config-toml",
-            toml_path,
-            "--config-env",
-            env_path,
-            "--stamp-dir",
-            self.temp_dir,
-            "--",
-        ]
-
-        with self.assertRaises(SystemExit) as cm:
-            self.launcher.main(argv)
-        self.assertEqual(cm.exception.code, 0)
-
-        # Verify TOML config was used, not ENV
-        self.assertEqual(
-            called_with["env"]["INFLUXDB3_NODE_IDENTIFIER_PREFIX"], "from-toml"
-        )
-
-    def test_core_missing_object_store(self):
-        """Test that Core without object-store fails with error"""
-        exec_path = self._create_executable()
-        config_path = self._create_config("FOO=bar\n")
-
-        argv = [
-            "launcher",
-            "--flavor",
-            "core",
-            "--exec",
-            exec_path,
-            "--config-env",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1552,7 +1329,7 @@ class TestMain(unittest.TestCase):
     def test_enterprise_missing_license(self):
         """Test that Enterprise without license fails with error"""
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
 
         argv = [
             "launcher",
@@ -1560,7 +1337,7 @@ class TestMain(unittest.TestCase):
             "enterprise",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1584,8 +1361,8 @@ class TestMain(unittest.TestCase):
     def test_enterprise_only_email_fails(self):
         """Test that Enterprise with only license-email fails"""
         exec_path = self._create_executable()
-        config_path = self._create_config(
-            "INFLUXDB3_OBJECT_STORE=file\nINFLUXDB3_ENTERPRISE_LICENSE_EMAIL=user@example.com\n"
+        config_path = self._create_toml_config(
+            'object-store = "file"\nlicense-email = "user@example.com"\n'
         )
 
         argv = [
@@ -1594,7 +1371,7 @@ class TestMain(unittest.TestCase):
             "enterprise",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1628,7 +1405,7 @@ class TestMain(unittest.TestCase):
         os.execve = mock_execve
 
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
         log_file = os.path.join(self.temp_dir, "test.log")
 
         argv = [
@@ -1637,7 +1414,7 @@ class TestMain(unittest.TestCase):
             "core",
             "--exec",
             exec_path,
-            "--config-env",
+            "--config-toml",
             config_path,
             "--stamp-dir",
             self.temp_dir,
@@ -1664,7 +1441,7 @@ class TestMain(unittest.TestCase):
     def test_daemonize_with_pidfile(self):
         """Test --daemonize with --pidfile creates background process"""
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
         pidfile = os.path.join(self.temp_dir, "daemon.pid")
         launcher_path = str(
             Path(__file__).parent / "influxdb3/fs/usr/lib/influxdb3/influxdb3-launcher"
@@ -1679,7 +1456,7 @@ class TestMain(unittest.TestCase):
                 "core",
                 "--exec",
                 exec_path,
-                "--config-env",
+                "--config-toml",
                 config_path,
                 "--stamp-dir",
                 self.temp_dir,
@@ -1715,7 +1492,7 @@ class TestMain(unittest.TestCase):
     def test_daemonize_unsupported_platform_via_main(self):
         """Test that --daemonize fails on unsupported platforms via main()"""
         exec_path = self._create_executable()
-        config_path = self._create_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._create_toml_config('object-store = "file"\n')
 
         # Temporarily mock PLATFORM_SUPPORTS_FORK to False
         original_value = getattr(self.launcher, "PLATFORM_SUPPORTS_FORK")
@@ -1728,7 +1505,7 @@ class TestMain(unittest.TestCase):
                 "core",
                 "--exec",
                 exec_path,
-                "--config-env",
+                "--config-toml",
                 config_path,
                 "--stamp-dir",
                 self.temp_dir,
@@ -1890,9 +1667,9 @@ class TestLauncherIntegration(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def _write_config(self, content):
-        """Helper to write a config file and return its path"""
-        config_path = os.path.join(self.temp_dir, "test.conf")
+    def _write_toml_config(self, content):
+        """Helper to write a TOML config file and return its path"""
+        config_path = os.path.join(self.temp_dir, "test.toml")
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(content)
         return config_path
@@ -1920,15 +1697,15 @@ class TestLauncherIntegration(unittest.TestCase):
         return exec_path
 
     def test_environment_from_config(self):
-        """Test that environment variables from config are passed"""
-        config_path = self._write_config(
-            "INFLUXDB3_OBJECT_STORE=file\n" "TEST_LAUNCHER_VAR=from_config\n"
+        """Test that environment variables from TOML config are passed to executed process"""
+        config_path = self._write_toml_config(
+            'object-store = "file"\n' 'node-id = "test-node-123"\n'
         )
 
         # Create a mock executable that prints an env var
         mock_exec = self._create_mock_executable(
             "import os\n"
-            'print(f\'TEST_LAUNCHER_VAR={os.environ.get("TEST_LAUNCHER_VAR", "NOT_SET")}\')\n'
+            'print(f\'NODE_ID={os.environ.get("INFLUXDB3_NODE_IDENTIFIER_PREFIX", "NOT_SET")}\')\n'
         )
 
         result = subprocess.run(
@@ -1939,7 +1716,7 @@ class TestLauncherIntegration(unittest.TestCase):
                 "core",
                 "--exec",
                 mock_exec,
-                "--config-env",
+                "--config-toml",
                 config_path,
                 "--stamp-dir",
                 self.temp_dir,
@@ -1949,13 +1726,13 @@ class TestLauncherIntegration(unittest.TestCase):
             text=True,
         )
 
-        self.assertIn("TEST_LAUNCHER_VAR=from_config", result.stdout)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("NODE_ID=test-node-123", result.stdout)
 
     def test_enterprise_license_file_valid(self):
         """Test that Enterprise with object-store and license-file works"""
-        config_path = self._write_config(
-            "INFLUXDB3_OBJECT_STORE=file\n"
-            "INFLUXDB3_ENTERPRISE_LICENSE_FILE=/path/to/license.jwt\n"
+        config_path = self._write_toml_config(
+            'object-store = "file"\n' 'license-file = "/path/to/license.jwt"\n'
         )
 
         # Create a simple mock executable
@@ -1969,7 +1746,7 @@ class TestLauncherIntegration(unittest.TestCase):
                 "enterprise",
                 "--exec",
                 mock_exec,
-                "--config-env",
+                "--config-toml",
                 config_path,
                 "--stamp-dir",
                 self.temp_dir,
@@ -1985,7 +1762,7 @@ class TestLauncherIntegration(unittest.TestCase):
 
     def test_core_with_object_store(self):
         """Test that Core works with just object-store"""
-        config_path = self._write_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._write_toml_config('object-store = "file"\n')
 
         # Create a simple mock executable
         mock_exec = self._create_mock_executable("print('Core running')\n")
@@ -1998,7 +1775,7 @@ class TestLauncherIntegration(unittest.TestCase):
                 "core",
                 "--exec",
                 mock_exec,
-                "--config-env",
+                "--config-toml",
                 config_path,
                 "--stamp-dir",
                 self.temp_dir,
@@ -2015,7 +1792,7 @@ class TestLauncherIntegration(unittest.TestCase):
     @unittest.skipIf(os.name == "nt", "Daemonize not available on Windows")
     def test_daemonize_integration(self):
         """Integration test for --daemonize with actual forking"""
-        config_path = self._write_config("INFLUXDB3_OBJECT_STORE=file\n")
+        config_path = self._write_toml_config('object-store = "file"\n')
         pidfile = os.path.join(self.temp_dir, "daemon.pid")
         log_file = os.path.join(self.temp_dir, "daemon.log")
         marker_file = os.path.join(self.temp_dir, "daemon.marker")
@@ -2036,7 +1813,7 @@ class TestLauncherIntegration(unittest.TestCase):
                 "core",
                 "--exec",
                 mock_exec,
-                "--config-env",
+                "--config-toml",
                 config_path,
                 "--stamp-dir",
                 self.temp_dir,

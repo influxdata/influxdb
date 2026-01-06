@@ -24,7 +24,6 @@ sys.dont_write_bytecode = True  # don't create __pycache__ files
 
 import argparse
 import os
-import re
 import signal
 import tempfile
 import tomllib  # this is in cpython 3.11+ standard library
@@ -122,14 +121,6 @@ REQUIRED_TOML_KEYS = {
     "enterprise": [
         "object-store,license-file",
         "object-store,license-email,license-type",
-    ],
-}
-
-REQUIRED_ENV_KEYS = {
-    "core": ["INFLUXDB3_OBJECT_STORE"],
-    "enterprise": [
-        "INFLUXDB3_OBJECT_STORE,INFLUXDB3_ENTERPRISE_LICENSE_FILE",
-        "INFLUXDB3_OBJECT_STORE,INFLUXDB3_ENTERPRISE_LICENSE_EMAIL,INFLUXDB3_ENTERPRISE_LICENSE_TYPE",
     ],
 }
 
@@ -319,89 +310,13 @@ def check_executable(path: str) -> str:
     return abs_path
 
 
-def read_config_env(path: str, required: List[str] = []) -> Dict[str, str]:
-    """
-    Read and parse the environment variable configuration file.
-
-    Args:
-        path: Path to the environment variable configuration file
-        required: List of required variable groups. Each element can be:
-                  - A single variable name (e.g., 'LICENSE_FILE')
-                  - Comma-separated variable names (e.g., 'LICENSE_EMAIL,LICENSE_TYPE')
-                  At least one group must be satisfied.
-
-    Returns:
-        Dict of environment variables to set
-    """
-    abs_path: str = _validate_file_path(path, "config file")
-
-    env_vars: Dict[str, str] = {}
-
-    # Variable name must start with letter or underscore, contain only
-    # uppercase, digits, underscores
-    var_pattern = re.compile(r"^([A-Z_][A-Z0-9_]*)=(.*)$")
-
-    try:
-        with open(abs_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.rstrip()  # Strip trailing whitespace
-
-                if not line or line.startswith("#"):
-                    continue  # Skip empty and comment lines
-
-                # Try to match environment variable pattern
-                match = var_pattern.match(line)
-                if match:
-                    var_name = match.group(1)
-                    var_value = match.group(2)
-
-                    # Strip surrounding quotes if present (double or single)
-                    # Handles: FOO="bar" or FOO='bar' -> bar
-                    # Preserves: FOO=bar -> bar
-                    # Error on mismatched quotes
-                    if len(var_value) >= 2:
-                        has_opening_quote = var_value[0] in ('"', "'")
-                        has_closing_quote = var_value[-1] in ('"', "'")
-
-                        if has_opening_quote or has_closing_quote:
-                            # Check for matching quotes
-                            if var_value[0] == '"' and var_value[-1] == '"':
-                                var_value = var_value[1:-1]
-                            elif var_value[0] == "'" and var_value[-1] == "'":
-                                var_value = var_value[1:-1]
-                            else:
-                                # Mismatched or incomplete quotes
-                                print(
-                                    f"E: Mismatched quotes in config file {path} for variable {var_name}={var_value}",
-                                    file=sys.stderr,
-                                )
-                                sys.exit(1)
-
-                    env_vars[var_name] = var_value
-
-        # Validate required variables if specified
-        if required:
-            _validate_required_keys(env_vars, required, "environment variable")
-
-        return env_vars
-    except Exception as e:  # pragma: nocover
-        print(f"E: problem reading config file {path}: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
-def read_config_toml(
-    path: str, flavor: str, required: List[str] = []
-) -> Dict[str, str]:
+def read_config_toml(path: str, flavor: str) -> Dict[str, str]:
     """
     Read and parse the TOML configuration file for environment variables.
 
     Args:
         path: Path to the TOML configuration file
         flavor: The InfluxDB 3 flavor ('core' or 'enterprise')
-        required: List of required TOML key groups. Each element can be:
-                  - A single TOML key (e.g., 'license-file')
-                  - Comma-separated TOML keys (e.g., 'license-email,license-type')
-                  At least one group must be satisfied.
 
     Returns:
         Dict of environment variables to set
@@ -413,6 +328,7 @@ def read_config_toml(
             toml_data: Dict[str, Any] = tomllib.load(f)
 
         # Validate required TOML keys before conversion
+        required = REQUIRED_TOML_KEYS[flavor]
         if required:
             _validate_required_keys(toml_data, required, "TOML key")
 
@@ -447,36 +363,6 @@ def read_config_toml(
     except Exception as e:
         print(f"E: problem reading TOML config file {path}: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-def read_config(
-    config_toml: str | None,
-    config_env: str | None,
-    flavor: str,
-) -> Dict[str, str]:
-    """
-    Read configuration from TOML or environment variable files.
-
-    Args:
-        config_toml: Path to TOML configuration file (optional)
-        config_env: Path to environment variable configuration file (optional)
-        flavor: The InfluxDB 3 flavor ('core' or 'enterprise')
-
-    Returns:
-        Dict of environment variables to set
-
-    Priority: If config_toml is provided, it is used. Otherwise, config_env is used.
-    """
-    env_vars: Dict[str, str] = {}
-
-    if config_toml:
-        env_vars.update(
-            read_config_toml(config_toml, flavor, REQUIRED_TOML_KEYS[flavor])
-        )
-    elif config_env:
-        env_vars.update(read_config_env(config_env, REQUIRED_ENV_KEYS[flavor]))
-
-    return env_vars
 
 
 def write_pidfile(pidfile: str, pid: int | None = None) -> None:
@@ -715,11 +601,6 @@ def main(argv: List[str] | None = None) -> None:
         "--exec", required=True, metavar="PATH", help="Path to the influxdb3 executable"
     )
     parser.add_argument(
-        "--config-env",
-        metavar="PATH",
-        help="Path to the environment variable configuration file",
-    )
-    parser.add_argument(
         "--config-toml", metavar="PATH", help="Path to the TOML configuration file"
     )
     parser.add_argument(
@@ -747,15 +628,15 @@ def main(argv: List[str] | None = None) -> None:
     args = parser.parse_args(launcher_args)
 
     # Validate that at least one config option is provided
-    if not args.config_env and not args.config_toml:
-        parser.error("at least one of --config-env or --config-toml is required")
+    if not args.config_toml:
+        parser.error("--config-toml is required")
 
     # Warn if --log-file is used without --daemonize
     if args.log_file and not args.daemonize:
         print("W: --log-file has no effect without --daemonize", file=sys.stderr)
 
     # Read configuration files and merge environment variables
-    env_vars = read_config(args.config_toml, args.config_env, args.flavor)
+    env_vars = read_config_toml(args.config_toml, args.flavor)
 
     # Check flavor migration BEFORE exec
     stamp_path = os.path.join(args.stamp_dir, STAMP_FILENAME)
