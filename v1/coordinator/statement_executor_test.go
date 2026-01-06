@@ -493,9 +493,13 @@ func testExecDeleteSeriesOrDropMeasurement(t *testing.T, qType string) {
 			db := "db0"
 
 			empty := ""
-			isDefault := true
-			filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &db, RetentionPolicy: nil, Default: &isDefault}
-			res := []*influxdb.DBRPMapping{{Database: db, RetentionPolicy: empty, OrganizationID: orgID, BucketID: bucketID, Default: isDefault}}
+			filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &db}
+			// DELETE FROM targets only the default RP, DROP MEASUREMENT targets all RPs
+			if qType == "DELETE" {
+				isDefault := true
+				filt.Default = &isDefault
+			}
+			res := []*influxdb.DBRPMapping{{Database: db, RetentionPolicy: empty, OrganizationID: orgID, BucketID: bucketID, Default: true}}
 			dbrp.EXPECT().
 				FindMany(gomock.Any(), filt).
 				Return(res, 1, nil)
