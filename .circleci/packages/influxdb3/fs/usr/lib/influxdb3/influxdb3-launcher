@@ -115,6 +115,23 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
 # Stamp file configuration
 STAMP_FILENAME = ".influxdb3-launcher"
 
+# SSL certificate bundle path for RHEL-based systems. SSL_CERT_FILE will be
+# conditionally set to this on systems known to need it for the
+# python-build-standalone environment.
+SSL_CERT_BUNDLE_PATH = "/etc/pki/tls/certs/ca-bundle.crt"
+
+# PLATFORM_ID values that need SSL_CERT_FILE workaround (RHEL7 isn't currently
+# supported by the database but is by the embedded python, so we'll set this in
+# case the database is updated in the future).
+SSL_CERT_AFFECTED_PLATFORMS = frozenset(
+    [
+        "platform:el7",
+        "platform:el8",
+        "platform:ol7",
+        "platform:ol8",
+    ]
+)
+
 # Required configuration keys for validation
 REQUIRED_TOML_KEYS = {
     "core": ["object-store"],
@@ -161,6 +178,66 @@ def write_stamp(stamp_path: str, flavor: str) -> None:
             raise
     except Exception as e:  # pragma: nocover
         print(f"W: Could not write stamp file {stamp_path}: {e}", file=sys.stderr)
+
+
+def get_platform_id(os_release_path: str = "/etc/os-release") -> str | None:
+    """
+    Read PLATFORM_ID from /etc/os-release.
+
+    Returns the PLATFORM_ID value (e.g., "platform:el8") or None if not found.
+    """
+    if not os.path.exists(os_release_path):
+        return None
+
+    try:
+        with open(os_release_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("PLATFORM_ID="):
+                    # Handle both quoted and unquoted values
+                    value = line.split("=", 1)[1]
+                    # Remove surrounding quotes if present
+                    if (
+                        len(value) >= 2
+                        and value[0] == value[-1]
+                        and value[0] in ('"', "'")
+                    ):
+                        value = value[1:-1]
+                    return value
+    except Exception:
+        pass
+
+    return None
+
+
+def get_ssl_cert_env(
+    os_release_path: str = "/etc/os-release",
+    cert_bundle_path: str = SSL_CERT_BUNDLE_PATH,
+) -> Dict[str, str]:
+    """
+    Get SSL_CERT_FILE environment variable for affected RHEL-based platforms.
+
+    Args:
+        os_release_path: Path to os-release file (for testing)
+        cert_bundle_path: Path to certificate bundle (for testing)
+
+    Returns:
+        Dict with SSL_CERT_FILE key if conditions are met, empty dict otherwise
+    """
+    # Don't override user's existing SSL_CERT_FILE
+    if os.environ.get("SSL_CERT_FILE"):
+        return {}
+
+    # Check if we're on an affected platform
+    platform_id = get_platform_id(os_release_path)
+    if platform_id is None or platform_id not in SSL_CERT_AFFECTED_PLATFORMS:
+        return {}
+
+    # Check if the certificate bundle exists
+    if not os.path.exists(cert_bundle_path):
+        return {}
+
+    return {"SSL_CERT_FILE": cert_bundle_path}
 
 
 def check_flavor_migration(stamp_path: str, current_flavor: str) -> None:
@@ -637,6 +714,9 @@ def main(argv: List[str] | None = None) -> None:
 
     # Read configuration files and merge environment variables
     env_vars = read_config_toml(args.config_toml, args.flavor)
+
+    # Add SSL_CERT_FILE for affected RHEL-based platforms
+    env_vars.update(get_ssl_cert_env())
 
     # Check flavor migration BEFORE exec
     stamp_path = os.path.join(args.stamp_dir, STAMP_FILENAME)

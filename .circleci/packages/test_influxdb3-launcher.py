@@ -1656,6 +1656,221 @@ class TestFlavorStamp(unittest.TestCase):
         )
 
 
+class TestGetPlatformId(unittest.TestCase):
+    """Tests for get_platform_id() function"""
+
+    def setUp(self):
+        self.launcher = load_launcher_module()
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _write_os_release(self, content: str) -> str:
+        """Helper to write a mock os-release file"""
+        os_release_path = os.path.join(self.temp_dir, "os-release")
+        with open(os_release_path, "w") as f:
+            f.write(content)
+        return os_release_path
+
+    def test_file_not_exists(self):
+        """Test returns None when os-release file doesn't exist"""
+        result = self.launcher.get_platform_id("/nonexistent/os-release")
+        self.assertIsNone(result)
+
+    def test_no_platform_id(self):
+        """Test returns None when PLATFORM_ID line is missing"""
+        os_release = self._write_os_release(
+            'NAME="Red Hat Enterprise Linux"\n' 'VERSION_ID="8.9"\n'
+        )
+        result = self.launcher.get_platform_id(os_release)
+        self.assertIsNone(result)
+
+    def test_platform_id_double_quotes(self):
+        """Test parses PLATFORM_ID with double quotes"""
+        os_release = self._write_os_release(
+            'NAME="Red Hat Enterprise Linux"\n' 'PLATFORM_ID="platform:el8"\n'
+        )
+        result = self.launcher.get_platform_id(os_release)
+        self.assertEqual(result, "platform:el8")
+
+    def test_platform_id_single_quotes(self):
+        """Test parses PLATFORM_ID with single quotes"""
+        os_release = self._write_os_release(
+            "NAME='Red Hat Enterprise Linux'\n" "PLATFORM_ID='platform:el8'\n"
+        )
+        result = self.launcher.get_platform_id(os_release)
+        self.assertEqual(result, "platform:el8")
+
+    def test_platform_id_no_quotes(self):
+        """Test parses PLATFORM_ID without quotes"""
+        os_release = self._write_os_release("NAME=RHEL\n" "PLATFORM_ID=platform:el8\n")
+        result = self.launcher.get_platform_id(os_release)
+        self.assertEqual(result, "platform:el8")
+
+    def test_rhel7(self):
+        """Test detects RHEL7 platform"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:el7"\n')
+        result = self.launcher.get_platform_id(os_release)
+        self.assertEqual(result, "platform:el7")
+
+    def test_oracle_linux_7(self):
+        """Test detects Oracle Linux 7 platform"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:ol7"\n')
+        result = self.launcher.get_platform_id(os_release)
+        self.assertEqual(result, "platform:ol7")
+
+    def test_oracle_linux_8(self):
+        """Test detects Oracle Linux 8 platform"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:ol8"\n')
+        result = self.launcher.get_platform_id(os_release)
+        self.assertEqual(result, "platform:ol8")
+
+    def test_rhel9_not_affected(self):
+        """Test detects RHEL9 platform (not in affected list)"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:el9"\n')
+        result = self.launcher.get_platform_id(os_release)
+        self.assertEqual(result, "platform:el9")
+
+    def test_unreadable_file(self):
+        """Test returns None on file read error"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:el8"\n')
+        os.chmod(os_release, 0o000)
+        try:
+            result = self.launcher.get_platform_id(os_release)
+            # Depending on whether we're root, this may or may not raise
+            # Just ensure we don't crash
+            self.assertTrue(result is None or result == "platform:el8")
+        finally:
+            os.chmod(os_release, 0o644)
+
+
+class TestGetSslCertEnv(unittest.TestCase):
+    """Tests for get_ssl_cert_env() function"""
+
+    def setUp(self):
+        self.launcher = load_launcher_module()
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _write_os_release(self, content: str) -> str:
+        """Helper to write a mock os-release file"""
+        os_release_path = os.path.join(self.temp_dir, "os-release")
+        with open(os_release_path, "w") as f:
+            f.write(content)
+        return os_release_path
+
+    def _create_cert_bundle(self) -> str:
+        """Helper to create a mock certificate bundle file"""
+        cert_path = os.path.join(self.temp_dir, "ca-bundle.crt")
+        with open(cert_path, "w") as f:
+            f.write("# Mock certificate bundle\n")
+        return cert_path
+
+    def test_returns_ssl_cert_file_on_rhel8(self):
+        """Test returns SSL_CERT_FILE on RHEL8 when conditions are met"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:el8"\n')
+        cert_bundle = self._create_cert_bundle()
+
+        result = self.launcher.get_ssl_cert_env(os_release, cert_bundle)
+
+        self.assertEqual(result, {"SSL_CERT_FILE": cert_bundle})
+
+    def test_returns_ssl_cert_file_on_rhel7(self):
+        """Test returns SSL_CERT_FILE on RHEL7"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:el7"\n')
+        cert_bundle = self._create_cert_bundle()
+
+        result = self.launcher.get_ssl_cert_env(os_release, cert_bundle)
+
+        self.assertEqual(result, {"SSL_CERT_FILE": cert_bundle})
+
+    def test_returns_ssl_cert_file_on_oracle_linux_8(self):
+        """Test returns SSL_CERT_FILE on Oracle Linux 8"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:ol8"\n')
+        cert_bundle = self._create_cert_bundle()
+
+        result = self.launcher.get_ssl_cert_env(os_release, cert_bundle)
+
+        self.assertEqual(result, {"SSL_CERT_FILE": cert_bundle})
+
+    def test_returns_ssl_cert_file_on_oracle_linux_7(self):
+        """Test returns SSL_CERT_FILE on Oracle Linux 7"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:ol7"\n')
+        cert_bundle = self._create_cert_bundle()
+
+        result = self.launcher.get_ssl_cert_env(os_release, cert_bundle)
+
+        self.assertEqual(result, {"SSL_CERT_FILE": cert_bundle})
+
+    def test_returns_empty_on_rhel9(self):
+        """Test returns empty dict on RHEL9 (not affected)"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:el9"\n')
+        cert_bundle = self._create_cert_bundle()
+
+        result = self.launcher.get_ssl_cert_env(os_release, cert_bundle)
+
+        self.assertEqual(result, {})
+
+    def test_returns_empty_on_fedora(self):
+        """Test returns empty dict on Fedora"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:f39"\n')
+        cert_bundle = self._create_cert_bundle()
+
+        result = self.launcher.get_ssl_cert_env(os_release, cert_bundle)
+
+        self.assertEqual(result, {})
+
+    def test_returns_empty_when_no_os_release(self):
+        """Test returns empty dict when os-release doesn't exist"""
+        cert_bundle = self._create_cert_bundle()
+
+        result = self.launcher.get_ssl_cert_env("/nonexistent/os-release", cert_bundle)
+
+        self.assertEqual(result, {})
+
+    def test_returns_empty_when_cert_bundle_missing(self):
+        """Test returns empty dict when cert bundle doesn't exist"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:el8"\n')
+
+        result = self.launcher.get_ssl_cert_env(
+            os_release, "/nonexistent/ca-bundle.crt"
+        )
+
+        self.assertEqual(result, {})
+
+    def test_returns_empty_when_ssl_cert_file_already_set(self):
+        """Test returns empty dict when SSL_CERT_FILE is already set"""
+        os_release = self._write_os_release('PLATFORM_ID="platform:el8"\n')
+        cert_bundle = self._create_cert_bundle()
+
+        original_value = os.environ.get("SSL_CERT_FILE")
+        try:
+            os.environ["SSL_CERT_FILE"] = "/custom/path/to/certs.pem"
+            result = self.launcher.get_ssl_cert_env(os_release, cert_bundle)
+            self.assertEqual(result, {})
+        finally:
+            if original_value is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = original_value
+
+    def test_affected_platforms_constant(self):
+        """Test that SSL_CERT_AFFECTED_PLATFORMS contains expected values"""
+        expected = frozenset(
+            ["platform:el7", "platform:el8", "platform:ol7", "platform:ol8"]
+        )
+        self.assertEqual(self.launcher.SSL_CERT_AFFECTED_PLATFORMS, expected)
+
+    def test_cert_bundle_path_constant(self):
+        """Test that SSL_CERT_BUNDLE_PATH is set correctly"""
+        self.assertEqual(
+            self.launcher.SSL_CERT_BUNDLE_PATH, "/etc/pki/tls/certs/ca-bundle.crt"
+        )
+
+
 class TestLauncherIntegration(unittest.TestCase):
     """Integration tests that run the launcher with mock executables"""
 
