@@ -13,8 +13,8 @@ var (
 )
 
 // TLSConfigManager will manage a TLS configuration and make sure that only one instance of its tls.Config exists.
-// Different TLSConfigManager's will have different configurations, even if they are instantiated in exactly the same way.
-// No struct member is modified once the NewTLSConfigManager constructor is finished.
+// Different TLSConfigManager objects will have different configurations, even if they are instantiated in exactly
+// the same way. No struct member is modified once the NewTLSConfigManager constructor is finished.
 type TLSConfigManager struct {
 	useTLS     bool
 	tlsConfig  *tls.Config

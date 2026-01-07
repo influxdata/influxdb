@@ -2,6 +2,7 @@ package tlsconfig
 
 import (
 	"crypto/tls"
+	"errors"
 	"net"
 	"testing"
 
@@ -126,7 +127,7 @@ func TestTLSConfigManager_CertLoaderPathsCorrect(t *testing.T) {
 func TestTLSConfigManager_ConstructorError(t *testing.T) {
 	// Use non-existent paths to verify NewTLSConfigLoader returns error
 	manager, err := NewTLSConfigManager(true, nil, "/nonexistent/cert.pem", "/nonexistent/key.pem", false)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "LoadCertificate: error opening \"/nonexistent/cert.pem\" for reading: open /nonexistent/cert.pem: no such file or directory")
 	require.Nil(t, manager)
 }
 
@@ -322,8 +323,7 @@ func TestTLSConfigManager_UseTLSWithoutCert(t *testing.T) {
 		}()
 
 		_, err = manager.Listen("tcp", "127.0.0.1:0")
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "tls: neither Certificates, GetCertificate, nor GetConfigForClient set in Config")
+		require.ErrorContains(t, err, "tls: neither Certificates, GetCertificate, nor GetConfigForClient set in Config")
 	})
 
 	t.Run("respects base config", func(t *testing.T) {
@@ -418,7 +418,7 @@ func TestTLSConfigManager_PrepareCertificateLoad(t *testing.T) {
 
 		// Prepare loading with nonexistent paths should fail
 		callback, err := manager.PrepareCertificateLoad("/nonexistent/cert.pem", "/nonexistent/key.pem")
-		require.Error(t, err)
+		require.ErrorContains(t, err, "LoadCertificate: error opening \"/nonexistent/cert.pem\" for reading: open /nonexistent/cert.pem: no such file or directory")
 		require.Nil(t, callback)
 	})
 
@@ -465,20 +465,23 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 				serverResult <- err
 				return
 			}
-			defer conn.Close()
 
 			buf := make([]byte, len(testData))
-			_, err = conn.Read(buf)
-			serverData <- buf
+			var n int
+			n, err = conn.Read(buf)
+			err = errors.Join(err, conn.Close())
+			serverData <- buf[:n]
 			serverResult <- err
 		}()
 
 		// Client: connect and send data
 		conn, err := dial(listener.Addr().String())
 		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, conn.Close())
+		}()
 		_, err = conn.Write(testData)
 		require.NoError(t, err)
-		conn.Close()
 
 		require.NoError(t, <-serverResult)
 		require.Equal(t, testData, <-serverData)
@@ -532,7 +535,7 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 		}()
 
 		_, err = manager.Listen("tcp", "invalid:address:format")
-		require.Error(t, err)
+		require.ErrorContains(t, err, "address invalid:address:format: too many colons in address")
 	})
 }
 
@@ -551,11 +554,12 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 				serverResult <- err
 				return
 			}
-			defer conn.Close()
 
 			buf := make([]byte, len(testData))
-			_, err = conn.Read(buf)
-			serverData <- buf
+			var n int
+			n, err = conn.Read(buf)
+			err = errors.Join(err, conn.Close())
+			serverData <- buf[:n]
 			serverResult <- err
 		}()
 
@@ -564,7 +568,9 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 		require.NoError(t, err)
 		_, err = conn.Write(testData)
 		require.NoError(t, err)
-		conn.Close()
+		defer func() {
+			require.NoError(t, conn.Close())
+		}()
 
 		require.NoError(t, <-serverResult)
 		require.Equal(t, testData, <-serverData)
@@ -648,6 +654,6 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 		}()
 
 		_, err = manager.Dial("tcp", "invalid:address:format")
-		require.Error(t, err)
+		require.ErrorContains(t, err, "address invalid:address:format: too many colons in address")
 	})
 }
