@@ -634,6 +634,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
 	bucketManifestWriter := backup.NewBucketManifestWriter(ts, metaClient)
+	bucketManifestWriter.WithLogger(m.log.With(zap.String("service", "bucket-manifest-writer")))
 
 	onboardingLogger := m.log.With(zap.String("handler", "onboard"))
 	onboardOpts := []tenant.OnboardServiceOptionFn{tenant.WithOnboardingLogger(onboardingLogger)}
