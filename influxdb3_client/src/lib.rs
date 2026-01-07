@@ -9,6 +9,7 @@ use reqwest::{
 };
 use secrecy::{ExposeSecret, Secret};
 use serde::{Serialize, de::DeserializeOwned};
+use std::error::Error as _;
 use std::{fmt::Display, num::NonZeroUsize, path::PathBuf, string::FromUtf8Error, time::Duration};
 use url::Url;
 
@@ -18,13 +19,13 @@ pub use influxdb3_types::write::Precision;
 /// Primary error type for the [`Client`]
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("base URL error: {0}")]
+    #[error("base URL error: {}", reqwest_description(.0))]
     BaseUrl(#[source] reqwest::Error),
 
     #[error("request URL error: {0}")]
     RequestUrl(#[from] url::ParseError),
 
-    #[error("failed to read the API response bytes: {0}")]
+    #[error("failed to read the API response bytes: {}", reqwest_description(.0))]
     Bytes(#[source] reqwest::Error),
 
     #[error("failed to serialize the request body: {0}")]
@@ -43,16 +44,16 @@ pub enum Error {
     #[error("invalid UTF8 in response: {0}")]
     InvalidUtf8(#[from] FromUtf8Error),
 
-    #[error("failed to parse JSON response: {0}")]
+    #[error("failed to parse JSON response: {}", reqwest_description(.0))]
     Json(#[source] reqwest::Error),
 
-    #[error("failed to parse plaintext response: {0}")]
+    #[error("failed to parse plaintext response: {}", reqwest_description(.0))]
     Text(#[source] reqwest::Error),
 
     #[error("server responded with error [{code}]: {message}")]
     ApiError { code: StatusCode, message: String },
 
-    #[error("failed to send {method} {url} request: {source}")]
+    #[error("failed to send {method} {url} request: {}", reqwest_description(.source))]
     RequestSend {
         method: Method,
         url: String,
@@ -60,11 +61,26 @@ pub enum Error {
         source: reqwest::Error,
     },
 
-    #[error("failed to build an http client: {0}")]
+    #[error("failed to build an http client: {}", reqwest_description(.0))]
     Builder(#[source] reqwest::Error),
 
     #[error("io error: {0}")]
     IO(#[from] std::io::Error),
+}
+
+fn reqwest_description(e: &reqwest::Error) -> String {
+    if (e.is_request()
+        || e.is_redirect()
+        || e.is_body()
+        || e.is_decode()
+        || e.is_builder()
+        || e.is_connect())
+        && let Some(src) = e.source()
+    {
+        src.to_string()
+    } else {
+        e.to_string()
+    }
 }
 
 impl Error {
