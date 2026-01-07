@@ -218,6 +218,12 @@ struct MutableTableChunk {
 impl MutableTableChunk {
     fn add_rows(&mut self, rows: &[Row]) {
         let new_row_count = rows.len();
+        // Capacity needed for builders created in this call.
+        // After this batch of rows, each builder will have exactly (self.row_count + new_row_count)
+        // entries for values and nulls.
+        // Using exact capacity avoids the default 1024-element allocation which may cause excessive
+        // memory usage when there are many chunks with few rows each in sparse time-series data.
+        let builder_capacity = self.row_count + new_row_count;
 
         for (row_index, r) in rows.iter().enumerate() {
             let mut value_added = HashSet::with_capacity(r.fields.len());
@@ -231,7 +237,8 @@ impl MutableTableChunk {
                         self.timestamp_max = self.timestamp_max.max(*v);
 
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            let mut time_builder = TimestampNanosecondBuilder::new();
+                            let mut time_builder =
+                                TimestampNanosecondBuilder::with_capacity(builder_capacity);
                             // append nulls for all previous rows
                             time_builder.append_nulls(row_index + self.row_count);
                             Builder::Time(time_builder)
@@ -244,11 +251,14 @@ impl MutableTableChunk {
                     }
                     FieldData::Tag(v) => {
                         if let Entry::Vacant(e) = self.data.entry(f.id) {
-                            let mut tag_builder = StringDictionaryBuilder::new();
+                            // keep arrow's defaults for value_capacity and data_capacity.
+                            let mut tag_builder = StringDictionaryBuilder::with_capacity(
+                                builder_capacity,
+                                1024,
+                                1024,
+                            );
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                tag_builder.append_null();
-                            }
+                            tag_builder.append_nulls(row_index + self.row_count);
                             e.insert(Builder::Tag(tag_builder));
                         }
                         let b = self.data.get_mut(&f.id).expect("tag builder should exist");
@@ -261,11 +271,11 @@ impl MutableTableChunk {
                     }
                     FieldData::String(v) => {
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            let mut string_builder = StringBuilder::new();
+                            // keep arrow's default for data_capacity.
+                            let mut string_builder =
+                                StringBuilder::with_capacity(builder_capacity, 1024);
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                string_builder.append_null();
-                            }
+                            string_builder.append_nulls(row_index + self.row_count);
                             Builder::String(string_builder)
                         });
                         if let Builder::String(b) = b {
@@ -276,7 +286,7 @@ impl MutableTableChunk {
                     }
                     FieldData::Integer(v) => {
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            let mut int_builder = Int64Builder::new();
+                            let mut int_builder = Int64Builder::with_capacity(builder_capacity);
                             // append nulls for all previous rows
                             int_builder.append_nulls(row_index + self.row_count);
                             Builder::I64(int_builder)
@@ -289,7 +299,7 @@ impl MutableTableChunk {
                     }
                     FieldData::UInteger(v) => {
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            let mut uint_builder = UInt64Builder::new();
+                            let mut uint_builder = UInt64Builder::with_capacity(builder_capacity);
                             // append nulls for all previous rows
                             uint_builder.append_nulls(row_index + self.row_count);
                             Builder::U64(uint_builder)
@@ -302,7 +312,7 @@ impl MutableTableChunk {
                     }
                     FieldData::Float(v) => {
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            let mut float_builder = Float64Builder::new();
+                            let mut float_builder = Float64Builder::with_capacity(builder_capacity);
                             // append nulls for all previous rows
                             float_builder.append_nulls(row_index + self.row_count);
                             Builder::F64(float_builder)
@@ -315,7 +325,7 @@ impl MutableTableChunk {
                     }
                     FieldData::Boolean(v) => {
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            let mut bool_builder = BooleanBuilder::new();
+                            let mut bool_builder = BooleanBuilder::with_capacity(builder_capacity);
                             // append nulls for all previous rows
                             bool_builder.append_nulls(row_index + self.row_count);
                             Builder::Bool(bool_builder)
@@ -685,7 +695,7 @@ mod tests {
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 17731);
+        assert_eq!(size, 1475);
     }
 
     #[test]
