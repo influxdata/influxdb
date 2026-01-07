@@ -52,7 +52,7 @@ type Service struct {
 
 	wg         sync.WaitGroup
 	tls        bool
-	certLoader *tlsconfig.TLSCertLoader
+	tlsManager *tlsconfig.TLSConfigManager
 	tlsConfig  *tls.Config
 	cert       string
 	privateKey string
@@ -133,30 +133,18 @@ func (s *Service) Open() error {
 	go func() { defer s.wg.Done(); s.processBatches(s.batcher) }()
 
 	// Open listener.
-	if s.tls {
-		certLoader, err := tlsconfig.NewTLSCertLoader(s.cert, s.privateKey, tlsconfig.WithLogger(s.Logger))
-		if err != nil {
-			return err
-		}
-		s.certLoader = certLoader
-
-		tlsConfig := s.tlsConfig.Clone()
-		s.certLoader.SetupTLSConfig(tlsConfig)
-
-		listener, err := tls.Listen("tcp", s.BindAddress, tlsConfig)
-		if err != nil {
-			return err
-		}
-
-		s.ln = listener
+	if cm, err := tlsconfig.NewTLSConfigManager(s.tls, s.tlsConfig, s.cert, s.privateKey, false, tlsconfig.WithLogger(s.Logger)); err != nil {
+		return fmt.Errorf("opentsdb: error creating TLS manager: %w", err)
 	} else {
-		listener, err := net.Listen("tcp", s.BindAddress)
-		if err != nil {
-			return err
-		}
-
-		s.ln = listener
+		s.tlsManager = cm
 	}
+
+	if ln, err := s.tlsManager.Listen("tcp", s.BindAddress); err != nil {
+		return fmt.Errorf("opentsdb: error creating listener: %w", err)
+	} else {
+		s.ln = ln
+	}
+
 	s.Logger.Info("Listening on TCP",
 		zap.Stringer("addr", s.ln.Addr()),
 		zap.Bool("tls", s.tls))
@@ -188,10 +176,10 @@ func (s *Service) Close() error {
 		if err := s.httpln.Close(); err != nil {
 			return false, err
 		}
-		if s.certLoader != nil {
-			cl := s.certLoader
-			s.certLoader = nil
-			if err := cl.Close(); err != nil {
+		if s.tlsManager != nil {
+			tm := s.tlsManager
+			s.tlsManager = nil
+			if err := tm.Close(); err != nil {
 				return false, err
 			}
 		}
@@ -222,13 +210,13 @@ func (s *Service) PrepareReloadTLSCertificates() (func() error, error) {
 		return nil, nil
 	}
 
-	// Sanity check that we have a certLoader.
-	if s.certLoader == nil {
+	// Sanity check that we have a tlsManager.
+	if s.tlsManager == nil {
 		// This shouldn't happen.
-		return nil, errors.New("opentsdb: no certLoader available")
+		return nil, errors.New("opentsdb: no TLS manager available")
 	}
 
-	if apply, err := s.certLoader.PrepareLoad(s.cert, s.privateKey); err == nil {
+	if apply, err := s.tlsManager.PrepareCertificateLoad(s.cert, s.privateKey); err == nil {
 		return apply, nil
 	} else {
 		return nil, fmt.Errorf("opentsdb: TLS certificate reload failed (%q, %q): %w", s.cert, s.privateKey, err)
