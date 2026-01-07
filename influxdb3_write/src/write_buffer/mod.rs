@@ -62,7 +62,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("parsing for line protocol failed")]
+    #[error("line protocol parse failed: {}", .0.error_message)]
     ParseError(WriteLineError),
 
     #[error("incoming write was empty")]
