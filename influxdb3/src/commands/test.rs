@@ -14,9 +14,10 @@ pub struct Config {
 
 impl Config {
     fn get_client(&self) -> Result<Client, Box<dyn Error>> {
-        match &self.cmd {
+        let (host_url, auth_token, ca_cert, tls_no_verify) = match &self.cmd {
             SubCommand::WalPlugin(WalPluginConfig {
                 ca_cert,
+                tls_no_verify,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -27,6 +28,7 @@ impl Config {
             })
             | SubCommand::SchedulePlugin(SchedulePluginConfig {
                 ca_cert,
+                tls_no_verify,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -34,14 +36,13 @@ impl Config {
                         ..
                     },
                 ..
-            }) => {
-                let mut client = Client::new(host_url.clone(), ca_cert.clone())?;
-                if let Some(token) = &auth_token {
-                    client = client.with_auth_token(token.expose_secret());
-                }
-                Ok(client)
-            }
+            }) => (host_url, auth_token, ca_cert, tls_no_verify),
+        };
+        let mut client = Client::new(host_url.clone(), ca_cert.clone(), *tls_no_verify)?;
+        if let Some(token) = &auth_token {
+            client = client.with_auth_token(token.expose_secret());
         }
+        Ok(client)
     }
 }
 
@@ -77,6 +78,10 @@ pub struct WalPluginConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     pub ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    pub tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -98,6 +103,10 @@ pub struct SchedulePluginConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     pub ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    pub tls_no_verify: bool,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {

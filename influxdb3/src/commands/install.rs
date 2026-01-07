@@ -55,11 +55,19 @@ pub struct PackageConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 impl PackageConfig {
     async fn run_command(&self) -> Result<(), anyhow::Error> {
-        let mut client = Client::new(self.host_url.clone(), self.ca_cert.clone())?;
+        let mut client = Client::new(
+            self.host_url.clone(),
+            self.ca_cert.clone(),
+            self.tls_no_verify,
+        )?;
         if let Some(token) = &self.auth_token {
             client = client.with_auth_token(token.expose_secret());
         }
