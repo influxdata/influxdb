@@ -51,6 +51,10 @@ pub struct ShowTokensConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -75,6 +79,10 @@ pub struct PluginsConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -103,6 +111,10 @@ pub struct DatabaseConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -113,8 +125,9 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             show_deleted,
             output_format,
             ca_cert,
+            tls_no_verify,
         }) => {
-            let mut client = influxdb3_client::Client::new(host_url, ca_cert)?;
+            let mut client = influxdb3_client::Client::new(host_url, ca_cert, tls_no_verify)?;
 
             if let Some(t) = auth_token {
                 client = client.with_auth_token(t.expose_secret());
@@ -134,8 +147,9 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             auth_token,
             output_format,
             ca_cert,
+            tls_no_verify,
         }) => {
-            let mut client = influxdb3_client::Client::new(host_url, ca_cert)?;
+            let mut client = influxdb3_client::Client::new(host_url, ca_cert, tls_no_verify)?;
 
             if let Some(t) = auth_token {
                 client = client.with_auth_token(t.expose_secret());
@@ -154,6 +168,7 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             let mut client = influxdb3_client::Client::new(
                 show_tokens_config.host_url.clone(),
                 show_tokens_config.ca_cert,
+                show_tokens_config.tls_no_verify,
             )?;
 
             if let Some(t) = show_tokens_config.auth_token {

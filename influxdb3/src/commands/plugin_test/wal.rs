@@ -3,6 +3,7 @@ use influxdb3_client::plugin_development::WalPluginTestRequest;
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use std::error::Error;
+use std::path::PathBuf;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -11,6 +12,14 @@ pub struct Config {
 
     #[clap(flatten)]
     wal_plugin_test: WalPluginTest,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
+    ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -55,7 +64,7 @@ pub(super) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
     let wal_plugin_test_request: WalPluginTestRequest = config.wal_plugin_test.into();
 
-    let mut client = influxdb3_client::Client::new(host_url)?;
+    let mut client = influxdb3_client::Client::new(host_url, config.ca_cert, config.tls_no_verify)?;
     if let Some(t) = auth_token {
         client = client.with_auth_token(t.expose_secret());
     }

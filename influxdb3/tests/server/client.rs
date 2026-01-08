@@ -15,6 +15,7 @@ async fn write_and_query() {
     let client = influxdb3_client::Client::new(
         server.client_addr(),
         Some("../testing-certs/rootCA.pem".into()),
+        false,
     )
     .unwrap();
     client
@@ -47,6 +48,7 @@ async fn configure_last_caches() {
     let client = influxdb3_client::Client::new(
         server.client_addr(),
         Some("../testing-certs/rootCA.pem".into()),
+        false,
     )
     .unwrap();
     client
@@ -106,6 +108,7 @@ async fn write_with_no_sync() {
     let client = influxdb3_client::Client::new(
         server.client_addr(),
         Some("../testing-certs/rootCA.pem".into()),
+        false,
     )
     .unwrap();
 

@@ -76,6 +76,10 @@ pub struct Config {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, ValueEnum, Clone)]
@@ -90,7 +94,7 @@ pub(crate) async fn command(config: Config) -> Result<()> {
         database_name,
         auth_token,
     } = config.influxdb3_config;
-    let mut client = influxdb3_client::Client::new(host_url, config.ca_cert)?;
+    let mut client = influxdb3_client::Client::new(host_url, config.ca_cert, config.tls_no_verify)?;
     if let Some(t) = auth_token {
         client = client.with_auth_token(t.expose_secret());
     }

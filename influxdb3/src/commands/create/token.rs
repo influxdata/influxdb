@@ -201,6 +201,14 @@ pub struct InfluxDb3ServerConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(name = "tls-ca", long = "tls-ca")]
     pub ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(
+        name = "tls-no-verify",
+        long = "tls-no-verify",
+        env = "INFLUXDB3_TLS_NO_VERIFY"
+    )]
+    pub tls_no_verify: bool,
 }
 
 #[derive(Parser, Debug)]

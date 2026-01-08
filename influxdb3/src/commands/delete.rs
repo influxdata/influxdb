@@ -16,15 +16,17 @@ pub struct Config {
 
 impl Config {
     fn get_client(&self) -> Result<Client, Box<dyn Error>> {
-        match &self.cmd {
+        let (host_url, auth_token, ca_cert, tls_no_verify) = match &self.cmd {
             SubCommand::Database(DatabaseConfig {
                 host_url,
                 auth_token,
                 ca_cert,
+                tls_no_verify,
                 ..
             })
             | SubCommand::LastCache(LastCacheConfig {
                 ca_cert,
+                tls_no_verify,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -35,6 +37,7 @@ impl Config {
             })
             | SubCommand::DistinctCache(DistinctCacheConfig {
                 ca_cert,
+                tls_no_verify,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -45,6 +48,7 @@ impl Config {
             })
             | SubCommand::Table(TableConfig {
                 ca_cert,
+                tls_no_verify,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -55,6 +59,7 @@ impl Config {
             })
             | SubCommand::Trigger(TriggerConfig {
                 ca_cert,
+                tls_no_verify,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -65,17 +70,17 @@ impl Config {
             })
             | SubCommand::Token(TokenConfig {
                 ca_cert,
+                tls_no_verify,
                 host_url,
                 auth_token,
                 ..
-            }) => {
-                let mut client = Client::new(host_url.clone(), ca_cert.clone())?;
-                if let Some(token) = &auth_token {
-                    client = client.with_auth_token(token.expose_secret());
-                }
-                Ok(client)
-            }
+            }) => (host_url, auth_token, ca_cert, tls_no_verify),
+        };
+        let mut client = Client::new(host_url.clone(), ca_cert.clone(), *tls_no_verify)?;
+        if let Some(token) = &auth_token {
+            client = client.with_auth_token(token.expose_secret());
         }
+        Ok(client)
     }
 }
 
@@ -124,6 +129,10 @@ pub struct DatabaseConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -142,6 +151,10 @@ pub struct LastCacheConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -160,6 +173,10 @@ pub struct DistinctCacheConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -178,6 +195,10 @@ pub struct TableConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -196,6 +217,10 @@ pub struct TriggerConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -220,6 +245,10 @@ pub struct TokenConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 fn parse_hard_delete_time(value: Option<String>) -> Option<HardDeletionTime> {

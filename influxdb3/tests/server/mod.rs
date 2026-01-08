@@ -521,16 +521,22 @@ impl TestServer {
             None
         };
 
-        let http_client = reqwest::ClientBuilder::new()
+        let mut http_client_builder = reqwest::ClientBuilder::new()
             .min_tls_version(Version::TLS_1_3)
             .timeout(Duration::from_secs(60))
             .use_rustls_tls()
             .add_root_certificate(
                 Certificate::from_pem(&std::fs::read("../testing-certs/rootCA.pem").unwrap())
                     .unwrap(),
-            )
-            .build()
-            .unwrap();
+            );
+
+        // When using bad TLS certs, we need to accept invalid certs for the test
+        // infrastructure to be able to communicate with the server
+        if config.bad_tls() {
+            http_client_builder = http_client_builder.danger_accept_invalid_certs(true);
+        }
+
+        let http_client = http_client_builder.build().unwrap();
 
         let server = Self {
             auth_token: config.auth_token().map(|s| s.to_owned()),
@@ -764,6 +770,7 @@ impl TestServer {
         let mut client = influxdb3_client::Client::new(
             self.client_addr(),
             Some("../testing-certs/rootCA.pem".into()),
+            false,
         )
         .unwrap();
         if let Some(token) = &self.auth_token {
@@ -1034,6 +1041,7 @@ pub async fn write_lp_to_db(
     let client = influxdb3_client::Client::new(
         server.client_addr(),
         Some("../testing-certs/rootCA.pem".into()),
+        false,
     )
     .unwrap();
     client
@@ -1072,12 +1080,13 @@ pub async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch>
 }
 
 #[tokio::test]
-#[should_panic]
-async fn fail_with_invalid_certs() {
-    // This will fail in the startup of TestServer as the connection should
-    // fail when testing that the server is up. Note that this only holds true
-    // if other tests pass.
-    let _ = TestServer::spawn_bad_tls().await;
+async fn spawn_with_bad_tls_certs() {
+    // TestServer should be able to spawn with bad TLS certs because the test
+    // infrastructure's HTTP client uses danger_accept_invalid_certs(true) when
+    // bad_tls is enabled. This allows testing CLI commands with --tls-no-verify.
+    let server = TestServer::spawn_bad_tls().await;
+    // Verify the server is actually running by checking we can get its address
+    assert!(!server.client_addr().is_empty());
 }
 
 #[tokio::test]
