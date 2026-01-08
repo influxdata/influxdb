@@ -120,7 +120,7 @@ func LoadCertificate(certPath, keyPath string) (LoadedCertificate, error) {
 	// Create key pair from loaded data
 	cert, err := tls.X509KeyPair(certData, keyData)
 	if err != nil {
-		return fail(fmt.Errorf("error loading x509 key pair: %w", err))
+		return fail(fmt.Errorf("error loading x509 key pair (%q / %q): %w", certPath, keyPath, err))
 	}
 
 	// Parse the first X509 certificate in cert's chain.
@@ -129,11 +129,11 @@ func LoadCertificate(certPath, keyPath string) (LoadedCertificate, error) {
 	if err != nil {
 		// This should be impossible to reach because `tls.X509KeyPair` will fail
 		// if the leaf certificate can't be parsed.
-		return fail(fmt.Errorf("error parsing leaf certificate: %w", err))
+		return fail(fmt.Errorf("error parsing leaf certificate (%q / %q): %w", certPath, keyPath, err))
 	}
 	if leaf == nil {
 		// This shouldn't happen, but we should be extra careful with TLS certs.
-		return fail(fmt.Errorf("error parsing leaf certificate: %w", ErrCertificateNil))
+		return fail(fmt.Errorf("error parsing leaf certificate (%q / %q): %w", certPath, keyPath, ErrCertificateNil))
 	}
 
 	return LoadedCertificate{

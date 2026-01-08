@@ -90,7 +90,7 @@ type Service struct {
 
 	ln                 net.Listener
 	unixSocketListener net.Listener
-	certLoader         *tlsconfig.TLSCertLoader
+	tlsManager         *tlsconfig.TLSConfigManager
 
 	// tcpServerStarted indicates if httpServer is started for ln, which in turn indicates who is
 	// responsible for closing ln.
@@ -150,29 +150,16 @@ func (s *Service) Open() error {
 	s.Handler.Open()
 
 	// Open listener.
-	if s.https {
-		if certLoader, err := tlsconfig.NewTLSCertLoader(s.cert, s.key, tlsconfig.WithLogger(s.Logger)); err == nil {
-			s.certLoader = certLoader
-		} else {
-			return err
-		}
-
-		tlsConfig := s.tlsConfig.Clone()
-		s.certLoader.SetupTLSConfig(tlsConfig)
-
-		listener, err := tls.Listen("tcp", s.addr, tlsConfig)
-		if err != nil {
-			return err
-		}
-
-		s.ln = listener
+	if tm, err := tlsconfig.NewTLSConfigManager(s.https, s.tlsConfig, s.cert, s.key, false, tlsconfig.WithLogger(s.Logger)); err != nil {
+		return fmt.Errorf("httpd: error creating TLS manager: %w", err)
 	} else {
-		listener, err := net.Listen("tcp", s.addr)
-		if err != nil {
-			return err
-		}
+		s.tlsManager = tm
+	}
 
-		s.ln = listener
+	if ln, err := s.tlsManager.Listen("tcp", s.addr); err != nil {
+		return fmt.Errorf("httpd: error creating listener: %w", err)
+	} else {
+		s.ln = ln
 	}
 	s.Logger.Info("Listening on HTTP",
 		zap.Stringer("addr", s.ln.Addr()),
@@ -276,9 +263,9 @@ func (s *Service) doClose() error {
 		}
 	}
 
-	if s.certLoader != nil {
-		// It is safe to call certLoader.Close multiple times.
-		if err := s.certLoader.Close(); err != nil {
+	if s.tlsManager != nil {
+		// It is safe to call tlsManager.Close multiple times.
+		if err := s.tlsManager.Close(); err != nil {
 			return err
 		}
 	}
@@ -305,15 +292,15 @@ func (s *Service) PrepareReloadConfig(c Config) (func() error, error) {
 	}
 
 	if s.https {
-		// Sanity check to make sure we have a certLoader. It's possible this could happen if a
+		// Sanity check to make sure we have a tlsManager. It's possible this could happen if a
 		// reload signal is sent to the process after NewService but before Open. By returning an
 		// error here the reload will fail and no changes will be made.
-		if s.certLoader == nil {
-			return nil, errors.New("httpd: no certLoader available")
+		if s.tlsManager == nil {
+			return nil, errors.New("httpd: no TLS manager available")
 		}
 
 		// Make sure the specified certificate will load correctly and return an apply function.
-		if apply, err := s.certLoader.PrepareLoad(c.HTTPSCertificate, c.HTTPSPrivateKey); err == nil {
+		if apply, err := s.tlsManager.PrepareCertificateLoad(c.HTTPSCertificate, c.HTTPSPrivateKey); err == nil {
 			return apply, nil
 		} else {
 			return nil, fmt.Errorf("httpd: error loading certificate at (%q, %q): %w", c.HTTPSCertificate, c.HTTPSPrivateKey, err)
