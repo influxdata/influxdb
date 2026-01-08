@@ -3,6 +3,7 @@ mod api;
 mod db_retention;
 mod offline_tokens;
 mod system_tables;
+mod tls_no_verify;
 
 use crate::server::{ConfigProvider, TestServer};
 use assert_cmd::cargo::cargo_bin_cmd;
