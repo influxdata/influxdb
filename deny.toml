@@ -13,6 +13,9 @@ ignore = [
     # from object_store. We've removed our direct dependency and migrated to
     # rustls-pki-types. Remove once object_store updates.
     "RUSTSEC-2025-0134",
+    # bincode is considered complete at 1.3.3 and no longer maintained. It is
+    # past 1.0. Pulled into monolith via deps from iox.
+    "RUSTSEC-2025-0141",
 ]
 git-fetch-with-cli = true
 
