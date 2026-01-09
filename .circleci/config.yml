@@ -736,6 +736,27 @@ jobs:
       - run: |
           echo build executed successfully
 
+  test-launcher:
+    executor: self-hosted-amd
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace/<< pipeline.id >>
+      - run:
+          name: Extract python for launcher tests
+          command: |
+            tar -C /tmp/workspace/$CIRCLE_PIPELINE_ID/python-artifacts -zxvf /tmp/workspace/$CIRCLE_PIPELINE_ID/python-artifacts/all.tar.gz ./x86_64-unknown-linux-gnu
+      - run:
+          name: Test influxdb3-launcher
+          command: |
+            /tmp/workspace/$CIRCLE_PIPELINE_ID/python-artifacts/x86_64-unknown-linux-gnu/python/bin/python3 \
+              .circleci/packages/test_influxdb3-launcher.py \
+              .circleci/packages/influxdb3/fs/usr/lib/influxdb3/influxdb3-launcher
+      - run:
+          name: Cleanup extracted python for launcher tests
+          command: rm -rf /tmp/workspace/$CIRCLE_PIPELINE_ID/python-artifacts/x86_64-unknown-linux-gnu
+          when: always
+
 workflows:
   version: 2
   snapshot:
@@ -802,6 +823,10 @@ workflows:
                 - aarch64-unknown-linux-gnu
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
+          requires:
+            - fetch-python
+      - test-launcher:
+          <<: *nofork_filter
           requires:
             - fetch-python
       - doc:
