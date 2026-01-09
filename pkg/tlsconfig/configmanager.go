@@ -27,19 +27,9 @@ type TLSConfigManager struct {
 // TLSConfigManager can be used for client operations (e.g. Dial), but not for server operations (e.g. Listen).
 // The allowInsecure parameter has no effect on server operations.
 func NewTLSConfigManager(useTLS bool, baseConfig *tls.Config, certPath, keyPath string, allowInsecure bool, certLoaderOpts ...TLSCertLoaderOpt) (*TLSConfigManager, error) {
-	var tlsConfig *tls.Config
 	var certLoader *TLSCertLoader
-
-	if useTLS {
-		// Create / clone TLS configuration as necessary.
-		tlsConfig = baseConfig.Clone() // nil configs are clonable.
-		if tlsConfig == nil {
-			tlsConfig = new(tls.Config)
-		}
-
-		// Modify configuration.
-		tlsConfig.InsecureSkipVerify = allowInsecure
-
+	tlsConfig := newTLSConfig(useTLS, baseConfig, allowInsecure)
+	if tlsConfig != nil {
 		// Create TLSCertLoader and configure tlsConfig to use it. No loader is created if no cert
 		// is provided. This is useful for client-only use cases.
 		if certPath != "" || keyPath != "" {
@@ -57,6 +47,38 @@ func NewTLSConfigManager(useTLS bool, baseConfig *tls.Config, certPath, keyPath 
 		tlsConfig:  tlsConfig,
 		certLoader: certLoader,
 	}, nil
+}
+
+// newTLSConfig creates a new tls.Config based on the passed parameters. If useTLS is false, then
+// no tls.Config is generated.
+func newTLSConfig(useTLS bool, baseConfig *tls.Config, allowInsecure bool) *tls.Config {
+	var tlsConfig *tls.Config
+
+	if useTLS {
+		// Create / clone TLS configuration as necessary.
+		tlsConfig = baseConfig.Clone() // nil configs are clonable.
+		if tlsConfig == nil {
+			tlsConfig = new(tls.Config)
+		}
+
+		// Modify configuration.
+		tlsConfig.InsecureSkipVerify = allowInsecure
+	}
+
+	return tlsConfig
+}
+
+// NewClientTLSConfigManager creates a TLSConfigManager that is only useful for clients without
+// client certificates. TLS is enabled when useTLS is true. Certificate verification is skipped
+// when allowInsecure is true.
+// This is convenience wrapper for NewTLSConfigManager(useTLS, baseConfig, "", "", allowInsecure).
+// In addition to being slightly more compact, NewClientTLSConfigManager can not return an error.
+func NewClientTLSConfigManager(useTLS bool, baseConfig *tls.Config, allowInsecure bool) *TLSConfigManager {
+	return &TLSConfigManager{
+		useTLS:     useTLS,
+		tlsConfig:  newTLSConfig(useTLS, baseConfig, allowInsecure),
+		certLoader: nil,
+	}
 }
 
 // NewDisabledTLSConfigManager creates a TLSConfigManager that has TLS disabled.
