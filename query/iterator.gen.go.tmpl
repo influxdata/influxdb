@@ -10,6 +10,7 @@ import (
 	"time"
 	"sync"
 
+    "github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"google.golang.org/protobuf/proto"
 )
@@ -1369,7 +1370,7 @@ func new{{$k.Name}}FilterIterator(input {{$k.Name}}Iterator, cond influxql.Expr,
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
