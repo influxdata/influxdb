@@ -67,6 +67,7 @@ func (cm *TLSConfigManager) TLSCertLoader() *TLSCertLoader {
 	return cm.certLoader
 }
 
+// Return a net.Listener for network and address based on current configuration.
 func (cm *TLSConfigManager) Listen(network, address string) (net.Listener, error) {
 	if cm.useTLS {
 		return tls.Listen(network, address, cm.tlsConfig)
@@ -75,11 +76,21 @@ func (cm *TLSConfigManager) Listen(network, address string) (net.Listener, error
 	}
 }
 
+// Dial a remote for network and addressing using the current configuration.
 func (cm *TLSConfigManager) Dial(network, address string) (net.Conn, error) {
 	if cm.useTLS {
 		return tls.Dial(network, address, cm.tlsConfig)
 	} else {
 		return net.Dial(network, address)
+	}
+}
+
+// Dial a remote for network and addressing using the given dialer and current configuration.
+func (cm *TLSConfigManager) DialWithDialer(dialer *net.Dialer, network, address string) (net.Conn, error) {
+	if cm.useTLS {
+		return tls.DialWithDialer(dialer, network, address, cm.tlsConfig)
+	} else {
+		return dialer.Dial(network, address)
 	}
 }
 
