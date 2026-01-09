@@ -59,6 +59,13 @@ func NewTLSConfigManager(useTLS bool, baseConfig *tls.Config, certPath, keyPath 
 	}, nil
 }
 
+// NewDisabledTLSConfigManager creates a TLSConfigManager that has TLS disabled.
+// This is a convenience function equivalent to NewTLSConfigManager(false, nil, "", "", false).
+// In addition to being more concise, NewDisabledTLSConfigManager can not return an error.
+func NewDisabledTLSConfigManager() *TLSConfigManager {
+	return &TLSConfigManager{}
+}
+
 func (cm *TLSConfigManager) TLSConfig() *tls.Config {
 	return cm.tlsConfig
 }

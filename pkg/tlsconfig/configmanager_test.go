@@ -658,6 +658,23 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 	})
 }
 
+func TestNewDisabledTLSConfigManager(t *testing.T) {
+	// NewDisabledTLSConfigManager should be equivalent to NewTLSConfigManager(false, nil, "", "", false).
+	// The functional behavior of a disabled manager is already tested in TestTLSConfigManager_UseTLSFalse,
+	// so we just verify the two constructors produce equivalent managers.
+	disabled := NewDisabledTLSConfigManager()
+	require.NotNil(t, disabled)
+	explicit, err := NewTLSConfigManager(false, nil, "", "", false)
+	require.NoError(t, err)
+	require.NotNil(t, explicit)
+
+	require.Equal(t, explicit.TLSConfig(), disabled.TLSConfig())
+	require.Equal(t, explicit.TLSCertLoader(), disabled.TLSCertLoader())
+
+	require.NoError(t, disabled.Close())
+	require.NoError(t, explicit.Close())
+}
+
 func TestTLSConfigManager_DialWithDialer(t *testing.T) {
 	testDialWithDialerConnection := func(t *testing.T, listener net.Listener, dial func(dialer *net.Dialer, addr string) (net.Conn, error)) {
 		t.Helper()
