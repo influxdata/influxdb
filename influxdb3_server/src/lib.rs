@@ -1373,8 +1373,7 @@ mod tests {
         )
         .await;
 
-        // Use a future timestamp (year 2025)
-        let future_timestamp = "2025-12-31T23:59:59Z";
+        let future_timestamp = "2125-12-31T23:59:59Z";
         let expected_time = Time::from_datetime(
             DateTime::parse_from_rfc3339(future_timestamp)
                 .unwrap()
@@ -1682,8 +1681,7 @@ mod tests {
         )
         .await;
 
-        // Use a future timestamp (year 2025)
-        let future_timestamp = "2025-12-31T23:59:59Z";
+        let future_timestamp = "2125-12-31T23:59:59Z";
         let expected_time = Time::from_datetime(
             DateTime::parse_from_rfc3339(future_timestamp)
                 .unwrap()

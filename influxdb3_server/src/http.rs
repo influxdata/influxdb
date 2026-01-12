@@ -614,7 +614,7 @@ impl IntoResponse for CatalogError {
     fn into_response(self) -> Response {
         let resp_or_code: Either<Response, StatusCode> = match self {
             Self::NotFound(_) => Either::Right(StatusCode::NOT_FOUND),
-            Self::AlreadyExists | Self::AlreadyDeleted => Either::Right(StatusCode::CONFLICT),
+            Self::AlreadyExists | Self::AlreadyDeleted(_) => Either::Right(StatusCode::CONFLICT),
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType
@@ -1103,6 +1103,9 @@ impl HttpApi {
         let mut body: Vec<u8> = Default::default();
         let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
         self.common_state.metrics.report(&mut reporter);
+
+        // Add required OpenMetrics EOF marker
+        body.extend_from_slice(b"# EOF\n");
 
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
@@ -1861,6 +1864,11 @@ impl HttpApi {
         let query = req.uri().query().unwrap_or("");
         let catalog = self.write_buffer.catalog();
         let delete_req = serde_urlencoded::from_str::<ClearRetentionPeriod>(query)?;
+
+        info!(
+            database = %delete_req.db,
+            "clearing retention period for database"
+        );
 
         catalog
             .clear_retention_period_for_database(delete_req.db.as_str())

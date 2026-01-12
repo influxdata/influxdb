@@ -9,6 +9,7 @@ use reqwest::{
 };
 use secrecy::{ExposeSecret, Secret};
 use serde::{Serialize, de::DeserializeOwned};
+use std::error::Error as _;
 use std::{fmt::Display, num::NonZeroUsize, path::PathBuf, string::FromUtf8Error, time::Duration};
 use url::Url;
 
@@ -18,13 +19,13 @@ pub use influxdb3_types::write::Precision;
 /// Primary error type for the [`Client`]
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("base URL error: {0}")]
+    #[error("base URL error: {}", reqwest_description(.0))]
     BaseUrl(#[source] reqwest::Error),
 
     #[error("request URL error: {0}")]
     RequestUrl(#[from] url::ParseError),
 
-    #[error("failed to read the API response bytes: {0}")]
+    #[error("failed to read the API response bytes: {}", reqwest_description(.0))]
     Bytes(#[source] reqwest::Error),
 
     #[error("failed to serialize the request body: {0}")]
@@ -43,16 +44,16 @@ pub enum Error {
     #[error("invalid UTF8 in response: {0}")]
     InvalidUtf8(#[from] FromUtf8Error),
 
-    #[error("failed to parse JSON response: {0}")]
+    #[error("failed to parse JSON response: {}", reqwest_description(.0))]
     Json(#[source] reqwest::Error),
 
-    #[error("failed to parse plaintext response: {0}")]
+    #[error("failed to parse plaintext response: {}", reqwest_description(.0))]
     Text(#[source] reqwest::Error),
 
     #[error("server responded with error [{code}]: {message}")]
     ApiError { code: StatusCode, message: String },
 
-    #[error("failed to send {method} {url} request: {source}")]
+    #[error("failed to send {method} {url} request: {}", reqwest_description(.source))]
     RequestSend {
         method: Method,
         url: String,
@@ -60,11 +61,26 @@ pub enum Error {
         source: reqwest::Error,
     },
 
-    #[error("failed to build an http client: {0}")]
+    #[error("failed to build an http client: {}", reqwest_description(.0))]
     Builder(#[source] reqwest::Error),
 
     #[error("io error: {0}")]
     IO(#[from] std::io::Error),
+}
+
+fn reqwest_description(e: &reqwest::Error) -> String {
+    if (e.is_request()
+        || e.is_redirect()
+        || e.is_body()
+        || e.is_decode()
+        || e.is_builder()
+        || e.is_connect())
+        && let Some(src) = e.source()
+    {
+        src.to_string()
+    } else {
+        e.to_string()
+    }
 }
 
 impl Error {
@@ -94,10 +110,23 @@ pub struct Client {
 
 impl Client {
     /// Create a new [`Client`]
-    pub fn new<U: IntoUrl>(base_url: U, ca_cert: Option<PathBuf>) -> Result<Self> {
-        let client = reqwest::Client::builder()
+    ///
+    /// # Arguments
+    /// * `base_url` - The base URL for the InfluxDB 3 server
+    /// * `ca_cert` - Optional path to a CA certificate file for TLS verification
+    /// * `tls_no_verify` - If true, skip TLS certificate verification (use for self-signed certs)
+    pub fn new<U: IntoUrl>(
+        base_url: U,
+        ca_cert: Option<PathBuf>,
+        tls_no_verify: bool,
+    ) -> Result<Self> {
+        let mut client = reqwest::Client::builder()
             .min_tls_version(Version::TLS_1_3)
             .use_rustls_tls();
+
+        if tls_no_verify {
+            client = client.danger_accept_invalid_certs(true);
+        }
 
         let http_client = if let Some(ca_cert) = ca_cert {
             let cert = std::fs::read(&ca_cert)?;
@@ -130,7 +159,7 @@ impl Client {
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// let token = "secret-token-string";
-    /// let client = Client::new("http://localhost:8181")?
+    /// let client = Client::new("http://localhost:8181", None, false)?
     ///     .with_auth_token(token);
     /// # Ok(())
     /// # }
@@ -148,7 +177,7 @@ impl Client {
     /// # use influxdb3_client::Precision;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// let client = Client::new("http://localhost:8181")?;
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// client
     ///     .api_v3_write_lp("db_name")
     ///     .precision(Precision::Millisecond)
@@ -180,7 +209,7 @@ impl Client {
     /// # use influxdb3_client::Client;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// let client = Client::new("http://localhost:8181")?;
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// let response_bytes = client
     ///     .api_v3_query_sql("db_name", "SELECT * FROM foo")
     ///     .send()
@@ -213,7 +242,7 @@ impl Client {
     /// # use influxdb3_client::Client;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// let client = Client::new("http://localhost:8181")?;
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// let response_bytes = client
     ///     .api_v3_query_influxql("db_name", "SELECT * FROM foo")
     ///     .send()
@@ -246,7 +275,7 @@ impl Client {
     /// # use influxdb3_client::Client;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// let client = Client::new("http://localhost:8181")?;
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// let resp = client
     ///     .api_v3_configure_last_cache_create("db_name", "table_name")
     ///     .ttl(120)
@@ -299,7 +328,7 @@ impl Client {
     /// # use std::time::Duration;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// let client = Client::new("http://localhost:8181")?;
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// let resp = client
     ///     .api_v3_configure_distinct_cache_create("db_name", "table_name", ["col1", "col2"])
     ///     .name("cache_name")
@@ -1127,7 +1156,7 @@ impl QueryRequestBuilder<'_> {
     /// # use influxdb3_client::Client;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// let client = Client::new("http://localhost:8181")?;
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// let response_bytes = client
     ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND baz > $baz")
     ///     .with_param("bar", "bop")
@@ -1160,7 +1189,7 @@ impl QueryRequestBuilder<'_> {
     /// use serde_json::json;
     /// use std::collections::HashMap;
     ///
-    /// let client = Client::new("http://localhost:8181")?;
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// let response_bytes = client
     ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND foo > $foo")
     ///     .with_params_from([
@@ -1204,7 +1233,7 @@ impl QueryRequestBuilder<'_> {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// use serde_json::json;
     ///
-    /// let client = Client::new("http://localhost:8181")?;
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// let response_bytes = client
     ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND baz > $baz")
     ///     .with_try_param("bar", json!("baz"))?
@@ -1443,7 +1472,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url(), None)
+        let client = Client::new(mock_server.url(), None, false)
             .expect("create client")
             .with_auth_token(token);
 
@@ -1484,7 +1513,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url(), None)
+        let client = Client::new(mock_server.url(), None, false)
             .expect("create client")
             .with_auth_token(token);
 
@@ -1523,7 +1552,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url(), None).expect("create client");
+        let client = Client::new(mock_server.url(), None, false).expect("create client");
 
         let r = client
             .api_v3_query_sql(db, query)
@@ -1557,7 +1586,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url(), None).expect("create client");
+        let client = Client::new(mock_server.url(), None, false).expect("create client");
 
         let r = client
             .api_v3_query_influxql(db, query)
@@ -1595,7 +1624,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url(), None).expect("create client");
+        let client = Client::new(mock_server.url(), None, false).expect("create client");
 
         let mut builder = client.api_v3_query_influxql(db, query);
 
@@ -1638,7 +1667,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url(), None).expect("create client");
+        let client = Client::new(mock_server.url(), None, false).expect("create client");
 
         let r = client
             .api_v3_query_influxql(db, query)
@@ -1698,7 +1727,7 @@ mod tests {
             )
             .create_async()
             .await;
-        let client = Client::new(mock_server.url(), None).unwrap();
+        let client = Client::new(mock_server.url(), None, false).unwrap();
         client
             .api_v3_configure_last_cache_create(db, table)
             .name(name)
@@ -1728,7 +1757,7 @@ mod tests {
             .with_status(204)
             .create_async()
             .await;
-        let client = Client::new(mock_server.url(), None).unwrap();
+        let client = Client::new(mock_server.url(), None, false).unwrap();
         let resp = client
             .api_v3_configure_last_cache_create(db, table)
             .send()
@@ -1754,7 +1783,7 @@ mod tests {
             .with_status(200)
             .create_async()
             .await;
-        let client = Client::new(mock_server.url(), None).unwrap();
+        let client = Client::new(mock_server.url(), None, false).unwrap();
         client
             .api_v3_configure_last_cache_delete(db, table, name)
             .await

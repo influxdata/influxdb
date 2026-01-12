@@ -3,6 +3,7 @@ mod api;
 mod db_retention;
 mod offline_tokens;
 mod system_tables;
+mod tls_no_verify;
 
 use crate::server::{ConfigProvider, TestServer};
 use assert_cmd::cargo::cargo_bin_cmd;
@@ -456,7 +457,7 @@ async fn test_delete_database_with_hard_delete_timestamp() {
         .expect("create database");
 
     // Delete with a specific timestamp
-    let timestamp = "2025-12-31T23:59:59Z";
+    let timestamp = "2125-12-31T23:59:59Z";
     let result = server
         .delete_database(db_name)
         .with_hard_delete(timestamp)
@@ -832,6 +833,61 @@ async fn test_delete_missing_table() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_delete_table_when_database_deleted() {
+    // Testing deleting a table from a database that has already been deleted
+    // should not succeed.
+
+    let server = TestServer::spawn().await;
+    let db_name = "db_delete_reject_cli";
+    let table_name = "tbl";
+
+    // Write data to create the database and table
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // Delete the database
+    let delete_db_output = server
+        .delete_database(db_name)
+        .run()
+        .expect("delete database");
+    assert_contains!(
+        &delete_db_output,
+        format!("Database \"{db_name}\" deleted successfully")
+    );
+
+    // Get the deleted database name from show databases
+    let dbs_json = server
+        .show_databases()
+        .with_format("json")
+        .show_deleted(true)
+        .run()
+        .expect("list databases including deleted");
+    let dbs: Value = serde_json::from_str(&dbs_json).expect("parse show databases json output");
+    let deleted_db_name = dbs
+        .as_array()
+        .and_then(|arr| {
+            arr.iter()
+                .filter_map(|db| db.get("iox::database").and_then(Value::as_str))
+                .find(|name| name.starts_with(db_name) && *name != db_name)
+        })
+        .expect("deleted database entry");
+
+    // Delete the table from the deleted database
+    let result = server.delete_table(deleted_db_name, table_name).run();
+
+    assert_contains!(
+        result.unwrap_err().to_string(),
+        "Delete command failed: server responded with error [409 Conflict]: attempted to modify resource that was already deleted"
+    );
+}
+
+#[test_log::test(tokio::test)]
 async fn test_delete_table_with_hard_delete_now() {
     let server = TestServer::spawn().await;
     let db_name = "test_hard_delete_table_now";
@@ -983,7 +1039,7 @@ async fn test_delete_table_with_hard_delete_timestamp() {
     let server = TestServer::spawn().await;
     let db_name = "test_hard_delete_table_timestamp";
     let table_name = "network";
-    let timestamp = "2025-12-31T23:59:59Z";
+    let timestamp = "2125-12-31T23:59:59Z";
 
     // Create database and write data to create table
     server

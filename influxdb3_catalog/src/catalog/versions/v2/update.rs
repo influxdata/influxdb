@@ -350,7 +350,7 @@ impl Catalog {
 
             let hard_delete_changed = db.hard_delete_time != resolved_hard_delete_time;
             if db.deleted && !hard_delete_changed {
-                return Err(CatalogError::AlreadyDeleted);
+                return Err(CatalogError::AlreadyDeleted(db_name.to_string()));
             }
             let deletion_time = self.time_provider.now().timestamp_nanos();
             let database_id = db.id;
@@ -428,9 +428,7 @@ impl Catalog {
         hard_delete_time: HardDeletionTime,
     ) -> Result<OrderedCatalogBatch> {
         self.catalog_update_with_retry(|| {
-            let Some(db) = self.db_schema(db_name) else {
-                return Err(CatalogError::NotFound(db_name.to_string()));
-            };
+            let db = self.active_db(db_name)?;
             let Some(tbl_def) = db.table_definition(table_name) else {
                 return Err(CatalogError::NotFound(table_name.to_string()));
             };
@@ -445,7 +443,7 @@ impl Catalog {
 
             let hard_delete_changed = tbl_def.hard_delete_time != resolved_hard_delete_time;
             if tbl_def.deleted && !hard_delete_changed {
-                return Err(CatalogError::AlreadyDeleted);
+                return Err(CatalogError::AlreadyDeleted(table_name.to_string()));
             }
             let deletion_time = self.time_provider.now().timestamp_nanos();
             Ok(CatalogBatch::database(
@@ -981,9 +979,8 @@ impl Catalog {
             duration_ns = duration.as_nanos(),
             "create new retention policy"
         );
-        let Some(db) = self.db_schema(db_name) else {
-            return Err(CatalogError::NotFound(db_name.to_string()));
-        };
+        let db = self.active_db(db_name)?;
+
         self.catalog_update_with_retry(|| {
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
@@ -1006,9 +1003,8 @@ impl Catalog {
         db_name: &str,
     ) -> Result<OrderedCatalogBatch> {
         info!(db_name, "delete retention policy");
-        let Some(db) = self.db_schema(db_name) else {
-            return Err(CatalogError::NotFound(db_name.to_string()));
-        };
+        let db = self.active_db(db_name)?;
+
         self.catalog_update_with_retry(|| {
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
@@ -1023,6 +1019,21 @@ impl Catalog {
             ))
         })
         .await
+    }
+
+    /// Returns the database schema if it exists and is not deleted.
+    fn active_db(&self, db_name: &str) -> Result<Arc<DatabaseSchema>> {
+        let Some(db) = self.db_schema(db_name) else {
+            return Err(CatalogError::NotFound(db_name.to_string()));
+        };
+
+        // Checking `deleted` is sufficient here. We include both `deleted` and `hard_delete_time`
+        // checks to prevent future regressions.
+        if db.deleted || db.hard_delete_time.is_some() {
+            return Err(CatalogError::AlreadyDeleted(db_name.to_string()));
+        }
+
+        Ok(db)
     }
 
     /// Perform a catalog update and retry if the catalog has been updated elsewhere until the

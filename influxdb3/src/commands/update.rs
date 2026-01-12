@@ -33,6 +33,10 @@ pub struct UpdateDatabase {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -51,6 +55,10 @@ pub struct UpdateTrigger {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
+
+    /// Disable TLS certificate verification
+    #[clap(long = "tls-no-verify", env = "INFLUXDB3_TLS_NO_VERIFY")]
+    tls_no_verify: bool,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -65,8 +73,9 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 },
             retention_period,
             ca_cert,
+            tls_no_verify,
         }) => {
-            let mut client = Client::new(host_url, ca_cert)?;
+            let mut client = Client::new(host_url, ca_cert, tls_no_verify)?;
             if let Some(token) = &auth_token {
                 client = client.with_auth_token(token.expose_secret());
             }
@@ -97,8 +106,9 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             trigger_name,
             path,
             ca_cert,
+            tls_no_verify,
         }) => {
-            let mut client = Client::new(host_url, ca_cert)?;
+            let mut client = Client::new(host_url, ca_cert, tls_no_verify)?;
             if let Some(token) = &auth_token {
                 client = client.with_auth_token(token.expose_secret());
             }
