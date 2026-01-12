@@ -1865,6 +1865,11 @@ impl HttpApi {
         let catalog = self.write_buffer.catalog();
         let delete_req = serde_urlencoded::from_str::<ClearRetentionPeriod>(query)?;
 
+        info!(
+            database = %delete_req.db,
+            "clearing retention period for database"
+        );
+
         catalog
             .clear_retention_period_for_database(delete_req.db.as_str())
             .await?;
