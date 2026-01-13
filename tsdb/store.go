@@ -1073,11 +1073,11 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				}
 			}
 
+			const DeleteLogTrigger = 10_000
 			seriesCount := ss.Cardinality()
 			deleteStart := time.Now()
 			var deletedCount atomic.Uint64
-			warnInterval := 24 * time.Hour
-			lastWarnTime := deleteStart
+			var deleteLogCounter atomic.Uint64
 
 			ss.ForEach(func(id uint64) {
 				if err := sfile.DeleteSeriesID(id); err != nil {
@@ -1088,9 +1088,10 @@ func (s *Store) DeleteShard(shardID uint64) error {
 						zap.Error(err))
 				}
 				deleted := deletedCount.Add(1)
+				deleteLogCounter.Add(1)
 
-				if time.Since(lastWarnTime) >= warnInterval {
-					lastWarnTime = time.Now()
+				if deleteLogCounter.Load() > DeleteLogTrigger {
+					deleteLogCounter.Store(0)
 					s.Logger.Warn("DeleteShard: deleting series from series file is taking a long time",
 						zap.String("db", db),
 						zap.Uint64("shard_id", shardID),
