@@ -1092,7 +1092,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 				if deleteLogCounter.Load() > DeleteLogTrigger {
 					deleteLogCounter.Store(0)
-					s.Logger.Warn("DeleteShard: deleting series from series file is taking a long time",
+					s.Logger.Info(fmt.Sprintf("DeleteShard: %d series deleted", DeleteLogTrigger),
 						zap.String("db", db),
 						zap.Uint64("shard_id", shardID),
 						zap.Uint64("deleted", deleted),
