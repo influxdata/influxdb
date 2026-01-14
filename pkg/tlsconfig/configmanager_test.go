@@ -658,6 +658,113 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 	})
 }
 
+func TestNewDisabledTLSConfigManager(t *testing.T) {
+	// NewDisabledTLSConfigManager should be equivalent to NewTLSConfigManager(false, nil, "", "", false).
+	// The functional behavior of a disabled manager is already tested in TestTLSConfigManager_UseTLSFalse,
+	// so we just verify the two constructors produce equivalent managers.
+	disabled := NewDisabledTLSConfigManager()
+	require.NotNil(t, disabled)
+	explicit, err := NewTLSConfigManager(false, nil, "", "", false)
+	require.NoError(t, err)
+	require.NotNil(t, explicit)
+
+	require.Equal(t, explicit.TLSConfig(), disabled.TLSConfig())
+	require.Equal(t, explicit.TLSCertLoader(), disabled.TLSCertLoader())
+
+	require.NoError(t, disabled.Close())
+	require.NoError(t, explicit.Close())
+}
+
+func TestNewClientTLSConfigManager(t *testing.T) {
+	// NewClientTLSConfigManager should be equivalent to NewTLSConfigManager(useTLS, baseConfig, "", "", allowInsecure).
+	// The functional behavior is already tested in other tests (TestTLSConfigManager_UseTLSWithoutCert, etc.),
+	// so we just verify the two constructors produce equivalent managers for various parameter combinations.
+
+	t.Run("TLS disabled", func(t *testing.T) {
+		client := NewClientTLSConfigManager(false, nil, false)
+		require.NotNil(t, client)
+		explicit, err := NewTLSConfigManager(false, nil, "", "", false)
+		require.NoError(t, err)
+		require.NotNil(t, explicit)
+
+		require.Equal(t, explicit.TLSConfig(), client.TLSConfig())
+		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
+
+		require.NoError(t, client.Close())
+		require.NoError(t, explicit.Close())
+	})
+
+	t.Run("TLS enabled allowInsecure false", func(t *testing.T) {
+		client := NewClientTLSConfigManager(true, nil, false)
+		require.NotNil(t, client)
+		explicit, err := NewTLSConfigManager(true, nil, "", "", false)
+		require.NoError(t, err)
+		require.NotNil(t, explicit)
+
+		require.Equal(t, explicit.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
+		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
+
+		require.NoError(t, client.Close())
+		require.NoError(t, explicit.Close())
+	})
+
+	t.Run("TLS enabled allowInsecure true", func(t *testing.T) {
+		client := NewClientTLSConfigManager(true, nil, true)
+		require.NotNil(t, client)
+		explicit, err := NewTLSConfigManager(true, nil, "", "", true)
+		require.NoError(t, err)
+		require.NotNil(t, explicit)
+
+		require.Equal(t, explicit.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
+		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
+
+		require.NoError(t, client.Close())
+		require.NoError(t, explicit.Close())
+	})
+
+	t.Run("with base config", func(t *testing.T) {
+		baseConfig := &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			MaxVersion: tls.VersionTLS13,
+			ServerName: "test.example.com",
+		}
+
+		client := NewClientTLSConfigManager(true, baseConfig, false)
+		require.NotNil(t, client)
+		explicit, err := NewTLSConfigManager(true, baseConfig, "", "", false)
+		require.NoError(t, err)
+		require.NotNil(t, explicit)
+
+		// Verify base config values are preserved in both
+		require.Equal(t, explicit.TLSConfig().MinVersion, client.TLSConfig().MinVersion)
+		require.Equal(t, explicit.TLSConfig().MaxVersion, client.TLSConfig().MaxVersion)
+		require.Equal(t, explicit.TLSConfig().ServerName, client.TLSConfig().ServerName)
+		require.Equal(t, explicit.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
+		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
+
+		require.NoError(t, client.Close())
+		require.NoError(t, explicit.Close())
+	})
+
+	t.Run("base config is cloned", func(t *testing.T) {
+		baseConfig := &tls.Config{
+			ServerName: "original.example.com",
+		}
+
+		client := NewClientTLSConfigManager(true, baseConfig, false)
+		require.NotNil(t, client)
+
+		// Verify config is cloned (not same instance)
+		require.NotSame(t, baseConfig, client.TLSConfig())
+
+		// Verify modifying base config doesn't affect client config
+		baseConfig.ServerName = "modified.example.com"
+		require.Equal(t, "original.example.com", client.TLSConfig().ServerName)
+
+		require.NoError(t, client.Close())
+	})
+}
+
 func TestTLSConfigManager_DialWithDialer(t *testing.T) {
 	testDialWithDialerConnection := func(t *testing.T, listener net.Listener, dial func(dialer *net.Dialer, addr string) (net.Conn, error)) {
 		t.Helper()
