@@ -42,6 +42,8 @@ pub mod commands {
     pub mod write;
 }
 
+mod env_compat;
+
 enum ReturnCode {
     Failure = 1,
 }
@@ -147,6 +149,10 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
 
     // load all environment variables from .env before doing anything
     load_dotenv();
+
+    // Copy deprecated environment variable aliases for backwards compatibility.
+    // Must be called BEFORE clap parsing so that old env var names still work.
+    env_compat::copy_deprecated_env_aliases();
 
     // Handle printing help messages for each command so that we can have a custom
     // output with both a help and help-all message. We have to disable the help

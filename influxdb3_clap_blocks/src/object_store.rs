@@ -562,7 +562,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "aws-credentials-file"),
                     long = gen_name!($prefix, "aws-credentials-file"),
-                    env = gen_name!($prefix, "AWS_CREDENTIALS_FILE"),
+                    env = gen_env!($prefix, "AWS_CREDENTIALS_FILE"),
                     action
                 )]
                 pub aws_credentials_file: Option<String>,
@@ -637,7 +637,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-connection-limit"),
                     long = gen_name!($prefix, "object-store-connection-limit"),
-                    env = gen_env!($prefix, "OBJECT_STORE_CONNECTION_LIMIT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_CONNECTION_LIMIT"),
                     default_value = "16",
                     action
                 )]
@@ -649,7 +649,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-http2-only"),
                     long = gen_name!($prefix, "object-store-http2-only"),
-                    env = gen_env!($prefix, "OBJECT_STORE_HTTP2_ONLY"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_HTTP2_ONLY"),
                     action
                 )]
                 pub http2_only: bool,
@@ -664,7 +664,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-http2-max-frame-size"),
                     long = gen_name!($prefix, "object-store-http2-max-frame-size"),
-                    env = gen_env!($prefix, "OBJECT_STORE_HTTP2_MAX_FRAME_SIZE"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_HTTP2_MAX_FRAME_SIZE"),
                     action
                 )]
                 pub http2_max_frame_size: Option<u32>,
@@ -673,7 +673,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-request-timeout"),
                     long = gen_name!($prefix, "object-store-request-timeout"),
-                    env = gen_env!($prefix, "OBJECT_STORE_REQUEST_TIMEOUT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_REQUEST_TIMEOUT"),
                     value_parser = humantime::parse_duration,
                     default_value = "30s",
                     action
@@ -686,7 +686,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-max-retries"),
                     long = gen_name!($prefix, "object-store-max-retries"),
-                    env = gen_env!($prefix, "OBJECT_STORE_MAX_RETRIES"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_MAX_RETRIES"),
                     action
                 )]
                 pub max_retries: Option<usize>,
@@ -705,7 +705,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-retry-timeout"),
                     long = gen_name!($prefix, "object-store-retry-timeout"),
-                    env = gen_env!($prefix, "OBJECT_STORE_RETRY_TIMEOUT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_RETRY_TIMEOUT"),
                     value_parser = humantime::parse_duration,
                     action
                 )]
@@ -716,7 +716,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-cache-endpoint"),
                     long = gen_name!($prefix, "object-store-cache-endpoint"),
-                    env = gen_env!($prefix, "OBJECT_STORE_CACHE_ENDPOINT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT"),
                     action
                 )]
                 pub cache_endpoint: Option<Endpoint>,
@@ -726,7 +726,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-tls-allow-insecure"),
                     long = gen_name!($prefix, "object-store-tls-allow-insecure"),
-                    env = gen_env!($prefix, "OBJECT_STORE_TLS_ALLOW_INSECURE"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE"),
                     action
                 )]
                 pub tls_allow_insecure: bool,
@@ -736,7 +736,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-tls-ca"),
                     long = gen_name!($prefix, "object-store-tls-ca"),
-                    env = gen_env!($prefix, "OBJECT_STORE_TLS_CA"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_TLS_CA"),
                     action
                 )]
                 pub tls_ca_path: Option<PathBuf>,
@@ -2482,11 +2482,11 @@ mod tests {
         unsafe {
             // Test environment variable for allow-insecure
             // Boolean flags need explicit true/false values when set via environment variable
-            env::set_var("OBJECT_STORE_TLS_ALLOW_INSECURE", "true");
+            env::set_var("INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE", "true");
             let config =
                 ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
             assert!(config.tls_allow_insecure);
-            env::remove_var("OBJECT_STORE_TLS_ALLOW_INSECURE");
+            env::remove_var("INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE");
 
             // Test that the flag is false when env var is not set
             let config =
@@ -2494,14 +2494,14 @@ mod tests {
             assert!(!config.tls_allow_insecure);
 
             // Test environment variable for CA path
-            env::set_var("OBJECT_STORE_TLS_CA", "/env/ca.pem");
+            env::set_var("INFLUXDB3_OBJECT_STORE_TLS_CA", "/env/ca.pem");
             let config =
                 ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
             assert_eq!(config.tls_ca_path, Some(PathBuf::from("/env/ca.pem")));
-            env::remove_var("OBJECT_STORE_TLS_CA");
+            env::remove_var("INFLUXDB3_OBJECT_STORE_TLS_CA");
 
             // Test CLI args override environment variables
-            env::set_var("OBJECT_STORE_TLS_CA", "/env/ca.pem");
+            env::set_var("INFLUXDB3_OBJECT_STORE_TLS_CA", "/env/ca.pem");
             let config = ObjectStoreConfig::try_parse_from([
                 "server",
                 "--object-store",
@@ -2511,7 +2511,7 @@ mod tests {
             ])
             .unwrap();
             assert_eq!(config.tls_ca_path, Some(PathBuf::from("/cli/ca.pem")));
-            env::remove_var("OBJECT_STORE_TLS_CA");
+            env::remove_var("INFLUXDB3_OBJECT_STORE_TLS_CA");
         }
     }
 }

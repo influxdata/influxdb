@@ -92,7 +92,7 @@ COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 
 EXPOSE 8181
 
-ENV LOG_FILTER=info
+ENV INFLUXDB3_LOG_FILTER=info
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 
