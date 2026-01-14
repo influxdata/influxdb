@@ -1078,29 +1078,37 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			deleteStart := time.Now()
 			var deletedCount atomic.Uint64
 			var deleteLogCounter atomic.Uint64
+			var parts = make(map[int]struct{})
 
 			ss.ForEach(func(id uint64) {
-				if err := sfile.DeleteSeriesID(id); err != nil {
+				part, err := sfile.DeleteSeriesIDNoFlush(id)
+				if err != nil {
 					sfile.Logger.Error(
 						"cannot delete series in shard",
 						zap.Uint64("series_id", id),
 						zap.Uint64("shard_id", shardID),
 						zap.Error(err))
-				}
-				deleted := deletedCount.Add(1)
-				deleteLogCounter.Add(1)
+				} else {
+					parts[part.id] = struct{}{}
+					deleted := deletedCount.Add(1)
+					deleteLogCounter.Add(1)
 
-				if deleteLogCounter.Load() > DeleteLogTrigger {
-					deleteLogCounter.Store(0)
-					s.Logger.Info(fmt.Sprintf("DeleteShard: %d series deleted", DeleteLogTrigger),
-						zap.String("db", db),
-						zap.Uint64("shard_id", shardID),
-						zap.Uint64("deleted", deleted),
-						zap.Uint64("remaining", seriesCount-deleted),
-						zap.Uint64("total", seriesCount),
-						zap.Duration("elapsed", time.Since(deleteStart)))
+					if deleteLogCounter.Load() > DeleteLogTrigger {
+						deleteLogCounter.Store(0)
+						s.Logger.Info(fmt.Sprintf("DeleteShard: %d series deleted", DeleteLogTrigger),
+							zap.String("db", db),
+							zap.Uint64("shard_id", shardID),
+							zap.Uint64("deleted", deleted),
+							zap.Uint64("remaining", seriesCount-deleted),
+							zap.Uint64("total", seriesCount),
+							zap.Duration("elapsed", time.Since(deleteStart)))
+					}
 				}
 			})
+
+			if err := sfile.FlushSegments(parts); err != nil {
+				return err
+			}
 		}
 	}
 

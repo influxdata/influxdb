@@ -203,6 +203,30 @@ func (f *SeriesFile) DeleteSeriesID(id uint64) error {
 	return p.DeleteSeriesID(id)
 }
 
+// DeleteSeriesIDNoFlush flags a series as permanently deleted.
+// This method returns a SeriesPartition that can be then used later
+// for fsync operations.
+func (f *SeriesFile) DeleteSeriesIDNoFlush(id uint64) (*SeriesPartition, error) {
+	p := f.SeriesIDPartition(id)
+	if p == nil {
+		return nil, ErrInvalidSeriesPartitionID
+	}
+	return p, p.DeleteSeriesIDNoFlush(id)
+}
+
+// FlushSegments flushes a group of partitions by id
+func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
+	for id := range partitionIDs {
+		p := f.SeriesIDPartition(uint64(id))
+		if segment := p.activeSegment(); segment != nil {
+			if err := segment.Flush(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // IsDeleted returns true if the ID has been deleted before.
 func (f *SeriesFile) IsDeleted(id uint64) bool {
 	p := f.SeriesIDPartition(id)
