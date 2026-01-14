@@ -366,9 +366,9 @@ async fn api_v3_query_influxql() {
             expected: "+---------------+---------+----------+\n\
                     | iox::database | name    | duration |\n\
                     +---------------+---------+----------+\n\
-                    | _internal     | autogen |          |\n\
-                    | bar           | autogen |          |\n\
-                    | foo           | autogen |          |\n\
+                    | _internal     | autogen | 168h0m0s |\n\
+                    | bar           | autogen | 0s       |\n\
+                    | foo           | autogen | 0s       |\n\
                     +---------------+---------+----------+",
         },
         TestCase {
@@ -377,7 +377,7 @@ async fn api_v3_query_influxql() {
             expected: "+---------------+---------+----------+\n\
                     | iox::database | name    | duration |\n\
                     +---------------+---------+----------+\n\
-                    | foo           | autogen |          |\n\
+                    | foo           | autogen | 0s       |\n\
                     +---------------+---------+----------+",
         },
         TestCase {
@@ -386,7 +386,7 @@ async fn api_v3_query_influxql() {
             expected: "+---------------+---------+----------+\n\
                     | iox::database | name    | duration |\n\
                     +---------------+---------+----------+\n\
-                    | foo           | autogen |          |\n\
+                    | foo           | autogen | 0s       |\n\
                     +---------------+---------+----------+",
         },
     ];
@@ -683,10 +683,12 @@ async fn api_v3_query_json_format() {
                 {
                   "iox::database": "_internal",
                   "name": "autogen",
+                  "duration": "168h0m0s",
                 },
                 {
                   "iox::database": "foo",
                   "name": "autogen",
+                  "duration": "0s",
                 },
             ]),
         },
@@ -791,8 +793,8 @@ async fn api_v3_query_jsonl_format() {
             database: None,
             query: "SHOW RETENTION POLICIES",
             expected:
-            "{\"iox::database\":\"_internal\",\"name\":\"autogen\"}\n\
-            {\"iox::database\":\"foo\",\"name\":\"autogen\"}\n".into(),
+            "{\"iox::database\":\"_internal\",\"name\":\"autogen\",\"duration\":\"168h0m0s\"}\n\
+            {\"iox::database\":\"foo\",\"name\":\"autogen\",\"duration\":\"0s\"}\n".into(),
         },
     ];
     for t in test_cases {

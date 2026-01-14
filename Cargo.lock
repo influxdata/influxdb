@@ -3329,7 +3329,6 @@ dependencies = [
  "async-trait",
  "datafusion",
  "futures",
- "humantime",
  "influxdb3_catalog",
  "influxdb_influxql_parser",
  "iox_query",
