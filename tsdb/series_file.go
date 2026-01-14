@@ -217,7 +217,7 @@ func (f *SeriesFile) DeleteSeriesIDNoFlush(id uint64) (*SeriesPartition, error) 
 // FlushSegments flushes a group of partitions by id
 func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
 	for id := range partitionIDs {
-		p := f.SeriesIDPartition(uint64(id))
+		p := f.partitions[id]
 		if segment := p.activeSegment(); segment != nil {
 			if err := segment.Flush(); err != nil {
 				return err
