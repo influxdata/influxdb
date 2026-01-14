@@ -50,6 +50,10 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "admin-token-recovery-http-bind": "INFLUXDB3_ADMIN_TOKEN_RECOVERY_HTTP_BIND_ADDR",
         # Authorization
         "without-auth": "INFLUXDB3_START_WITHOUT_AUTH",
+        # Datafusion
+        "num-datafusion-threads": "INFLUXDB3_DATAFUSION_NUM_THREADS",
+        # IO
+        "num-io-threads": "INFLUXDB3_IO_NUM_THREADS",
         # Object storage
         "data-dir": "INFLUXDB3_DB_DIR",
         # AWS (AWS_ prefix, not INFLUXDB3_)
@@ -58,6 +62,7 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "aws-credentials-file": "AWS_CREDENTIALS_FILE",
         "aws-default-region": "AWS_DEFAULT_REGION",
         "aws-endpoint": "AWS_ENDPOINT",
+        "aws-s3-custom-backend": "AWS_S3_CUSTOM_BACKEND",
         "aws-secret-access-key": "AWS_SECRET_ACCESS_KEY",
         "aws-session-token": "AWS_SESSION_TOKEN",
         "aws-skip-signature": "AWS_SKIP_SIGNATURE",
@@ -74,6 +79,7 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "object-store-http2-only": "OBJECT_STORE_HTTP2_ONLY",
         "object-store-http2-max-frame-size": "OBJECT_STORE_HTTP2_MAX_FRAME_SIZE",
         "object-store-max-retries": "OBJECT_STORE_MAX_RETRIES",
+        "object-store-request-timeout": "OBJECT_STORE_REQUEST_TIMEOUT",
         "object-store-retry-timeout": "OBJECT_STORE_RETRY_TIMEOUT",
         "object-store-tls-allow-insecure": "OBJECT_STORE_TLS_ALLOW_INSECURE",
         "object-store-tls-ca": "OBJECT_STORE_TLS_CA",
@@ -81,6 +87,10 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "virtual-env-location": "VIRTUAL_ENV",
         # WAL
         "snapshotted-wal-files-to-keep": "INFLUXDB3_NUM_WAL_FILES_TO_KEEP",
+        # Tokio console (TOKIO_CONSOLE_ prefix, not INFLUXDB3_)
+        "tokio-console-enabled": "TOKIO_CONSOLE_ENABLED",
+        "tokio-console-client-buffer-capacity": "TOKIO_CONSOLE_CLIENT_BUFFER_CAPACITY",
+        "tokio-console-event-buffer-capacity": "TOKIO_CONSOLE_EVENT_BUFFER_CAPACITY",
         # Tracing (TRACES_ prefix, not INFLUXDB3_)
         "traces-exporter": "TRACES_EXPORTER",
         "traces-exporter-jaeger-agent-host": "TRACES_EXPORTER_JAEGER_AGENT_HOST",
@@ -98,17 +108,32 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
     "enterprise": {
         # Enterprise cluster configuration
         "cluster-id": "INFLUXDB3_ENTERPRISE_CLUSTER_ID",
+        "conn-info": "INFLUXDB3_ENTERPRISE_CONN_INFO",
         "mode": "INFLUXDB3_ENTERPRISE_MODE",
         "num-cores": "INFLUXDB3_ENTERPRISE_NUM_CORES",
-        # Resource limits
-        "max-columns": "INFLUXDB3_ENTERPRISE_PACHA_TREE_MAX_COLUMNS",
-        "num-database-limit": "INFLUXDB3_ENTERPRISE_NUM_DATABASE_LIMIT",
-        "num-table-limit": "INFLUXDB3_ENTERPRISE_NUM_TABLE_LIMIT",
-        "num-total-columns-per-table-limit": "INFLUXDB3_ENTERPRISE_NUM_TOTAL_COLUMNS_PER_TABLE_LIMIT",
+        # Compaction
+        "compaction-check-interval": "INFLUXDB3_ENTERPRISE_COMPACTION_CHECK_INTERVAL",
+        "compaction-cleanup-wait": "INFLUXDB3_ENTERPRISE_COMPACTION_CLEANUP_WAIT",
+        "compaction-gen2-duration": "INFLUXDB3_ENTERPRISE_COMPACTION_GEN2_DURATION",
+        "compaction-max-num-files-per-plan": "INFLUXDB3_ENTERPRISE_COMPACTION_MAX_NUM_FILES_PER_PLAN",
+        "compaction-multipliers": "INFLUXDB3_ENTERPRISE_COMPACTION_MULTIPLIERS",
+        "compaction-row-limit": "INFLUXDB3_ENTERPRISE_COMPACTION_ROW_LIMIT",
+        "max-compact-destination": "INFLUXDB3_ENTERPRISE_MAX_COMPACT_DESTINATION",
+        # Last Value & Distinct Value Caches
+        "preemptive-cache-age": "INFLUXDB3_ENTERPRISE_PREEMPTIVE_CACHE_AGE",
         # Licensing
         "license-email": "INFLUXDB3_ENTERPRISE_LICENSE_EMAIL",
         "license-file": "INFLUXDB3_ENTERPRISE_LICENSE_FILE",
         "license-type": "INFLUXDB3_ENTERPRISE_LICENSE_TYPE",
+        # Resource limits
+        "catalog-sync-interval": "INFLUXDB3_ENTERPRISE_CATALOG_SYNC_INTERVAL",
+        "database-split-level": "INFLUXDB3_ENTERPRISE_DATABASE_SPLIT_LEVEL",
+        "max-columns": "INFLUXDB3_ENTERPRISE_PACHA_TREE_MAX_COLUMNS",
+        "num-database-limit": "INFLUXDB3_ENTERPRISE_NUM_DATABASE_LIMIT",
+        "num-table-limit": "INFLUXDB3_ENTERPRISE_NUM_TABLE_LIMIT",
+        "num-total-columns-per-table-limit": "INFLUXDB3_ENTERPRISE_NUM_TOTAL_COLUMNS_PER_TABLE_LIMIT",
+        "replication-interval": "INFLUXDB3_ENTERPRISE_REPLICATION_INTERVAL",
+        "table-split-level": "INFLUXDB3_ENTERPRISE_TABLE_SPLIT_LEVEL",
     },
 }
 
