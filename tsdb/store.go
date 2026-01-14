@@ -1077,7 +1077,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			seriesCount := ss.Cardinality()
 			deleteStart := time.Now()
 			var deletedCount atomic.Uint64
-			var parts = make(map[int]struct{})
+			var partitionIDs = make(map[int]struct{})
 
 			ss.ForEach(func(id uint64) {
 				part, err := sfile.DeleteSeriesIDNoFlush(id)
@@ -1088,7 +1088,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 						zap.Uint64("shard_id", shardID),
 						zap.Error(err))
 				} else {
-					parts[part.id] = struct{}{}
+					partitionIDs[part.id] = struct{}{}
 					deleted := deletedCount.Add(1)
 
 					if deleted%DeleteLogTrigger == 0 {
@@ -1103,7 +1103,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				}
 			})
 
-			if err := sfile.FlushSegments(parts); err != nil {
+			if err := sfile.FlushSegments(partitionIDs); err != nil {
 				return err
 			}
 		}
