@@ -3,4 +3,4 @@ source: influxdb3/tests/server/query.rs
 description: SHOW RETENTION POLICIES on foo db
 expression: response
 ---
-{"results":[{"statement_id":0,"series":[{"name":"retention_policies","columns":["name","duration","default"],"values":[["foo",null,true]]}]}]}
+{"results":[{"statement_id":0,"series":[{"name":"retention_policies","columns":["name","duration","default"],"values":[["foo","0s",true]]}]}]}

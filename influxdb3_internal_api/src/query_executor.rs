@@ -5,10 +5,8 @@ use datafusion::arrow::error::ArrowError;
 use datafusion::common::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::physical_plan::memory::MemoryStream;
-use humantime::format_duration;
 use influxdb_influxql_parser::statement::Statement;
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::log::RetentionPeriod;
 use iox_query::query_log::QueryLogEntries;
 use iox_query::{QueryDatabase, QueryNamespace};
 use iox_query_influxql::show_databases::{InfluxQlShowDatabases, generate_metadata};
@@ -264,15 +262,8 @@ impl InfluxQlShowRetentionPolicies for ShowRetentionPolicies {
         };
         let measurement_array: StringArray = vec!["retention_policies"].into();
         let names_array: StringArray = vec![db.name().as_ref()].into();
-        let rp = match &db.retention_period {
-            RetentionPeriod::Indefinite => None,
-            // NOTE(tjh): the v1 /query API reports the durations as string formatted durations, e.g.,
-            // "1h30m0s", so use `humantime` to format the standard library `Duration` here.
-            RetentionPeriod::Duration(duration) => {
-                Some(format!("{dur}", dur = format_duration(*duration)))
-            }
-        };
-        let durations_array: StringArray = vec![rp].into();
+        let rp = db.retention_period.format_v1();
+        let durations_array = StringArray::from(vec![rp.as_ref()]);
         let default_array: BooleanArray = vec![true].into();
 
         let arrays = vec![
@@ -322,6 +313,13 @@ mod show_retention_policies_tests {
             )
             .await
             .unwrap();
+        catalog
+            .create_database_opts(
+                "baz",
+                CreateDatabaseOptions::default().retention_period(Duration::from_secs(90)),
+            )
+            .await
+            .unwrap();
         catalog.create_database("mop").await.unwrap();
         let show_retention_policies = ShowRetentionPolicies::new(catalog);
         for (db, expected) in [
@@ -331,7 +329,7 @@ mod show_retention_policies_tests {
                     "+--------------------+------+----------+---------+",
                     "| iox::measurement   | name | duration | default |",
                     "+--------------------+------+----------+---------+",
-                    "| retention_policies | foo  | 7days    | true    |",
+                    "| retention_policies | foo  | 168h0m0s | true    |",
                     "+--------------------+------+----------+---------+",
                 ],
             ),
@@ -341,7 +339,17 @@ mod show_retention_policies_tests {
                     "+--------------------+------+----------+---------+",
                     "| iox::measurement   | name | duration | default |",
                     "+--------------------+------+----------+---------+",
-                    "| retention_policies | bar  | 30days   | true    |",
+                    "| retention_policies | bar  | 720h0m0s | true    |",
+                    "+--------------------+------+----------+---------+",
+                ],
+            ),
+            (
+                "baz",
+                vec![
+                    "+--------------------+------+----------+---------+",
+                    "| iox::measurement   | name | duration | default |",
+                    "+--------------------+------+----------+---------+",
+                    "| retention_policies | baz  | 1m30s    | true    |",
                     "+--------------------+------+----------+---------+",
                 ],
             ),
@@ -351,7 +359,7 @@ mod show_retention_policies_tests {
                     "+--------------------+------+----------+---------+",
                     "| iox::measurement   | name | duration | default |",
                     "+--------------------+------+----------+---------+",
-                    "| retention_policies | mop  |          | true    |",
+                    "| retention_policies | mop  | 0s       | true    |",
                     "+--------------------+------+----------+---------+",
                 ],
             ),

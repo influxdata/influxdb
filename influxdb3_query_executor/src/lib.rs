@@ -2,7 +2,7 @@
 mod query_planner;
 
 use crate::query_planner::Planner;
-use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
+use arrow::array::{ArrayRef, StringBuilder, StringViewBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use arrow_array::{Array, BooleanArray};
@@ -44,12 +44,13 @@ use iox_time::TimeProvider;
 use metric::Registry;
 use observability_deps::tracing::{debug, info};
 use std::any::Any;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
 use tokio::sync::Semaphore;
-use trace::span::{Span, SpanExt, SpanRecorder};
+use trace::span::{Span, SpanRecorder};
 use trace::{ctx::SpanContext, span::MetaValue};
 use trace_http::ctx::RequestLogContext;
 use tracker::{
@@ -239,7 +240,7 @@ impl QueryExecutor for QueryExecutorImpl {
     async fn show_retention_policies(
         &self,
         database: Option<&str>,
-        span_ctx: Option<SpanContext>,
+        _span_ctx: Option<SpanContext>,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         let mut databases = if let Some(db) = database {
             vec![db.to_owned()]
@@ -251,16 +252,12 @@ impl QueryExecutor for QueryExecutorImpl {
 
         let mut rows = Vec::with_capacity(databases.len());
         for database in databases {
-            let db = self
-                .namespace(&database, span_ctx.child_span("get database"), false)
-                .await
-                .map_err(|_| QueryExecutorError::DatabaseNotFound {
+            let db_schema = self.catalog.db_schema(&database).ok_or_else(|| {
+                QueryExecutorError::DatabaseNotFound {
                     db_name: database.to_string(),
-                })?
-                .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
-                    db_name: database.to_string(),
-                })?;
-            let duration = db.retention_time_ns();
+                }
+            })?;
+            let duration = db_schema.retention_period.format_v1();
             let (db_name, rp_name) = split_database_name(&database);
             rows.push(RetentionPolicyRow {
                 database: db_name,
@@ -397,21 +394,21 @@ async fn query_database_influxql(
 struct RetentionPolicyRow {
     database: String,
     name: String,
-    duration: Option<i64>,
+    duration: Cow<'static, str>,
 }
 
 #[derive(Debug, Default)]
 struct RetentionPolicyRowBuilder {
     database: StringBuilder,
     name: StringBuilder,
-    duration: Int64Builder,
+    duration: StringViewBuilder,
 }
 
 impl RetentionPolicyRowBuilder {
     fn append(&mut self, row: &RetentionPolicyRow) {
         self.database.append_value(row.database.as_str());
         self.name.append_value(row.name.as_str());
-        self.duration.append_option(row.duration);
+        self.duration.append_value(row.duration.as_ref());
     }
 
     // Note: may be able to use something simpler than StructArray here, this is just based
@@ -427,7 +424,7 @@ impl RetentionPolicyRowBuilder {
                 Arc::new(self.name.finish()) as ArrayRef,
             ),
             (
-                Arc::new(Field::new("duration", DataType::Int64, true)),
+                Arc::new(Field::new("duration", DataType::Utf8View, true)),
                 Arc::new(self.duration.finish()) as ArrayRef,
             ),
         ])
