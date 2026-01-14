@@ -42,10 +42,6 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "http-bind": "INFLUXDB3_HTTP_BIND_ADDR",
         "node-id": "INFLUXDB3_NODE_IDENTIFIER_PREFIX",
         "node-id-from-env": "INFLUXDB3_NODE_IDENTIFIER_FROM_ENV",
-        # Logging (no INFLUXDB3_ prefix)
-        "log-destination": "LOG_DESTINATION",
-        "log-filter": "LOG_FILTER",
-        "log-format": "LOG_FORMAT",
         # Admin token recovery
         "admin-token-recovery-http-bind": "INFLUXDB3_ADMIN_TOKEN_RECOVERY_HTTP_BIND_ADDR",
         # Authorization
@@ -68,29 +64,29 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "azure-storage-account": "AZURE_STORAGE_ACCOUNT",
         # Google Cloud (GOOGLE_ prefix, not INFLUXDB3_)
         "google-service-account": "GOOGLE_SERVICE_ACCOUNT",
-        # Object store (OBJECT_STORE_ prefix, not INFLUXDB3_)
-        "object-store-cache-endpoint": "OBJECT_STORE_CACHE_ENDPOINT",
-        "object-store-connection-limit": "OBJECT_STORE_CONNECTION_LIMIT",
-        "object-store-http2-only": "OBJECT_STORE_HTTP2_ONLY",
-        "object-store-http2-max-frame-size": "OBJECT_STORE_HTTP2_MAX_FRAME_SIZE",
-        "object-store-max-retries": "OBJECT_STORE_MAX_RETRIES",
-        "object-store-retry-timeout": "OBJECT_STORE_RETRY_TIMEOUT",
-        "object-store-tls-allow-insecure": "OBJECT_STORE_TLS_ALLOW_INSECURE",
-        "object-store-tls-ca": "OBJECT_STORE_TLS_CA",
+        # Object store
+        "object-store-cache-endpoint": "INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT",
+        "object-store-connection-limit": "INFLUXDB3_OBJECT_STORE_CONNECTION_LIMIT",
+        "object-store-http2-only": "INFLUXDB3_OBJECT_STORE_HTTP2_ONLY",
+        "object-store-http2-max-frame-size": "INFLUXDB3_OBJECT_STORE_HTTP2_MAX_FRAME_SIZE",
+        "object-store-max-retries": "INFLUXDB3_OBJECT_STORE_MAX_RETRIES",
+        "object-store-retry-timeout": "INFLUXDB3_OBJECT_STORE_RETRY_TIMEOUT",
+        "object-store-tls-allow-insecure": "INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE",
+        "object-store-tls-ca": "INFLUXDB3_OBJECT_STORE_TLS_CA",
         # Processing engine
         "virtual-env-location": "VIRTUAL_ENV",
         # WAL
         "snapshotted-wal-files-to-keep": "INFLUXDB3_NUM_WAL_FILES_TO_KEEP",
-        # Tracing (TRACES_ prefix, not INFLUXDB3_)
-        "traces-exporter": "TRACES_EXPORTER",
-        "traces-exporter-jaeger-agent-host": "TRACES_EXPORTER_JAEGER_AGENT_HOST",
-        "traces-exporter-jaeger-agent-port": "TRACES_EXPORTER_JAEGER_AGENT_PORT",
-        "traces-exporter-jaeger-debug-name": "TRACES_EXPORTER_JAEGER_DEBUG_NAME",
-        "traces-exporter-jaeger-service-name": "TRACES_EXPORTER_JAEGER_SERVICE_NAME",
-        "traces-exporter-jaeger-trace-context-header-name": "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
-        "traces-jaeger-debug-name": "TRACES_EXPORTER_JAEGER_DEBUG_NAME",
-        "traces-jaeger-max-msgs-per-second": "TRACES_JAEGER_MAX_MSGS_PER_SECOND",
-        "traces-jaeger-tags": "TRACES_EXPORTER_JAEGER_TAGS",
+        # Tracing
+        "traces-exporter": "INFLUXDB3_TRACES_EXPORTER",
+        "traces-exporter-jaeger-agent-host": "INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_HOST",
+        "traces-exporter-jaeger-agent-port": "INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_PORT",
+        "traces-exporter-jaeger-debug-name": "INFLUXDB3_TRACES_EXPORTER_JAEGER_DEBUG_NAME",
+        "traces-exporter-jaeger-service-name": "INFLUXDB3_TRACES_EXPORTER_JAEGER_SERVICE_NAME",
+        "traces-exporter-jaeger-trace-context-header-name": "INFLUXDB3_TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
+        "traces-jaeger-debug-name": "INFLUXDB3_TRACES_EXPORTER_JAEGER_DEBUG_NAME",
+        "traces-jaeger-max-msgs-per-second": "INFLUXDB3_TRACES_JAEGER_MAX_MSGS_PER_SECOND",
+        "traces-jaeger-tags": "INFLUXDB3_TRACES_EXPORTER_JAEGER_TAGS",
     },
     "core": {
         # Core-specific mappings (currently none - all are in common)

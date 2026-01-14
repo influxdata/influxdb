@@ -27,7 +27,7 @@ Examples
                                     [env: INFLUXDB3_HTTP_BIND_ADDR=]
   --log-filter <FILTER>            Logs: filter directive
                                     [default: info,iox_query::query_log=warn,influxdb3_query_executor::query_planner=warn]
-                                    [env: LOG_FILTER=]
+                                    [env: INFLUXDB3_LOG_FILTER=]
   --tls-key <KEY_FILE>             The path to the key file for TLS to be enabled
                                     [env: INFLUXDB3_TLS_KEY=]
   --tls-cert <CERT_FILE>           The path to the cert file for TLS to be enabled

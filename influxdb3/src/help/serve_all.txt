@@ -33,8 +33,8 @@ Examples:
                                                  [env: INFLUXDB3_HTTP_BIND_ADDR=]
   --log-filter <FILTER>                        Logs: filter directive
                                                  [default: info,iox_query::query_log=warn,
-                                                  influxdb3_query_executor::enterprise=warn]
-                                                 [env: LOG_FILTER=]
+                                                  influxdb3_query_executor::query_planner=warn]
+                                                 [env: INFLUXDB3_LOG_FILTER=]
 
 {}
   --tls-key <KEY_FILE>                         The path to the key file for TLS to be enabled
@@ -120,23 +120,23 @@ Examples:
 
   {}
   --object-store-connection-limit <LIMIT>      Connection limit for network object stores [default: 16]
-                                                 [env: OBJECT_STORE_CONNECTION_LIMIT=]
+                                                 [env: INFLUXDB3_OBJECT_STORE_CONNECTION_LIMIT=]
   --object-store-http2-only                    Force HTTP/2 for object stores
-                                                 [env: OBJECT_STORE_HTTP2_ONLY=]
+                                                 [env: INFLUXDB3_OBJECT_STORE_HTTP2_ONLY=]
   --object-store-http2-max-frame-size <SIZE>   HTTP/2 max frame size
-                                                 [env: OBJECT_STORE_HTTP2_MAX_FRAME_SIZE=]
+                                                 [env: INFLUXDB3_OBJECT_STORE_HTTP2_MAX_FRAME_SIZE=]
   --object-store-max-retries <N>               Max request retry attempts
-                                                 [env: OBJECT_STORE_MAX_RETRIES=]
+                                                 [env: INFLUXDB3_OBJECT_STORE_MAX_RETRIES=]
   --object-store-retry-timeout <TIMEOUT>       Max retry timeout
-                                                 [env: OBJECT_STORE_RETRY_TIMEOUT=]
+                                                 [env: INFLUXDB3_OBJECT_STORE_RETRY_TIMEOUT=]
   --object-store-cache-endpoint <ENDPOINT>     S3 compatible cache endpoint
-                                                 [env: OBJECT_STORE_CACHE_ENDPOINT=]
+                                                 [env: INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT=]
   --object-store-tls-allow-insecure            Skip TLS certificate verification for object storage.
                                                WARNING: This is insecure and should only be used for testing
-                                                 [env: OBJECT_STORE_TLS_ALLOW_INSECURE=]
+                                                 [env: INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE=]
   --object-store-tls-ca <PATH>                 Path to custom CA certificate file (PEM format) for object storage.
                                                Use when your object store uses a certificate signed by a private CA
-                                                 [env: OBJECT_STORE_TLS_CA=]
+                                                 [env: INFLUXDB3_OBJECT_STORE_TLS_CA=]
 
 {}
   --plugin-dir <DIR>                           Location of plugins
@@ -247,25 +247,25 @@ Examples:
 
 {}
   --log-destination <DEST>                                     Logs: destination [default: stdout]
-                                                                [env: LOG_DESTINATION=]
+                                                                [env: INFLUXDB3_LOG_DESTINATION=]
   --log-format <FORMAT>                                        Logs: message format [default: full]
-                                                                [env: LOG_FORMAT=]
+                                                                [env: INFLUXDB3_LOG_FORMAT=]
   --traces-exporter <TYPE>                                     Tracing: exporter type [default: none]
-                                                                [env: TRACES_EXPORTER=]
+                                                                [env: INFLUXDB3_TRACES_EXPORTER=]
   --traces-exporter-jaeger-agent-host <HOST>                   Jaeger agent hostname [default: 0.0.0.0]
-                                                                [env: TRACES_EXPORTER_JAEGER_AGENT_HOST=]
+                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_HOST=]
   --traces-exporter-jaeger-agent-port <PORT>                   Jaeger agent port [default: 6831]
-                                                                [env: TRACES_EXPORTER_JAEGER_AGENT_PORT=]
+                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_PORT=]
   --traces-exporter-jaeger-service-name <NAME>                 Jaeger service name [default: iox-conductor]
-                                                                [env: TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
+                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
   --traces-exporter-jaeger-trace-context-header-name <NAME>    Header for trace context [default: uber-trace-id]
-                                                                [env: TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
+                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
   --traces-jaeger-debug-name <NAME>                            Header for force sampling [default: jaeger-debug-id]
-                                                                [env: TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
+                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
   --traces-jaeger-tags <TAGS>                                  Key-value pairs for tracing spans
-                                                                [env: TRACES_EXPORTER_JAEGER_TAGS=]
+                                                                [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_TAGS=]
   --traces-jaeger-max-msgs-per-second <N>                      Max messages per second [default: 1000]
-                                                                [env: TRACES_JAEGER_MAX_MSGS_PER_SECOND=]
+                                                                [env: INFLUXDB3_TRACES_JAEGER_MAX_MSGS_PER_SECOND=]
 
 
 {}
