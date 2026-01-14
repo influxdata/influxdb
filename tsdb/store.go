@@ -1077,7 +1077,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			seriesCount := ss.Cardinality()
 			deleteStart := time.Now()
 			var deletedCount atomic.Uint64
-			var deleteLogCounter atomic.Uint64
 			var parts = make(map[int]struct{})
 
 			ss.ForEach(func(id uint64) {
@@ -1091,10 +1090,8 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				} else {
 					parts[part.id] = struct{}{}
 					deleted := deletedCount.Add(1)
-					deleteLogCounter.Add(1)
 
-					if deleteLogCounter.Load() > DeleteLogTrigger {
-						deleteLogCounter.Store(0)
+					if deleted%DeleteLogTrigger == 0 {
 						s.Logger.Info(fmt.Sprintf("DeleteShard: %d series deleted", DeleteLogTrigger),
 							zap.String("db", db),
 							zap.Uint64("shard_id", shardID),
