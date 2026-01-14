@@ -16,7 +16,6 @@ var (
 // Different TLSConfigManager objects will have different configurations, even if they are instantiated in exactly
 // the same way. No struct member is modified once the NewTLSConfigManager constructor is finished.
 type TLSConfigManager struct {
-	useTLS     bool
 	tlsConfig  *tls.Config
 	certLoader *TLSCertLoader
 }
@@ -43,7 +42,6 @@ func NewTLSConfigManager(useTLS bool, baseConfig *tls.Config, certPath, keyPath 
 	}
 
 	return &TLSConfigManager{
-		useTLS:     useTLS,
 		tlsConfig:  tlsConfig,
 		certLoader: certLoader,
 	}, nil
@@ -75,7 +73,6 @@ func newTLSConfig(useTLS bool, baseConfig *tls.Config, allowInsecure bool) *tls.
 // In addition to being slightly more compact, NewClientTLSConfigManager can not return an error.
 func NewClientTLSConfigManager(useTLS bool, baseConfig *tls.Config, allowInsecure bool) *TLSConfigManager {
 	return &TLSConfigManager{
-		useTLS:     useTLS,
 		tlsConfig:  newTLSConfig(useTLS, baseConfig, allowInsecure),
 		certLoader: nil,
 	}
@@ -88,18 +85,27 @@ func NewDisabledTLSConfigManager() *TLSConfigManager {
 	return &TLSConfigManager{}
 }
 
+// TLSConfig returns a tls.Config for use with dial and listen functions. When TLS is disabled the return is nil.
 func (cm *TLSConfigManager) TLSConfig() *tls.Config {
 	return cm.tlsConfig
 }
 
+// TLSCertLoader returns the certificate loader for this TLSConfigManager. When no certificate is provided
+// the return value is nil.
 func (cm *TLSConfigManager) TLSCertLoader() *TLSCertLoader {
 	return cm.certLoader
 }
 
+// UseTLS returns true if this TLSConfigManager is configured to use TLS. It is a convenience wrapper
+// around TLSConfig.
+func (cm *TLSConfigManager) UseTLS() bool {
+	return cm.TLSConfig() != nil
+}
+
 // Return a net.Listener for network and address based on current configuration.
 func (cm *TLSConfigManager) Listen(network, address string) (net.Listener, error) {
-	if cm.useTLS {
-		return tls.Listen(network, address, cm.tlsConfig)
+	if tlsConfig := cm.TLSConfig(); tlsConfig != nil {
+		return tls.Listen(network, address, tlsConfig)
 	} else {
 		return net.Listen(network, address)
 	}
@@ -107,8 +113,8 @@ func (cm *TLSConfigManager) Listen(network, address string) (net.Listener, error
 
 // Dial a remote for network and addressing using the current configuration.
 func (cm *TLSConfigManager) Dial(network, address string) (net.Conn, error) {
-	if cm.useTLS {
-		return tls.Dial(network, address, cm.tlsConfig)
+	if tlsConfig := cm.TLSConfig(); tlsConfig != nil {
+		return tls.Dial(network, address, tlsConfig)
 	} else {
 		return net.Dial(network, address)
 	}
@@ -116,8 +122,8 @@ func (cm *TLSConfigManager) Dial(network, address string) (net.Conn, error) {
 
 // Dial a remote for network and addressing using the given dialer and current configuration.
 func (cm *TLSConfigManager) DialWithDialer(dialer *net.Dialer, network, address string) (net.Conn, error) {
-	if cm.useTLS {
-		return tls.DialWithDialer(dialer, network, address, cm.tlsConfig)
+	if tlsConfig := cm.TLSConfig(); tlsConfig != nil {
+		return tls.DialWithDialer(dialer, network, address, tlsConfig)
 	} else {
 		return dialer.Dial(network, address)
 	}
@@ -126,13 +132,15 @@ func (cm *TLSConfigManager) DialWithDialer(dialer *net.Dialer, network, address 
 // PrepareCertificateLoad is a wrapper for the TLSCertLoader's PrepareLoad method. If TLS is not
 // enabled, then a NOP callback is returned.
 func (cm *TLSConfigManager) PrepareCertificateLoad(certPath, keyPath string) (func() error, error) {
-	if !cm.useTLS {
+	if !cm.UseTLS() {
 		return func() error { return nil }, nil
-	} else if cm.certLoader == nil {
-		return nil, ErrNoCertLoader
 	}
 
-	return cm.certLoader.PrepareLoad(certPath, keyPath)
+	if certLoader := cm.TLSCertLoader(); certLoader != nil {
+		return certLoader.PrepareLoad(certPath, keyPath)
+	} else {
+		return nil, ErrNoCertLoader
+	}
 }
 
 // Close closes the underlying TLSCertLoader, if present. This is safe to call multiple times.
