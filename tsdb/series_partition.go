@@ -356,8 +356,7 @@ func (p *SeriesPartition) DeleteSeriesIDNoFlush(id uint64) error {
 	return nil
 }
 
-// FlushSegment is to be used after DeleteSeriesIDNoFlush
-// to ensure that we correctly fsync the segment to disk
+// FlushSegment fsyncs a segment to disk
 func (p *SeriesPartition) FlushSegment() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
