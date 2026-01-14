@@ -216,6 +216,7 @@ func TestTLSConfigManager_UseTLSFalse(t *testing.T) {
 
 		tlsConfig := manager.TLSConfig()
 		require.Nil(t, tlsConfig)
+		require.False(t, manager.UseTLS())
 	})
 
 	t.Run("returns nil cert manager and no error", func(t *testing.T) {
@@ -290,6 +291,7 @@ func TestTLSConfigManager_UseTLSWithoutCert(t *testing.T) {
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
+		require.True(t, manager.UseTLS())
 	})
 
 	t.Run("returns nil TLSCertLoader", func(t *testing.T) {
@@ -670,6 +672,7 @@ func TestNewDisabledTLSConfigManager(t *testing.T) {
 
 	require.Equal(t, explicit.TLSConfig(), disabled.TLSConfig())
 	require.Equal(t, explicit.TLSCertLoader(), disabled.TLSCertLoader())
+	require.False(t, disabled.UseTLS())
 
 	require.NoError(t, disabled.Close())
 	require.NoError(t, explicit.Close())
@@ -689,6 +692,7 @@ func TestNewClientTLSConfigManager(t *testing.T) {
 
 		require.Equal(t, explicit.TLSConfig(), client.TLSConfig())
 		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
+		require.False(t, client.UseTLS())
 
 		require.NoError(t, client.Close())
 		require.NoError(t, explicit.Close())
@@ -703,6 +707,7 @@ func TestNewClientTLSConfigManager(t *testing.T) {
 
 		require.Equal(t, explicit.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
 		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
+		require.True(t, client.UseTLS())
 
 		require.NoError(t, client.Close())
 		require.NoError(t, explicit.Close())
