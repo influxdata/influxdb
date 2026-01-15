@@ -1079,7 +1079,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			var deletedCount atomic.Uint64
 			var partitionIDs = make(map[int]struct{})
 
-			sfile.DeleteSeries(ss.Iterator(), func(id uint64) {
+			ss.ForEach(func(id uint64) {
 				ss.RLock()
 				defer ss.RUnlock()
 				p, err := sfile.DeleteSeriesID(id, NoFlush)

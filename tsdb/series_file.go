@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/binaryutil"
 	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/influxdata/roaring"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -196,13 +195,6 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 		return nil, err
 	}
 	return ids, nil
-}
-
-// DeleteSeries will delete an entire batch of series
-func (f *SeriesFile) DeleteSeries(iter roaring.IntIterable, fn func(id uint64)) {
-	for iter.HasNext() {
-		fn(uint64(iter.Next()))
-	}
 }
 
 // DeleteSeriesID flags a series as permanently deleted.
