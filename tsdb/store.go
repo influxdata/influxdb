@@ -1155,8 +1155,8 @@ func (s *Store) DeleteDatabase(name string) error {
 			return nil
 		}
 
-		// enter the epoch tracker
 		epoch := epochs[sh.id]
+		// enter the epoch tracker
 		guards, gen := epoch.StartWrite()
 		defer epoch.EndWrite(gen)
 
@@ -1875,8 +1875,8 @@ func (s *Store) WriteToShard(writeCtx WriteContext, shardID uint64, points []mod
 
 	s.mu.RUnlock()
 
-	// enter the epoch tracker
 	guards, gen := epoch.StartWrite()
+	// enter the epoch tracker
 	defer epoch.EndWrite(gen)
 
 	// wait for any guards before writing the points.
