@@ -149,7 +149,8 @@ func (a *args) process(cmd *cobra.Command, path string) (retErr error) {
 
 		// Write index & close.
 		// It is okay to have no index values if no block was written
-		if err := w.WriteIndex(); err != nil && !(hasData || errors.Is(err, tsm1.ErrNoValues)) {
+
+		if err := w.WriteIndex(); err != nil && !(errors.Is(err, tsm1.ErrNoValues) && !hasData) {
 			return 0, fmt.Errorf("failed to write index to TSM file: %w", err)
 		}
 		return w.Size(), nil
