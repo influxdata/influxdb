@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -191,38 +192,66 @@ func TestSeriesFileCompactor(t *testing.T) {
 
 // Ensure series file deletions persist across compactions.
 func TestSeriesFile_DeleteSeriesID(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
+	deleteTestFn := func(flush bool) {
+		sfile := MustOpenSeriesFile()
+		defer func(sfile *SeriesFile) {
+			err := sfile.Close()
+			require.NoError(t, err, "close failed")
+		}(sfile)
 
-	ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
-	if err != nil {
-		t.Fatal(err)
-	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
-		t.Fatal(err)
-	} else if err := sfile.ForceCompact(); err != nil {
-		t.Fatal(err)
+		ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
+		if err != nil {
+			t.Fatal(err)
+		} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
+			t.Fatal(err)
+		} else if err := sfile.ForceCompact(); err != nil {
+			t.Fatal(err)
+		}
+		// Delete and ensure deletion.
+		if _, err := sfile.DeleteSeriesID(ids0[0], flush); err != nil {
+			t.Fatal(err)
+		} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
+			t.Fatal(err)
+		} else if !sfile.IsDeleted(ids0[0]) {
+			t.Fatal("expected deletion before compaction")
+		}
+
+		if err := sfile.ForceCompact(); err != nil {
+			t.Fatal(err)
+		} else if !sfile.IsDeleted(ids0[0]) {
+			t.Fatal("expected deletion after compaction")
+		}
+
+		if err := sfile.Reopen(); err != nil {
+			t.Fatal(err)
+		} else if !sfile.IsDeleted(ids0[0]) {
+			t.Fatal("expected deletion after reopen")
+		}
 	}
 
-	// Delete and ensure deletion.
-	if _, err := sfile.DeleteSeriesID(ids0[0], tsdb.Flush); err != nil {
-		t.Fatal(err)
-	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
-		t.Fatal(err)
-	} else if !sfile.IsDeleted(ids0[0]) {
-		t.Fatal("expected deletion before compaction")
+	tests := []struct {
+		name string
+		fn   func()
+	}{{
+		name: "delete series with flush",
+		fn: func() {
+			deleteTestFn(tsdb.Flush)
+		},
+	},
+		{
+			name: "delete series with no flush",
+			fn: func() {
+				deleteTestFn(tsdb.NoFlush)
+			},
+		},
 	}
 
-	if err := sfile.ForceCompact(); err != nil {
-		t.Fatal(err)
-	} else if !sfile.IsDeleted(ids0[0]) {
-		t.Fatal("expected deletion after compaction")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn()
+		})
 	}
 
-	if err := sfile.Reopen(); err != nil {
-		t.Fatal(err)
-	} else if !sfile.IsDeleted(ids0[0]) {
-		t.Fatal("expected deletion after reopen")
-	}
 }
 
 func TestSeriesFile_Compaction(t *testing.T) {
