@@ -196,37 +196,30 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 		sfile := MustOpenSeriesFile()
 		defer func(sfile *SeriesFile) {
 			err := sfile.Close()
-			require.NoError(t, err, "close failed")
+			require.NoError(t, err, "close sfile")
 		}(sfile)
 
 		ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
-		if err != nil {
-			t.Fatal(err)
-		} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
-			t.Fatal(err)
-		} else if err := sfile.ForceCompact(); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err, "create series list")
+		_, err = sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
+		require.NoError(t, err, "create series list")
+		err = sfile.ForceCompact()
+		require.NoError(t, err, "force compact")
+
 		// Delete and ensure deletion.
-		if _, err := sfile.DeleteSeriesID(ids0[0], flush); err != nil {
-			t.Fatal(err)
-		} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
-			t.Fatal(err)
-		} else if !sfile.IsDeleted(ids0[0]) {
-			t.Fatal("expected deletion before compaction")
-		}
+		_, err = sfile.DeleteSeriesID(ids0[0], flush)
+		require.NoError(t, err, "delete series list")
+		_, err = sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
+		require.NoError(t, err, "create series list")
+		require.True(t, sfile.IsDeleted(ids0[0]), "expected deleted")
 
-		if err := sfile.ForceCompact(); err != nil {
-			t.Fatal(err)
-		} else if !sfile.IsDeleted(ids0[0]) {
-			t.Fatal("expected deletion after compaction")
-		}
+		err = sfile.ForceCompact()
+		require.NoError(t, err, "force compact")
+		require.True(t, sfile.IsDeleted(ids0[0]), "expected deleted")
 
-		if err := sfile.Reopen(); err != nil {
-			t.Fatal(err)
-		} else if !sfile.IsDeleted(ids0[0]) {
-			t.Fatal("expected deletion after reopen")
-		}
+		err = sfile.Reopen()
+		require.NoError(t, err, "reopen")
+		require.True(t, sfile.IsDeleted(ids0[0]), "expected deleted")
 	}
 
 	tests := []struct {
