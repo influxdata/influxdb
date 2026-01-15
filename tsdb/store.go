@@ -1112,8 +1112,8 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		}
 	}
 
-	guards, gen := epoch.StartWrite()
 	// enter the epoch tracker
+	guards, gen := epoch.StartWrite()
 	defer epoch.EndWrite(gen)
 
 	// wait for any guards before closing the shard
@@ -1875,8 +1875,8 @@ func (s *Store) WriteToShard(writeCtx WriteContext, shardID uint64, points []mod
 
 	s.mu.RUnlock()
 
-	guards, gen := epoch.StartWrite()
 	// enter the epoch tracker
+	guards, gen := epoch.StartWrite()
 	defer epoch.EndWrite(gen)
 
 	// wait for any guards before writing the points.
