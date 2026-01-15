@@ -1106,7 +1106,10 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			})
 
 			if err := sfile.FlushSegments(partitionIDs); err != nil {
-				return err
+				sfile.Logger.Error(
+					"error while flushing a series file segment",
+					zap.Uint64("shard_id", shardID),
+					zap.Error(err))
 			}
 		}
 	}
