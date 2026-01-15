@@ -1111,8 +1111,8 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		}
 	}
 
-	// enter the epoch tracker
 	guards, gen := epoch.StartWrite()
+	// enter the epoch tracker
 	defer epoch.EndWrite(gen)
 
 	// wait for any guards before closing the shard

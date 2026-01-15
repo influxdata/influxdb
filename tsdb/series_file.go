@@ -218,15 +218,16 @@ func (f *SeriesFile) DeleteSeriesID(id uint64, flush bool) (*SeriesPartition, er
 
 // FlushSegments flushes a group of partitions by id
 func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
+	var errs []error
 	for id := range partitionIDs {
 		p := f.partitions[id]
 		if segment := p.activeSegment(); segment != nil {
 			if err := segment.Flush(); err != nil {
-				return err
+				errs = append(errs, err)
 			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // IsDeleted returns true if the ID has been deleted before.
