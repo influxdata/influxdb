@@ -328,34 +328,6 @@ func (p *SeriesPartition) Compacting() bool {
 	return p.compacting
 }
 
-// DeleteSeriesIDNoFlush flags a series as permanently deleted.
-// This operation does not incur an fsync.
-// If the series is reintroduced later then it must create a new id.
-func (p *SeriesPartition) DeleteSeriesIDNoFlush(id uint64) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.closed {
-		return ErrSeriesPartitionClosed
-	}
-
-	// Already tombstoned, ignore.
-	if p.index.IsDeleted(id) {
-		return nil
-	}
-
-	// Write tombstone entry.
-	_, err := p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryTombstoneFlag, id, nil))
-	if err != nil {
-		return err
-	}
-
-	// Mark tombstone in memory.
-	p.index.Delete(id)
-
-	return nil
-}
-
 // FlushSegment fsyncs a segment to disk
 func (p *SeriesPartition) FlushSegment() error {
 	p.mu.Lock()
@@ -373,8 +345,9 @@ func (p *SeriesPartition) FlushSegment() error {
 }
 
 // DeleteSeriesID flags a series as permanently deleted.
-// If the series is reintroduced later then it must create a new id.
-func (p *SeriesPartition) DeleteSeriesID(id uint64) error {
+// If the series is reintroduced later than it must create a new id.
+// Setting flush will indicate whether this method triggers a fsync.
+func (p *SeriesPartition) DeleteSeriesID(id uint64, flush bool) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -394,9 +367,11 @@ func (p *SeriesPartition) DeleteSeriesID(id uint64) error {
 	}
 
 	// Flush active segment write.
-	if segment := p.activeSegment(); segment != nil {
-		if err := segment.Flush(); err != nil {
-			return err
+	if flush {
+		if segment := p.activeSegment(); segment != nil {
+			if err := segment.Flush(); err != nil {
+				return err
+			}
 		}
 	}
 

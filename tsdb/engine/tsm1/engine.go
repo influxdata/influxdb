@@ -1854,7 +1854,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		var err error
 		ids.ForEach(func(id uint64) {
 			name, tags := e.sfile.Series(id)
-			if err1 := e.sfile.DeleteSeriesID(id); err1 != nil {
+			if _, err1 := e.sfile.DeleteSeriesID(id, tsdb.Flush); err1 != nil {
 				err = err1
 				return
 			}

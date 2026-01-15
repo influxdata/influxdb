@@ -204,7 +204,7 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 	}
 
 	// Delete and ensure deletion.
-	if err := sfile.DeleteSeriesID(ids0[0]); err != nil {
+	if _, err := sfile.DeleteSeriesID(ids0[0], tsdb.Flush); err != nil {
 		t.Fatal(err)
 	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
 		t.Fatal(err)
@@ -246,7 +246,7 @@ func TestSeriesFile_Compaction(t *testing.T) {
 	// Delete a subset of keys.
 	for i, id := range ids {
 		if i%10 == 0 {
-			if err := sfile.DeleteSeriesID(id); err != nil {
+			if _, err := sfile.DeleteSeriesID(id, tsdb.Flush); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -325,7 +325,7 @@ func BenchmarkSeriesFile_Compaction(b *testing.B) {
 
 		// Delete a subset of keys.
 		for i := 0; i < len(ids); i += 10 {
-			if err := sfile.DeleteSeriesID(ids[i]); err != nil {
+			if _, err := sfile.DeleteSeriesID(ids[i], tsdb.Flush); err != nil {
 				b.Fatal(err)
 			}
 		}

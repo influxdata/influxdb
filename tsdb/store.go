@@ -1079,8 +1079,10 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			var deletedCount atomic.Uint64
 			var partitionIDs = make(map[int]struct{})
 
-			ss.ForEach(func(id uint64) {
-				part, err := sfile.DeleteSeriesIDNoFlush(id)
+			sfile.DeleteSeries(ss.Iterator(), func(id uint64) {
+				ss.RLock()
+				defer ss.RUnlock()
+				p, err := sfile.DeleteSeriesID(id, NoFlush)
 				if err != nil {
 					sfile.Logger.Error(
 						"cannot delete series in shard",
@@ -1088,7 +1090,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 						zap.Uint64("shard_id", shardID),
 						zap.Error(err))
 				} else {
-					partitionIDs[part.id] = struct{}{}
+					partitionIDs[p.id] = struct{}{}
 					deleted := deletedCount.Add(1)
 
 					if deleted%DeleteLogTrigger == 0 {

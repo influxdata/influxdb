@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/binaryutil"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/roaring"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -30,6 +31,10 @@ const SeriesIDSize = 8
 const (
 	// SeriesFilePartitionN is the number of partitions a series file is split into.
 	SeriesFilePartitionN = 8
+	// Flush let's us know when to fsync
+	Flush = true
+	// NoFlush let's us know when to not fsync
+	NoFlush = false
 )
 
 // SeriesFile represents the section of the index that holds series data.
@@ -193,25 +198,22 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	return ids, nil
 }
 
-// DeleteSeriesID flags a series as permanently deleted.
-// If the series is reintroduced later then it must create a new id.
-func (f *SeriesFile) DeleteSeriesID(id uint64) error {
-	p := f.SeriesIDPartition(id)
-	if p == nil {
-		return ErrInvalidSeriesPartitionID
+// DeleteSeries will delete an entire batch of series
+func (f *SeriesFile) DeleteSeries(iter roaring.IntIterable, fn func(id uint64)) {
+	for iter.HasNext() {
+		fn(uint64(iter.Next()))
 	}
-	return p.DeleteSeriesID(id)
 }
 
-// DeleteSeriesIDNoFlush flags a series as permanently deleted.
-// This method returns a SeriesPartition that can be then used later
-// for fsync operations.
-func (f *SeriesFile) DeleteSeriesIDNoFlush(id uint64) (*SeriesPartition, error) {
+// DeleteSeriesID flags a series as permanently deleted.
+// If the series is reintroduced later than it must create a new id.
+// Setting flush will indicate whether this method triggers a fsync.
+func (f *SeriesFile) DeleteSeriesID(id uint64, flush bool) (*SeriesPartition, error) {
 	p := f.SeriesIDPartition(id)
 	if p == nil {
 		return nil, ErrInvalidSeriesPartitionID
 	}
-	return p, p.DeleteSeriesIDNoFlush(id)
+	return p, p.DeleteSeriesID(id, flush)
 }
 
 // FlushSegments flushes a group of partitions by id
