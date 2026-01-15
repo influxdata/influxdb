@@ -30,9 +30,9 @@ const SeriesIDSize = 8
 const (
 	// SeriesFilePartitionN is the number of partitions a series file is split into.
 	SeriesFilePartitionN = 8
-	// Flush let's us know when to fsync
+	// Flush lets us know when to fsync
 	Flush = true
-	// NoFlush let's us know when to not fsync
+	// NoFlush lets us know when to not fsync
 	NoFlush = false
 )
 
