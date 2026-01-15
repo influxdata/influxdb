@@ -1154,8 +1154,8 @@ func (s *Store) DeleteDatabase(name string) error {
 			return nil
 		}
 
-		epoch := epochs[sh.id]
 		// enter the epoch tracker
+		epoch := epochs[sh.id]
 		guards, gen := epoch.StartWrite()
 		defer epoch.EndWrite(gen)
 
