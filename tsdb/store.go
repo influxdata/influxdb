@@ -1105,7 +1105,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				}
 			})
 
-			start := time.Now()
 			if err := sfile.FlushSegments(partitionIDs); err != nil {
 				sfile.Logger.Error(
 					"error while flushing a series file segment",
@@ -1113,8 +1112,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 					zap.String("series_file_path", sfile.Path()),
 					zap.Error(err))
 			}
-			elapsed := time.Since(start)
-			sfile.Logger.Info(fmt.Sprintf("DeleteShard: series flushed in %s", elapsed))
 		}
 	}
 
