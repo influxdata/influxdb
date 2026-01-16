@@ -5,15 +5,16 @@
 use crate::ExecutePluginError;
 use crate::logging::{LogLevel, ProcessingEngineLog};
 use crate::system_py::CacheId::{Global, GlobalTest, Trigger, TriggerTest};
-use anyhow::{Context, anyhow, bail};
+use anyhow::{anyhow, bail};
 use arrow_array::types::Int32Type;
 use arrow_array::{
-    Array, BooleanArray, DictionaryArray, Float64Array, Int32Array, Int64Array, RecordBatch,
-    StringArray, TimestampNanosecondArray, UInt64Array,
+    Array, BooleanArray, DictionaryArray, Float64Array, Int64Array, RecordBatch, StringArray,
+    TimestampNanosecondArray, UInt64Array,
 };
 use arrow_schema::DataType;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use data_types::NamespaceName;
 use futures::TryStreamExt;
 use hashbrown::{HashMap, HashSet};
 use humantime::format_duration;
@@ -21,14 +22,14 @@ use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_sys_events::SysEventStore;
-use influxdb3_wal::{FieldData, WriteBatch};
+use influxdb3_write::{Bufferer, Precision};
 use iox_query_params::StatementParams;
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::{PyAnyMethods, PyModule};
-use pyo3::types::{PyBytes, PyDateTime, PyDict, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyDateTime, PyDict, PyList, PyString, PyTuple};
 use pyo3::{
     Bound, IntoPyObject, Py, PyAny, PyResult, Python, create_exception, pyclass, pymethods,
     pymodule,
@@ -37,18 +38,35 @@ use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime};
 
 create_exception!(influxdb3_py_api, QueryError, PyException);
 
+/// API object exposed to Python plugins via PyO3.
+///
+/// Methods on this struct are called from Python code. They may appear unused from
+/// a Rust perspective but are invoked by the Python runtime when plugins call methods like
+/// `influxdb3_local.write()`, `influxdb3_local.query()`, etc.
 #[pyclass]
 #[derive(Debug)]
 struct PyPluginCallApi {
     db_schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
-    return_state: Arc<Mutex<PluginReturnState>>,
-    logger: Option<ProcessingEngineLogger>,
+    write_buffer: Arc<dyn Bufferer>,
+    write_accumulator: Arc<Mutex<WriteAccumulator>>,
+    logger: Arc<PluginLogger>,
     py_cache: PyCache,
+}
+
+/// Accumulates batched write operations during plugin execution.
+///
+/// See [PluginReturnState].
+#[derive(Debug, Default)]
+struct WriteAccumulator {
+    /// Line protocol to write back to the database owning the trigger.
+    write_back_lines: Vec<String>,
+    /// Line protocol to write to other databases, keyed by database name.
+    write_db_lines: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -84,16 +102,78 @@ impl ProcessingEngineLogger {
     }
 }
 
+/// Accumulated state returned from plugin execution.
+///
+/// After a plugin finishes, this struct contains data that must be processed:
+/// log messages to emit and line protocol to write.
 #[derive(Debug, Default)]
 pub struct PluginReturnState {
+    /// Log messages emitted during plugin execution.
     pub log_lines: Vec<LogLine>,
+    /// Line protocol to write back to the database owning the trigger.
     pub write_back_lines: Vec<String>,
+    /// Line protocol to write to other databases, keyed by database name.
     pub write_db_lines: HashMap<String, Vec<String>>,
 }
 
-impl PluginReturnState {
-    pub fn log(&self) -> Vec<String> {
-        self.log_lines.iter().map(|l| l.to_string()).collect()
+/// Logger abstraction for plugin execution.
+///
+/// In production mode, logs are written to the sys_event_store only.
+/// In dry run mode, logs are accumulated for the response (no sys_event_store writes).
+/// Tracing macros (info!, warn!, error!) are called in PyPluginCallApi methods for both modes.
+#[derive(Debug)]
+pub enum PluginLogger {
+    /// Production mode: logs to sys_event_store only
+    Production(ProcessingEngineLogger),
+    /// Dry run mode: accumulates log_lines only.
+    /// Note: Mutex is required for Send+Sync bounds (PyO3's #[macro@pyclass] requires Send),
+    /// not for actual concurrent access - execution is single-threaded within the GIL.
+    // todo(pjb): potential memory issue - unbounded log accumulation
+    DryRun { log_lines: Mutex<Vec<LogLine>> },
+}
+
+impl PluginLogger {
+    /// Create a production logger that writes to sys_event_store.
+    pub fn production(logger: ProcessingEngineLogger) -> Self {
+        Self::Production(logger)
+    }
+
+    /// Create a dry run logger that accumulates log lines in memory.
+    pub fn dry_run() -> Self {
+        Self::DryRun {
+            log_lines: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Log a message at the specified level.
+    ///
+    /// In production mode, writes to the sys_event_store for persistence.
+    /// In dry run mode, accumulates the log line for later retrieval via `take_log_lines()`.
+    pub fn log(&self, level: LogLevel, line: String) {
+        match self {
+            Self::Production(logger) => {
+                logger.log(level, line);
+            }
+            Self::DryRun { log_lines } => {
+                let log_line = match level {
+                    LogLevel::Info => LogLine::Info(line),
+                    LogLevel::Warn => LogLine::Warn(line),
+                    LogLevel::Error => LogLine::Error(line),
+                };
+                log_lines.lock().push(log_line);
+            }
+        }
+    }
+
+    /// Take and return accumulated log lines.
+    ///
+    /// Returns an empty Vec for production loggers.
+    /// Returns and clears the accumulated log lines for dry run loggers.
+    pub fn take_log_lines(&self) -> Vec<LogLine> {
+        match self {
+            Self::Production(_) => Vec::new(),
+            Self::DryRun { log_lines } => std::mem::take(&mut *log_lines.lock()),
+        }
     }
 }
 
@@ -122,57 +202,61 @@ impl std::fmt::Debug for LogLine {
 #[pymethods]
 impl PyPluginCallApi {
     #[pyo3(signature = (*args))]
-    fn info(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+    fn info(&self, py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<()> {
         let line = self.log_args_to_string(args)?;
-
-        info!("processing engine: {}", line);
-        self.write_to_logger(LogLevel::Info, line.clone());
-        self.return_state.lock().log_lines.push(LogLine::Info(line));
+        let logger = Arc::clone(&self.logger);
+        py.detach(|| {
+            info!("processing engine: {}", line);
+            logger.log(LogLevel::Info, line);
+        });
         Ok(())
     }
 
     #[pyo3(signature = (*args))]
-    fn warn(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+    fn warn(&self, py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<()> {
         let line = self.log_args_to_string(args)?;
-
-        warn!("processing engine: {}", line);
-        self.write_to_logger(LogLevel::Warn, line.clone());
-        self.return_state
-            .lock()
-            .log_lines
-            .push(LogLine::Warn(line.to_string()));
+        let logger = Arc::clone(&self.logger);
+        py.detach(|| {
+            warn!("processing engine: {}", line);
+            logger.log(LogLevel::Warn, line);
+        });
         Ok(())
     }
 
     #[pyo3(signature = (*args))]
-    fn error(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+    fn error(&self, py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<()> {
         let line = self.log_args_to_string(args)?;
-
-        error!("processing engine: {}", line);
-        self.write_to_logger(LogLevel::Error, line.clone());
-        self.return_state
-            .lock()
-            .log_lines
-            .push(LogLine::Error(line.to_string()));
+        let logger = Arc::clone(&self.logger);
+        py.detach(|| {
+            error!("processing engine: {}", line);
+            logger.log(LogLevel::Error, line);
+        });
         Ok(())
     }
 
+    /// Write line protocol to the database this trigger is attached to.
+    ///
+    /// Legacy api that batches writes and writes them at the end of plugin execution.
     fn write(&self, line_builder: &Bound<'_, PyAny>) -> PyResult<()> {
-        // Get the built line from the LineBuilder object
         let line = line_builder.getattr("build")?.call0()?;
         let line_str = line.extract::<String>()?;
 
-        // Add to write_back_lines
-        self.return_state.lock().write_back_lines.push(line_str);
+        self.write_accumulator
+            .lock()
+            .write_back_lines
+            .push(line_str);
 
         Ok(())
     }
 
+    /// Write line protocol to a specified database.
+    ///
+    /// Legacy api that batches writes and writes them at the end of plugin execution.
     fn write_to_db(&self, db_name: &str, line_builder: &Bound<'_, PyAny>) -> PyResult<()> {
         let line = line_builder.getattr("build")?.call0()?;
         let line_str = line.extract::<String>()?;
 
-        self.return_state
+        self.write_accumulator
             .lock()
             .write_db_lines
             .entry(db_name.to_string())
@@ -182,9 +266,69 @@ impl PyPluginCallApi {
         Ok(())
     }
 
+    /// Write line protocol to the database this trigger is attached to.
+    ///
+    /// Writes synchronously via the write buffer. Use `write_sync_to_db` to write to a different database.
+    fn write_sync(
+        &self,
+        py: Python<'_>,
+        line_builder: &Bound<'_, PyAny>,
+        no_sync: bool,
+    ) -> PyResult<()> {
+        self.write_sync_to_db(py, &self.db_schema.name, line_builder, no_sync)
+    }
+
+    /// Write line protocol to a specified database.
+    ///
+    /// Writes synchronously via the write buffer. Use `write` to write to the trigger's database.
+    ///
+    /// # Panics
+    ///
+    /// Uses `tokio::task::block_in_place` which requires a multi-threaded tokio runtime.
+    fn write_sync_to_db(
+        &self,
+        py: Python<'_>,
+        db_name: &str,
+        line_builder: &Bound<'_, PyAny>,
+        no_sync: bool,
+    ) -> PyResult<()> {
+        let line = line_builder.getattr("build")?.call0()?;
+        let line_str = line.extract::<String>()?;
+
+        let write_buffer = Arc::clone(&self.write_buffer);
+        let db_name = db_name.to_string();
+
+        let ingest_time_nanos = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as i64;
+
+        py.detach(|| {
+            tokio::task::block_in_place(|| {
+                let namespace = NamespaceName::new(db_name.clone())
+                    .map_err(|e| format!("invalid database name: {e}"))?;
+                let ingest_time = Time::from_timestamp_nanos(ingest_time_nanos);
+
+                tokio::runtime::Handle::current()
+                    .block_on(write_buffer.write_lp(
+                        namespace,
+                        &line_str,
+                        ingest_time,
+                        false,
+                        Precision::Nanosecond,
+                        no_sync,
+                    ))
+                    .map(|_| ())
+                    .map_err(|e| format!("{e}"))
+            })
+        })
+        .map_err(|e| PyException::new_err(format!("error writing line protocol to {db_name}: {e}")))
+    }
+
     #[pyo3(signature = (query, args=None))]
     fn query(
         &self,
+        py: Python<'_>,
         query: String,
         args: Option<std::collections::HashMap<String, String>>,
     ) -> PyResult<Py<PyList>> {
@@ -199,126 +343,129 @@ impl PyPluginCallApi {
             params
         });
 
-        // Spawn the async task
-        let handle = tokio::spawn(async move {
-            let res = query_executor
-                .query_sql(db_schema_name.as_ref(), &query, params, None, None)
-                .await
-                .map_err(|e| QueryError::new_err(format!("error: {e} executing query: {query}")))?;
+        let batches = py.detach(|| {
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let res = query_executor
+                        .query_sql(db_schema_name.as_ref(), &query, params, None, None)
+                        .await
+                        .map_err(|e| format!("error: {e} executing query: {query}"))?;
 
-            res.try_collect()
-                .await
-                .map_err(|e| QueryError::new_err(format!("error: {e} executing query: {query}")))
+                    res.try_collect::<Vec<RecordBatch>>()
+                        .await
+                        .map_err(|e| format!("error: {e} executing query: {query}"))
+                })
+            })
         });
 
-        // Block the current thread until the async task completes
-        let res =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(handle));
+        let batches = batches.map_err(QueryError::new_err)?;
 
-        let res = res.map_err(|e| QueryError::new_err(format!("join error: {e}")))?;
+        // Pre-create Python strings for field/tag names once for all batches;
+        // schema must be the same across batches.
+        let Some(first_batch) = batches.first() else {
+            return Ok(PyList::empty(py).unbind());
+        };
+        let field_names: Vec<Bound<'_, PyString>> = first_batch
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| PyString::new(py, f.name().as_str()))
+            .collect();
 
-        let batches: Vec<RecordBatch> = res?;
+        let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+        let mut rows: Vec<Py<PyAny>> = Vec::with_capacity(total_rows);
 
-        Python::attach(|py| {
-            let mut rows: Vec<Py<PyAny>> = Vec::new();
+        for batch in &batches {
+            debug_assert_eq!(
+                // datafusion should ensure all batches have the same schema; check it in debug builds
+                batch.num_columns(),
+                field_names.len(),
+                "unexpected batch schema mismatch: expected {} columns, got {}",
+                field_names.len(),
+                batch.num_columns()
+            );
+            let num_rows = batch.num_rows();
+            for row_idx in 0..num_rows {
+                let row = PyDict::new(py);
+                for (col_idx, field_name) in field_names.iter().enumerate() {
+                    let array = batch.column(col_idx);
 
-            for batch in batches {
-                let num_rows = batch.num_rows();
-                let schema = batch.schema();
+                    if array.is_null(row_idx) {
+                        row.set_item(field_name, py.None())?;
+                        continue;
+                    }
 
-                for row_idx in 0..num_rows {
-                    let row = PyDict::new(py);
-                    for col_idx in 0..schema.fields().len() {
-                        let field = schema.field(col_idx);
-                        let field_name = field.name().as_str();
-
-                        let array = batch.column(col_idx);
-
-                        if array.is_null(row_idx) {
-                            row.set_item(field_name, py.None())?;
-                            continue;
+                    match array.data_type() {
+                        DataType::Int64 => {
+                            let array = array.as_any().downcast_ref::<Int64Array>().unwrap();
+                            row.set_item(field_name, array.value(row_idx))?;
                         }
-
-                        match array.data_type() {
-                            DataType::Int64 => {
-                                let array = array.as_any().downcast_ref::<Int64Array>().unwrap();
-                                row.set_item(field_name, array.value(row_idx))?;
-                            }
-                            DataType::UInt64 => {
-                                let array = array.as_any().downcast_ref::<UInt64Array>().unwrap();
-                                row.set_item(field_name, array.value(row_idx))?;
-                            }
-                            DataType::Float64 => {
-                                let array = array.as_any().downcast_ref::<Float64Array>().unwrap();
-                                row.set_item(field_name, array.value(row_idx))?;
-                            }
-                            DataType::Utf8 => {
-                                let array = array.as_any().downcast_ref::<StringArray>().unwrap();
-                                row.set_item(field_name, array.value(row_idx))?;
-                            }
-                            DataType::Boolean => {
-                                let array = array.as_any().downcast_ref::<BooleanArray>().unwrap();
-                                row.set_item(field_name, array.value(row_idx))?;
-                            }
-                            DataType::Timestamp(_, _) => {
-                                let array = array
-                                    .as_any()
-                                    .downcast_ref::<TimestampNanosecondArray>()
-                                    .unwrap();
-                                row.set_item(field_name, array.value(row_idx))?;
-                            }
-                            DataType::Dictionary(_, _) => {
-                                let col = array
-                                    .as_any()
-                                    .downcast_ref::<DictionaryArray<Int32Type>>()
-                                    .expect("unexpected datatype");
-
-                                let keys = col
-                                    .keys()
-                                    .as_any()
-                                    .downcast_ref::<Int32Array>()
-                                    .expect("unexpected datatype");
-
-                                let values = col.values();
-                                let values = values
-                                    .as_any()
-                                    .downcast_ref::<StringArray>()
-                                    .expect("unexpected datatype");
-
-                                let val = values.value(keys.value(row_idx) as usize).to_string();
-                                row.set_item(field_name, val)?;
-                            }
-                            _ => {
-                                return Err(PyValueError::new_err(format!(
-                                    "Unsupported data type: {:?}",
-                                    array.data_type()
-                                )));
-                            }
+                        DataType::UInt64 => {
+                            let array = array.as_any().downcast_ref::<UInt64Array>().unwrap();
+                            row.set_item(field_name, array.value(row_idx))?;
+                        }
+                        DataType::Float64 => {
+                            let array = array.as_any().downcast_ref::<Float64Array>().unwrap();
+                            row.set_item(field_name, array.value(row_idx))?;
+                        }
+                        DataType::Utf8 => {
+                            let array = array.as_any().downcast_ref::<StringArray>().unwrap();
+                            row.set_item(field_name, array.value(row_idx))?;
+                        }
+                        DataType::Boolean => {
+                            let array = array.as_any().downcast_ref::<BooleanArray>().unwrap();
+                            row.set_item(field_name, array.value(row_idx))?;
+                        }
+                        DataType::Timestamp(_, _) => {
+                            let array = array
+                                .as_any()
+                                .downcast_ref::<TimestampNanosecondArray>()
+                                .unwrap();
+                            row.set_item(field_name, array.value(row_idx))?;
+                        }
+                        DataType::Dictionary(_, _) => {
+                            let col = array
+                                .as_any()
+                                .downcast_ref::<DictionaryArray<Int32Type>>()
+                                .expect("unexpected datatype");
+                            let values = col.values();
+                            let values = values
+                                .as_any()
+                                .downcast_ref::<StringArray>()
+                                .expect("unexpected datatype");
+                            let key_idx = col.keys().value(row_idx) as usize;
+                            let val = values.value(key_idx).to_string();
+                            row.set_item(field_name, val)?;
+                        }
+                        _ => {
+                            return Err(PyValueError::new_err(format!(
+                                "Unsupported data type: {:?}",
+                                array.data_type()
+                            )));
                         }
                     }
-                    rows.push(row.into());
                 }
+                rows.push(row.into());
             }
+        }
 
-            let list = PyList::new(py, rows)?.unbind();
-            Ok(list)
-        })
+        let list = PyList::new(py, rows)?.unbind();
+        Ok(list)
     }
 
     #[getter]
-    fn cache(&self) -> PyResult<PyCache> {
-        self.py_cache.cache_store.lock().cleanup();
-        Ok(self.py_cache.clone())
+    fn cache(&self, py: Python<'_>) -> PyResult<PyCache> {
+        let py_cache = self.py_cache.clone();
+        let cache_store = Arc::clone(&py_cache.cache_store);
+        py.detach(|| {
+            cache_store.lock().cleanup();
+        });
+        Ok(py_cache)
     }
 }
 
+// no #[pymethods] here so these methods are available to rust code but not python code.
 impl PyPluginCallApi {
-    fn write_to_logger(&self, level: LogLevel, log_line: String) {
-        if let Some(logger) = &self.logger {
-            logger.log(level, log_line);
-        }
-    }
-
     fn log_args_to_string(&self, args: &Bound<'_, PyTuple>) -> PyResult<String> {
         let line = args
             .try_iter()?
@@ -335,6 +482,8 @@ const PROCESS_WRITES_CALL_SITE: &str = "process_writes";
 const PROCESS_SCHEDULED_CALL_SITE: &str = "process_scheduled_call";
 
 const PROCESS_REQUEST_CALL_SITE: &str = "process_request";
+
+use crate::py_conversion::ToPythonTableBatches;
 
 const LINE_BUILDER_CODE: &str = r#"
 from typing import Optional
@@ -478,6 +627,52 @@ fn map_to_py_object<'py>(py: Python<'py>, map: &HashMap<String, String>) -> Boun
     dict
 }
 
+/// Sets up the LineBuilder class in Python's environment for access by all plugins.
+///
+/// Executes the LineBuilder code in `__main__` and adds it to builtins so it's accessible
+/// from both single-file plugins and multi-file plugins.
+fn setup_line_builder(py: Python<'_>) -> Result<(), anyhow::Error> {
+    // specifically use globals = None which defaults to __main__ so LineBuilder is
+    // accessible to all plugins
+    py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
+        .map_err(|e| anyhow::Error::new(e).context("failed to eval the LineBuilder API code"))?;
+
+    // Make LineBuilder available to all modules by adding it to builtins.
+    // This ensures multi-file plugins can access it without explicit imports.
+    let builtins = py.import("builtins")?;
+    let main_module = py.import("__main__")?;
+    let line_builder = main_module.getattr("LineBuilder")?;
+    builtins.setattr("LineBuilder", line_builder)?;
+
+    Ok(())
+}
+
+/// Loads a Python function from either a multi-file plugin module or single-file plugin code.
+///
+/// For multi-file plugins (when `plugin_root` is `Some`), imports the module and retrieves
+/// the function. For single-file plugins, executes the code in an isolated namespace and
+/// retrieves the function.
+fn load_plugin_function<'py>(
+    py: Python<'py>,
+    code: &str,
+    plugin_root: Option<&Path>,
+    call_site: &str,
+    missing_fn_error: ExecutePluginError,
+) -> Result<Bound<'py, PyAny>, ExecutePluginError> {
+    if let Some(root_path) = plugin_root {
+        load_function_from_module(py, root_path, call_site).map_err(|_| missing_fn_error)
+    } else {
+        // Create isolated globals for this plugin execution. Without this, single-file
+        // plugins would share __main__'s namespace and could overwrite each other's
+        // function definitions during concurrent execution.
+        let globals = PyDict::new(py);
+        py.run(&CString::new(code).unwrap(), Some(&globals), None)
+            .map_err(anyhow::Error::from)?;
+        py.eval(&CString::new(call_site).unwrap(), Some(&globals), None)
+            .map_err(|_| missing_fn_error)
+    }
+}
+
 /// Loads a Python function from a multi-file plugin module.
 ///
 /// This function temporarily adds the plugin's parent directory to Python's sys.path,
@@ -537,177 +732,73 @@ fn load_function_from_module<'py>(
     })
 }
 
+/// Execute a WAL flush trigger plugin with data that implements `ToPythonTableBatches`.
 #[allow(clippy::too_many_arguments)]
-pub fn execute_python_with_batch(
+pub fn execute_wal_flush_trigger<T: ToPythonTableBatches>(
     code: &str,
-    write_batch: &WriteBatch,
+    wal_data: &T,
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
-    logger: Option<ProcessingEngineLogger>,
+    write_buffer: Arc<dyn Bufferer>,
+    logger: PluginLogger,
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
     plugin_root: Option<&Path>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
-    let start_time = if let Some(logger) = &logger {
-        logger.log(
-            LogLevel::Info,
-            "starting execution of wal plugin.".to_string(),
-        );
-        Some(logger.sys_event_store.time_provider().now())
-    } else {
-        None
-    };
+    logger.log(
+        LogLevel::Info,
+        String::from("starting execution of wal plugin."),
+    );
+    let start_time = Instant::now();
+
+    let logger = Arc::new(logger);
+    let write_accumulator: Arc<Mutex<WriteAccumulator>> = Default::default();
+
     Python::attach(|py| {
-        // import the LineBuilder for use in the python code
-        // Run LineBuilder code in the main namespace
-        py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
-            .map_err(|e| {
-                anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
-            })?;
-
-        // Make LineBuilder available to all modules by adding it to builtins
-        // This ensures multi-file plugins can access it
-        let builtins = py.import("builtins").map_err(anyhow::Error::from)?;
-        let main_module = py.import("__main__").map_err(anyhow::Error::from)?;
-        let line_builder = main_module
-            .getattr("LineBuilder")
-            .map_err(anyhow::Error::from)?;
-        builtins
-            .setattr("LineBuilder", line_builder)
-            .map_err(anyhow::Error::from)?;
-
-        // convert the write batch into a python object
-        let mut table_batches = Vec::with_capacity(write_batch.table_chunks.len());
-
-        for (table_id, table_chunks) in &write_batch.table_chunks {
-            if let Some(table_filter) = table_filter
-                && table_id != &table_filter
-            {
-                continue;
-            }
-            let table_def = schema
-                .legacy_table_definition_by_id(table_id)
-                .context("table not found")?;
-
-            let dict = PyDict::new(py);
-            dict.set_item("table_name", table_def.table_name.as_ref())
-                .context("failed to set table_name")?;
-
-            let mut rows: Vec<Py<PyAny>> = Vec::new();
-            for chunk in table_chunks.chunk_time_to_chunk.values() {
-                for row in &chunk.rows {
-                    let py_row = PyDict::new(py);
-
-                    for field in &row.fields {
-                        let field_name = table_def
-                            .column_id_to_name(&field.id)
-                            .context("field not found")?;
-                        match &field.value {
-                            FieldData::String(s) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), s.as_str())
-                                    .context("failed to set string field")?;
-                            }
-                            FieldData::Integer(i) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), i)
-                                    .context("failed to set integer field")?;
-                            }
-                            FieldData::UInteger(u) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), u)
-                                    .context("failed to set unsigned integer field")?;
-                            }
-                            FieldData::Float(f) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), f)
-                                    .context("failed to set float field")?;
-                            }
-                            FieldData::Boolean(b) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), b)
-                                    .context("failed to set boolean field")?;
-                            }
-                            FieldData::Tag(t) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), t.as_str())
-                                    .context("failed to set tag field")?;
-                            }
-                            FieldData::Timestamp(t) => {
-                                py_row
-                                    .set_item(field_name.as_ref(), t)
-                                    .context("failed to set timestamp")?;
-                            }
-                            FieldData::Key(_) => {
-                                unreachable!("key type should never be constructed")
-                            }
-                        };
-                    }
-
-                    rows.push(py_row.into());
-                }
-            }
-
-            let rows = PyList::new(py, rows).context("failed to create rows list")?;
-
-            dict.set_item("rows", rows.unbind())
-                .context("failed to set rows")?;
-            table_batches.push(dict);
-        }
-
-        let py_batches =
-            PyList::new(py, table_batches).context("failed to create table_batches list")?;
-
-        let api = PyPluginCallApi {
+        setup_line_builder(py)?;
+        let py_batches = wal_data.to_python_table_batches(py, &schema, table_filter)?;
+        let local_api = PyPluginCallApi {
             db_schema: schema,
             query_executor,
-            logger: logger.clone(),
-            return_state: Default::default(),
+            write_buffer,
+            write_accumulator: Arc::clone(&write_accumulator),
+            logger: Arc::clone(&logger),
             py_cache,
-        };
-        let return_state = Arc::clone(&api.return_state);
-        let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
+        }
+        .into_pyobject(py)
+        .map_err(anyhow::Error::from)?;
 
-        // turn args into an optional dict to pass into python
         let args = args_to_py_object(py, args);
 
-        // Get the python function based on whether this is a directory plugin or not
-        let py_func = if let Some(root_path) = plugin_root {
-            load_function_from_module(py, root_path, PROCESS_WRITES_CALL_SITE)
-                .map_err(|_| ExecutePluginError::MissingProcessWritesFunction)?
-        } else {
-            // run the code and get the python function to call (single-file plugin)
-            py.run(&CString::new(code).unwrap(), None, None)
-                .map_err(anyhow::Error::from)?;
-            py.eval(&CString::new(PROCESS_WRITES_CALL_SITE).unwrap(), None, None)
-                .map_err(|_| ExecutePluginError::MissingProcessWritesFunction)?
-        };
+        let py_func = load_plugin_function(
+            py,
+            code,
+            plugin_root,
+            PROCESS_WRITES_CALL_SITE,
+            ExecutePluginError::MissingProcessWritesFunction,
+        )?;
 
         py_func
             .call1((local_api, py_batches.unbind(), args))
             .map_err(anyhow::Error::from)?;
 
-        // swap with an empty return state to avoid cloning
-        let empty_return_state = PluginReturnState::default();
-        let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
+        Ok::<(), ExecutePluginError>(())
+    })?;
 
-        if let Some(logger) = &logger {
-            let runtime = logger
-                .sys_event_store
-                .time_provider()
-                .now()
-                .checked_duration_since(start_time.unwrap());
-            logger.log(
-                LogLevel::Info,
-                format!(
-                    "finished execution in {}",
-                    format_duration(runtime.unwrap_or_default())
-                ),
-            );
-        }
+    logger.log(
+        LogLevel::Info,
+        format!(
+            "finished execution in {}",
+            format_duration(start_time.elapsed())
+        ),
+    );
 
-        Ok(ret)
+    let writes = std::mem::take(&mut *write_accumulator.lock());
+    Ok(PluginReturnState {
+        log_lines: logger.take_log_lines(),
+        write_back_lines: writes.write_back_lines,
+        write_db_lines: writes.write_db_lines,
     })
 }
 
@@ -717,22 +808,33 @@ pub fn execute_schedule_trigger(
     schedule_time: DateTime<Utc>,
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
-    logger: Option<ProcessingEngineLogger>,
+    write_buffer: Arc<dyn Bufferer>,
+    logger: PluginLogger,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
     plugin_root: Option<&Path>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
-    let start_time = if let Some(logger) = &logger {
-        logger.log(
-            LogLevel::Info,
-            format!("starting execution with scheduled time {schedule_time}"),
-        );
-        Some(logger.sys_event_store.time_provider().now())
-    } else {
-        None
-    };
+    logger.log(
+        LogLevel::Info,
+        format!("starting execution with scheduled time {schedule_time}"),
+    );
+    let start_time = Instant::now();
+
+    let logger = Arc::new(logger);
+    let write_accumulator: Arc<Mutex<WriteAccumulator>> = Default::default();
+
     Python::attach(|py| {
-        // import the LineBuilder for use in the python code
+        setup_line_builder(py)?;
+        let local_api = PyPluginCallApi {
+            db_schema: schema,
+            query_executor,
+            write_buffer,
+            write_accumulator: Arc::clone(&write_accumulator),
+            logger: Arc::clone(&logger),
+            py_cache,
+        }
+        .into_pyobject(py)
+        .map_err(anyhow::Error::from)?;
 
         let py_datetime = PyDateTime::from_timestamp(py, schedule_time.timestamp() as f64, None)
             .map_err(|e| {
@@ -742,82 +844,47 @@ pub fn execute_schedule_trigger(
                 ))
             })?;
 
-        py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
-            .map_err(|e| {
-                anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
-            })?;
-
-        // Make LineBuilder available to all modules by adding it to builtins
-        let builtins = py.import("builtins").map_err(anyhow::Error::from)?;
-        let main_module = py.import("__main__").map_err(anyhow::Error::from)?;
-        let line_builder = main_module
-            .getattr("LineBuilder")
-            .map_err(anyhow::Error::from)?;
-        builtins
-            .setattr("LineBuilder", line_builder)
-            .map_err(anyhow::Error::from)?;
-
-        let api = PyPluginCallApi {
-            db_schema: schema,
-            query_executor,
-            logger: logger.clone(),
-            return_state: Default::default(),
-            py_cache,
-        };
-        let return_state = Arc::clone(&api.return_state);
-        let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
-
         // turn args into an optional dict to pass into python
         let args = args_to_py_object(py, args);
 
-        // Get the python function based on whether this is a directory plugin or not
-        let py_func = if let Some(root_path) = plugin_root {
-            load_function_from_module(py, root_path, PROCESS_SCHEDULED_CALL_SITE)
-                .map_err(|_| ExecutePluginError::MissingProcessScheduledCallFunction)?
-        } else {
-            // run the code and get the python function to call (single-file plugin)
-            py.run(&CString::new(code).unwrap(), None, None)
-                .map_err(anyhow::Error::from)?;
-
-            py.eval(
-                &CString::new(PROCESS_SCHEDULED_CALL_SITE).unwrap(),
-                None,
-                None,
-            )
-            .map_err(|_| ExecutePluginError::MissingProcessScheduledCallFunction)?
-        };
+        let py_func = load_plugin_function(
+            py,
+            code,
+            plugin_root,
+            PROCESS_SCHEDULED_CALL_SITE,
+            ExecutePluginError::MissingProcessScheduledCallFunction,
+        )?;
 
         py_func
             .call1((local_api, py_datetime, args))
             .map_err(anyhow::Error::from)?;
 
-        // swap with an empty return state to avoid cloning
-        let empty_return_state = PluginReturnState::default();
-        let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
-        if let Some(logger) = &logger {
-            let runtime = logger
-                .sys_event_store
-                .time_provider()
-                .now()
-                .checked_duration_since(start_time.unwrap());
-            logger.log(
-                LogLevel::Info,
-                format!(
-                    "finished execution in {}",
-                    format_duration(runtime.unwrap_or_default())
-                ),
-            );
-        }
-        Ok(ret)
+        Ok::<(), ExecutePluginError>(())
+    })?;
+
+    logger.log(
+        LogLevel::Info,
+        format!(
+            "finished execution in {}",
+            format_duration(start_time.elapsed())
+        ),
+    );
+
+    let writes = std::mem::take(&mut *write_accumulator.lock());
+    Ok(PluginReturnState {
+        log_lines: logger.take_log_lines(),
+        write_back_lines: writes.write_back_lines,
+        write_db_lines: writes.write_db_lines,
     })
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 pub fn execute_request_trigger(
     code: &str,
     db_schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
-    logger: Option<ProcessingEngineLogger>,
+    write_buffer: Arc<dyn Bufferer>,
+    logger: PluginLogger,
     args: &Option<HashMap<String, String>>,
     query_params: HashMap<String, String>,
     request_headers: HashMap<String, String>,
@@ -825,41 +892,27 @@ pub fn execute_request_trigger(
     py_cache: PyCache,
     plugin_root: Option<&Path>,
 ) -> Result<(u16, HashMap<String, String>, String, PluginReturnState), ExecutePluginError> {
-    let start_time = if let Some(logger) = &logger {
-        logger.log(
-            LogLevel::Info,
-            "starting execution of request plugin.".to_string(),
-        );
-        Some(logger.sys_event_store.time_provider().now())
-    } else {
-        None
-    };
-    Python::attach(|py| {
-        // import the LineBuilder for use in the python code
-        py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
-            .map_err(|e| {
-                anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
-            })?;
+    logger.log(
+        LogLevel::Info,
+        String::from("starting execution of request plugin."),
+    );
+    let start_time = Instant::now();
 
-        // Make LineBuilder available to all modules by adding it to builtins
-        let builtins = py.import("builtins").map_err(anyhow::Error::from)?;
-        let main_module = py.import("__main__").map_err(anyhow::Error::from)?;
-        let line_builder = main_module
-            .getattr("LineBuilder")
-            .map_err(anyhow::Error::from)?;
-        builtins
-            .setattr("LineBuilder", line_builder)
-            .map_err(anyhow::Error::from)?;
+    let logger = Arc::new(logger);
+    let write_accumulator: Arc<Mutex<WriteAccumulator>> = Default::default();
 
-        let api = PyPluginCallApi {
+    let (response_code, response_headers, response_body) = Python::attach(|py| {
+        setup_line_builder(py)?;
+        let local_api = PyPluginCallApi {
             db_schema,
             query_executor,
-            logger: logger.clone(),
-            return_state: Default::default(),
+            write_buffer,
+            write_accumulator: Arc::clone(&write_accumulator),
+            logger: Arc::clone(&logger),
             py_cache,
-        };
-        let return_state = Arc::clone(&api.return_state);
-        let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
+        }
+        .into_pyobject(py)
+        .map_err(anyhow::Error::from)?;
 
         // turn args into an optional dict to pass into python
         let args = args_to_py_object(py, args);
@@ -867,22 +920,13 @@ pub fn execute_request_trigger(
         let query_params = map_to_py_object(py, &query_params);
         let request_params = map_to_py_object(py, &request_headers);
 
-        // Get the python function based on whether this is a directory plugin or not
-        let py_func = if let Some(root_path) = plugin_root {
-            load_function_from_module(py, root_path, PROCESS_REQUEST_CALL_SITE)
-                .map_err(|_| ExecutePluginError::MissingProcessRequestFunction)?
-        } else {
-            // run the code and get the python function to call (single-file plugin)
-            py.run(&CString::new(code).unwrap(), None, None)
-                .map_err(anyhow::Error::from)?;
-
-            py.eval(
-                &CString::new(PROCESS_REQUEST_CALL_SITE).unwrap(),
-                None,
-                None,
-            )
-            .map_err(|_| ExecutePluginError::MissingProcessRequestFunction)?
-        };
+        let py_func = load_plugin_function(
+            py,
+            code,
+            plugin_root,
+            PROCESS_REQUEST_CALL_SITE,
+            ExecutePluginError::MissingProcessRequestFunction,
+        )?;
 
         // convert the body bytes into python bytes blob
         let request_body = PyBytes::new(py, &request_body[..]);
@@ -893,29 +937,25 @@ pub fn execute_request_trigger(
             .map_err(|e| anyhow!("Python function call failed: {}", e))?;
 
         // Process the result according to Flask conventions
-        let (response_code, response_headers, response_body) = process_flask_response(py, result)?;
+        process_flask_response(py, result)
+    })?;
 
-        // swap with an empty return state to avoid cloning
-        let empty_return_state = PluginReturnState::default();
-        let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
+    logger.log(
+        LogLevel::Info,
+        format!(
+            "finished execution in {}",
+            format_duration(start_time.elapsed())
+        ),
+    );
 
-        if let Some(logger) = &logger {
-            let runtime = logger
-                .sys_event_store
-                .time_provider()
-                .now()
-                .checked_duration_since(start_time.unwrap());
-            logger.log(
-                LogLevel::Info,
-                format!(
-                    "finished execution in {}",
-                    format_duration(runtime.unwrap_or_default())
-                ),
-            )
-        }
+    let writes = std::mem::take(&mut *write_accumulator.lock());
+    let plugin_state = PluginReturnState {
+        log_lines: logger.take_log_lines(),
+        write_back_lines: writes.write_back_lines,
+        write_db_lines: writes.write_db_lines,
+    };
 
-        Ok((response_code, response_headers, response_body, ret))
-    })
+    Ok((response_code, response_headers, response_body, plugin_state))
 }
 
 fn process_flask_response(

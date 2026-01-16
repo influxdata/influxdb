@@ -20,4 +20,7 @@ pub enum ExecutePluginError {
 }
 
 pub mod logging;
+pub mod py_conversion;
 pub mod system_py;
+
+pub use py_conversion::ToPythonTableBatches;

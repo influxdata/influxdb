@@ -1992,7 +1992,7 @@ mod tests {
             },
             write_buffer.catalog(),
             node_identifier_prefix,
-            Arc::clone(&write_buffer),
+            Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>,
             Arc::clone(&query_executor) as _,
             Arc::clone(&time_provider) as _,
             sys_events_store,

@@ -21,7 +21,7 @@ use influxdb3_types::http::{
     WalPluginTestResponse,
 };
 use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier};
-use influxdb3_write::WriteBuffer;
+use influxdb3_write::Bufferer;
 use iox_http_util::Response;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, warn};
@@ -109,7 +109,7 @@ pub struct ProcessingEngineManagerImpl {
     environment_manager: ProcessingEngineEnvironmentManager,
     catalog: Arc<Catalog>,
     node_id: Arc<str>,
-    write_buffer: Arc<dyn WriteBuffer>,
+    write_buffer: Arc<dyn Bufferer>,
     query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
     sys_event_store: Arc<SysEventStore>,
@@ -274,7 +274,7 @@ impl ProcessingEngineManagerImpl {
         environment: ProcessingEngineEnvironmentManager,
         catalog: Arc<Catalog>,
         node_id: impl Into<Arc<str>>,
-        write_buffer: Arc<dyn WriteBuffer>,
+        write_buffer: Arc<dyn Bufferer>,
         query_executor: Arc<dyn QueryExecutor>,
         time_provider: Arc<dyn TimeProvider>,
         sys_event_store: Arc<SysEventStore>,
@@ -574,7 +574,7 @@ impl ProcessingEngineManagerImpl {
 
             if trigger.node_id != self.node_id {
                 error!(
-                    "Not running trigger {}, as it is configured for node id {}. Multi-node not supported in core, so this shouldn't happen.",
+                    "Not running trigger {}, as it is configured for node id {}. Multi-node not supported in core.",
                     trigger_name, trigger.node_id
                 );
                 return Ok(());
@@ -704,7 +704,10 @@ impl ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    pub async fn test_wal_plugin(
+    /// dry_run_wal_plugin doesn't write data to the DB but it does perform
+    /// real queries. If the plugin under test does other actions with side
+    /// effects those will be real too.
+    pub async fn dry_run_wal_plugin(
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
@@ -718,10 +721,11 @@ impl ProcessingEngineManagerImpl {
             let code_string = code.code().to_string();
 
             let res = tokio::task::spawn_blocking(move || {
-                plugins::run_test_wal_plugin(
+                plugins::run_dry_run_wal_plugin(
                     now,
                     catalog,
                     query_executor,
+                    Arc::new(plugins::DryRunBufferer::new()),
                     code_string,
                     cache,
                     request,
@@ -752,10 +756,11 @@ impl ProcessingEngineManagerImpl {
             let cache = Arc::clone(&self.cache);
 
             let res = tokio::task::spawn_blocking(move || {
-                plugins::run_test_schedule_plugin(
+                plugins::run_dry_run_schedule_plugin(
                     now,
                     catalog,
                     query_executor,
+                    Arc::new(plugins::DryRunBufferer::new()),
                     code_string,
                     cache,
                     request,
@@ -1234,7 +1239,8 @@ fn background_catalog_update(
 #[cfg(test)]
 mod tests {
     use crate::ProcessingEngineManagerImpl;
-    use crate::environment::DisabledManager;
+    use crate::TriggerSpecificationDefinition;
+    use crate::environment::TestManager;
     use crate::plugins::ProcessingEngineEnvironmentManager;
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
@@ -1242,16 +1248,16 @@ mod tests {
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_catalog::CatalogError;
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_catalog::log::{TriggerSettings, TriggerSpecificationDefinition};
+    use influxdb3_catalog::log::TriggerSettings;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_shutdown::ShutdownManager;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
+    use influxdb3_write::Precision;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::{
         N_SNAPSHOTS_TO_LOAD_ON_START, WriteBufferImpl, WriteBufferImplArgs,
     };
-    use influxdb3_write::{Precision, WriteBuffer};
     use iox_query::exec::{
         DedicatedExecutor, Executor, ExecutorConfig, IOxSessionContext, PerQueryMemoryPoolConfig,
     };
@@ -1268,7 +1274,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test_log::test(tokio::test)]
-    async fn test_trigger_lifecycle() -> influxdb3_write::write_buffer::Result<()> {
+    async fn test_trigger_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
         let wal_config = WalConfig {
@@ -1287,11 +1293,8 @@ mod tests {
             .unwrap()
             .to_string();
 
-        // convert to Arc<WriteBuffer>
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
-
         // Create the DB by inserting a line.
-        write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -1308,8 +1311,7 @@ mod tests {
             .await
             .unwrap();
 
-        write_buffer
-            .catalog()
+        pem.catalog
             .create_processing_engine_trigger(
                 "foo",
                 "test_trigger",
@@ -1324,7 +1326,7 @@ mod tests {
             .unwrap();
 
         // Verify trigger is not disabled in schema
-        let schema = write_buffer.catalog().db_schema("foo").unwrap();
+        let schema = pem.catalog.db_schema("foo").unwrap();
         let trigger = schema
             .processing_engine_triggers
             .get_by_name("test_trigger")
@@ -1332,14 +1334,13 @@ mod tests {
         assert!(!trigger.disabled);
 
         // Disable the trigger
-        write_buffer
-            .catalog()
+        pem.catalog
             .disable_processing_engine_trigger("foo", "test_trigger")
             .await
             .unwrap();
 
         // Verify trigger is disabled in schema
-        let schema = write_buffer.catalog().db_schema("foo").unwrap();
+        let schema = pem.catalog.db_schema("foo").unwrap();
         let trigger = schema
             .processing_engine_triggers
             .get_by_name("test_trigger")
@@ -1347,14 +1348,13 @@ mod tests {
         assert!(trigger.disabled);
 
         // Enable the trigger
-        write_buffer
-            .catalog()
+        pem.catalog
             .enable_processing_engine_trigger("foo", "test_trigger")
             .await
             .unwrap();
 
         // Verify trigger is enabled and running
-        let schema = write_buffer.catalog().db_schema("foo").unwrap();
+        let schema = pem.catalog.db_schema("foo").unwrap();
         let trigger = schema
             .processing_engine_triggers
             .get_by_name("test_trigger")
@@ -1364,7 +1364,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_disabled_trigger() -> influxdb3_write::write_buffer::Result<()> {
+    async fn test_create_disabled_trigger() -> Result<(), Box<dyn std::error::Error>> {
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
         let wal_config = WalConfig {
@@ -1425,7 +1425,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_enable_nonexistent_trigger() -> influxdb3_write::write_buffer::Result<()> {
+    async fn test_enable_nonexistent_trigger() -> Result<(), Box<dyn std::error::Error>> {
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
         let wal_config = WalConfig {
@@ -1437,10 +1437,8 @@ mod tests {
         };
         let (pem, _file_name) = setup(start_time, test_store, wal_config).await;
 
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
-
         // Create the DB by inserting a line.
-        write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -1527,7 +1525,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(file.path().parent().unwrap().to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(crate::environment::TestManager),
             plugin_repo: None,
         };
 
@@ -1538,7 +1536,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
                 environment_manager,
                 catalog,
                 "test_node",
-                wbuf,
+                wbuf as _,
                 qe,
                 time_provider,
                 sys_event_store,
@@ -1639,7 +1637,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(temp_dir.path().to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -1702,9 +1700,9 @@ def helper_function():
 
         let pem = ProcessingEngineManagerImpl::new(
             environment_manager,
-            catalog,
+            Arc::clone(&catalog),
             "test_node",
-            wbuf,
+            wbuf as _,
             qe,
             time_provider,
             sys_event_store,
@@ -1736,7 +1734,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(temp_dir.path().to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -1799,9 +1797,9 @@ def helper_function():
 
         let pem = ProcessingEngineManagerImpl::new(
             environment_manager,
-            catalog,
+            Arc::clone(&catalog),
             "test_node",
-            wbuf,
+            wbuf as _,
             qe,
             time_provider,
             sys_event_store,
@@ -1901,7 +1899,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(plugin_dir.to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -1967,7 +1965,7 @@ def helper_function():
                 environment_manager,
                 Arc::clone(&catalog),
                 "test_node",
-                wbuf,
+                wbuf as _,
                 qe,
                 time_provider,
                 sys_event_store,
@@ -2090,7 +2088,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(temp_dir.path().to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -2180,7 +2178,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(temp_dir.path().to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -2269,7 +2267,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(temp_dir.path().to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -2358,7 +2356,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(temp_dir.path().to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -2456,7 +2454,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(plugin_dir.to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -2593,7 +2591,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(plugin_dir.clone()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
@@ -2693,7 +2691,7 @@ def helper_function():
         let environment_manager = ProcessingEngineEnvironmentManager {
             plugin_dir: Some(plugin_dir.to_path_buf()),
             virtual_env_location: None,
-            package_manager: Arc::new(DisabledManager),
+            package_manager: Arc::new(TestManager),
             plugin_repo: None,
         };
 
