@@ -220,9 +220,7 @@ func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
 			p.mu.Lock()
 			defer p.mu.Unlock()
 			if segment := p.activeSegment(); segment != nil {
-				if err := segment.Flush(); err != nil {
-					errCh <- err
-				}
+				errCh <- segment.Flush()
 			}
 		}()
 	}
