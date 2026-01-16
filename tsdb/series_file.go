@@ -230,7 +230,7 @@ func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
 	wg.Wait()
 	close(errCh)
 
-	var errs = make([]error, SeriesFilePartitionN)
+	var errs = make([]error, 0, SeriesFilePartitionN)
 	for err := range errCh {
 		errs = append(errs, err)
 	}
