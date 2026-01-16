@@ -213,11 +213,15 @@ func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
 	var errs []error
 	for id := range partitionIDs {
 		p := f.partitions[id]
-		if segment := p.activeSegment(); segment != nil {
-			if err := segment.Flush(); err != nil {
-				errs = append(errs, err)
+		func() {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			if segment := p.activeSegment(); segment != nil {
+				if err := segment.Flush(); err != nil {
+					errs = append(errs, err)
+				}
 			}
-		}
+		}()
 	}
 	return errors.Join(errs...)
 }
