@@ -354,7 +354,7 @@ func (p *SeriesPartition) DeleteSeriesID(id uint64, flush bool) error {
 	if flush {
 		if segment := p.activeSegment(); segment != nil {
 			if err := segment.Flush(); err != nil {
-				return err
+				return fmt.Errorf("unable to flush segment %s: %w", segment.file.Name(), err)
 			}
 		}
 	}
