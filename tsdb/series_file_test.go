@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -191,38 +192,59 @@ func TestSeriesFileCompactor(t *testing.T) {
 
 // Ensure series file deletions persist across compactions.
 func TestSeriesFile_DeleteSeriesID(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
+	deleteTestFn := func(flush bool) {
+		sfile := MustOpenSeriesFile()
+		defer func(sfile *SeriesFile) {
+			err := sfile.Close()
+			require.NoError(t, err, "close sfile")
+		}(sfile)
 
-	ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
-	if err != nil {
-		t.Fatal(err)
-	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
-		t.Fatal(err)
-	} else if err := sfile.ForceCompact(); err != nil {
-		t.Fatal(err)
+		ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
+		require.NoError(t, err, "create series list")
+		_, err = sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
+		require.NoError(t, err, "create series list")
+		err = sfile.ForceCompact()
+		require.NoError(t, err, "force compact")
+
+		// Delete and ensure deletion.
+		_, err = sfile.DeleteSeriesID(ids0[0], flush)
+		require.NoError(t, err, "delete series list")
+		_, err = sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
+		require.NoError(t, err, "create series list")
+		require.True(t, sfile.IsDeleted(ids0[0]), "expected deleted")
+
+		err = sfile.ForceCompact()
+		require.NoError(t, err, "force compact")
+		require.True(t, sfile.IsDeleted(ids0[0]), "expected deleted")
+
+		err = sfile.Reopen()
+		require.NoError(t, err, "reopen")
+		require.True(t, sfile.IsDeleted(ids0[0]), "expected deleted")
 	}
 
-	// Delete and ensure deletion.
-	if err := sfile.DeleteSeriesID(ids0[0]); err != nil {
-		t.Fatal(err)
-	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
-		t.Fatal(err)
-	} else if !sfile.IsDeleted(ids0[0]) {
-		t.Fatal("expected deletion before compaction")
+	tests := []struct {
+		name string
+		fn   func()
+	}{{
+		name: "delete series with flush",
+		fn: func() {
+			deleteTestFn(tsdb.Flush)
+		},
+	},
+		{
+			name: "delete series with no flush",
+			fn: func() {
+				deleteTestFn(tsdb.NoFlush)
+			},
+		},
 	}
 
-	if err := sfile.ForceCompact(); err != nil {
-		t.Fatal(err)
-	} else if !sfile.IsDeleted(ids0[0]) {
-		t.Fatal("expected deletion after compaction")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn()
+		})
 	}
 
-	if err := sfile.Reopen(); err != nil {
-		t.Fatal(err)
-	} else if !sfile.IsDeleted(ids0[0]) {
-		t.Fatal("expected deletion after reopen")
-	}
 }
 
 func TestSeriesFile_Compaction(t *testing.T) {
@@ -246,7 +268,7 @@ func TestSeriesFile_Compaction(t *testing.T) {
 	// Delete a subset of keys.
 	for i, id := range ids {
 		if i%10 == 0 {
-			if err := sfile.DeleteSeriesID(id); err != nil {
+			if _, err := sfile.DeleteSeriesID(id, tsdb.Flush); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -325,7 +347,7 @@ func BenchmarkSeriesFile_Compaction(b *testing.B) {
 
 		// Delete a subset of keys.
 		for i := 0; i < len(ids); i += 10 {
-			if err := sfile.DeleteSeriesID(ids[i]); err != nil {
+			if _, err := sfile.DeleteSeriesID(ids[i], tsdb.Flush); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -351,6 +373,37 @@ func BenchmarkSeriesFile_Compaction(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func TestSeriesFile_FlushSegments(t *testing.T) {
+	const SeriesN = 100
+	sfile := MustOpenSeriesFile()
+	defer func() {
+		require.NoError(t, sfile.Close(), "series file close")
+	}()
+
+	// Create some series to ensure there's data in the segments.
+	var names = make([][]byte, 0, SeriesN)
+	var tagsSlice = make([]models.Tags, 0, SeriesN)
+	for i := 0; i < SeriesN; i++ {
+		names = append(names, []byte(fmt.Sprintf("measurement%d", i)))
+		tagsSlice = append(tagsSlice, models.NewTags(map[string]string{"tag": "value"}))
+	}
+	ids, err := sfile.CreateSeriesListIfNotExists(names, tagsSlice, tsdb.NoopStatsTracker())
+	require.NoError(t, err)
+
+	// Collect all partition IDs that have series.
+	partitionIDs := make(map[int]struct{}, tsdb.SeriesFilePartitionN)
+	for _, id := range ids {
+		partitionIDs[sfile.SeriesIDPartitionID(id)] = struct{}{}
+	}
+
+	// Flush the segments.
+	err = sfile.FlushSegments(partitionIDs)
+	require.NoError(t, err)
+
+	// Verify series still exist after flush.
+	require.Equal(t, uint64(SeriesN), sfile.SeriesCount())
 }
 
 // Series represents name/tagset pairs that are used in testing.
