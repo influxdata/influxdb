@@ -210,7 +210,7 @@ func (f *SeriesFile) DeleteSeriesID(id uint64, flush bool) (*SeriesPartition, er
 
 func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
 	var wg sync.WaitGroup
-	errCh := make(chan error, len(partitionIDs))
+	errCh := make(chan error, SeriesFilePartitionN)
 
 	for id := range partitionIDs {
 		wg.Add(1)
