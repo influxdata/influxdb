@@ -2205,7 +2205,7 @@ func (s *compactionStrategy) Apply() {
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup() {
 	group := s.group
-	log, logEnd := logger.NewOperation(context.TODO(), s.logger, "TSM compaction", "tsm1_compact_group")
+	log, logEnd := logger.NewOperation(context.TODO(), s.logger, "TSM compaction", "tsm1_compact_group", logger.Shard(s.engine.id))
 	defer logEnd()
 
 	log.Info("Beginning compaction", zap.Int("tsm1_files_n", len(group)))
