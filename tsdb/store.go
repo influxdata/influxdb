@@ -1077,7 +1077,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			seriesCount := ss.Cardinality()
 			deleteStart := time.Now()
 			var deletedCount atomic.Uint64
-			var partitionIDs = make(map[int]struct{})
+			var partitionIDs = make(map[int]struct{}, SeriesFilePartitionN)
 
 			ss.ForEach(func(id uint64) {
 				p, err := sfile.DeleteSeriesID(id, NoFlush)
@@ -1086,6 +1086,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 						"cannot delete series in shard",
 						zap.Uint64("series_id", id),
 						zap.Uint64("shard_id", shardID),
+						zap.String("series_file_path", sfile.Path()),
 						zap.Error(err))
 				} else {
 					partitionIDs[p.id] = struct{}{}
@@ -1095,6 +1096,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 						s.Logger.Info(fmt.Sprintf("DeleteShard: %d series deleted", DeleteLogTrigger),
 							zap.String("db", db),
 							zap.Uint64("shard_id", shardID),
+							zap.String("series_file_path", sfile.Path()),
 							zap.Uint64("deleted", deleted),
 							zap.Uint64("remaining", seriesCount-deleted),
 							zap.Uint64("total", seriesCount),
@@ -1107,6 +1109,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				sfile.Logger.Error(
 					"error while flushing a series file segment",
 					zap.Uint64("shard_id", shardID),
+					zap.String("series_file_path", sfile.Path()),
 					zap.Error(err))
 			}
 		}

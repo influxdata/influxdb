@@ -337,9 +337,7 @@ func (p *SeriesPartition) FlushSegment() error {
 	}
 
 	if segment := p.activeSegment(); segment != nil {
-		if err := segment.Flush(); err != nil {
-			return err
-		}
+		return segment.Flush()
 	}
 	return nil
 }
