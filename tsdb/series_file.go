@@ -208,20 +208,31 @@ func (f *SeriesFile) DeleteSeriesID(id uint64, flush bool) (*SeriesPartition, er
 	return p, p.DeleteSeriesID(id, flush)
 }
 
-// FlushSegments flushes a group of partitions by id
 func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
-	var errs []error
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(partitionIDs))
+
 	for id := range partitionIDs {
+		wg.Add(1)
 		p := f.partitions[id]
-		func() {
+		go func() {
+			defer wg.Done()
 			p.mu.Lock()
 			defer p.mu.Unlock()
 			if segment := p.activeSegment(); segment != nil {
 				if err := segment.Flush(); err != nil {
-					errs = append(errs, err)
+					errCh <- err
 				}
 			}
 		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
