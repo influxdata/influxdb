@@ -383,8 +383,8 @@ func TestSeriesFile_FlushSegments(t *testing.T) {
 	}()
 
 	// Create some series to ensure there's data in the segments.
-	var names [][]byte
-	var tagsSlice []models.Tags
+	var names = make([][]byte, SeriesN)
+	var tagsSlice = make([]models.Tags, SeriesN)
 	for i := 0; i < SeriesN; i++ {
 		names = append(names, []byte(fmt.Sprintf("measurement%d", i)))
 		tagsSlice = append(tagsSlice, models.NewTags(map[string]string{"tag": "value"}))
