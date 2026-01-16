@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	errors3 "github.com/influxdata/influxdb/v2/pkg/errors"
@@ -1067,18 +1068,47 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 	// Remove any remaining series in the set from the series file, as they don't
 	// exist in any of the database's remaining shards.
-	if ss.Cardinality() > 0 {
+	seriesCount := ss.Cardinality()
+	if seriesCount > 0 {
+		const DeleteLogTrigger = 10_000
+		deleteStart := time.Now()
+		var deletedCount atomic.Uint64
+		var partitionIDs = make(map[int]struct{}, SeriesFilePartitionN)
 		sfile := s.seriesFile(db)
 		if sfile != nil {
 			ss.ForEach(func(id uint64) {
-				if err := sfile.DeleteSeriesID(id); err != nil {
+				p, err := sfile.DeleteSeriesID(id, NoFlush)
+				if err != nil {
 					sfile.Logger.Error(
 						"cannot delete series in shard",
 						zap.Uint64("series_id", id),
 						zap.Uint64("shard_id", shardID),
+						zap.String("series_file_path", sfile.Path()),
 						zap.Error(err))
+				} else {
+					partitionIDs[p.id] = struct{}{}
+					deleted := deletedCount.Add(1)
+
+					if deleted%DeleteLogTrigger == 0 {
+						s.Logger.Info(fmt.Sprintf("DeleteShard: %d series deleted", DeleteLogTrigger),
+							zap.String("db", db),
+							zap.Uint64("shard_id", shardID),
+							zap.String("series_file_path", sfile.Path()),
+							zap.Uint64("deleted", deleted),
+							zap.Uint64("remaining", seriesCount-deleted),
+							zap.Uint64("total", seriesCount),
+							zap.Duration("elapsed", time.Since(deleteStart)))
+					}
 				}
 			})
+
+			if err := sfile.FlushSegments(partitionIDs); err != nil {
+				sfile.Logger.Error(
+					"error while flushing a series file segment",
+					zap.Uint64("shard_id", shardID),
+					zap.String("series_file_path", sfile.Path()),
+					zap.Error(err))
+			}
 		}
 	}
 

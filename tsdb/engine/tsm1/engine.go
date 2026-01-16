@@ -44,8 +44,8 @@ import (
 // to support adding templated data from the command line.
 // This can probably be worked into the upstream tmpl
 // but isn't at the moment.
-//go:generate go run ../../../tools/tmpl -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
-//go:generate go run ../../../tools/tmpl -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
+//go:generate go run ../../../_tools/tmpl -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
+//go:generate go run ../../../_tools/tmpl -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
@@ -1798,14 +1798,24 @@ func (e *Engine) deleteSeriesRange(ctx context.Context, seriesKeys [][]byte, min
 		// Remove the remaining ids from the series file as they no longer exist
 		// in any shard.
 		var err error
+		var partitionIDs = make(map[int]struct{}, tsdb.SeriesFilePartitionN)
 		ids.ForEach(func(id uint64) {
-			if err1 := e.sfile.DeleteSeriesID(id); err1 != nil {
+			part, err1 := e.sfile.DeleteSeriesID(id, tsdb.NoFlush)
+			if err1 != nil {
 				err = err1
 				return
 			}
+			partitionIDs[part.ID()] = struct{}{}
 		})
 		if err != nil {
 			return err
+		}
+
+		if err := e.sfile.FlushSegments(partitionIDs); err != nil {
+			e.sfile.Logger.Error(
+				"error while flushing a series file segment",
+				zap.String("series_file_path", e.sfile.Path()),
+				zap.Error(err))
 		}
 	}
 
