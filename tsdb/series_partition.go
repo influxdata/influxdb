@@ -278,7 +278,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	// Flush active segment writes so we can access data in mmap.
 	if segment := p.activeSegment(); segment != nil {
 		if err := segment.Flush(); err != nil {
-			return err
+			return fmt.Errorf("unable to flush segment %s: %w", segment.file.Name(), err)
 		}
 	}
 

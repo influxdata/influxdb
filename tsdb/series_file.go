@@ -220,7 +220,9 @@ func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
 			p.mu.Lock()
 			defer p.mu.Unlock()
 			if segment := p.activeSegment(); segment != nil {
-				errCh <- segment.Flush()
+				if err := segment.Flush(); err != nil {
+					errCh <- fmt.Errorf("unable to flush segment %s: %w", segment.file.Name(), err)
+				}
 			}
 		}()
 	}
@@ -228,7 +230,7 @@ func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
 	wg.Wait()
 	close(errCh)
 
-	var errs []error
+	var errs = make([]error, SeriesFilePartitionN)
 	for err := range errCh {
 		errs = append(errs, err)
 	}

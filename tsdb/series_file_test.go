@@ -376,13 +376,16 @@ func BenchmarkSeriesFile_Compaction(b *testing.B) {
 }
 
 func TestSeriesFile_FlushSegments(t *testing.T) {
+	const SeriesN = 100
 	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
+	defer func() {
+		require.NoError(t, sfile.Close(), "series file close")
+	}()
 
 	// Create some series to ensure there's data in the segments.
 	var names [][]byte
 	var tagsSlice []models.Tags
-	for i := 0; i < 100; i++ {
+	for i := 0; i < SeriesN; i++ {
 		names = append(names, []byte(fmt.Sprintf("measurement%d", i)))
 		tagsSlice = append(tagsSlice, models.NewTags(map[string]string{"tag": "value"}))
 	}
@@ -390,7 +393,7 @@ func TestSeriesFile_FlushSegments(t *testing.T) {
 	require.NoError(t, err)
 
 	// Collect all partition IDs that have series.
-	partitionIDs := make(map[int]struct{})
+	partitionIDs := make(map[int]struct{}, tsdb.SeriesFilePartitionN)
 	for _, id := range ids {
 		partitionIDs[sfile.SeriesIDPartitionID(id)] = struct{}{}
 	}
@@ -400,7 +403,7 @@ func TestSeriesFile_FlushSegments(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify series still exist after flush.
-	require.Equal(t, uint64(100), sfile.SeriesCount())
+	require.Equal(t, uint64(SeriesN), sfile.SeriesCount())
 }
 
 // Series represents name/tagset pairs that are used in testing.
