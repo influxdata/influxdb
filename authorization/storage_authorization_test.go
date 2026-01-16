@@ -591,3 +591,152 @@ func TestAuthorizationStore_HashingConfigChanges(t *testing.T) {
 
 	}
 }
+
+func TestNewStore_WithSkipTokenMigration(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a kv store and run migrations.
+	kvStore := inmem.NewKVStore()
+	err := all.Up(ctx, zaptest.NewLogger(t), kvStore)
+	require.NoError(t, err)
+
+	// Create store with hashing disabled to populate raw tokens.
+	store, err := authorization.NewStore(ctx, kvStore, false)
+	require.NoError(t, err)
+
+	// Create some authorizations with raw tokens.
+	rawTokens := []string{"rawToken1", "rawToken2", "rawToken3"}
+	err = kvStore.Update(ctx, func(tx kv.Tx) error {
+		for i, token := range rawTokens {
+			err := store.CreateAuthorization(ctx, tx, &influxdb.Authorization{
+				ID:     platform.ID(i + 1),
+				Token:  token,
+				OrgID:  platform.ID(i + 1),
+				UserID: platform.ID(i + 1),
+				Status: influxdb.Active,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Verify tokens are stored as raw.
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		for i, token := range rawTokens {
+			auth, err := store.GetAuthorizationByID(ctx, tx, platform.ID(i+1))
+			require.NoError(t, err)
+			require.Equal(t, token, auth.Token, "token should be stored as raw")
+			require.Empty(t, auth.HashedToken, "HashedToken should be empty")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Now create a new store with hashing enabled but skip migration.
+	storeWithSkip, err := authorization.NewStore(ctx, kvStore, true, authorization.WithSkipTokenMigration(true))
+	require.NoError(t, err)
+	require.NotNil(t, storeWithSkip)
+
+	// Verify tokens are still stored as raw (migration was skipped).
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		for i, token := range rawTokens {
+			auth, err := storeWithSkip.GetAuthorizationByID(ctx, tx, platform.ID(i+1))
+			require.NoError(t, err)
+			require.Equal(t, token, auth.Token, "token should still be raw after skipped migration")
+			require.Empty(t, auth.HashedToken, "HashedToken should still be empty after skipped migration")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Also verify the raw tokens can still be looked up (raw index should still work).
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		for i, token := range rawTokens {
+			auth, err := storeWithSkip.GetAuthorizationByToken(ctx, tx, token)
+			require.NoError(t, err)
+			require.Equal(t, platform.ID(i+1), auth.ID)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestNewStore_WithForceAllVariants(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a kv store and run migrations.
+	kvStore := inmem.NewKVStore()
+	err := all.Up(ctx, zaptest.NewLogger(t), kvStore)
+	require.NoError(t, err)
+
+	// Create both stores on an EMPTY store BEFORE any tokens exist.
+	// This is critical: findHashVariants returns nothing on empty store.
+
+	// Store with SHA256 variant, without ForceAllVariants - only SHA256 decoder available.
+	storeSHA256Only, err := authorization.NewStore(ctx, kvStore, true,
+		authorization.WithAuthorizationHashVariantName(influxdb2_algo.VariantIdentifierSHA256),
+	)
+	require.NoError(t, err)
+
+	// Store with SHA256 variant, WITH ForceAllVariants - all decoders available.
+	storeWithAllVariants, err := authorization.NewStore(ctx, kvStore, true,
+		authorization.WithForceAllVariants(true),
+		authorization.WithAuthorizationHashVariantName(influxdb2_algo.VariantIdentifierSHA256),
+	)
+	require.NoError(t, err)
+
+	// Now create a third store with SHA512 variant to add a SHA512 hashed token.
+	storeSHA512, err := authorization.NewStore(ctx, kvStore, true,
+		authorization.WithAuthorizationHashVariantName(influxdb2_algo.VariantIdentifierSHA512),
+		authorization.WithForceAllVariants(true),
+	)
+	require.NoError(t, err)
+
+	// Create a token using the SHA512 store - it will be hashed with SHA512.
+	token := "testTokenForVariants"
+	err = kvStore.Update(ctx, func(tx kv.Tx) error {
+		return storeSHA512.CreateAuthorization(ctx, tx, &influxdb.Authorization{
+			ID:     platform.ID(1),
+			Token:  token,
+			OrgID:  platform.ID(1),
+			UserID: platform.ID(1),
+			Status: influxdb.Active,
+		})
+	})
+	require.NoError(t, err)
+
+	// Verify the token was hashed with SHA512.
+	sha512Algo, err := influxdb2_algo.New(influxdb2_algo.WithVariant(influxdb2_algo.VariantSHA512))
+	require.NoError(t, err)
+	expectedSHA512Hash := sha512Algo.MustHash(token).Encode()
+
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		auth, err := storeSHA512.GetAuthorizationByID(ctx, tx, platform.ID(1))
+		require.NoError(t, err)
+		require.Equal(t, expectedSHA512Hash, auth.HashedToken, "token should be hashed with SHA512")
+		return nil
+	})
+	require.NoError(t, err)
+
+	// storeSHA256Only was created on empty store without ForceAllVariants,
+	// so it only has SHA256 decoder. It should NOT find the SHA512 hashed token.
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		_, err := storeSHA256Only.GetAuthorizationByToken(ctx, tx, token)
+		require.Error(t, err, "store with only SHA256 decoder should not find SHA512 hashed token")
+		return nil
+	})
+	require.NoError(t, err)
+
+	// storeWithAllVariants was created on empty store WITH ForceAllVariants,
+	// so it has all decoders including SHA512. It SHOULD find the token.
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		auth, err := storeWithAllVariants.GetAuthorizationByToken(ctx, tx, token)
+		require.NoError(t, err, "store with ForceAllVariants should find SHA512 hashed token")
+		require.Equal(t, platform.ID(1), auth.ID)
+		return nil
+	})
+	require.NoError(t, err)
+}
