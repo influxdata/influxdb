@@ -328,20 +328,6 @@ func (p *SeriesPartition) Compacting() bool {
 	return p.compacting
 }
 
-// FlushSegment fsyncs a segment to disk
-func (p *SeriesPartition) FlushSegment() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.closed {
-		return ErrSeriesPartitionClosed
-	}
-
-	if segment := p.activeSegment(); segment != nil {
-		return segment.Flush()
-	}
-	return nil
-}
-
 // DeleteSeriesID flags a series as permanently deleted.
 // If the series is reintroduced later than it must create a new id.
 // Setting flush will indicate whether this method triggers a fsync.
