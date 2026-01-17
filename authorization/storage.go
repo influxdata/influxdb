@@ -244,7 +244,11 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 	// because it requires configuration, and the migration service is more concerned with schema
 	// and does not have configuration.
 	if !s.skipTokenMigration {
-		if err := s.HashedTokenMigration(ctx, nil); err != nil {
+		migrator, err := NewTokenMigrator(ctx, kvStore, useHashedTokens, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("error creating token migrator: %w", err)
+		}
+		if err := migrator.Migrate(ctx); err != nil {
 			return nil, fmt.Errorf("error during hashed token migration: %w", err)
 		}
 	}
@@ -314,26 +318,38 @@ func (s *Store) autogenerateHasher(ctx context.Context, foundVariants []influxdb
 	return hasher, nil
 }
 
-type MigrationStore interface {
-	View(ctx context.Context, fn func(kv.Tx) error) error
-	Update(ctx context.Context, fn func(kv.Tx) error) error
+type TokenMigrator struct {
+	store *Store
 }
 
-// HashedTokenMigration migrates any unhashed tokens in the store to hashed tokens. If store
+func NewTokenMigrator(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts ...StoreOption) (*TokenMigrator, error) {
+	newOpts := make([]StoreOption, 0, len(opts)+1)
+	newOpts = append(newOpts, opts...)
+	newOpts = append(newOpts, WithSkipTokenMigration(true))
+	store, err := NewStore(ctx, kvStore, useHashedTokens, newOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return &TokenMigrator{
+		store: store,
+	}, nil
+}
+
+func (m *TokenMigrator) Migrate(ctx context.Context) error {
+	return m.store.hashedTokenMigration(ctx)
+}
+
+// hashedTokenMigration migrates any unhashed tokens in the store to hashed tokens. If store
 // is not nil, it will be used as the KV store for migration instead of the one passed to
 // NewStore.
-func (s *Store) HashedTokenMigration(ctx context.Context, store MigrationStore) error {
-	if store == nil {
-		store = s
-	}
-
+func (s *Store) hashedTokenMigration(ctx context.Context) error {
 	if !s.useHashedTokens || s.readOnly {
 		return nil
 	}
 
 	// Figure out which authorization records need to be updated.
 	var authsNeedingUpdate []*influxdb.Authorization
-	err := store.View(ctx, func(tx kv.Tx) error {
+	err := s.View(ctx, func(tx kv.Tx) error {
 		return s.forEachAuthorization(ctx, tx, nil, func(a *influxdb.Authorization) bool {
 			if a.IsHashedTokenClear() {
 				if a.IsTokenSet() {
@@ -350,7 +366,7 @@ func (s *Store) HashedTokenMigration(ctx context.Context, store MigrationStore) 
 	}
 
 	for batch := range slices.Chunk(authsNeedingUpdate, 100) {
-		err := store.Update(ctx, func(tx kv.Tx) error {
+		err := s.Update(ctx, func(tx kv.Tx) error {
 			// Now update them. This really seems too simple, but s.UpdateAuthorization() is magical.
 			for _, a := range batch {
 				if _, err := s.UpdateAuthorization(ctx, tx, a.ID, a); err != nil {
