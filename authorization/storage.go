@@ -319,12 +319,13 @@ type MigrationStore interface {
 	Update(ctx context.Context, fn func(kv.Tx) error) error
 }
 
-// HashedTokenMigration migrates any unhashed tokens in the store to hashed tokens. If store
-// is not nil, it will be used as the KV store for migration instead of the one passed to
-// NewStore.
-func (s *Store) HashedTokenMigration(ctx context.Context, store MigrationStore) error {
-	if store == nil {
-		store = s
+// HashedTokenMigration migrates any unhashed tokens in the store to hashed tokens. The
+// ms parameter can be used to pass a writeable KV store for token migration even
+// if s.kvStore is read-only. This functionality would normally be used together with
+// WithSkipTokenMigration(true) to NewStore.
+func (s *Store) HashedTokenMigration(ctx context.Context, ms MigrationStore) error {
+	if ms == nil {
+		ms = s
 	}
 
 	if !s.useHashedTokens || s.readOnly {
@@ -333,7 +334,7 @@ func (s *Store) HashedTokenMigration(ctx context.Context, store MigrationStore) 
 
 	// Figure out which authorization records need to be updated.
 	var authsNeedingUpdate []*influxdb.Authorization
-	err := store.View(ctx, func(tx kv.Tx) error {
+	err := ms.View(ctx, func(tx kv.Tx) error {
 		return s.forEachAuthorization(ctx, tx, nil, func(a *influxdb.Authorization) bool {
 			if a.IsHashedTokenClear() {
 				if a.IsTokenSet() {
@@ -350,7 +351,7 @@ func (s *Store) HashedTokenMigration(ctx context.Context, store MigrationStore) 
 	}
 
 	for batch := range slices.Chunk(authsNeedingUpdate, 100) {
-		err := store.Update(ctx, func(tx kv.Tx) error {
+		err := ms.Update(ctx, func(tx kv.Tx) error {
 			// Now update them. This really seems too simple, but s.UpdateAuthorization() is magical.
 			for _, a := range batch {
 				if _, err := s.UpdateAuthorization(ctx, tx, a.ID, a); err != nil {

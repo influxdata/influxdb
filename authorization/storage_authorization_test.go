@@ -2,6 +2,7 @@ package authorization_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -664,6 +665,117 @@ func TestNewStore_WithSkipTokenMigration(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// readOnlyKVStore wraps an inmem.KVStore but returns an error on Update calls.
+type readOnlyKVStore struct {
+	*inmem.KVStore
+}
+
+var errReadOnly = errors.New("read-only kv store")
+
+func (r *readOnlyKVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
+	return errReadOnly
+}
+
+func TestHashedTokenMigration_WithMigrationStore(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a kv store and run migrations.
+	kvStore := inmem.NewKVStore()
+	err := all.Up(ctx, zaptest.NewLogger(t), kvStore)
+	require.NoError(t, err)
+
+	// Create store with hashing disabled to populate raw tokens.
+	store, err := authorization.NewStore(ctx, kvStore, false)
+	require.NoError(t, err)
+
+	// Create some authorizations with raw tokens.
+	rawTokens := []string{"rawToken1", "rawToken2", "rawToken3"}
+	err = kvStore.Update(ctx, func(tx kv.Tx) error {
+		for i, token := range rawTokens {
+			err := store.CreateAuthorization(ctx, tx, &influxdb.Authorization{
+				ID:     platform.ID(i + 1),
+				Token:  token,
+				OrgID:  platform.ID(i + 1),
+				UserID: platform.ID(i + 1),
+				Status: influxdb.Active,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Verify tokens are stored as raw.
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		for i, token := range rawTokens {
+			auth, err := store.GetAuthorizationByID(ctx, tx, platform.ID(i+1))
+			require.NoError(t, err)
+			require.Equal(t, token, auth.Token, "token should be stored as raw")
+			require.Empty(t, auth.HashedToken, "HashedToken should be empty")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Create a read-only wrapper around the kv store.
+	roKVStore := &readOnlyKVStore{KVStore: kvStore}
+
+	// Try creating an authorization store with roKVStore but without skipping migration.
+	// Ensure that a readonly error is returned.
+	noStore, err := authorization.NewStore(ctx, roKVStore, true)
+	require.ErrorIs(t, err, errReadOnly)
+	require.Nil(t, noStore)
+
+	// Create a new store with hashing enabled, using the read-only kv store, and skip migration.
+	// This simulates the scenario where we want to use a separate migration store.
+	readOnlyStore, err := authorization.NewStore(ctx, roKVStore, true,
+		authorization.WithSkipTokenMigration(true),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, readOnlyStore)
+
+	// Verify tokens are still stored as raw (migration was skipped).
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		for i, token := range rawTokens {
+			auth, err := readOnlyStore.GetAuthorizationByID(ctx, tx, platform.ID(i+1))
+			require.NoError(t, err)
+			require.Equal(t, token, auth.Token, "token should still be raw after skipped migration")
+			require.Empty(t, auth.HashedToken, "HashedToken should still be empty after skipped migration")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Verify that calling HashedTokenMigration with nil returns an error because
+	// the underlying kv store is read-only.
+	err = readOnlyStore.HashedTokenMigration(ctx, nil)
+	require.ErrorIs(t, err, errReadOnly, "HashedTokenMigration with nil should fail on read-only kv store")
+
+	// Now call HashedTokenMigration with the writeable kvStore as the migration store.
+	// This should migrate the tokens even though the store's underlying kv store is read-only.
+	err = readOnlyStore.HashedTokenMigration(ctx, kvStore)
+	require.NoError(t, err)
+
+	// Verify tokens are now hashed.
+	err = kvStore.View(ctx, func(tx kv.Tx) error {
+		for i, token := range rawTokens {
+			auth, err := readOnlyStore.GetAuthorizationByID(ctx, tx, platform.ID(i+1))
+			require.NoError(t, err)
+			require.Empty(t, auth.Token, "Token should be empty after migration")
+			require.NotEmpty(t, auth.HashedToken, "HashedToken should be set after migration")
+
+			// Verify we can still look up by the original token.
+			authByToken, err := readOnlyStore.GetAuthorizationByToken(ctx, tx, token)
+			require.NoError(t, err)
+			require.Equal(t, platform.ID(i+1), authByToken.ID, "should be able to look up by original token")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestNewStore_WithForceAllVariants(t *testing.T) {
 	ctx := context.Background()
 
@@ -724,8 +836,9 @@ func TestNewStore_WithForceAllVariants(t *testing.T) {
 	// storeSHA256Only was created on empty store without ForceAllVariants,
 	// so it only has SHA256 decoder. It should NOT find the SHA512 hashed token.
 	err = kvStore.View(ctx, func(tx kv.Tx) error {
-		_, err := storeSHA256Only.GetAuthorizationByToken(ctx, tx, token)
-		require.Error(t, err, "store with only SHA256 decoder should not find SHA512 hashed token")
+		a, err := storeSHA256Only.GetAuthorizationByToken(ctx, tx, token)
+		require.ErrorIs(t, err, authorization.ErrAuthNotFound, "store with only SHA256 decoder should not find SHA512 hashed token")
+		require.Nil(t, a)
 		return nil
 	})
 	require.NoError(t, err)
