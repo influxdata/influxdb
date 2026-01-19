@@ -53,7 +53,7 @@ use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use metrics::WriteMetrics;
 use object_store::{ObjectMeta, ObjectStore, path::Path as ObjPath};
-use observability_deps::tracing::{debug, error, warn};
+use observability_deps::tracing::{debug, warn};
 use parquet_file::storage::DataSourceExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;

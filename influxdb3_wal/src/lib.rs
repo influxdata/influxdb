@@ -16,7 +16,6 @@ use influxdb_line_protocol::FieldValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::Time;
-use observability_deps::tracing::error;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::cmp::Ordering;
