@@ -43,6 +43,7 @@ influxdb3_cache = { path = "../influxdb3_cache" }
 metric.workspace = true
 object_store.workspace = true
 parquet_file.workspace = true
+proptest = "1.0"
 tempfile.workspace = true
 test-log.workspace = true
 influxdb3_id = { path = "../influxdb3_id" }
