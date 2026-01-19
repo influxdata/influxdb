@@ -45,6 +45,63 @@ const INIT_PY: &str = "__init__.py";
 const PY_EXTENSION: &str = "py";
 const PYCACHE_DIR: &str = "__pycache__";
 
+use std::path::Path;
+
+/// Validates that a user-provided path stays within the plugin directory.
+/// Prevents path traversal attacks via "..", absolute paths, and symlinks.
+fn validate_path_within_plugin_dir(
+    plugin_dir: &Path,
+    user_path: &str,
+) -> Result<PathBuf, PluginError> {
+    // 1. Check for "..", absolute path components, and Windows prefixes (C:\, \\server\share)
+    let normalized_path = Path::new(user_path);
+    for component in normalized_path.components() {
+        match component {
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => {
+                return Err(PluginError::PathTraversal(user_path.to_string()));
+            }
+            _ => {}
+        }
+    }
+
+    // 2. Build target path and canonicalize for symlink protection
+    let target_path = plugin_dir.join(user_path);
+    let canonical_plugin_dir = plugin_dir.canonicalize()?;
+
+    // 3. Handle non-existent files by canonicalizing deepest existing ancestor
+    let canonical_target_path = if target_path.exists() {
+        target_path.canonicalize()?
+    } else {
+        // Find deepest existing ancestor, canonicalize, append missing components
+        let mut existing = target_path.as_path();
+        let mut missing = Vec::new();
+        while !existing.exists() {
+            missing.push(
+                existing
+                    .file_name()
+                    .ok_or_else(|| PluginError::PathTraversal(user_path.to_string()))?,
+            );
+            existing = existing
+                .parent()
+                .ok_or_else(|| PluginError::PathTraversal(user_path.to_string()))?;
+        }
+        let mut canonical = existing.canonicalize()?;
+        for c in missing.into_iter().rev() {
+            canonical.push(c);
+        }
+        canonical
+    };
+
+    // 4. Verify target is within plugin directory
+    if !canonical_target_path.starts_with(&canonical_plugin_dir) {
+        return Err(PluginError::PathTraversal(user_path.to_string()));
+    }
+
+    Ok(target_path)
+}
+
 pub mod virtualenv;
 
 #[derive(Debug)]
@@ -311,55 +368,8 @@ impl ProcessingEngineManagerImpl {
 
         let plugin_name = name.trim_end_matches('/');
 
-        // First, normalize the path components to check for path traversal
-        // This catches attempts like "../../etc/passwd" before we try to access the filesystem
-        let normalized_path = std::path::Path::new(plugin_name);
-        for component in normalized_path.components() {
-            match component {
-                std::path::Component::ParentDir => {
-                    // Any ".." component is a path traversal attempt
-                    return Err(PluginError::PathTraversal(name.to_string()));
-                }
-                std::path::Component::RootDir => {
-                    // Absolute paths are not allowed
-                    return Err(PluginError::PathTraversal(name.to_string()));
-                }
-                _ => {} // Normal and CurDir components are fine
-            }
-        }
-
-        let plugin_path = plugin_dir.join(plugin_name);
-
-        // Canonicalize both paths to prevent path traversal attacks via symlinks
-        let canonical_plugin_dir = plugin_dir
-            .canonicalize()
-            .context("failed to canonicalize plugin directory")?;
-
-        // For the plugin path, we need to handle the case where the file doesn't exist yet
-        let canonical_plugin_path = if plugin_path.exists() {
-            plugin_path
-                .canonicalize()
-                .context("failed to canonicalize plugin path")?
-        } else {
-            // If file doesn't exist, canonicalize the parent and append the filename
-            if let Some(parent) = plugin_path.parent() {
-                if let Some(filename) = plugin_path.file_name() {
-                    let canonical_parent = parent
-                        .canonicalize()
-                        .context("failed to canonicalize plugin path parent directory")?;
-                    canonical_parent.join(filename)
-                } else {
-                    return Err(PluginError::PathTraversal(name.to_string()));
-                }
-            } else {
-                return Err(PluginError::PathTraversal(name.to_string()));
-            }
-        };
-
-        // Verify that the canonical plugin path is within the canonical plugin directory
-        if !canonical_plugin_path.starts_with(&canonical_plugin_dir) {
-            return Err(PluginError::PathTraversal(name.to_string()));
-        }
+        // Validate path stays within plugin directory (prevents path traversal via .., absolute paths, symlinks)
+        let plugin_path = validate_path_within_plugin_dir(&plugin_dir, plugin_name)?;
 
         if !plugin_path.exists() {
             return Err(PluginError::ReadPluginError(IoError::new(
@@ -889,7 +899,7 @@ impl ProcessingEngineManagerImpl {
                 )))
             })?;
 
-        let plugin_path = plugin_dir.join(plugin_filename);
+        let plugin_path = validate_path_within_plugin_dir(plugin_dir, plugin_filename)?;
 
         // Create parent directories if they don't exist (for multi-file plugins)
         if let Some(parent) = plugin_path.parent() {
@@ -898,7 +908,7 @@ impl ProcessingEngineManagerImpl {
             })?;
         }
 
-        async_fs::write(plugin_path, content).await.map_err(|e| {
+        async_fs::write(&plugin_path, content).await.map_err(|e| {
             ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
         })?;
 
@@ -917,11 +927,13 @@ impl ProcessingEngineManagerImpl {
                 .find(|t| t.trigger_name.as_ref() == plugin_name)
                 && let Some(ref plugin_dir) = self.environment_manager.plugin_dir
             {
-                let plugin_path = plugin_dir.join(&trigger.plugin_filename);
+                // Validate path stays within plugin directory
+                let plugin_path =
+                    validate_path_within_plugin_dir(plugin_dir, &trigger.plugin_filename)?;
 
                 // For single-file plugins, update the file directly
                 if !plugin_path.is_dir() {
-                    async_fs::write(plugin_path, content).await.map_err(|e| {
+                    async_fs::write(&plugin_path, content).await.map_err(|e| {
                         ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
                     })?;
 
@@ -930,7 +942,7 @@ impl ProcessingEngineManagerImpl {
 
                 // For multi-file plugins (directories), update __init__.py by default
                 let init_file = plugin_path.join(INIT_PY);
-                async_fs::write(init_file, content).await.map_err(|e| {
+                async_fs::write(&init_file, content).await.map_err(|e| {
                     ProcessingEngineError::PluginError(plugins::PluginError::ReadPluginError(e))
                 })?;
 
@@ -983,9 +995,12 @@ impl ProcessingEngineManagerImpl {
                 )))
             })?;
 
-        let plugin_path = plugin_dir.join(&plugin_filename);
-        let temp_path = plugin_dir.join(format!("{}.tmp", plugin_filename));
-        let old_path = plugin_dir.join(format!("{}.old", plugin_filename));
+        // Validate all paths stay within plugin directory
+        let plugin_path = validate_path_within_plugin_dir(plugin_dir, &plugin_filename)?;
+        let temp_suffix = format!("{}.tmp", plugin_filename);
+        let old_suffix = format!("{}.old", plugin_filename);
+        let temp_path = validate_path_within_plugin_dir(plugin_dir, &temp_suffix)?;
+        let old_path = validate_path_within_plugin_dir(plugin_dir, &old_suffix)?;
 
         if temp_path.exists() {
             async_fs::remove_dir_all(&temp_path)
@@ -1001,7 +1016,7 @@ impl ProcessingEngineManagerImpl {
 
         // Write all files to temp directory
         for (relative_path, content) in files {
-            let file_path = temp_path.join(&relative_path);
+            let file_path = validate_path_within_plugin_dir(&temp_path, &relative_path)?;
 
             // Create parent directories if needed
             if let Some(parent) = file_path.parent() {
@@ -2026,5 +2041,842 @@ def helper_function():
         // Verify old directory was cleaned up
         assert!(!plugin_dir.join("test_plugin.old").exists());
         assert!(!plugin_dir.join("test_plugin.tmp").exists());
+    }
+
+    // Path traversal vulnerability tests
+    #[test]
+    fn test_validate_path_within_plugin_dir_basic() {
+        use crate::validate_path_within_plugin_dir;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path();
+
+        // Valid paths should work
+        let result = validate_path_within_plugin_dir(plugin_dir, "plugin.py");
+        assert!(result.is_ok());
+
+        let result = validate_path_within_plugin_dir(plugin_dir, "my_plugin/utils.py");
+        assert!(result.is_ok());
+
+        // Parent directory traversal should fail
+        let result = validate_path_within_plugin_dir(plugin_dir, "../evil.py");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            crate::plugins::PluginError::PathTraversal(_)
+        ));
+
+        // Absolute path should fail
+        let result = validate_path_within_plugin_dir(plugin_dir, "/etc/passwd");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            crate::plugins::PluginError::PathTraversal(_)
+        ));
+
+        // Nested traversal should fail
+        let result = validate_path_within_plugin_dir(plugin_dir, "subdir/../../evil.py");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            crate::plugins::PluginError::PathTraversal(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_create_plugin_file_path_traversal_parent_dir() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(temp_dir.path().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
+
+        let pem = Arc::new(
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                Arc::clone(&catalog),
+                "test_node",
+                wbuf as _,
+                qe,
+                time_provider,
+                sys_event_store,
+            )
+            .await
+            .unwrap(),
+        );
+
+        // Try to create a file with path traversal
+        let result = pem.create_plugin_file("../evil.py", "malicious code").await;
+        assert!(result.is_err());
+
+        // Verify no file was created outside plugin directory
+        assert!(!temp_dir.path().parent().unwrap().join("evil.py").exists());
+    }
+
+    #[tokio::test]
+    async fn test_create_plugin_file_path_traversal_absolute() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(temp_dir.path().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
+
+        let pem = Arc::new(
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                Arc::clone(&catalog),
+                "test_node",
+                wbuf as _,
+                qe,
+                time_provider,
+                sys_event_store,
+            )
+            .await
+            .unwrap(),
+        );
+
+        // Try to create a file with absolute path
+        let result = pem
+            .create_plugin_file("/tmp/evil_absolute.py", "malicious code")
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_create_plugin_file_path_traversal_nested() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(temp_dir.path().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
+
+        let pem = Arc::new(
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                Arc::clone(&catalog),
+                "test_node",
+                wbuf as _,
+                qe,
+                time_provider,
+                sys_event_store,
+            )
+            .await
+            .unwrap(),
+        );
+
+        // Try to create a file with nested traversal
+        let result = pem
+            .create_plugin_file("subdir/../../evil.py", "malicious code")
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_create_plugin_file_valid_nested_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(temp_dir.path().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
+
+        let pem = Arc::new(
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                Arc::clone(&catalog),
+                "test_node",
+                wbuf as _,
+                qe,
+                time_provider,
+                sys_event_store,
+            )
+            .await
+            .unwrap(),
+        );
+
+        // Valid nested path should work
+        let result = pem
+            .create_plugin_file("my_plugin/utils/helper.py", "def helper(): pass")
+            .await;
+        assert!(result.is_ok());
+
+        // Verify file was created in the correct location
+        assert!(temp_dir.path().join("my_plugin/utils/helper.py").exists());
+    }
+
+    #[tokio::test]
+    async fn test_replace_plugin_directory_path_traversal_in_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path();
+
+        // Create initial plugin directory
+        let initial_plugin = plugin_dir.join("test_plugin");
+        std::fs::create_dir(&initial_plugin).unwrap();
+        std::fs::write(initial_plugin.join("__init__.py"), "def process_v1(): pass").unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(plugin_dir.to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
+
+        let pem = Arc::new(
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                Arc::clone(&catalog),
+                "test_node",
+                wbuf as _,
+                qe,
+                time_provider,
+                sys_event_store,
+            )
+            .await
+            .unwrap(),
+        );
+
+        // Create the DB and trigger first
+        pem.write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+                false,
+            )
+            .await
+            .unwrap();
+
+        let plugin_filename = pem.validate_plugin_filename("test_plugin").await.unwrap();
+
+        pem.catalog
+            .create_processing_engine_trigger(
+                "foo",
+                "test_trigger",
+                Arc::clone(&pem.node_id),
+                plugin_filename,
+                &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
+                TriggerSettings::default(),
+                &None,
+                false,
+            )
+            .await
+            .unwrap();
+
+        // Try to replace with files containing path traversal
+        let malicious_files = vec![
+            ("__init__.py".to_string(), "def process(): pass".to_string()),
+            ("../../../evil.py".to_string(), "malicious code".to_string()),
+        ];
+
+        let result = pem
+            .replace_plugin_directory("test_trigger", malicious_files)
+            .await;
+        assert!(result.is_err());
+
+        // Verify no file was created outside the temp directory
+        assert!(!temp_dir.path().parent().unwrap().join("evil.py").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_create_plugin_file_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path().join("plugins");
+        std::fs::create_dir(&plugin_dir).unwrap();
+
+        // Create a symlink inside the plugin dir that points outside
+        let outside_dir = temp_dir.path().join("outside");
+        std::fs::create_dir(&outside_dir).unwrap();
+        let evil_link = plugin_dir.join("evil_link");
+        symlink(&outside_dir, &evil_link).unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(plugin_dir.clone()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
+
+        let pem = Arc::new(
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                Arc::clone(&catalog),
+                "test_node",
+                wbuf as _,
+                qe,
+                time_provider,
+                sys_event_store,
+            )
+            .await
+            .unwrap(),
+        );
+
+        // Try to create a file through the symlink
+        let result = pem
+            .create_plugin_file("evil_link/escaped.py", "malicious code")
+            .await;
+        assert!(result.is_err());
+
+        // Verify no file was created in the outside directory
+        assert!(!outside_dir.join("escaped.py").exists());
+    }
+
+    /// Tests that update_plugin_file properly validates paths.
+    /// Note: Path traversal via update_plugin_file is blocked by:
+    /// 1. Trigger creation validates plugin_filename (primary protection)
+    /// 2. update_plugin_file calls validate_path_within_plugin_dir (defense-in-depth)
+    #[tokio::test]
+    async fn test_update_plugin_file_validates_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path();
+
+        // Create a valid single-file plugin
+        std::fs::write(plugin_dir.join("test_plugin.py"), "def process(): pass").unwrap();
+
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(plugin_dir.to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+            plugin_repo: None,
+        };
+
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let test_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&test_store),
+                Arc::clone(&time_provider),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+        let qe = Arc::new(UnimplementedQueryExecutor);
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&test_store),
+            "test_host".to_string(),
+            Arc::clone(&time_provider),
+        ));
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+        let shutdown = ShutdownManager::new_testing();
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+            ..Default::default()
+        };
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider),
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry: Arc::new(Registry::new()),
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            shutdown: shutdown.register(),
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            wal_replay_concurrency_limit: 1,
+        })
+        .await
+        .unwrap();
+
+        let pem = Arc::new(
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                Arc::clone(&catalog),
+                "test_node",
+                wbuf as _,
+                qe,
+                time_provider,
+                sys_event_store,
+            )
+            .await
+            .unwrap(),
+        );
+
+        // Create the DB and trigger
+        pem.write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+                false,
+            )
+            .await
+            .unwrap();
+
+        let plugin_filename = pem
+            .validate_plugin_filename("test_plugin.py")
+            .await
+            .unwrap();
+
+        pem.catalog
+            .create_processing_engine_trigger(
+                "foo",
+                "test_trigger",
+                Arc::clone(&pem.node_id),
+                plugin_filename,
+                &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
+                TriggerSettings::default(),
+                &None,
+                false,
+            )
+            .await
+            .unwrap();
+
+        // Update should succeed for valid trigger
+        let result = pem
+            .update_plugin_file("test_trigger", "def process_v2(): pass")
+            .await;
+        assert!(result.is_ok());
+
+        // Verify content was updated
+        let content = std::fs::read_to_string(plugin_dir.join("test_plugin.py")).unwrap();
+        assert_eq!(content, "def process_v2(): pass");
+    }
+
+    // Property-based tests using proptest
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Paths starting with "../" (1-10 repetitions) must always be rejected.
+        /// Example: "../../../evil.py" should fail regardless of depth.
+        #[test]
+        fn prop_test_parent_traversal_always_rejected(
+            depth in 1usize..10,
+            suffix in "[a-z]{1,10}"
+        ) {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let dots = "../".repeat(depth);
+            let malicious = format!("{}{}.py", dots, suffix);
+            let result = crate::validate_path_within_plugin_dir(
+                temp_dir.path(),
+                &malicious,
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// Paths that descend into a directory then traverse out must be rejected.
+        /// Example: "subdir/../../../evil.py" should fail even with a valid prefix.
+        #[test]
+        fn prop_test_nested_traversal_always_rejected(
+            prefix in "[a-z]{1,5}",
+            depth in 1usize..10,
+            suffix in "[a-z]{1,10}"
+        ) {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let dots = "../".repeat(depth);
+            let malicious = format!("{}/{}{}.py", prefix, dots, suffix);
+            let result = crate::validate_path_within_plugin_dir(
+                temp_dir.path(),
+                &malicious,
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// Valid nested paths without traversal components must be accepted.
+        /// Example: "My_Plugin/Utils/Helper.py" should succeed.
+        #[test]
+        fn prop_test_valid_paths_accepted(
+            segments in prop::collection::vec("[a-zA-Z0-9_]{1,12}", 1..10),
+        ) {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let valid_path = format!("{}.py", segments.join("/"));
+            let result = crate::validate_path_within_plugin_dir(
+                temp_dir.path(),
+                &valid_path,
+            );
+            prop_assert!(result.is_ok());
+        }
+
+        /// Absolute paths starting with "/" must always be rejected.
+        /// Example: "/etc/passwd" or "/tmp/evil.py" should fail.
+        #[test]
+        fn prop_test_absolute_paths_rejected(
+            path in "/[a-z/]{1,20}"
+        ) {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let result = crate::validate_path_within_plugin_dir(
+                temp_dir.path(),
+                &path,
+            );
+            prop_assert!(result.is_err());
+        }
     }
 }
