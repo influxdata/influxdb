@@ -11,7 +11,6 @@ use hashbrown::{HashMap, HashSet};
 use influxdb3_catalog::catalog::{TableDefinition, legacy};
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
-use observability_deps::tracing::error;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
