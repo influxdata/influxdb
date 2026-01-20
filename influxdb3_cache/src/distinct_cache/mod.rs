@@ -685,7 +685,7 @@ cpu,host=n usage=300
                 use_sorted_assert: false,
             },
             TestCase {
-                _desc: "un-grouped host conditions are not handled in predicate pushdown",
+                _desc: "un-grouped host conditions are handled in predicate pushdown",
                 sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region = 'us-east' AND host = 'a' OR host = 'b'",
                 expected: &[
@@ -696,7 +696,7 @@ cpu,host=n usage=300
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "DistinctCacheExec: projection=[region, host] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region, host] predicates=[[host@1 IN (a,b)]] inner=DataSourceExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {

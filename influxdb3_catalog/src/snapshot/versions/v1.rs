@@ -276,6 +276,8 @@ impl From<&ArrowDataType> for DataType {
                 Box::new(key_type.as_ref().into()),
                 Box::new(val_type.as_ref().into()),
             ),
+            ArrowDataType::Decimal32(_, _) => unimplemented!(),
+            ArrowDataType::Decimal64(_, _) => unimplemented!(),
             ArrowDataType::Decimal128(_, _) => unimplemented!(),
             ArrowDataType::Decimal256(_, _) => unimplemented!(),
             ArrowDataType::Map(_, _) => unimplemented!(),
