@@ -433,8 +433,7 @@ func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context,
 				Err: fmt.Errorf("insufficient permissions"),
 			})
 		}
-
-		rerr = errors.Join(e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name))
+		rerr = errors.Join(rerr, e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name))
 	}
 
 	return rerr
