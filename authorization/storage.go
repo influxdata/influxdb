@@ -121,8 +121,6 @@ var (
 	hashedAuthIndexName = []byte("authorizationhashedindexv1")
 )
 
-type HashMigrator interface {
-}
 type Store struct {
 	kvStore kv.Store
 	IDGen   platform.IDGenerator

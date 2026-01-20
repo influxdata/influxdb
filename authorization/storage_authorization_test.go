@@ -776,6 +776,13 @@ func TestHashedTokenMigration_WithMigrationStore(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+
+	// Verify that readOnlyStore is still read-only and was not modified by creating a writable TokenMigrator.
+	err = readOnlyStore.Update(ctx, func(tx kv.Tx) error {
+		require.Fail(t, "should be unreachable if readOnlyStore is really read-only")
+		return nil
+	})
+	require.ErrorIs(t, err, errReadOnly, "Update should fail with read-only kv.Store")
 }
 
 func TestNewStore_WithForceAllVariants(t *testing.T) {
