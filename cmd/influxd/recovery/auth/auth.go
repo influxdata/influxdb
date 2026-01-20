@@ -85,7 +85,7 @@ func (cmd *authListCommand) run() (rErr error) {
 		return err
 	}
 	// Create authStore read-only since we're not properly configuring if hashed tokens are enabled.
-	authStore, err := authorization.NewStore(ctx, store, false, authorization.WithReadOnly(true), authorization.WithAuthorizationHasher(hasher), authorization.WithLogger(cmd.logger))
+	authStore, err := authorization.NewStore(ctx, store, false, authorization.WithSkipTokenMigration(true), authorization.WithAuthorizationHasher(hasher), authorization.WithLogger(cmd.logger))
 	if err != nil {
 		return err
 	}

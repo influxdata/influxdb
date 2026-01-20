@@ -116,10 +116,6 @@ const MaxIDGenerationN = 100
 const ReservedIDs = 1000
 
 var (
-	ErrReadOnly = goerrors.New("authorization store is read-only")
-)
-
-var (
 	authBucketName      = []byte("authorizationsv1")
 	authIndexName       = []byte("authorizationindexv1")
 	hashedAuthIndexName = []byte("authorizationhashedindexv1")
@@ -136,9 +132,6 @@ type Store struct {
 	// Logger
 	log *zap.Logger
 
-	// Indicates if Store is read-only.
-	readOnly bool
-
 	// ignoreMissingHashIndex indicates if missing hash indices in store should be ignored.
 	// This is almost exclusively for testing.
 	ignoreMissingHashIndex bool
@@ -146,7 +139,9 @@ type Store struct {
 
 type storePlusOptions struct {
 	*Store
-	hasherVariantName string
+	hasherVariantName  string
+	forceAllVariants   bool
+	skipTokenMigration bool
 }
 
 type StoreOption func(*storePlusOptions)
@@ -175,9 +170,15 @@ func WithLogger(log *zap.Logger) StoreOption {
 	}
 }
 
-func WithReadOnly(readOnly bool) StoreOption {
+func WithSkipTokenMigration(skip bool) StoreOption {
 	return func(s *storePlusOptions) {
-		s.readOnly = readOnly
+		s.skipTokenMigration = skip
+	}
+}
+
+func WithForceAllVariants(force bool) StoreOption {
+	return func(s *storePlusOptions) {
+		s.forceAllVariants = force
 	}
 }
 
@@ -213,7 +214,13 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 	}
 
 	if s.hasher == nil {
-		hasher, err := s.autogenerateHasher(ctx, foundVariants, s.hasherVariantName)
+		var variants []influxdb2_algo.Variant
+		if !s.forceAllVariants {
+			variants = foundVariants
+		} else {
+			variants = influxdb2_algo.AllVariants
+		}
+		hasher, err := s.autogenerateHasher(ctx, variants, s.hasherVariantName)
 		if err != nil {
 			return nil, fmt.Errorf("error creating authorization store during autogenerateHasher: %w", err)
 		}
@@ -223,8 +230,10 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 	// Perform hashed token migration if needed. This can not be performed by the migration service
 	// because it requires configuration, and the migration service is more concerned with schema
 	// and does not have configuration.
-	if err := s.hashedTokenMigration(ctx); err != nil {
-		return nil, fmt.Errorf("error during hashed token migration: %w", err)
+	if !s.skipTokenMigration {
+		if err := s.migrateTokens(ctx); err != nil {
+			return nil, fmt.Errorf("error during hashed token migration: %w", err)
+		}
 	}
 
 	return s.Store, nil
@@ -292,9 +301,46 @@ func (s *Store) autogenerateHasher(ctx context.Context, foundVariants []influxdb
 	return hasher, nil
 }
 
-// hashedTokenMigration migrates any unhashed tokens in the store to hashed tokens.
-func (s *Store) hashedTokenMigration(ctx context.Context) error {
-	if !s.useHashedTokens || s.readOnly {
+// TokenMigrator allows exposing migrateTokens publicly so that token migration and token migration only
+// can be performed with different parameters than the authorization Store used for other operations.
+type TokenMigrator struct {
+	store *Store
+}
+
+type TokenMigratorOption func(*Store)
+
+// WithMigratorStore specifies an alternate kvStore to use for token migration. This is useful for
+// specifying a writeable kv.Store for migration when a Store's normal kv.Store may be in read-only mode.
+func WithMigratorStore(kvStore kv.Store) TokenMigratorOption {
+	return func(s *Store) {
+		s.kvStore = kvStore
+	}
+}
+
+// NewTokenMigrator creates a TokenMigrator based on s and any opts passed.
+func (s *Store) NewTokenMigrator(opts ...TokenMigratorOption) *TokenMigrator {
+	storeCopy := &Store{}
+	*storeCopy = *s // shallow copy is sufficient
+
+	for _, o := range opts {
+		o(storeCopy)
+	}
+
+	return &TokenMigrator{
+		store: storeCopy,
+	}
+}
+
+// MigrateTokens migrates any unhashed tokens in the store to hashed tokens, if token
+// hashing is enabled.
+func (m *TokenMigrator) MigrateTokens(ctx context.Context) error {
+	return m.store.migrateTokens(ctx)
+}
+
+// migrateTokens migrates any unhashed tokens in the store to hashed tokens, if token
+// hashing is enabled.
+func (s *Store) migrateTokens(ctx context.Context) error {
+	if !s.useHashedTokens {
 		return nil
 	}
 
@@ -342,9 +388,6 @@ func (s *Store) View(ctx context.Context, fn func(kv.Tx) error) error {
 
 // Update opens up a transaction that will mutate data.
 func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
-	if s.readOnly {
-		return ErrReadOnly
-	}
 	return s.kvStore.Update(ctx, fn)
 }
 
@@ -358,7 +401,7 @@ func (s *Store) setup(ctx context.Context) error {
 		}
 		if _, err := hashedAuthIndexBucket(tx); err != nil {
 			if goerrors.Is(err, kv.ErrBucketNotFound) {
-				if !s.ignoreMissingHashIndex || (s.useHashedTokens && !s.readOnly) {
+				if !s.ignoreMissingHashIndex {
 					return fmt.Errorf("missing required index, upgrade required: %w", err)
 				}
 			} else {

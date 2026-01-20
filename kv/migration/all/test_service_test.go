@@ -61,12 +61,11 @@ func newService(t *testing.T, ctx context.Context, endMigration int, useTokenHas
 	if endMigration <= 21 {
 		ignoreMissingHashIndex = true
 	}
-	missingHashIndexOption := authorization.WithIgnoreMissingHashIndex(ignoreMissingHashIndex)
-	authStore, err := authorization.NewStore(ctx, ts.Store, useTokenHashing, missingHashIndexOption)
 	if useTokenHashing && ignoreMissingHashIndex {
-		require.ErrorIs(t, err, kv.ErrBucketNotFound)
 		t.Skipf("migrationLevel=%d with useTokenHashing=%t is not a valid combination", endMigration, useTokenHashing)
 	}
+	missingHashIndexOption := authorization.WithIgnoreMissingHashIndex(ignoreMissingHashIndex)
+	authStore, err := authorization.NewStore(ctx, ts.Store, useTokenHashing, missingHashIndexOption)
 	require.NoError(t, err)
 
 	authSvc := authorization.NewService(authStore, tenantSvc)
