@@ -2140,29 +2140,35 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .run()
         .expect("Failed to run wal plugin test");
 
-    let expected_result = serde_json::json!({
-        "log_lines": [
-            "INFO: All LineBuilder tests completed"
-        ],
-        "database_writes": {
-            "test_db": [
-                "metrics,host=server01,region=us-west cpu=42i,memory_bytes=8589934592u,load=86.5,status=\"online\",healthy=t 1609459200000000000",
-                "system_metrics,server=app\\ server\\ 1,datacenter=us\\ west count=1i",
-                "network,servers=web\\,app\\,db,location=floor1\\,rack3 connections=256i",
-                "formulas,equation=y\\=mx+b,result=a\\=b\\=c value=3.14159",
-                "paths,windows_path=C:\\\\Program\\ Files\\\\App,regex=\\\\d+\\\\w+ description=\"Windows\\\\Unix paths\",count=42i",
-                "messages,type=notification content=\"User said \\\"Hello World\\\"\",json=\"{\\\"key\\\": \\\"value\\\"}\",priority=1i",
-                "complex\\,measurement,location=New\\ York\\,\\ USA,details=floor\\=5\\,\\ room\\=3,path=C:\\\\Users\\\\Admin\\\\Documents message=\"Error in line: \\\"x = y + z\\\"\",query=\"SELECT * FROM table WHERE id=\\\"abc\\\"\",value=123.456 1609459200000000000",
-                "sensor_data,device=thermostat,room=living\\ room,floor=1 temperature=72.5,humidity=45i,mode=\"auto\""
-            ],
-            "metrics_db": [
-                "memory_stats,host=server1 usage=75i"
-            ]
-        },
-        "errors": []
-    });
+    // Filter out framework start/finish messages (timing varies per run)
+    let log_lines: Vec<_> = result["log_lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| {
+            !s.starts_with("INFO: starting execution") && !s.starts_with("INFO: finished execution")
+        })
+        .collect();
+    assert_eq!(log_lines, vec!["INFO: All LineBuilder tests completed"]);
 
-    assert_eq!(result, expected_result);
+    let expected_writes = serde_json::json!({
+        "test_db": [
+            "metrics,host=server01,region=us-west cpu=42i,memory_bytes=8589934592u,load=86.5,status=\"online\",healthy=t 1609459200000000000",
+            "system_metrics,server=app\\ server\\ 1,datacenter=us\\ west count=1i",
+            "network,servers=web\\,app\\,db,location=floor1\\,rack3 connections=256i",
+            "formulas,equation=y\\=mx+b,result=a\\=b\\=c value=3.14159",
+            "paths,windows_path=C:\\\\Program\\ Files\\\\App,regex=\\\\d+\\\\w+ description=\"Windows\\\\Unix paths\",count=42i",
+            "messages,type=notification content=\"User said \\\"Hello World\\\"\",json=\"{\\\"key\\\": \\\"value\\\"}\",priority=1i",
+            "complex\\,measurement,location=New\\ York\\,\\ USA,details=floor\\=5\\,\\ room\\=3,path=C:\\\\Users\\\\Admin\\\\Documents message=\"Error in line: \\\"x = y + z\\\"\",query=\"SELECT * FROM table WHERE id=\\\"abc\\\"\",value=123.456 1609459200000000000",
+            "sensor_data,device=thermostat,room=living\\ room,floor=1 temperature=72.5,humidity=45i,mode=\"auto\""
+        ],
+        "metrics_db": [
+            "memory_stats,host=server1 usage=75i"
+        ]
+    });
+    assert_eq!(result["database_writes"], expected_writes);
+    assert_eq!(result["errors"], serde_json::json!([]));
 }
 #[test_log::test(tokio::test)]
 async fn test_wal_plugin_test() {
@@ -2236,29 +2242,35 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
     debug!(result = ?result, "test wal plugin");
 
-    let expected_result = r#"{
-  "log_lines": [
-    "INFO: arg1: arg1_value",
-    "INFO: query result: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
-    "INFO: i [{'host': 's2', 'region': 'us-east', 'usage': 0.89}] s2",
-    "WARN: w: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
-    "ERROR: err [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
-    "INFO: table: test_input",
-    "INFO: row: {'tag1': 'tag1_value', 'tag2': 'tag2_value', 'field1': 1, 'time': 500}",
-    "INFO: done"
-  ],
-  "database_writes": {
-    "mytestdb": [
-      "other_table other_field=1i,other_field2=3.14 1302"
-    ],
-    "foo": [
-      "some_table,tag1=tag1_value,tag2=tag2_value field1=1i,field2=2.0,field3=\"number three\""
-    ]
-  },
-  "errors": []
-}"#;
-    let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
-    assert_eq!(result, expected_result);
+    // Filter out framework start/finish messages (timing varies per run)
+    let log_lines: Vec<_> = result["log_lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| {
+            !s.starts_with("INFO: starting execution") && !s.starts_with("INFO: finished execution")
+        })
+        .collect();
+    let expected_log_lines = vec![
+        "INFO: arg1: arg1_value",
+        "INFO: query result: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
+        "INFO: i [{'host': 's2', 'region': 'us-east', 'usage': 0.89}] s2",
+        "WARN: w: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
+        "ERROR: err [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
+        "INFO: table: test_input",
+        "INFO: row: {'tag1': 'tag1_value', 'tag2': 'tag2_value', 'field1': 1, 'time': 500}",
+        "INFO: done",
+    ];
+    assert_eq!(log_lines, expected_log_lines);
+
+    // Verify the rest of the response
+    let expected_writes = serde_json::json!({
+        "mytestdb": ["other_table other_field=1i,other_field2=3.14 1302"],
+        "foo": ["some_table,tag1=tag1_value,tag2=tag2_value field1=1i,field2=2.0,field3=\"number three\""]
+    });
+    assert_eq!(result["database_writes"], expected_writes);
+    assert_eq!(result["errors"], serde_json::json!([]));
 }
 #[test_log::test(tokio::test)]
 async fn test_schedule_plugin_test() {
@@ -2308,22 +2320,25 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     let trigger_time = result["trigger_time"].as_str().unwrap();
     assert!(trigger_time.contains('T')); // Basic RFC3339 format check
 
-    // Check the rest of the response structure
-    let expected_result = serde_json::json!({
-        "log_lines": [
+    // Filter out framework start/finish messages (timing varies per run)
+    let log_lines: Vec<_> = result["log_lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| {
+            !s.starts_with("INFO: starting execution") && !s.starts_with("INFO: finished execution")
+        })
+        .collect();
+    assert_eq!(
+        log_lines,
+        vec![
             "INFO: args are {'region': 'us-east'}",
             "INFO: Successfully called"
-        ],
-        "database_writes": {
-        },
-        "errors": []
-    });
-    assert_eq!(result["log_lines"], expected_result["log_lines"]);
-    assert_eq!(
-        result["database_writes"],
-        expected_result["database_writes"]
+        ]
     );
-    assert_eq!(result["errors"], expected_result["errors"]);
+    assert_eq!(result["database_writes"], serde_json::json!({}));
+    assert_eq!(result["errors"], serde_json::json!([]));
 }
 
 #[test_log::test(tokio::test)]
@@ -2370,8 +2385,19 @@ foo,tag1=bar,tag2=mloem val1=5,val2=199"#,
         .expect("Failed to run schedule plugin test");
 
     debug!(result = ?result, "test schedule plugin");
+
+    // Filter out framework start/finish messages (timing varies per run)
+    let log_lines: Vec<_> = result["log_lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| {
+            !s.starts_with("INFO: starting execution") && !s.starts_with("INFO: finished execution")
+        })
+        .collect();
     assert_eq!(result["errors"], json!([]));
-    assert_eq!(result["log_lines"], json!(["INFO: successfully queried"]));
+    assert_eq!(log_lines, vec!["INFO: successfully queried"]);
 }
 
 #[test_log::test(tokio::test)]
@@ -2424,21 +2450,20 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     let trigger_time = result["trigger_time"].as_str().unwrap();
     assert!(trigger_time.contains('T')); // Basic RFC3339 format check
 
-    // Check the rest of the response structure
-    // Modified expectations to include the timestamp message
-    let log_lines = &result["log_lines"];
-    assert_eq!(log_lines.as_array().unwrap().len(), 3);
-    assert!(
-        log_lines[0]
-            .as_str()
-            .unwrap()
-            .starts_with("INFO: Current timestamp:")
-    );
-    assert_eq!(
-        log_lines[1].as_str().unwrap(),
-        "INFO: args are {'region': 'us-east'}"
-    );
-    assert_eq!(log_lines[2].as_str().unwrap(), "INFO: Successfully called");
+    // Filter out framework start/finish messages (timing varies per run)
+    let log_lines: Vec<_> = result["log_lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| {
+            !s.starts_with("INFO: starting execution") && !s.starts_with("INFO: finished execution")
+        })
+        .collect();
+    assert_eq!(log_lines.len(), 3);
+    assert!(log_lines[0].starts_with("INFO: Current timestamp:"));
+    assert_eq!(log_lines[1], "INFO: args are {'region': 'us-east'}");
+    assert_eq!(log_lines[2], "INFO: Successfully called");
 
     assert_eq!(result["database_writes"], serde_json::json!({}));
     assert_eq!(result["errors"], serde_json::json!([]));
@@ -2600,19 +2625,23 @@ async fn test_load_wal_plugin_from_gh() {
 
     debug!(result = ?result, "test wal plugin");
 
-    let expected_result = r#"{
-  "log_lines": [
-    "INFO: wal_plugin.py done"
-  ],
-  "database_writes": {
-    "foo": [
-      "write_reports,table_name=test_input row_count=1i"
-    ]
-  },
-  "errors": []
-}"#;
-    let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
-    assert_eq!(result, expected_result);
+    // Filter out framework start/finish messages (timing varies per run)
+    let log_lines: Vec<_> = result["log_lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| {
+            !s.starts_with("INFO: starting execution") && !s.starts_with("INFO: finished execution")
+        })
+        .collect();
+    assert_eq!(log_lines, vec!["INFO: wal_plugin.py done"]);
+
+    let expected_writes = serde_json::json!({
+        "foo": ["write_reports,table_name=test_input row_count=1i"]
+    });
+    assert_eq!(result["database_writes"], expected_writes);
+    assert_eq!(result["errors"], serde_json::json!([]));
 }
 #[test_log::test(tokio::test)]
 async fn test_request_plugin_and_trigger() {
@@ -3243,11 +3272,31 @@ fn check_logs(response: &Value, expected_logs: &[&str]) {
         "Unexpected errors in response {response:#?}, expected logs {expected_logs:#?}"
     );
     let logs = response["log_lines"].as_array().unwrap();
+    // Filter out framework start/finish messages (timing varies per run)
+    let logs: Vec<_> = logs
+        .iter()
+        .filter(|l| {
+            let s = l.as_str().unwrap_or("");
+            !s.starts_with("INFO: starting execution") && !s.starts_with("INFO: finished execution")
+        })
+        .collect();
     assert_eq!(
-        expected_logs, logs,
-        "mismatched log lines, expected {:#?}, got {:#?}, errors are {:#?}",
-        expected_logs, logs, response["errors"]
+        expected_logs.len(),
+        logs.len(),
+        "mismatched log line count, expected {:#?}, got {:#?}, errors are {:#?}",
+        expected_logs,
+        logs,
+        response["errors"]
     );
+    for (expected, actual) in expected_logs.iter().zip(logs.iter()) {
+        assert_eq!(
+            *expected,
+            actual.as_str().unwrap(),
+            "mismatched log line, expected {:#?}, got {:#?}",
+            expected,
+            actual
+        );
+    }
 }
 #[test_log::test(tokio::test)]
 async fn test_basic_cache_functionality() {

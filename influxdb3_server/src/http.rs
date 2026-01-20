@@ -1613,7 +1613,7 @@ impl HttpApi {
 
         let output = self
             .processing_engine
-            .test_wal_plugin(request, Arc::clone(&self.query_executor))
+            .dry_run_wal_plugin(request, Arc::clone(&self.query_executor))
             .await?;
         let body = serde_json::to_string(&output)?;
 

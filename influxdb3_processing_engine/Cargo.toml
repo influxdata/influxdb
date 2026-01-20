@@ -13,20 +13,19 @@ chrono.workspace = true
 cron.workspace =  true
 data_types.workspace = true
 futures-util.workspace = true
-humantime.workspace = true
 hashbrown.workspace = true
+humantime.workspace = true
 hyper.workspace = true
-iox_http_util.workspace = true
-iox_time.workspace = true
 influxdb3_catalog = { path = "../influxdb3_catalog" }
-influxdb3_client = { path = "../influxdb3_client" }
+influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_py_api = { path = "../influxdb3_py_api" }
-influxdb3_types = { path = "../influxdb3_types" }
-influxdb3_shutdown = { path = "../influxdb3_shutdown"}
 influxdb3_sys_events = { path = "../influxdb3_sys_events"}
+influxdb3_types = { path = "../influxdb3_types" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
+iox_http_util.workspace = true
+iox_time.workspace = true
 observability_deps.workspace = true
 parking_lot.workspace = true
 pyo3.workspace = true
@@ -38,15 +37,15 @@ walkdir = "2"
 
 [dev-dependencies]
 datafusion_util.workspace = true
-iox_query.workspace = true
 influxdb3_cache = { path = "../influxdb3_cache" }
+influxdb3_shutdown = { path = "../influxdb3_shutdown"}
+iox_query.workspace = true
 metric.workspace = true
 object_store.workspace = true
 parquet_file.workspace = true
 proptest = "1.0"
 tempfile.workspace = true
 test-log.workspace = true
-influxdb3_id = { path = "../influxdb3_id" }
 
 [lints]
 workspace = true

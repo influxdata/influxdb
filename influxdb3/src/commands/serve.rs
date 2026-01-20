@@ -1090,7 +1090,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         setup_processing_engine_env_manager(&config.processing_engine_config),
         write_buffer.catalog(),
         node_id,
-        Arc::clone(&write_buffer),
+        Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>,
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,
         sys_events_store,

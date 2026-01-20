@@ -144,10 +144,22 @@ impl PythonEnvironmentManager for PipManager {
 impl PythonEnvironmentManager for DisabledManager {
     fn init_pyenv(
         &self,
-        _plugin_dir: Option<&Path>,
+        plugin_dir: Option<&Path>,
         _virtual_env_location: Option<&PathBuf>,
     ) -> Result<(), PluginEnvironmentError> {
-        Ok(())
+        // DisabledManager means no package manager (pip/uv) is available or
+        // we do not want to turn the processing engine on.
+        //
+        // If we're trying to initialize a Python environment, we should fail
+        // only if the plugin_dir is set
+
+        if plugin_dir.is_some() {
+            Err(PluginEnvironmentError::PackageManagerNotFound(
+            "Neither pip nor uv package manager is available. Please install Python with pip or install uv".to_string()
+        ))
+        } else {
+            Ok(())
+        }
     }
 
     fn install_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
@@ -188,5 +200,37 @@ impl PythonEnvironmentManager for DisabledPackageManager {
         _requirements_path: String,
     ) -> Result<(), PluginEnvironmentError> {
         Err(PluginEnvironmentError::PackageInstallationDisabled)
+    }
+}
+
+/// A test-only package manager that always succeeds without doing anything.
+/// This is used for tests that need to validate plugin filenames and create triggers
+/// but don't actually need Python or package management functionality.
+#[cfg(test)]
+#[derive(Debug, Clone, Copy)]
+pub struct TestManager;
+
+#[cfg(test)]
+impl PythonEnvironmentManager for TestManager {
+    fn init_pyenv(
+        &self,
+        _plugin_dir: Option<&Path>,
+        _virtual_env_location: Option<&PathBuf>,
+    ) -> Result<(), PluginEnvironmentError> {
+        // Always succeed for tests
+        Ok(())
+    }
+
+    fn install_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+        // Always succeed for tests
+        Ok(())
+    }
+
+    fn install_requirements(
+        &self,
+        _requirements_path: String,
+    ) -> Result<(), PluginEnvironmentError> {
+        // Always succeed for tests
+        Ok(())
     }
 }
