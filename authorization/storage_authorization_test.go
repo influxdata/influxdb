@@ -750,12 +750,14 @@ func TestHashedTokenMigration_WithMigrationStore(t *testing.T) {
 
 	// Verify that calling HashedTokenMigration with nil returns an error because
 	// the underlying kv store is read-only.
-	err = readOnlyStore.HashedTokenMigration(ctx, nil)
-	require.ErrorIs(t, err, errReadOnly, "HashedTokenMigration with nil should fail on read-only kv store")
+	migratorReadOnly := readOnlyStore.NewTokenMigrator()
+	err = migratorReadOnly.MigrateTokens(ctx)
+	require.ErrorIs(t, err, errReadOnly, "hashed token migration should fail on read-only kv store")
 
 	// Now call HashedTokenMigration with the writeable kvStore as the migration store.
 	// This should migrate the tokens even though the store's underlying kv store is read-only.
-	err = readOnlyStore.HashedTokenMigration(ctx, kvStore)
+	migratorWritable := readOnlyStore.NewTokenMigrator(authorization.WithMigratorStore(kvStore))
+	err = migratorWritable.MigrateTokens(ctx)
 	require.NoError(t, err)
 
 	// Verify tokens are now hashed.

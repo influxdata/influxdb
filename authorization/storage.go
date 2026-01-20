@@ -116,15 +116,13 @@ const MaxIDGenerationN = 100
 const ReservedIDs = 1000
 
 var (
-	ErrReadOnly = goerrors.New("authorization store is read-only")
-)
-
-var (
 	authBucketName      = []byte("authorizationsv1")
 	authIndexName       = []byte("authorizationindexv1")
 	hashedAuthIndexName = []byte("authorizationhashedindexv1")
 )
 
+type HashMigrator interface {
+}
 type Store struct {
 	kvStore kv.Store
 	IDGen   platform.IDGenerator
@@ -135,9 +133,6 @@ type Store struct {
 
 	// Logger
 	log *zap.Logger
-
-	// Indicates if Store is read-only.
-	readOnly bool
 
 	// ignoreMissingHashIndex indicates if missing hash indices in store should be ignored.
 	// This is almost exclusively for testing.
@@ -174,12 +169,6 @@ func WithIgnoreMissingHashIndex(allowMissing bool) StoreOption {
 func WithLogger(log *zap.Logger) StoreOption {
 	return func(s *storePlusOptions) {
 		s.log = log
-	}
-}
-
-func WithReadOnly(readOnly bool) StoreOption {
-	return func(s *storePlusOptions) {
-		s.readOnly = readOnly
 	}
 }
 
@@ -244,7 +233,7 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 	// because it requires configuration, and the migration service is more concerned with schema
 	// and does not have configuration.
 	if !s.skipTokenMigration {
-		if err := s.HashedTokenMigration(ctx, nil); err != nil {
+		if err := s.migrateTokens(ctx); err != nil {
 			return nil, fmt.Errorf("error during hashed token migration: %w", err)
 		}
 	}
@@ -314,27 +303,52 @@ func (s *Store) autogenerateHasher(ctx context.Context, foundVariants []influxdb
 	return hasher, nil
 }
 
-type MigrationStore interface {
-	View(ctx context.Context, fn func(kv.Tx) error) error
-	Update(ctx context.Context, fn func(kv.Tx) error) error
+// TokenMigrator allows exposing migrateTokens publicly so that token migration and token migration only
+// can be performed with different parameters than the authorization Store used for other operations.
+type TokenMigrator struct {
+	store *Store
 }
 
-// HashedTokenMigration migrates any unhashed tokens in the store to hashed tokens. The
-// ms parameter can be used to pass a writeable KV store for token migration even
-// if s.kvStore is read-only. This functionality would normally be used together with
-// WithSkipTokenMigration(true) to NewStore.
-func (s *Store) HashedTokenMigration(ctx context.Context, ms MigrationStore) error {
-	if ms == nil {
-		ms = s
+type TokenMigratorOption func(*Store)
+
+// WithMigratorStore specifies an alternate kvStore to use for token migration. This is useful for
+// specifying a writeable kv.Store for migration when a Store's normal kv.Store may be in read-only mode.
+func WithMigratorStore(kvStore kv.Store) TokenMigratorOption {
+	return func(s *Store) {
+		s.kvStore = kvStore
+	}
+}
+
+// NewTokenMigrator creates a TokenMigrator based on s and any opts passed.
+func (s *Store) NewTokenMigrator(opts ...TokenMigratorOption) *TokenMigrator {
+	storeCopy := &Store{}
+	*storeCopy = *s // shallow copy is sufficient
+
+	for _, o := range opts {
+		o(storeCopy)
 	}
 
-	if !s.useHashedTokens || s.readOnly {
+	return &TokenMigrator{
+		store: storeCopy,
+	}
+}
+
+// MigrateTokens migrates any unhashed tokens in the store to hashed tokens, if token
+// hashing is enabled.
+func (m *TokenMigrator) MigrateTokens(ctx context.Context) error {
+	return m.store.migrateTokens(ctx)
+}
+
+// migrateTokens migrates any unhashed tokens in the store to hashed tokens, if token
+// hashing is enabled.
+func (s *Store) migrateTokens(ctx context.Context) error {
+	if !s.useHashedTokens {
 		return nil
 	}
 
 	// Figure out which authorization records need to be updated.
 	var authsNeedingUpdate []*influxdb.Authorization
-	err := ms.View(ctx, func(tx kv.Tx) error {
+	err := s.View(ctx, func(tx kv.Tx) error {
 		return s.forEachAuthorization(ctx, tx, nil, func(a *influxdb.Authorization) bool {
 			if a.IsHashedTokenClear() {
 				if a.IsTokenSet() {
@@ -351,7 +365,7 @@ func (s *Store) HashedTokenMigration(ctx context.Context, ms MigrationStore) err
 	}
 
 	for batch := range slices.Chunk(authsNeedingUpdate, 100) {
-		err := ms.Update(ctx, func(tx kv.Tx) error {
+		err := s.Update(ctx, func(tx kv.Tx) error {
 			// Now update them. This really seems too simple, but s.UpdateAuthorization() is magical.
 			for _, a := range batch {
 				if _, err := s.UpdateAuthorization(ctx, tx, a.ID, a); err != nil {
@@ -376,9 +390,6 @@ func (s *Store) View(ctx context.Context, fn func(kv.Tx) error) error {
 
 // Update opens up a transaction that will mutate data.
 func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
-	if s.readOnly {
-		return ErrReadOnly
-	}
 	return s.kvStore.Update(ctx, fn)
 }
 
@@ -392,7 +403,7 @@ func (s *Store) setup(ctx context.Context) error {
 		}
 		if _, err := hashedAuthIndexBucket(tx); err != nil {
 			if goerrors.Is(err, kv.ErrBucketNotFound) {
-				if !s.ignoreMissingHashIndex || (s.useHashedTokens && !s.readOnly) {
+				if !s.ignoreMissingHashIndex {
 					return fmt.Errorf("missing required index, upgrade required: %w", err)
 				}
 			} else {
