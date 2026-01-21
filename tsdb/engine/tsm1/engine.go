@@ -1623,6 +1623,9 @@ func (e *Engine) deleteSeriesRange(ctx context.Context, seriesKeys [][]byte, min
 	// would delete it from the index.
 	minKey := seriesKeys[0]
 
+	// Ensure seriesKeys slice is correctly read and written concurrently in the Apply func.
+	var seriesKeysLock sync.RWMutex
+
 	// Apply runs this func concurrently.  The seriesKeys slice is mutated concurrently
 	// by different goroutines setting positions to nil.
 	if err := e.FileStore.Apply(ctx, func(r TSMFile) error {
@@ -1639,18 +1642,28 @@ func (e *Engine) deleteSeriesRange(ctx context.Context, seriesKeys [][]byte, min
 			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
 
 			// Skip over any deleted keys that are less than our tsm key
-			cmp := bytes.Compare(seriesKeys[j], seriesKey)
-			for j < len(seriesKeys) && cmp < 0 {
-				j++
-				if j >= len(seriesKeys) {
-					return nil
+			cmp, cont := func() (int, bool) {
+				seriesKeysLock.RLock()
+				defer seriesKeysLock.RUnlock()
+				cmp := bytes.Compare(seriesKeys[j], seriesKey)
+				for j < len(seriesKeys) && cmp < 0 {
+					j++
+					if j >= len(seriesKeys) {
+						return 0, false // don't continue processing seriesKeys.
+					}
+					cmp = bytes.Compare(seriesKeys[j], seriesKey)
 				}
-				cmp = bytes.Compare(seriesKeys[j], seriesKey)
+				return cmp, true // continue processing seriesKeys.
+			}()
+			if !cont {
+				return nil
 			}
 
 			// We've found a matching key, cross it out so we do not remove it from the index.
 			if j < len(seriesKeys) && cmp == 0 {
+				seriesKeysLock.Lock()
 				seriesKeys[j] = emptyBytes
+				seriesKeysLock.Unlock()
 				j++
 			}
 		}
