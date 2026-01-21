@@ -275,17 +275,16 @@ func TestStore_BadShardClear(t *testing.T) {
 			s := MustOpenStore(t, idx)
 			defer s.CloseStore(t, idx)
 
-			sh := tsdb.NewTempShard(t, idx)
-			shId := sh.ID()
-			err := s.ReopenShard(t.Context(), sh.ID(), false)
-			require.NoError(t, err, "opening temp shard")
-			defer tsdb.CloseShard(t, sh)
+			const shId uint64 = 1
+			require.NoError(t, s.CreateShard(t.Context(), "db0", "rp0", shId, true))
+			require.NoError(t, s.ReopenShard(t.Context(), shId, false))
 
 			expErr := errors.New(errStr)
-			s.SetShardOpenErrorForTest(sh.ID(), expErr)
-			err2 := s.ReopenShard(t.Context(), sh.ID(), false)
+			s.SetShardOpenErrorForTest(shId, expErr)
+			err2 := s.ReopenShard(t.Context(), shId, false)
 			require.Error(t, err2, "no error opening bad shard")
-			require.ErrorIs(t, err2, tsdb.ErrPreviousShardFail{})
+			var previousShardFail *tsdb.ErrPreviousShardFail
+			require.True(t, errors.As(err2, &previousShardFail), "expected ErrPreviousShardFail")
 			require.EqualError(t, err2, fmt.Errorf("not attempting to open shard %d; opening shard previously failed with: %w", shId, expErr).Error())
 
 			require.Len(t, s.Store.GetBadShardList(), 1)
@@ -296,10 +295,10 @@ func TestStore_BadShardClear(t *testing.T) {
 			// Check that bad shard list has been cleared
 			require.Empty(t, s.Store.GetBadShardList())
 
-			s.SetShardOpenErrorForTest(sh.ID(), expErr)
-			err2 = s.ReopenShard(t.Context(), sh.ID(), false)
+			s.SetShardOpenErrorForTest(shId, expErr)
+			err2 = s.ReopenShard(t.Context(), shId, false)
 			require.Error(t, err2, "no error opening bad shard")
-			require.ErrorIs(t, err2, tsdb.ErrPreviousShardFail{})
+			require.True(t, errors.As(err2, &previousShardFail), "expected ErrPreviousShardFail")
 			require.EqualError(t, err2, fmt.Errorf("not attempting to open shard %d; opening shard previously failed with: %w", shId, expErr).Error())
 
 			// Check that bad shard list now has a bad shard in it
@@ -315,10 +314,9 @@ func TestStore_BadShardClearNoBadShards(t *testing.T) {
 			s := MustOpenStore(t, idx)
 			defer s.CloseStore(t, idx)
 
-			sh := tsdb.NewTempShard(t, idx)
-			err := s.ReopenShard(t.Context(), sh.ID(), false)
-			require.NoError(t, err, "opening temp shard")
-			require.NoError(t, sh.Close(), "closing temporary shard")
+			const shId uint64 = 1
+			require.NoError(t, s.CreateShard(t.Context(), "db0", "rp0", shId, true))
+			require.NoError(t, s.ReopenShard(t.Context(), shId, false), "opening shard")
 
 			require.Empty(t, s.Store.GetBadShardList())
 
