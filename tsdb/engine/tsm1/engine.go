@@ -1661,7 +1661,9 @@ func (e *Engine) deleteSeriesRange(ctx context.Context, seriesKeys [][]byte, min
 
 			// We've found a matching key, cross it out so we do not remove it from the index.
 			if j < len(seriesKeys) && cmp == 0 {
+				seriesKeysLock.Lock()
 				seriesKeys[j] = emptyBytes
+				seriesKeysLock.Unlock()
 				j++
 			}
 		}
