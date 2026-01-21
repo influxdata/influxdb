@@ -417,7 +417,7 @@ dependencies = [
 [[package]]
 name = "arrow_util"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "ahash",
  "arrow",
@@ -511,7 +511,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 [[package]]
 name = "authz"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "async-trait",
  "backoff",
@@ -622,7 +622,7 @@ dependencies = [
 [[package]]
 name = "backoff"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "rand 0.9.2",
  "snafu",
@@ -1126,7 +1126,7 @@ checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
 [[package]]
 name = "client_util"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "http 1.4.0",
  "iox_http_util",
@@ -1673,7 +1673,7 @@ dependencies = [
 [[package]]
 name = "data_types"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -2362,7 +2362,7 @@ dependencies = [
 [[package]]
 name = "datafusion_util"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "async-trait",
  "datafusion",
@@ -2538,7 +2538,7 @@ dependencies = [
 [[package]]
 name = "error_reporting"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "workspace-hack",
 ]
@@ -2568,7 +2568,7 @@ dependencies = [
 [[package]]
 name = "executor"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "futures",
  "metric",
@@ -2651,7 +2651,7 @@ dependencies = [
 [[package]]
 name = "flightsql"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2826,7 +2826,7 @@ dependencies = [
 [[package]]
 name = "generated_types"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "pbjson 0.9.0",
  "pbjson-build 0.9.0",
@@ -3445,7 +3445,7 @@ dependencies = [
 [[package]]
 name = "influxdb-line-protocol"
 version = "1.0.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "bytes",
  "log",
@@ -4195,7 +4195,7 @@ dependencies = [
 [[package]]
 name = "influxdb_influxql_parser"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -4210,7 +4210,7 @@ dependencies = [
 [[package]]
 name = "influxdb_iox_client"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -4275,7 +4275,7 @@ checksum = "06432fb54d3be7964ecd3649233cddf80db2832f47fec34c01f65b3d9d774983"
 [[package]]
 name = "iox_http"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "async-trait",
  "authz",
@@ -4293,7 +4293,7 @@ dependencies = [
 [[package]]
 name = "iox_http_util"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "futures",
  "http 1.4.0",
@@ -4306,7 +4306,7 @@ dependencies = [
 [[package]]
 name = "iox_query"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -4350,7 +4350,7 @@ dependencies = [
 [[package]]
 name = "iox_query_influxql"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -4376,7 +4376,7 @@ dependencies = [
 [[package]]
 name = "iox_query_influxql_rewrite"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "influxdb_influxql_parser",
  "thiserror 2.0.17",
@@ -4394,7 +4394,7 @@ dependencies = [
 [[package]]
 name = "iox_query_params"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "datafusion",
@@ -4409,7 +4409,7 @@ dependencies = [
 [[package]]
 name = "iox_query_udf"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "datafusion-udf-wasm-host",
  "datafusion-udf-wasm-query",
@@ -4421,7 +4421,7 @@ dependencies = [
 [[package]]
 name = "iox_system_tables"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "async-trait",
@@ -4433,7 +4433,7 @@ dependencies = [
 [[package]]
 name = "iox_time"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -4444,7 +4444,7 @@ dependencies = [
 [[package]]
 name = "iox_v1_query_api"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4553,7 +4553,7 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 [[package]]
 name = "jemalloc_stats"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "snafu",
  "tikv-jemalloc-ctl",
@@ -4705,7 +4705,7 @@ dependencies = [
 [[package]]
 name = "linear_buffer"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "workspace-hack",
 ]
@@ -4747,7 +4747,7 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 [[package]]
 name = "logfmt"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "humantime",
  "tracing",
@@ -4855,7 +4855,7 @@ dependencies = [
 [[package]]
 name = "meta_data_cache"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "data_types",
@@ -4871,7 +4871,7 @@ dependencies = [
 [[package]]
 name = "metric"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "parking_lot",
  "workspace-hack",
@@ -4880,7 +4880,7 @@ dependencies = [
 [[package]]
 name = "metric_exporters"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "metric",
  "prometheus",
@@ -5234,7 +5234,7 @@ dependencies = [
 [[package]]
 name = "object_store_mem_cache"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "async-trait",
  "bincode",
@@ -5260,7 +5260,7 @@ dependencies = [
 [[package]]
 name = "object_store_metrics"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "async-trait",
  "bloom2",
@@ -5279,7 +5279,7 @@ dependencies = [
 [[package]]
 name = "object_store_mock"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5292,7 +5292,7 @@ dependencies = [
 [[package]]
 name = "object_store_size_hinting"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "http 1.4.0",
  "object_store",
@@ -5315,7 +5315,7 @@ dependencies = [
 [[package]]
 name = "observability_deps"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "tracing",
  "workspace-hack",
@@ -5372,7 +5372,7 @@ checksum = "9c6901729fa79e91a0913333229e9ca5dc725089d1c363b2f4b4760709dc4a52"
 [[package]]
 name = "panic_logging"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "metric",
  "tracing",
@@ -5448,7 +5448,7 @@ dependencies = [
 [[package]]
 name = "parquet_file"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -5780,7 +5780,7 @@ dependencies = [
 [[package]]
 name = "predicate"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "async-trait",
@@ -6117,7 +6117,7 @@ dependencies = [
 [[package]]
 name = "query_functions"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "chrono",
@@ -6732,7 +6732,7 @@ dependencies = [
 [[package]]
 name = "schema"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "base64 0.22.1",
@@ -6910,7 +6910,7 @@ dependencies = [
 [[package]]
 name = "service_common"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -6924,7 +6924,7 @@ dependencies = [
 [[package]]
 name = "service_grpc_flight"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -7538,7 +7538,7 @@ dependencies = [
 [[package]]
 name = "test_helpers"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "async-trait",
  "dotenvy",
@@ -7821,7 +7821,7 @@ dependencies = [
 [[package]]
 name = "tokio_metrics_bridge"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "metric",
  "parking_lot",
@@ -7832,7 +7832,7 @@ dependencies = [
 [[package]]
 name = "tokio_watchdog"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "metric",
  "tokio",
@@ -8030,7 +8030,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 [[package]]
 name = "tower_trailer"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "futures",
  "http 1.4.0",
@@ -8044,7 +8044,7 @@ dependencies = [
 [[package]]
 name = "trace"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -8056,7 +8056,7 @@ dependencies = [
 [[package]]
 name = "trace_exporters"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "async-trait",
  "clap",
@@ -8074,7 +8074,7 @@ dependencies = [
 [[package]]
 name = "trace_http"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "bytes",
  "futures",
@@ -8171,7 +8171,7 @@ dependencies = [
 [[package]]
 name = "tracker"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "futures",
  "hashbrown 0.14.5",
@@ -8191,7 +8191,7 @@ dependencies = [
 [[package]]
 name = "trogging"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "clap",
  "logfmt",
@@ -9376,7 +9376,7 @@ dependencies = [
 [[package]]
 name = "workspace-hack"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=5b9d26c0671a658347565565c9869868163841bd#5b9d26c0671a658347565565c9869868163841bd"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=bee02c2e7ce89825e2d176b1407649283f45ec3a#bee02c2e7ce89825e2d176b1407649283f45ec3a"
 dependencies = [
  "ahash",
  "anyhow",
