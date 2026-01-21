@@ -55,10 +55,6 @@ const (
 	// it is 100 times the default amount of points we use per block
 	AggressiveMaxPointsPerBlock = DefaultMaxPointsPerBlock * 100
 
-	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
-	// This limit only applies to the "inmem" index.
-	DefaultMaxSeriesPerDatabase = 1000000
-
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
 	DefaultMaxValuesPerTag = 100000
 
