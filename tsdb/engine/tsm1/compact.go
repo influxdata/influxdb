@@ -213,11 +213,6 @@ func (t *tsmGeneration) level() int {
 	return 4
 }
 
-// count returns the number of files in the generation.
-func (t *tsmGeneration) count() int {
-	return len(t.files)
-}
-
 // hasTombstones returns true if there are keys removed for any of the files.
 func (t *tsmGeneration) hasTombstones() bool {
 	for _, f := range t.files {
