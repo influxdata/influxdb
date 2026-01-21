@@ -6419,7 +6419,7 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 	client := s.MustNewAdminClient()
 
 	// Create additional buckets for different retention policies
-	bucketRP1 := influxdb.Bucket{
+	bucketDB0RP1 := influxdb.Bucket{
 		OrgID: s.DefaultOrgID,
 		Name:  "db0/rp1",
 	}
@@ -6436,7 +6436,7 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 		Name:  "db2/rp3",
 	}
 
-	require.NoError(t, client.CreateBucket(ctx, &bucketRP1))
+	require.NoError(t, client.CreateBucket(ctx, &bucketDB0RP1))
 	require.NoError(t, client.CreateBucket(ctx, &bucketDB1RP1))
 	require.NoError(t, client.CreateBucket(ctx, &bucketDB2RP2))
 	require.NoError(t, client.CreateBucket(ctx, &bucketDB2RP3))
@@ -6447,7 +6447,7 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 		RetentionPolicy: "rp1",
 		Default:         false,
 		OrganizationID:  s.DefaultOrgID,
-		BucketID:        bucketRP1.ID,
+		BucketID:        bucketDB0RP1.ID,
 	}))
 
 	// Create DBRP mappings for db1
@@ -6477,17 +6477,18 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 	}))
 
 	// Set up test with default rp0 for db0
+	// NewTest creates the default bucket db0/rp0 which becomes the default RP for db0
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		// Writes to db0/rp0 (default bucket)
+		// Writes to db0/rp0 (default bucket created by NewTest)
 		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
 		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-02T00:00:00Z").UnixNano())},
 		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
 
 		// Writes to db0/rp1
-		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
-		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-04T00:00:00Z").UnixNano())},
-		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-05T00:00:00Z").UnixNano())},
+		&Write{bucketID: bucketDB0RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
+		&Write{bucketID: bucketDB0RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-04T00:00:00Z").UnixNano())},
+		&Write{bucketID: bucketDB0RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-05T00:00:00Z").UnixNano())},
 
 		// Writes to db1/rp1
 		&Write{bucketID: bucketDB1RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-03-01T00:00:00Z").UnixNano())},
@@ -6504,42 +6505,51 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 	}
 
 	test.addQueries([]*Query{
+		// Verify initial state: db0/rp0 has cpu series with 3 points at 2000-01-01, 2000-01-02, 2000-01-03
 		{
-			name:    "Show series is present in retention policy 0",
+			name:    "Show series present in retention policy 0",
 			command: `SHOW SERIES`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
 		},
+		// Verify initial state: db0/rp1 has cpu series with 3 points at 2000-01-03, 2000-01-04, 2000-01-05
 		{
-			name:    "Show series is present in retention policy 1",
+			name:    "Show series present in retention policy 1",
 			command: `SHOW SERIES`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp1"}},
 		},
+		// Delete 2 of 3 points from db0/rp1 (points before 2000-01-05), leaving 1 point at 2000-01-05
 		{
 			name:    "Delete series in retention policy only across shards",
 			command: `DELETE FROM rp1.cpu WHERE time < '2000-01-05T00:00:00Z'`,
 			exp:     `{}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		// Verify db1/rp1 was NOT affected by the delete on db0/rp1 (still has 1 point at 2000-03-01)
 		{
-			name:    "Series is not deleted from db1",
+			name:    "Series not deleted from db1",
 			command: `SELECT * FROM cpu`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-03-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
 			params:  url.Values{"db": []string{"db1"}, "rp": []string{"rp1"}},
 		},
+		// Verify db0/rp0 was NOT affected by the delete on db0/rp1 (still has series)
 		{
-			name:    "Show series is present in database",
+			name:    "Show series present in database",
 			command: `SHOW SERIES`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
 		},
+		// Delete 2 of 3 points from db0/rp0 (points before 2000-01-03), leaving 1 point at 2000-01-03.
+		// This intentionally leaves data so subsequent tests can verify the series still exists
+		// and that only the expected point remains.
 		{
 			name:    "Delete series from default rp",
 			command: `DELETE FROM cpu WHERE time < '2000-01-03T00:00:00Z'`,
 			exp:     `{}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		// Verify series still exists after partial delete (1 point remains)
 		{
 			name:    "Show series still exists",
 			command: `SHOW SERIES`,
@@ -6617,7 +6627,7 @@ func TestServer_Query_DeleteOutsideDefaultRP(t *testing.T) {
 	test.Run(ctx, t, s)
 }
 
-// Test deletion of series scoped to a specific retention policy outside of the default
+// Test DROP MEASUREMENT removes data from all retention policies within a database
 func TestServer_Query_DropOutsideDefaultRP(t *testing.T) {
 	s := OpenServer(t)
 	defer s.Close()
@@ -6626,7 +6636,7 @@ func TestServer_Query_DropOutsideDefaultRP(t *testing.T) {
 	client := s.MustNewAdminClient()
 
 	// Create additional buckets for different retention policies
-	bucketRP1 := influxdb.Bucket{
+	bucketDB0RP1 := influxdb.Bucket{
 		OrgID: s.DefaultOrgID,
 		Name:  "db0/rp1",
 	}
@@ -6635,7 +6645,7 @@ func TestServer_Query_DropOutsideDefaultRP(t *testing.T) {
 		Name:  "db1/rp1",
 	}
 
-	require.NoError(t, client.CreateBucket(ctx, &bucketRP1))
+	require.NoError(t, client.CreateBucket(ctx, &bucketDB0RP1))
 	require.NoError(t, client.CreateBucket(ctx, &bucketDB1RP1))
 
 	// Create DBRP mappings for db0
@@ -6644,7 +6654,7 @@ func TestServer_Query_DropOutsideDefaultRP(t *testing.T) {
 		RetentionPolicy: "rp1",
 		Default:         false,
 		OrganizationID:  s.DefaultOrgID,
-		BucketID:        bucketRP1.ID,
+		BucketID:        bucketDB0RP1.ID,
 	}))
 
 	// Create DBRP mappings for db1
@@ -6657,31 +6667,34 @@ func TestServer_Query_DropOutsideDefaultRP(t *testing.T) {
 	}))
 
 	// Set up test with default rp0 for db0
+	// NewTest creates the default bucket db0/rp0 which becomes the default RP for db0
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
-		// Writes to db0/rp0 (default bucket)
+		// Writes to db0/rp0 (default bucket created by NewTest)
 		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
 		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-02T00:00:00Z").UnixNano())},
 		&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
 
 		// Writes to db0/rp1
-		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
-		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-04T00:00:00Z").UnixNano())},
-		&Write{bucketID: bucketRP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-05T00:00:00Z").UnixNano())},
+		&Write{bucketID: bucketDB0RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
+		&Write{bucketID: bucketDB0RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-04T00:00:00Z").UnixNano())},
+		&Write{bucketID: bucketDB0RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-05T00:00:00Z").UnixNano())},
 
 		// Writes to db1/rp1
 		&Write{bucketID: bucketDB1RP1.ID, data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-03-01T00:00:00Z").UnixNano())},
 	}
 
 	test.addQueries([]*Query{
+		// Verify initial state: db0/rp0 has cpu series
 		{
-			name:    "Show series is present in retention policy 0",
+			name:    "Show series present in retention policy 0",
 			command: `SHOW SERIES`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
 		},
+		// Verify initial state: db0/rp1 has cpu series
 		{
-			name:    "Show series is present in retention policy 1",
+			name:    "Show series present in retention policy 1",
 			command: `SHOW SERIES`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp1"}},
