@@ -1651,12 +1651,10 @@ func (p *purger) purge(fileNames []string) {
 			logEndOp()
 		}()
 
-		// The loop condition is checked while holding the lock. The lock is released
-		// at the start of the body and reacquired by the post-statement before the
-		// next condition check. When the loop exits, we still hold the lock.
-		for p.mu.Lock(); p.files.Len() > 0; p.mu.Lock() {
-			p.mu.Unlock()
-
+		// hasFiles() acquires the lock to check files.Len() and, if empty,
+		// sets running = false before returning. This ensures no race between
+		// add() checking running and the goroutine exiting.
+		for p.hasFiles() {
 			p.files.Range(func(k string, v TSMFile) bool {
 				// In order to ensure that there are no races with this (file held externally calls Ref
 				// after we check InUse), we need to maintain the invariant that every handle to a file
@@ -1683,11 +1681,18 @@ func (p *purger) purge(fileNames []string) {
 
 			time.Sleep(time.Second)
 		}
-		// We hold the lock here, so no new files can be added between the
-		// Len() == 0 check and setting running = false.
-		p.running = false
-		p.mu.Unlock()
 	}()
+}
+
+func (p *purger) hasFiles() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.files.Len() == 0 {
+		p.running = false
+		return false
+	}
+	return true
 }
 
 type tsmReaders []TSMFile
