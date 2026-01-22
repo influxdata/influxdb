@@ -2,9 +2,53 @@
 
 ## Minor Releases
 
-- Create a new branch for the minor release version. So, if releasing `3.5.0`, create the `3.5`
-  branch. This can be done manually in Github from the [branches][gh-branches] page, or from the
-  command line:
+### Release Candidates Process
+
+- If this is the first release candidate for a minor version, create a new branch for the minor
+  release version. So, if releasing `3.5.0-0.rc.1`, create the `3.5` branch. This can be done
+  manually in Github from the [branches][gh-branches] page, or from the command line:
+  ```sh
+  git checkout main   # new minor release branch should be off of main
+  git pull            # make sure `main` is up-to-date
+  git checkout -b 3.5 # create the new branch
+  git push            # push the new branch up to the remote
+  ```
+  For subsequent release candidates (e.g., `3.5.0-0.rc.2`), skip this step as the branch already
+  exists.
+
+  [gh-branches]: https://github.com/influxdata/influxdb/branches
+
+- Create a new branch that will be used to update the version in `Cargo.toml`:
+  ```sh
+  git checkout -b chore/3.5/three-five-zero-rc1
+  ```
+
+- Update the `version` in `Cargo.toml` by removing the `-nightly` and adding the RC suffix, to
+  change it from `3.5.0-nightly` to `3.5.0-0.rc.1`.
+
+- Commit those changes, push, and open a PR from `chore/3.5/three-five-zero-rc1` into `3.5`
+
+- Once that PR is merged into the `3.5` branch on the remote, jump back to the `3.5` branch locally
+  to `git pull` and tag/push to trigger the release commit:
+  ```
+  git tag -a 'v3.5.0-0.rc.1' -m '3.5.0-0.rc.1 release'
+  git push origin v3.5.0-0.rc.1
+  ```
+  For more about proper tag naming conventions, see [Commit Tagging](#commit-tagging).
+
+- This should run the full build and publish the packages. Once the build is finished, you can run a
+  quick test with `curl` (replacing `3.5.0-0.rc.1` with your tag name without the leading `v`):
+  ```
+  curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.5.0-0.rc.1_linux_amd64.tar.gz
+  ```
+
+- _Note: release candidates do not require updates to `install_influxdb.sh`, Docker image
+  repository, or `apt`/`yum` repositories._
+
+### Official Release Process
+
+- The minor version branch (e.g., `3.5`) should already exist from the release candidate process.
+  If not, create it now:
   ```sh
   git checkout main   # new minor release branch should be off of main
   git pull            # make sure `main` is up-to-date
@@ -12,17 +56,15 @@
   git push            # push the new branch up to the remote
   ```
 
-  [gh-branches]: https://github.com/influxdata/influxdb/branches
-
 - Create a new branch that will be used to update the version in `Cargo.toml`:
   ```sh
-  git checkout -b chore/3.5/three-one-zero
+  git checkout -b chore/3.5/three-five-zero
   ```
 
-- Update the `version` in `Cargo.toml` by removing the `-nightly`, to change it from `3.5.0-nightly`
-  to `3.5.0`.
+- Update the `version` in `Cargo.toml` by removing the `-nightly` (or RC suffix if coming from a
+  release candidate), to change it to `3.5.0`.
 
-- Commit those changes, push, and open a PR from `chore/3.5/three-one-zero` into `3.5`
+- Commit those changes, push, and open a PR from `chore/3.5/three-five-zero` into `3.5`
 
 - Once that PR is merged into the `3.5` branch on the remote, jump back to the `3.5` branch locally
   to `git pull` and tag/push to trigger the release commit:
@@ -30,8 +72,7 @@
   git tag -a 'v3.5.0' -m '3.5.0 release'
   git push origin v3.5.0
   ```
-  If doing a _release candidate_, or to find more about proper tag naming conventions, see
-  [Commit Tagging](#commit-tagging).
+  For more about proper tag naming conventions, see [Commit Tagging](#commit-tagging).
 
 - This should run the full build and publish the packages. Once the build is finished, you can run a
   quick test with `curl` (replacing `3.5.0` with your tag name without the leading `v`):
@@ -39,9 +80,7 @@
   curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.5.0_linux_amd64.tar.gz
   ```
 
-- When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_VERSION` (if
-  doing a release candidate, then ignore this step; we don't want the default installed version to
-  be the release candidate, but the latest official release).
+- When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_VERSION`.
 
 - Once the above is complete, the official Docker image repository needs to be updated. See
   [Official Docker Image Repository](#official-docker-image-repository) for the steps required to
