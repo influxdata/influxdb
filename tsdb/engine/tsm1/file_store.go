@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/pkg/data/gensyncmap"
 	"io"
 	"math"
 	"os"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/data/gensyncmap"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
