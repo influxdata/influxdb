@@ -314,7 +314,6 @@ func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 		copyFiles:     runtime.GOOS == "windows",
 		readerOptions: append([]TsmReaderOption{WithParseFileNameFunc(DefaultParseFileName)}, options...),
 	}
-	fs.purger.fileStore = fs
 	return fs
 }
 
@@ -1598,10 +1597,9 @@ func (c *KeyCursor) nextDescending() {
 }
 
 type purger struct {
-	fileStore *FileStore
-	files     gensyncmap.Map[string, TSMFile]
-	mu        sync.Mutex
-	running   bool
+	files   gensyncmap.Map[string, TSMFile]
+	mu      sync.Mutex
+	running bool
 
 	logger *zap.Logger
 }
