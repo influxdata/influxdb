@@ -108,20 +108,20 @@ fn to_record_batch(
             description_arr.append_null();
         }
 
-        if token.created_by.is_some() {
-            created_by_arr.append_value(token.created_by.unwrap().get());
+        if let Some(created_by) = token.created_by {
+            created_by_arr.append_value(created_by.get());
         } else {
             created_by_arr.append_null();
         }
 
-        if token.updated_at.is_some() {
-            updated_at_arr.append_value(token.updated_at.unwrap());
+        if let Some(updated_at) = token.updated_at {
+            updated_at_arr.append_value(updated_at);
         } else {
             updated_at_arr.append_null();
         }
 
-        if token.updated_by.is_some() {
-            updated_by_arr.append_value(token.updated_by.unwrap().get());
+        if let Some(updated_by) = token.updated_by {
+            updated_by_arr.append_value(updated_by.get());
         } else {
             updated_by_arr.append_null();
         }

@@ -1144,8 +1144,10 @@ impl ExpiringCache {
 
     fn insert(&mut self, key: String, mut entry: CacheEntry) {
         // this is for test call caches, which should expire.
-        if self.default_ttl.is_some() && entry.expires_at.is_none() {
-            entry.expires_at = Some(self.time_provider.now() + self.default_ttl.unwrap());
+        if let Some(default_ttl) = self.default_ttl
+            && entry.expires_at.is_none()
+        {
+            entry.expires_at = Some(self.time_provider.now() + default_ttl);
         }
         // if key has a ttl, record its expiration.
         let expiration = entry.expires_at;

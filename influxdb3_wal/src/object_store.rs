@@ -910,8 +910,10 @@ impl WalBuffer {
 
         // We are writing a noop so that wal buffer which is empty can still trigger a forced
         // snapshot and write that noop and snapshot details to a wal file
-        if ops.is_empty() && forced_snapshot && self.no_op.is_some() {
-            let time = self.no_op.unwrap();
+        if ops.is_empty()
+            && forced_snapshot
+            && let Some(time) = self.no_op
+        {
             ops.push(WalOp::Noop(NoopDetails { timestamp_ns: time }));
             // when we leave behind wals, these noops need min/max time as snapshot tracker falls
             // over without them when adding wal period by default
