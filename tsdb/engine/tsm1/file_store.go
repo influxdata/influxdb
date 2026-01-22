@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/pkg/data/gensyncmap"
 	"io"
 	"math"
 	"os"
@@ -305,8 +306,8 @@ func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 		openLimiter:  limiter.NewFixed(runtime.GOMAXPROCS(0)),
 		stats:        &FileStoreStatistics{},
 		purger: &purger{
-			files:  map[string]TSMFile{},
 			logger: logger,
+			files:  gensyncmap.Map[string, TSMFile]{},
 		},
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
@@ -1597,84 +1598,95 @@ func (c *KeyCursor) nextDescending() {
 }
 
 type purger struct {
-	mu        sync.RWMutex
 	fileStore *FileStore
-	files     map[string]TSMFile
+	files     gensyncmap.Map[string, TSMFile]
+	mu        sync.Mutex
 	running   bool
 
 	logger *zap.Logger
 }
 
 func (p *purger) add(files []TSMFile) {
-	var fileNames []string
-
 	if len(files) == 0 {
 		return
 	}
+
 	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var fileNames []string
 	for _, f := range files {
 		fileName := f.Path()
 		fileNames = append(fileNames, fileName)
-		p.files[fileName] = f
+		p.files.Store(fileName, f)
 	}
-	p.mu.Unlock()
+
 	p.purge(fileNames)
 }
 
+// purge starts a goroutine to purge files from disk if one isn't already running.
+// Must be called with p.mu held.
 func (p *purger) purge(fileNames []string) {
 	logger, logEndOp := logger.NewOperation(p.logger, "Purge held files", "filestore_purger")
 
 	logger.Info("added", zap.Int("count", len(fileNames)))
 	logger.Debug("purging", zap.Strings("files", fileNames))
-	p.mu.Lock()
+
 	if p.running {
-		p.mu.Unlock()
 		logger.Info("already running, files added to previous operation")
 		logEndOp()
 		return
 	}
+
 	p.running = true
-	p.mu.Unlock()
 
 	go func() {
 		var purgeCount int
+		var failCount int
 		defer func() {
 			logger.Info("removed", zap.Int("files", purgeCount))
+			if failCount > 0 {
+				logger.Warn("failed to remove", zap.Int("files", failCount))
+			}
 			logEndOp()
 		}()
-		for {
-			p.mu.Lock()
-			for k, v := range p.files {
+
+		// The loop condition is checked while holding the lock. The lock is released
+		// at the start of the body and reacquired by the post-statement before the
+		// next condition check. When the loop exits, we still hold the lock.
+		for p.mu.Lock(); p.files.Len() > 0; p.mu.Lock() {
+			p.mu.Unlock()
+
+			p.files.Range(func(k string, v TSMFile) bool {
 				// In order to ensure that there are no races with this (file held externally calls Ref
 				// after we check InUse), we need to maintain the invariant that every handle to a file
 				// is handed out in use (Ref'd), and handlers only ever relinquish the file once (call Unref
-				// exactly once, and never use it again). InUse is only valid during a write lock, since
-				// we allow calls to Ref and Unref under the read lock and no lock at all respectively.
+				// exactly once, and never use it again).
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
 						logger.Error("close file failed", zap.String("file", k), zap.Error(err))
-						continue
-					}
-
-					if err := v.Remove(); err != nil {
+						failCount++
+					} else if err := v.Remove(); err != nil {
 						logger.Error("remove file failed", zap.String("file", k), zap.Error(err))
-						continue
+						failCount++
+					} else {
+						logger.Debug("successfully removed", zap.String("file", k))
+						purgeCount++
 					}
-					logger.Debug("successfully removed", zap.String("file", k))
-					delete(p.files, k)
-					purgeCount++
+					// Remove the file regardless of success or failure.
+					// Do not retry files which could not be closed or removed.
+					p.files.Delete(k)
 				}
-			}
+				// InUse files are left to be tried later.
+				return true
+			})
 
-			if len(p.files) == 0 {
-				p.running = false
-				p.mu.Unlock()
-				return
-			}
-
-			p.mu.Unlock()
 			time.Sleep(time.Second)
 		}
+		// We hold the lock here, so no new files can be added between the
+		// Len() == 0 check and setting running = false.
+		p.running = false
+		p.mu.Unlock()
 	}()
 }
 
