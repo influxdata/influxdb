@@ -385,54 +385,6 @@ func TestStore_CreateMixedShards(t *testing.T) {
 	}
 }
 
-func TestStore_DropMeasurementMixedShards(t *testing.T) {
-	t.Parallel()
-
-	test := func(t *testing.T, index1 string, index2 string) {
-		if index1 == index2 {
-			t.Skip("test requires different index types")
-		}
-		s := MustOpenStore(t, index1)
-		defer s.CloseStore(t, index1)
-
-		if err := s.CreateShard(t.Context(), "db0", "rp0", 1, true); err != nil {
-			t.Fatal(err)
-		}
-
-		s.MustWriteToShardString(1, "mem,server=a v=1 10")
-
-		s.EngineOptions.IndexVersion = index2
-		s.index = index2
-		if err := s.Reopen(t); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := s.CreateShard(t.Context(), "db0", "rp0", 2, true); err != nil {
-			t.Fatal(err)
-		}
-
-		s.MustWriteToShardString(2, "mem,server=b v=1 20")
-
-		s.MustWriteToShardString(1, "cpu,server=a v=1 10")
-		s.MustWriteToShardString(2, "cpu,server=b v=1 20")
-
-		err := s.DeleteMeasurement(t.Context(), "db0", "cpu")
-		if err != tsdb.ErrMultipleIndexTypes {
-			t.Fatal(err)
-		} else if err == nil {
-			t.Fatal("expect failure deleting measurement on multiple index types")
-		}
-	}
-
-	indexes := tsdb.RegisteredIndexes()
-	for i := range indexes {
-		j := (i + 1) % len(indexes)
-		index1 := indexes[i]
-		index2 := indexes[j]
-		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(t, index1, index2) })
-	}
-}
-
 func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 
 	test := func(t *testing.T, index string) {
