@@ -54,7 +54,7 @@ const SeriesFileDirectory = "_series"
 // databaseState keeps track of the state of a database.
 type databaseState struct{ indexTypes map[string]int }
 
-// struct to hold the result of opening each readegr in a goroutine
+// struct to hold the result of opening each reader in a goroutine
 type shardResponse struct {
 	s   *Shard
 	err error
