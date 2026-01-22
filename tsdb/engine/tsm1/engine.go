@@ -2075,8 +2075,9 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			e.stats.Queued.With(prometheus.Labels{levelKey: levelFull}).Set(float64(len4))
 
 			// If no full compactions are need, see if an optimize is needed
+			var genLen int64
 			if len(level4Groups) == 0 {
-				level4Groups, len4 = e.CompactionPlan.PlanOptimize()
+				level4Groups, len4, genLen = e.CompactionPlan.PlanOptimize()
 				e.stats.Queued.With(prometheus.Labels{levelKey: levelOpt}).Set(float64(len4))
 			}
 
@@ -2111,6 +2112,17 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
+					// This is a heuristic. 100_000 points per block is suitable for when we have a
+					// single generation with multiple files at max block size under 2 GB.
+					if genLen == 1 {
+						// Log TSM files that will have an increased points per block count.
+						for _, f := range level4Groups[0] {
+							e.logger.Info("TSM optimized compaction on single generation running, increasing total points per block to 100_000.", zap.String("path", f))
+						}
+						e.Compactor.Size = tsdb.AggressiveMaxPointsPerBlock
+					} else {
+						e.Compactor.Size = tsdb.DefaultMaxPointsPerBlock
+					}
 					if e.compactFull(level4Groups[0], wg) {
 						level4Groups = level4Groups[1:]
 					}
