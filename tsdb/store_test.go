@@ -388,7 +388,10 @@ func TestStore_CreateMixedShards(t *testing.T) {
 func TestStore_DropMeasurementMixedShards(t *testing.T) {
 	t.Parallel()
 
-	test := func(index1 string, index2 string) {
+	test := func(t *testing.T, index1 string, index2 string) {
+		if index1 == index2 {
+			t.Skip("test requires different index types")
+		}
 		s := MustOpenStore(t, index1)
 		defer s.CloseStore(t, index1)
 
@@ -426,7 +429,7 @@ func TestStore_DropMeasurementMixedShards(t *testing.T) {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]
-		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(index1, index2) })
+		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(t, index1, index2) })
 	}
 }
 
