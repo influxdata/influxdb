@@ -665,21 +665,20 @@ func TestNewStore_WithSkipTokenMigration(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// swithcableKVStore wraps an inmem.KVStore than can have writing disabled or
+// switchableKVStore wraps an inmem.KVStore than can have writing disabled or
 // enabled. Writing is disabled by default.
-type swithcableKVStore struct {
+type switchableKVStore struct {
 	*inmem.KVStore
 	writeEnabled bool
 }
 
 var errReadOnly = errors.New("read-only kv store")
 
-func (s *swithcableKVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
+func (s *switchableKVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
 	if s.writeEnabled {
 		return s.KVStore.Update(ctx, fn)
-	} else {
-		return errReadOnly
 	}
+	return errReadOnly
 }
 
 func TestHashedTokenMigration_MigrateTokensOnDemand(t *testing.T) {
@@ -730,7 +729,7 @@ func TestHashedTokenMigration_MigrateTokensOnDemand(t *testing.T) {
 	}
 
 	// Create a switchable KV wrapper around the kv store. Start out in read-only mode.
-	switchableKVStore := &swithcableKVStore{KVStore: baseKVStore, writeEnabled: false}
+	switchableKVStore := &switchableKVStore{KVStore: baseKVStore, writeEnabled: false}
 
 	// Try creating an authorization store with roKVStore but without skipping migration.
 	// Ensure that a readonly error is returned.
