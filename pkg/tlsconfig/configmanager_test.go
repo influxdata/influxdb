@@ -6,14 +6,20 @@ import (
 	"net"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
 	"github.com/stretchr/testify/require"
 )
 
-func TestTLSConfigManager_ConsistentInstances(t *testing.T) {
+func TestTLSConfigManager_ConsistentClonedConfigs(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 
-	manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+	// Create an initial baseConfig for manager.
+	baseTLSConfig := ss.ClientTLSConfig(t, false, false)
+	require.NotNil(t, baseTLSConfig.RootCAs, "ClientTLSConfig should have set RootCAs")
+
+	manager, err := NewTLSConfigManager(true, baseTLSConfig, ss.CertPath, ss.KeyPath, false)
 	require.NoError(t, err)
 	require.NotNil(t, manager)
 	defer func() {
@@ -24,9 +30,24 @@ func TestTLSConfigManager_ConsistentInstances(t *testing.T) {
 	tlsConfig := manager.TLSConfig()
 	require.NotNil(t, tlsConfig)
 
-	// Subsequent calls should return the same instance
+	// The manager's TLS config and baseTLSConfig should not be the same and and should not be shared,
+	// but we should be able to set that the config was cloned from baseTLSConfig by looking at RootCAs.
+	require.NotSame(t, tlsConfig, baseTLSConfig)
+	require.NotEqual(t, tlsConfig, baseTLSConfig)
+	require.NotNil(t, tlsConfig.RootCAs)
+	require.Equal(t, baseTLSConfig.RootCAs, tlsConfig.RootCAs)
+
+	// Subsequent calls should return different instances that are equal.
 	tlsConfig2 := manager.TLSConfig()
-	require.Same(t, tlsConfig, tlsConfig2)
+	require.NotSame(t, tlsConfig, tlsConfig2)
+	// We can't compare the function pointers directly, just that they are non-nil.
+	require.NotNil(t, tlsConfig.GetCertificate)
+	require.NotNil(t, tlsConfig2.GetCertificate)
+	require.NotNil(t, tlsConfig.GetClientCertificate)
+	require.NotNil(t, tlsConfig2.GetClientCertificate)
+	require.Empty(t, cmp.Diff(tlsConfig, tlsConfig2,
+		cmpopts.IgnoreUnexported(*tlsConfig),
+		cmpopts.IgnoreFields(*tlsConfig, "GetCertificate", "GetClientCertificate")))
 
 	// TLSCertLoader should also be available
 	certLoader := manager.TLSCertLoader()
