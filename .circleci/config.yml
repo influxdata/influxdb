@@ -29,7 +29,7 @@ executors:
       image: ubuntu-2204:current
       resource_class: arm.large
   darwin:
-    resource_class: macos.m1.medium.gen1
+    resource_class: m4pro.medium
     macos:
       xcode: 15.0.0
     shell: /bin/bash -eo pipefail
