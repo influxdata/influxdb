@@ -894,6 +894,7 @@ mod tests {
             Arc::clone(&object_store),
             "test_host",
             Arc::clone(&time_provider) as _,
+            None,
         ));
         let exec = make_exec(Arc::clone(&object_store));
         let node_id = Arc::from("sample-host-id");

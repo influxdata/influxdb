@@ -241,6 +241,7 @@ impl TestService {
             Arc::clone(&object_store) as _,
             node_id,
             Arc::clone(&time_provider) as _,
+            None,
         ));
         let write_buffer: Arc<dyn WriteBuffer> = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),

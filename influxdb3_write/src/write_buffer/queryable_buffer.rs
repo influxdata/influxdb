@@ -698,6 +698,7 @@ mod tests {
             Arc::clone(&object_store),
             "hosta",
             time_provider,
+            None,
         ));
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -904,6 +905,7 @@ mod tests {
             Arc::clone(&object_store),
             "hosta",
             Arc::clone(&time_provider) as _,
+            None,
         ));
 
         let queryable_buffer_args = QueryableBufferArgs {

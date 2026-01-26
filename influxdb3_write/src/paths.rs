@@ -1,3 +1,4 @@
+use crate::YearMonth;
 use chrono::prelude::*;
 use influxdb3_id::{DbId, TableId, TableIndexId};
 use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -29,6 +30,9 @@ pub const PARQUET_FILE_EXTENSION: &str = "parquet";
 
 /// File extension for snapshot info files
 pub const SNAPSHOT_INFO_FILE_EXTENSION: &str = "info.json";
+
+/// File extension for checkpoint files
+pub const CHECKPOINT_FILE_EXTENSION: &str = "checkpoint.json";
 
 fn object_store_file_stem(n: u64) -> u64 {
     u64::MAX - n
@@ -405,6 +409,117 @@ impl TryFrom<ObjPath> for SnapshotInfoFilePath {
         {
             return Err(PathError::InvalidSequenceNumber {
                 context: "snapshot".to_string(),
+                filename: filename.to_string(),
+            });
+        }
+
+        Ok(Self(path))
+    }
+}
+
+/// Path for snapshot checkpoints, organized by year-month.
+/// Pattern: `{node_id}/snapshot-checkpoints/{year-month}/{inverted_seq:020}.checkpoint.json`
+///
+/// Checkpoints are organized by month to enable efficient loading of only the latest
+/// checkpoint per month during server startup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SnapshotCheckpointPath(ObjPath);
+
+static SNAPSHOT_CHECKPOINT_PATH_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^.*/snapshot-checkpoints/(\d{4}-\d{2})/(\d{20})\.checkpoint\.json$")
+        .expect("regex must be valid")
+});
+
+impl SnapshotCheckpointPath {
+    /// Create a new checkpoint path for the given host, year-month, and snapshot sequence number.
+    ///
+    /// The checkpoint filename embeds the `last_snapshot_sequence_number` from the checkpoint,
+    /// enabling efficient filtering by sequence during startup without loading checkpoint content.
+    pub fn new(
+        host_prefix: &str,
+        year_month: &YearMonth,
+        snapshot_sequence_number: SnapshotSequenceNumber,
+    ) -> Self {
+        let path = ObjPath::from(format!(
+            "{host_prefix}/snapshot-checkpoints/{year_month}/{:020}.{ext}",
+            object_store_file_stem(snapshot_sequence_number.as_u64()),
+            ext = CHECKPOINT_FILE_EXTENSION
+        ));
+        Self(path)
+    }
+
+    /// Get the directory path for all checkpoints for a host
+    pub fn dir(host_prefix: &str) -> ObjPath {
+        ObjPath::from(format!("{host_prefix}/snapshot-checkpoints"))
+    }
+
+    /// Get the directory path for checkpoints of a specific month
+    pub fn month_dir(host_prefix: &str, year_month: &YearMonth) -> ObjPath {
+        ObjPath::from(format!("{host_prefix}/snapshot-checkpoints/{year_month}/"))
+    }
+
+    /// Parse the year-month from a checkpoint path
+    pub fn parse_year_month(path: &str) -> Option<YearMonth> {
+        let re = SNAPSHOT_CHECKPOINT_PATH_REGEX.clone();
+        re.captures(path)
+            .and_then(|caps| caps.get(1).map(|m| m.as_str()))
+            .and_then(|s| s.parse().ok())
+    }
+
+    /// Parse the snapshot sequence number from a checkpoint filename.
+    ///
+    /// The checkpoint filename contains the `last_snapshot_sequence_number` that was
+    /// included in the checkpoint, encoded via `object_store_file_stem` (inverted for sorting).
+    pub fn parse_sequence_number(filename: &str) -> Option<SnapshotSequenceNumber> {
+        // Extract the filename from the path if it's a full path
+        let filename = filename.split('/').next_back().unwrap_or(filename);
+        filename
+            .strip_suffix(".checkpoint.json")
+            .and_then(|seq_str| seq_str.parse::<u64>().ok())
+            .map(|inverted| u64::MAX - inverted)
+            .map(SnapshotSequenceNumber::new)
+    }
+
+    pub fn from_path(path: ObjPath) -> Result<Self, PathError> {
+        Self::try_from(path)
+    }
+}
+
+impl Deref for SnapshotCheckpointPath {
+    type Target = ObjPath;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<ObjPath> for SnapshotCheckpointPath {
+    fn as_ref(&self) -> &ObjPath {
+        &self.0
+    }
+}
+
+impl TryFrom<ObjPath> for SnapshotCheckpointPath {
+    type Error = PathError;
+
+    fn try_from(path: ObjPath) -> Result<Self, Self::Error> {
+        let re = SNAPSHOT_CHECKPOINT_PATH_REGEX.clone();
+        let path_str = path.as_ref();
+
+        if !re.is_match(path_str) {
+            return Err(PathError::InvalidFormat {
+                expected: "*/snapshot-checkpoints/<YYYY-MM>/<20-digits>.checkpoint.json"
+                    .to_string(),
+                actual: path_str.to_string(),
+            });
+        }
+
+        // Additional validation: ensure we can parse the sequence number
+        if let Some(filename) = path_str.split('/').next_back()
+            && SnapshotCheckpointPath::parse_sequence_number(filename).is_none()
+        {
+            return Err(PathError::InvalidSequenceNumber {
+                context: "snapshot checkpoint".to_string(),
                 filename: filename.to_string(),
             });
         }
@@ -810,6 +925,104 @@ mod test {
         use std::mem::discriminant;
 
         let result = TableIndexPath::from_path(ObjPath::from(path));
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        assert_eq!(
+            discriminant(&err),
+            discriminant(&expected_error),
+            "Expected error type {expected_error:?}, got {err:?}",
+        );
+    }
+
+    #[test]
+    fn snapshot_checkpoint_path_new() {
+        let jan_2025 = YearMonth::new_unchecked(2025, 1);
+        assert_eq!(
+            *SnapshotCheckpointPath::new("my_host", &jan_2025, SnapshotSequenceNumber::new(0)),
+            ObjPath::from(
+                "my_host/snapshot-checkpoints/2025-01/18446744073709551615.checkpoint.json"
+            )
+        );
+    }
+
+    #[test]
+    fn snapshot_checkpoint_path_parse_year_month() {
+        assert_eq!(
+            SnapshotCheckpointPath::parse_year_month(
+                "my_host/snapshot-checkpoints/2025-01/18446744073709551615.checkpoint.json"
+            ),
+            Some(YearMonth::new_unchecked(2025, 1))
+        );
+        assert_eq!(
+            SnapshotCheckpointPath::parse_year_month(
+                "my_host/snapshot-checkpoints/2024-12/00000000000000000000.checkpoint.json"
+            ),
+            Some(YearMonth::new_unchecked(2024, 12))
+        );
+        assert_eq!(
+            SnapshotCheckpointPath::parse_year_month("invalid/path"),
+            None
+        );
+    }
+
+    #[test]
+    fn snapshot_checkpoint_path_parse_sequence_number() {
+        // Sequence 0 inverts to u64::MAX
+        assert_eq!(
+            SnapshotCheckpointPath::parse_sequence_number("18446744073709551615.checkpoint.json"),
+            Some(SnapshotSequenceNumber::new(0))
+        );
+        // Round-trip test
+        let seq = SnapshotSequenceNumber::new(42);
+        let jan_2025 = YearMonth::new_unchecked(2025, 1);
+        let path = SnapshotCheckpointPath::new("host", &jan_2025, seq);
+        assert_eq!(
+            SnapshotCheckpointPath::parse_sequence_number(path.as_ref().as_ref()),
+            Some(seq)
+        );
+    }
+
+    #[rstest]
+    #[case::standard_path(
+        "host-prefix/snapshot-checkpoints/2025-01/12345678901234567890.checkpoint.json"
+    )]
+    #[case::nested_prefix(
+        "another/host/prefix/snapshot-checkpoints/2024-12/00000000000000000000.checkpoint.json"
+    )]
+    #[case::max_inverted_value(
+        "simple/snapshot-checkpoints/2025-06/18446744073709551615.checkpoint.json"
+    )]
+    fn test_snapshot_checkpoint_path_valid_paths(#[case] path: &str) {
+        assert!(SnapshotCheckpointPath::from_path(ObjPath::from(path)).is_ok());
+    }
+
+    #[rstest]
+    #[case::invalid_format("invalid/path", PathError::InvalidFormat { expected: String::new(), actual: String::new() })]
+    #[case::wrong_directory(
+        "prefix/wrong-dir/2025-01/12345678901234567890.checkpoint.json",
+        PathError::InvalidFormat { expected: String::new(), actual: String::new() }
+    )]
+    #[case::missing_month(
+        "host-prefix/snapshot-checkpoints/12345678901234567890.checkpoint.json",
+        PathError::InvalidFormat { expected: String::new(), actual: String::new() }
+    )]
+    #[case::invalid_month_format(
+        "host-prefix/snapshot-checkpoints/2025-1/12345678901234567890.checkpoint.json",
+        PathError::InvalidFormat { expected: String::new(), actual: String::new() }
+    )]
+    #[case::wrong_extension(
+        "prefix/snapshot-checkpoints/2025-01/12345678901234567890.json",
+        PathError::InvalidFormat { expected: String::new(), actual: String::new() }
+    )]
+    #[case::too_few_digits(
+        "prefix/snapshot-checkpoints/2025-01/123.checkpoint.json",
+        PathError::InvalidFormat { expected: String::new(), actual: String::new() }
+    )]
+    fn test_snapshot_checkpoint_path_errors(#[case] path: &str, #[case] expected_error: PathError) {
+        use std::mem::discriminant;
+
+        let result = SnapshotCheckpointPath::from_path(ObjPath::from(path));
         assert!(result.is_err());
 
         let err = result.unwrap_err();

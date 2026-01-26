@@ -1,5 +1,6 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
+pub mod checkpoint;
 mod metrics;
 pub mod persisted_files;
 pub mod queryable_buffer;
@@ -11,13 +12,13 @@ pub mod validator;
 
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
-    LastCacheManager, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion, Precision,
-    SnapshotMarker, WriteBuffer, WriteLineError,
+    LastCacheManager, ParquetFile, PersistedSnapshot, PersistedSnapshotCheckpointVersion,
+    PersistedSnapshotVersion, Precision, SnapshotMarker, WriteBuffer, WriteLineError,
     chunk::ParquetChunk,
     persister::{Persister, PersisterError},
     write_buffer::{
-        persisted_files::PersistedFiles, queryable_buffer::QueryableBuffer,
-        validator::WriteValidator,
+        checkpoint::year_month_from_timestamp_ms, persisted_files::PersistedFiles,
+        queryable_buffer::QueryableBuffer, validator::WriteValidator,
     },
 };
 use async_trait::async_trait;
@@ -41,7 +42,7 @@ use influxdb3_catalog::{
 };
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{
-    Wal, WalConfig, WalFileNotifier, WalOp,
+    SnapshotSequenceNumber, Wal, WalConfig, WalFileNotifier, WalOp,
     object_store::{CreateWalObjectStoreArgs, WalObjectStore},
 };
 use iox_query::{
@@ -53,7 +54,7 @@ use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use metrics::WriteMetrics;
 use object_store::{ObjectMeta, ObjectStore, path::Path as ObjPath};
-use observability_deps::tracing::{debug, trace, warn};
+use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::storage::DataSourceExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
@@ -218,31 +219,191 @@ impl WriteBufferImpl {
             .find(|m| m.node_id.as_ref() == node_id)
             .map(|m| m.snapshot_sequence_number);
 
-        // load snapshots and replay the wal into the in memory buffer
-        let persisted_snapshots = persister
-            .load_snapshots(n_snapshots_to_load_on_start, compacted_through)
-            .await?
-            .into_iter()
-            // map the persisted snapshots into the newest version
-            .map(|psv| match psv {
-                PersistedSnapshotVersion::V1(ps) => ps,
-            })
-            .collect::<Vec<PersistedSnapshot>>();
-        let last_wal_sequence_number = persisted_snapshots
-            .first()
-            .map(|s| s.wal_file_sequence_number);
-        let last_snapshot_sequence_number = persisted_snapshots
-            .first()
-            .map(|s| s.snapshot_sequence_number);
-        // If we have any snapshots, set sequential IDs from the newest one.
-        if let Some(first_snapshot) = persisted_snapshots.first() {
-            first_snapshot.next_file_id.set_next_id();
-        }
+        // Calculate sequence cutoff based on n_snapshots_to_load_on_start
+        let sequence_cutoff = if n_snapshots_to_load_on_start > 0 {
+            match persister.get_latest_snapshot_sequence().await {
+                Ok(Some(latest)) => {
+                    let cutoff = latest
+                        .as_u64()
+                        .saturating_sub(n_snapshots_to_load_on_start as u64);
+                    Some(SnapshotSequenceNumber::new(cutoff))
+                }
+                Ok(None) => None, // No snapshots exist yet
+                Err(e) => {
+                    warn!(%e, "Failed to get latest snapshot sequence, loading all checkpoints");
+                    None
+                }
+            }
+        } else {
+            None // n_snapshots_to_load_on_start = 0 means load all
+        };
 
-        let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
-            None,
-            persisted_snapshots,
-        ));
+        // Try to load from checkpoints first for faster startup
+        let checkpoint_paths = match persister
+            .list_latest_checkpoints_per_month(sequence_cutoff)
+            .await
+        {
+            Ok(paths) => paths,
+            Err(e) => {
+                warn!(
+                    %e,
+                    "Failed to list checkpoints, falling back to snapshot loading. \
+                     This may result in slower startup."
+                );
+                Vec::new()
+            }
+        };
+
+        let (persisted_files, last_wal_sequence_number, last_snapshot_sequence_number) =
+            if !checkpoint_paths.is_empty() {
+                // Load checkpoints and any snapshots newer than the checkpoints
+                info!(
+                    checkpoint_count = checkpoint_paths.len(),
+                    "Loading from checkpoints for faster startup"
+                );
+
+                let checkpoints = persister
+                    .load_checkpoints(checkpoint_paths)
+                    .await?
+                    .into_iter()
+                    .map(|cpv| match cpv {
+                        PersistedSnapshotCheckpointVersion::V1(cp) => cp,
+                    })
+                    .collect::<Vec<_>>();
+
+                // Warm the persister's checkpoint cache with the current month's checkpoint
+                // This enables incremental updates during this server session
+                {
+                    let current_month =
+                        year_month_from_timestamp_ms(time_provider.now().timestamp_millis());
+                    if let Some(current_month_checkpoint) =
+                        checkpoints.iter().find(|c| c.year_month == current_month)
+                    {
+                        persister.warm_checkpoint_cache(current_month_checkpoint.clone());
+                    }
+                }
+
+                // Find the max snapshot sequence number across all checkpoints
+                let max_checkpoint_snapshot_seq = checkpoints
+                    .iter()
+                    .map(|c| c.last_snapshot_sequence_number)
+                    .max();
+
+                // Load snapshots newer than the checkpoint
+                let additional_snapshots = if let Some(max_seq) = max_checkpoint_snapshot_seq {
+                    persister
+                        .load_snapshots_after(
+                            max_seq,
+                            n_snapshots_to_load_on_start,
+                            compacted_through,
+                        )
+                        .await?
+                        .into_iter()
+                        .map(|psv| match psv {
+                            PersistedSnapshotVersion::V1(ps) => ps,
+                        })
+                        .collect::<Vec<_>>()
+                } else {
+                    Vec::new()
+                };
+
+                info!(
+                    checkpoints_loaded = checkpoints.len(),
+                    additional_snapshots = additional_snapshots.len(),
+                    "Checkpoint loading complete"
+                );
+
+                // Determine last WAL/snapshot sequence from either additional snapshots or checkpoints
+                let (last_wal_seq, last_snap_seq, next_file_id) =
+                    if let Some(first_snap) = additional_snapshots.first() {
+                        (
+                            Some(first_snap.wal_file_sequence_number),
+                            Some(first_snap.snapshot_sequence_number),
+                            Some(first_snap.next_file_id),
+                        )
+                    } else if let Some(newest_checkpoint) = checkpoints
+                        .iter()
+                        .max_by_key(|c| c.last_snapshot_sequence_number)
+                    {
+                        (
+                            Some(newest_checkpoint.wal_file_sequence_number),
+                            Some(newest_checkpoint.last_snapshot_sequence_number),
+                            newest_checkpoint.next_file_id,
+                        )
+                    } else {
+                        (None, None, None)
+                    };
+
+                // Set the next file ID if available
+                if let Some(file_id) = next_file_id {
+                    file_id.set_next_id();
+                }
+
+                let persisted_files = Arc::new(PersistedFiles::new_from_checkpoints_and_snapshots(
+                    None,
+                    checkpoints,
+                    additional_snapshots,
+                ));
+
+                (persisted_files, last_wal_seq, last_snap_seq)
+            } else {
+                // Fall back to loading snapshots directly
+                debug!("No checkpoints found, loading snapshots directly");
+
+                let persisted_snapshots = persister
+                    .load_snapshots(n_snapshots_to_load_on_start, compacted_through)
+                    .await?
+                    .into_iter()
+                    .map(|psv| match psv {
+                        PersistedSnapshotVersion::V1(ps) => ps,
+                    })
+                    .collect::<Vec<PersistedSnapshot>>();
+
+                // Wrap snapshots in Arc to share between background task and PersistedFiles
+                // without cloning the entire Vec
+                let persisted_snapshots = Arc::new(persisted_snapshots);
+
+                // Build and persist checkpoints from loaded snapshots for faster future startup
+                // This runs in a background task to avoid blocking server startup
+                if !persisted_snapshots.is_empty() {
+                    let current_month =
+                        year_month_from_timestamp_ms(time_provider.now().timestamp_millis());
+                    let persister_clone = Arc::clone(&persister);
+                    let snapshots_for_background = Arc::clone(&persisted_snapshots);
+
+                    tokio::spawn(async move {
+                        if let Some(current_checkpoint) = persister_clone
+                            .build_and_persist_checkpoints_from_snapshots(
+                                &snapshots_for_background,
+                                current_month,
+                            )
+                            .await
+                        {
+                            // Warm cache with current month's checkpoint for incremental updates
+                            persister_clone.warm_checkpoint_cache(current_checkpoint);
+                        }
+                    });
+                }
+
+                let last_wal_seq = persisted_snapshots
+                    .first()
+                    .map(|s| s.wal_file_sequence_number);
+                let last_snap_seq = persisted_snapshots
+                    .first()
+                    .map(|s| s.snapshot_sequence_number);
+
+                // If we have any snapshots, set sequential IDs from the newest one.
+                if let Some(first_snapshot) = persisted_snapshots.first() {
+                    first_snapshot.next_file_id.set_next_id();
+                }
+
+                let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
+                    None,
+                    persisted_snapshots,
+                ));
+
+                (persisted_files, last_wal_seq, last_snap_seq)
+            };
         let queryable_buffer = Arc::new(QueryableBuffer::new(QueryableBufferArgs {
             executor,
             catalog: Arc::clone(&catalog),
@@ -855,6 +1016,7 @@ mod tests {
             catalog.object_store(),
             "test_host",
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
             .await
@@ -1624,6 +1786,9 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
 
+        // Record the starting counter value (may not be 0 if other tests run in parallel)
+        let starting_id = ParquetFileId::next_id().as_u64();
+
         let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
         let mut prev_snapshot = PersistedSnapshot::new(
             "test_host".to_string(),
@@ -1632,7 +1797,8 @@ mod tests {
             CatalogSequenceNumber::new(0),
         );
 
-        assert_eq!(prev_snapshot.next_file_id.as_u64(), 0);
+        // next_file_id should be at least starting_id (PersistedSnapshot::new uses next_id())
+        assert!(prev_snapshot.next_file_id.as_u64() >= starting_id);
 
         for _ in 0..=5 {
             prev_snapshot.add_parquet_file(
@@ -1653,14 +1819,15 @@ mod tests {
         assert_eq!(prev_snapshot.databases.len(), 1);
         let files = prev_snapshot.databases[&DbId::from(0)].tables[&TableId::from(0)].clone();
 
-        // Assert that all of the files are smaller than the next_file_id field
-        // and that their index corresponds to the order they were added in
-        assert_eq!(prev_snapshot.next_file_id.as_u64(), 6);
+        // Assert that next_file_id advanced by 6 (one for each file added)
+        // and that files were assigned sequential IDs
+        let expected_next_id = starting_id + 6;
+        assert_eq!(prev_snapshot.next_file_id.as_u64(), expected_next_id);
         assert_eq!(files.len(), 6);
         for (i, file) in files.iter().enumerate() {
-            assert_ne!(file.id, ParquetFileId::from(6));
-            assert!(file.id.as_u64() < 6);
-            assert_eq!(file.id.as_u64(), i as u64);
+            assert_ne!(file.id, ParquetFileId::from(expected_next_id));
+            assert!(file.id.as_u64() < expected_next_id);
+            assert_eq!(file.id.as_u64(), starting_id + i as u64);
         }
 
         let snapshot_json =
@@ -1689,8 +1856,10 @@ mod tests {
         )
         .await;
 
-        // Test that the next_file_id has been set properly
-        assert_eq!(ParquetFileId::next_id().as_u64(), 6);
+        // Test that the next_file_id has been set properly from the loaded snapshot
+        // The loaded snapshot had next_file_id = expected_next_id, so after set_next_id(),
+        // the global counter should be that value
+        assert_eq!(ParquetFileId::next_id().as_u64(), expected_next_id);
     }
 
     /// This is the reproducer for [#25277][see]
@@ -3520,6 +3689,7 @@ mod tests {
             Arc::clone(&object_store),
             "test_host",
             Arc::clone(&time_provider) as _,
+            None,
         ));
         let catalog = Arc::new(
             Catalog::new(
@@ -3640,6 +3810,348 @@ mod tests {
             offset = Some(paths.last().unwrap().clone())
         }
         paths
+    }
+
+    // =========================================================================
+    // Checkpoint Integration Tests
+    // =========================================================================
+
+    /// Setup write buffer with checkpointing enabled for integration tests.
+    /// Returns the write buffer, context, time provider (for time control),
+    /// and the persister (for checkpoint verification).
+    async fn setup_with_checkpointing(
+        start: Time,
+        object_store: Arc<dyn ObjectStore>,
+        wal_config: WalConfig,
+        checkpoint_interval: Duration,
+    ) -> (
+        Arc<WriteBufferImpl>,
+        IOxSessionContext,
+        Arc<MockProvider>,
+        Arc<Persister>,
+    ) {
+        let time_provider = Arc::new(MockProvider::new(start));
+        let metric_registry = Arc::new(Registry::new());
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+            Some(checkpoint_interval),
+        ));
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider) as _,
+                Default::default(),
+            )
+            .await
+            .unwrap(),
+        );
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
+
+        // Start background catalog update for last cache (critical for snapshot triggers)
+        {
+            use influxdb3_cache::last_cache::background_catalog_update;
+            let subscription = catalog.subscribe_to_updates("last_cache_test").await;
+            background_catalog_update(Arc::clone(&last_cache), subscription);
+        }
+
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&catalog),
+        )
+        .await
+        .unwrap();
+
+        // Start background catalog update for distinct cache
+        {
+            use influxdb3_cache::distinct_cache::background_catalog_update;
+            let subscription = catalog.subscribe_to_updates("distinct_cache_test").await;
+            background_catalog_update(Arc::clone(&distinct_cache), subscription);
+        }
+
+        let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister: Arc::clone(&persister),
+            catalog: Arc::clone(&catalog),
+            last_cache,
+            distinct_cache,
+            time_provider: Arc::clone(&time_provider) as _,
+            executor: make_exec(),
+            wal_config,
+            parquet_cache: None,
+            metric_registry,
+            snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
+            n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
+            shutdown: ShutdownManager::new_testing().register(),
+            wal_replay_concurrency_limit: 1,
+            snapshot_markers: vec![],
+        })
+        .await
+        .unwrap();
+
+        let ctx = IOxSessionContext::with_testing();
+        let runtime_env = ctx.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
+
+        (wbuf, ctx, time_provider, persister)
+    }
+
+    /// Helper to verify checkpoint count in object store
+    async fn verify_checkpoint_exists(persister: &Arc<Persister>) -> bool {
+        let paths = persister
+            .list_latest_checkpoints_per_month(None)
+            .await
+            .unwrap_or_default();
+        !paths.is_empty()
+    }
+
+    /// Helper to delete all snapshot files from object store.
+    /// Used to prove that checkpoint loading works independently of snapshots.
+    async fn delete_all_snapshots(obj_store: &Arc<dyn ObjectStore>, node_prefix: &str) {
+        use futures_util::StreamExt;
+        let snapshot_dir = object_store::path::Path::from(format!("{node_prefix}/snapshots/"));
+        let mut list = obj_store.list(Some(&snapshot_dir));
+        while let Some(meta) = list.next().await {
+            if let Ok(meta) = meta {
+                obj_store.delete(&meta.location).await.ok();
+            }
+        }
+    }
+
+    // Nanoseconds for specific test dates
+    const TEST_JAN_15_2025_NANOS: i64 = 1_736_899_200_000_000_000; // 2025-01-15 00:00:00 UTC
+
+    #[test_log::test(tokio::test)]
+    async fn test_checkpoint_persist_on_interval() {
+        // Test that checkpoints are persisted when checkpoint interval is enabled
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        // Create write buffer with 1 second checkpoint interval
+        let (wbuf, _, _time_provider, persister) = setup_with_checkpointing(
+            Time::from_timestamp_nanos(TEST_JAN_15_2025_NANOS),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+                ..Default::default()
+            },
+            Duration::from_secs(1), // 1 second checkpoint interval
+        )
+        .await;
+
+        let db_name = "test_db";
+
+        // Write data to trigger snapshot
+        do_writes(
+            db_name,
+            wbuf.as_ref(),
+            &[
+                TestWrite {
+                    lp: "cpu,tag=a value=1.0".to_string(),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: "cpu,tag=b value=2.0".to_string(),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: "cpu,tag=c value=3.0".to_string(),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // Wait for snapshot to be created
+        verify_snapshot_count(1, &persister).await;
+
+        // Small delay to let async checkpoint persist complete
+        // (first persist with interval enabled will create a checkpoint)
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Checkpoint should exist when checkpointing is enabled
+        assert!(
+            verify_checkpoint_exists(&persister).await,
+            "Checkpoint should exist after snapshot persisted with checkpointing enabled"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_checkpoint_startup_loads_checkpoints() {
+        // Test that startup with checkpoints loads data correctly
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        // Phase 1: Create data and checkpoint
+        let (wbuf, ctx, _time_provider, persister) = setup_with_checkpointing(
+            Time::from_timestamp_nanos(TEST_JAN_15_2025_NANOS),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        )
+        .await;
+
+        let db_name = "test_db";
+        let tbl_name = "cpu";
+
+        // Write initial data to trigger snapshot
+        do_writes(
+            db_name,
+            wbuf.as_ref(),
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},tag=a value=1.0"),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},tag=b value=2.0"),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},tag=c value=3.0"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        verify_snapshot_count(1, &persister).await;
+
+        // Wait for checkpoint to be created
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            verify_checkpoint_exists(&persister).await,
+            "Checkpoint should be created"
+        );
+
+        // Verify data is queryable
+        let batches = wbuf
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx)
+            .await;
+        assert!(!batches.is_empty(), "Should have data before restart");
+
+        // Phase 2: Delete all snapshots to prove checkpoint loading works
+        drop(wbuf);
+        delete_all_snapshots(&obj_store, "test_host").await;
+
+        // Verify snapshots are actually gone
+        assert_eq!(
+            persister.load_snapshots(1000, None).await.unwrap().len(),
+            0,
+            "All snapshots should be deleted"
+        );
+
+        // Restart - data can ONLY come from checkpoints now
+        let (wbuf2, ctx2, _, _) = setup_with_checkpointing(
+            Time::from_timestamp_nanos(TEST_JAN_15_2025_NANOS + 10_000_000_000),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        )
+        .await;
+
+        // Verify data loaded from checkpoint (snapshots are deleted, so this MUST come from checkpoint)
+        let batches = wbuf2
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx2)
+            .await;
+        assert!(
+            !batches.is_empty(),
+            "Data must have loaded from checkpoints (snapshots were deleted)"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_checkpoint_fallback_to_snapshots() {
+        // Test that startup without checkpoints falls back to snapshot loading
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        // Phase 1: Create data with checkpointing DISABLED
+        let (wbuf, _, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+                ..Default::default()
+            },
+        )
+        .await;
+
+        let db_name = "test_db";
+        let tbl_name = "cpu";
+
+        do_writes(
+            db_name,
+            wbuf.as_ref(),
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},tag=a value=1.0"),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},tag=b value=2.0"),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},tag=c value=3.0"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // Verify NO checkpoints exist
+        assert!(
+            !verify_checkpoint_exists(&wbuf.persister).await,
+            "Should have no checkpoints (checkpointing disabled)"
+        );
+
+        // Phase 2: Restart with checkpointing ENABLED - should fallback to snapshots
+        drop(wbuf);
+
+        let (wbuf2, ctx2, _, _) = setup_with_checkpointing(
+            Time::from_timestamp_nanos(100_000_000_000),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        )
+        .await;
+
+        // Verify data loaded from snapshots (fallback path)
+        let batches = wbuf2
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx2)
+            .await;
+        assert!(
+            !batches.is_empty(),
+            "Should have data from snapshot fallback"
+        );
     }
 
     fn make_exec() -> Arc<Executor> {

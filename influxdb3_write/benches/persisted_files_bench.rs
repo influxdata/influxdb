@@ -4,6 +4,7 @@
 //! - File count: 10, 100, 1000
 
 use std::hint::black_box;
+use std::sync::Arc;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
@@ -59,11 +60,7 @@ fn create_snapshot_with_files(
         let db_tables = databases.entry(db_id).or_insert_with(|| DatabaseTables {
             tables: SerdeVecMap::new(),
         });
-        db_tables
-            .tables
-            .entry(table_id)
-            .or_insert_with(Vec::new)
-            .push(file);
+        db_tables.tables.entry(table_id).or_default().push(file);
     }
 
     // Distribute removed files across dbs/tables
@@ -74,11 +71,7 @@ fn create_snapshot_with_files(
         let db_tables = removed.entry(db_id).or_insert_with(|| DatabaseTables {
             tables: SerdeVecMap::new(),
         });
-        db_tables
-            .tables
-            .entry(table_id)
-            .or_insert_with(Vec::new)
-            .push(file);
+        db_tables.tables.entry(table_id).or_default().push(file);
     }
 
     PersistedSnapshot {
@@ -93,6 +86,7 @@ fn create_snapshot_with_files(
         max_time: 0,
         databases,
         removed_files: removed,
+        persisted_at: None,
     }
 }
 
@@ -133,9 +127,11 @@ fn create_persisted_files(file_count: usize) -> (PersistedFiles, DbId, TableId) 
         max_time,
         databases,
         removed_files: SerdeVecMap::new(),
+        persisted_at: None,
     };
 
-    let persisted_files = PersistedFiles::new_from_persisted_snapshots(None, vec![snapshot]);
+    let persisted_files =
+        PersistedFiles::new_from_persisted_snapshots(None, Arc::new(vec![snapshot]));
 
     (persisted_files, db_id, table_id)
 }
@@ -178,7 +174,7 @@ fn bench_add_files(c: &mut Criterion) {
                     || {
                         // Setup: create empty PersistedFiles and a snapshot with files to add
                         let persisted_files =
-                            PersistedFiles::new_from_persisted_snapshots(None, vec![]);
+                            PersistedFiles::new_from_persisted_snapshots(None, Arc::new(vec![]));
                         let parquet_files: Vec<ParquetFile> = (0..file_count)
                             .map(|i| create_parquet_file(i, "add"))
                             .collect();
@@ -221,7 +217,7 @@ fn bench_add_files_existing(c: &mut Criterion) {
                         let initial_snapshot = create_snapshot_with_files(existing_files, vec![]);
                         let persisted_files = PersistedFiles::new_from_persisted_snapshots(
                             None,
-                            vec![initial_snapshot],
+                            Arc::new(vec![initial_snapshot]),
                         );
 
                         // New files to add (use offset to avoid overlap)
@@ -269,7 +265,7 @@ fn bench_remove_files(c: &mut Criterion) {
                             create_snapshot_with_files(files_to_remove.clone(), vec![]);
                         let persisted_files = PersistedFiles::new_from_persisted_snapshots(
                             None,
-                            vec![initial_snapshot],
+                            Arc::new(vec![initial_snapshot]),
                         );
                         // Create snapshot with removed_files populated (not databases)
                         let removal_snapshot =

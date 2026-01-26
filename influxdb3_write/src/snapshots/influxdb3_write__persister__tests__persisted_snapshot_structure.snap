@@ -6,7 +6,7 @@ snapshot_kind: text
 {
   "version": "1",
   "node_id": "host",
-  "next_file_id": 8,
+  "next_file_id": "[next_file_id]",
   "snapshot_sequence_number": 0,
   "wal_file_sequence_number": 0,
   "catalog_sequence_number": 0,
@@ -23,7 +23,7 @@ snapshot_kind: text
             0,
             [
               {
-                "id": 0,
+                "id": "[id]",
                 "path": "1.parquet",
                 "size_bytes": 1024,
                 "row_count": 1,
@@ -32,7 +32,7 @@ snapshot_kind: text
                 "max_time": 1
               },
               {
-                "id": 1,
+                "id": "[id]",
                 "path": "2.parquet",
                 "size_bytes": 1024,
                 "row_count": 1,
@@ -46,7 +46,7 @@ snapshot_kind: text
             1,
             [
               {
-                "id": 2,
+                "id": "[id]",
                 "path": "3.parquet",
                 "size_bytes": 1024,
                 "row_count": 1,
@@ -55,7 +55,7 @@ snapshot_kind: text
                 "max_time": 1
               },
               {
-                "id": 3,
+                "id": "[id]",
                 "path": "4.parquet",
                 "size_bytes": 1024,
                 "row_count": 1,
@@ -76,7 +76,7 @@ snapshot_kind: text
             0,
             [
               {
-                "id": 4,
+                "id": "[id]",
                 "path": "5.parquet",
                 "size_bytes": 1024,
                 "row_count": 1,
@@ -85,7 +85,7 @@ snapshot_kind: text
                 "max_time": 1
               },
               {
-                "id": 5,
+                "id": "[id]",
                 "path": "6.parquet",
                 "size_bytes": 1024,
                 "row_count": 1,
@@ -99,7 +99,7 @@ snapshot_kind: text
             1,
             [
               {
-                "id": 6,
+                "id": "[id]",
                 "path": "7.parquet",
                 "size_bytes": 1024,
                 "row_count": 1,
@@ -108,7 +108,7 @@ snapshot_kind: text
                 "max_time": 1
               },
               {
-                "id": 7,
+                "id": "[id]",
                 "path": "8.parquet",
                 "size_bytes": 1024,
                 "row_count": 1,

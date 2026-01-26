@@ -1471,6 +1471,7 @@ mod tests {
             Arc::clone(&object_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let catalog = Arc::new(
             Catalog::new(
@@ -1662,6 +1663,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -1760,6 +1762,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -1926,6 +1929,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -2116,6 +2120,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -2207,6 +2212,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -2297,6 +2303,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -2387,6 +2394,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -2486,6 +2494,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -2624,6 +2633,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
@@ -2725,6 +2735,7 @@ def helper_function():
             Arc::clone(&test_store),
             "test_host".to_string(),
             Arc::clone(&time_provider),
+            None,
         ));
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
             .await
