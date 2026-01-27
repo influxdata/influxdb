@@ -975,7 +975,7 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 
 		manager, err := NewClientTLSConfigManager(true, nil, false,
 			WithRootCAFiles(tmpFile))
-		require.ErrorContains(t, err, "error creating root CA pool: error adding certificates from \""+tmpFile+"\" to CA store:")
+		require.ErrorContains(t, err, "error creating root CA pool: error adding certificates from \""+tmpFile+"\" to CA store: no valid certificates found")
 		require.Nil(t, manager)
 	})
 }
@@ -1215,7 +1215,7 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 
 		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
 			WithClientCAFiles(tmpFile))
-		require.ErrorContains(t, err, "error creating client CA pool: error adding certificates from \""+tmpFile+"\" to CA store:")
+		require.ErrorContains(t, err, "error creating client CA pool: error adding certificates from \""+tmpFile+"\" to CA store: no valid certificates found")
 		require.Nil(t, manager)
 	})
 }

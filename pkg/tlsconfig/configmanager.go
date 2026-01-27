@@ -78,7 +78,7 @@ func (c *caConfig) newCertPool() (*x509.CertPool, error) {
 			return nil, fmt.Errorf("error reading file %q for CA store: %w", fn, err)
 		}
 		if ok := cp.AppendCertsFromPEM(pem); !ok {
-			return nil, fmt.Errorf("error adding certificates from %q to CA store: %w", fn, err)
+			return nil, fmt.Errorf("error adding certificates from %q to CA store: no valid certificates found", fn)
 		}
 	}
 
