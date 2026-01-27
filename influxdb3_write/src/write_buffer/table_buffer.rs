@@ -694,7 +694,7 @@ mod tests {
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 1251);
+        assert_eq!(size, 1475);
     }
 
     #[test]

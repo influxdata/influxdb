@@ -70,12 +70,9 @@ where
                         // Convert service errors to gRPC responses, this maintains
                         // the connection instead of dropping it
                         let status = Status::new(Code::Internal, "Service error");
-                        let response: http::Response<
-                            http_body_util::combinators::BoxBody<bytes::Bytes, Status>,
-                        > = status.into_http();
+                        let response = status.into_http();
                         let (parts, body) = response.into_parts();
-                        let body = BodyExt::map_err(body, |err: Status| -> BoxError { err.into() })
-                            .boxed_unsync();
+                        let body = BodyExt::map_err(body, |err| err.into()).boxed_unsync();
                         return Ok(Response::from_parts(parts, body));
                     }
                 };
