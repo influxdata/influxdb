@@ -95,6 +95,8 @@ pub type Result<T, E = PersisterError> = std::result::Result<T, E>;
 
 pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
 const MAX_CONCURRENT_CHECKPOINT_LOADS: usize = 10;
+/// Number of checkpoints to retain per month when cleaning up (latest + previous for safety)
+const CHECKPOINTS_TO_RETAIN_PER_MONTH: usize = 2;
 
 /// Cached checkpoint with its file index for efficient incremental updates.
 ///
@@ -696,6 +698,10 @@ impl Persister {
             path = %checkpoint_path.as_ref(),
             "persist_checkpoint: completed"
         );
+
+        // Clean up old checkpoints for this month, keeping only the most recent ones
+        self.cleanup_old_checkpoints_for_month(year_month).await;
+
         Ok(())
     }
 
@@ -785,6 +791,74 @@ impl Persister {
         }
 
         current_month_checkpoint
+    }
+
+    /// Cleans up old checkpoints for a given month, keeping only the N most recent.
+    ///
+    /// This is called after successfully persisting a new checkpoint to prevent
+    /// unbounded accumulation of checkpoint files. We keep 2 checkpoints (latest +
+    /// previous) as a safety buffer in case the latest is corrupted.
+    async fn cleanup_old_checkpoints_for_month(&self, year_month: &YearMonth) {
+        let month_dir = SnapshotCheckpointPath::month_dir(&self.node_identifier_prefix, year_month);
+
+        // List all checkpoints for this month
+        let mut checkpoints: Vec<_> = match self
+            .object_store
+            .list(Some(&month_dir))
+            .try_collect::<Vec<_>>()
+            .await
+        {
+            Ok(list) => list,
+            Err(e) => {
+                warn!(
+                    %year_month,
+                    error = %e,
+                    "Failed to list checkpoints for cleanup"
+                );
+                return;
+            }
+        };
+
+        // Sort by path - due to inverted sequence numbers, lexicographic order puts newest first
+        checkpoints.sort_by(|a, b| a.location.cmp(&b.location));
+
+        // Keep the first N (most recent), delete the rest
+        if checkpoints.len() <= CHECKPOINTS_TO_RETAIN_PER_MONTH {
+            return; // Nothing to delete
+        }
+
+        let to_delete = &checkpoints[CHECKPOINTS_TO_RETAIN_PER_MONTH..];
+        let mut deleted_count = 0;
+
+        for meta in to_delete {
+            match self.object_store.delete(&meta.location).await {
+                Ok(_) => {
+                    deleted_count += 1;
+                    debug!(path = %meta.location, "Deleted old checkpoint");
+                }
+                Err(e) => {
+                    // Log but don't fail - deletion is best-effort cleanup
+                    // "Not found" is okay (already deleted or race condition)
+                    let error_str = e.to_string();
+                    if !error_str.contains("not found") && !error_str.contains("No such file") {
+                        warn!(
+                            path = %meta.location,
+                            error = %e,
+                            "Failed to delete old checkpoint"
+                        );
+                    }
+                }
+            }
+        }
+
+        if deleted_count > 0 {
+            debug!(
+                %year_month,
+                deleted = deleted_count,
+                retained = CHECKPOINTS_TO_RETAIN_PER_MONTH,
+                "Cleaned up old checkpoints"
+            );
+        }
     }
 
     /// Loads snapshots newer than a given sequence number.
@@ -1945,5 +2019,238 @@ mod tests {
         let tables = &checkpoint.databases[&db_id].tables;
         assert!(tables.contains_key(&table_id));
         assert_eq!(tables[&table_id].len(), 2); // Both files
+    }
+
+    // =========================================================================
+    // Checkpoint Cleanup Tests
+    // =========================================================================
+
+    /// Helper to count checkpoints for a specific month
+    async fn count_checkpoints_for_month(persister: &Persister, year_month: &YearMonth) -> usize {
+        let month_dir =
+            SnapshotCheckpointPath::month_dir(&persister.node_identifier_prefix, year_month);
+        let list: Vec<_> = persister
+            .object_store
+            .list(Some(&month_dir))
+            .try_collect()
+            .await
+            .unwrap_or_default();
+        list.len()
+    }
+
+    /// Helper to get checkpoint sequence numbers for a month (sorted newest first)
+    async fn get_checkpoint_sequences_for_month(
+        persister: &Persister,
+        year_month: &YearMonth,
+    ) -> Vec<u64> {
+        let month_dir =
+            SnapshotCheckpointPath::month_dir(&persister.node_identifier_prefix, year_month);
+        let mut list: Vec<_> = persister
+            .object_store
+            .list(Some(&month_dir))
+            .try_collect()
+            .await
+            .unwrap_or_default();
+        list.sort_by(|a, b| a.location.cmp(&b.location));
+
+        list.iter()
+            .filter_map(|meta| {
+                SnapshotCheckpointPath::parse_sequence_number(meta.location.as_ref())
+                    .map(|s| s.as_u64())
+            })
+            .collect()
+    }
+
+    /// Test that cleanup keeps exactly 2 checkpoints when more than 2 exist
+    #[tokio::test]
+    async fn test_checkpoint_cleanup_keeps_two_most_recent() {
+        let (persister, _) = create_test_persister(JAN_15_2025_NANOS, None);
+        let jan_2025 = YearMonth::new_unchecked(2025, 1);
+
+        // Create 4 checkpoints for the same month with increasing sequence numbers
+        for seq in [1, 2, 3, 4] {
+            let checkpoint = create_test_checkpoint(jan_2025, seq);
+            // Use put directly to avoid triggering cleanup (to set up test state)
+            let path = SnapshotCheckpointPath::new(
+                "test_host",
+                &jan_2025,
+                SnapshotSequenceNumber::new(seq),
+            );
+            let json =
+                serde_json::to_vec_pretty(&PersistedSnapshotCheckpointVersion::V1(checkpoint))
+                    .unwrap();
+            persister
+                .object_store
+                .put(path.as_ref(), json.into())
+                .await
+                .unwrap();
+        }
+
+        // Verify we have 4 checkpoints before cleanup
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 4);
+
+        // Trigger cleanup
+        persister.cleanup_old_checkpoints_for_month(&jan_2025).await;
+
+        // Should have exactly 2 checkpoints remaining
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
+
+        // Verify the 2 most recent (seq 4 and seq 3) are retained
+        let remaining_seqs = get_checkpoint_sequences_for_month(&persister, &jan_2025).await;
+        assert_eq!(remaining_seqs, vec![4, 3]);
+    }
+
+    /// Test that no deletion occurs when 2 or fewer checkpoints exist
+    #[tokio::test]
+    async fn test_checkpoint_cleanup_no_deletion_when_two_or_fewer() {
+        let (persister, _) = create_test_persister(JAN_15_2025_NANOS, None);
+        let jan_2025 = YearMonth::new_unchecked(2025, 1);
+
+        // Create exactly 2 checkpoints
+        for seq in [1, 2] {
+            let checkpoint = create_test_checkpoint(jan_2025, seq);
+            let path = SnapshotCheckpointPath::new(
+                "test_host",
+                &jan_2025,
+                SnapshotSequenceNumber::new(seq),
+            );
+            let json =
+                serde_json::to_vec_pretty(&PersistedSnapshotCheckpointVersion::V1(checkpoint))
+                    .unwrap();
+            persister
+                .object_store
+                .put(path.as_ref(), json.into())
+                .await
+                .unwrap();
+        }
+
+        // Verify we have 2 checkpoints before cleanup
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
+
+        // Trigger cleanup - should not delete anything
+        persister.cleanup_old_checkpoints_for_month(&jan_2025).await;
+
+        // Should still have 2 checkpoints
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
+
+        // Both should still be there
+        let remaining_seqs = get_checkpoint_sequences_for_month(&persister, &jan_2025).await;
+        assert_eq!(remaining_seqs, vec![2, 1]);
+    }
+
+    /// Test that cleanup handles empty month gracefully
+    #[tokio::test]
+    async fn test_checkpoint_cleanup_handles_empty_month() {
+        let (persister, _) = create_test_persister(JAN_15_2025_NANOS, None);
+        let jan_2025 = YearMonth::new_unchecked(2025, 1);
+
+        // No checkpoints exist - cleanup should not error
+        persister.cleanup_old_checkpoints_for_month(&jan_2025).await;
+
+        // Should still be 0
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 0);
+    }
+
+    /// Test that persist_checkpoint triggers cleanup automatically
+    #[tokio::test]
+    async fn test_persist_checkpoint_triggers_cleanup() {
+        let (persister, _) = create_test_persister(JAN_15_2025_NANOS, None);
+        let jan_2025 = YearMonth::new_unchecked(2025, 1);
+
+        // First, create 2 checkpoints directly (without cleanup)
+        for seq in [1, 2] {
+            let checkpoint = create_test_checkpoint(jan_2025, seq);
+            let path = SnapshotCheckpointPath::new(
+                "test_host",
+                &jan_2025,
+                SnapshotSequenceNumber::new(seq),
+            );
+            let json =
+                serde_json::to_vec_pretty(&PersistedSnapshotCheckpointVersion::V1(checkpoint))
+                    .unwrap();
+            persister
+                .object_store
+                .put(path.as_ref(), json.into())
+                .await
+                .unwrap();
+        }
+
+        // Verify we have 2 checkpoints
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
+
+        // Now persist a 3rd checkpoint via the normal method (which triggers cleanup)
+        let checkpoint = create_test_checkpoint(jan_2025, 3);
+        persister
+            .persist_checkpoint(&PersistedSnapshotCheckpointVersion::V1(checkpoint))
+            .await
+            .unwrap();
+
+        // Cleanup should have run, keeping only 2 checkpoints (seq 3 and seq 2)
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
+
+        // Verify the newest 2 are retained (seq 3 from persist_checkpoint, and seq 2)
+        let remaining_seqs = get_checkpoint_sequences_for_month(&persister, &jan_2025).await;
+        assert_eq!(remaining_seqs, vec![3, 2]);
+    }
+
+    /// Test that cleanup only affects the specified month
+    #[tokio::test]
+    async fn test_checkpoint_cleanup_only_affects_specified_month() {
+        let (persister, _) = create_test_persister(JAN_15_2025_NANOS, None);
+        let jan_2025 = YearMonth::new_unchecked(2025, 1);
+        let feb_2025 = YearMonth::new_unchecked(2025, 2);
+
+        // Create 4 checkpoints in January
+        for seq in [1, 2, 3, 4] {
+            let checkpoint = create_test_checkpoint(jan_2025, seq);
+            let path = SnapshotCheckpointPath::new(
+                "test_host",
+                &jan_2025,
+                SnapshotSequenceNumber::new(seq),
+            );
+            let json =
+                serde_json::to_vec_pretty(&PersistedSnapshotCheckpointVersion::V1(checkpoint))
+                    .unwrap();
+            persister
+                .object_store
+                .put(path.as_ref(), json.into())
+                .await
+                .unwrap();
+        }
+
+        // Create 3 checkpoints in February
+        for seq in [10, 11, 12] {
+            let checkpoint = create_test_checkpoint(feb_2025, seq);
+            let path = SnapshotCheckpointPath::new(
+                "test_host",
+                &feb_2025,
+                SnapshotSequenceNumber::new(seq),
+            );
+            let json =
+                serde_json::to_vec_pretty(&PersistedSnapshotCheckpointVersion::V1(checkpoint))
+                    .unwrap();
+            persister
+                .object_store
+                .put(path.as_ref(), json.into())
+                .await
+                .unwrap();
+        }
+
+        // Verify initial state
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 4);
+        assert_eq!(count_checkpoints_for_month(&persister, &feb_2025).await, 3);
+
+        // Cleanup January only
+        persister.cleanup_old_checkpoints_for_month(&jan_2025).await;
+
+        // January should have 2, February should still have 3
+        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
+        assert_eq!(count_checkpoints_for_month(&persister, &feb_2025).await, 3);
+
+        // Cleanup February
+        persister.cleanup_old_checkpoints_for_month(&feb_2025).await;
+
+        // Now both should have 2
+        assert_eq!(count_checkpoints_for_month(&persister, &feb_2025).await, 2);
     }
 }
