@@ -152,7 +152,7 @@ func WithAllowInsecure(allowInsecure bool) TLSConfigManagerOpt {
 	}
 }
 
-// WithRootIncludeSystem specifies if the system CA should be included in the root CA.
+// WithRootCAIncludeSystem specifies if the system CA should be included in the root CA.
 func WithRootCAIncludeSystem(includeSystem bool) TLSConfigManagerOpt {
 	return func(cp *tlsConfigManagerConfig) {
 		cp.rootCAConfig.setIncludeSystem(includeSystem)
@@ -166,7 +166,7 @@ func WithRootCAFiles(pemFiles ...string) TLSConfigManagerOpt {
 	}
 }
 
-// WithRootIncludeSystem specifies if the system CA should be included in the root CA for client authentication.
+// WithClientCAIncludeSystem specifies if the system CA should be included in the client CA for client authentication.
 func WithClientCAIncludeSystem(includeSystem bool) TLSConfigManagerOpt {
 	return func(cp *tlsConfigManagerConfig) {
 		cp.clientCAConfig.setIncludeSystem(includeSystem)

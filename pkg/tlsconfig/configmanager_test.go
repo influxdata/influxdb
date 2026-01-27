@@ -1088,9 +1088,10 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		serverDone := make(chan error, 1)
 		go simpleEchoServer(serverDone, listener, len(testData))
 
-		// Client config with client certificate. Iignore certificate validity from server, we're testing
+		// Client config with client certificate. Ignore certificate validity from server, we're testing
 		// client certificate functionality here.
 		clientManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, true)
+		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, clientManager.Close())
 		}()
