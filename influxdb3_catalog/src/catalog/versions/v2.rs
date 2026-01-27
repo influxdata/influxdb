@@ -1514,6 +1514,7 @@ impl DatabaseSchema {
             max_columns_per_table: Default::default(),
             partition_template: Default::default(),
             router_version: Default::default(),
+            created_at: None,
         }
     }
 }

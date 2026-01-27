@@ -48,6 +48,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "wal-replay-fail-on-error",
     "wal-replay-concurrency-limit",
     "snapshotted-wal-files-to-keep",
+    "checkpoint-interval",
     // Cache parameters
     "parquet-mem-cache-size",
     "parquet-mem-cache-prune-percentage",

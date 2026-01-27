@@ -7,12 +7,13 @@ use std::sync::Arc;
 use crate::deleter::ObjectDeleter;
 use crate::table_index_cache::TableIndexCache;
 use crate::{ChunkFilter, DatabaseTables};
-use crate::{ParquetFile, PersistedSnapshot};
+use crate::{ParquetFile, PersistedSnapshot, PersistedSnapshotCheckpoint};
 use hashbrown::{HashMap, HashSet};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::TableId;
 use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_telemetry::ParquetMetrics;
+use observability_deps::tracing::{debug, trace, warn};
 use parking_lot::RwLock;
 
 type DatabaseToTables = HashMap<DbId, TableToFiles>;
@@ -100,9 +101,13 @@ impl PersistedFiles {
     }
 
     /// Create a new `PersistedFiles` from a list of persisted snapshots
+    ///
+    /// Accepts `Arc<Vec<PersistedSnapshot>>` to allow sharing the snapshot data
+    /// between multiple consumers (e.g., PersistedFiles and background checkpoint building)
+    /// without cloning the entire Vec.
     pub fn new_from_persisted_snapshots(
         table_index_cache: Option<TableIndexCache>,
-        persisted_snapshots: Vec<PersistedSnapshot>,
+        persisted_snapshots: Arc<Vec<PersistedSnapshot>>,
     ) -> Self {
         let inner = Inner::new_from_persisted_snapshots(persisted_snapshots);
         Self {
@@ -111,13 +116,39 @@ impl PersistedFiles {
         }
     }
 
-    /// Add all files from a persisted snapshot
+    /// Create a new `PersistedFiles` from checkpoints and additional snapshots.
+    ///
+    /// This is the preferred method when checkpoints are available, as it reduces
+    /// the amount of data to process during startup:
+    /// 1. Merge all checkpoints (one per month, sorted by month)
+    /// 2. Apply pending_removed_files from each checkpoint to remove cross-month references
+    /// 3. Apply additional snapshots (those newer than the latest checkpoint)
+    pub fn new_from_checkpoints_and_snapshots(
+        table_index_cache: Option<TableIndexCache>,
+        checkpoints: Vec<PersistedSnapshotCheckpoint>,
+        additional_snapshots: Vec<PersistedSnapshot>,
+    ) -> Self {
+        let inner = Inner::new_from_checkpoints_and_snapshots(checkpoints, additional_snapshots);
+        Self {
+            table_index_cache,
+            inner: RwLock::new(inner),
+        }
+    }
+
+    /// Add all files from a persisted snapshot to the tracked files.
+    ///
+    /// Deduplicates against existing files.
+    ///
+    /// Called from `Replica::reload_snapshots` during replica recovery.
     pub fn add_persisted_snapshot_files(&self, persisted_snapshot: PersistedSnapshot) {
         let mut inner = self.inner.write();
         inner.add_persisted_snapshot(persisted_snapshot);
     }
 
-    /// Add single file to a table
+    /// Add a single parquet file to the tracked files for a specific table.
+    ///
+    /// Called from `QueryableBuffer` after persistence and from `Replica` during
+    /// background cache loading.
     pub fn add_persisted_file(&self, db_id: &DbId, table_id: &TableId, parquet_file: &ParquetFile) {
         let mut inner = self.inner.write();
         inner.add_persisted_file(db_id, table_id, parquet_file);
@@ -289,14 +320,22 @@ struct Inner {
 }
 
 impl Inner {
+    /// Create from persisted snapshots via shared Arc reference.
+    ///
+    /// Uses reference-based iteration to avoid consuming the Arc'd Vec,
+    /// allowing the same snapshot data to be shared with other consumers.
     pub(crate) fn new_from_persisted_snapshots(
-        persisted_snapshots: Vec<PersistedSnapshot>,
+        persisted_snapshots: Arc<Vec<PersistedSnapshot>>,
     ) -> Self {
+        trace!(
+            snapshot_count = persisted_snapshots.len(),
+            "new_from_persisted_snapshots: starting"
+        );
         let mut file_count = 0;
         let mut size_in_mb = 0.0;
         let mut row_count = 0;
 
-        let files = persisted_snapshots.into_iter().fold(
+        let files = persisted_snapshots.iter().fold(
             hashbrown::HashMap::new(),
             |mut files, persisted_snapshot| {
                 size_in_mb += as_mb(persisted_snapshot.parquet_size_bytes);
@@ -305,11 +344,15 @@ impl Inner {
                     update_persisted_files_with_snapshot(true, persisted_snapshot, &mut files);
                 file_count += parquet_files_added;
                 size_in_mb -= as_mb(removed_size);
-                row_count -= removed_row_count;
+                row_count = row_count.saturating_sub(removed_row_count);
                 files
             },
         );
 
+        trace!(
+            file_count,
+            row_count, size_in_mb, "new_from_persisted_snapshots: completed"
+        );
         Self {
             files,
             parquet_files_count: file_count,
@@ -319,16 +362,62 @@ impl Inner {
         }
     }
 
+    /// Create from checkpoints and additional (newer) snapshots.
+    pub(crate) fn new_from_checkpoints_and_snapshots(
+        mut checkpoints: Vec<PersistedSnapshotCheckpoint>,
+        additional_snapshots: Vec<PersistedSnapshot>,
+    ) -> Self {
+        debug!(
+            checkpoint_count = checkpoints.len(),
+            snapshot_count = additional_snapshots.len(),
+            "new_from_checkpoints_and_snapshots: starting"
+        );
+
+        // Sort checkpoints by year_month to process in chronological order
+        checkpoints.sort_by(|a, b| a.year_month.cmp(&b.year_month));
+
+        // Merge all checkpoints into one
+        let merged_checkpoint = checkpoints.into_iter().reduce(|mut acc, checkpoint| {
+            acc.merge(checkpoint);
+            acc
+        });
+
+        // Convert merged checkpoint to Inner, or start with empty
+        let mut inner = merged_checkpoint.map(Inner::from).unwrap_or_default();
+
+        // Apply additional snapshots
+        for snapshot in additional_snapshots {
+            inner.add_persisted_snapshot(snapshot);
+        }
+
+        debug!(
+            file_count = inner.parquet_files_count,
+            row_count = inner.parquet_files_row_count,
+            size_in_mb = inner.parquet_files_size_mb,
+            "new_from_checkpoints_and_snapshots: completed"
+        );
+
+        inner
+    }
+
+    /// Merges all files from a [`PersistedSnapshot`] into the persisted files hierarchy.
+    ///
+    /// Deduplicates incoming files. Called at runtime (not during initial load).
     pub(crate) fn add_persisted_snapshot(&mut self, persisted_snapshot: PersistedSnapshot) {
         self.parquet_files_row_count += persisted_snapshot.row_count;
         self.parquet_files_size_mb += as_mb(persisted_snapshot.parquet_size_bytes);
         let (file_count, removed_file_size, removed_row_count) =
-            update_persisted_files_with_snapshot(false, persisted_snapshot, &mut self.files);
-        self.parquet_files_row_count -= removed_row_count;
+            update_persisted_files_with_snapshot(false, &persisted_snapshot, &mut self.files);
+        self.parquet_files_row_count = self
+            .parquet_files_row_count
+            .saturating_sub(removed_row_count);
         self.parquet_files_size_mb -= as_mb(removed_file_size);
         self.parquet_files_count += file_count;
     }
 
+    /// Adds a single parquet file to the specified database and table.
+    ///
+    /// Creates db/table entries if needed. Skips duplicates.
     pub(crate) fn add_persisted_file(
         &mut self,
         db_id: &DbId,
@@ -350,36 +439,75 @@ impl Inner {
     }
 }
 
+impl From<PersistedSnapshotCheckpoint> for Inner {
+    fn from(checkpoint: PersistedSnapshotCheckpoint) -> Self {
+        let mut files: DatabaseToTables = HashMap::new();
+        let mut file_count: u64 = 0;
+
+        for (db_id, db_tables) in checkpoint.databases {
+            for (table_id, parquet_files) in db_tables.tables {
+                file_count += parquet_files.len() as u64;
+                files
+                    .entry(db_id)
+                    .or_default()
+                    .entry(table_id)
+                    .or_default()
+                    .extend(parquet_files);
+            }
+        }
+
+        Self {
+            files,
+            parquet_files_count: file_count,
+            parquet_files_size_mb: as_mb(checkpoint.parquet_size_bytes),
+            parquet_files_row_count: checkpoint.row_count,
+            deleted_data: HashMap::new(),
+        }
+    }
+}
+
 fn as_mb(bytes: u64) -> f64 {
     let factor = (1_000 * 1_000) as f64;
     bytes as f64 / factor
 }
 
+/// Merges parquet files from a [`PersistedSnapshot`] into the db/table hierarchy.
+///
+/// Returns `(file_count_delta, removed_size_bytes, removed_row_count)`.
+///
+/// When `initial_load=true` (startup): appends without deduplication.
+/// When `initial_load=false` (runtime): filters duplicates before appending.
+///
+/// Also processes `snapshot.removed_files`, removing matching files by ID.
 fn update_persisted_files_with_snapshot(
     initial_load: bool,
-    persisted_snapshot: PersistedSnapshot,
+    persisted_snapshot: &PersistedSnapshot,
     db_to_tables: &mut HashMap<DbId, HashMap<TableId, Vec<ParquetFile>>>,
 ) -> (u64, u64, u64) {
-    let (mut file_count, mut removed_size, mut removed_row_count) = (0, 0, 0);
+    let (mut file_count, mut removed_size, mut removed_row_count): (u64, u64, u64) = (0, 0, 0);
     persisted_snapshot
         .databases
-        .into_iter()
+        .iter()
         .for_each(|(db_id, tables)| {
-            let db_tables: &mut HashMap<TableId, Vec<ParquetFile>> =
-                db_to_tables.entry(db_id).or_default();
+            let db_tables: &mut HashMap<TableId, Vec<ParquetFile>> = db_to_tables
+                .entry(*db_id)
+                .or_insert_with(|| HashMap::with_capacity(tables.tables.len()));
 
             tables
                 .tables
-                .into_iter()
-                .for_each(|(table_id, mut new_parquet_files)| {
-                    let table_files = db_tables.entry(table_id).or_default();
+                .iter()
+                .for_each(|(table_id, new_parquet_files)| {
+                    let table_files = db_tables
+                        .entry(*table_id)
+                        .or_insert_with(|| Vec::with_capacity(new_parquet_files.len()));
                     if initial_load {
                         file_count += new_parquet_files.len() as u64;
-                        table_files.append(&mut new_parquet_files);
+                        table_files.extend(new_parquet_files.iter().cloned());
                     } else {
                         let mut filtered_files: Vec<ParquetFile> = new_parquet_files
-                            .into_iter()
+                            .iter()
                             .filter(|file| !table_files.contains(file))
+                            .cloned()
                             .collect();
                         file_count += filtered_files.len() as u64;
                         table_files.append(&mut filtered_files);
@@ -390,22 +518,38 @@ fn update_persisted_files_with_snapshot(
     // We now remove any files as we load the snapshots if they exist.
     persisted_snapshot
         .removed_files
-        .into_iter()
+        .iter()
         .for_each(|(db_id, tables)| {
-            let db_tables: &mut HashMap<TableId, Vec<ParquetFile>> =
-                db_to_tables.entry(db_id).or_default();
+            let Some(db_tables) = db_to_tables.get_mut(db_id) else {
+                // this can happen if the table(s) to remove from PersistedFiles is further back in
+                // history than the default number of snapshots loaded during server initialization
+                warn!(
+                    db_id = ?db_id,
+                    "expected to remove tables for db in persisted files"
+                );
+                return;
+            };
 
             tables
                 .tables
-                .into_iter()
+                .iter()
                 .for_each(|(table_id, remove_parquet_files)| {
-                    let table_files = db_tables.entry(table_id).or_default();
+                    let Some(table_files) = db_tables.get_mut(table_id) else {
+                        // this can happen if the table(s) to remove from PersistedFiles is further back in
+                        // history than the default number of snapshots loaded during server initialization
+                        warn!(
+                            db_id = ?db_id,
+                            table_id = ?table_id,
+                            "expected to remove table from db in persisted files"
+                        );
+                        return;
+                    };
                     for file in remove_parquet_files {
                         if let Some(idx) = table_files.iter().position(|f| f.id == file.id) {
-                            let file = table_files.remove(idx);
-                            file_count -= 1;
-                            removed_size -= file.size_bytes;
-                            removed_row_count -= file.row_count;
+                            let file = table_files.swap_remove(idx);
+                            file_count = file_count.saturating_sub(1);
+                            removed_size += file.size_bytes;
+                            removed_row_count += file.row_count;
                         }
                     }
                 });
@@ -417,7 +561,7 @@ fn update_persisted_files_with_snapshot(
 #[cfg(test)]
 mod tests {
 
-    use crate::ParquetFileId;
+    use crate::{ParquetFileId, YearMonth};
     use datafusion::prelude::Expr;
     use datafusion::prelude::col;
     use datafusion::prelude::lit_timestamp_nano;
@@ -433,8 +577,10 @@ mod tests {
     #[test_log::test(test)]
     fn test_get_metrics_after_initial_load() {
         let all_persisted_snapshot_files = build_persisted_snapshots();
-        let persisted_file =
-            PersistedFiles::new_from_persisted_snapshots(None, all_persisted_snapshot_files);
+        let persisted_file = PersistedFiles::new_from_persisted_snapshots(
+            None,
+            Arc::new(all_persisted_snapshot_files),
+        );
 
         let (file_count, size_in_mb, row_count) = persisted_file.get_metrics();
 
@@ -447,8 +593,10 @@ mod tests {
     #[test_log::test(test)]
     fn test_get_metrics_after_update() {
         let all_persisted_snapshot_files = build_persisted_snapshots();
-        let persisted_file =
-            PersistedFiles::new_from_persisted_snapshots(None, all_persisted_snapshot_files);
+        let persisted_file = PersistedFiles::new_from_persisted_snapshots(
+            None,
+            Arc::new(all_persisted_snapshot_files),
+        );
         let parquet_files = build_parquet_files("file_", 5);
         let new_snapshot = build_snapshot(parquet_files, 1, 1, 1);
         persisted_file.add_persisted_snapshot_files(new_snapshot);
@@ -477,8 +625,10 @@ mod tests {
             .cloned()
             .unwrap();
 
-        let persisted_file =
-            PersistedFiles::new_from_persisted_snapshots(None, all_persisted_snapshot_files);
+        let persisted_file = PersistedFiles::new_from_persisted_snapshots(
+            None,
+            Arc::new(all_persisted_snapshot_files),
+        );
         let mut parquet_files = build_parquet_files("file_", 4);
         info!(all_persisted_files = ?persisted_file, "Full persisted file");
         info!(already_existing_file = ?already_existing_file, "Existing file");
@@ -519,7 +669,7 @@ mod tests {
             .collect();
         let persisted_snapshots = vec![build_snapshot(parquet_files, 0, 0, 0)];
         let persisted_files =
-            PersistedFiles::new_from_persisted_snapshots(None, persisted_snapshots);
+            PersistedFiles::new_from_persisted_snapshots(None, Arc::new(persisted_snapshots));
 
         struct TestCase<'a> {
             filter: &'a [Expr],
@@ -674,7 +824,8 @@ mod tests {
             snapshot.add_parquet_file(db_id2, table_id2, file.clone());
         }
 
-        let persisted_files = PersistedFiles::new_from_persisted_snapshots(None, vec![snapshot]);
+        let persisted_files =
+            PersistedFiles::new_from_persisted_snapshots(None, Arc::new(vec![snapshot]));
 
         // Delete the first database
         persisted_files
@@ -726,7 +877,8 @@ mod tests {
             snapshot.add_parquet_file(db_id, table_id3, file.clone());
         }
 
-        let persisted_files = PersistedFiles::new_from_persisted_snapshots(None, vec![snapshot]);
+        let persisted_files =
+            PersistedFiles::new_from_persisted_snapshots(None, Arc::new(vec![snapshot]));
 
         // Delete specific tables
         persisted_files
@@ -768,7 +920,8 @@ mod tests {
     async fn test_remove_files_for_deletion_clears_deleted_data() {
         let parquet_files = build_parquet_files("file_", 3);
         let snapshot = build_snapshot(parquet_files.clone(), 1, 1, 1);
-        let persisted_files = PersistedFiles::new_from_persisted_snapshots(None, vec![snapshot]);
+        let persisted_files =
+            PersistedFiles::new_from_persisted_snapshots(None, Arc::new(vec![snapshot]));
 
         // Delete a database
         persisted_files
@@ -791,5 +944,150 @@ mod tests {
             let inner = persisted_files.inner.read();
             assert_eq!(inner.deleted_data.len(), 0);
         }
+    }
+
+    fn build_checkpoint(
+        year_month: &str,
+        parquet_files: Vec<ParquetFile>,
+        pending_removed: Vec<ParquetFile>,
+    ) -> PersistedSnapshotCheckpoint {
+        let db_id = DbId::from(0);
+        let table_id = TableId::from(0);
+
+        let year_month: YearMonth = year_month.parse().unwrap();
+        let mut checkpoint = PersistedSnapshotCheckpoint::new("test-node".to_string(), year_month);
+
+        for file in parquet_files {
+            checkpoint.add_file(db_id, table_id, file);
+        }
+
+        for file in pending_removed {
+            checkpoint.add_pending_removed(db_id, table_id, file);
+        }
+
+        checkpoint
+    }
+
+    #[test]
+    fn test_new_from_checkpoints_single_checkpoint() {
+        let parquet_files = build_parquet_files("jan_", 5);
+        let checkpoint = build_checkpoint("2025-01", parquet_files, vec![]);
+
+        let persisted_files =
+            PersistedFiles::new_from_checkpoints_and_snapshots(None, vec![checkpoint], vec![]);
+
+        let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+        assert_eq!(5, file_count);
+        assert_eq!(0.25, size_mb); // 5 files * 50_000 bytes
+        assert_eq!(50, row_count); // 5 files * 10 rows
+    }
+
+    #[test]
+    fn test_new_from_checkpoints_multiple_months() {
+        let jan_files = build_parquet_files("jan_", 3);
+        let feb_files = build_parquet_files("feb_", 4);
+
+        let jan_checkpoint = build_checkpoint("2025-01", jan_files, vec![]);
+        let feb_checkpoint = build_checkpoint("2025-02", feb_files, vec![]);
+
+        // Pass checkpoints in reverse order to test sorting
+        let persisted_files = PersistedFiles::new_from_checkpoints_and_snapshots(
+            None,
+            vec![feb_checkpoint, jan_checkpoint],
+            vec![],
+        );
+
+        let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+        assert_eq!(7, file_count);
+        assert_eq!(0.35, size_mb); // 7 files * 50_000 bytes
+        assert_eq!(70, row_count); // 7 files * 10 rows
+    }
+
+    #[test]
+    fn test_new_from_checkpoints_with_pending_removed() {
+        // Create a file that exists in January
+        let jan_file = ParquetFile {
+            id: ParquetFileId::new(),
+            path: "/jan/file.parquet".to_string(),
+            size_bytes: 50_000,
+            row_count: 10,
+            chunk_time: 10,
+            min_time: 10,
+            max_time: 200,
+        };
+
+        let jan_checkpoint = build_checkpoint("2025-01", vec![jan_file.clone()], vec![]);
+
+        // February has pending_removed referencing the January file
+        let feb_files = build_parquet_files("feb_", 2);
+        let feb_checkpoint = build_checkpoint("2025-02", feb_files, vec![jan_file]);
+
+        let persisted_files = PersistedFiles::new_from_checkpoints_and_snapshots(
+            None,
+            vec![jan_checkpoint, feb_checkpoint],
+            vec![],
+        );
+
+        let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+        // Jan had 1 file, Feb added 2, then Feb's pending_removed removed 1 from Jan
+        assert_eq!(2, file_count);
+        assert!((size_mb - 0.1).abs() < 0.0001); // 2 files * 50_000 bytes
+        assert_eq!(20, row_count); // 2 files * 10 rows
+    }
+
+    #[test]
+    fn test_new_from_checkpoints_with_additional_snapshots() {
+        let jan_files = build_parquet_files("jan_", 3);
+        let jan_checkpoint = build_checkpoint("2025-01", jan_files, vec![]);
+
+        // Additional snapshot with more files
+        let snapshot_files = build_parquet_files("snapshot_", 2);
+        let snapshot = build_snapshot(snapshot_files, 10, 10, 10);
+
+        let persisted_files = PersistedFiles::new_from_checkpoints_and_snapshots(
+            None,
+            vec![jan_checkpoint],
+            vec![snapshot],
+        );
+
+        let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+        assert_eq!(5, file_count); // 3 from checkpoint + 2 from snapshot
+        assert_eq!(0.25, size_mb);
+        assert_eq!(50, row_count);
+    }
+
+    #[test]
+    fn test_new_from_checkpoints_empty() {
+        let persisted_files =
+            PersistedFiles::new_from_checkpoints_and_snapshots(None, vec![], vec![]);
+
+        let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+        assert_eq!(0, file_count);
+        assert_eq!(0.0, size_mb);
+        assert_eq!(0, row_count);
+    }
+
+    #[test]
+    fn test_new_from_checkpoints_pending_removed_missing_db() {
+        // Create a pending_removed that references a non-existent database
+        let missing_file = ParquetFile {
+            id: ParquetFileId::new(),
+            path: "/missing/file.parquet".to_string(),
+            size_bytes: 50_000,
+            row_count: 10,
+            chunk_time: 10,
+            min_time: 10,
+            max_time: 200,
+        };
+
+        // Checkpoint has no files but has pending_removed
+        let checkpoint = build_checkpoint("2025-01", vec![], vec![missing_file]);
+
+        // Should not panic, just skip the missing reference
+        let persisted_files =
+            PersistedFiles::new_from_checkpoints_and_snapshots(None, vec![checkpoint], vec![]);
+
+        let (file_count, _, _) = persisted_files.get_metrics();
+        assert_eq!(0, file_count);
     }
 }

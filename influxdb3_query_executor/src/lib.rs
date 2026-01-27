@@ -894,6 +894,7 @@ mod tests {
             Arc::clone(&object_store),
             "test_host",
             Arc::clone(&time_provider) as _,
+            None,
         ));
         let exec = make_exec(Arc::clone(&object_store));
         let node_id = Arc::from("sample-host-id");
@@ -936,6 +937,7 @@ mod tests {
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: shutdown.register(),
             wal_replay_concurrency_limit: 1,
+            snapshot_markers: vec![],
         })
         .await
         .unwrap();
