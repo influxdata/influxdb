@@ -2616,6 +2616,7 @@ mod tests {
                 max_time: 1000,
                 row_count: total_rows,
                 parquet_size_bytes: total_size,
+                persisted_at: None,
             })
         }
 

@@ -336,6 +336,17 @@ pub struct Config {
     )]
     pub snapshotted_wal_files_to_keep: u64,
 
+    /// Interval between snapshot checkpoint creation.
+    ///
+    /// Checkpoints aggregate multiple snapshots into a single file per month, speeding up
+    /// server startup by reducing the number of files to load. Disabled by default.
+    #[clap(
+        long = "checkpoint-interval",
+        env = "INFLUXDB3_CHECKPOINT_INTERVAL",
+        action
+    )]
+    pub checkpoint_interval: Option<humantime::Duration>,
+
     // TODO - tune this default:
     /// The size of the query log. Up to this many queries will remain in the log before
     /// old queries are evicted to make room for new ones.
@@ -878,6 +889,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Arc::clone(&object_store),
         node_id.as_str(),
         Arc::clone(&time_provider) as _,
+        config.checkpoint_interval.map(|v| v.into()),
     ));
 
     let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
@@ -1003,6 +1015,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         n_snapshots_to_load_on_start: n_snapshots_to_load_on_start as usize,
         shutdown: shutdown_manager.register(),
         wal_replay_concurrency_limit: config.wal_replay_concurrency_limit,
+        snapshot_markers: vec![],
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
