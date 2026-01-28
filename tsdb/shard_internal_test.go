@@ -392,6 +392,10 @@ func NewTempShard(tb testing.TB, index string) *TempShard {
 	}
 }
 
+func CloseShard(t testing.TB, sh *TempShard) {
+	require.NoError(t, sh.Close(), "closing temporary shard")
+}
+
 // Close closes the shard and removes all underlying data.
 func (sh *TempShard) Close() error {
 	sh.sfile.Close()
