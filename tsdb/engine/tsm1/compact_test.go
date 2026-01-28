@@ -2287,7 +2287,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 	e, err := NewEngine(t, tsdb.TSI1IndexName)
 	require.NoError(t, err, "open engine")
 	e.SetEnabled(false)
-	defer func() { require.NoError(t, e.Close(), "close engine") }()
 	e.Compactor = tsm1.NewCompactor()
 	defer e.Compactor.Close()
 
@@ -4273,7 +4272,6 @@ func TestEnginePlanCompactions(t *testing.T) {
 	require.NoError(t, err, "create engine")
 	e.SetEnabled(false)
 	require.NoError(t, e.Open(context.Background()), "open engine")
-	defer func() { require.NoError(t, e.Close(), "close engine") }()
 	e.Compactor = tsm1.NewCompactor()
 	defer e.Compactor.Close()
 
