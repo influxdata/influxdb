@@ -14,7 +14,7 @@ use std::{
 
 use futures::TryStreamExt;
 use hashbrown::{HashMap, HashSet};
-use object_store::{ObjectMeta, ObjectStore, path::Path as ObjPath};
+use object_store::{ObjectStore, path::Path as ObjPath};
 use object_store_utils::RetryableObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
 use serde::{Deserialize, Serialize};
@@ -273,35 +273,6 @@ struct TableIndexConversionCompleted {
     last_sequence_number: SnapshotSequenceNumber,
 }
 
-async fn list_metas(
-    object_store: Arc<dyn ObjectStore>,
-    path: Arc<ObjPath>,
-    offset: Option<ObjPath>,
-) -> Result<Vec<ObjectMeta>> {
-    trace!(prefix = %path.as_ref(), has_offset = offset.is_some(), "Listing object store paths");
-
-    let list_start = std::time::Instant::now();
-
-    let stream = object_store.list_with_default_retries(
-        Some(path.as_ref()),
-        offset.as_ref(),
-        format!("Listing object store paths at prefix {}", path.as_ref()),
-    );
-
-    let results: Vec<ObjectMeta> = stream
-        .try_collect::<Vec<ObjectMeta>>()
-        .await
-        .map_err(TableIndexCacheError::ListMetasError)?;
-
-    trace!(
-        count = results.len(),
-        duration_ms = list_start.elapsed().as_millis(),
-        "Object store listing completed"
-    );
-
-    Ok(results)
-}
-
 impl TableIndexCache {
     /// Create a new TableIndexCache with the given configuration
     pub fn new(
@@ -394,12 +365,46 @@ impl TableIndexCache {
             Err(e) => return Err(TableIndexCacheError::LoadConversionMarkerBytesError(e)),
         };
 
-        let mut snapshot_metas = list_metas(
-            Arc::clone(&self.inner.object_store),
-            Arc::new(snapshot_info_prefix.obj_path()),
-            None,
-        )
-        .await?;
+        // Use early-exit streaming: stop listing as soon as we hit an already-processed snapshot.
+        // Due to inverted sequence numbering (u64::MAX - seq), newer files have lexicographically
+        // smaller paths and come FIRST in listings. Once we encounter a file with
+        // seq <= completed_seq, all remaining files are also already processed.
+        let completed_seq = last_conversion_completed
+            .as_ref()
+            .map(|c| c.last_sequence_number);
+        let prefix = snapshot_info_prefix.obj_path();
+
+        debug!(prefix = %prefix, ?completed_seq, "Listing snapshot files up to latest processed");
+        let list_start = std::time::Instant::now();
+
+        let mut stream = self.inner.object_store.list(Some(&prefix));
+        let mut snapshot_metas = Vec::new();
+
+        while let Some(result) = stream
+            .try_next()
+            .await
+            .map_err(TableIndexCacheError::ListMetasError)?
+        {
+            let seq = SnapshotInfoFilePath::parse_sequence_number(result.location.as_ref());
+            match (seq, completed_seq) {
+                (Some(s), Some(c)) if s.as_u64() <= c.as_u64() => {
+                    debug!(
+                        seq = s.as_u64(),
+                        completed = c.as_u64(),
+                        files_collected = snapshot_metas.len(),
+                        "Found latest processed snapshot, done listing"
+                    );
+                    break;
+                }
+                _ => snapshot_metas.push(result),
+            }
+        }
+
+        debug!(
+            count = snapshot_metas.len(),
+            duration_ms = list_start.elapsed().as_millis(),
+            "Snapshot listing completed"
+        );
 
         if snapshot_metas.is_empty() {
             // if there was no last conversion completed and there are currently no snapshot metas
@@ -437,55 +442,21 @@ impl TableIndexCache {
         // set concurrency limit on persistence load & persist operations
         let sem = Arc::new(Semaphore::new(self.inner.config.concurrency_limit));
         let mut js = tokio::task::JoinSet::new();
-
-        let mut skipped_count = 0;
         let mut processed_count = 0;
 
-        info!("splitting snapshots into table snapshots");
+        info!(
+            snapshots_to_process = snapshot_metas.len(),
+            "Splitting snapshots into table index snapshots"
+        );
         for meta in snapshot_metas {
             let object_store = Arc::clone(&self.inner.object_store);
             let sem = Arc::clone(&sem);
             let path = SnapshotInfoFilePath::from_path(meta.location.clone())
                 .map_err(|e| TableIndexCacheError::ParseSnapshotPathError(anyhow::anyhow!(e)))?;
 
-            let path_seq = SnapshotInfoFilePath::parse_sequence_number(meta.location.as_ref())
-                .expect("must be able to parse sequence number from verified SnapshotFileInfoPath");
-
-            if last_conversion_completed.as_ref().is_some_and(
-                |conversion_completed: &TableIndexConversionCompleted| {
-                    path_seq.as_u64() <= conversion_completed.last_sequence_number.as_u64()
-                },
-            ) {
-                debug!(
-                    snapshot_seq = %path_seq,
-                    reason = "already_processed",
-                    last_completed = %last_conversion_completed.as_ref().unwrap().last_sequence_number,
-                    "Skipping persisted snapshot"
-                );
-                trace!(
-                    "last persisted snapshot sequence number: {}, skipping conversion to table index snapshots {}",
-                    last_seq_number.as_u64(),
-                    path_seq.as_u64()
-                );
-                skipped_count += 1;
-                // NOTE(wayne): we continue here because the completed conversion marker lets us
-                // know that we have already processed the given persisted snapshot file --
-                // including it in the current conversion process could corrupt our table index.
-                //
-                // also worth noting, I did try to implement this logic using object store offsets
-                // but that wasn't working for some reason.
-                continue;
-            }
-
             debug!(
-                snapshot_seq = %path_seq,
                 snapshot_path = %meta.location,
-                "Processing persisted snapshot"
-            );
-
-            trace!(
-                snapshot_path = %meta.location,
-                "Spawning snapshot processing task"
+                "Splitting persisted snapshot into table index snapshots"
             );
 
             js.spawn(async move {
@@ -501,8 +472,8 @@ impl TableIndexCache {
             match res.map_err(TableIndexCacheError::TableSnapshotPersistenceTaskFailed)? {
                 Ok(object_meta) => {
                     info!(
-                        "split snapshot at {:?} into table snaphots",
-                        object_meta.location
+                        snapshot_path = %object_meta.location,
+                        "Finished splitting snapshot into table index snapshots",
                     );
                     processed_count += 1;
                 }
@@ -533,7 +504,6 @@ impl TableIndexCache {
         info!(
             duration_ms = elapsed.as_millis(),
             snapshots_processed = processed_count,
-            snapshots_skipped = skipped_count,
             last_sequence = %last_seq_number,
             "Completed splitting persisted snapshots"
         );
@@ -1275,8 +1245,8 @@ impl TableIndexCache {
                 .collect(),
         );
 
-        // Group snapshots by table for tables without indices
-        let tables_without_indices: Vec<TableIndexId> = self
+        // Collect unique table IDs that have snapshots but no index yet
+        let tables_without_indices: HashSet<TableIndexId> = self
             .inner
             .object_store
             .list(Some(&snapshots_prefix))
@@ -2090,6 +2060,7 @@ mod tests {
                 table_id: TableIndexId,
                 seq: SnapshotSequenceNumber,
                 file_count: usize,
+                file_id_offset: usize,
             },
             SetupLoadIntoCache {
                 table_id: TableIndexId,
@@ -2114,6 +2085,10 @@ mod tests {
                 table_id: TableIndexId,
                 seq: SnapshotSequenceNumber,
             },
+            ExpectIndexFileCount {
+                table_id: TableIndexId,
+                expected_count: usize,
+            },
         }
 
         // Helper to create a table index snapshot
@@ -2121,13 +2096,15 @@ mod tests {
             table_id: TableIndexId,
             seq: SnapshotSequenceNumber,
             file_count: usize,
+            file_id_offset: usize,
         ) -> TableIndexSnapshot {
             let mut files = BTreeSet::new();
             for i in 0..file_count {
+                let file_id = file_id_offset + i;
                 files.insert(Arc::new(create_test_parquet_file(
-                    ParquetFileId::from(i as u64),
-                    100 * (i as u64 + 1),
-                    1000 * (i as u64 + 1),
+                    ParquetFileId::from(file_id as u64),
+                    100 * (file_id as u64 + 1),
+                    1000 * (file_id as u64 + 1),
                 )));
             }
 
@@ -2215,12 +2192,14 @@ mod tests {
                 UpdateTestStep::SetupPersistSnapshot {
                     table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
                     seq: SnapshotSequenceNumber::new(1),
-                    file_count: 2
+                    file_count: 2,
+                    file_id_offset: 0,
                 },
                 UpdateTestStep::SetupPersistSnapshot {
                     table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(2)),
                     seq: SnapshotSequenceNumber::new(1),
-                    file_count: 1
+                    file_count: 1,
+                    file_id_offset: 0,
                 },
                 UpdateTestStep::UpdateAll,
                 UpdateTestStep::ExpectCacheSize { count: 2 },
@@ -2252,6 +2231,66 @@ mod tests {
                 },
             ],
         })]
+        // Test case: Multiple snapshots for the SAME table should result in ONE index
+        // This tests the HashSet fix that deduplicates table IDs in tables_without_indices
+        #[case::update_all_with_multiple_snapshots_same_table(UpdateAllTestCase {
+            name: "update_all_with_multiple_snapshots_same_table",
+            config: TableIndexCacheConfig::default(),
+            node_prefix: "node1",
+            test_steps: vec![
+                // Create 3 snapshots for the SAME table (different sequence numbers)
+                // Each snapshot has 2 unique files (total 6 files after merge)
+                // This simulates the production scenario where a table has accumulated
+                // multiple snapshots that need to be merged into a single index
+                UpdateTestStep::SetupPersistSnapshot {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    seq: SnapshotSequenceNumber::new(1),
+                    file_count: 2,
+                    file_id_offset: 0,  // files 0, 1
+                },
+                UpdateTestStep::SetupPersistSnapshot {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    seq: SnapshotSequenceNumber::new(2),
+                    file_count: 2,
+                    file_id_offset: 2,  // files 2, 3
+                },
+                UpdateTestStep::SetupPersistSnapshot {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    seq: SnapshotSequenceNumber::new(3),
+                    file_count: 2,
+                    file_id_offset: 4,  // files 4, 5
+                },
+                UpdateTestStep::UpdateAll,
+                UpdateTestStep::ExpectCacheSize { count: 1 },
+                UpdateTestStep::ExpectTableInCache {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    expected: true
+                },
+                // Verify the merged index contains all 6 files from the 3 snapshots
+                UpdateTestStep::ExpectIndexFileCount {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    expected_count: 6,
+                },
+                // Verify the index was created in object store
+                UpdateTestStep::ExpectIndexInObjectStore {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    expected: true
+                },
+                // Verify ALL snapshots were deleted after being merged
+                UpdateTestStep::ExpectSnapshotNotInObjectStore {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    seq: SnapshotSequenceNumber::new(1),
+                },
+                UpdateTestStep::ExpectSnapshotNotInObjectStore {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    seq: SnapshotSequenceNumber::new(2),
+                },
+                UpdateTestStep::ExpectSnapshotNotInObjectStore {
+                    table_id: TableIndexId::new("node1", DbId::new(1), TableId::new(1)),
+                    seq: SnapshotSequenceNumber::new(3),
+                },
+            ],
+        })]
         #[case::update_all_mixed_scenario(UpdateAllTestCase {
             name: "update_all_mixed_scenario",
             config: TableIndexCacheConfig::default(),
@@ -2270,12 +2309,14 @@ mod tests {
                 UpdateTestStep::SetupPersistSnapshot {
                     table_id: TableIndexId::new("node1", DbId::new(2), TableId::new(1)),
                     seq: SnapshotSequenceNumber::new(1),
-                    file_count: 3
+                    file_count: 3,
+                    file_id_offset: 0,
                 },
                 UpdateTestStep::SetupPersistSnapshot {
                     table_id: TableIndexId::new("node1", DbId::new(2), TableId::new(2)),
                     seq: SnapshotSequenceNumber::new(1),
-                    file_count: 2
+                    file_count: 2,
+                    file_id_offset: 0,
                 },
                 UpdateTestStep::UpdateAll,
                 UpdateTestStep::ExpectCacheSize { count: 4 },
@@ -2446,10 +2487,12 @@ mod tests {
                         table_id,
                         seq,
                         file_count,
+                        file_id_offset,
                     } => {
                         // In the real code, snapshots are persisted by the persister
                         // For testing, we'll just create the snapshot path and put JSON data
-                        let snapshot = create_test_snapshot(table_id.clone(), seq, file_count);
+                        let snapshot =
+                            create_test_snapshot(table_id.clone(), seq, file_count, file_id_offset);
                         snapshot.persist(Arc::clone(&object_store)).await.unwrap();
                     }
                     UpdateTestStep::SetupLoadIntoCache { table_id } => {
@@ -2498,6 +2541,26 @@ mod tests {
                             !exists,
                             "Snapshot for table {:?} seq {} unexpectedly found in test '{}'",
                             table_id, seq, test.name
+                        );
+                    }
+                    UpdateTestStep::ExpectIndexFileCount {
+                        table_id,
+                        expected_count,
+                    } => {
+                        let indices = cache.inner.indices.read().await;
+                        let cached = indices
+                            .get(&(table_id.node_id().to_string(), table_id.db_id()))
+                            .and_then(|db_map| db_map.get(&table_id.table_id()));
+                        let actual_count = if let Some(cached) = cached {
+                            let index = cached.inner.index.read().await;
+                            index.files.len()
+                        } else {
+                            0
+                        };
+                        assert_eq!(
+                            actual_count, expected_count,
+                            "Index file count mismatch for table {:?} in test '{}': expected {}, got {}",
+                            table_id, test.name, expected_count, actual_count
                         );
                     }
                 }
