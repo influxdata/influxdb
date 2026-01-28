@@ -4,7 +4,7 @@ use futures::{StreamExt, stream::FuturesOrdered};
 use hashbrown::{HashMap, HashSet};
 use object_store::ObjectStore;
 use object_store_utils::RetryableObjectStore;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, warn};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::Semaphore;
@@ -411,13 +411,29 @@ impl CoreTableIndex {
             futures.push_back(async move {
                 let _permit = sem.acquire().await.unwrap();
 
-                let result = store
+                let result = match store
                     .get_with_default_retries(
                         &location,
                         format!("Loading table index snapshot at sequence {}", sequence),
                     )
                     .await
-                    .map_err(TableIndexError::LoadSnapshot)?;
+                {
+                    Ok(result) => result,
+                    Err(object_store::Error::NotFound { path, source }) => {
+                        // Snapshot may have been deleted by another concurrent operation (e.g.,
+                        // another task that already merged and cleaned up this snapshot). While
+                        // this isn't typically expected, we play it safe here to avoid spurious
+                        // table index cache loading failures.
+                        warn!(
+                            %path,
+                            %sequence,
+                            "Snapshot not found, likely already merged by concurrent operation"
+                        );
+                        let _ = source; // acknowledge the source error
+                        return Ok(None);
+                    }
+                    Err(e) => return Err(TableIndexError::LoadSnapshot(e)),
+                };
 
                 let snapshot_bytes = result
                     .bytes()
@@ -426,18 +442,19 @@ impl CoreTableIndex {
                 let snapshot: TableIndexSnapshot = serde_json::from_slice(&snapshot_bytes)
                     .map_err(TableIndexError::DeserializeSnapshot)?;
 
-                Ok::<(SnapshotSequenceNumber, TableIndexSnapshot), TableIndexError>((
+                Ok::<Option<(SnapshotSequenceNumber, TableIndexSnapshot)>, TableIndexError>(Some((
                     sequence, snapshot,
-                ))
+                )))
             });
         }
 
-        // Collect loaded snapshots in order
+        // Collect loaded snapshots in order, skipping any that were already deleted
         let mut loaded_snapshots = Vec::new();
         while let Some(result) = futures.next().await {
-            let (seq, snapshot) = result?;
-            loaded_snapshots.push(snapshot);
-            self.latest_snapshot_sequence_number = seq;
+            if let Some((seq, snapshot)) = result? {
+                loaded_snapshots.push(snapshot);
+                self.latest_snapshot_sequence_number = seq;
+            }
         }
 
         // Merge snapshots into current index
