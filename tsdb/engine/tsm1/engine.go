@@ -2197,34 +2197,15 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast boo
 		return false
 	}
 
-	activeCompactions, key := func() (int64, string) {
-		if level <= 1 {
-			return e.activeCompactions.l1, level1
-		}
-		if level == 2 {
-			return e.activeCompactions.l2, level2
-		}
-		if level == 3 {
-			return e.activeCompactions.l3, level3
-		}
-		if level == 4 {
-			return e.activeCompactions.full, levelFull
-		}
-		if level == 5 {
-			return e.activeCompactions.optimize, levelOpt
-		}
-		return 0, ""
-	}()
-
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
-		val := atomic.AddInt64(&activeCompactions, 1)
-		e.stats.Active.With(prometheus.Labels{levelKey: key}).Set(float64(val))
+		val := atomic.AddInt64(e.activeCompactions.countForLevel(level), 1)
+		e.stats.Active.With(labelForLevel(level)).Set(float64(val))
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			val := atomic.AddInt64(&activeCompactions, 1)
-			e.stats.Active.With(prometheus.Labels{levelKey: key}).Set(float64(val))
+			val := atomic.AddInt64(e.activeCompactions.countForLevel(level), 1)
+			e.stats.Active.With(labelForLevel(level)).Set(float64(val))
 			defer e.compactionLimiter.Release()
 			s.Apply(pointsPerBlock)
 			// Release the files in the compaction plan
