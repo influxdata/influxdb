@@ -6,8 +6,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
 	"github.com/stretchr/testify/require"
 )
@@ -41,13 +39,16 @@ func TestTLSConfigManager_ConsistentClonedConfigs(t *testing.T) {
 	tlsConfig2 := manager.TLSConfig()
 	require.NotSame(t, tlsConfig, tlsConfig2)
 	// We can't compare the function pointers directly, just that they are non-nil.
+	// Clear out the function pointers before calling require.Equal.
 	require.NotNil(t, tlsConfig.GetCertificate)
 	require.NotNil(t, tlsConfig2.GetCertificate)
 	require.NotNil(t, tlsConfig.GetClientCertificate)
 	require.NotNil(t, tlsConfig2.GetClientCertificate)
-	require.Empty(t, cmp.Diff(tlsConfig, tlsConfig2,
-		cmpopts.IgnoreUnexported(*tlsConfig),
-		cmpopts.IgnoreFields(*tlsConfig, "GetCertificate", "GetClientCertificate")))
+	tlsConfig.GetCertificate = nil
+	tlsConfig.GetClientCertificate = nil
+	tlsConfig2.GetCertificate = nil
+	tlsConfig2.GetClientCertificate = nil
+	require.Equal(t, tlsConfig, tlsConfig2)
 
 	// TLSCertLoader should also be available
 	certLoader := manager.TLSCertLoader()
