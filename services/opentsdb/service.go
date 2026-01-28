@@ -50,12 +50,13 @@ type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
-	wg         sync.WaitGroup
-	tls        bool
-	tlsManager *tlsconfig.TLSConfigManager
-	tlsConfig  *tls.Config
-	cert       string
-	privateKey string
+	wg           sync.WaitGroup
+	tls          bool
+	tlsManager   *tlsconfig.TLSConfigManager
+	tlsConfig    *tls.Config
+	cert         string
+	privateKey   string
+	insecureCert bool
 
 	mu    sync.RWMutex
 	ready bool          // Has the required database been created?
@@ -95,6 +96,7 @@ func NewService(c Config) (*Service, error) {
 		tlsConfig:       d.TLS,
 		cert:            d.Certificate,
 		privateKey:      d.PrivateKey,
+		insecureCert:    d.InsecureCertificate,
 		BindAddress:     d.BindAddress,
 		Database:        d.Database,
 		RetentionPolicy: d.RetentionPolicy,
@@ -133,17 +135,19 @@ func (s *Service) Open() error {
 	go func() { defer s.wg.Done(); s.processBatches(s.batcher) }()
 
 	// Open listener.
-	if cm, err := tlsconfig.NewTLSConfigManager(s.tls, s.tlsConfig, s.cert, s.privateKey, false, tlsconfig.WithLogger(s.Logger)); err != nil {
+	cm, err := tlsconfig.NewTLSConfigManager(s.tls, s.tlsConfig, s.cert, s.privateKey, false,
+		tlsconfig.WithIgnoreFilePermissions(s.insecureCert),
+		tlsconfig.WithLogger(s.Logger))
+	if err != nil {
 		return fmt.Errorf("opentsdb: error creating TLS manager: %w", err)
-	} else {
-		s.tlsManager = cm
 	}
+	s.tlsManager = cm
 
-	if ln, err := s.tlsManager.Listen("tcp", s.BindAddress); err != nil {
+	ln, err := s.tlsManager.Listen("tcp", s.BindAddress)
+	if err != nil {
 		return fmt.Errorf("opentsdb: error creating listener: %w", err)
-	} else {
-		s.ln = ln
 	}
+	s.ln = ln
 
 	s.Logger.Info("Listening on TCP",
 		zap.Stringer("addr", s.ln.Addr()),
