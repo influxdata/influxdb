@@ -231,7 +231,7 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 	// because it requires configuration, and the migration service is more concerned with schema
 	// and does not have configuration.
 	if !s.skipTokenMigration {
-		if err := s.migrateTokens(ctx); err != nil {
+		if err := s.MigrateTokens(ctx); err != nil {
 			return nil, fmt.Errorf("error during hashed token migration: %w", err)
 		}
 	}
@@ -301,45 +301,9 @@ func (s *Store) autogenerateHasher(ctx context.Context, foundVariants []influxdb
 	return hasher, nil
 }
 
-// TokenMigrator allows exposing migrateTokens publicly so that token migration and token migration only
-// can be performed with different parameters than the authorization Store used for other operations.
-type TokenMigrator struct {
-	store *Store
-}
-
-type TokenMigratorOption func(*Store)
-
-// WithMigratorStore specifies an alternate kvStore to use for token migration. This is useful for
-// specifying a writeable kv.Store for migration when a Store's normal kv.Store may be in read-only mode.
-func WithMigratorStore(kvStore kv.Store) TokenMigratorOption {
-	return func(s *Store) {
-		s.kvStore = kvStore
-	}
-}
-
-// NewTokenMigrator creates a TokenMigrator based on s and any opts passed.
-func (s *Store) NewTokenMigrator(opts ...TokenMigratorOption) *TokenMigrator {
-	storeCopy := &Store{}
-	*storeCopy = *s // shallow copy is sufficient
-
-	for _, o := range opts {
-		o(storeCopy)
-	}
-
-	return &TokenMigrator{
-		store: storeCopy,
-	}
-}
-
 // MigrateTokens migrates any unhashed tokens in the store to hashed tokens, if token
 // hashing is enabled.
-func (m *TokenMigrator) MigrateTokens(ctx context.Context) error {
-	return m.store.migrateTokens(ctx)
-}
-
-// migrateTokens migrates any unhashed tokens in the store to hashed tokens, if token
-// hashing is enabled.
-func (s *Store) migrateTokens(ctx context.Context) error {
+func (s *Store) MigrateTokens(ctx context.Context) error {
 	if !s.useHashedTokens {
 		return nil
 	}
