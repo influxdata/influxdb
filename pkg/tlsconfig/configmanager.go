@@ -86,8 +86,10 @@ func NewDisabledTLSConfigManager() *TLSConfigManager {
 }
 
 // TLSConfig returns a tls.Config for use with dial and listen functions. When TLS is disabled the return is nil.
+// The returned tls.Config is a clone and does not need to be cloned again.
 func (cm *TLSConfigManager) TLSConfig() *tls.Config {
-	return cm.tlsConfig
+	// Clone returns nil for a nil tlsConfig
+	return cm.tlsConfig.Clone()
 }
 
 // TLSCertLoader returns the certificate loader for this TLSConfigManager. When no certificate is provided
@@ -99,7 +101,8 @@ func (cm *TLSConfigManager) TLSCertLoader() *TLSCertLoader {
 // UseTLS returns true if this TLSConfigManager is configured to use TLS. It is a convenience wrapper
 // around TLSConfig.
 func (cm *TLSConfigManager) UseTLS() bool {
-	return cm.TLSConfig() != nil
+	// Don't use TLSConfig() to avoid cloning a tlsConfig only to throw it away.
+	return cm.tlsConfig != nil
 }
 
 // Return a net.Listener for network and address based on current configuration.
