@@ -700,7 +700,14 @@ impl Persister {
         );
 
         // Clean up old checkpoints for this month, keeping only the most recent ones
-        self.cleanup_old_checkpoints_for_month(year_month).await;
+        let node_id_prefix = self.node_identifier_prefix.clone();
+        let object_store = Arc::clone(&self.object_store);
+        let year_month = *year_month;
+        tokio::spawn(Self::cleanup_old_checkpoints_for_month(
+            node_id_prefix,
+            object_store,
+            year_month,
+        ));
 
         Ok(())
     }
@@ -798,12 +805,15 @@ impl Persister {
     /// This is called after successfully persisting a new checkpoint to prevent
     /// unbounded accumulation of checkpoint files. We keep 2 checkpoints (latest +
     /// previous) as a safety buffer in case the latest is corrupted.
-    async fn cleanup_old_checkpoints_for_month(&self, year_month: &YearMonth) {
-        let month_dir = SnapshotCheckpointPath::month_dir(&self.node_identifier_prefix, year_month);
+    async fn cleanup_old_checkpoints_for_month(
+        node_identifier_prefix: String,
+        object_store: Arc<dyn ObjectStore>,
+        year_month: YearMonth,
+    ) {
+        let month_dir = SnapshotCheckpointPath::month_dir(&node_identifier_prefix, &year_month);
 
         // List all checkpoints for this month
-        let mut checkpoints: Vec<_> = match self
-            .object_store
+        let mut checkpoints: Vec<_> = match object_store
             .list(Some(&month_dir))
             .try_collect::<Vec<_>>()
             .await
@@ -831,7 +841,7 @@ impl Persister {
         let mut deleted_count = 0;
 
         for meta in to_delete {
-            match self.object_store.delete(&meta.location).await {
+            match object_store.delete(&meta.location).await {
                 Ok(_) => {
                     deleted_count += 1;
                     debug!(path = %meta.location, "Deleted old checkpoint");
@@ -841,7 +851,7 @@ impl Persister {
                     // "Not found" is okay (already deleted or race condition)
                     let error_str = e.to_string();
                     if !error_str.contains("not found") && !error_str.contains("No such file") {
-                        warn!(
+                        debug!(
                             path = %meta.location,
                             error = %e,
                             "Failed to delete old checkpoint"
@@ -2090,7 +2100,12 @@ mod tests {
         assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 4);
 
         // Trigger cleanup
-        persister.cleanup_old_checkpoints_for_month(&jan_2025).await;
+        Persister::cleanup_old_checkpoints_for_month(
+            persister.node_identifier_prefix.clone(),
+            Arc::clone(&persister.object_store),
+            jan_2025,
+        )
+        .await;
 
         // Should have exactly 2 checkpoints remaining
         assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
@@ -2128,7 +2143,12 @@ mod tests {
         assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
 
         // Trigger cleanup - should not delete anything
-        persister.cleanup_old_checkpoints_for_month(&jan_2025).await;
+        Persister::cleanup_old_checkpoints_for_month(
+            persister.node_identifier_prefix.clone(),
+            Arc::clone(&persister.object_store),
+            jan_2025,
+        )
+        .await;
 
         // Should still have 2 checkpoints
         assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
@@ -2145,7 +2165,12 @@ mod tests {
         let jan_2025 = YearMonth::new_unchecked(2025, 1);
 
         // No checkpoints exist - cleanup should not error
-        persister.cleanup_old_checkpoints_for_month(&jan_2025).await;
+        Persister::cleanup_old_checkpoints_for_month(
+            persister.node_identifier_prefix.clone(),
+            Arc::clone(&persister.object_store),
+            jan_2025,
+        )
+        .await;
 
         // Should still be 0
         assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 0);
@@ -2185,12 +2210,29 @@ mod tests {
             .await
             .unwrap();
 
-        // Cleanup should have run, keeping only 2 checkpoints (seq 3 and seq 2)
-        assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
+        // Cleanup runs asynchronously, so we need to wait for it to complete.
+        // Retry with timeout: 100 iterations * 50ms = 5 seconds max.
+        let expected_seqs = vec![3, 2];
+        let mut attempts = 0;
+        loop {
+            let count = count_checkpoints_for_month(&persister, &jan_2025).await;
+            let remaining_seqs = get_checkpoint_sequences_for_month(&persister, &jan_2025).await;
 
-        // Verify the newest 2 are retained (seq 3 from persist_checkpoint, and seq 2)
-        let remaining_seqs = get_checkpoint_sequences_for_month(&persister, &jan_2025).await;
-        assert_eq!(remaining_seqs, vec![3, 2]);
+            if count == 2 && remaining_seqs == expected_seqs {
+                break;
+            }
+
+            attempts += 1;
+            if attempts >= 100 {
+                panic!(
+                    "Cleanup did not complete within 5 seconds. \
+                     Expected 2 checkpoints with sequences {:?}, \
+                     but found {} checkpoints with sequences {:?}",
+                    expected_seqs, count, remaining_seqs
+                );
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
     }
 
     /// Test that cleanup only affects the specified month
@@ -2241,14 +2283,24 @@ mod tests {
         assert_eq!(count_checkpoints_for_month(&persister, &feb_2025).await, 3);
 
         // Cleanup January only
-        persister.cleanup_old_checkpoints_for_month(&jan_2025).await;
+        Persister::cleanup_old_checkpoints_for_month(
+            persister.node_identifier_prefix.clone(),
+            Arc::clone(&persister.object_store),
+            jan_2025,
+        )
+        .await;
 
         // January should have 2, February should still have 3
         assert_eq!(count_checkpoints_for_month(&persister, &jan_2025).await, 2);
         assert_eq!(count_checkpoints_for_month(&persister, &feb_2025).await, 3);
 
         // Cleanup February
-        persister.cleanup_old_checkpoints_for_month(&feb_2025).await;
+        Persister::cleanup_old_checkpoints_for_month(
+            persister.node_identifier_prefix.clone(),
+            Arc::clone(&persister.object_store),
+            feb_2025,
+        )
+        .await;
 
         // Now both should have 2
         assert_eq!(count_checkpoints_for_month(&persister, &feb_2025).await, 2);
