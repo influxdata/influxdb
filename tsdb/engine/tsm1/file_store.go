@@ -1595,6 +1595,8 @@ func (c *KeyCursor) nextDescending() {
 	}
 }
 
+// purger manages asynchronous deletion of TSM files that have been
+// replaced by compaction, but are temporarily held open by queries
 type purger struct {
 	files   gensyncmap.Map[string, TSMFile]
 	mu      sync.Mutex
@@ -1608,9 +1610,6 @@ func (p *purger) add(files []TSMFile) {
 		return
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	var fileNames []string
 	for _, f := range files {
 		fileName := f.Path()
@@ -1622,19 +1621,19 @@ func (p *purger) add(files []TSMFile) {
 }
 
 // purge starts a goroutine to purge files from disk if one isn't already running.
-// Must be called with p.mu held.
 func (p *purger) purge(fileNames []string) {
 	logger, logEndOp := logger.NewOperation(p.logger, "Purge held files", "filestore_purger")
 
 	logger.Info("added", zap.Int("count", len(fileNames)))
 	logger.Debug("purging", zap.Strings("files", fileNames))
 
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.running {
 		logger.Info("already running, files added to previous operation")
 		logEndOp()
 		return
 	}
-
 	p.running = true
 
 	go func() {
@@ -1670,6 +1669,9 @@ func (p *purger) purge(fileNames []string) {
 					}
 					// Remove the file regardless of success or failure.
 					// Do not retry files which could not be closed or removed.
+					// This is because they have already been closed, or there
+					// is an operating system problem that is unlikely to
+					// resolve by itself.
 					p.files.Delete(k)
 				}
 				// InUse files are left to be tried later.
@@ -1685,11 +1687,15 @@ func (p *purger) hasFiles() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.files.Len() == 0 {
-		p.running = false
-		return false
-	}
-	return true
+	has := false
+
+	/// Avoid calling Len() which iterates over the whole map.
+	p.files.Range(func(k string, v TSMFile) bool {
+		has = true
+		return false // stop iteration after finding the first file
+	})
+	p.running = has
+	return has
 }
 
 type tsmReaders []TSMFile
