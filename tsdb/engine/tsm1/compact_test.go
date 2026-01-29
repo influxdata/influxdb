@@ -4784,10 +4784,7 @@ type fakeFileStore struct {
 	defaultBlockCount int
 
 	lastModified time.Time
-	// fakeFileStore blockCount holds a map of file paths from
-	// PathsFn.FileStat to a mock block count as an integer.
-	blockCount map[string]int
-	readers    []*tsm1.TSMReader
+	readers      []*tsm1.TSMReader
 }
 
 func (w *fakeFileStore) Stats() []tsm1.ExtFileStat {
