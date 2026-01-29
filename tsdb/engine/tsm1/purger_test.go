@@ -148,9 +148,9 @@ func TestPurger_RaceCondition_AddDuringExit_Stressed(t *testing.T) {
 			mu.RLock()
 			defer mu.RUnlock()
 			defer wg.Done()
-			concurrency.Add(1)
-			if c := concurrency.Load(); c > maxConcurrency.Load() {
-				maxConcurrency.Store(c)
+			c := concurrency.Add(1)
+			if old := maxConcurrency.Load(); c > old {
+				maxConcurrency.CompareAndSwap(old, c)
 			}
 			p.add([]TSMFile{files[idx]})
 			concurrency.Add(-1)
@@ -199,9 +199,9 @@ func TestPurger_ConcurrentAdd(t *testing.T) {
 			defer mu.RUnlock()
 			defer wg.Done()
 			for i := range filesPerGoroutine {
-				concurrency.Add(1)
-				if c := concurrency.Load(); c > maxConcurrency.Load() {
-					maxConcurrency.Store(c)
+				c := concurrency.Add(1)
+				if old := maxConcurrency.Load(); c > old {
+					maxConcurrency.CompareAndSwap(old, c)
 				}
 				p.add([]TSMFile{files[g*filesPerGoroutine+i]})
 				concurrency.Add(-1)
@@ -257,9 +257,9 @@ func TestPurger_ConcurrentAdd_MixedInUse(t *testing.T) {
 			mu.RLock()
 			defer mu.RUnlock()
 			defer wg.Done()
-			concurrency.Add(1)
-			if c := concurrency.Load(); c > maxConcurrency.Load() {
-				maxConcurrency.Store(c)
+			c := concurrency.Add(1)
+			if old := maxConcurrency.Load(); c > old {
+				maxConcurrency.CompareAndSwap(old, c)
 			}
 			p.add([]TSMFile{allFiles[idx]})
 			concurrency.Add(-1)
@@ -336,9 +336,9 @@ func TestPurger_ConcurrentAdd_WhilePurging(t *testing.T) {
 			mu.RLock()
 			defer mu.RUnlock()
 			defer wg.Done()
-			concurrency.Add(1)
-			if c := concurrency.Load(); c > maxConcurrency.Load() {
-				maxConcurrency.Store(c)
+			c := concurrency.Add(1)
+			if old := maxConcurrency.Load(); c > old {
+				maxConcurrency.CompareAndSwap(old, c)
 			}
 			p.add([]TSMFile{additionalFiles[idx]})
 			concurrency.Add(-1)
