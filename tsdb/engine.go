@@ -168,6 +168,7 @@ type EngineOptions struct {
 	CompactionPlannerCreator    CompactionPlannerCreator
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate
+	OptimizedCompactionLimiter  limiter.Fixed
 	WALEnabled                  bool
 	MonitorDisabled             bool
 
