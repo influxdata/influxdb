@@ -1689,7 +1689,7 @@ func (p *purger) hasFiles() bool {
 
 	has := false
 
-	/// Avoid calling Len() which iterates over the whole map.
+	// Avoid calling Len() which iterates over the whole map.
 	p.files.Range(func(k string, v TSMFile) bool {
 		has = true
 		return false // stop iteration after finding the first file
