@@ -307,7 +307,6 @@ func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 		stats:        &FileStoreStatistics{},
 		purger: &purger{
 			logger: logger,
-			files:  gensyncmap.Map[string, TSMFile]{},
 		},
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
