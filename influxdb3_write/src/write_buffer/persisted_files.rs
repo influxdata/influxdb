@@ -282,9 +282,11 @@ impl PersistedFiles {
             }
         }
 
-        guard.parquet_files_count -= removed_paths.len() as u64;
+        guard.parquet_files_count = guard
+            .parquet_files_count
+            .saturating_sub(removed_paths.len() as u64);
         guard.parquet_files_size_mb -= as_mb(size);
-        guard.parquet_files_row_count -= row_count;
+        guard.parquet_files_row_count = guard.parquet_files_row_count.saturating_sub(row_count);
 
         // The deleted data has been processed.
         guard.deleted_data = HashMap::new();
