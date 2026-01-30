@@ -20,6 +20,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/data/gensyncmap"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
@@ -305,7 +306,6 @@ func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 		openLimiter:  limiter.NewFixed(runtime.GOMAXPROCS(0)),
 		stats:        &FileStoreStatistics{},
 		purger: &purger{
-			files:  map[string]TSMFile{},
 			logger: logger,
 		},
 		obs:           noFileStoreObserver{},
@@ -313,7 +313,6 @@ func NewFileStore(dir string, options ...TsmReaderOption) *FileStore {
 		copyFiles:     runtime.GOOS == "windows",
 		readerOptions: append([]TsmReaderOption{WithParseFileNameFunc(DefaultParseFileName)}, options...),
 	}
-	fs.purger.fileStore = fs
 	return fs
 }
 
@@ -1596,86 +1595,107 @@ func (c *KeyCursor) nextDescending() {
 	}
 }
 
+// purger manages asynchronous deletion of TSM files that have been
+// replaced by compaction, but are temporarily held open by queries
 type purger struct {
-	mu        sync.RWMutex
-	fileStore *FileStore
-	files     map[string]TSMFile
-	running   bool
+	files   gensyncmap.Map[string, TSMFile]
+	mu      sync.Mutex
+	running bool
 
 	logger *zap.Logger
 }
 
 func (p *purger) add(files []TSMFile) {
-	var fileNames []string
-
 	if len(files) == 0 {
 		return
 	}
-	p.mu.Lock()
+
+	var fileNames []string
 	for _, f := range files {
 		fileName := f.Path()
 		fileNames = append(fileNames, fileName)
-		p.files[fileName] = f
+		p.files.Store(fileName, f)
 	}
-	p.mu.Unlock()
+
 	p.purge(fileNames)
 }
 
+// purge starts a goroutine to purge files from disk if one isn't already running.
 func (p *purger) purge(fileNames []string) {
 	logger, logEndOp := logger.NewOperation(p.logger, "Purge held files", "filestore_purger")
 
 	logger.Info("added", zap.Int("count", len(fileNames)))
 	logger.Debug("purging", zap.Strings("files", fileNames))
+
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.running {
-		p.mu.Unlock()
 		logger.Info("already running, files added to previous operation")
 		logEndOp()
 		return
 	}
 	p.running = true
-	p.mu.Unlock()
 
 	go func() {
 		var purgeCount int
+		var failCount int
 		defer func() {
 			logger.Info("removed", zap.Int("files", purgeCount))
+			if failCount > 0 {
+				logger.Warn("failed to remove", zap.Int("files", failCount))
+			}
 			logEndOp()
 		}()
-		for {
-			p.mu.Lock()
-			for k, v := range p.files {
+
+		// hasFiles() acquires the lock to check files.Len() and, if empty,
+		// sets running = false before returning. This ensures no race between
+		// add() checking running and the goroutine exiting.
+		for p.hasFiles() {
+			p.files.Range(func(k string, v TSMFile) bool {
 				// In order to ensure that there are no races with this (file held externally calls Ref
 				// after we check InUse), we need to maintain the invariant that every handle to a file
 				// is handed out in use (Ref'd), and handlers only ever relinquish the file once (call Unref
-				// exactly once, and never use it again). InUse is only valid during a write lock, since
-				// we allow calls to Ref and Unref under the read lock and no lock at all respectively.
+				// exactly once, and never use it again).
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
 						logger.Error("close file failed", zap.String("file", k), zap.Error(err))
-						continue
-					}
-
-					if err := v.Remove(); err != nil {
+						failCount++
+					} else if err := v.Remove(); err != nil {
 						logger.Error("remove file failed", zap.String("file", k), zap.Error(err))
-						continue
+						failCount++
+					} else {
+						logger.Debug("successfully removed", zap.String("file", k))
+						purgeCount++
 					}
-					logger.Debug("successfully removed", zap.String("file", k))
-					delete(p.files, k)
-					purgeCount++
+					// Remove the file regardless of success or failure.
+					// Do not retry files which could not be closed or removed.
+					// This is because they have already been closed, or there
+					// is an operating system problem that is unlikely to
+					// resolve by itself.
+					p.files.Delete(k)
 				}
-			}
+				// InUse files are left to be tried later.
+				return true
+			})
 
-			if len(p.files) == 0 {
-				p.running = false
-				p.mu.Unlock()
-				return
-			}
-
-			p.mu.Unlock()
 			time.Sleep(time.Second)
 		}
 	}()
+}
+
+func (p *purger) hasFiles() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	has := false
+
+	// Avoid calling Len() which iterates over the whole map.
+	p.files.Range(func(k string, v TSMFile) bool {
+		has = true
+		return false // stop iteration after finding the first file
+	})
+	p.running = has
+	return has
 }
 
 type tsmReaders []TSMFile
