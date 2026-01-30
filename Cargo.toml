@@ -49,7 +49,7 @@ exclude = [
 # then this will be `3.1.0-nightly`. Once `3.1.0` is released, this will be bumped to `3.2.0-nightly`,
 # and will remain that regardless of how many `3.1.x` patch releases are done prior to the `3.2.0`
 # release.
-version = "3.9.0-0.rc.2"
+version = "3.9.0-0.rc.3"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
