@@ -368,19 +368,18 @@ func (p *Partition) Wait() {
 		if p.CurrentCompactionN() == 0 {
 			return
 		}
-		select {
-		case <-ticker.C:
-			elapsed := time.Since(startTime)
-			if elapsed >= timeoutDuration {
-				files := make([]string, 0)
-				for _, v := range p.fileSet.Files() {
-					files = append(files, v.Path())
-				}
-				p.logger.Warn("Partition.Wait() timed out waiting for compactions to complete",
-					zap.Int32("stuck_compactions", p.CurrentCompactionN()), zap.Duration("timeout", timeoutDuration),
-					zap.Strings("files", files))
-				startTime = time.Now()
+
+		<-ticker.C
+		elapsed := time.Since(startTime)
+		if elapsed >= timeoutDuration {
+			files := make([]string, 0)
+			for _, v := range p.fileSet.Files() {
+				files = append(files, v.Path())
 			}
+			p.logger.Warn("Partition.Wait() timed out waiting for compactions to complete",
+				zap.Int32("stuck_compactions", p.CurrentCompactionN()), zap.Duration("timeout", timeoutDuration),
+				zap.Strings("files", files))
+			startTime = time.Now()
 		}
 	}
 }
