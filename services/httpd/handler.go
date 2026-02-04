@@ -27,10 +27,10 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/pkg/data/gensyncmap"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/pkg/data/gensyncmap"
 	"github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
@@ -144,9 +144,9 @@ type Handler struct {
 	Controller       Controller
 	CompilerMappings flux.CompilerMappings
 
-	Config           *Config
-	Logger           *zap.Logger
-	CLFLogger        *log.Logger
+	Config            *Config
+	Logger            *zap.Logger
+	CLFLogger         *log.Logger
 	accessLog         *os.File
 	accessLogFilters  StatusFilters
 	stats             *Statistics
