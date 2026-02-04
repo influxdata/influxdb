@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -2849,6 +2850,271 @@ func TestHandlerDebugVars(t *testing.T) {
 		}
 	})
 
+}
+
+// TestHandler_QueryBytesPerUser tests that query response bytes are tracked per user.
+func TestHandler_QueryBytesPerUser(t *testing.T) {
+	t.Run("tracks bytes for authenticated user", func(t *testing.T) {
+		h := NewHandler(true)
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			if username == "alice" || username == "bob" {
+				return &meta.UserInfo{Name: username, Hash: "pass", Admin: true}, nil
+			}
+			return nil, meta.ErrUserNotFound
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Query as alice
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=alice&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		aliceBytes1 := w.Body.Len()
+
+		// Query as alice again
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=alice&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Query as bob
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=bob&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		bobBytes := w.Body.Len()
+
+		// Check statistics
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 1)
+
+		values := stats[0].Values
+		aliceKey := "queryRespBytesUser:alice"
+		bobKey := "queryRespBytesUser:bob"
+
+		require.Contains(t, values, aliceKey, "expected alice's bytes to be tracked")
+		require.Contains(t, values, bobKey, "expected bob's bytes to be tracked")
+
+		// Alice made 2 queries
+		require.Equal(t, int64(aliceBytes1*2), values[aliceKey], "alice's bytes mismatch")
+		// Bob made 1 query
+		require.Equal(t, int64(bobBytes), values[bobKey], "bob's bytes mismatch")
+	})
+
+	t.Run("tracks bytes for anonymous user", func(t *testing.T) {
+		h := NewHandler(false) // no auth required
+
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Query without authentication
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		anonBytes := w.Body.Len()
+
+		// Check statistics
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 1)
+
+		values := stats[0].Values
+		anonKey := "queryRespBytesUser:(anonymous)"
+
+		require.Contains(t, values, anonKey, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(anonBytes), values[anonKey], "anonymous bytes mismatch")
+	})
+
+	t.Run("tracks bytes for chunked queries", func(t *testing.T) {
+		h := NewHandler(false)
+
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			// Send multiple chunks
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+			return nil
+		}
+
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&chunked=true", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		totalBytes := w.Body.Len()
+
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 1)
+
+		values := stats[0].Values
+		anonKey := "queryRespBytesUser:(anonymous)"
+
+		require.Contains(t, values, anonKey)
+		require.Equal(t, int64(totalBytes), values[anonKey], "chunked query bytes mismatch")
+	})
+
+	t.Run("concurrent queries", func(t *testing.T) {
+		h := NewHandler(true)
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: true}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		const numUsers = 5
+		const queriesPerUser = 10
+
+		// Create test data upfront (before spawning goroutines)
+		type queryRequest struct {
+			user string
+			req  *http.Request
+		}
+		requests := make([]queryRequest, 0, numUsers*queriesPerUser)
+		for i := 0; i < numUsers; i++ {
+			user := fmt.Sprintf("user%d", i)
+			for j := 0; j < queriesPerUser; j++ {
+				req := MustNewJSONRequest("GET", fmt.Sprintf("/query?u=%s&p=pass&db=foo&q=SELECT+*+FROM+bar", user), nil)
+				requests = append(requests, queryRequest{user: user, req: req})
+			}
+		}
+
+		var mu sync.RWMutex
+		var concurrency, maxConcurrency atomic.Int64
+
+		var wg sync.WaitGroup
+		mu.Lock()
+		for _, qr := range requests {
+			wg.Add(1)
+			go func(qr queryRequest) {
+				mu.RLock()
+				defer mu.RUnlock()
+				defer wg.Done()
+
+				c := concurrency.Add(1)
+				if old := maxConcurrency.Load(); c > old {
+					maxConcurrency.CompareAndSwap(old, c)
+				}
+
+				w := httptest.NewRecorder()
+				h.ServeHTTP(w, qr.req)
+
+				concurrency.Add(-1)
+			}(qr)
+		}
+		mu.Unlock() // Release to start all goroutines simultaneously
+		wg.Wait()
+
+		t.Logf("max concurrency: %d", maxConcurrency.Load())
+
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 1)
+
+		values := stats[0].Values
+
+		// Verify all users have entries
+		for i := 0; i < numUsers; i++ {
+			key := fmt.Sprintf("queryRespBytesUser:user%d", i)
+			require.Contains(t, values, key, "expected user%d's bytes to be tracked", i)
+			// Each user made queriesPerUser queries, bytes should be positive
+			require.Greater(t, values[key], int64(0), "user%d should have positive bytes", i)
+		}
+	})
+
+	t.Run("SHOW STATS FOR httpd includes per-user bytes", func(t *testing.T) {
+		h := NewHandler(true)
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: true}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Make queries as different users
+		for _, user := range []string{"alice", "bob"} {
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, MustNewJSONRequest("GET", fmt.Sprintf("/query?u=%s&p=pass&db=foo&q=SELECT+*+FROM+bar", user), nil))
+			require.Equal(t, http.StatusOK, w.Code)
+		}
+
+		// Get statistics as SHOW STATS FOR 'httpd' would
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 1)
+
+		stat := stats[0]
+		require.Equal(t, "httpd", stat.Name, "expected statistic name to be 'httpd'")
+
+		// Simulate how executeShowStatsStatement builds the row
+		// It uses sorted keys (like monitor.Statistic.ValueNames())
+		row := &models.Row{Name: stat.Name, Tags: stat.Tags}
+		var sortedKeys []string
+		for k := range stat.Values {
+			sortedKeys = append(sortedKeys, k)
+		}
+		sort.Strings(sortedKeys)
+
+		values := make([]interface{}, 0, len(stat.Values))
+		for _, k := range sortedKeys {
+			row.Columns = append(row.Columns, k)
+			values = append(values, stat.Values[k])
+		}
+		row.Values = [][]interface{}{values}
+
+		// Verify per-user columns are present and sorted
+		var userColumns []string
+		for _, col := range row.Columns {
+			if strings.HasPrefix(col, "queryRespBytesUser:") {
+				userColumns = append(userColumns, col)
+			}
+		}
+
+		require.Contains(t, userColumns, "queryRespBytesUser:alice", "expected alice in SHOW STATS output")
+		require.Contains(t, userColumns, "queryRespBytesUser:bob", "expected bob in SHOW STATS output")
+
+		// Verify columns are sorted (as monitor.Statistic.ValueNames() returns sorted keys)
+		require.True(t, sort.StringsAreSorted(row.Columns), "expected columns to be sorted")
+
+		// Verify the values are accessible by column index
+		aliceIdx := -1
+		bobIdx := -1
+		for i, col := range row.Columns {
+			if col == "queryRespBytesUser:alice" {
+				aliceIdx = i
+			} else if col == "queryRespBytesUser:bob" {
+				bobIdx = i
+			}
+		}
+		require.NotEqual(t, -1, aliceIdx, "alice column not found")
+		require.NotEqual(t, -1, bobIdx, "bob column not found")
+
+		// Values should be positive int64
+		require.Greater(t, row.Values[0][aliceIdx].(int64), int64(0), "alice bytes should be positive")
+		require.Greater(t, row.Values[0][bobIdx].(int64), int64(0), "bob bytes should be positive")
+	})
 }
 
 // NewHandler represents a test wrapper for httpd.Handler.

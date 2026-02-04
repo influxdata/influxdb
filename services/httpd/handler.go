@@ -27,6 +27,7 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/pkg/data/gensyncmap"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -146,9 +147,10 @@ type Handler struct {
 	Config           *Config
 	Logger           *zap.Logger
 	CLFLogger        *log.Logger
-	accessLog        *os.File
-	accessLogFilters StatusFilters
-	stats            *Statistics
+	accessLog         *os.File
+	accessLogFilters  StatusFilters
+	stats             *Statistics
+	queryBytesPerUser gensyncmap.Map[string, *atomic.Int64]
 
 	requestTracker *RequestTracker
 	writeThrottler *Throttler
@@ -442,36 +444,54 @@ type Statistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
+	values := map[string]interface{}{
+		statRequest:                          atomic.LoadInt64(&h.stats.Requests),
+		statQueryRequest:                     atomic.LoadInt64(&h.stats.QueryRequests),
+		statWriteRequest:                     atomic.LoadInt64(&h.stats.WriteRequests),
+		statPingRequest:                      atomic.LoadInt64(&h.stats.PingRequests),
+		statStatusRequest:                    atomic.LoadInt64(&h.stats.StatusRequests),
+		statWriteRequestBytesReceived:        atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
+		statQueryRequestBytesTransmitted:     atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
+		statPointsWrittenOK:                  atomic.LoadInt64(&h.stats.PointsWrittenOK),
+		statPointsWrittenDropped:             atomic.LoadInt64(&h.stats.PointsWrittenDropped),
+		statPointsWrittenFail:                atomic.LoadInt64(&h.stats.PointsWrittenFail),
+		statAuthFail:                         atomic.LoadInt64(&h.stats.AuthenticationFailures),
+		statRequestDuration:                  atomic.LoadInt64(&h.stats.RequestDuration),
+		statQueryRequestDuration:             atomic.LoadInt64(&h.stats.QueryRequestDuration),
+		statWriteRequestDuration:             atomic.LoadInt64(&h.stats.WriteRequestDuration),
+		statRequestsActive:                   atomic.LoadInt64(&h.stats.ActiveRequests),
+		statWriteRequestsActive:              atomic.LoadInt64(&h.stats.ActiveWriteRequests),
+		statClientError:                      atomic.LoadInt64(&h.stats.ClientErrors),
+		statServerError:                      atomic.LoadInt64(&h.stats.ServerErrors),
+		statRecoveredPanics:                  atomic.LoadInt64(&h.stats.RecoveredPanics),
+		statPromWriteRequest:                 atomic.LoadInt64(&h.stats.PromWriteRequests),
+		statPromReadRequest:                  atomic.LoadInt64(&h.stats.PromReadRequests),
+		statFluxQueryRequests:                atomic.LoadInt64(&h.stats.FluxQueryRequests),
+		statFluxQueryRequestDuration:         atomic.LoadInt64(&h.stats.FluxQueryRequestDuration),
+		statFluxQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.FluxQueryRequestBytesTransmitted),
+	}
+
+	// Add per-user query bytes with flattened keys
+	h.queryBytesPerUser.Range(func(user string, counter *atomic.Int64) bool {
+		key := "queryRespBytesUser:" + user
+		if user == "" {
+			key = "queryRespBytesUser:(anonymous)"
+		}
+		values[key] = counter.Load()
+		return true
+	})
+
 	return []models.Statistic{{
-		Name: "httpd",
-		Tags: tags,
-		Values: map[string]interface{}{
-			statRequest:                          atomic.LoadInt64(&h.stats.Requests),
-			statQueryRequest:                     atomic.LoadInt64(&h.stats.QueryRequests),
-			statWriteRequest:                     atomic.LoadInt64(&h.stats.WriteRequests),
-			statPingRequest:                      atomic.LoadInt64(&h.stats.PingRequests),
-			statStatusRequest:                    atomic.LoadInt64(&h.stats.StatusRequests),
-			statWriteRequestBytesReceived:        atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
-			statQueryRequestBytesTransmitted:     atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
-			statPointsWrittenOK:                  atomic.LoadInt64(&h.stats.PointsWrittenOK),
-			statPointsWrittenDropped:             atomic.LoadInt64(&h.stats.PointsWrittenDropped),
-			statPointsWrittenFail:                atomic.LoadInt64(&h.stats.PointsWrittenFail),
-			statAuthFail:                         atomic.LoadInt64(&h.stats.AuthenticationFailures),
-			statRequestDuration:                  atomic.LoadInt64(&h.stats.RequestDuration),
-			statQueryRequestDuration:             atomic.LoadInt64(&h.stats.QueryRequestDuration),
-			statWriteRequestDuration:             atomic.LoadInt64(&h.stats.WriteRequestDuration),
-			statRequestsActive:                   atomic.LoadInt64(&h.stats.ActiveRequests),
-			statWriteRequestsActive:              atomic.LoadInt64(&h.stats.ActiveWriteRequests),
-			statClientError:                      atomic.LoadInt64(&h.stats.ClientErrors),
-			statServerError:                      atomic.LoadInt64(&h.stats.ServerErrors),
-			statRecoveredPanics:                  atomic.LoadInt64(&h.stats.RecoveredPanics),
-			statPromWriteRequest:                 atomic.LoadInt64(&h.stats.PromWriteRequests),
-			statPromReadRequest:                  atomic.LoadInt64(&h.stats.PromReadRequests),
-			statFluxQueryRequests:                atomic.LoadInt64(&h.stats.FluxQueryRequests),
-			statFluxQueryRequestDuration:         atomic.LoadInt64(&h.stats.FluxQueryRequestDuration),
-			statFluxQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.FluxQueryRequestBytesTransmitted),
-		},
+		Name:   "httpd",
+		Tags:   tags,
+		Values: values,
 	}}
+}
+
+// addQueryBytesForUser atomically adds bytes to the per-user query bytes counter.
+func (h *Handler) addQueryBytesForUser(user string, n int64) {
+	counter, _ := h.queryBytesPerUser.LoadOrStore(user, &atomic.Int64{})
+	counter.Add(n)
 }
 
 // AddRoutes sets the provided routes on the handler.
@@ -782,6 +802,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 				Results: []*query.Result{r},
 			})
 			atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
+			h.addQueryBytesForUser(userName, int64(n))
 			w.(http.Flusher).Flush()
 			continue
 		}
@@ -873,6 +894,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	if !chunked {
 		n, _ := rw.WriteResponse(resp)
 		atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
+		h.addQueryBytesForUser(userName, int64(n))
 	}
 }
 
@@ -2031,6 +2053,11 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
+	var userName string
+	if user != nil {
+		userName = user.ID()
+	}
+
 	respond := func(resp *prompb.ReadResponse) {
 		data, err := resp.Marshal()
 		if err != nil {
@@ -2048,6 +2075,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		}
 
 		atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
+		h.addQueryBytesForUser(userName, int64(len(compressed)))
 	}
 
 	ctx := context.Background()
@@ -2134,6 +2162,11 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 		atomic.AddInt64(&h.stats.FluxQueryRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
+	var userName string
+	if user != nil {
+		userName = user.ID()
+	}
+
 	req, err := decodeQueryRequest(r)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
@@ -2201,14 +2234,13 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 		defer results.Release()
 
 		n, err = encoder.Encode(w, results)
-		if err != nil {
-			if n == 0 {
-				// If the encoder did not write anything, we can write an error header.
-				h.httpError(w, err.Error(), http.StatusInternalServerError)
-			} else {
-				atomic.AddInt64(&h.stats.FluxQueryRequestBytesTransmitted, int64(n))
-			}
+		if err != nil && n == 0 {
+			// If the encoder did not write anything, we can write an error header.
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		atomic.AddInt64(&h.stats.FluxQueryRequestBytesTransmitted, int64(n))
+		h.addQueryBytesForUser(userName, int64(n))
 	}
 }
 
