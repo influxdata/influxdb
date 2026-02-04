@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ import (
 func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	fs := NewFileStore(dir)
+	fs := NewFileStore(dir, tsdb.EngineTags{})
 	assert := assert.New(t)
 	require := require.New(t)
 
