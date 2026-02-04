@@ -1,8 +1,9 @@
 package tsm1_test
 
 import (
-	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 )
 
 type TestLevelResults struct {

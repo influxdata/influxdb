@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"golang.org/x/exp/slices"
 
-	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 )
 
 // CompactionProperty represents a property that compaction groups should satisfy
