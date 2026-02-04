@@ -117,7 +117,6 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 
 	// Collect all timestamps and values from all Next() calls
 	var allTimestamps []int64
-	var allValues []float64
 	seenTimestamps := make(map[int64]bool)
 	callNum := 0
 
@@ -148,9 +147,6 @@ func TestAscendingCursorDuplicateDataBug(t *testing.T) {
 			seenTimestamps[ts] = true
 			allTimestamps = append(allTimestamps, ts)
 		}
-
-		// Collect values for verification
-		allValues = append(allValues, result.Values...)
 	}
 
 	// Verify no duplicates were found
