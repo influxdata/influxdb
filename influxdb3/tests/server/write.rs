@@ -745,3 +745,39 @@ async fn test_table_creation_with_special_characters_line_protocol_compatibility
     // Use insta snapshot to verify the table columns
     insta::assert_json_snapshot!("special_chars_table_columns", table_info);
 }
+
+/// Reproducer for [#27181][issue]
+///
+/// Telegraf procstat plugin generates line protocol with a string field named `user`,
+/// which InfluxDB 2 accepts but InfluxDB 3 rejects.
+///
+/// [issue]: https://github.com/influxdata/influxdb/issues/27181
+#[tokio::test]
+async fn api_v2_write_procstat_with_user_field() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+
+    // Line protocol from the issue - procstat metrics with user field
+    let lp = r#"procstat,host=server01,pattern=.*,process_name=systemd cmdline="/usr/lib/systemd/systemd --system",pid=1i,user="root" 1770021520000000000"#;
+
+    let resp = client
+        .post(&write_url)
+        .query(&[("bucket", "test_bucket"), ("precision", "ns")])
+        .body(lp)
+        .send()
+        .await
+        .expect("send write request");
+
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+
+    println!("Response [{status}]: {body}");
+
+    // This should succeed - the line protocol is valid and accepted by InfluxDB 2
+    assert_eq!(
+        StatusCode::NO_CONTENT,
+        status,
+        "Expected success writing procstat with user field, got error: {body}"
+    );
+}
