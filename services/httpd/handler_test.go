@@ -2899,9 +2899,11 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		// Check statistics
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 1)
+		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, "userquerybytes", stats[1].Name)
 
-		values := stats[0].Values
+		values := stats[1].Values
 		aliceKey := httpd.StatQueryRespBytesUserPrefix + testUserAlice
 		bobKey := httpd.StatQueryRespBytesUserPrefix + testUserBob
 
@@ -2930,9 +2932,11 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		// Check statistics
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 1)
+		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, "userquerybytes", stats[1].Name)
 
-		values := stats[0].Values
+		values := stats[1].Values
 		anonKey := httpd.StatQueryRespBytesUserPrefix + httpd.StatAnonymousUser
 
 		require.Contains(t, values, anonKey, "expected anonymous bytes to be tracked")
@@ -2955,9 +2959,11 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		totalBytes := w.Body.Len()
 
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 1)
+		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, "userquerybytes", stats[1].Name)
 
-		values := stats[0].Values
+		values := stats[1].Values
 		anonKey := httpd.StatQueryRespBytesUserPrefix + httpd.StatAnonymousUser
 
 		require.Contains(t, values, anonKey)
@@ -3034,9 +3040,11 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		t.Logf("max concurrency: %d", maxConcurrency.Load())
 
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 1)
+		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, "userquerybytes", stats[1].Name)
 
-		values := stats[0].Values
+		values := stats[1].Values
 
 		// Verify all users have exact expected byte counts
 		expectedBytesPerUser := expectedBytesPerQuery * queriesPerUser
@@ -3072,41 +3080,36 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 			require.Equal(t, http.StatusOK, w.Code)
 		}
 
-		// Get statistics as SHOW STATS FOR 'httpd' would
+		// Get statistics as SHOW STATS would return them
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 1)
+		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, "userquerybytes", stats[1].Name)
 
-		stat := stats[0]
-		require.Equal(t, "httpd", stat.Name, "expected statistic name to be 'httpd'")
+		// Check the userquerybytes statistic for per-user bytes
+		userStat := stats[1]
 
 		// Simulate how executeShowStatsStatement builds the row
 		// It uses sorted keys (like monitor.Statistic.ValueNames())
-		row := &models.Row{Name: stat.Name, Tags: stat.Tags}
+		row := &models.Row{Name: userStat.Name, Tags: userStat.Tags}
 		var sortedKeys []string
-		for k := range stat.Values {
+		for k := range userStat.Values {
 			sortedKeys = append(sortedKeys, k)
 		}
 		sort.Strings(sortedKeys)
 
-		values := make([]interface{}, 0, len(stat.Values))
+		values := make([]interface{}, 0, len(userStat.Values))
 		for _, k := range sortedKeys {
 			row.Columns = append(row.Columns, k)
-			values = append(values, stat.Values[k])
+			values = append(values, userStat.Values[k])
 		}
 		row.Values = [][]interface{}{values}
 
-		// Verify per-user columns are present and sorted
-		var userColumns []string
-		for _, col := range row.Columns {
-			if strings.HasPrefix(col, httpd.StatQueryRespBytesUserPrefix) {
-				userColumns = append(userColumns, col)
-			}
-		}
-
+		// Verify per-user columns are present
 		aliceKey := httpd.StatQueryRespBytesUserPrefix + testUserAlice
 		bobKey := httpd.StatQueryRespBytesUserPrefix + testUserBob
-		require.Contains(t, userColumns, aliceKey, "expected alice in SHOW STATS output")
-		require.Contains(t, userColumns, bobKey, "expected bob in SHOW STATS output")
+		require.Contains(t, row.Columns, aliceKey, "expected alice in SHOW STATS output")
+		require.Contains(t, row.Columns, bobKey, "expected bob in SHOW STATS output")
 
 		// Verify columns are sorted (as monitor.Statistic.ValueNames() returns sorted keys)
 		require.True(t, sort.StringsAreSorted(row.Columns), "expected columns to be sorted")

@@ -444,48 +444,56 @@ type Statistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
-	values := map[string]interface{}{
-		statRequest:                          atomic.LoadInt64(&h.stats.Requests),
-		statQueryRequest:                     atomic.LoadInt64(&h.stats.QueryRequests),
-		statWriteRequest:                     atomic.LoadInt64(&h.stats.WriteRequests),
-		statPingRequest:                      atomic.LoadInt64(&h.stats.PingRequests),
-		statStatusRequest:                    atomic.LoadInt64(&h.stats.StatusRequests),
-		statWriteRequestBytesReceived:        atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
-		statQueryRequestBytesTransmitted:     atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
-		statPointsWrittenOK:                  atomic.LoadInt64(&h.stats.PointsWrittenOK),
-		statPointsWrittenDropped:             atomic.LoadInt64(&h.stats.PointsWrittenDropped),
-		statPointsWrittenFail:                atomic.LoadInt64(&h.stats.PointsWrittenFail),
-		statAuthFail:                         atomic.LoadInt64(&h.stats.AuthenticationFailures),
-		statRequestDuration:                  atomic.LoadInt64(&h.stats.RequestDuration),
-		statQueryRequestDuration:             atomic.LoadInt64(&h.stats.QueryRequestDuration),
-		statWriteRequestDuration:             atomic.LoadInt64(&h.stats.WriteRequestDuration),
-		statRequestsActive:                   atomic.LoadInt64(&h.stats.ActiveRequests),
-		statWriteRequestsActive:              atomic.LoadInt64(&h.stats.ActiveWriteRequests),
-		statClientError:                      atomic.LoadInt64(&h.stats.ClientErrors),
-		statServerError:                      atomic.LoadInt64(&h.stats.ServerErrors),
-		statRecoveredPanics:                  atomic.LoadInt64(&h.stats.RecoveredPanics),
-		statPromWriteRequest:                 atomic.LoadInt64(&h.stats.PromWriteRequests),
-		statPromReadRequest:                  atomic.LoadInt64(&h.stats.PromReadRequests),
-		statFluxQueryRequests:                atomic.LoadInt64(&h.stats.FluxQueryRequests),
-		statFluxQueryRequestDuration:         atomic.LoadInt64(&h.stats.FluxQueryRequestDuration),
-		statFluxQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.FluxQueryRequestBytesTransmitted),
+	stats := []models.Statistic{{
+		Name: "httpd",
+		Tags: tags,
+		Values: map[string]interface{}{
+			statRequest:                          atomic.LoadInt64(&h.stats.Requests),
+			statQueryRequest:                     atomic.LoadInt64(&h.stats.QueryRequests),
+			statWriteRequest:                     atomic.LoadInt64(&h.stats.WriteRequests),
+			statPingRequest:                      atomic.LoadInt64(&h.stats.PingRequests),
+			statStatusRequest:                    atomic.LoadInt64(&h.stats.StatusRequests),
+			statWriteRequestBytesReceived:        atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
+			statQueryRequestBytesTransmitted:     atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
+			statPointsWrittenOK:                  atomic.LoadInt64(&h.stats.PointsWrittenOK),
+			statPointsWrittenDropped:             atomic.LoadInt64(&h.stats.PointsWrittenDropped),
+			statPointsWrittenFail:                atomic.LoadInt64(&h.stats.PointsWrittenFail),
+			statAuthFail:                         atomic.LoadInt64(&h.stats.AuthenticationFailures),
+			statRequestDuration:                  atomic.LoadInt64(&h.stats.RequestDuration),
+			statQueryRequestDuration:             atomic.LoadInt64(&h.stats.QueryRequestDuration),
+			statWriteRequestDuration:             atomic.LoadInt64(&h.stats.WriteRequestDuration),
+			statRequestsActive:                   atomic.LoadInt64(&h.stats.ActiveRequests),
+			statWriteRequestsActive:              atomic.LoadInt64(&h.stats.ActiveWriteRequests),
+			statClientError:                      atomic.LoadInt64(&h.stats.ClientErrors),
+			statServerError:                      atomic.LoadInt64(&h.stats.ServerErrors),
+			statRecoveredPanics:                  atomic.LoadInt64(&h.stats.RecoveredPanics),
+			statPromWriteRequest:                 atomic.LoadInt64(&h.stats.PromWriteRequests),
+			statPromReadRequest:                  atomic.LoadInt64(&h.stats.PromReadRequests),
+			statFluxQueryRequests:                atomic.LoadInt64(&h.stats.FluxQueryRequests),
+			statFluxQueryRequestDuration:         atomic.LoadInt64(&h.stats.FluxQueryRequestDuration),
+			statFluxQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.FluxQueryRequestBytesTransmitted),
+		},
+	}}
+
+	// Add per-user query bytes as a separate statistic
+	if !h.queryBytesPerUser.IsEmpty() {
+		userValues := make(map[string]interface{})
+		h.queryBytesPerUser.Range(func(user string, counter *atomic.Int64) bool {
+			key := user
+			if user == "" {
+				key = StatAnonymousUser
+			}
+			userValues[StatQueryRespBytesUserPrefix+key] = counter.Load()
+			return true
+		})
+		stats = append(stats, models.Statistic{
+			Name:   "userquerybytes",
+			Tags:   tags,
+			Values: userValues,
+		})
 	}
 
-	// Add per-user query bytes with flattened keys
-	h.queryBytesPerUser.Range(func(user string, counter *atomic.Int64) bool {
-		key := StatQueryRespBytesUserPrefix + user
-		if user == "" {
-			key = StatQueryRespBytesUserPrefix + StatAnonymousUser
-		}
-		values[key] = counter.Load()
-		return true
-	})
-
-	return []models.Statistic{{
-		Name:   "httpd",
-		Tags:   tags,
-		Values: values,
-	}}
+	return stats
 }
 
 // addQueryBytesForUser atomically adds bytes to the per-user query bytes counter.
