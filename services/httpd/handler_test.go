@@ -2854,12 +2854,17 @@ func TestHandlerDebugVars(t *testing.T) {
 
 // TestHandler_QueryBytesPerUser tests that query response bytes are tracked per user.
 func TestHandler_QueryBytesPerUser(t *testing.T) {
+	const (
+		testUserAlice = "alice"
+		testUserBob   = "bob"
+	)
+
 	t.Run("tracks bytes for authenticated user", func(t *testing.T) {
 		h := NewHandler(true)
 
 		h.MetaClient.AdminUserExistsFn = func() bool { return true }
 		h.MetaClient.UserFn = func(username string) (meta.User, error) {
-			if username == "alice" || username == "bob" {
+			if username == testUserAlice || username == testUserBob {
 				return &meta.UserInfo{Name: username, Hash: "pass", Admin: true}, nil
 			}
 			return nil, meta.ErrUserNotFound
@@ -2877,18 +2882,18 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		// Query as alice
 		w := httptest.NewRecorder()
-		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=alice&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
 		require.Equal(t, http.StatusOK, w.Code)
 		aliceBytes1 := w.Body.Len()
 
 		// Query as alice again
 		w = httptest.NewRecorder()
-		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=alice&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
 		require.Equal(t, http.StatusOK, w.Code)
 
 		// Query as bob
 		w = httptest.NewRecorder()
-		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=bob&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserBob+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
 		require.Equal(t, http.StatusOK, w.Code)
 		bobBytes := w.Body.Len()
 
@@ -2897,8 +2902,8 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		require.Len(t, stats, 1)
 
 		values := stats[0].Values
-		aliceKey := "queryRespBytesUser:alice"
-		bobKey := "queryRespBytesUser:bob"
+		aliceKey := httpd.StatQueryRespBytesUserPrefix + testUserAlice
+		bobKey := httpd.StatQueryRespBytesUserPrefix + testUserBob
 
 		require.Contains(t, values, aliceKey, "expected alice's bytes to be tracked")
 		require.Contains(t, values, bobKey, "expected bob's bytes to be tracked")
@@ -2928,7 +2933,7 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		require.Len(t, stats, 1)
 
 		values := stats[0].Values
-		anonKey := "queryRespBytesUser:(anonymous)"
+		anonKey := httpd.StatQueryRespBytesUserPrefix + httpd.StatAnonymousUser
 
 		require.Contains(t, values, anonKey, "expected anonymous bytes to be tracked")
 		require.Equal(t, int64(anonBytes), values[anonKey], "anonymous bytes mismatch")
@@ -2953,7 +2958,7 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		require.Len(t, stats, 1)
 
 		values := stats[0].Values
-		anonKey := "queryRespBytesUser:(anonymous)"
+		anonKey := httpd.StatQueryRespBytesUserPrefix + httpd.StatAnonymousUser
 
 		require.Contains(t, values, anonKey)
 		require.Equal(t, int64(totalBytes), values[anonKey], "chunked query bytes mismatch")
@@ -2979,6 +2984,12 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		const numUsers = 5
 		const queriesPerUser = 10
+
+		// First, determine expected bytes per query by running a single query
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=warmup&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		expectedBytesPerQuery := int64(w.Body.Len())
 
 		// Create test data upfront (before spawning goroutines)
 		type queryRequest struct {
@@ -3027,12 +3038,12 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		values := stats[0].Values
 
-		// Verify all users have entries
+		// Verify all users have exact expected byte counts
+		expectedBytesPerUser := expectedBytesPerQuery * queriesPerUser
 		for i := 0; i < numUsers; i++ {
-			key := fmt.Sprintf("queryRespBytesUser:user%d", i)
+			key := httpd.StatQueryRespBytesUserPrefix + fmt.Sprintf("user%d", i)
 			require.Contains(t, values, key, "expected user%d's bytes to be tracked", i)
-			// Each user made queriesPerUser queries, bytes should be positive
-			require.Greater(t, values[key], int64(0), "user%d should have positive bytes", i)
+			require.Equal(t, expectedBytesPerUser, values[key], "user%d's bytes mismatch", i)
 		}
 	})
 
@@ -3055,9 +3066,9 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		}
 
 		// Make queries as different users
-		for _, user := range []string{"alice", "bob"} {
+		for _, user := range []string{testUserAlice, testUserBob} {
 			w := httptest.NewRecorder()
-			h.ServeHTTP(w, MustNewJSONRequest("GET", fmt.Sprintf("/query?u=%s&p=pass&db=foo&q=SELECT+*+FROM+bar", user), nil))
+			h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+user+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
 			require.Equal(t, http.StatusOK, w.Code)
 		}
 
@@ -3087,13 +3098,15 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		// Verify per-user columns are present and sorted
 		var userColumns []string
 		for _, col := range row.Columns {
-			if strings.HasPrefix(col, "queryRespBytesUser:") {
+			if strings.HasPrefix(col, httpd.StatQueryRespBytesUserPrefix) {
 				userColumns = append(userColumns, col)
 			}
 		}
 
-		require.Contains(t, userColumns, "queryRespBytesUser:alice", "expected alice in SHOW STATS output")
-		require.Contains(t, userColumns, "queryRespBytesUser:bob", "expected bob in SHOW STATS output")
+		aliceKey := httpd.StatQueryRespBytesUserPrefix + testUserAlice
+		bobKey := httpd.StatQueryRespBytesUserPrefix + testUserBob
+		require.Contains(t, userColumns, aliceKey, "expected alice in SHOW STATS output")
+		require.Contains(t, userColumns, bobKey, "expected bob in SHOW STATS output")
 
 		// Verify columns are sorted (as monitor.Statistic.ValueNames() returns sorted keys)
 		require.True(t, sort.StringsAreSorted(row.Columns), "expected columns to be sorted")
@@ -3102,9 +3115,9 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		aliceIdx := -1
 		bobIdx := -1
 		for i, col := range row.Columns {
-			if col == "queryRespBytesUser:alice" {
+			if col == aliceKey {
 				aliceIdx = i
-			} else if col == "queryRespBytesUser:bob" {
+			} else if col == bobKey {
 				bobIdx = i
 			}
 		}

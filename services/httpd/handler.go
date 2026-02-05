@@ -473,9 +473,9 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 
 	// Add per-user query bytes with flattened keys
 	h.queryBytesPerUser.Range(func(user string, counter *atomic.Int64) bool {
-		key := "queryRespBytesUser:" + user
+		key := StatQueryRespBytesUserPrefix + user
 		if user == "" {
-			key = "queryRespBytesUser:(anonymous)"
+			key = StatQueryRespBytesUserPrefix + StatAnonymousUser
 		}
 		values[key] = counter.Load()
 		return true

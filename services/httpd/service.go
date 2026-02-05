@@ -49,6 +49,10 @@ const (
 	statFluxQueryRequestDuration         = "fluxQueryReqDurationNs" // Number of (wall-time) nanoseconds spent executing Flux query requests.
 	statFluxQueryRequestBytesTransmitted = "fluxQueryRespBytes"     // Sum of all bytes returned in Flux query responses.
 
+	// StatQueryRespBytesUserPrefix is the prefix for per-user query response bytes statistics.
+	StatQueryRespBytesUserPrefix = "queryRespBytesUser:"
+	// StatAnonymousUser is the key suffix for unauthenticated users in statistics.
+	StatAnonymousUser = "(anonymous)"
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
