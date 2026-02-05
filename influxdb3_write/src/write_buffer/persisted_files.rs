@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use crate::deleter::ObjectDeleter;
-use crate::table_index_cache::TableIndexCache;
+use crate::table_index_cache::{State, TableIndexCache};
 use crate::{ChunkFilter, DatabaseTables};
 use crate::{ParquetFile, PersistedSnapshot, PersistedSnapshotCheckpoint};
 use hashbrown::{HashMap, HashSet};
@@ -52,10 +52,13 @@ impl ObjectDeleter for PersistedFiles {
         // object store, whereas explicitly purging by database through the TableIndexCache
         // ensures that we are deleting all table data from the object store
         if let Some(table_index_cache) = &self.table_index_cache {
-            table_index_cache
-                .purge_db(&db_id)
-                .await
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
+            let mut rx = table_index_cache.init_state_rx();
+            let _ = rx.wait_for(|s| !matches!(s, State::Initializing)).await;
+            if *rx.borrow() != State::Initializing {
+                table_index_cache.purge_db(&db_id).await.map_err(|e| {
+                    Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                })?;
+            }
         }
 
         Ok(())
@@ -83,10 +86,14 @@ impl ObjectDeleter for PersistedFiles {
             }
         }
         if let Some(cache) = &self.table_index_cache {
-            cache
-                .purge_table(&db_id, &table_id)
-                .await
-                .map_err(Box::new)?
+            let mut rx = cache.init_state_rx();
+            let _ = rx.wait_for(|s| !matches!(s, State::Initializing)).await;
+            if *rx.borrow() == State::Ready {
+                cache
+                    .purge_table(&db_id, &table_id)
+                    .await
+                    .map_err(Box::new)?
+            }
         }
         Ok(())
     }

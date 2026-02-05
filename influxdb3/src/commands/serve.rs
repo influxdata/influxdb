@@ -139,11 +139,6 @@ pub enum Error {
     #[error("tls requires both a cert and a key file to be passed in to work")]
     NoCertOrKeyFile,
 
-    #[error("table cache index initialization failed: {0}")]
-    TableIndexCacheInitialization(
-        #[source] influxdb3_write::table_index_cache::TableIndexCacheError,
-    ),
-
     #[error(
         "Must set INFLUXDB3_NODE_IDENTIFIER_PREFIX={0} to a valid env var value for the node id"
     )]
@@ -363,11 +358,11 @@ pub struct Config {
 
     /// Maximum number of table indices to cache in memory.
     ///
-    /// Defaults to 100 entries. Set to 0 for unlimited cache size.
+    /// Defaults to 1000 entries. Set to 0 for unlimited cache size.
     #[clap(
         long = "table-index-cache-max-entries",
         env = "INFLUXDB3_TABLE_INDEX_CACHE_MAX_ENTRIES",
-        default_value = "100",
+        default_value = "1000",
         action
     )]
     pub table_index_cache_max_entries: usize,
@@ -914,13 +909,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Arc::clone(&catalog),
         Arc::clone(&time_provider) as _,
         retention_handler_token,
-    )
-    .await
-        .inspect_err(|_e| {
-            warn!("TableIndexCache initialization failed, continuing in degraded state.");
-            warn!("Without TableIndexCache, object store cleanup for retention policies and hard deletes will temporarily be unable to proceed; compacted data and queries should not be affected.");
-        })
-    .unwrap_or(None);
+    );
 
     // Initialize tokens from files if provided and auth is enabled
     if !config.without_auth {
@@ -950,6 +939,17 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         .node(&node_id)
         .expect("node should be registered in catalog");
     info!(instance_id = ?node_def.instance_id(), "catalog initialized");
+
+    let retention_handler_token = shutdown_manager.register();
+    let _table_index_cache = initialize_table_index_cache(
+        node_id.to_string(),
+        config.retention_check_interval.into(),
+        table_index_cache_config,
+        Arc::clone(&object_store),
+        Arc::clone(&catalog),
+        Arc::clone(&time_provider) as _,
+        retention_handler_token,
+    );
 
     let last_cache = LastCacheProvider::new_from_catalog_with_background_eviction(
         Arc::clone(&catalog),
@@ -1366,7 +1366,7 @@ fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
     Arc::new(DisabledManager)
 }
 
-async fn initialize_table_index_cache(
+fn initialize_table_index_cache(
     node_id: String,
     retention_check_interval: Duration,
     table_index_cache_config: TableIndexCacheConfig,
@@ -1374,7 +1374,7 @@ async fn initialize_table_index_cache(
     catalog: Arc<Catalog>,
     time_provider: Arc<dyn TimeProvider>,
     retention_handler_token: ShutdownToken,
-) -> Result<Option<TableIndexCache>> {
+) -> Option<TableIndexCache> {
     let table_index_cache = TableIndexCache::new(
         node_id.clone(),
         table_index_cache_config,
@@ -1385,21 +1385,15 @@ async fn initialize_table_index_cache(
         node_id = node_id.clone(),
         max_entries = ?table_index_cache_config.max_entries,
         concurrency_limit = table_index_cache_config.concurrency_limit,
-        "Initializing table index cache"
+        "initializing table index cache"
     );
 
-    // Initialize table index cache from any existing snapshots
-    //
-    // This needs to happen before WAL snapshotting, retention handling, or hard deletion could
-    // begin executing so we have a quiescent time during which we can transform
-    // `PersistedSnapshot` to `TableIndexSnapshot` to `TableIndex` to completion.
-    table_index_cache.initialize().await.map_err(|e| {
-        warn!("Failed to initialize table index cache: {}", e);
-        Error::WriteBufferInit(anyhow::anyhow!(
-            "Failed to initialize table index cache: {}",
-            e
-        ))
-    })?;
+    // Kick off background initialization and get a receiver for the state.
+    // The cache is immediately usable for reads/writes (via its internal RwLock);
+    // the state receiver is only needed by consumers that must wait for initialization
+    // to complete before performing their operations (e.g., the retention handler,
+    // hard-deletion via PersistedFiles).
+    let init_state_rx = table_index_cache.initialize();
 
     // Create and start the retention period handler
     let retention_handler = Arc::new(RetentionPeriodHandler::new(
@@ -1408,6 +1402,7 @@ async fn initialize_table_index_cache(
         Arc::clone(&time_provider) as _,
         retention_check_interval,
         node_id.to_string(),
+        init_state_rx,
     ));
 
     tokio::spawn(async move {
@@ -1416,7 +1411,7 @@ async fn initialize_table_index_cache(
             .await
     });
 
-    Ok(Some(table_index_cache))
+    Some(table_index_cache)
 }
 
 struct TelemetryStoreSetupArgs<'a> {

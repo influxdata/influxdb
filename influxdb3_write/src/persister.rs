@@ -158,6 +158,10 @@ impl Persister {
         }
     }
 
+    pub fn is_checkpointing_enabled(&self) -> bool {
+        self.checkpoint_interval.is_some()
+    }
+
     /// Get the Object Store URL
     pub fn object_store_url(&self) -> &ObjectStoreUrl {
         &self.object_store_url
