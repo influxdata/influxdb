@@ -475,21 +475,20 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 		},
 	}}
 
-	// Add per-user query bytes as a separate statistic if enabled
+	// Add per-user query bytes as separate statistics (one per user) if enabled
 	if h.Config.UserQueryBytesEnabled && !h.queryBytesPerUser.IsEmpty() {
-		userValues := make(map[string]interface{})
 		h.queryBytesPerUser.Range(func(user string, counter *atomic.Int64) bool {
-			key := user
+			userTag := user
 			if user == "" {
-				key = StatAnonymousUser
+				userTag = StatAnonymousUser
 			}
-			userValues[StatQueryRespBytesUserPrefix+key] = counter.Load()
+			userTags := models.NewTags(tags).Merge(map[string]string{StatUserTagKey: userTag}).Map()
+			stats = append(stats, models.Statistic{
+				Name:   "userquerybytes",
+				Tags:   userTags,
+				Values: map[string]interface{}{statQueryRespBytesValue: counter.Load()},
+			})
 			return true
-		})
-		stats = append(stats, models.Statistic{
-			Name:   "userquerybytes",
-			Tags:   tags,
-			Values: userValues,
 		})
 	}
 

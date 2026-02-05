@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"io"
 	"log"
 	"math"
@@ -44,6 +43,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/prometheus/prompb"
+	"github.com/stretchr/testify/require"
 )
 
 // Ensure the handler returns results from a query (including nil results).
@@ -2859,6 +2859,29 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		testUserBob   = "bob"
 	)
 
+	// Helper to find user query bytes statistic by user tag
+	findUserStat := func(stats []models.Statistic, user string) (int64, bool) {
+		for _, stat := range stats {
+			if stat.Name == "userquerybytes" && stat.Tags[httpd.StatUserTagKey] == user {
+				if v, ok := stat.Values["queryRespBytes"]; ok {
+					return v.(int64), true
+				}
+			}
+		}
+		return 0, false
+	}
+
+	// Helper to count userquerybytes statistics
+	countUserStats := func(stats []models.Statistic) int {
+		count := 0
+		for _, stat := range stats {
+			if stat.Name == "userquerybytes" {
+				count++
+			}
+		}
+		return count
+	}
+
 	t.Run("disabled by default", func(t *testing.T) {
 		h := NewHandler(false) // no auth, default config
 
@@ -2916,23 +2939,20 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code)
 		bobBytes := w.Body.Len()
 
-		// Check statistics
+		// Check statistics - should have httpd + 2 userquerybytes (one per user)
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, "userquerybytes", stats[1].Name)
-
-		values := stats[1].Values
-		aliceKey := httpd.StatQueryRespBytesUserPrefix + testUserAlice
-		bobKey := httpd.StatQueryRespBytesUserPrefix + testUserBob
-
-		require.Contains(t, values, aliceKey, "expected alice's bytes to be tracked")
-		require.Contains(t, values, bobKey, "expected bob's bytes to be tracked")
+		require.Equal(t, 2, countUserStats(stats), "expected 2 userquerybytes statistics (alice and bob)")
 
 		// Alice made 2 queries
-		require.Equal(t, int64(aliceBytes1*2), values[aliceKey], "alice's bytes mismatch")
+		aliceBytes, found := findUserStat(stats, testUserAlice)
+		require.True(t, found, "expected alice's bytes to be tracked")
+		require.Equal(t, int64(aliceBytes1*2), aliceBytes, "alice's bytes mismatch")
+
 		// Bob made 1 query
-		require.Equal(t, int64(bobBytes), values[bobKey], "bob's bytes mismatch")
+		bobBytesActual, found := findUserStat(stats, testUserBob)
+		require.True(t, found, "expected bob's bytes to be tracked")
+		require.Equal(t, int64(bobBytes), bobBytesActual, "bob's bytes mismatch")
 	})
 
 	t.Run("tracks bytes for anonymous user", func(t *testing.T) {
@@ -2951,15 +2971,12 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		// Check statistics
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, "userquerybytes", stats[1].Name)
+		require.Equal(t, 1, countUserStats(stats), "expected 1 userquerybytes statistic")
 
-		values := stats[1].Values
-		anonKey := httpd.StatQueryRespBytesUserPrefix + httpd.StatAnonymousUser
-
-		require.Contains(t, values, anonKey, "expected anonymous bytes to be tracked")
-		require.Equal(t, int64(anonBytes), values[anonKey], "anonymous bytes mismatch")
+		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(anonBytes), anonBytesActual, "anonymous bytes mismatch")
 	})
 
 	t.Run("all queries without auth attributed to anonymous user", func(t *testing.T) {
@@ -2982,16 +2999,14 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 
 		// Check statistics - all bytes should be under the anonymous user
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
-		require.Equal(t, "userquerybytes", stats[1].Name)
+		require.Equal(t, "httpd", stats[0].Name)
 
-		values := stats[1].Values
-		anonKey := httpd.StatQueryRespBytesUserPrefix + httpd.StatAnonymousUser
+		// Should only have one userquerybytes statistic - the anonymous user
+		require.Equal(t, 1, countUserStats(stats), "expected only anonymous user when auth is disabled")
 
-		// Should only have one key - the anonymous user
-		require.Len(t, values, 1, "expected only anonymous user when auth is disabled")
-		require.Contains(t, values, anonKey)
-		require.Equal(t, int64(totalBytes), values[anonKey], "all queries should be attributed to anonymous user")
+		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(totalBytes), anonBytesActual, "all queries should be attributed to anonymous user")
 	})
 
 	t.Run("tracks bytes for chunked queries", func(t *testing.T) {
@@ -3010,15 +3025,12 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		totalBytes := w.Body.Len()
 
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, "userquerybytes", stats[1].Name)
+		require.Equal(t, 1, countUserStats(stats), "expected 1 userquerybytes statistic")
 
-		values := stats[1].Values
-		anonKey := httpd.StatQueryRespBytesUserPrefix + httpd.StatAnonymousUser
-
-		require.Contains(t, values, anonKey)
-		require.Equal(t, int64(totalBytes), values[anonKey], "chunked query bytes mismatch")
+		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(totalBytes), anonBytesActual, "chunked query bytes mismatch")
 	})
 
 	t.Run("concurrent queries", func(t *testing.T) {
@@ -3091,22 +3103,21 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		t.Logf("max concurrency: %d", maxConcurrency.Load())
 
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, "userquerybytes", stats[1].Name)
-
-		values := stats[1].Values
+		// Should have numUsers userquerybytes statistics (+ warmup user)
+		require.Equal(t, numUsers+1, countUserStats(stats), "expected %d userquerybytes statistics", numUsers+1)
 
 		// Verify all users have exact expected byte counts
 		expectedBytesPerUser := expectedBytesPerQuery * queriesPerUser
 		for i := 0; i < numUsers; i++ {
-			key := httpd.StatQueryRespBytesUserPrefix + fmt.Sprintf("user%d", i)
-			require.Contains(t, values, key, "expected user%d's bytes to be tracked", i)
-			require.Equal(t, expectedBytesPerUser, values[key], "user%d's bytes mismatch", i)
+			user := fmt.Sprintf("user%d", i)
+			bytes, found := findUserStat(stats, user)
+			require.True(t, found, "expected user%d's bytes to be tracked", i)
+			require.Equal(t, expectedBytesPerUser, bytes, "user%d's bytes mismatch", i)
 		}
 	})
 
-	t.Run("SHOW STATS FOR httpd includes per-user bytes", func(t *testing.T) {
+	t.Run("statistics use user tag for per-user bytes", func(t *testing.T) {
 		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserQueryBytes()))
 
 		h.MetaClient.AdminUserExistsFn = func() bool { return true }
@@ -3124,63 +3135,39 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 			return nil
 		}
 
-		// Make queries as different users
-		for _, user := range []string{testUserAlice, testUserBob} {
-			w := httptest.NewRecorder()
-			h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+user+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
-			require.Equal(t, http.StatusOK, w.Code)
-		}
+		// Make queries as different users and track expected bytes
+		var expectedAliceBytes, expectedBobBytes int
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		expectedAliceBytes = w.Body.Len()
 
-		// Get statistics as SHOW STATS would return them
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserBob+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		expectedBobBytes = w.Body.Len()
+
+		// Get statistics
 		stats := h.Handler.Statistics(nil)
-		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
 		require.Equal(t, "httpd", stats[0].Name)
-		require.Equal(t, "userquerybytes", stats[1].Name)
+		require.Equal(t, 2, countUserStats(stats), "expected 2 userquerybytes statistics")
 
-		// Check the userquerybytes statistic for per-user bytes
-		userStat := stats[1]
+		// Verify each user has their own statistic with exact byte counts
+		aliceBytes, found := findUserStat(stats, testUserAlice)
+		require.True(t, found, "expected alice in statistics")
+		require.Equal(t, int64(expectedAliceBytes), aliceBytes, "alice bytes mismatch")
 
-		// Simulate how executeShowStatsStatement builds the row
-		// It uses sorted keys (like monitor.Statistic.ValueNames())
-		row := &models.Row{Name: userStat.Name, Tags: userStat.Tags}
-		var sortedKeys []string
-		for k := range userStat.Values {
-			sortedKeys = append(sortedKeys, k)
-		}
-		sort.Strings(sortedKeys)
+		bobBytes, found := findUserStat(stats, testUserBob)
+		require.True(t, found, "expected bob in statistics")
+		require.Equal(t, int64(expectedBobBytes), bobBytes, "bob bytes mismatch")
 
-		values := make([]interface{}, 0, len(userStat.Values))
-		for _, k := range sortedKeys {
-			row.Columns = append(row.Columns, k)
-			values = append(values, userStat.Values[k])
-		}
-		row.Values = [][]interface{}{values}
-
-		// Verify per-user columns are present
-		aliceKey := httpd.StatQueryRespBytesUserPrefix + testUserAlice
-		bobKey := httpd.StatQueryRespBytesUserPrefix + testUserBob
-		require.Contains(t, row.Columns, aliceKey, "expected alice in SHOW STATS output")
-		require.Contains(t, row.Columns, bobKey, "expected bob in SHOW STATS output")
-
-		// Verify columns are sorted (as monitor.Statistic.ValueNames() returns sorted keys)
-		require.True(t, sort.StringsAreSorted(row.Columns), "expected columns to be sorted")
-
-		// Verify the values are accessible by column index
-		aliceIdx := -1
-		bobIdx := -1
-		for i, col := range row.Columns {
-			if col == aliceKey {
-				aliceIdx = i
-			} else if col == bobKey {
-				bobIdx = i
+		// Verify tag key is correct
+		for _, stat := range stats {
+			if stat.Name == "userquerybytes" {
+				require.Contains(t, stat.Tags, httpd.StatUserTagKey, "expected user tag key")
+				require.Contains(t, stat.Values, "queryRespBytes", "expected queryRespBytes value")
 			}
 		}
-		require.NotEqual(t, -1, aliceIdx, "alice column not found")
-		require.NotEqual(t, -1, bobIdx, "bob column not found")
-
-		// Values should be positive int64
-		require.Greater(t, row.Values[0][aliceIdx].(int64), int64(0), "alice bytes should be positive")
-		require.Greater(t, row.Values[0][bobIdx].(int64), int64(0), "bob bytes should be positive")
 	})
 }
 
