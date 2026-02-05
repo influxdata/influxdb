@@ -324,7 +324,12 @@ func NewHandler(c Config) *Handler {
 			return func(w http.ResponseWriter, r *http.Request, user meta.User) {
 				// TODO: This is the only place we use AuthorizeUnrestricted. It would be better to use an explicit permission
 				if user == nil || !user.AuthorizeUnrestricted() {
-					h.Logger.Info("Unauthorized request", zap.String("user", user.ID()), zap.String("path", r.URL.Path))
+					// Don't panic
+					id := ""
+					if user != nil {
+						id = user.ID()
+					}
+					h.Logger.Info("Unauthorized request", zap.String("user", id), zap.String("path", r.URL.Path))
 					h.httpError(w, "error authorizing admin access", http.StatusForbidden)
 					return
 				}
