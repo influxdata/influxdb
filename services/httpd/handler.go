@@ -486,7 +486,7 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			stats = append(stats, models.Statistic{
 				Name:   "userquerybytes",
 				Tags:   userTags,
-				Values: map[string]interface{}{statQueryRespBytesValue: counter.Load()},
+				Values: map[string]interface{}{statQueryRespBytes: counter.Load()},
 			})
 			return true
 		})
