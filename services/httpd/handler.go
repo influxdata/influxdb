@@ -475,8 +475,8 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 		},
 	}}
 
-	// Add per-user query bytes as a separate statistic
-	if !h.queryBytesPerUser.IsEmpty() {
+	// Add per-user query bytes as a separate statistic if enabled
+	if h.Config.UserQueryBytesEnabled && !h.queryBytesPerUser.IsEmpty() {
 		userValues := make(map[string]interface{})
 		h.queryBytesPerUser.Range(func(user string, counter *atomic.Int64) bool {
 			key := user
@@ -497,7 +497,11 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 }
 
 // addQueryBytesForUser atomically adds bytes to the per-user query bytes counter.
+// This is a no-op if UserQueryBytesEnabled is false.
 func (h *Handler) addQueryBytesForUser(user string, n int64) {
+	if !h.Config.UserQueryBytesEnabled {
+		return
+	}
 	counter, _ := h.queryBytesPerUser.LoadOrStore(user, &atomic.Int64{})
 	counter.Add(n)
 }

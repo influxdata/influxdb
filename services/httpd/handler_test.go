@@ -2859,8 +2859,27 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		testUserBob   = "bob"
 	)
 
+	t.Run("disabled by default", func(t *testing.T) {
+		h := NewHandler(false) // no auth, default config
+
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Make a query
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Check statistics - should only have httpd, no userquerybytes
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 1, "expected only httpd statistic when user-query-bytes-enabled is false")
+		require.Equal(t, "httpd", stats[0].Name)
+	})
+
 	t.Run("tracks bytes for authenticated user", func(t *testing.T) {
-		h := NewHandler(true)
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserQueryBytes()))
 
 		h.MetaClient.AdminUserExistsFn = func() bool { return true }
 		h.MetaClient.UserFn = func(username string) (meta.User, error) {
@@ -2917,7 +2936,7 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 	})
 
 	t.Run("tracks bytes for anonymous user", func(t *testing.T) {
-		h := NewHandler(false) // no auth required
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserQueryBytes())) // no auth required
 
 		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
@@ -2943,8 +2962,40 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		require.Equal(t, int64(anonBytes), values[anonKey], "anonymous bytes mismatch")
 	})
 
+	t.Run("all queries without auth attributed to anonymous user", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserQueryBytes())) // no auth required
+
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Make multiple queries without authentication
+		const numQueries = 5
+		var totalBytes int
+		for i := 0; i < numQueries; i++ {
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+			require.Equal(t, http.StatusOK, w.Code)
+			totalBytes += w.Body.Len()
+		}
+
+		// Check statistics - all bytes should be under the anonymous user
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 2, "expected httpd and userquerybytes statistics")
+		require.Equal(t, "userquerybytes", stats[1].Name)
+
+		values := stats[1].Values
+		anonKey := httpd.StatQueryRespBytesUserPrefix + httpd.StatAnonymousUser
+
+		// Should only have one key - the anonymous user
+		require.Len(t, values, 1, "expected only anonymous user when auth is disabled")
+		require.Contains(t, values, anonKey)
+		require.Equal(t, int64(totalBytes), values[anonKey], "all queries should be attributed to anonymous user")
+	})
+
 	t.Run("tracks bytes for chunked queries", func(t *testing.T) {
-		h := NewHandler(false)
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserQueryBytes()))
 
 		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			// Send multiple chunks
@@ -2971,7 +3022,7 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 	})
 
 	t.Run("concurrent queries", func(t *testing.T) {
-		h := NewHandler(true)
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserQueryBytes()))
 
 		h.MetaClient.AdminUserExistsFn = func() bool { return true }
 		h.MetaClient.UserFn = func(username string) (meta.User, error) {
@@ -3056,7 +3107,7 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 	})
 
 	t.Run("SHOW STATS FOR httpd includes per-user bytes", func(t *testing.T) {
-		h := NewHandler(true)
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserQueryBytes()))
 
 		h.MetaClient.AdminUserExistsFn = func() bool { return true }
 		h.MetaClient.UserFn = func(username string) (meta.User, error) {
@@ -3182,6 +3233,12 @@ func WithNoLog() configOption {
 func WithHeaders(h map[string]string) configOption {
 	return func(c *httpd.Config) {
 		c.HTTPHeaders = h
+	}
+}
+
+func WithUserQueryBytes() configOption {
+	return func(c *httpd.Config) {
+		c.UserQueryBytesEnabled = true
 	}
 }
 
