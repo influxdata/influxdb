@@ -3212,7 +3212,6 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 			handlerStats := h.Handler.Statistics(tags)
 			out := make([]*monitor.Statistic, len(handlerStats))
 			for i, s := range handlerStats {
-				s := s
 				out[i] = &monitor.Statistic{Statistic: s}
 			}
 			return out, nil
@@ -3292,7 +3291,6 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 			handlerStats := h.Handler.Statistics(tags)
 			out := make([]*monitor.Statistic, len(handlerStats))
 			for i, s := range handlerStats {
-				s := s
 				out[i] = &monitor.Statistic{Statistic: s}
 			}
 			return out, nil
