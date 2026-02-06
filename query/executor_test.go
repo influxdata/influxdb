@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 )
 
@@ -351,6 +352,135 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 	}
 	if result.Err != nil {
 		t.Errorf("unexpected error: %s", result.Err)
+	}
+}
+
+// TestQueryExecutor_ShowQueries_NonAdminFiltering verifies that SHOW QUERIES
+// filters results based on the requesting user's database-level read
+// permissions. A non-admin user should only see queries running against
+// databases they have read access to.
+func TestQueryExecutor_ShowQueries_NonAdminFiltering(t *testing.T) {
+	const (
+		dbColumn     = 2
+		allowedDB    = "mydb"
+		forbiddenDB  = "secretdb"
+		nonAdminUser = "bar"
+		otherUser    = "alice"
+	)
+
+	e := NewQueryExecutor()
+
+	// blockCh keeps the "long-running" queries alive so they appear in SHOW QUERIES.
+	blockCh := make(chan struct{})
+	defer close(blockCh)
+
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			switch stmt.(type) {
+			case *influxql.ShowQueriesStatement:
+				return e.TaskManager.ExecuteStatement(ctx, stmt)
+			case *influxql.SelectStatement:
+				// Block until the test completes so this query stays visible.
+				<-blockCh
+				return nil
+			}
+			t.Errorf("unexpected statement: %s", stmt)
+			return errUnexpected
+		},
+	}
+
+	// Start a "long-running" query on the forbidden database (by another user).
+	q1, err := influxql.ParseQuery("SELECT * FROM cpu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		discardOutput(e.ExecuteQuery(q1, query.ExecutionOptions{
+			Database: forbiddenDB,
+			UserID:   otherUser,
+		}, nil))
+	}()
+
+	// Start a "long-running" query on the allowed database (by the same non-admin user).
+	q2, err := influxql.ParseQuery("SELECT * FROM mem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		discardOutput(e.ExecuteQuery(q2, query.ExecutionOptions{
+			Database: allowedDB,
+			UserID:   nonAdminUser,
+		}, nil))
+	}()
+
+	// Give the background queries a moment to register with the TaskManager.
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify both queries are tracked (sanity check).
+	allQueries := e.TaskManager.Queries()
+	if len(allQueries) < 2 {
+		t.Fatalf("expected at least 2 running queries, got %d", len(allQueries))
+	}
+
+	// Now execute SHOW QUERIES as the non-admin user who only has read on allowedDB.
+	// Use a real meta.UserInfo with explicit privileges to mirror production behavior.
+	showQ, err := influxql.ParseQuery("SHOW QUERIES")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nonAdminUserInfo := &meta.UserInfo{
+		Name:  nonAdminUser,
+		Admin: false,
+		Privileges: map[string]influxql.Privilege{
+			allowedDB: influxql.AllPrivileges,
+		},
+	}
+
+	results := e.ExecuteQuery(showQ, query.ExecutionOptions{
+		UserID:           nonAdminUser,
+		CoarseAuthorizer: nonAdminUserInfo,
+	}, nil)
+	result := <-results
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %s", result.Err)
+	}
+	if len(result.Series) != 1 {
+		t.Fatalf("expected 1 series, got %d", len(result.Series))
+	}
+
+	rows := result.Series[0].Values
+
+	// The non-admin user should NOT see the query running on forbiddenDB.
+	// They should only see queries on databases they have read access to,
+	// plus the SHOW QUERIES statement itself (which has no database or runs
+	// in the context of the user's allowed database).
+	for _, row := range rows {
+		db, ok := row[dbColumn].(string)
+		if !ok {
+			continue
+		}
+		if db == forbiddenDB {
+			t.Errorf("non-admin user %q should not see queries on database %q, but SHOW QUERIES returned: %v",
+				nonAdminUser, forbiddenDB, row)
+		}
+	}
+
+	// Also verify that the allowed query IS visible.
+	foundAllowed := false
+	for _, row := range rows {
+		db, ok := row[dbColumn].(string)
+		if !ok {
+			continue
+		}
+		if db == allowedDB {
+			foundAllowed = true
+			break
+		}
+	}
+	if !foundAllowed {
+		t.Errorf("non-admin user %q should see queries on database %q, but it was not in SHOW QUERIES output: %v",
+			nonAdminUser, allowedDB, rows)
 	}
 }
 
