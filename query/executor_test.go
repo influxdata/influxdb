@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
 
 var errUnexpected = errors.New("unexpected error")
@@ -358,14 +359,14 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 // TestQueryExecutor_ShowQueries_NonAdminFiltering verifies that SHOW QUERIES
 // filters results based on the requesting user's database-level read
 // permissions. A non-admin user should only see queries running against
-// databases they have read access to.
+// databases they have read access to, while an admin should see all queries.
 func TestQueryExecutor_ShowQueries_NonAdminFiltering(t *testing.T) {
 	const (
 		dbColumn     = 2
 		allowedDB    = "mydb"
 		forbiddenDB  = "secretdb"
 		nonAdminUser = "bar"
-		otherUser    = "alice"
+		adminUser    = "alice"
 	)
 
 	e := NewQueryExecutor()
@@ -389,23 +390,19 @@ func TestQueryExecutor_ShowQueries_NonAdminFiltering(t *testing.T) {
 		},
 	}
 
-	// Start a "long-running" query on the forbidden database (by another user).
+	// Start a "long-running" query on the forbidden database (by the admin user).
 	q1, err := influxql.ParseQuery("SELECT * FROM cpu")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	go func() {
 		discardOutput(e.ExecuteQuery(q1, query.ExecutionOptions{
 			Database: forbiddenDB,
-			UserID:   otherUser,
+			UserID:   adminUser,
 		}, nil))
 	}()
 
-	// Start a "long-running" query on the allowed database (by the same non-admin user).
+	// Start a "long-running" query on the allowed database (by the non-admin user).
 	q2, err := influxql.ParseQuery("SELECT * FROM mem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	go func() {
 		discardOutput(e.ExecuteQuery(q2, query.ExecutionOptions{
 			Database: allowedDB,
@@ -418,70 +415,65 @@ func TestQueryExecutor_ShowQueries_NonAdminFiltering(t *testing.T) {
 
 	// Verify both queries are tracked (sanity check).
 	allQueries := e.TaskManager.Queries()
-	if len(allQueries) < 2 {
-		t.Fatalf("expected at least 2 running queries, got %d", len(allQueries))
-	}
+	require.GreaterOrEqual(t, len(allQueries), 2, "expected at least 2 running queries")
 
-	// Now execute SHOW QUERIES as the non-admin user who only has read on allowedDB.
-	// Use a real meta.UserInfo with explicit privileges to mirror production behavior.
-	showQ, err := influxql.ParseQuery("SHOW QUERIES")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	nonAdminUserInfo := &meta.UserInfo{
-		Name:  nonAdminUser,
-		Admin: false,
-		Privileges: map[string]influxql.Privilege{
-			allowedDB: influxql.AllPrivileges,
-		},
-	}
-
-	results := e.ExecuteQuery(showQ, query.ExecutionOptions{
-		UserID:           nonAdminUser,
-		CoarseAuthorizer: nonAdminUserInfo,
-	}, nil)
-	result := <-results
-	if result.Err != nil {
-		t.Fatalf("unexpected error: %s", result.Err)
-	}
-	if len(result.Series) != 1 {
-		t.Fatalf("expected 1 series, got %d", len(result.Series))
-	}
-
-	rows := result.Series[0].Values
-
-	// The non-admin user should NOT see the query running on forbiddenDB.
-	// They should only see queries on databases they have read access to,
-	// plus the SHOW QUERIES statement itself (which has no database or runs
-	// in the context of the user's allowed database).
-	for _, row := range rows {
-		db, ok := row[dbColumn].(string)
-		if !ok {
-			continue
+	// Helper to collect database names from SHOW QUERIES result rows.
+	databases := func(rows [][]interface{}) []string {
+		var dbs []string
+		for _, row := range rows {
+			if db, ok := row[dbColumn].(string); ok && db != "" {
+				dbs = append(dbs, db)
+			}
 		}
-		if db == forbiddenDB {
-			t.Errorf("non-admin user %q should not see queries on database %q, but SHOW QUERIES returned: %v",
-				nonAdminUser, forbiddenDB, row)
-		}
+		return dbs
 	}
 
-	// Also verify that the allowed query IS visible.
-	foundAllowed := false
-	for _, row := range rows {
-		db, ok := row[dbColumn].(string)
-		if !ok {
-			continue
+	t.Run("non-admin user only sees allowed databases", func(t *testing.T) {
+		showQ, err := influxql.ParseQuery("SHOW QUERIES")
+		require.NoError(t, err)
+
+		nonAdminUserInfo := &meta.UserInfo{
+			Name:  nonAdminUser,
+			Admin: false,
+			Privileges: map[string]influxql.Privilege{
+				allowedDB: influxql.AllPrivileges,
+			},
 		}
-		if db == allowedDB {
-			foundAllowed = true
-			break
+
+		results := e.ExecuteQuery(showQ, query.ExecutionOptions{
+			UserID:           nonAdminUser,
+			CoarseAuthorizer: nonAdminUserInfo,
+		}, nil)
+		result := <-results
+		require.NoError(t, result.Err)
+		require.Len(t, result.Series, 1)
+
+		dbs := databases(result.Series[0].Values)
+		require.Contains(t, dbs, allowedDB, "non-admin user should see queries on databases they have read access to")
+		require.NotContains(t, dbs, forbiddenDB, "non-admin user should not see queries on databases they lack read access to")
+	})
+
+	t.Run("admin user sees all databases", func(t *testing.T) {
+		showQ, err := influxql.ParseQuery("SHOW QUERIES")
+		require.NoError(t, err)
+
+		adminUserInfo := &meta.UserInfo{
+			Name:  adminUser,
+			Admin: true,
 		}
-	}
-	if !foundAllowed {
-		t.Errorf("non-admin user %q should see queries on database %q, but it was not in SHOW QUERIES output: %v",
-			nonAdminUser, allowedDB, rows)
-	}
+
+		results := e.ExecuteQuery(showQ, query.ExecutionOptions{
+			UserID:           adminUser,
+			CoarseAuthorizer: adminUserInfo,
+		}, nil)
+		result := <-results
+		require.NoError(t, result.Err)
+		require.Len(t, result.Series, 1)
+
+		dbs := databases(result.Series[0].Values)
+		require.Contains(t, dbs, allowedDB, "admin user should see all queries")
+		require.Contains(t, dbs, forbiddenDB, "admin user should see all queries")
+	})
 }
 
 func TestQueryExecutor_Limit_Timeout(t *testing.T) {
