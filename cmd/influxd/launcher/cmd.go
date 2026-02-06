@@ -171,9 +171,10 @@ type InfluxdOpts struct {
 	SessionLength         int // in minutes
 	SessionRenewDisabled  bool
 
-	ProfilingDisabled bool
-	MetricsDisabled   bool
-	UIDisabled        bool
+	ProfilingDisabled     bool
+	MetricsDisabled       bool
+	UserQueryBytesEnabled bool
+	UIDisabled            bool
 
 	NatsPort            int
 	NatsMaxPayloadBytes int
@@ -236,9 +237,10 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		SessionLength:         60, // 60 minutes
 		SessionRenewDisabled:  false,
 
-		ProfilingDisabled: false,
-		MetricsDisabled:   false,
-		UIDisabled:        false,
+		ProfilingDisabled:     false,
+		MetricsDisabled:       false,
+		UserQueryBytesEnabled: false,
+		UIDisabled:            false,
 
 		StoreType:   DiskStore,
 		SecretStore: BoltStore,
@@ -675,6 +677,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "metrics-disabled",
 			Desc:    "Don't expose metrics over HTTP at /metrics",
 			Default: o.MetricsDisabled,
+		},
+		{
+			DestP:   &o.UserQueryBytesEnabled,
+			Flag:    "http-user-query-bytes-enabled",
+			Desc:    "Expose per-user query response byte counts at /metrics (http_query_user_response_bytes). Adds one series per user and endpoint",
+			Default: o.UserQueryBytesEnabled,
 		},
 		// UI Config
 		{

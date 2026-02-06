@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http/metric"
 	influxqld "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/control"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -26,6 +27,7 @@ type InfluxQLBackend struct {
 	OrganizationService   platform.OrganizationService
 	ProxyQueryService     query.ProxyQueryService
 	InfluxqldQueryService influxqld.ProxyQueryService
+	EventRecorder         metric.EventRecorder
 }
 
 // NewInfluxQLBackend constructs an InfluxQLBackend from a LegacyBackend.
@@ -36,6 +38,7 @@ func NewInfluxQLBackend(b *Backend) *InfluxQLBackend {
 		AuthorizationService:  b.AuthorizationService,
 		OrganizationService:   b.OrganizationService,
 		InfluxqldQueryService: b.InfluxqldQueryService,
+		EventRecorder:         b.QueryEventRecorder,
 	}
 }
 
