@@ -2863,7 +2863,7 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 	findUserStat := func(stats []models.Statistic, user string) (int64, bool) {
 		for _, stat := range stats {
 			if stat.Name == "userquerybytes" && stat.Tags[httpd.StatUserTagKey] == user {
-				if v, ok := stat.Values["queryRespBytes"]; ok {
+				if v, ok := stat.Values["userQueryRespBytes"]; ok {
 					return v.(int64), true
 				}
 			}
@@ -3165,7 +3165,7 @@ func TestHandler_QueryBytesPerUser(t *testing.T) {
 		for _, stat := range stats {
 			if stat.Name == "userquerybytes" {
 				require.Contains(t, stat.Tags, httpd.StatUserTagKey, "expected user tag key")
-				require.Contains(t, stat.Values, "queryRespBytes", "expected queryRespBytes value")
+				require.Contains(t, stat.Values, "userQueryRespBytes", "expected queryRespBytes value")
 			}
 		}
 	})
