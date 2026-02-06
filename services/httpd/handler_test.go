@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"io"
 	"log"
 	"math"
@@ -18,6 +17,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -43,6 +43,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/prometheus/prompb"
+	"github.com/stretchr/testify/require"
 )
 
 // Ensure the handler returns results from a query (including nil results).
@@ -2851,6 +2852,532 @@ func TestHandlerDebugVars(t *testing.T) {
 
 }
 
+// TestHandler_QueryBytesPerUser tests that query response bytes are tracked per user.
+func TestHandler_QueryBytesPerUser(t *testing.T) {
+	const (
+		testUserAlice = "alice"
+		testUserBob   = "bob"
+	)
+
+	// Helper to find user query bytes statistic by user tag
+	findUserStat := func(stats []models.Statistic, user string) (int64, bool) {
+		for _, stat := range stats {
+			if stat.Name == "userquerybytes" && stat.Tags[httpd.StatUserTagKey] == user {
+				if v, ok := stat.Values["userQueryRespBytes"]; ok {
+					return v.(int64), true
+				}
+			}
+		}
+		return 0, false
+	}
+
+	// Helper to count userquerybytes statistics
+	countUserStats := func(stats []models.Statistic) int {
+		count := 0
+		for _, stat := range stats {
+			if stat.Name == "userquerybytes" {
+				count++
+			}
+		}
+		return count
+	}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		h := NewHandler(false) // no auth, default config
+
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Make a query
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Check statistics - should only have httpd, no userquerybytes
+		stats := h.Handler.Statistics(nil)
+		require.Len(t, stats, 1, "expected only httpd statistic when user-query-bytes-enabled is false")
+		require.Equal(t, "httpd", stats[0].Name)
+	})
+
+	t.Run("tracks bytes for authenticated user", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserQueryBytes()))
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			if username == testUserAlice || username == testUserBob {
+				return &meta.UserInfo{Name: username, Hash: "pass", Admin: true}, nil
+			}
+			return nil, meta.ErrUserNotFound
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Query as alice
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		aliceBytes1 := w.Body.Len()
+
+		// Query as alice again
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Query as bob
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserBob+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		bobBytes := w.Body.Len()
+
+		// Check statistics - should have httpd + 2 userquerybytes (one per user)
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, 2, countUserStats(stats), "expected 2 userquerybytes statistics (alice and bob)")
+
+		// Alice made 2 queries
+		aliceBytes, found := findUserStat(stats, testUserAlice)
+		require.True(t, found, "expected alice's bytes to be tracked")
+		require.Equal(t, int64(aliceBytes1*2), aliceBytes, "alice's bytes mismatch")
+
+		// Bob made 1 query
+		bobBytesActual, found := findUserStat(stats, testUserBob)
+		require.True(t, found, "expected bob's bytes to be tracked")
+		require.Equal(t, int64(bobBytes), bobBytesActual, "bob's bytes mismatch")
+	})
+
+	t.Run("tracks bytes for anonymous user", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserQueryBytes())) // no auth required
+
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Query without authentication
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		anonBytes := w.Body.Len()
+
+		// Check statistics
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, 1, countUserStats(stats), "expected 1 userquerybytes statistic")
+
+		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(anonBytes), anonBytesActual, "anonymous bytes mismatch")
+	})
+
+	t.Run("all queries without auth attributed to anonymous user", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserQueryBytes())) // no auth required
+
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Make multiple queries without authentication
+		const numQueries = 5
+		var totalBytes int
+		for i := 0; i < numQueries; i++ {
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+			require.Equal(t, http.StatusOK, w.Code)
+			totalBytes += w.Body.Len()
+		}
+
+		// Check statistics - all bytes should be under the anonymous user
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+
+		// Should only have one userquerybytes statistic - the anonymous user
+		require.Equal(t, 1, countUserStats(stats), "expected only anonymous user when auth is disabled")
+
+		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(totalBytes), anonBytesActual, "all queries should be attributed to anonymous user")
+	})
+
+	t.Run("tracks bytes for chunked queries", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithUserQueryBytes()))
+
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			// Send multiple chunks
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+			return nil
+		}
+
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&chunked=true", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		totalBytes := w.Body.Len()
+
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, 1, countUserStats(stats), "expected 1 userquerybytes statistic")
+
+		anonBytesActual, found := findUserStat(stats, httpd.StatAnonymousUser)
+		require.True(t, found, "expected anonymous bytes to be tracked")
+		require.Equal(t, int64(totalBytes), anonBytesActual, "chunked query bytes mismatch")
+	})
+
+	t.Run("concurrent queries", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserQueryBytes()))
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: true}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		const numUsers = 5
+		const queriesPerUser = 10
+
+		// First, determine expected bytes per query by running a single query
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=warmup&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		expectedBytesPerQuery := int64(w.Body.Len())
+
+		// Create test data upfront (before spawning goroutines)
+		type queryRequest struct {
+			user string
+			req  *http.Request
+		}
+		requests := make([]queryRequest, 0, numUsers*queriesPerUser)
+		for i := 0; i < numUsers; i++ {
+			user := fmt.Sprintf("user%d", i)
+			for j := 0; j < queriesPerUser; j++ {
+				req := MustNewJSONRequest("GET", fmt.Sprintf("/query?u=%s&p=pass&db=foo&q=SELECT+*+FROM+bar", user), nil)
+				requests = append(requests, queryRequest{user: user, req: req})
+			}
+		}
+
+		var mu sync.RWMutex
+		var concurrency, maxConcurrency atomic.Int64
+
+		var wg sync.WaitGroup
+		mu.Lock()
+		for _, qr := range requests {
+			wg.Add(1)
+			go func(qr queryRequest) {
+				mu.RLock()
+				defer mu.RUnlock()
+				defer wg.Done()
+
+				c := concurrency.Add(1)
+				if old := maxConcurrency.Load(); c > old {
+					maxConcurrency.CompareAndSwap(old, c)
+				}
+
+				w := httptest.NewRecorder()
+				h.ServeHTTP(w, qr.req)
+
+				concurrency.Add(-1)
+			}(qr)
+		}
+		mu.Unlock() // Release to start all goroutines simultaneously
+		wg.Wait()
+
+		t.Logf("max concurrency: %d", maxConcurrency.Load())
+
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		// Should have numUsers userquerybytes statistics (+ warmup user)
+		require.Equal(t, numUsers+1, countUserStats(stats), "expected %d userquerybytes statistics", numUsers+1)
+
+		// Verify all users have exact expected byte counts
+		expectedBytesPerUser := expectedBytesPerQuery * queriesPerUser
+		for i := 0; i < numUsers; i++ {
+			user := fmt.Sprintf("user%d", i)
+			bytes, found := findUserStat(stats, user)
+			require.True(t, found, "expected user%d's bytes to be tracked", i)
+			require.Equal(t, expectedBytesPerUser, bytes, "user%d's bytes mismatch", i)
+		}
+	})
+
+	t.Run("statistics use user tag for per-user bytes", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithUserQueryBytes()))
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: true}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Make queries as different users and track expected bytes
+		var expectedAliceBytes, expectedBobBytes int
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		expectedAliceBytes = w.Body.Len()
+
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserBob+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		expectedBobBytes = w.Body.Len()
+
+		// Get statistics
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, "httpd", stats[0].Name)
+		require.Equal(t, 2, countUserStats(stats), "expected 2 userquerybytes statistics")
+
+		// Verify each user has their own statistic with exact byte counts
+		aliceBytes, found := findUserStat(stats, testUserAlice)
+		require.True(t, found, "expected alice in statistics")
+		require.Equal(t, int64(expectedAliceBytes), aliceBytes, "alice bytes mismatch")
+
+		bobBytes, found := findUserStat(stats, testUserBob)
+		require.True(t, found, "expected bob in statistics")
+		require.Equal(t, int64(expectedBobBytes), bobBytes, "bob bytes mismatch")
+
+		// Verify tag key is correct
+		for _, stat := range stats {
+			if stat.Name == "userquerybytes" {
+				require.Contains(t, stat.Tags, httpd.StatUserTagKey, "expected user tag key")
+				require.Contains(t, stat.Values, "userQueryRespBytes", "expected queryRespBytes value")
+			}
+		}
+	})
+
+	// The following subtests verify the 2x2 matrix of
+	// (UserQueryBytesEnabled) x (admin status) for visibility of the
+	// userquerybytes statistic via /debug/vars.
+	//
+	// When UserQueryBytesEnabled is true, ALL users' query bytes are tracked
+	// internally, but the statistics are only accessible to admin users
+	// (via admin-only endpoints like /debug/vars).
+
+	// hasUserQueryBytesKey returns true if any key in the parsed /debug/vars
+	// JSON response contains "userquerybytes".
+	hasUserQueryBytesKey := func(m map[string]interface{}) bool {
+		for k := range m {
+			if strings.Contains(k, "userquerybytes") {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("enabled=true admin=true: userquerybytes visible in /debug/vars", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled(), WithUserQueryBytes()))
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			isAdmin := username == testUserAlice // alice is admin, bob is not
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: isAdmin}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+		// Wire mock monitor to return the handler's real statistics.
+		h.Monitor.StatisticsFn = func(tags map[string]string) ([]*monitor.Statistic, error) {
+			handlerStats := h.Handler.Statistics(tags)
+			out := make([]*monitor.Statistic, len(handlerStats))
+			for i, s := range handlerStats {
+				out[i] = &monitor.Statistic{Statistic: s}
+			}
+			return out, nil
+		}
+
+		// Generate traffic from both admin (alice) and non-admin (bob).
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserBob+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Admin (alice) accesses /debug/vars — should see userquerybytes.
+		r := MustNewJSONRequest("GET", "/debug/vars?u="+testUserAlice+"&p=pass", nil)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var result map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+		require.True(t, hasUserQueryBytesKey(result),
+			"admin should see userquerybytes in /debug/vars when enabled")
+	})
+
+	t.Run("enabled=true admin=false: /debug/vars returns 403", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled(), WithUserQueryBytes()))
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			isAdmin := username == testUserAlice
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: isAdmin}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Generate traffic from non-admin bob.
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserBob+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Non-admin (bob) accesses /debug/vars — should be rejected.
+		r := MustNewJSONRequest("GET", "/debug/vars?u="+testUserBob+"&p=pass", nil)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusForbidden, w.Code,
+			"non-admin should not be able to access /debug/vars")
+	})
+
+	t.Run("enabled=false admin=true: no userquerybytes in /debug/vars", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled())) // no WithUserQueryBytes
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: true}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+		h.Monitor.StatisticsFn = func(tags map[string]string) ([]*monitor.Statistic, error) {
+			handlerStats := h.Handler.Statistics(tags)
+			out := make([]*monitor.Statistic, len(handlerStats))
+			for i, s := range handlerStats {
+				out[i] = &monitor.Statistic{Statistic: s}
+			}
+			return out, nil
+		}
+
+		// Generate traffic.
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Admin accesses /debug/vars — should NOT see userquerybytes.
+		r := MustNewJSONRequest("GET", "/debug/vars?u="+testUserAlice+"&p=pass", nil)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var result map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+		require.False(t, hasUserQueryBytesKey(result),
+			"should not see userquerybytes in /debug/vars when disabled")
+	})
+
+	t.Run("enabled=false admin=false: /debug/vars returns 403", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled())) // no WithUserQueryBytes
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: false}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+
+		// Non-admin accesses /debug/vars — should be rejected.
+		r := MustNewJSONRequest("GET", "/debug/vars?u="+testUserBob+"&p=pass", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, http.StatusForbidden, w.Code,
+			"non-admin should not be able to access /debug/vars")
+	})
+
+	// Verify that when enabled, bytes are tracked for ALL users (admin and
+	// non-admin alike) even though only admins can view the statistics.
+	t.Run("enabled=true: all users bytes tracked including non-admin", func(t *testing.T) {
+		h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled(), WithUserQueryBytes()))
+
+		h.MetaClient.AdminUserExistsFn = func() bool { return true }
+		h.MetaClient.UserFn = func(username string) (meta.User, error) {
+			isAdmin := username == testUserAlice
+			return &meta.UserInfo{Name: username, Hash: "pass", Admin: isAdmin}, nil
+		}
+		h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+			return h.MetaClient.User(u)
+		}
+		h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
+			return nil
+		}
+		h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+			return nil
+		}
+
+		// Generate traffic from admin alice and non-admin bob.
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserAlice+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		aliceBytes := w.Body.Len()
+
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u="+testUserBob+"&p=pass&db=foo&q=SELECT+*+FROM+bar", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		bobBytes := w.Body.Len()
+
+		// Verify via Statistics() that both users are tracked internally.
+		stats := h.Handler.Statistics(nil)
+		require.Equal(t, 2, countUserStats(stats), "expected both admin and non-admin tracked")
+
+		aliceBytesActual, found := findUserStat(stats, testUserAlice)
+		require.True(t, found, "admin alice's bytes should be tracked")
+		require.Equal(t, int64(aliceBytes), aliceBytesActual)
+
+		bobBytesActual, found := findUserStat(stats, testUserBob)
+		require.True(t, found, "non-admin bob's bytes should also be tracked")
+		require.Equal(t, int64(bobBytes), bobBytesActual)
+	})
+}
+
 // NewHandler represents a test wrapper for httpd.Handler.
 type Handler struct {
 	*httpd.Handler
@@ -2900,6 +3427,12 @@ func WithNoLog() configOption {
 func WithHeaders(h map[string]string) configOption {
 	return func(c *httpd.Config) {
 		c.HTTPHeaders = h
+	}
+}
+
+func WithUserQueryBytes() configOption {
+	return func(c *httpd.Config) {
+		c.UserQueryBytesEnabled = true
 	}
 }
 
