@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/pkg/data/gensyncmap"
 	"github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
@@ -143,12 +144,13 @@ type Handler struct {
 	Controller       Controller
 	CompilerMappings flux.CompilerMappings
 
-	Config           *Config
-	Logger           *zap.Logger
-	CLFLogger        *log.Logger
-	accessLog        *os.File
-	accessLogFilters StatusFilters
-	stats            *Statistics
+	Config            *Config
+	Logger            *zap.Logger
+	CLFLogger         *log.Logger
+	accessLog         *os.File
+	accessLogFilters  StatusFilters
+	stats             *Statistics
+	queryBytesPerUser gensyncmap.Map[string, *atomic.Int64]
 
 	requestTracker *RequestTracker
 	writeThrottler *Throttler
@@ -322,7 +324,12 @@ func NewHandler(c Config) *Handler {
 			return func(w http.ResponseWriter, r *http.Request, user meta.User) {
 				// TODO: This is the only place we use AuthorizeUnrestricted. It would be better to use an explicit permission
 				if user == nil || !user.AuthorizeUnrestricted() {
-					h.Logger.Info("Unauthorized request", zap.String("user", user.ID()), zap.String("path", r.URL.Path))
+					// Don't panic
+					id := ""
+					if user != nil {
+						id = user.ID()
+					}
+					h.Logger.Info("Unauthorized request", zap.String("user", id), zap.String("path", r.URL.Path))
 					h.httpError(w, "error authorizing admin access", http.StatusForbidden)
 					return
 				}
@@ -442,7 +449,7 @@ type Statistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
-	return []models.Statistic{{
+	stats := []models.Statistic{{
 		Name: "httpd",
 		Tags: tags,
 		Values: map[string]interface{}{
@@ -472,6 +479,35 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statFluxQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.FluxQueryRequestBytesTransmitted),
 		},
 	}}
+
+	// Add per-user query bytes as separate statistics (one per user) if enabled
+	if h.Config.UserQueryBytesEnabled && !h.queryBytesPerUser.IsEmpty() {
+		h.queryBytesPerUser.Range(func(user string, counter *atomic.Int64) bool {
+			userTag := user
+			if user == "" {
+				userTag = StatAnonymousUser
+			}
+			userTags := models.NewTags(tags).Merge(map[string]string{StatUserTagKey: userTag}).Map()
+			stats = append(stats, models.Statistic{
+				Name:   "userquerybytes",
+				Tags:   userTags,
+				Values: map[string]interface{}{statUserQueryRespBytes: counter.Load()},
+			})
+			return true
+		})
+	}
+
+	return stats
+}
+
+// addQueryBytesForUser atomically adds bytes to the per-user query bytes counter.
+// This is a no-op if UserQueryBytesEnabled is false.
+func (h *Handler) addQueryBytesForUser(user string, n int64) {
+	if !h.Config.UserQueryBytesEnabled {
+		return
+	}
+	counter, _ := h.queryBytesPerUser.LoadOrStore(user, &atomic.Int64{})
+	counter.Add(n)
 }
 
 // AddRoutes sets the provided routes on the handler.
@@ -782,6 +818,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 				Results: []*query.Result{r},
 			})
 			atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
+			h.addQueryBytesForUser(userName, int64(n))
 			w.(http.Flusher).Flush()
 			continue
 		}
@@ -873,6 +910,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	if !chunked {
 		n, _ := rw.WriteResponse(resp)
 		atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
+		h.addQueryBytesForUser(userName, int64(n))
 	}
 }
 
@@ -2031,6 +2069,11 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
+	var userName string
+	if user != nil {
+		userName = user.ID()
+	}
+
 	respond := func(resp *prompb.ReadResponse) {
 		data, err := resp.Marshal()
 		if err != nil {
@@ -2048,6 +2091,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		}
 
 		atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
+		h.addQueryBytesForUser(userName, int64(len(compressed)))
 	}
 
 	ctx := context.Background()
@@ -2134,6 +2178,11 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 		atomic.AddInt64(&h.stats.FluxQueryRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
+	var userName string
+	if user != nil {
+		userName = user.ID()
+	}
+
 	req, err := decodeQueryRequest(r)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
@@ -2201,14 +2250,13 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 		defer results.Release()
 
 		n, err = encoder.Encode(w, results)
-		if err != nil {
-			if n == 0 {
-				// If the encoder did not write anything, we can write an error header.
-				h.httpError(w, err.Error(), http.StatusInternalServerError)
-			} else {
-				atomic.AddInt64(&h.stats.FluxQueryRequestBytesTransmitted, int64(n))
-			}
+		if err != nil && n == 0 {
+			// If the encoder did not write anything, we can write an error header.
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		atomic.AddInt64(&h.stats.FluxQueryRequestBytesTransmitted, int64(n))
+		h.addQueryBytesForUser(userName, int64(n))
 	}
 }
 
