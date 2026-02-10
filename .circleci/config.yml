@@ -249,7 +249,7 @@ jobs:
 
   inclusivity:
     docker:
-      - image: cimg/go:1.23
+      - image: cimg/go:1.25
     steps:
       - checkout
       - run:
