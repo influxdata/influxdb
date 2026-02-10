@@ -275,7 +275,7 @@ jobs:
       - checkout
       - run: ./checkfmt.sh
       - run: ./generate.sh
-      - run: go vet ./...
+      - run: go vet -printf.funcs=Capturef ./...
 
   unit_test:
     docker:
