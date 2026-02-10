@@ -32,7 +32,11 @@ func ResultSetToLineProtocol(wr io.Writer, rs ResultSet) (err error) {
 		line = append(line, ' ')
 		line = append(line, field...)
 		line = append(line, '=')
-		err = cursorToLineProtocol(wr, line, rs.Cursor())
+		cursor, err := rs.Cursor()
+		if err != nil {
+			return err
+		}
+		err = cursorToLineProtocol(wr, line, cursor)
 		if err != nil {
 			return err
 		}
