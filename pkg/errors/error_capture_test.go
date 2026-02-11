@@ -1,15 +1,15 @@
 package errors
 
 import (
-	"errors"
+	stderrors "errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestCapture(t *testing.T) {
-	errClose := errors.New("close error")
-	errOriginal := errors.New("original error")
+	errClose := stderrors.New("close error")
+	errOriginal := stderrors.New("original error")
 
 	tests := []struct {
 		name     string
@@ -61,7 +61,7 @@ func TestCapture(t *testing.T) {
 }
 
 func TestCapture_DeferPattern(t *testing.T) {
-	errClose := errors.New("close error")
+	errClose := stderrors.New("close error")
 
 	fn := func() (err error) {
 		defer Capture(&err, func() error {
@@ -74,8 +74,8 @@ func TestCapture_DeferPattern(t *testing.T) {
 }
 
 func TestCapture_DeferPatternPreservesOriginal(t *testing.T) {
-	errClose := errors.New("close error")
-	errOriginal := errors.New("original error")
+	errClose := stderrors.New("close error")
+	errOriginal := stderrors.New("original error")
 
 	fn := func() (err error) {
 		defer Capture(&err, func() error {
@@ -89,8 +89,8 @@ func TestCapture_DeferPatternPreservesOriginal(t *testing.T) {
 }
 
 func TestCapturef(t *testing.T) {
-	errClose := errors.New("close error")
-	errOriginal := errors.New("original error")
+	errClose := stderrors.New("close error")
+	errOriginal := stderrors.New("original error")
 
 	t.Run("nil fn is no-op", func(t *testing.T) {
 		var err error
@@ -137,7 +137,7 @@ func TestCapturef(t *testing.T) {
 
 	t.Run("wraps close error with format string", func(t *testing.T) {
 		var err error
-		errDisk := errors.New("no space left on device")
+		errDisk := stderrors.New("no space left on device")
 		fn := Capturef(&err, func() error { return errDisk }, "error closing %q", "meta.boltdb")
 		fn()
 		require.ErrorIs(t, err, errDisk)
@@ -146,7 +146,7 @@ func TestCapturef(t *testing.T) {
 
 	t.Run("joins formatted close error with original", func(t *testing.T) {
 		err := errOriginal
-		errDisk := errors.New("no space left on device")
+		errDisk := stderrors.New("no space left on device")
 		fn := Capturef(&err, func() error { return errDisk }, "error closing %q", "meta.boltdb")
 		fn()
 		require.ErrorIs(t, err, errOriginal)
@@ -156,7 +156,7 @@ func TestCapturef(t *testing.T) {
 }
 
 func TestCapturef_DeferPattern(t *testing.T) {
-	errClose := errors.New("close error")
+	errClose := stderrors.New("close error")
 
 	fn := func() (err error) {
 		defer Capturef(&err, func() error {
@@ -171,8 +171,8 @@ func TestCapturef_DeferPattern(t *testing.T) {
 }
 
 func TestCapturef_DeferPatternJoinsErrors(t *testing.T) {
-	errClose := errors.New("close error")
-	errOriginal := errors.New("original error")
+	errClose := stderrors.New("close error")
+	errOriginal := stderrors.New("original error")
 
 	fn := func() (err error) {
 		defer Capturef(&err, func() error {
@@ -188,7 +188,7 @@ func TestCapturef_DeferPatternJoinsErrors(t *testing.T) {
 }
 
 func TestCapturef_FormatStringDocExample(t *testing.T) {
-	errDisk := errors.New("no space left on device")
+	errDisk := stderrors.New("no space left on device")
 
 	fn := func(name string) (rErr error) {
 		closer := func() error { return errDisk }

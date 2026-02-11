@@ -1,7 +1,7 @@
 package errors
 
 import (
-	"errors"
+	stderrors "errors"
 	"fmt"
 )
 
@@ -62,7 +62,7 @@ func Capturef(rErr *error, fn func() error, fs string, a ...any) func() {
 						args = append(args, err)
 						err = fmt.Errorf(fs+": %w", args...)
 					}
-					*rErr = errors.Join(*rErr, err)
+					*rErr = stderrors.Join(*rErr, err)
 				}
 			}
 		}
