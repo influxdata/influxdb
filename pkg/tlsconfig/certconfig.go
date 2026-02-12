@@ -59,12 +59,34 @@ func (lc *LoadedCertificate) IsValid() bool {
 	return lc.valid
 }
 
+// loadCertificateConfig is an internal config for LoadCertificate.
+type loadCertificateConfig struct {
+	// ignoreFilePermissions indicates if file permissions should be ignored during load.
+	ignoreFilePermissions bool
+}
+
+// LoadCertificateOpt are functions to change the behavior of LoadCertificate.
+type LoadCertificateOpt func(*loadCertificateConfig)
+
+// WithLoadCertificateIgnoreFilePermissions instructs LoadCertificate to ignore file permissions
+// if ignore is true.
+func WithLoadCertificateIgnoreFilePermissions(ignore bool) LoadCertificateOpt {
+	return func(c *loadCertificateConfig) {
+		c.ignoreFilePermissions = ignore
+	}
+}
+
 // LoadCertificate loads a key pair from certPath and keyPath, performing several checks
 // along the way. If any checks fail or an error occurs loading the files, then an error is returned.
 // If keyPath is empty, then certPath is assumed to contain both the certificate and the private key.
 // Only trusted input (standard configuration files) should be used for certPath and keyPath.
-func LoadCertificate(certPath, keyPath string) (LoadedCertificate, error) {
+func LoadCertificate(certPath, keyPath string, opts ...LoadCertificateOpt) (LoadedCertificate, error) {
 	fail := func(err error) (LoadedCertificate, error) { return LoadedCertificate{valid: false}, err }
+
+	config := loadCertificateConfig{}
+	for _, o := range opts {
+		o(&config)
+	}
 
 	if certPath == "" {
 		return fail(fmt.Errorf("LoadCertificate: certificate: %w", ErrPathEmpty))
@@ -95,9 +117,11 @@ func LoadCertificate(certPath, keyPath string) (LoadedCertificate, error) {
 			}
 		}()
 
-		if err := file.VerifyFilePermissivenessF(f, maxPerms); err != nil {
-			// VerifyFilePermissivenessF includes a lot context in its errors. No need to add duplicate here.
-			return nil, fmt.Errorf("LoadCertificate: %w", err)
+		if !config.ignoreFilePermissions {
+			if err := file.VerifyFilePermissivenessF(f, maxPerms); err != nil {
+				// VerifyFilePermissivenessF includes a lot context in its errors. No need to add duplicate here.
+				return nil, fmt.Errorf("LoadCertificate: %w", err)
+			}
 		}
 		data, err := io.ReadAll(f)
 		if err != nil {
@@ -157,11 +181,17 @@ type TLSCertLoader struct {
 	// certificateCheckInterval determines the duration between each certificate check.
 	certificateCheckInterval time.Duration
 
+	// ignoreFilePermissions is true if file permission checks should be bypassed.
+	ignoreFilePermissions bool
+
 	// closeOnce is used to close closeCh exactly one time.
 	closeOnce sync.Once
 
 	// closeCh is used to trigger closing the monitor.
 	closeCh chan struct{}
+
+	// monitorStartWg can be used to detect if the monitor goroutine has started.
+	monitorStartWg sync.WaitGroup
 
 	// mu protects all members below.
 	mu sync.Mutex
@@ -181,25 +211,32 @@ type TLSCertLoader struct {
 
 type TLSCertLoaderOpt func(*TLSCertLoader)
 
-// WithExpirationAdvanced sets the how far ahead a CertLoader will
+// WithCertLoaderExpirationAdvanced sets the how far ahead a CertLoader will
 // warn about a certificate that is about to expire.
-func WithExpirationAdvanced(d time.Duration) TLSCertLoaderOpt {
+func WithCertLoaderExpirationAdvanced(d time.Duration) TLSCertLoaderOpt {
 	return func(cl *TLSCertLoader) {
 		cl.expirationAdvanced = d
 	}
 }
 
-// WithCertificateCheckInterval sets how often to check for certificate expiration.
-func WithCertificateCheckInterval(d time.Duration) TLSCertLoaderOpt {
+// WithCertLoaderCertificateCheckInterval sets how often to check for certificate expiration.
+func WithCertLoaderCertificateCheckInterval(d time.Duration) TLSCertLoaderOpt {
 	return func(cl *TLSCertLoader) {
 		cl.certificateCheckInterval = d
 	}
 }
 
-// WithLogger assigns a logger for to use.
-func WithLogger(logger *zap.Logger) TLSCertLoaderOpt {
+// WithCertLoaderLogger assigns a logger for to use.
+func WithCertLoaderLogger(logger *zap.Logger) TLSCertLoaderOpt {
 	return func(cl *TLSCertLoader) {
 		cl.logger = logger
+	}
+}
+
+// WithCertLoaderIgnoreFilePermissions skips file permission checking when loading certificates.
+func WithCertLoaderIgnoreFilePermissions(ignore bool) TLSCertLoaderOpt {
+	return func(cl *TLSCertLoader) {
+		cl.ignoreFilePermissions = ignore
 	}
 }
 
@@ -230,10 +267,8 @@ func NewTLSCertLoader(certPath, keyPath string, opts ...TLSCertLoaderOpt) (rCert
 	}
 
 	// Start monitoring certificate.
-	var monitorWg sync.WaitGroup
-	monitorWg.Add(1)
-	go cl.monitorCert(&monitorWg)
-	monitorWg.Wait()
+	cl.monitorStartWg.Add(1)
+	go cl.monitorCert(&cl.monitorStartWg)
 
 	return cl, nil
 }
@@ -308,16 +343,22 @@ func (cl *TLSCertLoader) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate,
 // certificate.
 func (cl *TLSCertLoader) GetClientCertificate(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	if cri == nil {
-		return new(tls.Certificate), ErrCertificateRequestInfoNil
+		return new(tls.Certificate), fmt.Errorf("tls client: %w", ErrCertificateRequestInfoNil)
 	}
 	cert := cl.Certificate()
 	if cert == nil {
-		return new(tls.Certificate), ErrCertificateNil
+		return new(tls.Certificate), fmt.Errorf("tls client: %w", ErrCertificateNil)
 	}
-	if err := cri.SupportsCertificate(cert); err != nil {
-		return new(tls.Certificate), err
+
+	// Will our certificate be accepted by server?
+	if err := cri.SupportsCertificate(cert); err == nil {
+		return cert, nil
 	}
-	return cert, nil
+
+	// We don't have a certificate that would be accepted by the server. Don't return an error.
+	// This replicates Go's behavior when tls.Config.Certificates is used instead of GetClientCertificate
+	// and gives a better error on both the client and server side.
+	return new(tls.Certificate), nil
 }
 
 // Leaf returns the parsed x509 certificate of the currently loaded certificate.
@@ -328,13 +369,17 @@ func (cl *TLSCertLoader) Leaf() *x509.Certificate {
 	return cl.leaf
 }
 
+func (cl *TLSCertLoader) loadCertificate(certPath, keyPath string) (LoadedCertificate, error) {
+	return LoadCertificate(certPath, keyPath, WithLoadCertificateIgnoreFilePermissions(cl.ignoreFilePermissions))
+}
+
 // Load loads the certificate at the given certificate path and private keyfile path.
 // Only trusted input (standard configuration files) should be used for certPath and keyPath.
 func (cl *TLSCertLoader) Load(certPath, keyPath string) (rErr error) {
 	log, logEnd := logger.NewOperation(cl.logger, "Loading TLS certificate", "tls_load_cert", zap.String("cert", certPath), zap.String("key", keyPath))
 	defer logEnd()
 
-	loadedCert, err := LoadCertificate(certPath, keyPath)
+	loadedCert, err := cl.loadCertificate(certPath, keyPath)
 
 	cl.mu.Lock()
 	defer cl.mu.Unlock()
@@ -365,7 +410,7 @@ func (cl *TLSCertLoader) Load(certPath, keyPath string) (rErr error) {
 // If the certificate can be loaded, a function that will apply the certificate reload is
 // returned. Otherwise, an error is returned.
 func (cl *TLSCertLoader) PrepareLoad(certPath, keyPath string) (func() error, error) {
-	loadedCert, err := LoadCertificate(certPath, keyPath)
+	loadedCert, err := cl.loadCertificate(certPath, keyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -455,6 +500,12 @@ func (cl *TLSCertLoader) checkCurrentCert() {
 		// fails.
 		log.Error("No certificate loaded when TLS certificate check performed", zap.Error(ErrCertificateNil))
 	}
+}
+
+// WaitForMonitorStart will wait for the certificate monitor goroutine to start. This is mainly useful
+// for tests to avoid race conditions.
+func (cl *TLSCertLoader) WaitForMonitorStart() {
+	cl.monitorStartWg.Wait()
 }
 
 // monitorCert periodically logs errors with the currently loaded certificate.

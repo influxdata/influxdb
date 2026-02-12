@@ -77,6 +77,9 @@ type Service struct {
 	// exposed to client code because a key certificate might be loaded on a config reload.
 	key string
 
+	// insecureCert is true if certificate file permissions should be ignored.
+	insecureCert bool
+
 	limit     int
 	tlsConfig *tls.Config
 	err       chan error
@@ -118,6 +121,7 @@ func NewService(c Config) *Service {
 		https:          c.HTTPSEnabled,
 		cert:           c.HTTPSCertificate,
 		key:            c.HTTPSPrivateKey,
+		insecureCert:   c.HTTPSInsecureCertificate,
 		limit:          c.MaxConnectionLimit,
 		tlsConfig:      c.TLS,
 		err:            make(chan error, 2), // There could be two serve calls that fail.
@@ -155,11 +159,13 @@ func (s *Service) Open() error {
 	s.Handler.Open()
 
 	// Open listener.
-	if tm, err := tlsconfig.NewTLSConfigManager(s.https, s.tlsConfig, s.cert, s.key, false, tlsconfig.WithLogger(s.Logger)); err != nil {
+	tm, err := tlsconfig.NewTLSConfigManager(s.https, s.tlsConfig, s.cert, s.key, false,
+		tlsconfig.WithAllowInsecure(s.insecureCert),
+		tlsconfig.WithLogger(s.Logger))
+	if err != nil {
 		return fmt.Errorf("httpd: error creating TLS manager: %w", err)
-	} else {
-		s.tlsManager = tm
 	}
+	s.tlsManager = tm
 
 	if ln, err := s.tlsManager.Listen("tcp", s.addr); err != nil {
 		return fmt.Errorf("httpd: error creating listener: %w", err)

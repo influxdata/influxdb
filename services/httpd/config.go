@@ -51,6 +51,7 @@ type Config struct {
 	HTTPSCertificate         string            `toml:"https-certificate"`
 	HTTPSPrivateKey          string            `toml:"https-private-key"`
 	HTTPSInsecureCertificate bool              `toml:"https-insecure-certificate"`
+	HTTPSInsecureCertificate bool              `toml:"https-insecure-certificate"`
 	MaxRowLimit              int               `toml:"max-row-limit"`
 	MaxConnectionLimit       int               `toml:"max-connection-limit"`
 	SharedSecret             string            `toml:"shared-secret"`
@@ -72,27 +73,28 @@ type Config struct {
 // NewConfig returns a new Config with default settings.
 func NewConfig() Config {
 	return Config{
-		Enabled:                true,
-		FluxEnabled:            false,
-		FluxLogEnabled:         false,
-		FluxTesting:            false,
-		BindAddress:            DefaultBindAddress,
-		LogEnabled:             true,
-		PprofEnabled:           true,
-		PprofAuthEnabled:       false,
-		DebugPprofEnabled:      false,
-		PingAuthEnabled:        false,
-		PromReadAuthEnabled:    false,
-		HTTPSEnabled:           false,
-		HTTPSCertificate:       "/etc/ssl/influxdb.pem",
-		MaxRowLimit:            0,
-		Realm:                  DefaultRealm,
-		UnixSocketEnabled:      false,
-		UnixSocketPermissions:  0777,
-		BindSocket:             DefaultBindSocket,
-		MaxBodySize:            DefaultMaxBodySize,
-		EnqueuedWriteTimeout:   DefaultEnqueuedWriteTimeout,
-		AccessLogStatusFilters: make([]StatusFilter, 0),
+		Enabled:                  true,
+		FluxEnabled:              false,
+		FluxLogEnabled:           false,
+		FluxTesting:              false,
+		BindAddress:              DefaultBindAddress,
+		LogEnabled:               true,
+		PprofEnabled:             true,
+		PprofAuthEnabled:         false,
+		DebugPprofEnabled:        false,
+		PingAuthEnabled:          false,
+		PromReadAuthEnabled:      false,
+		HTTPSEnabled:             false,
+		HTTPSCertificate:         "/etc/ssl/influxdb.pem",
+		HTTPSInsecureCertificate: false,
+		MaxRowLimit:              0,
+		Realm:                    DefaultRealm,
+		UnixSocketEnabled:        false,
+		UnixSocketPermissions:    0777,
+		BindSocket:               DefaultBindSocket,
+		MaxBodySize:              DefaultMaxBodySize,
+		EnqueuedWriteTimeout:     DefaultEnqueuedWriteTimeout,
+		AccessLogStatusFilters:   make([]StatusFilter, 0),
 	}
 }
 
@@ -105,13 +107,14 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	}
 
 	return diagnostics.RowFromMap(map[string]interface{}{
-		"enabled":              true,
-		"bind-address":         c.BindAddress,
-		"https-enabled":        c.HTTPSEnabled,
-		"max-row-limit":        c.MaxRowLimit,
-		"max-connection-limit": c.MaxConnectionLimit,
-		"access-log-path":      c.AccessLogPath,
-		"flux-enabled":         c.FluxEnabled,
+		"enabled":                    true,
+		"bind-address":               c.BindAddress,
+		"https-enabled":              c.HTTPSEnabled,
+		"https-insecure-certificate": c.HTTPSInsecureCertificate,
+		"max-row-limit":              c.MaxRowLimit,
+		"max-connection-limit":       c.MaxConnectionLimit,
+		"access-log-path":            c.AccessLogPath,
+		"flux-enabled":               c.FluxEnabled,
 	}), nil
 }
 
