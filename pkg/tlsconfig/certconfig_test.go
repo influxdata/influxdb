@@ -144,7 +144,7 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 		require.NoError(t, emptyFile.Close())
 
 		loadErr := cl.Load(emptyPath, emptyPath)
-		require.ErrorContains(t, loadErr, "error loading x509 key pair: tls: failed to find any PEM data in certificate input")
+		require.ErrorContains(t, loadErr, fmt.Sprintf("error loading x509 key pair (%q / %q): tls: failed to find any PEM data in certificate input", emptyPath, emptyPath))
 
 		// Check that we are still using the previously loaded certificate
 		cp, kp := cl.Paths()
