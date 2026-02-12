@@ -533,15 +533,15 @@ func (s *Store) loadShards() error {
 
 		compactionSettings = append(
 			compactionSettings,
-			zap.Int("throughput_bytes_per_second", throughput),
-			zap.Int("throughput_bytes_per_second_burst", throughputBurst),
+			zap.Int("compact-throughput", throughput),
+			zap.Int("compact-throughput-burst", throughputBurst),
 		)
 		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(throughput, throughputBurst)
 	} else {
 		compactionSettings = append(
 			compactionSettings,
-			zap.String("throughput_bytes_per_second", "unlimited"),
-			zap.String("throughput_bytes_per_second_burst", "unlimited"),
+			zap.String("compact-throughput", "unlimited"),
+			zap.String("compact-throughput-burst", "unlimited"),
 		)
 	}
 
