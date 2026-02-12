@@ -2785,7 +2785,10 @@ mod tests {
     use http::{HeaderMap, HeaderValue, header::ACCEPT};
     use http::{Request, Uri};
 
-    use super::{MAXIMUM_DATABASE_NAME_LENGTH, extract_client_ip, extract_db_from_query_param, truncate_for_logging};
+    use super::{
+        MAXIMUM_DATABASE_NAME_LENGTH, extract_client_ip, extract_db_from_query_param,
+        truncate_for_logging,
+    };
     use crate::http::AuthenticationError;
 
     use super::QueryFormat;
