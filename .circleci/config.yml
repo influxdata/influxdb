@@ -146,7 +146,7 @@ parameters:
   # Consistent environment setup for Python Build Standalone
   PBS_DATE:
     type: string
-    default: "20260203"
+    default: "20260211"
   PBS_VERSION:
     type: string
     default: "3.13.12"
