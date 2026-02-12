@@ -25,12 +25,14 @@ func TestTLSCertLoader_HappyPath(t *testing.T) {
 	logger := zap.New(core)
 
 	// Start cert loader
-	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithLogger(logger))
+	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithCertLoaderLogger(logger))
 	require.NoError(t, err)
 	require.NotNil(t, cl)
 	defer func() {
 		require.NoError(t, cl.Close())
 	}()
+	cl.WaitForMonitorStart()
+	cl.WaitForMonitorStart() // should be able to safely call multiple times
 
 	{
 		// Check for expected log output
@@ -108,12 +110,13 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 	logger := zap.New(core)
 
 	// Start cert loader
-	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithLogger(logger))
+	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithCertLoaderLogger(logger))
 	require.NoError(t, err)
 	require.NotNil(t, cl)
 	defer func() {
 		require.NoError(t, cl.Close())
 	}()
+	cl.WaitForMonitorStart()
 
 	var goodSerial big.Int
 	{
@@ -144,7 +147,7 @@ func TestTLSCertLoader_GoodCertPersists(t *testing.T) {
 		require.NoError(t, emptyFile.Close())
 
 		loadErr := cl.Load(emptyPath, emptyPath)
-		require.ErrorContains(t, loadErr, "error loading x509 key pair: tls: failed to find any PEM data in certificate input")
+		require.ErrorContains(t, loadErr, fmt.Sprintf("error loading x509 key pair (%q / %q): tls: failed to find any PEM data in certificate input", emptyPath, emptyPath))
 
 		// Check that we are still using the previously loaded certificate
 		cp, kp := cl.Paths()
@@ -281,12 +284,13 @@ func TestTLSCertLoader_PrematureCertificateLogging(t *testing.T) {
 	core, logs := observer.New(zapcore.InfoLevel)
 	logger := zap.New(core)
 
-	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithLogger(logger), WithCertificateCheckInterval(testCheckTime))
+	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithCertLoaderLogger(logger), WithCertLoaderCertificateCheckInterval(testCheckTime))
 	require.NoError(t, err)
 	require.NotNil(t, cl)
 	defer func() {
 		require.NoError(t, cl.Close())
 	}()
+	cl.WaitForMonitorStart()
 
 	checkWarning := func(t *testing.T) {
 		warning := logs.FilterMessage("Certificate is not valid yet").TakeAll()
@@ -313,12 +317,13 @@ func TestTLSCertLoader_ExpiredCertificateLogging(t *testing.T) {
 	core, logs := observer.New(zapcore.InfoLevel)
 	logger := zap.New(core)
 
-	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithLogger(logger), WithCertificateCheckInterval(testCheckTime))
+	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithCertLoaderLogger(logger), WithCertLoaderCertificateCheckInterval(testCheckTime))
 	require.NoError(t, err)
 	require.NotNil(t, cl)
 	defer func() {
 		require.NoError(t, cl.Close())
 	}()
+	cl.WaitForMonitorStart()
 
 	checkWarning := func(t *testing.T) {
 		warning := logs.FilterMessage("Certificate is expired").TakeAll()
@@ -346,12 +351,16 @@ func TestTLSCertLoader_CertificateExpiresSoonLogging(t *testing.T) {
 	core, logs := observer.New(zapcore.InfoLevel)
 	logger := zap.New(core)
 
-	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath, WithLogger(logger), WithCertificateCheckInterval(testCheckTime), WithExpirationAdvanced(2*24*time.Hour))
+	cl, err := NewTLSCertLoader(ss.CertPath, ss.KeyPath,
+		WithCertLoaderLogger(logger),
+		WithCertLoaderCertificateCheckInterval(testCheckTime),
+		WithCertLoaderExpirationAdvanced(2*24*time.Hour))
 	require.NoError(t, err)
 	require.NotNil(t, cl)
 	defer func() {
 		require.NoError(t, cl.Close())
 	}()
+	cl.WaitForMonitorStart()
 
 	checkWarning := func(t *testing.T) {
 		warning := logs.FilterMessage("Certificate will expire soon").TakeAll()
@@ -534,8 +543,10 @@ func TestTLSCertLoader_GetClientCertificate(t *testing.T) {
 			},
 		}
 
+		// We should get an empty certificate with no error. This replicates Go's behavior when
+		// tls.Config.Certificates is used and none of the certificates are accepted by the server.
 		cert, err := cl.GetClientCertificate(cri)
-		require.ErrorContains(t, err, "doesn't support any of the certificate's signature algorithms")
+		require.NoError(t, err)
 		// GetClientCertificate must return a non-nil certificate even on error
 		// (per the tls.Config.GetClientCertificate contract).
 		require.NotNil(t, cert)
@@ -591,8 +602,10 @@ func TestTLSCertLoader_GetClientCertificate(t *testing.T) {
 			AcceptableCAs: [][]byte{parsedCA2.RawSubject},
 		}
 
+		// This should return an empty certificate with no error to replicate
+		// Go's behavior when tls.Config.Certificates is used.
 		cert, err := cl.GetClientCertificate(cri)
-		require.ErrorContains(t, err, "not signed by an acceptable CA")
+		require.NoError(t, err)
 		require.NotNil(t, cert)
 		require.Empty(t, cert.Certificate)
 	})

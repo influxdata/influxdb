@@ -37,19 +37,20 @@ const (
 
 // Config represents the configuration of the OpenTSDB service.
 type Config struct {
-	Enabled          bool          `toml:"enabled"`
-	BindAddress      string        `toml:"bind-address"`
-	Database         string        `toml:"database"`
-	RetentionPolicy  string        `toml:"retention-policy"`
-	ConsistencyLevel string        `toml:"consistency-level"`
-	TLSEnabled       bool          `toml:"tls-enabled"`
-	Certificate      string        `toml:"certificate"`
-	PrivateKey       string        `toml:"private-key"`
-	BatchSize        int           `toml:"batch-size"`
-	BatchPending     int           `toml:"batch-pending"`
-	BatchTimeout     toml.Duration `toml:"batch-timeout"`
-	LogPointErrors   bool          `toml:"log-point-errors"`
-	TLS              *tls.Config   `toml:"-"`
+	Enabled             bool          `toml:"enabled"`
+	BindAddress         string        `toml:"bind-address"`
+	Database            string        `toml:"database"`
+	RetentionPolicy     string        `toml:"retention-policy"`
+	ConsistencyLevel    string        `toml:"consistency-level"`
+	TLSEnabled          bool          `toml:"tls-enabled"`
+	Certificate         string        `toml:"certificate"`
+	PrivateKey          string        `toml:"private-key"`
+	InsecureCertificate bool          `toml:"insecure-certificate"`
+	BatchSize           int           `toml:"batch-size"`
+	BatchPending        int           `toml:"batch-pending"`
+	BatchTimeout        toml.Duration `toml:"batch-timeout"`
+	LogPointErrors      bool          `toml:"log-point-errors"`
+	TLS                 *tls.Config   `toml:"-"`
 }
 
 // NewConfig returns a new config for the service.
