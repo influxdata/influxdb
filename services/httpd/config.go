@@ -51,7 +51,6 @@ type Config struct {
 	HTTPSCertificate         string            `toml:"https-certificate"`
 	HTTPSPrivateKey          string            `toml:"https-private-key"`
 	HTTPSInsecureCertificate bool              `toml:"https-insecure-certificate"`
-	HTTPSInsecureCertificate bool              `toml:"https-insecure-certificate"`
 	MaxRowLimit              int               `toml:"max-row-limit"`
 	MaxConnectionLimit       int               `toml:"max-connection-limit"`
 	SharedSecret             string            `toml:"shared-secret"`
