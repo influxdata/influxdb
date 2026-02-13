@@ -160,7 +160,7 @@ func (s *Service) Open() error {
 
 	// Open listener.
 	tm, err := tlsconfig.NewTLSConfigManager(s.https, s.tlsConfig, s.cert, s.key, false,
-		tlsconfig.WithAllowInsecure(s.insecureCert),
+		tlsconfig.WithIgnoreFilePermissions(s.insecureCert),
 		tlsconfig.WithLogger(s.Logger))
 	if err != nil {
 		return fmt.Errorf("httpd: error creating TLS manager: %w", err)
