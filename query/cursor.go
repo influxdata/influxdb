@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 )
 
@@ -164,6 +165,7 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 	}
 
 	m := make(map[string]interface{})
+	mapValuer := influxql.MapValuer(m)
 	return scannerCursorBase{
 		fields:  exprs,
 		m:       m,
@@ -173,7 +175,8 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 		valuer: influxql.ValuerEval{
 			Valuer: influxql.MultiValuer(
 				MathValuer{},
-				influxql.MapValuer(m),
+				DatePartValuer{Valuer: mapValuer},
+				mapValuer,
 			),
 			IntegerFloatDivision: true,
 		},
@@ -199,8 +202,12 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 	}
 
 	for i, expr := range cur.fields {
+		// Set the timestamp in the map so date_part can access it
+		if callExpr, ok := expr.(*influxql.Call); ok && callExpr.Name == DatePartString {
+			cur.m[models.TimeString] = row.Time
+		}
 		// A special case if the field is time to reduce memory allocations.
-		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == "time" {
+		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
 		}

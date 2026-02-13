@@ -618,7 +618,7 @@ func (e *StatementExecutor) executeSelectStatement(ctx *query.ExecutionContext, 
 			Messages: messages,
 			Series: []*models.Row{{
 				Name:    "result",
-				Columns: []string{"time", "written"},
+				Columns: []string{models.TimeString, "written"},
 				Values:  [][]interface{}{{time.Unix(0, 0).UTC(), writeN}},
 			}},
 		})
@@ -1339,7 +1339,7 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)
 	for i, c := range row.Columns {
-		if c == "time" {
+		if c == models.TimeString {
 			timeIndex = i
 		} else {
 			fieldIndexes[c] = i

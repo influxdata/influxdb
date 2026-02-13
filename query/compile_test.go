@@ -110,6 +110,22 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT sin(value) - sin(1.3) FROM cpu`,
 		`SELECT value FROM cpu WHERE sin(value) > 0.5`,
 		`SELECT sum("out")/sum("in") FROM (SELECT derivative("out") AS "out", derivative("in") AS "in" FROM "m0" WHERE time >= now() - 5m GROUP BY "index") GROUP BY time(1m) fill(none)`,
+		// date_part tests
+		`SELECT value, date_part('dow', time) FROM cpu`,
+		`SELECT date_part('dow', time), date_part('month', time) FROM cpu`,
+		`SELECT date_part('dow', time), date_part('month', time), date_part('year', time) FROM cpu`,
+		`SELECT value, date_part('dow', time), date_part('month', time) FROM cpu`,
+		`SELECT value FROM cpu WHERE date_part('dow', time) = 1`,
+		`SELECT value FROM cpu WHERE date_part('dow', time) != 0 AND date_part('dow', time) != 6`,
+		`SELECT first(value), date_part('dow', time) FROM cpu`,
+		`SELECT last(value), date_part('dow', time) FROM cpu`,
+		`SELECT max(value), date_part('dow', time) FROM cpu`,
+		// date_part in subqueries
+		`SELECT max(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM cpu)`,
+		`SELECT mean(value) FROM (SELECT value FROM cpu WHERE date_part('dow', time) = 1)`,
+		`SELECT value FROM (SELECT value, date_part('month', time) AS month FROM cpu) WHERE month = 1`,
+		`SELECT value, date_part('year', time) FROM (SELECT * FROM cpu WHERE value > 10)`,
+		`SELECT value, dow, month FROM (SELECT value, date_part('dow', time) AS dow, date_part('month', time) AS month FROM cpu)`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)
@@ -362,6 +378,18 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT sin(1.3) FROM cpu`, err: `field must contain at least one variable`},
 		{s: `SELECT nofunc(1.3) FROM cpu`, err: `undefined function nofunc()`},
 		{s: `SELECT * FROM cpu WHERE ( host =~ /foo/ ^ other AND env =~ /bar/ ) and time >= now()-15m`, err: `likely malformed statement, unable to rewrite: interface conversion: influxql.Expr is *influxql.BinaryExpr, not *influxql.RegexLiteral`},
+		// date_part validation tests
+		{s: `SELECT date_part() FROM cpu`, err: `invalid number of arguments for date_part, expected 2, got 0`},
+		{s: `SELECT date_part('dow') FROM cpu`, err: `invalid number of arguments for date_part, expected 2, got 1`},
+		{s: `SELECT date_part('invalid', time) FROM cpu`, err: `date_part: first argument must be one of the following: [year,quarter,month,week,day,hour,minute,second,millisecond,microsecond,nanosecond,dow,doy,epoch,isodow]`},
+		{s: `SELECT date_part('dow', value) FROM cpu`, err: `date_part: second argument must be time VarRef`},
+		{s: `SELECT date_part(123, time) FROM cpu`, err: `date_part: first argument must be a string`},
+		// Verify multiple selectors without date_part still error
+		{s: `SELECT value, first(value), last(value) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
+		// Multiple selectors WITH date_part should also error
+		{s: `SELECT value, first(value), last(value), date_part('dow', time) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
+		// date_part subquery validation - cannot be sole field
+		{s: `SELECT date_part('dow', value) FROM (SELECT value FROM cpu)`, err: `date_part: second argument must be time VarRef`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)

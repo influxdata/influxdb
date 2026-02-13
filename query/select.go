@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query/internal/gota"
 	"github.com/influxdata/influxql"
@@ -643,7 +644,7 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 		// Add a field with the variable "time" if we have not omitted time.
 		fields = append(fields, &influxql.Field{
 			Expr: &influxql.VarRef{
-				Val:  "time",
+				Val:  models.TimeString,
 				Type: influxql.Time,
 			},
 		})
@@ -926,6 +927,22 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 		case *influxql.Call:
 			if isMathFunction(n) {
 				return v
+			}
+			if n.Name == DatePartString {
+				// Special handling for date_part manually symbolize the time argument
+				if len(n.Args) >= DatePartArgCount {
+					if timeRef, ok := n.Args[1].(*influxql.VarRef); ok && timeRef.Val == models.TimeString {
+						timeKey := timeRef.String()
+						if _, exists := v.symbols[timeKey]; !exists {
+							v.symbols[timeKey] = influxql.VarRef{
+								Val:  DatePartTimeString,
+								Type: influxql.Time,
+							}
+							v.refs[timeRef] = struct{}{}
+						}
+					}
+				}
+				return nil
 			}
 			v.calls[n] = struct{}{}
 		case *influxql.VarRef:

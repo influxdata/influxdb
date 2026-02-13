@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"google.golang.org/protobuf/proto"
 )
@@ -2515,7 +2516,7 @@ func newFloatFilterIterator(input FloatIterator, cond influxql.Expr, opt Iterato
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -5179,7 +5180,7 @@ func newIntegerFilterIterator(input IntegerIterator, cond influxql.Expr, opt Ite
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -7843,7 +7844,7 @@ func newUnsignedFilterIterator(input UnsignedIterator, cond influxql.Expr, opt I
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -10493,7 +10494,7 @@ func newStringFilterIterator(input StringIterator, cond influxql.Expr, opt Itera
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -13143,7 +13144,7 @@ func newBooleanFilterIterator(input BooleanIterator, cond influxql.Expr, opt Ite
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
