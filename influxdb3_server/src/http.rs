@@ -47,6 +47,7 @@ use influxdb3_types::http::*;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
+use influxdb3_write::gen1_cleanup_handler::Gen1CleanupResult;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
@@ -1881,6 +1882,54 @@ impl HttpApi {
         Ok(body?)
     }
 
+    pub(crate) async fn trigger_gen1_cleanup_handler(
+        &self,
+        req: Request,
+    ) -> Result<Response, Error> {
+        #[derive(Deserialize)]
+        struct Gen1CleanupParams {
+            #[serde(default)]
+            min_age: Option<String>,
+            #[serde(default)]
+            batch_size: Option<usize>,
+            #[serde(default)]
+            concurrency: Option<usize>,
+        }
+
+        let query = req.uri().query().unwrap_or("");
+        let params = serde_urlencoded::from_str::<Gen1CleanupParams>(query)?;
+
+        let min_age = match params.min_age {
+            Some(s) => s
+                .parse::<humantime::Duration>()
+                .map_err(Error::ParsingHumanTime)?
+                .into(),
+            None => Duration::from_secs(86400),
+        };
+        let batch_size = params.batch_size.unwrap_or(500);
+        let concurrency = params.concurrency.unwrap_or(10);
+
+        let result = self
+            .write_buffer
+            .trigger_gen1_cleanup(min_age, batch_size, concurrency);
+
+        let (status, message) = match result {
+            Gen1CleanupResult::Started => (StatusCode::ACCEPTED, "Gen1 cleanup started"),
+            Gen1CleanupResult::AlreadyRunning => {
+                (StatusCode::ACCEPTED, "Gen1 cleanup already running")
+            }
+            Gen1CleanupResult::NotAvailable => (
+                StatusCode::METHOD_NOT_ALLOWED,
+                "Gen1 cleanup not available (requires ingest mode with compacted data)",
+            ),
+        };
+
+        let body = ResponseBuilder::new()
+            .status(status)
+            .body(bytes_to_response_body(Bytes::from(message)));
+        Ok(body?)
+    }
+
     async fn authorize_admin(&self, req: &Request) -> Result<TokenId> {
         let token_id = req
             .extensions()
@@ -2641,6 +2690,9 @@ async fn perform_routing(
 
         (Method::DELETE, all_paths::API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD) => {
             http_server.clear_retention_period_for_database(req).await
+        }
+        (Method::POST, all_paths::API_V3_TRIGGER_GEN1_CLEANUP) => {
+            http_server.trigger_gen1_cleanup_handler(req).await
         }
         (Method::POST, all_paths::API_V3_PLUGINS_FILES) => {
             http_server.create_plugin_file(req).await

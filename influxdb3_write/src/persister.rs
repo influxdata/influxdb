@@ -1,6 +1,6 @@
 //! This is the implementation of the `Persister` used to write data from the buffer to object
 //! storage.
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -34,8 +34,8 @@ use futures_util::stream::{FuturesOrdered, StreamExt};
 use influxdb3_cache::parquet_cache::ParquetFileDataToCache;
 use influxdb3_wal::SnapshotSequenceNumber;
 use iox_time::TimeProvider;
-use object_store::ObjectStore;
 use object_store::path::Path as ObjPath;
+use object_store::{ObjectMeta, ObjectStore};
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use parking_lot::RwLock;
 use parquet::arrow::ArrowWriter;
@@ -885,6 +885,87 @@ impl Persister {
             "load_snapshots_after: completed"
         );
         Ok(filtered)
+    }
+
+    /// List snapshot paths older than the given sequence number in oldest-first order.
+    ///
+    /// Retains the last `limit` entries below `threshold` from the listing stream,
+    /// reversed into oldest-first order.
+    pub async fn list_snapshot_paths_older_than(
+        &self,
+        threshold: SnapshotSequenceNumber,
+        limit: usize,
+    ) -> Result<Vec<ObjectMeta>> {
+        debug!(
+            threshold = threshold.as_u64(),
+            limit,
+            node_identifier_prefix = %self.node_identifier_prefix,
+            "list_snapshot_paths_older_than: starting"
+        );
+
+        // Files AFTER threshold_path lexicographically are older due to inverted naming.
+        let threshold_path = SnapshotInfoFilePath::new(&self.node_identifier_prefix, threshold);
+
+        let mut snapshot_list = self.object_store.list_with_offset(
+            Some(&SnapshotInfoFilePath::dir(&self.node_identifier_prefix)),
+            threshold_path.as_ref(),
+        );
+
+        // Listing is ascending (newest-older first, oldest last), so the last
+        // `limit` entries are the oldest ones we want.
+        let mut window = VecDeque::with_capacity(limit);
+        while let Some(item) = snapshot_list.next().await {
+            match item {
+                Ok(meta) => {
+                    window.push_back(meta);
+                    if window.len() > limit {
+                        window.pop_front();
+                    }
+                }
+                Err(e) => {
+                    return Err(PersisterError::ObjectStore(e));
+                }
+            }
+        }
+
+        if window.is_empty() {
+            debug!("No snapshots older than threshold found");
+            return Ok(Vec::new());
+        }
+
+        // Reverse to get oldest-first order.
+        let items: Vec<_> = window.into_iter().rev().collect();
+        debug!(
+            count = items.len(),
+            "list_snapshot_paths_older_than: found old snapshot paths"
+        );
+        Ok(items)
+    }
+
+    /// Load a single snapshot from its object store metadata.
+    pub async fn try_load_snapshot_from_meta(
+        &self,
+        meta: &ObjectMeta,
+    ) -> Option<Result<PersistedSnapshotVersion>> {
+        let get_result = match self.object_store.get(&meta.location).await {
+            Ok(r) => r,
+            Err(object_store::Error::NotFound { .. }) => return None,
+            Err(e) => return Some(Err(e.into())),
+        };
+        let bytes = match get_result.bytes().await {
+            Ok(b) => b,
+            Err(e) => return Some(Err(e.into())),
+        };
+        let mut snapshot = match serde_json::from_slice::<PersistedSnapshotVersion>(&bytes) {
+            Ok(s) => s,
+            Err(e) => return Some(Err(e.into())),
+        };
+        match &mut snapshot {
+            PersistedSnapshotVersion::V1(ps) => {
+                ps.persisted_at = Some(meta.last_modified.timestamp_millis());
+            }
+        }
+        Some(Ok(snapshot))
     }
 
     /// Writes a [`SendableRecordBatchStream`] to the Parquet format and persists it to Object Store

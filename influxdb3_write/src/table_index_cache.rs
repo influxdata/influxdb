@@ -23,11 +23,12 @@ use tokio::{
     task::JoinSet,
 };
 
-use influxdb3_id::{DbId, TableId, TableIndexId};
+use influxdb3_id::{DbId, ParquetFileId, TableId, TableIndexId};
 use influxdb3_wal::SnapshotSequenceNumber;
 
 use crate::{
     ParquetFile,
+    gen1_cleanup_handler::CleanupResult,
     paths::{
         SnapshotInfoFilePath, TableIndexConversionCompletedPath, TableIndexPath,
         TableIndexSnapshotPath,
@@ -708,6 +709,161 @@ impl TableIndexCache {
         removed
     }
 
+    /// Purge compacted Gen1 files for caller-provided tables in cleanup result
+    pub async fn purge_compacted_for_tables(
+        &self,
+        node_id: &str,
+        cleanup_result: &CleanupResult,
+        skip_file_deletion: bool,
+    ) -> usize {
+        let mut total_removed = 0;
+
+        for (&(db_id, table_id), file_ids) in &cleanup_result.removed_file_ids {
+            match self
+                .purge_compacted_for_table(node_id, db_id, table_id, file_ids, skip_file_deletion)
+                .await
+            {
+                Ok(count) => total_removed += count,
+                Err(e) => {
+                    warn!(
+                        node_id,
+                        ?db_id,
+                        ?table_id,
+                        error = %e,
+                        "Failed to purge compacted files for table, will retry next cycle"
+                    );
+                }
+            }
+        }
+
+        if total_removed > 0 {
+            info!(
+                total_removed,
+                "Purged compacted Gen1 files from table indices"
+            );
+        }
+
+        total_removed
+    }
+
+    /// Delete files from object store (optional), persist the updated index,
+    /// and update the cache in-place.
+    async fn delete_and_update_index(
+        &self,
+        cached_index: &CachedTableIndex,
+        files_to_delete: &[Arc<ParquetFile>],
+        updated_index: CoreTableIndex,
+        operation: &str,
+        skip_file_deletion: bool,
+    ) -> Result<usize> {
+        let table_index_id = &updated_index.id;
+
+        if !skip_file_deletion {
+            info!(
+                ?table_index_id,
+                delete_count = files_to_delete.len(),
+                remaining_count = updated_index.files.len(),
+                operation,
+                "Deleting parquet files from object store"
+            );
+
+            for file in files_to_delete {
+                let path = ObjPath::from(file.path.as_str());
+                debug!(path = %path, file_id = file.id.as_u64(), operation, "Deleting parquet file");
+
+                self.inner
+                    .object_store
+                    .delete_with_default_retries(
+                        &path,
+                        format!(
+                            "Deleting {} parquet file {} (id: {})",
+                            operation,
+                            path,
+                            file.id.as_u64()
+                        ),
+                    )
+                    .await
+                    .map_err(|e| TableIndexCacheError::DeleteParquetFile {
+                        path: path.to_string(),
+                        source: e,
+                    })?;
+            }
+        }
+
+        updated_index
+            .persist(Arc::clone(&self.inner.object_store))
+            .await
+            .map_err(|e| {
+                TableIndexCacheError::Unexpected(anyhow::anyhow!(
+                    "Failed to persist updated table index: {:?}",
+                    e
+                ))
+            })?;
+
+        let deleted_count = files_to_delete.len();
+        info!(
+            ?table_index_id,
+            deleted_count,
+            operation,
+            skip_file_deletion,
+            "Successfully purged files from table index"
+        );
+
+        {
+            let mut index_guard = cached_index.inner.index.write().await;
+            *index_guard = updated_index;
+        }
+
+        Ok(deleted_count)
+    }
+
+    /// Purge compacted Gen1 files for a single table.
+    async fn purge_compacted_for_table(
+        &self,
+        node_id: &str,
+        db_id: DbId,
+        table_id: TableId,
+        file_ids: &HashSet<ParquetFileId>,
+        skip_file_deletion: bool,
+    ) -> Result<usize> {
+        let table_index_id = TableIndexId::new(node_id, db_id, table_id);
+
+        let cached_index = self.update_from_object_store(&table_index_id).await?;
+        let core_index = cached_index.inner.index.read().await;
+
+        let mut files_to_delete = Vec::new();
+        let mut remaining_files = BTreeSet::new();
+
+        for file in &core_index.files {
+            if file_ids.contains(&file.id) {
+                files_to_delete.push(Arc::clone(file));
+            } else {
+                remaining_files.insert(Arc::clone(file));
+            }
+        }
+
+        if files_to_delete.is_empty() {
+            return Ok(0);
+        }
+
+        let updated_index = CoreTableIndex {
+            id: table_index_id,
+            files: remaining_files,
+            latest_snapshot_sequence_number: core_index.latest_snapshot_sequence_number,
+            metadata: core_index.metadata,
+        };
+        drop(core_index);
+
+        self.delete_and_update_index(
+            &cached_index,
+            &files_to_delete,
+            updated_index,
+            "compacted",
+            skip_file_deletion,
+        )
+        .await
+    }
+
     /// Remove all traces of the specified database from the cache and object store for the current
     /// node.
     pub(crate) async fn purge_table(&self, db_id: &DbId, table_id: &TableId) -> Result<()> {
@@ -911,29 +1067,21 @@ impl TableIndexCache {
         self.split_persisted_snapshots_to_table_index_snapshots()
             .await?;
 
-        // NOTE(wayne): it's not clear to me if it would be better here to hold the write lock
-        // while performing the object store operations -- holding the write lock would prevent an
-        // opportunity for another user (ie snapshotting) to write to the table index in object
-        // store before this operation has updated all the deleted files.
         let cached_index = self.update_from_object_store(&table_index_id).await?;
-
-        // Get the CoreTableIndex
         let core_index = cached_index.inner.index.read().await;
 
-        // Collect expired files to delete
-        let mut expired_files = Vec::new();
+        let mut files_to_delete = Vec::new();
         let mut remaining_files = BTreeSet::new();
 
-        // Process files to separate expired from remaining
         for file in &core_index.files {
             if file.max_time < cutoff_time_ns {
-                expired_files.push(Arc::clone(file));
+                files_to_delete.push(Arc::clone(file));
             } else {
                 remaining_files.insert(Arc::clone(file));
             }
         }
 
-        if expired_files.is_empty() {
+        if files_to_delete.is_empty() {
             debug!(
                 ?table_index_id,
                 cutoff_time_ns, "No expired files found for table"
@@ -941,77 +1089,22 @@ impl TableIndexCache {
             return Ok(());
         }
 
-        info!(
-            ?table_index_id,
-            cutoff_time_ns,
-            expired_file_count = expired_files.len(),
-            remaining_file_count = remaining_files.len(),
-            "Found expired files to delete"
-        );
-
-        // Delete expired parquet files from object store
-        for file in &expired_files {
-            let path = ObjPath::from(file.path.as_str());
-            debug!(
-                path = %path,
-                max_time = file.max_time,
-                cutoff_time_ns,
-                "Deleting expired parquet file"
-            );
-
-            self.inner
-                .object_store
-                .delete_with_default_retries(
-                    &path,
-                    format!(
-                        "Deleting expired parquet file {} (max_time: {}, cutoff: {})",
-                        path, file.max_time, cutoff_time_ns
-                    ),
-                )
-                .await
-                .map_err(|e| TableIndexCacheError::DeleteParquetFile {
-                    path: path.to_string(),
-                    source: e,
-                })?;
-            trace!(path = %path, "Successfully deleted expired parquet file");
-        }
-
-        // Create updated table index with only remaining files
         let updated_index = CoreTableIndex {
-            id: core_index.id.clone(),
+            id: table_index_id,
             files: remaining_files,
             latest_snapshot_sequence_number: core_index.latest_snapshot_sequence_number,
             metadata: core_index.metadata,
         };
-
-        // Drop the lock before we do more operations
         drop(core_index);
 
-        // Persist the updated index to object store
-        updated_index
-            .persist(Arc::clone(&self.inner.object_store))
-            .await
-            .map_err(|e| {
-                TableIndexCacheError::Unexpected(anyhow::anyhow!(
-                    "Failed to persist updated table index: {:?}",
-                    e
-                ))
-            })?;
-
-        // Update the cache with the new index
-        let new_cached = CachedTableIndex::new(updated_index);
-        {
-            let mut indices = self.inner.indices.write().await;
-            let db_map = indices.entry((node_id.to_string(), db_id)).or_default();
-            db_map.insert(table_id, new_cached);
-        }
-
-        info!(
-            ?table_index_id,
-            cutoff_time_ns,
-            deleted_file_count = expired_files.len(),
-            "Successfully purged expired files from table"
-        );
+        self.delete_and_update_index(
+            &cached_index,
+            &files_to_delete,
+            updated_index,
+            "expired",
+            false,
+        )
+        .await?;
 
         Ok(())
     }

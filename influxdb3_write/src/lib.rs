@@ -7,6 +7,7 @@
 pub(crate) mod async_collections;
 pub mod chunk;
 pub mod deleter;
+pub mod gen1_cleanup_handler;
 pub mod paths;
 pub mod persister;
 pub mod retention_period_handler;
@@ -37,6 +38,7 @@ use iox_time::Time;
 use observability_deps::tracing::debug;
 use schema::TIME_COLUMN_NAME;
 use serde::{Deserialize, Serialize, Serializer};
+use std::time::Duration;
 use std::{fmt::Debug, sync::Arc};
 use thiserror::Error;
 
@@ -60,7 +62,21 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub trait WriteBuffer: Bufferer + ChunkContainer + DistinctCacheManager + LastCacheManager {}
+pub trait WriteBuffer: Bufferer + ChunkContainer + DistinctCacheManager + LastCacheManager {
+    /// Trigger Gen1 file cleanup on demand.
+    ///
+    /// Returns `Started` if a new cleanup task was spawned, `AlreadyRunning` if one is in
+    /// progress, or `NotAvailable` if the handler doesn't exist (e.g., not in ingest mode
+    /// with compacted data).
+    fn trigger_gen1_cleanup(
+        &self,
+        _min_age: Duration,
+        _batch_size: usize,
+        _concurrency: usize,
+    ) -> gen1_cleanup_handler::Gen1CleanupResult {
+        gen1_cleanup_handler::Gen1CleanupResult::NotAvailable
+    }
+}
 
 /// The buffer is for buffering data in memory and in the wal before it is persisted as parquet files in storage.
 #[async_trait]
