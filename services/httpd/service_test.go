@@ -3,9 +3,13 @@ package httpd_test
 import (
 	"crypto/tls"
 	"fmt"
+	"math/big"
+	"net"
 	"net/http"
+	"os"
 	"testing"
 
+	th "github.com/influxdata/influxdb/pkg/testing/helper"
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
 	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/httpd"
@@ -46,9 +50,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Open service to initialize certLoader
 		require.NoError(t, s.Open())
-		defer func() {
-			require.NoError(t, s.Close())
-		}()
+		defer th.CheckedClose(t, s)()
 
 		// Try to verify reload with HTTPS disabled
 		newConfig := httpd.Config{
@@ -98,9 +100,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Open service to initialize certLoader
 		require.NoError(t, s.Open())
-		defer func() {
-			require.NoError(t, s.Close())
-		}()
+		defer th.CheckedClose(t, s)()
 
 		// Get the initial certificate serial number for comparison
 		initialCert, err := tlsconfig.LoadCertificate(ss1.CertPath, ss1.KeyPath)
@@ -173,9 +173,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Open service to initialize certLoader
 		require.NoError(t, s.Open())
-		defer func() {
-			require.NoError(t, s.Close())
-		}()
+		defer th.CheckedClose(t, s)()
 
 		// Try to verify reload with non-existent certificate (one example of VerifyLoad failure)
 		newConfig := httpd.Config{
@@ -188,7 +186,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 		require.Nil(t, applyFunc)
 	})
 
-	t.Run("HTTPS enabled, no certificate change", func(t *testing.T) {
+	t.Run("HTTPS enabled, no certificate change (same paths)", func(t *testing.T) {
 		// Create initial certificates
 		ss := selfsigned.NewSelfSignedCert(t)
 
@@ -204,9 +202,7 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 
 		// Open service to initialize certLoader
 		require.NoError(t, s.Open())
-		defer func() {
-			require.NoError(t, s.Close())
-		}()
+		defer th.CheckedClose(t, s)()
 
 		// Get the certificate serial number
 		cert, err := tlsconfig.LoadCertificate(ss.CertPath, ss.KeyPath)
@@ -253,5 +249,170 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			require.NotEmpty(t, resp.TLS.PeerCertificates)
 			require.Equal(t, expectedSerial, resp.TLS.PeerCertificates[0].SerialNumber)
 		}
+	})
+}
+
+// openService creates, opens, and registers cleanup for an httpd.Service.
+func openService(t *testing.T, config httpd.Config) *httpd.Service {
+	t.Helper()
+	s := httpd.NewService(config)
+	s.WithLogger(zap.NewNop())
+	require.NoError(t, s.Open())
+	t.Cleanup(th.CheckedClose(t, s))
+	return s
+}
+
+// insecureHTTPSClient returns an *http.Client that skips TLS certificate verification.
+func insecureHTTPSClient() *http.Client {
+	return &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}}
+}
+
+// pingHTTPS performs a GET /ping over HTTPS using the given client and returns the response.
+func pingHTTPS(t *testing.T, addr net.Addr, client *http.Client) *http.Response {
+	t.Helper()
+	resp, err := client.Get(fmt.Sprintf("https://%s/ping", addr))
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+// requireServingCertSerial verifies the service is serving TLS with the expected certificate serial.
+func requireServingCertSerial(t *testing.T, s *httpd.Service, expectedSerial *big.Int) {
+	t.Helper()
+	resp := pingHTTPS(t, s.Addr(), insecureHTTPSClient())
+	require.NotNil(t, resp.TLS)
+	require.NotEmpty(t, resp.TLS.PeerCertificates)
+	require.Equal(t, expectedSerial, resp.TLS.PeerCertificates[0].SerialNumber)
+}
+
+// loadCertSerial loads a certificate and returns its serial number.
+func loadCertSerial(t *testing.T, certPath, keyPath string) *big.Int {
+	t.Helper()
+	cert, err := tlsconfig.LoadCertificate(certPath, keyPath)
+	require.NoError(t, err)
+	return cert.Leaf.SerialNumber
+}
+
+// TestService_Open_TLSConfigManager verifies that the TLSConfigManager created
+// in Service.Open is configured properly based on the Service's configuration.
+func TestService_Open_TLSConfigManager(t *testing.T) {
+	t.Run("HTTPS disabled creates non-TLS listener", func(t *testing.T) {
+		s := openService(t, httpd.Config{
+			BindAddress:  "localhost:",
+			HTTPSEnabled: false,
+		})
+
+		resp, err := http.Get(fmt.Sprintf("http://%s/ping", s.Addr()))
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Nil(t, resp.TLS)
+	})
+
+	t.Run("HTTPS enabled creates TLS listener with correct certificate", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+		s := openService(t, httpd.Config{
+			BindAddress:      "localhost:",
+			HTTPSEnabled:     true,
+			HTTPSCertificate: ss.CertPath,
+			HTTPSPrivateKey:  ss.KeyPath,
+		})
+
+		requireServingCertSerial(t, s, loadCertSerial(t, ss.CertPath, ss.KeyPath))
+	})
+
+	t.Run("HTTPS enabled with missing certificate fails Open", func(t *testing.T) {
+		s := httpd.NewService(httpd.Config{
+			BindAddress:      "localhost:",
+			HTTPSEnabled:     true,
+			HTTPSCertificate: "/nonexistent/cert.pem",
+			HTTPSPrivateKey:  "/nonexistent/key.pem",
+		})
+		s.WithLogger(zap.NewNop())
+
+		err := s.Open()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "error creating TLS manager")
+	})
+
+	t.Run("HTTPS enabled applies base TLS config MinVersion", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+		s := openService(t, httpd.Config{
+			BindAddress:      "localhost:",
+			HTTPSEnabled:     true,
+			HTTPSCertificate: ss.CertPath,
+			HTTPSPrivateKey:  ss.KeyPath,
+			TLS:              &tls.Config{MinVersion: tls.VersionTLS13},
+		})
+
+		pingURI := fmt.Sprintf("https://%s/ping", s.Addr())
+
+		// A client restricted to TLS 1.2 should fail the handshake.
+		tls12Client := &http.Client{Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS12,
+			},
+		}}
+		_, err := tls12Client.Get(pingURI)
+		require.Error(t, err, "TLS 1.2 client should be rejected when server requires TLS 1.3")
+
+		// A client using TLS 1.3 should succeed.
+		resp := pingHTTPS(t, s.Addr(), insecureHTTPSClient())
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Equal(t, uint16(tls.VersionTLS13), resp.TLS.Version)
+	})
+
+	t.Run("insecureCert=false rejects permissive key file permissions", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+		require.NoError(t, os.Chmod(ss.KeyPath, 0644))
+
+		s := httpd.NewService(httpd.Config{
+			BindAddress:              "localhost:",
+			HTTPSEnabled:             true,
+			HTTPSCertificate:         ss.CertPath,
+			HTTPSPrivateKey:          ss.KeyPath,
+			HTTPSInsecureCertificate: false,
+		})
+		s.WithLogger(zap.NewNop())
+
+		err := s.Open()
+		require.Error(t, err, "Open should fail when key file permissions are too permissive")
+		require.ErrorContains(t, err, "error creating TLS manager")
+	})
+
+	t.Run("insecureCert=true allows permissive key file permissions", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+		require.NoError(t, os.Chmod(ss.KeyPath, 0644))
+
+		s := openService(t, httpd.Config{
+			BindAddress:              "localhost:",
+			HTTPSEnabled:             true,
+			HTTPSCertificate:         ss.CertPath,
+			HTTPSPrivateKey:          ss.KeyPath,
+			HTTPSInsecureCertificate: true,
+		})
+
+		resp := pingHTTPS(t, s.Addr(), insecureHTTPSClient())
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.NotNil(t, resp.TLS)
+	})
+
+	t.Run("HTTPS enabled with combined cert and key file", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t, selfsigned.WithCombinedFile())
+		s := openService(t, httpd.Config{
+			BindAddress:      "localhost:",
+			HTTPSEnabled:     true,
+			HTTPSCertificate: ss.CertPath,
+			HTTPSPrivateKey:  "",
+		})
+
+		resp := pingHTTPS(t, s.Addr(), insecureHTTPSClient())
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.NotNil(t, resp.TLS)
+		require.NotEmpty(t, resp.TLS.PeerCertificates)
 	})
 }
