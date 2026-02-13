@@ -86,7 +86,7 @@ const MAX_CLIENT_IP_FOR_LOGGING: usize = 128;
 
 /// Truncate a string for logging untrusted input to prevent log flooding
 fn truncate_for_logging(s: &str, max_len: usize) -> &str {
-    if s.len() > max_len { &s[..max_len] } else { s }
+    &s[..s.floor_char_boundary(max_len)]
 }
 
 /// Error type for routing that can handle both standard errors and V2 write API errors
@@ -2780,7 +2780,10 @@ mod tests {
     use http::{HeaderMap, HeaderValue, header::ACCEPT};
     use http::{Request, Uri};
 
-    use super::{MAXIMUM_DATABASE_NAME_LENGTH, extract_client_ip, extract_db_from_query_param};
+    use super::{
+        MAXIMUM_DATABASE_NAME_LENGTH, extract_client_ip, extract_db_from_query_param,
+        truncate_for_logging,
+    };
     use crate::http::AuthenticationError;
 
     use super::QueryFormat;
@@ -3308,5 +3311,15 @@ mod tests {
             .unwrap();
         // Should return empty string since the header exists but is empty
         assert_eq!(extract_client_ip(&req), Some("".to_string()));
+    }
+
+    #[test]
+    fn test_truncate_for_logging_utf8() {
+        // "中国" is 6 bytes (each Chinese character is 3 bytes in UTF-8)
+        let s = "中国";
+        assert_eq!(s.len(), 6);
+
+        // max_len = 1 falls in the middle of first character, should return empty string
+        assert_eq!(truncate_for_logging(s, 1), "");
     }
 }
