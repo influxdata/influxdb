@@ -86,12 +86,7 @@ const MAX_CLIENT_IP_FOR_LOGGING: usize = 128;
 
 /// Truncate a string for logging untrusted input to prevent log flooding
 fn truncate_for_logging(s: &str, max_len: usize) -> &str {
-    if s.len() <= max_len {
-        s
-    } else {
-        // Use floor_char_boundary to ensure we don't split a multi-byte UTF-8 character
-        &s[..s.floor_char_boundary(max_len)]
-    }
+    &s[..s.floor_char_boundary(max_len)]
 }
 
 /// Error type for routing that can handle both standard errors and V2 write API errors
