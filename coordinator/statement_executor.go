@@ -193,6 +193,8 @@ func (e *StatementExecutor) ExecuteStatement(ctx *query.ExecutionContext, stmt i
 		rows, err = e.executeShowStatsStatement(stmt)
 	case *influxql.ShowSubscriptionsStatement:
 		rows, err = e.executeShowSubscriptionsStatement(stmt)
+	case *influxql.ShowFieldKeysStatement:
+		return e.executeShowFieldKeys(ctx, stmt)
 	case *influxql.ShowTagKeysStatement:
 		return e.executeShowTagKeys(ctx, stmt)
 	case *influxql.ShowTagValuesStatement:
@@ -1102,6 +1104,167 @@ func (e *StatementExecutor) executeShowTagKeys(ctx *query.ExecutionContext, q *i
 	return nil
 }
 
+func (e *StatementExecutor) executeShowFieldKeys(ctx *query.ExecutionContext, q *influxql.ShowFieldKeysStatement) error {
+	if q.Database == "" {
+		return ErrDatabaseNameRequired
+	}
+
+	di := e.MetaClient.Database(q.Database)
+	if di == nil {
+		return fmt.Errorf("database not found: %s", q.Database)
+	}
+
+	valuer := &influxql.NowValuer{Now: time.Now()}
+	baseCond, timeRange, err := influxql.ConditionExpr(nil, valuer)
+	if err != nil {
+		return err
+	}
+
+	var measurementCond influxql.Expr
+	for _, source := range q.Sources {
+		mm := source.(*influxql.Measurement)
+		var expr influxql.Expr
+		if mm.Regex != nil {
+			expr = &influxql.BinaryExpr{
+				Op:  influxql.EQREGEX,
+				LHS: &influxql.VarRef{Val: "_name"},
+				RHS: &influxql.RegexLiteral{Val: mm.Regex.Val},
+			}
+		} else if mm.Name != "" {
+			expr = &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_name"},
+				RHS: &influxql.StringLiteral{Val: mm.Name},
+			}
+		}
+
+		if expr != nil {
+			if measurementCond == nil {
+				measurementCond = expr
+			} else {
+				measurementCond = &influxql.BinaryExpr{
+					Op:  influxql.OR,
+					LHS: measurementCond,
+					RHS: expr,
+				}
+			}
+		}
+	}
+
+	var cond influxql.Expr
+	if measurementCond != nil {
+		if baseCond != nil {
+			cond = &influxql.BinaryExpr{
+				Op:  influxql.AND,
+				LHS: baseCond,
+				RHS: measurementCond,
+			}
+		} else {
+			cond = measurementCond
+		}
+	} else {
+		cond = baseCond
+	}
+
+	var rps []string
+	for _, m := range q.Sources.Measurements() {
+		if len(m.RetentionPolicy) > 0 {
+			rps = append(rps, m.RetentionPolicy)
+			break
+		}
+	}
+	if len(rps) == 0 {
+		for _, rp := range di.RetentionPolicies {
+			rps = append(rps, rp.Name)
+		}
+	}
+
+	fieldKeys := make(map[string]map[string]influxql.DataType)
+	for _, rpName := range rps {
+		var allGroups []meta.ShardGroupInfo
+		sgis, err := e.MetaClient.ShardGroupsByTimeRange(q.Database, rpName, timeRange.MinTime(), timeRange.MaxTime())
+		if err != nil {
+			return err
+		}
+		allGroups = append(allGroups, sgis...)
+
+		var shardIDs []uint64
+		for _, sgi := range allGroups {
+			for _, si := range sgi.Shards {
+				shardIDs = append(shardIDs, si.ID)
+			}
+		}
+
+		keys, err := e.TSDBStore.FieldKeys(ctx.Context, ctx.Authorizer, shardIDs, cond)
+		if err != nil {
+			return ctx.Send(&query.Result{Err: err})
+		}
+
+		for _, m := range keys {
+			measurementName := rpName + "." + m.Measurement
+			if fieldKeys[measurementName] == nil {
+				fieldKeys[measurementName] = make(map[string]influxql.DataType)
+			}
+			for _, key := range m.Keys {
+				if typ, ok := m.Types[key]; ok {
+					fieldKeys[measurementName][key] = typ
+				}
+			}
+		}
+	}
+
+	measurementNames := make([]string, 0, len(fieldKeys))
+	for name := range fieldKeys {
+		measurementNames = append(measurementNames, name)
+	}
+	sort.Strings(measurementNames)
+
+	emitted := false
+	for _, measurementName := range measurementNames {
+		keys := fieldKeys[measurementName]
+		keyList := make([]string, 0, len(keys))
+		for k := range keys {
+			keyList = append(keyList, k)
+		}
+		sort.Strings(keyList)
+
+		if q.Offset > 0 {
+			if q.Offset >= len(keyList) {
+				keyList = nil
+			} else {
+				keyList = keyList[q.Offset:]
+			}
+		}
+		if q.Limit > 0 && q.Limit < len(keyList) {
+			keyList = keyList[:q.Limit]
+		}
+
+		if len(keyList) == 0 {
+			continue
+		}
+
+		row := &models.Row{
+			Name:    measurementName,
+			Columns: []string{"fieldKey", "fieldType"},
+			Values:  make([][]interface{}, len(keyList)),
+		}
+		for i, key := range keyList {
+			typ := keys[key]
+			row.Values[i] = []interface{}{key, typ.String()}
+		}
+
+		if err := ctx.Send(&query.Result{Series: []*models.Row{row}}); err != nil {
+			return err
+		}
+		emitted = true
+	}
+
+	if !emitted {
+		return ctx.Send(&query.Result{})
+	}
+	return nil
+}
+
 func (e *StatementExecutor) executeShowTagValues(ctx *query.ExecutionContext, q *influxql.ShowTagValuesStatement) error {
 	if q.Database == "" {
 		return ErrDatabaseNameRequired
@@ -1403,6 +1566,10 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 			if node.Database == "" {
 				node.Database = defaultDatabase
 			}
+		case *influxql.ShowFieldKeysStatement:
+			if node.Database == "" {
+				node.Database = defaultDatabase
+			}
 		case *influxql.ShowMeasurementCardinalityStatement:
 			if node.Database == "" {
 				node.Database = defaultDatabase
@@ -1486,6 +1653,7 @@ type TSDBStore interface {
 	MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, retentionPolicy string, cond influxql.Expr) ([][]byte, error)
 	TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	FieldKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.FieldKeys, error)
 
 	SeriesCardinality(ctx context.Context, database string) (int64, error)
 	MeasurementsCardinality(ctx context.Context, database string) (int64, error)
