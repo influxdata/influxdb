@@ -228,19 +228,23 @@ impl WriteBufferImpl {
         };
 
         // Try to load from checkpoints first for faster startup
-        let checkpoint_paths = match persister
-            .list_latest_checkpoints_per_month(sequence_cutoff)
-            .await
-        {
-            Ok(paths) => paths,
-            Err(e) => {
-                warn!(
-                    %e,
-                    "Failed to list checkpoints, falling back to snapshot loading. \
-                     This may result in slower startup."
-                );
-                Vec::new()
+        let checkpoint_paths = if persister.is_checkpointing_enabled() {
+            match persister
+                .list_latest_checkpoints_per_month(sequence_cutoff)
+                .await
+            {
+                Ok(paths) => paths,
+                Err(e) => {
+                    warn!(
+                        %e,
+                        "Failed to list checkpoints, falling back to snapshot loading. \
+                         This may result in slower startup."
+                    );
+                    Vec::new()
+                }
             }
+        } else {
+            Vec::new()
         };
 
         let (persisted_files, last_wal_sequence_number, last_snapshot_sequence_number) =
@@ -350,7 +354,7 @@ impl WriteBufferImpl {
 
                 // Build and persist checkpoints from loaded snapshots for faster future startup
                 // This runs in a background task to avoid blocking server startup
-                if !persisted_snapshots.is_empty() {
+                if !persisted_snapshots.is_empty() && persister.is_checkpointing_enabled() {
                     let current_month =
                         year_month_from_timestamp_ms(time_provider.now().timestamp_millis());
                     let persister_clone = Arc::clone(&persister);

@@ -6,7 +6,7 @@
 use std::{
     collections::BTreeSet,
     sync::{
-        Arc, LazyLock,
+        Arc, LazyLock, OnceLock,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
@@ -19,7 +19,7 @@ use object_store_utils::RetryableObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::{
-    sync::{RwLock, Semaphore},
+    sync::{RwLock, Semaphore, watch},
     task::JoinSet,
 };
 
@@ -118,6 +118,20 @@ pub enum TableIndexCacheError {
 }
 
 pub type Result<T> = std::result::Result<T, TableIndexCacheError>;
+
+/// Represents the initialization state of the [`TableIndexCache`].
+///
+/// Used to communicate readiness to downstream consumers (e.g., `RetentionPeriodHandler`,
+/// `PersistedFiles`) via a [`tokio::sync::watch`] channel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum State {
+    /// Initialization is still in progress.
+    Initializing,
+    /// Initialization completed successfully; the cache is ready for use.
+    Ready,
+    /// Initialization failed with the given error description.
+    Failed(String),
+}
 
 /// Configuration for the TableIndexCache
 #[derive(Debug, Clone, Copy)]
@@ -264,6 +278,7 @@ struct TableIndexCacheInner {
     indices: RwLock<DbIndicesInner>,
     config: TableIndexCacheConfig,
     object_store: Arc<dyn ObjectStore>,
+    init_state: OnceLock<watch::Receiver<State>>,
 }
 
 /// This data structure contains information about the state of the database index at the time that
@@ -289,6 +304,7 @@ impl TableIndexCache {
                 config,
                 object_store,
                 node_identifier_prefix,
+                init_state: OnceLock::new(),
             }),
         }
     }
@@ -511,9 +527,53 @@ impl TableIndexCache {
         Ok(())
     }
 
-    /// This method is intended to run at startup to make sure that `TableIndex`s exist for each
-    /// table and that each one is update to date with the latest `PersistedSnapshot`.
-    pub async fn initialize(&self) -> Result<()> {
+    /// Spawn a background task that performs cache initialization and return a
+    /// [`watch::Receiver`] that communicates the initialization [`State`].
+    ///
+    /// The receiver can be used by downstream consumers (e.g., `RetentionPeriodHandler`)
+    /// to wait for the cache to become ready before starting operations that depend
+    /// on a fully initialized cache.
+    ///
+    /// A clone of the receiver is stored internally and can be retrieved later via
+    /// [`init_state_rx`](Self::init_state_rx) by consumers that receive the cache
+    /// after initialization has already been kicked off (e.g., `PersistedFiles`).
+    pub fn initialize(&self) -> watch::Receiver<State> {
+        let (tx, rx) = watch::channel(State::Initializing);
+        self.inner
+            .init_state
+            .set(rx.clone())
+            .expect("initialize called more than once");
+        let cache = self.clone();
+        tokio::spawn(async move {
+            info!("starting background table index cache initialization");
+            match cache.initialize_inner().await {
+                Ok(()) => {
+                    info!("table index cache initialization completed successfully");
+                    let _ = tx.send(State::Ready);
+                }
+                Err(e) => {
+                    warn!("table index cache initialization failed: {e}");
+                    let _ = tx.send(State::Failed(e.to_string()));
+                }
+            }
+        });
+        rx
+    }
+
+    /// Get a clone of the initialization state receiver.
+    ///
+    /// Can be used by consumers that need to wait for cache initialization
+    /// to complete before performing operations (e.g., purge operations in
+    /// `PersistedFiles`).
+    pub fn init_state_rx(&self) -> watch::Receiver<State> {
+        self.inner.init_state.wait().clone()
+    }
+
+    /// Internal implementation of the initialization logic.
+    ///
+    /// This is intended to run at startup to make sure that `TableIndex`s exist for each
+    /// table and that each one is up to date with the latest `PersistedSnapshot`.
+    async fn initialize_inner(&self) -> Result<()> {
         // Load any unhandled persisted snapshots and convert them to TableIndexSnapshot
         self.split_persisted_snapshots_to_table_index_snapshots()
             .await?;
@@ -1396,6 +1456,41 @@ mod tests {
                 max_time: 2000,
             },
         }
+    }
+
+    #[tokio::test]
+    async fn test_initialize_returns_ready_state() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let cache = TableIndexCache::new(
+            "test_node".to_string(),
+            TableIndexCacheConfig::default(),
+            object_store,
+        );
+
+        let mut rx = cache.initialize();
+
+        // Wait for the state to transition from Initializing
+        let _ = rx.changed().await;
+        assert_eq!(*rx.borrow(), State::Ready);
+    }
+
+    #[tokio::test]
+    async fn test_init_state_rx_returns_clone() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let cache = TableIndexCache::new(
+            "test_node".to_string(),
+            TableIndexCacheConfig::default(),
+            object_store,
+        );
+
+        let _rx = cache.initialize();
+
+        // Retrieve a second receiver via init_state_rx
+        let mut rx2 = cache.init_state_rx();
+
+        // It should also see the Ready state
+        let _ = rx2.wait_for(|s| !matches!(s, State::Initializing)).await;
+        assert_eq!(*rx2.borrow(), State::Ready);
     }
 
     #[cfg(test)]
