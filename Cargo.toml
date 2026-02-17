@@ -131,6 +131,7 @@ rcgen = "0.13.2"
 regex = "1.11.1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
 rstest = "0.26"
+rustc-hash = "2.0"
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", default-features = false, features = ["ring", "std"] }
 scopeguard = "1.2.0"

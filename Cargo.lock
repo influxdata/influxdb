@@ -3803,6 +3803,7 @@ dependencies = [
  "query_functions",
  "regex",
  "rstest",
+ "rustc-hash",
  "schema",
  "scopeguard",
  "serde",
