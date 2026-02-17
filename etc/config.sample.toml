@@ -167,6 +167,12 @@
   # increase in cache size may lead to an increase in heap usage.
   series-id-set-cache-size = 100
 
+  # The size of tar buffer window size in bytes while running tar
+  # streaming operations such as renaming and copying tar files during backups.
+  # The default value is 1MB. This should only change if backups are having performance issues
+  # and you understand that this value is a heuristic that may need to be tweaked.
+  # tar-stream-buffer-size = 1048576
+
 ###
 ### [coordinator]
 ###
@@ -334,11 +340,14 @@
   # Determines whether HTTPS is enabled.
   # https-enabled = false
 
-  # The SSL certificate to use when HTTPS is enabled.
+  # The TLS certificate to use when HTTPS is enabled.
   # https-certificate = "/etc/ssl/influxdb.pem"
 
   # Use a separate private key location.
   # https-private-key = ""
+
+  # Allows insecure file permissions for https-certificate and https-private-key when enabled.
+  # https-insecure-certificate = false
 
   # The JWT auth shared secret to validate requests using JSON web tokens.
   # shared-secret = ""
@@ -528,8 +537,18 @@
   # database = "opentsdb"
   # retention-policy = ""
   # consistency-level = "one"
+
+  # Turns on TLS for this OpenTSDB instance.
   # tls-enabled = false
+
+  # TLS certificate to use when TLS is enabled.
   # certificate= "/etc/ssl/influxdb.pem"
+
+  # TLS private key when TLS is enabled. If blank, defaults to assuming key is in certificate.
+  # private-key = ""
+
+  # Allows insecure file permissions on certificate and private-key when enabled.
+  # insecure-certificate = false
 
   # Log an error for every malformed point.
   # log-point-errors = true

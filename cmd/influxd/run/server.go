@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -87,10 +88,12 @@ type Server struct {
 
 	MetaClient *meta.Client
 
-	TSDBStore     *tsdb.Store
-	QueryExecutor *query.Executor
-	PointsWriter  *coordinator.PointsWriter
-	Subscriber    *subscriber.Service
+	TSDBStore        *tsdb.Store
+	QueryExecutor    *query.Executor
+	PointsWriter     *coordinator.PointsWriter
+	Subscriber       *subscriber.Service
+	HttpdService     *httpd.Service
+	OpenTSDBServices []*opentsdb.Service
 
 	Services []Service
 
@@ -343,6 +346,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) error {
 		s.Prometheus.MustRegister(srv.Handler.Controller.PrometheusCollectors()...)
 	}
 
+	s.HttpdService = srv
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -367,6 +371,8 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
 	}
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
+
+	s.OpenTSDBServices = append(s.OpenTSDBServices, srv)
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -572,6 +578,52 @@ func (s *Server) Close() error {
 
 	close(s.closing)
 	return nil
+}
+
+func (s *Server) ApplyReloadedConfig(config *Config, log *zap.Logger) error {
+	if log == nil {
+		log = s.Logger
+	}
+
+	// Verify reloading each service's config and gather the apply functions.
+	// During the verify stage, we will abort if any service's verify returns an error.
+	var applyFuncs []func() error
+
+	if s.HttpdService != nil {
+		if af, err := s.HttpdService.PrepareReloadConfig(config.HTTPD); err == nil {
+			applyFuncs = append(applyFuncs, af)
+		} else {
+			log.Error("error reloading httpd service config, no new configuration applied", zap.Error(err))
+			return err
+		}
+
+	}
+
+	// Because we don't have a way of matching OpenTSDBInput configurations with
+	// the OpenTSDB services they created, we will just reload the TLS certificate
+	// at the currently configured paths.
+	for _, srv := range s.OpenTSDBServices {
+		if af, err := srv.PrepareReloadTLSCertificates(); err == nil {
+			applyFuncs = append(applyFuncs, af)
+		} else {
+			log.Error("error reloading OpenTSDB service TLS certificate, no new configuration applied", zap.Error(err),
+				zap.String("bind-address", srv.BindAddress),
+				zap.String("database", srv.Database), zap.String("retention-policy", srv.RetentionPolicy))
+			return err
+		}
+	}
+
+	// We've verified that the configuration should load, now apply it. Keep going even if something fails to apply.
+	var applyErrs []error
+	for _, af := range applyFuncs {
+		if af != nil {
+			if err := af(); err != nil {
+				log.Error("error applying configuration reload, continuing apply", zap.Error(err))
+				applyErrs = append(applyErrs, err)
+			}
+		}
+	}
+	return errors.Join(applyErrs...)
 }
 
 // startServerReporting starts periodic server reporting.

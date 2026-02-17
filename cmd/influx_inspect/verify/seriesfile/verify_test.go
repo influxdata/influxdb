@@ -107,7 +107,7 @@ func NewTest(t *testing.T) *Test {
 		}
 
 		// delete one series
-		if err := seriesFile.DeleteSeriesID(ids[0]); err != nil {
+		if _, err := seriesFile.DeleteSeriesID(ids[0], tsdb.Flush); err != nil {
 			return err
 		}
 

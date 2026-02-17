@@ -278,7 +278,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	// Flush active segment writes so we can access data in mmap.
 	if segment := p.activeSegment(); segment != nil {
 		if err := segment.Flush(); err != nil {
-			return err
+			return fmt.Errorf("unable to flush segment %s: %w", segment.file.Name(), err)
 		}
 	}
 
@@ -329,8 +329,9 @@ func (p *SeriesPartition) Compacting() bool {
 }
 
 // DeleteSeriesID flags a series as permanently deleted.
-// If the series is reintroduced later then it must create a new id.
-func (p *SeriesPartition) DeleteSeriesID(id uint64) error {
+// If the series is reintroduced later than it must create a new id.
+// Setting flush will indicate whether this method triggers a fsync.
+func (p *SeriesPartition) DeleteSeriesID(id uint64, flush bool) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -350,9 +351,11 @@ func (p *SeriesPartition) DeleteSeriesID(id uint64) error {
 	}
 
 	// Flush active segment write.
-	if segment := p.activeSegment(); segment != nil {
-		if err := segment.Flush(); err != nil {
-			return err
+	if flush {
+		if segment := p.activeSegment(); segment != nil {
+			if err := segment.Flush(); err != nil {
+				return fmt.Errorf("unable to flush segment %s: %w", segment.file.Name(), err)
+			}
 		}
 	}
 

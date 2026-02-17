@@ -5,6 +5,8 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -47,10 +50,13 @@ type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
-	wg        sync.WaitGroup
-	tls       bool
-	tlsConfig *tls.Config
-	cert      string
+	wg           sync.WaitGroup
+	tls          bool
+	tlsManager   *tlsconfig.TLSConfigManager
+	tlsConfig    *tls.Config
+	cert         string
+	privateKey   string
+	insecureCert bool
 
 	mu    sync.RWMutex
 	ready bool          // Has the required database been created?
@@ -89,6 +95,8 @@ func NewService(c Config) (*Service, error) {
 		tls:             d.TLSEnabled,
 		tlsConfig:       d.TLS,
 		cert:            d.Certificate,
+		privateKey:      d.PrivateKey,
+		insecureCert:    d.InsecureCertificate,
 		BindAddress:     d.BindAddress,
 		Database:        d.Database,
 		RetentionPolicy: d.RetentionPolicy,
@@ -127,29 +135,20 @@ func (s *Service) Open() error {
 	go func() { defer s.wg.Done(); s.processBatches(s.batcher) }()
 
 	// Open listener.
-	if s.tls {
-		cert, err := tls.LoadX509KeyPair(s.cert, s.cert)
-		if err != nil {
-			return err
-		}
-
-		tlsConfig := s.tlsConfig.Clone()
-		tlsConfig.Certificates = []tls.Certificate{cert}
-
-		listener, err := tls.Listen("tcp", s.BindAddress, tlsConfig)
-		if err != nil {
-			return err
-		}
-
-		s.ln = listener
-	} else {
-		listener, err := net.Listen("tcp", s.BindAddress)
-		if err != nil {
-			return err
-		}
-
-		s.ln = listener
+	cm, err := tlsconfig.NewTLSConfigManager(s.tls, s.tlsConfig, s.cert, s.privateKey, false,
+		tlsconfig.WithIgnoreFilePermissions(s.insecureCert),
+		tlsconfig.WithLogger(s.Logger))
+	if err != nil {
+		return fmt.Errorf("opentsdb: error creating TLS manager: %w", err)
 	}
+	s.tlsManager = cm
+
+	ln, err := s.tlsManager.Listen("tcp", s.BindAddress)
+	if err != nil {
+		return fmt.Errorf("opentsdb: error creating listener: %w", err)
+	}
+	s.ln = ln
+
 	s.Logger.Info("Listening on TCP",
 		zap.Stringer("addr", s.ln.Addr()),
 		zap.Bool("tls", s.tls))
@@ -181,6 +180,13 @@ func (s *Service) Close() error {
 		if err := s.httpln.Close(); err != nil {
 			return false, err
 		}
+		if s.tlsManager != nil {
+			tm := s.tlsManager
+			s.tlsManager = nil
+			if err := tm.Close(); err != nil {
+				return false, err
+			}
+		}
 
 		if s.batcher != nil {
 			s.batcher.Stop()
@@ -198,6 +204,27 @@ func (s *Service) Close() error {
 	s.mu.Unlock()
 
 	return nil
+}
+
+// PrepareReloadTLSCertificates verifies that the configured TLS certificate can be reloaded.
+// If so, then a function that will apply the reloaded certificate is returned. If no reload
+// action is necessary, then nil is returned for the reload function.
+func (s *Service) PrepareReloadTLSCertificates() (func() error, error) {
+	if !s.tls {
+		return nil, nil
+	}
+
+	// Sanity check that we have a tlsManager.
+	if s.tlsManager == nil {
+		// This shouldn't happen.
+		return nil, errors.New("opentsdb: no TLS manager available")
+	}
+
+	if apply, err := s.tlsManager.PrepareCertificateLoad(s.cert, s.privateKey); err == nil {
+		return apply, nil
+	} else {
+		return nil, fmt.Errorf("opentsdb: TLS certificate reload failed (%q, %q): %w", s.cert, s.privateKey, err)
+	}
 }
 
 // Closed returns true if the service is currently closed.

@@ -45,3 +45,12 @@ func (m *Map[K, V]) Len() int {
 	})
 	return n
 }
+
+func (m *Map[K, V]) IsEmpty() bool {
+	isEmpty := true
+	m.m.Range(func(_, _ any) bool {
+		isEmpty = false
+		return false
+	})
+	return isEmpty
+}

@@ -82,14 +82,29 @@ func (m *Main) Run(args ...string) error {
 			return fmt.Errorf("run: %s", err)
 		}
 
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+		shutdownCh := make(chan os.Signal, 1)
+		signal.Notify(shutdownCh, os.Interrupt, syscall.SIGTERM)
+		reloadCh := make(chan os.Signal, 1)
+		signal.Notify(reloadCh, syscall.SIGHUP)
 		cmd.Logger.Info("Listening for signals")
 
-		// Block until one of the signals above is received
-		sig := <-signalCh
+		logQueries := false
+		shutdown := false
+		for !shutdown {
+			select {
+			case sig := <-shutdownCh:
+				if sig == syscall.SIGTERM {
+					logQueries = true
+				}
+				shutdown = true
+
+			case <-reloadCh:
+				cmd.ReloadConfig(args...)
+			}
+		}
+
 		cmd.Logger.Info("Signal received, initializing clean shutdown...")
-		if sig == syscall.SIGTERM && cmd.Server.LogQueriesOnTermination() {
+		if logQueries && cmd.Server.LogQueriesOnTermination() {
 			cmd.Server.QueryExecutor.TaskManager.LogCurrentQueries(cmd.Logger.Info)
 		}
 		go cmd.Close()
@@ -98,7 +113,7 @@ func (m *Main) Run(args ...string) error {
 		// or the Command is gracefully closed
 		cmd.Logger.Info("Waiting for clean shutdown...")
 		select {
-		case <-signalCh:
+		case <-shutdownCh:
 			cmd.Logger.Info("Second signal received, initializing hard shutdown")
 		case <-time.After(time.Second * 30):
 			cmd.Logger.Info("Time limit reached, initializing hard shutdown")

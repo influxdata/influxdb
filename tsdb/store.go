@@ -533,15 +533,15 @@ func (s *Store) loadShards() error {
 
 		compactionSettings = append(
 			compactionSettings,
-			zap.Int("throughput_bytes_per_second", throughput),
-			zap.Int("throughput_bytes_per_second_burst", throughputBurst),
+			zap.Int("compact-throughput", throughput),
+			zap.Int("compact-throughput-burst", throughputBurst),
 		)
 		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(throughput, throughputBurst)
 	} else {
 		compactionSettings = append(
 			compactionSettings,
-			zap.String("throughput_bytes_per_second", "unlimited"),
-			zap.String("throughput_bytes_per_second_burst", "unlimited"),
+			zap.String("compact-throughput", "unlimited"),
+			zap.String("compact-throughput-burst", "unlimited"),
 		)
 	}
 
@@ -1073,15 +1073,45 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				}
 			}
 
+			const DeleteLogTrigger = 10_000
+			seriesCount := ss.Cardinality()
+			deleteStart := time.Now()
+			var deletedCount atomic.Uint64
+			var partitionIDs = make(map[int]struct{}, SeriesFilePartitionN)
+
 			ss.ForEach(func(id uint64) {
-				if err := sfile.DeleteSeriesID(id); err != nil {
+				p, err := sfile.DeleteSeriesID(id, NoFlush)
+				if err != nil {
 					sfile.Logger.Error(
 						"cannot delete series in shard",
 						zap.Uint64("series_id", id),
 						zap.Uint64("shard_id", shardID),
+						zap.String("series_file_path", sfile.Path()),
 						zap.Error(err))
+				} else {
+					partitionIDs[p.id] = struct{}{}
+					deleted := deletedCount.Add(1)
+
+					if deleted%DeleteLogTrigger == 0 {
+						s.Logger.Info(fmt.Sprintf("DeleteShard: %d series deleted", DeleteLogTrigger),
+							zap.String("db", db),
+							zap.Uint64("shard_id", shardID),
+							zap.String("series_file_path", sfile.Path()),
+							zap.Uint64("deleted", deleted),
+							zap.Uint64("remaining", seriesCount-deleted),
+							zap.Uint64("total", seriesCount),
+							zap.Duration("elapsed", time.Since(deleteStart)))
+					}
 				}
 			})
+
+			if err := sfile.FlushSegments(partitionIDs); err != nil {
+				sfile.Logger.Error(
+					"error while flushing a series file segment",
+					zap.Uint64("shard_id", shardID),
+					zap.String("series_file_path", sfile.Path()),
+					zap.Error(err))
+			}
 		}
 	}
 

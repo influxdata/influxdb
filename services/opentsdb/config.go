@@ -31,23 +31,26 @@ const (
 	DefaultBatchPending = 5
 
 	// DefaultCertificate is the default location of the certificate used when TLS is enabled.
+	// For defaults, we assume this also contains the private key.
 	DefaultCertificate = "/etc/ssl/influxdb.pem"
 )
 
 // Config represents the configuration of the OpenTSDB service.
 type Config struct {
-	Enabled          bool          `toml:"enabled"`
-	BindAddress      string        `toml:"bind-address"`
-	Database         string        `toml:"database"`
-	RetentionPolicy  string        `toml:"retention-policy"`
-	ConsistencyLevel string        `toml:"consistency-level"`
-	TLSEnabled       bool          `toml:"tls-enabled"`
-	Certificate      string        `toml:"certificate"`
-	BatchSize        int           `toml:"batch-size"`
-	BatchPending     int           `toml:"batch-pending"`
-	BatchTimeout     toml.Duration `toml:"batch-timeout"`
-	LogPointErrors   bool          `toml:"log-point-errors"`
-	TLS              *tls.Config   `toml:"-"`
+	Enabled             bool          `toml:"enabled"`
+	BindAddress         string        `toml:"bind-address"`
+	Database            string        `toml:"database"`
+	RetentionPolicy     string        `toml:"retention-policy"`
+	ConsistencyLevel    string        `toml:"consistency-level"`
+	TLSEnabled          bool          `toml:"tls-enabled"`
+	Certificate         string        `toml:"certificate"`
+	PrivateKey          string        `toml:"private-key"`
+	InsecureCertificate bool          `toml:"insecure-certificate"`
+	BatchSize           int           `toml:"batch-size"`
+	BatchPending        int           `toml:"batch-pending"`
+	BatchTimeout        toml.Duration `toml:"batch-timeout"`
+	LogPointErrors      bool          `toml:"log-point-errors"`
+	TLS                 *tls.Config   `toml:"-"`
 }
 
 // NewConfig returns a new config for the service.
@@ -58,7 +61,7 @@ func NewConfig() Config {
 		RetentionPolicy:  DefaultRetentionPolicy,
 		ConsistencyLevel: DefaultConsistencyLevel,
 		TLSEnabled:       false,
-		Certificate:      DefaultCertificate,
+		Certificate:      DefaultCertificate, // TLSCertLoader will default PrivateKey if PrivateKey remains empty.
 		BatchSize:        DefaultBatchSize,
 		BatchPending:     DefaultBatchPending,
 		BatchTimeout:     toml.Duration(DefaultBatchTimeout),

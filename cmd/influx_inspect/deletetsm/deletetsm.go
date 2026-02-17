@@ -144,7 +144,7 @@ func (cmd *Command) process(path string) (retErr error) {
 
 		// Write index & close.
 		// It is okay to have no index values if no block was written
-		if err := w.WriteIndex(); err != nil && !(blockWritten || errors.Is(err, tsm1.ErrNoValues)) {
+		if err := w.WriteIndex(); err != nil && !(errors.Is(err, tsm1.ErrNoValues) && !blockWritten) {
 			return 0, err
 		} else {
 			return w.Size(), nil

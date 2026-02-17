@@ -30,6 +30,10 @@ const SeriesIDSize = 8
 const (
 	// SeriesFilePartitionN is the number of partitions a series file is split into.
 	SeriesFilePartitionN = 8
+	// Flush lets us know when to fsync
+	Flush = true
+	// NoFlush lets us know when to not fsync
+	NoFlush = false
 )
 
 // SeriesFile represents the section of the index that holds series data.
@@ -194,13 +198,43 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 }
 
 // DeleteSeriesID flags a series as permanently deleted.
-// If the series is reintroduced later then it must create a new id.
-func (f *SeriesFile) DeleteSeriesID(id uint64) error {
+// If the series is reintroduced later than it must create a new id.
+// Setting flush will indicate whether this method triggers a fsync.
+func (f *SeriesFile) DeleteSeriesID(id uint64, flush bool) (*SeriesPartition, error) {
 	p := f.SeriesIDPartition(id)
 	if p == nil {
-		return ErrInvalidSeriesPartitionID
+		return nil, ErrInvalidSeriesPartitionID
 	}
-	return p.DeleteSeriesID(id)
+	return p, p.DeleteSeriesID(id, flush)
+}
+
+func (f *SeriesFile) FlushSegments(partitionIDs map[int]struct{}) error {
+	var wg sync.WaitGroup
+	errCh := make(chan error, SeriesFilePartitionN)
+
+	for id := range partitionIDs {
+		wg.Add(1)
+		p := f.partitions[id]
+		go func() {
+			defer wg.Done()
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			if segment := p.activeSegment(); segment != nil {
+				if err := segment.Flush(); err != nil {
+					errCh <- fmt.Errorf("unable to flush segment %s: %w", segment.file.Name(), err)
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	var errs = make([]error, 0, SeriesFilePartitionN)
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // IsDeleted returns true if the ID has been deleted before.

@@ -103,7 +103,7 @@ func NewTaskManager() *TaskManager {
 func (t *TaskManager) ExecuteStatement(ctx *ExecutionContext, stmt influxql.Statement) error {
 	switch stmt := stmt.(type) {
 	case *influxql.ShowQueriesStatement:
-		rows, err := t.executeShowQueriesStatement(stmt)
+		rows, err := t.executeShowQueriesStatement(stmt, ctx.CoarseAuthorizer)
 		if err != nil {
 			return err
 		}
@@ -133,7 +133,7 @@ func (t *TaskManager) executeKillQueryStatement(stmt *influxql.KillQueryStatemen
 	return t.KillQuery(stmt.QueryID)
 }
 
-func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStatement) (models.Rows, error) {
+func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStatement, authorizer CoarseAuthorizer) (models.Rows, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -141,6 +141,10 @@ func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStateme
 
 	values := make([][]interface{}, 0, len(t.queries))
 	for id, qi := range t.queries {
+		if authorizer != nil && qi.database != "" && !authorizer.AuthorizeDatabase(influxql.ReadPrivilege, qi.database) {
+			continue
+		}
+
 		d := now.Sub(qi.startTime)
 
 		d = prettyTime(d)
