@@ -3804,6 +3804,7 @@ dependencies = [
  "regex",
  "rstest",
  "schema",
+ "scopeguard",
  "serde",
  "serde_json",
  "serde_with",
