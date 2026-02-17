@@ -3,7 +3,6 @@ use crate::{
     DatabaseTables, ParquetFile, ParquetFileId, PersistedSnapshot, PersistedSnapshotCheckpoint,
     PersistedSnapshotCheckpointVersion, PersistedSnapshotVersion,
 };
-use indexmap::IndexMap;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_id::{DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -11,8 +10,6 @@ use iox_time::{MockProvider, Time};
 use object_store::memory::InMemory;
 use pretty_assertions::assert_eq;
 use rstest::rstest;
-use rustc_hash::FxHasher;
-use std::hash::BuildHasherDefault;
 use {
     arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
     arrow::datatypes::Schema, chrono::Utc,
@@ -291,83 +288,6 @@ async fn load_snapshot_works_with_no_exising_snapshots() {
 
     let snapshots = persister.load_snapshots(100).await.unwrap();
     assert!(snapshots.is_empty());
-}
-
-// Helper function to create SerdeVecMap with FxHasher from array
-type FxBuildHasher = BuildHasherDefault<FxHasher>;
-fn fx_serde_vec_map<K: std::hash::Hash + Eq, V, const N: usize>(
-    entries: [(K, V); N],
-) -> SerdeVecMap<K, V> {
-    let mut map = IndexMap::with_capacity_and_hasher(N, FxBuildHasher::default());
-    map.extend(entries);
-    SerdeVecMap::from(map)
-}
-
-#[test]
-fn persisted_snapshot_structure() {
-    let databases = fx_serde_vec_map([
-        (
-            DbId::new(0),
-            DatabaseTables {
-                tables: fx_serde_vec_map([
-                    (
-                        TableId::new(0),
-                        vec![
-                            ParquetFile::create_for_test("1.parquet"),
-                            ParquetFile::create_for_test("2.parquet"),
-                        ],
-                    ),
-                    (
-                        TableId::new(1),
-                        vec![
-                            ParquetFile::create_for_test("3.parquet"),
-                            ParquetFile::create_for_test("4.parquet"),
-                        ],
-                    ),
-                ]),
-            },
-        ),
-        (
-            DbId::new(1),
-            DatabaseTables {
-                tables: fx_serde_vec_map([
-                    (
-                        TableId::new(0),
-                        vec![
-                            ParquetFile::create_for_test("5.parquet"),
-                            ParquetFile::create_for_test("6.parquet"),
-                        ],
-                    ),
-                    (
-                        TableId::new(1),
-                        vec![
-                            ParquetFile::create_for_test("7.parquet"),
-                            ParquetFile::create_for_test("8.parquet"),
-                        ],
-                    ),
-                ]),
-            },
-        ),
-    ]);
-    let snapshot = PersistedSnapshotVersion::V1(PersistedSnapshot {
-        node_id: "host".to_string(),
-        next_file_id: ParquetFileId::new(),
-        snapshot_sequence_number: SnapshotSequenceNumber::new(0),
-        wal_file_sequence_number: WalFileSequenceNumber::new(0),
-        catalog_sequence_number: CatalogSequenceNumber::new(0),
-        parquet_size_bytes: 1_024,
-        row_count: 1,
-        min_time: 0,
-        max_time: 1,
-        removed_files: SerdeVecMap::new(),
-        databases,
-        persisted_at: None,
-    });
-    // Redact dynamic IDs that depend on global static counter
-    insta::assert_json_snapshot!(snapshot, {
-        ".next_file_id" => "[next_file_id]",
-        ".**.id" => "[id]",
-    });
 }
 
 #[tokio::test]

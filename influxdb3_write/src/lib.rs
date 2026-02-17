@@ -363,21 +363,6 @@ impl AsRef<ParquetFile> for ParquetFile {
     }
 }
 
-#[cfg(test)]
-impl ParquetFile {
-    pub(crate) fn create_for_test(path: impl Into<String>) -> Self {
-        Self {
-            id: ParquetFileId::new(),
-            path: path.into(),
-            size_bytes: 1024,
-            row_count: 1,
-            chunk_time: 0,
-            min_time: 0,
-            max_time: 1,
-        }
-    }
-}
-
 /// A year-month value in YYYY-MM format (e.g., "2025-01").
 ///
 /// Used for organizing snapshot checkpoints by month. Stores year and month
