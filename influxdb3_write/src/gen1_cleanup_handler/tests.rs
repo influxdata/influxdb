@@ -13,6 +13,7 @@ use crate::table_index::{CoreTableIndex, IndexMetadata};
 use crate::table_index_cache::{TableIndexCache, TableIndexCacheConfig};
 use crate::write_buffer::persisted_files::PersistedFiles;
 use influxdb3_id::TableIndexId;
+use object_store::PutPayload;
 use object_store::memory::InMemory;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -64,7 +65,7 @@ impl CompactedDataProvider for MockCompactedDataProvider {
     }
 }
 
-// --- is_file_eligible_for_deletion ---
+// --- is_gen1_file_eligible_for_deletion ---
 
 #[rstest]
 #[case::below_threshold(97, 100, vec![], true)]
@@ -84,7 +85,7 @@ fn test_file_eligible_for_deletion(
     let leftover_ids: HashSet<ParquetFileId> =
         leftover.into_iter().map(ParquetFileId::from).collect();
     assert_eq!(
-        is_file_eligible_for_deletion(
+        is_gen1_file_eligible_for_deletion(
             ParquetFileId::from(file_id),
             ParquetFileId::from(next_file_id),
             &leftover_ids,
@@ -93,91 +94,59 @@ fn test_file_eligible_for_deletion(
     );
 }
 
-// --- is_snapshot_fully_compacted ---
-
-#[rstest]
-#[case::all_below_threshold(vec![(1, 1, vec![10, 20, 30])], 100, vec![], true)]
-#[case::file_above_threshold(vec![(1, 1, vec![10, 20, 150])], 100, vec![], false)]
-#[case::file_in_leftover(vec![(1, 1, vec![10, 20, 30])], 100, vec![20], false)]
-#[case::empty_databases(vec![], 100, vec![], true)]
-#[case::multi_table_all_compacted(
-    vec![(1, 1, vec![10, 20]), (1, 2, vec![30, 40])], 100, vec![], true
-)]
-#[case::multi_table_one_has_leftover(
-    vec![(1, 1, vec![10, 20]), (1, 2, vec![30, 40])], 100, vec![40], false
-)]
-fn test_snapshot_fully_compacted(
-    #[case] tables: Vec<(u32, u32, Vec<u64>)>,
-    #[case] next_file_id: u64,
-    #[case] leftover: Vec<u64>,
-    #[case] expected: bool,
-) {
-    let file_ids: Vec<(DbId, TableId, Vec<u64>)> = tables
-        .into_iter()
-        .map(|(db, tbl, ids)| (DbId::from(db), TableId::from(tbl), ids))
-        .collect();
-    let snap = make_snapshot("node-A", 1, file_ids);
-    let leftover_ids: HashSet<ParquetFileId> =
-        leftover.into_iter().map(ParquetFileId::from).collect();
-    assert_eq!(
-        is_snapshot_fully_compacted(&snap, ParquetFileId::from(next_file_id), &leftover_ids),
-        expected,
-    );
-}
-
-// --- check_eligibility ---
-
+// --- check_snapshot_eligibility (snapshot-level gate before process_snapshot) ---
 #[rstest]
 // All checks pass: correct node, no persisted_at (age check skipped), seq < latest, all files < next_file_id
-#[case::eligible(
+#[case::snapshot_eligible(
     "node-A", 1, None, vec![(1, 1, vec![10, 20])],
-    "node-A", 1000, 0, 5, 100, vec![],
+    "node-A", 1000, 0, 5, 100,
     SnapshotEligibility::Eligible
 )]
 // Snapshot belongs to node-B but cleanup runs for node-A → Skip
-#[case::wrong_node(
+#[case::snapshot_wrong_node(
     "node-B", 1, None, vec![(1, 1, vec![10])],
-    "node-A", 1000, 0, 5, 100, vec![],
+    "node-A", 1000, 0, 5, 100,
     SnapshotEligibility::Skip { reason: "wrong node" }
 )]
 // persisted_at=900, now=1000 → age=100ms < min_age=200ms → too recent, Skip
-#[case::too_recent(
+#[case::snapshot_too_recent(
     "node-A", 1, Some(900), vec![(1, 1, vec![10])],
-    "node-A", 1000, 200, 5, 100, vec![],
+    "node-A", 1000, 200, 5, 100,
     SnapshotEligibility::Skip { reason: "too recent" }
 )]
-// persisted_at=None means age check is skipped entirely (field populated at load time, not in tests).
-// Even with a huge min_age, the snapshot is still Eligible.
-#[case::no_persisted_at_skips_age_check(
+// persisted_at=None means age check is skipped entirely (field populated at load time, not in
+// tests). Even with a huge min_age, the snapshot is still Eligible.
+#[case::snapshot_no_persisted_at_skips_age_check(
     "node-A", 1, None, vec![(1, 1, vec![10])],
-    "node-A", 1000, 9999999, 5, 100, vec![],
+    "node-A", 1000, 9999999, 5, 100,
     SnapshotEligibility::Eligible
 )]
 // persisted_at=500, now=1000 → age=500ms >= min_age=200ms → passes age check, Eligible
-#[case::old_enough(
+#[case::snapshot_old_enough(
     "node-A", 1, Some(500), vec![(1, 1, vec![10])],
-    "node-A", 1000, 200, 5, 100, vec![],
+    "node-A", 1000, 200, 5, 100,
     SnapshotEligibility::Eligible
 )]
 // snapshot seq=5 >= latest_seq=5 → this IS the latest snapshot, must not be deleted → Stop
-#[case::is_latest(
+#[case::snapshot_is_latest(
     "node-A", 5, None, vec![(1, 1, vec![10])],
-    "node-A", 1000, 0, 5, 100, vec![],
+    "node-A", 1000, 0, 5, 100,
     SnapshotEligibility::Stop { reason: "is latest" }
 )]
 // File 150 >= next_file_id=100 → not yet compacted by the compactor → Stop
-#[case::has_uncompacted_files(
+#[case::snapshot_has_uncompacted_gen1_files(
     "node-A", 1, None, vec![(1, 1, vec![10, 150])],
-    "node-A", 1000, 0, 5, 100, vec![],
+    "node-A", 1000, 0, 5, 100,
     SnapshotEligibility::Stop { reason: "has uncompacted files" }
 )]
-// File 20 is in the leftover set (compactor skipped it) → must not delete → Stop
-#[case::has_leftover_files(
+// Snapshot is eligible for processing even if it contains leftover gen1 files;
+// leftover filtering happens per-file in process_snapshot, not here.
+#[case::snapshot_with_leftover_gen1_refs_still_eligible(
     "node-A", 1, None, vec![(1, 1, vec![10, 20])],
-    "node-A", 1000, 0, 5, 100, vec![20],
-    SnapshotEligibility::Stop { reason: "has uncompacted files" }
+    "node-A", 1000, 0, 5, 100,
+    SnapshotEligibility::Eligible
 )]
-fn test_check_eligibility(
+fn test_snapshot_eligibility(
     #[case] snap_node: &str,
     #[case] snap_seq: u64,
     #[case] persisted_at: Option<i64>,
@@ -187,7 +156,6 @@ fn test_check_eligibility(
     #[case] min_age_ms: i64,
     #[case] latest_seq: u64,
     #[case] next_file_id: u64,
-    #[case] leftover: Vec<u64>,
     #[case] expected: SnapshotEligibility,
 ) {
     let file_ids = tables
@@ -196,17 +164,14 @@ fn test_check_eligibility(
         .collect();
     let mut snap = make_snapshot(snap_node, snap_seq, file_ids);
     snap.persisted_at = persisted_at;
-    let leftover_ids: HashSet<ParquetFileId> =
-        leftover.into_iter().map(ParquetFileId::from).collect();
     assert_eq!(
-        check_eligibility(
+        check_snapshot_eligibility(
             &snap,
             node_id,
             now_ms,
             min_age_ms,
             SnapshotSequenceNumber::new(latest_seq),
             ParquetFileId::from(next_file_id),
-            &leftover_ids,
         ),
         expected,
     );
@@ -445,6 +410,94 @@ async fn test_cleanup_updates_table_index_cache() {
         remaining_ids,
         vec![40],
         "Only file 40 (from latest snapshot) should remain in table index"
+    );
+}
+
+/// Snapshot 1: all-leftover files → no deletions, snapshot kept.
+/// Snapshot 2: mixed (one eligible, one leftover) → eligible file deleted, snapshot kept.
+/// Snapshot 3: no leftovers → fully cleaned, snapshot deleted.
+/// Snapshot 4: latest → preserved.
+#[tokio::test]
+async fn test_cleanup_partial_deletes_eligible_keeps_leftover() {
+    let node_id = "test-node";
+    let db_id = DbId::from(1);
+    let table_id = TableId::from(1);
+    let leftover_ids: &[u64] = &[5, 6, 15];
+    let eligible_id: u64 = 10;
+
+    let mut provider = MockCompactedDataProvider::new()
+        .with_marker(10, 100)
+        .with_ready(true);
+    for &id in leftover_ids {
+        provider.leftover_ids.insert(ParquetFileId::from(id));
+    }
+
+    let (handler, persister, _) = make_test_handler(node_id, provider, None).await;
+
+    persist_test_snapshot(
+        &persister,
+        node_id,
+        1,
+        vec![(db_id, table_id, vec![leftover_ids[0], leftover_ids[1]])],
+    )
+    .await;
+    persist_test_snapshot(
+        &persister,
+        node_id,
+        2,
+        vec![(db_id, table_id, vec![eligible_id, leftover_ids[2]])],
+    )
+    .await;
+    persist_test_snapshot(
+        &persister,
+        node_id,
+        3,
+        vec![(db_id, table_id, vec![20, 30])],
+    )
+    .await;
+    persist_test_snapshot(&persister, node_id, 4, vec![(db_id, table_id, vec![40])]).await;
+
+    let obj_store = persister.object_store();
+    let path = |id: u64| format!("{}/dbs/{}/{}/{}.parquet", node_id, db_id, table_id, id);
+
+    let all_eligible: &[u64] = &[eligible_id, 20, 30];
+    for &id in leftover_ids.iter().chain(all_eligible.iter()) {
+        obj_store
+            .put(
+                &ObjPath::from(path(id).as_str()),
+                PutPayload::from_static(b"data"),
+            )
+            .await
+            .unwrap();
+    }
+
+    handler.cleanup_loop(Duration::ZERO, 500, 10).await;
+
+    let remaining = count_remaining_snapshots(&persister, node_id).await;
+    assert_eq!(
+        remaining, 3,
+        "snapshot 1 (all leftover), 2 (has leftover), and 4 (latest) should remain"
+    );
+
+    for &id in leftover_ids {
+        assert!(
+            obj_store
+                .get(&ObjPath::from(path(id).as_str()))
+                .await
+                .is_ok(),
+            "leftover file {} should still be present",
+            id
+        );
+    }
+    assert!(
+        matches!(
+            obj_store
+                .get(&ObjPath::from(path(eligible_id).as_str()))
+                .await,
+            Err(object_store::Error::NotFound { .. })
+        ),
+        "eligible file {} should have been deleted",
+        eligible_id
     );
 }
 

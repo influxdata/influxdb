@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_wal::SnapshotSequenceNumber;
 use iox_time::TimeProvider;
+use object_store::Error as ObjectStoreError;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::path::Path as ObjPath;
@@ -83,6 +84,7 @@ pub struct CleanupResult {
     pub removed_file_ids: HashMap<(DbId, TableId), HashSet<ParquetFileId>>,
     pub snapshots_deleted: usize,
     pub files_deleted: usize,
+    pub files_not_found: usize,
 }
 
 impl CleanupResult {
@@ -91,6 +93,7 @@ impl CleanupResult {
             removed_file_ids: HashMap::new(),
             snapshots_deleted: 0,
             files_deleted: 0,
+            files_not_found: 0,
         }
     }
 }
@@ -98,6 +101,7 @@ impl CleanupResult {
 /// Result of concurrent file deletion.
 struct DeleteFilesResult {
     deleted: usize,
+    not_found: usize,
     failed: usize,
 }
 
@@ -119,7 +123,7 @@ async fn delete_files_concurrent(
         js.spawn(async move {
             let _permit = sem.acquire_owned().await.expect("semaphore not closed");
             object_store
-                .delete_with_default_retries(
+                .raw_delete_with_default_retries(
                     &obj_path,
                     format!("Deleting compacted gen1 file {}", path_str),
                 )
@@ -128,26 +132,30 @@ async fn delete_files_concurrent(
     }
 
     let mut deleted = 0;
+    let mut not_found = 0;
     let mut failed = 0;
     while let Some(res) = js.join_next().await {
-        if let Ok(Ok(_)) = res {
-            deleted += 1;
-        } else {
-            failed += 1;
+        match res {
+            Ok(Ok(())) => deleted += 1,
+            Ok(Err(ObjectStoreError::NotFound { .. })) => not_found += 1,
+            _ => failed += 1,
         }
     }
 
-    DeleteFilesResult { deleted, failed }
+    DeleteFilesResult {
+        deleted,
+        not_found,
+        failed,
+    }
 }
 
-fn check_eligibility(
+fn check_snapshot_eligibility(
     snap: &PersistedSnapshot,
     node_id: &str,
     now_ms: i64,
     min_age_ms: i64,
     latest_seq: SnapshotSequenceNumber,
     next_file_id: ParquetFileId,
-    leftover_ids: &HashSet<ParquetFileId>,
 ) -> SnapshotEligibility {
     if snap.node_id != node_id {
         return SnapshotEligibility::Skip {
@@ -170,7 +178,7 @@ fn check_eligibility(
         };
     }
 
-    if !is_snapshot_fully_compacted(snap, next_file_id, leftover_ids) {
+    if has_files_above_compaction_threshold(snap, next_file_id) {
         return SnapshotEligibility::Stop {
             reason: "has uncompacted files",
         };
@@ -318,14 +326,13 @@ impl<C: CompactedDataProvider + 'static> Gen1CleanupHandler<C> {
 
             let PersistedSnapshotVersion::V1(snap) = &snapshot_version;
 
-            match check_eligibility(
+            match check_snapshot_eligibility(
                 snap,
                 &self.node_id,
                 now_ms,
                 min_age_ms,
                 latest_seq,
                 next_file_id,
-                &leftover_ids,
             ) {
                 SnapshotEligibility::Skip { reason } => {
                     debug!(
@@ -345,7 +352,14 @@ impl<C: CompactedDataProvider + 'static> Gen1CleanupHandler<C> {
             }
 
             match self
-                .process_snapshot(snap, meta, &mut result, concurrency)
+                .process_snapshot(
+                    snap,
+                    meta,
+                    &mut result,
+                    concurrency,
+                    next_file_id,
+                    &leftover_ids,
+                )
                 .await
             {
                 ProcessOutcome::Ok => {}
@@ -362,10 +376,11 @@ impl<C: CompactedDataProvider + 'static> Gen1CleanupHandler<C> {
             debug!(index_removed, "Updated table indices after cleanup");
         }
 
-        if result.snapshots_deleted > 0 {
+        if result.snapshots_deleted > 0 || result.files_deleted > 0 || result.files_not_found > 0 {
             info!(
                 total_snapshots_deleted = result.snapshots_deleted,
                 total_files_deleted = result.files_deleted,
+                total_files_already_deleted = result.files_not_found,
                 duration_secs = start.elapsed().as_secs(),
                 "Gen1 cleanup finished"
             );
@@ -386,100 +401,131 @@ impl<C: CompactedDataProvider + 'static> Gen1CleanupHandler<C> {
         meta: &ObjectMeta,
         result: &mut CleanupResult,
         concurrency: usize,
+        next_file_id: ParquetFileId,
+        leftover_ids: &HashSet<ParquetFileId>,
     ) -> ProcessOutcome {
-        let mut file_ids: HashSet<ParquetFileId> = HashSet::new();
-        let mut file_paths: Vec<&str> = Vec::new();
-        let mut table_ids: Vec<(DbId, TableId, Vec<ParquetFileId>)> = Vec::new();
+        let mut eligible_ids: HashSet<ParquetFileId> = HashSet::new();
+        let mut eligible_paths: Vec<&str> = Vec::new();
+        let mut eligible_files_by_table: Vec<(DbId, TableId, Vec<ParquetFileId>)> = Vec::new();
+        let mut total_files = 0usize;
+
         for (db_id, db_tables) in &snap.databases {
             for (table_id, files) in &db_tables.tables {
-                let mut ids = Vec::with_capacity(files.len());
+                let mut ids = Vec::new();
                 for file in files {
-                    file_ids.insert(file.id);
-                    file_paths.push(&file.path);
-                    ids.push(file.id);
+                    total_files += 1;
+                    if is_gen1_file_eligible_for_deletion(file.id, next_file_id, leftover_ids) {
+                        eligible_ids.insert(file.id);
+                        eligible_paths.push(&file.path);
+                        ids.push(file.id);
+                    }
                 }
-                table_ids.push((*db_id, *table_id, ids));
+                if !ids.is_empty() {
+                    eligible_files_by_table.push((*db_id, *table_id, ids));
+                }
             }
         }
 
-        self.persisted_files.remove_compacted_files(&file_ids);
+        if eligible_ids.is_empty() {
+            debug!(
+                snapshot_seq = snap.snapshot_sequence_number.as_u64(),
+                total_files, "No eligible files in snapshot, skipping"
+            );
+            return ProcessOutcome::Ok;
+        }
+
+        let all_eligible = eligible_ids.len() == total_files;
+
+        self.persisted_files.remove_compacted_files(&eligible_ids);
 
         let delete_result =
-            delete_files_concurrent(self.persister.object_store(), file_paths, concurrency).await;
+            delete_files_concurrent(self.persister.object_store(), eligible_paths, concurrency)
+                .await;
         let files_deleted = delete_result.deleted;
+        let files_not_found = delete_result.not_found;
         let files_failed = delete_result.failed;
 
-        // Keep snapshot as retry manifest if any deletes failed
         if files_failed > 0 {
             warn!(
                 snapshot_seq = snap.snapshot_sequence_number.as_u64(),
                 snapshot_path = %meta.location,
                 files_failed,
                 files_deleted,
+                files_not_found,
                 "Gen1 cleanup: skipping snapshot deletion due to failed parquet deletes, aborting"
             );
             return ProcessOutcome::Failed;
         }
 
-        match self
-            .persister
-            .object_store()
-            .delete_with_default_retries(
-                &meta.location,
-                format!(
-                    "Deleting snapshot file (seq: {})",
-                    snap.snapshot_sequence_number.as_u64()
-                ),
-            )
-            .await
-        {
-            Ok(_) => {
-                for (db_id, table_id, ids) in table_ids {
-                    result
-                        .removed_file_ids
-                        .entry((db_id, table_id))
-                        .or_default()
-                        .extend(ids);
+        for (db_id, table_id, ids) in eligible_files_by_table {
+            result
+                .removed_file_ids
+                .entry((db_id, table_id))
+                .or_default()
+                .extend(ids);
+        }
+        result.files_deleted += files_deleted;
+        result.files_not_found += files_not_found;
+
+        if all_eligible {
+            match self
+                .persister
+                .object_store()
+                .delete_with_default_retries(
+                    &meta.location,
+                    format!(
+                        "Deleting snapshot file (seq: {})",
+                        snap.snapshot_sequence_number.as_u64()
+                    ),
+                )
+                .await
+            {
+                Ok(_) => {
+                    result.snapshots_deleted += 1;
+                    ProcessOutcome::Ok
                 }
-                result.snapshots_deleted += 1;
-                result.files_deleted += files_deleted;
-                ProcessOutcome::Ok
+                Err(e) => {
+                    warn!(
+                        snapshot_seq = snap.snapshot_sequence_number.as_u64(),
+                        error = %e,
+                        "Gen1 cleanup: failed to delete snapshot, aborting"
+                    );
+                    ProcessOutcome::Failed
+                }
             }
-            Err(e) => {
-                warn!(
-                    snapshot_seq = snap.snapshot_sequence_number.as_u64(),
-                    error = %e,
-                    "Gen1 cleanup: failed to delete snapshot, aborting"
-                );
-                ProcessOutcome::Failed
-            }
+        } else {
+            debug!(
+                snapshot_seq = snap.snapshot_sequence_number.as_u64(),
+                files_deleted,
+                files_not_found,
+                leftover_kept = total_files - eligible_ids.len(),
+                "Partial cleanup: deleted eligible files, keeping snapshot for leftover files"
+            );
+            ProcessOutcome::Ok
         }
     }
 }
 
+fn has_files_above_compaction_threshold(
+    snapshot: &PersistedSnapshot,
+    next_file_id: ParquetFileId,
+) -> bool {
+    snapshot.databases.iter().any(|(_, db_tables)| {
+        db_tables
+            .tables
+            .iter()
+            .any(|(_, files)| files.iter().any(|f| f.id >= next_file_id))
+    })
+}
+
 /// True if file ID is below threshold and not in the leftover set.
 #[inline]
-pub fn is_file_eligible_for_deletion(
+pub fn is_gen1_file_eligible_for_deletion(
     file_id: ParquetFileId,
     next_file_id: ParquetFileId,
     leftover_ids: &HashSet<ParquetFileId>,
 ) -> bool {
     file_id < next_file_id && !leftover_ids.contains(&file_id)
-}
-
-/// True if every file in the snapshot is eligible for deletion.
-pub fn is_snapshot_fully_compacted(
-    snapshot: &PersistedSnapshot,
-    next_file_id: ParquetFileId,
-    leftover_ids: &HashSet<ParquetFileId>,
-) -> bool {
-    snapshot.databases.iter().all(|(_, db_tables)| {
-        db_tables.tables.iter().all(|(_, files)| {
-            files
-                .iter()
-                .all(|f| is_file_eligible_for_deletion(f.id, next_file_id, leftover_ids))
-        })
-    })
 }
 
 #[cfg(test)]

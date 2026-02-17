@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -26,6 +27,44 @@ pub enum ErrorConfig {
     NoErrors,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub enum ErrorType {
+    #[default]
+    Generic,
+    NotFound,
+}
+
+/// Operation type for failure predicates
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperationKind {
+    Put,
+    PutOpts,
+    PutMultipart,
+    PutMultipartOpts,
+    Get,
+    GetOpts,
+    GetRange,
+    GetRanges,
+    Head,
+    Delete,
+    List,
+    ListWithOffset,
+    ListWithDelimiter,
+    Copy,
+    Rename,
+    CopyIfNotExists,
+    RenameIfNotExists,
+}
+
+/// Context describing the object store operation about to execute
+#[derive(Clone, Copy, Debug)]
+pub struct OperationContext<'a> {
+    pub kind: OperationKind,
+    pub path: Option<&'a Path>,
+}
+
+type FailurePredicate = Arc<dyn for<'a> Fn(OperationContext<'a>) -> bool + Send + Sync>;
+
 /// A test wrapper for ObjectStore that can inject errors
 pub struct TestObjectStore {
     inner: Arc<dyn ObjectStore>,
@@ -34,6 +73,10 @@ pub struct TestObjectStore {
     fail_next: AtomicBool,
     /// Tracks total number of operations for test assertions
     operation_count: AtomicUsize,
+    failure_predicate: Option<FailurePredicate>,
+    error_type: ErrorType,
+    get_delay: Option<Duration>,
+    put_delay: Option<Duration>,
 }
 
 impl TestObjectStore {
@@ -45,6 +88,10 @@ impl TestObjectStore {
             call_count: AtomicUsize::new(0),
             fail_next: AtomicBool::new(false),
             operation_count: AtomicUsize::new(0),
+            failure_predicate: None,
+            error_type: ErrorType::default(),
+            get_delay: None,
+            put_delay: None,
         }
     }
 
@@ -54,6 +101,38 @@ impl TestObjectStore {
             self.fail_next.store(true, Ordering::SeqCst);
         }
         self.error_config = config;
+        self
+    }
+
+    /// Configure fixed latency for get and put style operations.
+    pub fn with_latency(
+        mut self,
+        get_delay: Option<Duration>,
+        put_delay: Option<Duration>,
+    ) -> Self {
+        self.get_delay = get_delay;
+        self.put_delay = put_delay;
+        self
+    }
+
+    /// Configure fixed latency for get and put style operations using milliseconds.
+    pub fn with_latency_ms(mut self, get_delay_ms: Option<u64>, put_delay_ms: Option<u64>) -> Self {
+        self.get_delay = get_delay_ms.map(Duration::from_millis);
+        self.put_delay = put_delay_ms.map(Duration::from_millis);
+        self
+    }
+
+    /// Configure a predicate that determines which operations are eligible for failure injection
+    pub fn with_failure_predicate(
+        mut self,
+        predicate: impl for<'a> Fn(OperationContext<'a>) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.failure_predicate = Some(Arc::new(predicate));
+        self
+    }
+
+    pub fn with_error_type(mut self, error_type: ErrorType) -> Self {
+        self.error_type = error_type;
         self
     }
 
@@ -99,9 +178,15 @@ impl TestObjectStore {
 
     /// Create an injected error
     fn create_error(&self) -> ObjectStoreError {
-        ObjectStoreError::Generic {
-            store: "test",
-            source: "Injected test error".into(),
+        match self.error_type {
+            ErrorType::Generic => ObjectStoreError::Generic {
+                store: "test",
+                source: "Injected test error".into(),
+            },
+            ErrorType::NotFound => ObjectStoreError::NotFound {
+                path: "test".into(),
+                source: "Injected test NotFound".into(),
+            },
         }
     }
 }
