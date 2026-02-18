@@ -83,6 +83,38 @@ fn get_default_retry_params() -> RetryParams {
     DEFAULT_PARAMS.get().cloned().unwrap_or_default()
 }
 
+async fn retry_operation<T, F, Fut>(
+    retry_params: RetryParams,
+    context_message: String,
+    operation_label: &'static str,
+    path: &Path,
+    default_should_retry: Option<fn(&ObjectStoreError) -> bool>,
+    op: F,
+) -> Result<T>
+where
+    F: Fn() -> Fut + Send + Sync,
+    Fut: Future<Output = Result<T>> + Send,
+{
+    let retry_builder = retry_params.exponential_builder();
+
+    let retryable = op.retry(&retry_builder).notify({
+        move |err: &ObjectStoreError, dur: Duration| {
+            warn!(
+                "{context_message}: Retrying object store {operation_label} operation for {path} after error: {err}. Retry after {}ms",
+                dur.as_millis()
+            );
+        }
+    });
+
+    if let Some(when_fn) = retry_params.when {
+        retryable.when(move |err| when_fn(err)).await
+    } else if let Some(default_should_retry) = default_should_retry {
+        retryable.when(default_should_retry).await
+    } else {
+        retryable.await
+    }
+}
+
 /// Extension trait for ObjectStore that provides automatic retry capabilities with exponential backoff.
 ///
 /// This trait adds retry variants for common ObjectStore operations, allowing for resilient
@@ -194,6 +226,35 @@ pub trait RetryableObjectStore: ObjectStore {
                 })
                 .await
         }
+    }
+
+    async fn raw_delete_with_retries(
+        &self,
+        path: &Path,
+        context_message: String,
+        retry_params: RetryParams,
+    ) -> Result<()> {
+        let path_clone = path.clone();
+        let store = self;
+
+        retry_operation(
+            retry_params,
+            context_message,
+            "delete",
+            path,
+            Some(|err| !matches!(err, ObjectStoreError::NotFound { .. })),
+            || async { store.delete(&path_clone).await },
+        )
+        .await
+    }
+
+    async fn raw_delete_with_default_retries(
+        &self,
+        path: &Path,
+        context_message: String,
+    ) -> Result<()> {
+        self.raw_delete_with_retries(path, context_message, get_default_retry_params())
+            .await
     }
 
     async fn delete_with_default_retries(

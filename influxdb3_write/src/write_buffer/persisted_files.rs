@@ -10,8 +10,8 @@ use crate::{ChunkFilter, DatabaseTables};
 use crate::{ParquetFile, PersistedSnapshot, PersistedSnapshotCheckpoint};
 use hashbrown::{HashMap, HashSet};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_id::TableId;
 use influxdb3_id::{DbId, SerdeVecMap};
+use influxdb3_id::{ParquetFileId, TableId};
 use influxdb3_telemetry::ParquetMetrics;
 use observability_deps::tracing::{debug, trace, warn};
 use parking_lot::RwLock;
@@ -186,9 +186,68 @@ impl PersistedFiles {
             .filter(|file| filter.test_time_stamp_min_max(file.min_time, file.max_time))
             .collect::<Vec<_>>();
 
+        // TODO: Given this sort is present, we could switch to `swap_remove` when removing
+        // files (whilst holding write lock)
         files.sort_by(|a, b| b.min_time.cmp(&a.min_time));
 
         files
+    }
+
+    /// Remove compacted gen1 files by ID from the in-memory index.
+    ///
+    /// Uses a two-phase approach: read lock to identify affected tables, then write lock
+    /// only on those tables to minimize contention with the query path.
+    pub fn remove_compacted_files(&self, file_ids: &HashSet<ParquetFileId>) {
+        if file_ids.is_empty() {
+            return;
+        }
+
+        // Read phase: identify which (db, table) pairs contain files to remove.
+        let affected: HashMap<DbId, HashSet<TableId>> = {
+            let guard = self.inner.read();
+            let mut affected: HashMap<DbId, HashSet<TableId>> = HashMap::new();
+            for (db_id, tables) in guard.files.iter() {
+                for (table_id, files) in tables.iter() {
+                    if files.iter().any(|f| file_ids.contains(&f.id)) {
+                        affected.entry(*db_id).or_default().insert(*table_id);
+                    }
+                }
+            }
+            affected
+        };
+
+        if affected.is_empty() {
+            return;
+        }
+
+        // Write phase: mutate only the affected tables, compute stats under write lock.
+        let mut guard = self.inner.write();
+        let mut removed_size = 0u64;
+        let mut removed_count = 0u64;
+        let mut removed_rows = 0u64;
+        for (db_id, table_ids) in &affected {
+            if let Some(tables) = guard.files.get_mut(db_id) {
+                for table_id in table_ids {
+                    if let Some(files) = tables.get_mut(table_id) {
+                        // TODO: Given we actually sort within `get_files_filtered` the query path,
+                        // we could switch `retain` here to use `swap_remove`
+                        files.retain(|f| {
+                            if file_ids.contains(&f.id) {
+                                removed_size += f.size_bytes;
+                                removed_count += 1;
+                                removed_rows += f.row_count;
+                                false
+                            } else {
+                                true
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        guard.parquet_files_count = guard.parquet_files_count.saturating_sub(removed_count);
+        guard.parquet_files_size_mb = (guard.parquet_files_size_mb - as_mb(removed_size)).max(0.0);
+        guard.parquet_files_row_count = guard.parquet_files_row_count.saturating_sub(removed_rows);
     }
 
     /// Remove files that are marked for deletion or that violate their retention period.
