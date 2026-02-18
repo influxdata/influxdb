@@ -981,6 +981,13 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, po
 	// The new compacted files need to added to the max generation in the
 	// set.  We need to find that max generation as well as the max sequence
 	// number to ensure we write to the next unique location.
+	//
+	// Track maxSequence across ALL input generations (not just the max generation)
+	// so that when mixed-level files are compacted together, the output level
+	// never regresses below the highest input level. Without this, compacting
+	// newer L1 files (high gen, seq=1) with older L4 files (low gen, seq>=4)
+	// would produce an L2 output, causing write amplification as already-optimized
+	// data gets re-compacted through L2->L3->L4.
 	var maxGeneration, maxSequence int
 
 	if c.FileStore == nil {
@@ -994,10 +1001,9 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, po
 
 		if gen > maxGeneration {
 			maxGeneration = gen
-			maxSequence = seq
 		}
 
-		if gen == maxGeneration && seq > maxSequence {
+		if seq > maxSequence {
 			maxSequence = seq
 		}
 	}
