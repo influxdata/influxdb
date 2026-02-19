@@ -1005,20 +1005,18 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, po
 		}
 	}
 
-	// Ensure the output level is at least as high as the highest input level.
-	// A generation's level is min(its lowest sequence, 4). The output level is
-	// min(maxSequence+1, 4). When cold or forced compaction groups L1 files
-	// (high gen, seq=1) with L4 files (low gen, seq>=4), the per-generation
-	// maxSequence can be as low as 1, producing L2 output from L4 input data.
-	// Bump maxSequence so the output level does not regress.
+	// Compute the highest compaction level among all input generations.
+	// A generation's level = min(its minimum sequence number, 4).
+	var maxInputLevel int
 	for _, minSeq := range minSeqByGen {
-		level := minSeq
-		if level > 4 {
-			level = 4
-		}
-		if maxSequence+1 < level {
-			maxSequence = level - 1
-		}
+		maxInputLevel = max(maxInputLevel, min(minSeq, 4))
+	}
+
+	// Ensure the output level (min(maxSequence+1, 4)) does not regress
+	// below any input level. This matters when cold/forced compaction
+	// groups L1 files (high gen, seq=1) with L4 files (low gen, seq>=4).
+	if maxSequence+1 < maxInputLevel {
+		maxSequence = maxInputLevel - 1
 	}
 
 	// For each TSM file, create a TSM reader
