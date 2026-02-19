@@ -981,14 +981,8 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, po
 	// The new compacted files need to added to the max generation in the
 	// set.  We need to find that max generation as well as the max sequence
 	// number to ensure we write to the next unique location.
-	//
-	// Track maxSequence across ALL input generations (not just the max generation)
-	// so that when mixed-level files are compacted together, the output level
-	// never regresses below the highest input level. Without this, compacting
-	// newer L1 files (high gen, seq=1) with older L4 files (low gen, seq>=4)
-	// would produce an L2 output, causing write amplification as already-optimized
-	// data gets re-compacted through L2->L3->L4.
 	var maxGeneration, maxSequence int
+	minSeqByGen := make(map[int]int)
 
 	if c.FileStore == nil {
 		return nil, fmt.Errorf("compactor for %s has no file store: %w", c.Dir, errCompactionsDisabled)
@@ -1001,10 +995,29 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, po
 
 		if gen > maxGeneration {
 			maxGeneration = gen
-		}
-
-		if seq > maxSequence {
 			maxSequence = seq
+		}
+		if gen == maxGeneration && seq > maxSequence {
+			maxSequence = seq
+		}
+		if s, ok := minSeqByGen[gen]; !ok || seq < s {
+			minSeqByGen[gen] = seq
+		}
+	}
+
+	// Ensure the output level is at least as high as the highest input level.
+	// A generation's level is min(its lowest sequence, 4). The output level is
+	// min(maxSequence+1, 4). When cold or forced compaction groups L1 files
+	// (high gen, seq=1) with L4 files (low gen, seq>=4), the per-generation
+	// maxSequence can be as low as 1, producing L2 output from L4 input data.
+	// Bump maxSequence so the output level does not regress.
+	for _, minSeq := range minSeqByGen {
+		level := minSeq
+		if level > 4 {
+			level = 4
+		}
+		if maxSequence+1 < level {
+			maxSequence = level - 1
 		}
 	}
 

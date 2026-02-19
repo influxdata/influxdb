@@ -259,6 +259,96 @@ func TestCompactor_CompactFull(t *testing.T) {
 	}
 }
 
+// mustWriteTSMWithSeq creates a TSM file with the given generation and sequence number.
+func mustWriteTSMWithSeq(t *testing.T, dir string, gen, seq int, values map[string][]tsm1.Value) string {
+	t.Helper()
+	tempGen := gen*1000 + seq
+	f := MustWriteTSM(dir, tempGen, values)
+	newName := filepath.Join(dir, tsm1.DefaultFormatFileName(gen, seq)+".tsm")
+	require.NoError(t, os.Rename(f, newName), "rename TSM file to gen=%d seq=%d", gen, seq)
+	return newName
+}
+
+// TestCompactor_CompactFull_MixedLevelNoRegression verifies that compacting
+// L1 files (seq=1) with L4 files (seq>=4) produces output at L4, not L2.
+// This is the cold/forced compaction scenario where Plan() collects all files.
+func TestCompactor_CompactFull_MixedLevelNoRegression(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// L4 files: low generation numbers, high sequence (level 4)
+	f1 := mustWriteTSMWithSeq(t, dir, 1, 4, map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {tsm1.NewValue(1, 1.1)},
+	})
+	f2 := mustWriteTSMWithSeq(t, dir, 2, 5, map[string][]tsm1.Value{
+		"cpu,host=B#!~#value": {tsm1.NewValue(2, 2.1)},
+	})
+	// L1 files: high generation numbers, sequence 1 (level 1)
+	f3 := mustWriteTSMWithSeq(t, dir, 3, 1, map[string][]tsm1.Value{
+		"cpu,host=C#!~#value": {tsm1.NewValue(3, 3.1)},
+	})
+	f4 := mustWriteTSMWithSeq(t, dir, 4, 1, map[string][]tsm1.Value{
+		"cpu,host=D#!~#value": {tsm1.NewValue(4, 4.1)},
+	})
+
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = ffs
+	compactor.Open()
+
+	files, err := compactor.CompactFull([]string{f1, f2, f3, f4}, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(files))
+
+	gotGen, gotSeq, err := tsm1.DefaultParseFileName(files[0])
+	require.NoError(t, err)
+	require.Equal(t, 4, gotGen, "output generation should be max input generation")
+	// Output must be at level 4 (seq >= 4).  Without the fix, maxSequence
+	// was scoped to the max generation (gen=4, seq=1), producing seq=2 (L2).
+	require.GreaterOrEqual(t, gotSeq, 4, "output level must not regress below highest input level (L4)")
+}
+
+// TestCompactor_CompactFull_SplitFilesNoLevelInflation verifies that when a
+// generation has multiple files from a 2GB size split (e.g. seq=2,3), the
+// output level is based on the generation's true level, not inflated by the
+// split artifact sequences.
+func TestCompactor_CompactFull_SplitFilesNoLevelInflation(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// L2 generation split across two files (seq=2 is the level, seq=3 is a split artifact)
+	f1 := mustWriteTSMWithSeq(t, dir, 1, 2, map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {tsm1.NewValue(1, 1.1)},
+	})
+	f2 := mustWriteTSMWithSeq(t, dir, 1, 3, map[string][]tsm1.Value{
+		"cpu,host=B#!~#value": {tsm1.NewValue(2, 2.1)},
+	})
+	// Normal L2 generation (single file)
+	f3 := mustWriteTSMWithSeq(t, dir, 8, 2, map[string][]tsm1.Value{
+		"cpu,host=C#!~#value": {tsm1.NewValue(3, 3.1)},
+	})
+
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = ffs
+	compactor.Open()
+
+	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop(), tsdb.DefaultMaxPointsPerBlock)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(files))
+
+	gotGen, gotSeq, err := tsm1.DefaultParseFileName(files[0])
+	require.NoError(t, err)
+	require.Equal(t, 8, gotGen, "output generation should be max input generation")
+	// Output should be seq=3 (L3): one level above the L2 inputs.
+	// The split file at gen=1,seq=3 must not inflate the output to L4.
+	require.Equal(t, 3, gotSeq, "output level should be L3, not inflated by split artifact")
+}
+
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_DecodeError(t *testing.T) {
 	dir := MustTempDir()
