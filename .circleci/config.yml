@@ -25,7 +25,7 @@ jobs:
           keys:
             # We save the cache from this one, so don't restore a cache with old junk and then save new stuff alongside.
             # Start either with the exact right cache, or completely fresh.
-            - influxdb-cache-v1-{{ checksum "go.mod" }}
+            - influxdb-cache-v2-{{ checksum "go.mod" }}
       - run:
           name: Get InfluxDB Version
           command: |
@@ -87,13 +87,25 @@ jobs:
                     ;;
                 esac
 
+                # rustlib
+                if [[ "${GOOS}" == linux ]] ; then
+                  case "${GOARCH}" in
+                    amd64)
+                      rustlib="$(find_rustlib_path x86_64-unknown-linux-musl)"
+                      ;;
+                    arm64)
+                      rustlib="$(find_rustlib_path aarch64-unknown-linux-musl)"
+                      ;;
+                  esac
+                fi
+
                 # linker flags
                 case "${GOOS}" in
                   darwin|windows)
                     ldflags='-s -w'
                     ;;
                   linux)
-                    ldflags='-s -w -linkmode=external -extld='"${CC}"' -extldflags "-fno-PIC -static-pie -Wl,-z,stack-size=8388608"'
+                    ldflags='-s -w -linkmode=external -extld='"${CC}"' -extldflags "-fno-PIC -static-pie -Wl,-z,stack-size=8388608 -L'"${rustlib}"' -Wl,-lunwind"'
                     ;;
                 esac
 
@@ -172,7 +184,7 @@ jobs:
           paths:
               - artifacts
       - save_cache:
-          key: influxdb-cache-v1-{{ checksum "go.mod" }}
+          key: influxdb-cache-v2-{{ checksum "go.mod" }}
           paths:
             - /go/pkg/mod
             - /root/.cargo
@@ -295,8 +307,8 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - influxdb-cache-v1-{{ checksum "go.mod" }}
-            - influxdb-cache-v1
+            - influxdb-cache-v2-{{ checksum "go.mod" }}
+            - influxdb-cache-v2
       - when:
           condition: << parameters.race >>
           steps:
