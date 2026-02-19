@@ -973,6 +973,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, po
 	// set.  We need to find that max generation as well as the max sequence
 	// number to ensure we write to the next unique location.
 	var maxGeneration, maxSequence int
+	minSeqByGen := make(map[int]int)
 
 	if c.FileStore == nil {
 		return nil, fmt.Errorf("compactor for %s has no file store: %w", c.Dir, errCompactionsDisabled)
@@ -987,10 +988,26 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, po
 			maxGeneration = gen
 			maxSequence = seq
 		}
-
 		if gen == maxGeneration && seq > maxSequence {
 			maxSequence = seq
 		}
+		if s, ok := minSeqByGen[gen]; !ok || seq < s {
+			minSeqByGen[gen] = seq
+		}
+	}
+
+	// Compute the highest compaction level among all input generations.
+	// A generation's level = min(its minimum sequence number, 4).
+	var maxInputLevel int
+	for _, minSeq := range minSeqByGen {
+		maxInputLevel = max(maxInputLevel, min(minSeq, 4))
+	}
+
+	// Ensure the output level (min(maxSequence+1, 4)) does not regress
+	// below any input level. This matters when cold/forced compaction
+	// groups L1 files (high gen, seq=1) with L4 files (low gen, seq>=4).
+	if maxSequence+1 < maxInputLevel {
+		maxSequence = maxInputLevel - 1
 	}
 
 	// For each TSM file, create a TSM reader
