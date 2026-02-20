@@ -58,7 +58,7 @@ use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::storage::DataSourceExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
-use std::{borrow::Borrow, sync::Arc, time::Duration};
+use std::{borrow::Borrow, num::NonZeroU64, sync::Arc, time::Duration};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -169,7 +169,7 @@ pub struct WriteBufferImpl {
 }
 
 /// The maximum number of snapshots to load on start
-pub const N_SNAPSHOTS_TO_LOAD_ON_START: usize = 1_000;
+pub const N_SNAPSHOTS_TO_LOAD_ON_START: NonZeroU64 = NonZeroU64::new(1_000).unwrap();
 
 #[derive(Debug)]
 pub struct WriteBufferImplArgs {
@@ -184,7 +184,7 @@ pub struct WriteBufferImplArgs {
     pub metric_registry: Arc<Registry>,
     pub snapshotted_wal_files_to_keep: u64,
     pub query_file_limit: Option<usize>,
-    pub n_snapshots_to_load_on_start: usize,
+    pub n_snapshots_to_load_on_start: NonZeroU64,
     pub shutdown: ShutdownToken,
     pub wal_replay_concurrency_limit: usize,
 }
@@ -209,22 +209,18 @@ impl WriteBufferImpl {
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // Calculate sequence cutoff based on n_snapshots_to_load_on_start
-        let sequence_cutoff = if n_snapshots_to_load_on_start > 0 {
-            match persister.get_latest_snapshot_sequence().await {
-                Ok(Some(latest)) => {
-                    let cutoff = latest
-                        .as_u64()
-                        .saturating_sub(n_snapshots_to_load_on_start as u64);
-                    Some(SnapshotSequenceNumber::new(cutoff))
-                }
-                Ok(None) => None, // No snapshots exist yet
-                Err(e) => {
-                    warn!(%e, "Failed to get latest snapshot sequence, loading all checkpoints");
-                    None
-                }
+        let sequence_cutoff = match persister.get_latest_snapshot_sequence().await {
+            Ok(Some(latest)) => {
+                let cutoff = latest
+                    .as_u64()
+                    .saturating_sub(n_snapshots_to_load_on_start.get());
+                Some(SnapshotSequenceNumber::new(cutoff))
             }
-        } else {
-            None // n_snapshots_to_load_on_start = 0 means load all
+            Ok(None) => None,
+            Err(e) => {
+                warn!(%e, "Failed to get latest snapshot sequence, loading all checkpoints");
+                None
+            }
         };
 
         // Try to load from checkpoints first for faster startup
@@ -281,7 +277,7 @@ impl WriteBufferImpl {
                 // Load snapshots newer than the checkpoint
                 let additional_snapshots = if let Some(max_seq) = max_checkpoint_snapshot_seq {
                     persister
-                        .load_snapshots_after(max_seq, n_snapshots_to_load_on_start)
+                        .load_snapshots_after(max_seq, n_snapshots_to_load_on_start.get() as usize)
                         .await?
                         .into_iter()
                         .map(|psv| match psv {
@@ -336,7 +332,7 @@ impl WriteBufferImpl {
                 debug!("No checkpoints found, loading snapshots directly");
 
                 let persisted_snapshots = persister
-                    .load_snapshots(n_snapshots_to_load_on_start)
+                    .load_snapshots(n_snapshots_to_load_on_start.get() as usize)
                     .await?
                     .into_iter()
                     .map(|psv| match psv {

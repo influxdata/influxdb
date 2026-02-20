@@ -33,6 +33,7 @@ mod auth;
 mod client;
 mod configure;
 mod flight;
+mod gen1_lookback_guard;
 mod limits;
 mod logs;
 mod packages;
@@ -94,6 +95,8 @@ pub struct TestConfig {
     object_store_dir: Option<String>,
     disable_authz: Vec<String>,
     gen1_duration: Option<String>,
+    gen1_lookback_duration: Option<String>,
+    snapshotted_wal_files_to_keep: Option<String>,
     capture_logs: bool,
     enable_recovery_endpoint: bool,
     admin_token_file: Option<String>,
@@ -179,6 +182,16 @@ impl TestConfig {
 
     pub fn with_gen1_duration(mut self, gen1_duration: impl Into<String>) -> Self {
         self.gen1_duration = Some(gen1_duration.into());
+        self
+    }
+
+    pub fn with_gen1_lookback_duration(mut self, duration: impl Into<String>) -> Self {
+        self.gen1_lookback_duration = Some(duration.into());
+        self
+    }
+
+    pub fn with_snapshotted_wal_files_to_keep(mut self, count: impl Into<String>) -> Self {
+        self.snapshotted_wal_files_to_keep = Some(count.into());
         self
     }
 
@@ -277,6 +290,25 @@ impl ConfigProvider for TestConfig {
             args.append(&mut vec![
                 "--gen1-duration".to_string(),
                 gen1_duration.to_owned(),
+            ])
+        }
+
+        if let Some(gen1_lookback_duration) = &self.gen1_lookback_duration {
+            args.append(&mut vec![
+                "--gen1-lookback-duration".to_string(),
+                gen1_lookback_duration.to_owned(),
+            ])
+        }
+
+        args.append(&mut vec![
+            "--wal-snapshot-size".to_string(),
+            "1".to_string(),
+        ]);
+
+        if let Some(count) = &self.snapshotted_wal_files_to_keep {
+            args.append(&mut vec![
+                "--snapshotted-wal-files-to-keep".to_string(),
+                count.to_owned(),
             ])
         }
 
@@ -408,7 +440,6 @@ impl TestServer {
             .arg("--disable-telemetry-upload")
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
-            .args(["--wal-snapshot-size", "1"])
             .args([
                 "--tcp-listener-file-path",
                 tcp_addr_file
