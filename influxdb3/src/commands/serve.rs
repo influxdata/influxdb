@@ -58,7 +58,12 @@ use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::{env, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{
+    env,
+    num::{NonZeroU64, NonZeroUsize},
+    sync::Arc,
+    time::Duration,
+};
 use std::{path::PathBuf, process::Command};
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -86,6 +91,8 @@ pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 pub const DEFAULT_ADMIN_TOKEN_RECOVERY_BIND_ADDR: &str = "127.0.0.1:8182";
 
 pub const DEFAULT_TELEMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
+
+const MIN_SNAPSHOTS_TO_LOAD_ON_START: u64 = 100;
 
 mod cli_params;
 
@@ -989,8 +996,12 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Err(error) => return Err(Error::InitializeCatalog(error)),
     };
 
-    let n_snapshots_to_load_on_start =
+    let num_snapshots_to_load =
         config.gen1_lookback_duration.as_secs() / gen1_duration.as_duration().as_secs();
+
+    let n_snapshots_to_load_on_start =
+        NonZeroU64::new(MIN_SNAPSHOTS_TO_LOAD_ON_START.max(num_snapshots_to_load))
+            .expect("n_snapshots_to_load_on_start is always >= 1");
 
     let wal_config = WalConfig {
         gen1_duration,
@@ -1012,7 +1023,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         metric_registry: Arc::clone(&metrics),
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
         query_file_limit: config.query_file_limit,
-        n_snapshots_to_load_on_start: n_snapshots_to_load_on_start as usize,
+        n_snapshots_to_load_on_start,
         shutdown: shutdown_manager.register(),
         wal_replay_concurrency_limit: config.wal_replay_concurrency_limit,
     })
