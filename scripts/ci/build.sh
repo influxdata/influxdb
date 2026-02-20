@@ -24,7 +24,7 @@ function main () {
             CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) go build \
                 -tags assets,sqlite_foreign_keys,sqlite_json,static_build,noasm \
                 -buildmode=pie \
-                -ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.date=${build_date} -linkmode=external -extld=${CC} -extldflags '${LINUX_EXTLD}'" \
+                -ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.date=${build_date} -linkmode=external -extld=${CC} -extldflags '${LINUX_EXTLD} -L$(find_rustlib_path x86_64-unknown-linux-musl) -Wl,-lunwind'" \
                 -o "$out_dir/" \
                 "$pkg"
             ;;
@@ -33,7 +33,7 @@ function main () {
             CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) go build \
                 -tags assets,sqlite_foreign_keys,sqlite_json,static_build,noasm \
                 -buildmode=pie \
-                -ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.date=${build_date} -linkmode=external -extld=${CC} -extldflags '${LINUX_EXTLD}'" \
+                -ldflags "-s -w -X main.version=${version} -X main.commit=${commit} -X main.date=${build_date} -linkmode=external -extld=${CC} -extldflags '${LINUX_EXTLD} -L$(find_rustlib_path aarch64-unknown-linux-musl) -Wl,-lunwind'" \
                 -o "$out_dir/" \
                 "$pkg"
             ;;
