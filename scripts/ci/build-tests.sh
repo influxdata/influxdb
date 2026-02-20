@@ -3,14 +3,17 @@ set -exo pipefail
 
 function build_linux () {
     local tags=osusergo,netgo,sqlite_foreign_keys,sqlite_json,static_build
+    local extld="-fno-PIC -static -Wl,-z,stack-size=8388608 "
     local cc
     case $(go env GOARCH) in
         amd64)
-            cc=$(xcc linux x86_64)
+            cc="$(xcc linux x86_64)"
+            extld+="-L$(find_rustlib_path x86_64-unknown-linux-musl) -Wl,-lunwind "
             ;;
         arm64)
-            cc=$(xcc linux aarch64)
+            cc="$(xcc linux aarch64)"
             tags="$tags,noasm"
+            extld+="-L$(find_rustlib_path aarch64-unknown-linux-musl) -Wl,-lunwind "
             ;;
         *)
             >&2 echo Error: Unknown arch $(go env GOARCH)
@@ -18,7 +21,6 @@ function build_linux () {
             ;;
     esac
 
-    local -r extld="-fno-PIC -static -Wl,-z,stack-size=8388608"
     CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="${cc}" go-test-compile \
         -tags "$tags" -o "${1}/" -ldflags "-extldflags '$extld'" -x ./...
 }
