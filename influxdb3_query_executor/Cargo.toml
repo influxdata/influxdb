@@ -18,19 +18,19 @@ influxdb3_telemetry = { path = "../influxdb3_telemetry" }
 influxdb3_write = { path = "../influxdb3_write" }
 
 # Core crates
-datafusion_util.workspace = true
-data_types.workspace = true
-influxdb_influxql_parser.workspace = true
-iox_query.workspace = true
-iox_query_influxql.workspace = true
-iox_query_params.workspace = true
-iox_time.workspace = true
-metric.workspace = true
-observability_deps.workspace = true
-schema.workspace = true
-trace.workspace = true
-trace_http.workspace = true
-tracker.workspace = true
+datafusion_util = { path = "../core/datafusion_util" }
+data_types = { path = "../core/data_types" }
+influxdb_influxql_parser = { path = "../core/influxdb_influxql_parser" }
+iox_query = { path = "../core/iox_query" }
+iox_query_influxql = { path = "../core/iox_query_influxql" }
+iox_query_params = { path = "../core/iox_query_params" }
+iox_time = { path = "../core/iox_time" }
+metric = { path = "../core/metric" }
+observability_deps = { path = "../core/observability_deps" }
+schema = { path = "../core/schema" }
+trace = { path = "../core/trace" }
+trace_http = { path = "../core/trace_http" }
+tracker = { path = "../core/tracker" }
 
 # Crates.io crates
 anyhow.workspace = true
@@ -45,17 +45,20 @@ serde_json.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+# core deps
+iox_query_influxql_rewrite = { path = "../core/iox_query_influxql_rewrite" }
+parquet_file = { path = "../core/parquet_file" }
+test_helpers = { path = "../core/test_helpers" }
+# local deps
 influxdb3_authz = { path = "../influxdb3_authz" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_types = { path = "../influxdb3_types"}
 influxdb3_wal = { path = "../influxdb3_wal"}
+# crates.io deps
 insta.workspace = true
-iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
 object_store.workspace = true
-parquet_file.workspace = true
 pretty_assertions.workspace = true
 rstest.workspace = true
-test_helpers.workspace = true
 test-log.workspace = true
 
 [lints]

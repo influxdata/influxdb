@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 # core dependencies
-iox_query_params.workspace = true
+iox_query_params = { path = "../core/iox_query_params" }
 
 # Local deps
 influxdb3_catalog = { path = "../influxdb3_catalog" }

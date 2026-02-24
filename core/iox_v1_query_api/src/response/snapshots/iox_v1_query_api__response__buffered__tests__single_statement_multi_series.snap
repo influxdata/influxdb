@@ -1,0 +1,5 @@
+---
+source: iox_v1_query_api/src/response/buffered.rs
+expression: "collect_output(BufferedResponseStream::new(vec![statement])).await"
+---
+{"results":[{"statement_id":0,"series":[{"name":"m1","tags":{"t1":"t1a"},"columns":["time","f1"],"values":[["1970-01-01T00:00:01Z",1],["1970-01-01T00:00:02Z",2]]},{"name":"m1","tags":{"t1":"t1b"},"columns":["time","f1"],"values":[["1970-01-01T00:00:03Z",3]]}]}]}

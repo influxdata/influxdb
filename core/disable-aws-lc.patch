@@ -1,0 +1,236 @@
+diff --git a/.config/hakari.toml b/.config/hakari.toml
+index afa28a701..187e6f5ed 100644
+--- a/.config/hakari.toml
++++ b/.config/hakari.toml
+@@ -42,6 +42,18 @@ workspace-members = [
+ third-party = [
+     { name = "criterion" },
+     { name = "tikv-jemalloc-sys" },
++    # Exclude crypto libraries to control provider selection per-crate
++    # This allows us to use ring consistently without hakari forcing aws-lc-rs
++    { name = "rustls" },
++    { name = "rustls-webpki" },
++    { name = "tokio-rustls" },
++    { name = "hyper-rustls" },
++    { name = "rustls-pemfile" },
++    { name = "rustls-native-certs" },
++    { name = "webpki-roots" },
++    { name = "aws-lc-rs" },
++    { name = "aws-lc-sys" },
++    { name = "ring" },
+ ]
+ 
+ #
+diff --git a/Cargo.lock b/Cargo.lock
+index 8334fef52..cf369799b 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -11541,14 +11541,12 @@ dependencies = [
+  "futures-task",
+  "futures-util",
+  "generic-array",
+- "getrandom 0.2.15",
+  "getrandom 0.3.1",
+  "hashbrown 0.14.5",
+  "hashbrown 0.15.2",
+  "hickory-proto",
+  "httparse",
+  "hyper 1.6.0",
+- "hyper-rustls 0.27.2",
+  "hyper-util",
+  "indexmap 2.10.0",
+  "insta",
+@@ -11582,10 +11580,6 @@ dependencies = [
+  "regex-automata 0.4.9",
+  "regex-syntax 0.8.5",
+  "reqwest",
+- "ring",
+- "rustls 0.23.29",
+- "rustls-pemfile 2.2.0",
+- "rustls-webpki 0.103.4",
+  "serde",
+  "serde_json",
+  "sha2",
+@@ -11609,7 +11603,6 @@ dependencies = [
+  "time",
+  "tokio",
+  "tokio-metrics",
+- "tokio-rustls 0.26.2",
+  "tokio-stream",
+  "tokio-util",
+  "tonic 0.12.3",
+diff --git a/client_util/Cargo.toml b/client_util/Cargo.toml
+index a6ace9b62..8d5dc7a90 100644
+--- a/client_util/Cargo.toml
++++ b/client_util/Cargo.toml
+@@ -15,7 +15,7 @@ iox_http_util = { path = "../iox_http_util" }
+ reqwest = { workspace = true, features = ["stream", "rustls-tls-native-roots"] }
+ # This direct dependency on rustls can probably be removed when tonic is upgraded to 0.13+.
+ # See <https://github.com/influxdata/influxdb_iox/issues/14683> for more details.
+-rustls = { version = "0.23", default-features = false }
++rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging", "tls12"] }
+ thiserror = "2.0.12"
+ tonic = { version = "0.12", features = ["tls", "tls-native-roots"] }
+ tower = { workspace = true }
+diff --git a/iox_auth/Cargo.toml b/iox_auth/Cargo.toml
+index 37bec904a..a6702b61c 100644
+--- a/iox_auth/Cargo.toml
++++ b/iox_auth/Cargo.toml
+@@ -21,7 +21,7 @@ tracing = { workspace = true }
+ prost = { workspace = true }
+ ring = "0.17"
+ reqwest = { version = "0.12.22", default-features = false, features = [
+-    "rustls-tls",
++    "rustls-tls-native-roots",
+ ] }
+ serde = { version = "1.0", features = ["derive"] }
+ serde_json = "1.0.142"
+diff --git a/workspace-hack/Cargo.toml b/workspace-hack/Cargo.toml
+index 374af3259..5e0b1d8f4 100644
+--- a/workspace-hack/Cargo.toml
++++ b/workspace-hack/Cargo.toml
+@@ -55,8 +55,7 @@ futures-sink = { version = "0.3" }
+ futures-task = { version = "0.3", default-features = false, features = ["std"] }
+ futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
+ generic-array = { version = "0.14", default-features = false, features = ["more_lengths", "zeroize"] }
+-getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
+-getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["std"] }
++getrandom = { version = "0.3", default-features = false, features = ["std"] }
+ hashbrown-3575ec1268b04181 = { package = "hashbrown", version = "0.15" }
+ hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
+ hickory-proto = { version = "0.25", default-features = false, features = ["serde", "text-parsing", "tokio"] }
+@@ -93,10 +92,6 @@ regex = { version = "1" }
+ regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
+ regex-syntax = { version = "0.8" }
+ reqwest = { version = "0.12", default-features = false, features = ["gzip", "http2", "json", "multipart", "rustls-tls", "rustls-tls-native-roots", "stream"] }
+-ring = { version = "0.17", features = ["std"] }
+-rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+-rustls-pemfile = { version = "2" }
+-rustls-webpki = { version = "0.103", default-features = false, features = ["ring", "std"] }
+ serde = { version = "1", features = ["alloc", "derive", "rc"] }
+ serde_json = { version = "1", features = ["raw_value"] }
+ sha2 = { version = "0.10", features = ["oid"] }
+@@ -116,7 +111,6 @@ thrift = { version = "0.17" }
+ time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
+ tokio = { version = "1", features = ["full", "test-util", "tracing"] }
+ tokio-metrics = { version = "0.4" }
+-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+ tokio-stream = { version = "0.1", features = ["fs", "net"] }
+ tokio-util = { version = "0.7", features = ["codec", "compat", "io"] }
+ tonic = { version = "0.12", features = ["tls-roots"] }
+@@ -159,8 +153,7 @@ futures-sink = { version = "0.3" }
+ futures-task = { version = "0.3", default-features = false, features = ["std"] }
+ futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
+ generic-array = { version = "0.14", default-features = false, features = ["more_lengths", "zeroize"] }
+-getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
+-getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["std"] }
++getrandom = { version = "0.3", default-features = false, features = ["std"] }
+ hashbrown-3575ec1268b04181 = { package = "hashbrown", version = "0.15" }
+ hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
+ httparse = { version = "1" }
+@@ -191,10 +184,6 @@ regex = { version = "1" }
+ regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
+ regex-syntax = { version = "0.8" }
+ reqwest = { version = "0.12", default-features = false, features = ["gzip", "http2", "json", "multipart", "rustls-tls", "rustls-tls-native-roots", "stream"] }
+-ring = { version = "0.17", features = ["std"] }
+-rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+-rustls-pemfile = { version = "2" }
+-rustls-webpki = { version = "0.103", default-features = false, features = ["ring", "std"] }
+ serde = { version = "1", features = ["alloc", "derive", "rc"] }
+ serde_json = { version = "1", features = ["raw_value"] }
+ sha2 = { version = "0.10", features = ["oid"] }
+@@ -225,7 +214,6 @@ zstd-sys = { version = "2", default-features = false, features = ["legacy", "std
+ [target.x86_64-unknown-linux-gnu.dependencies]
+ async-compression = { version = "0.4", default-features = false, features = ["bzip2", "gzip", "tokio", "xz", "zstd"] }
+ bitflags = { version = "2", default-features = false, features = ["std"] }
+-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "native-tokio", "ring", "tls12", "webpki-tokio"] }
+ hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+ lzma-sys = { version = "0.1", default-features = false, features = ["static"] }
+ nix = { version = "0.30", default-features = false, features = ["fs", "ioctl", "poll", "signal", "socket", "term"] }
+@@ -236,12 +224,10 @@ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+ [target.x86_64-unknown-linux-gnu.build-dependencies]
+ async-compression = { version = "0.4", default-features = false, features = ["bzip2", "gzip", "tokio", "xz", "zstd"] }
+ bitflags = { version = "2", default-features = false, features = ["std"] }
+-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "native-tokio", "ring", "tls12", "webpki-tokio"] }
+ hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "server-auto", "server-graceful", "service"] }
+ ipnet = { version = "2", features = ["serde"] }
+ lzma-sys = { version = "0.1", default-features = false, features = ["static"] }
+ socket2-3b31131e45eafb45 = { package = "socket2", version = "0.6", default-features = false, features = ["all"] }
+-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+ tower = { version = "0.5", default-features = false, features = ["balance", "buffer", "limit", "timeout"] }
+ tower-http = { version = "0.6", features = ["catch-panic", "follow-redirect"] }
+ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+@@ -249,7 +235,6 @@ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+ [target.x86_64-apple-darwin.dependencies]
+ async-compression = { version = "0.4", default-features = false, features = ["bzip2", "gzip", "tokio", "xz", "zstd"] }
+ bitflags = { version = "2", default-features = false, features = ["std"] }
+-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "native-tokio", "ring", "tls12", "webpki-tokio"] }
+ hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+ lzma-sys = { version = "0.1", default-features = false, features = ["static"] }
+ nix = { version = "0.30", default-features = false, features = ["fs", "ioctl", "poll", "signal", "socket", "term"] }
+@@ -260,12 +245,10 @@ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+ [target.x86_64-apple-darwin.build-dependencies]
+ async-compression = { version = "0.4", default-features = false, features = ["bzip2", "gzip", "tokio", "xz", "zstd"] }
+ bitflags = { version = "2", default-features = false, features = ["std"] }
+-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "native-tokio", "ring", "tls12", "webpki-tokio"] }
+ hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "server-auto", "server-graceful", "service"] }
+ ipnet = { version = "2", features = ["serde"] }
+ lzma-sys = { version = "0.1", default-features = false, features = ["static"] }
+ socket2-3b31131e45eafb45 = { package = "socket2", version = "0.6", default-features = false, features = ["all"] }
+-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+ tower = { version = "0.5", default-features = false, features = ["balance", "buffer", "limit", "timeout"] }
+ tower-http = { version = "0.6", features = ["catch-panic", "follow-redirect"] }
+ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+@@ -273,7 +256,6 @@ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+ [target.aarch64-apple-darwin.dependencies]
+ async-compression = { version = "0.4", default-features = false, features = ["bzip2", "gzip", "tokio", "xz", "zstd"] }
+ bitflags = { version = "2", default-features = false, features = ["std"] }
+-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "native-tokio", "ring", "tls12", "webpki-tokio"] }
+ hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+ lzma-sys = { version = "0.1", default-features = false, features = ["static"] }
+ nix = { version = "0.30", default-features = false, features = ["fs", "ioctl", "poll", "signal", "socket", "term"] }
+@@ -284,19 +266,16 @@ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+ [target.aarch64-apple-darwin.build-dependencies]
+ async-compression = { version = "0.4", default-features = false, features = ["bzip2", "gzip", "tokio", "xz", "zstd"] }
+ bitflags = { version = "2", default-features = false, features = ["std"] }
+-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "native-tokio", "ring", "tls12", "webpki-tokio"] }
+ hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "server-auto", "server-graceful", "service"] }
+ ipnet = { version = "2", features = ["serde"] }
+ lzma-sys = { version = "0.1", default-features = false, features = ["static"] }
+ socket2-3b31131e45eafb45 = { package = "socket2", version = "0.6", default-features = false, features = ["all"] }
+-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+ tower = { version = "0.5", default-features = false, features = ["balance", "buffer", "limit", "timeout"] }
+ tower-http = { version = "0.6", features = ["catch-panic", "follow-redirect"] }
+ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+ 
+ [target.x86_64-pc-windows-msvc.dependencies]
+ async-compression = { version = "0.4", default-features = false, features = ["bzip2", "gzip", "tokio", "xz", "zstd"] }
+-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "native-tokio", "ring", "tls12", "webpki-tokio"] }
+ hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+ lzma-sys = { version = "0.1", default-features = false, features = ["static"] }
+ socket2-d8f496e17d97b5cb = { package = "socket2", version = "0.5", default-features = false, features = ["all"] }
+@@ -304,22 +283,20 @@ tower = { version = "0.5", default-features = false, features = ["timeout"] }
+ tower-http = { version = "0.6", features = ["catch-panic", "follow-redirect"] }
+ winapi = { version = "0.3", default-features = false, features = ["cfg", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "in6addr", "inaddr", "minwinbase", "minwindef", "ntsecapi", "processenv", "profileapi", "windef", "winioctl", "winnt"] }
+ windows-sys-73dcd821b1037cfd = { package = "windows-sys", version = "0.59", features = ["Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_IO", "Win32_System_Memory", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
+-windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Memory", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
++windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
+ windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_Registry", "Win32_System_Time", "Win32_UI_Shell"] }
+ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+ 
+ [target.x86_64-pc-windows-msvc.build-dependencies]
+ async-compression = { version = "0.4", default-features = false, features = ["bzip2", "gzip", "tokio", "xz", "zstd"] }
+-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "native-tokio", "ring", "tls12", "webpki-tokio"] }
+ hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "server-auto", "server-graceful", "service"] }
+ ipnet = { version = "2", features = ["serde"] }
+ lzma-sys = { version = "0.1", default-features = false, features = ["static"] }
+ socket2-3b31131e45eafb45 = { package = "socket2", version = "0.6", default-features = false, features = ["all"] }
+-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+ tower = { version = "0.5", default-features = false, features = ["balance", "buffer", "limit", "timeout"] }
+ tower-http = { version = "0.6", features = ["catch-panic", "follow-redirect"] }
+ windows-sys-73dcd821b1037cfd = { package = "windows-sys", version = "0.59", features = ["Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_IO", "Win32_System_Memory", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
+-windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Memory", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
++windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
+ windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_Registry", "Win32_System_Time", "Win32_UI_Shell"] }
+ xz2 = { version = "0.1", default-features = false, features = ["static"] }
+ 

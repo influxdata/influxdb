@@ -1,0 +1,28 @@
+[package]
+name = "influxdb2_client"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies] # In alphabetical order
+bytes = "1.11"
+futures = { version = "0.3", default-features = false }
+reqwest = { workspace = true, features = ["stream", "json", "rustls-tls-native-roots"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.149"
+snafu = "0.8"
+url = "2.5.8"
+uuid = { version = "1", features = ["v4"] }
+
+# technically not required but prevents us from rebuilding smallvec w/ a different feature set
+smallvec = { workspace = true }
+
+[dev-dependencies] # In alphabetical order
+mockito = { version ="1.7", default-features = false }
+parking_lot = "0.12"
+tokio = { version = "1.49", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+test_helpers = { path = "../test_helpers" }

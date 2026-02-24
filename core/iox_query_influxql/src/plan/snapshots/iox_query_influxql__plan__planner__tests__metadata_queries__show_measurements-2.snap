@@ -1,0 +1,6 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SHOW MEASUREMENTS LIMIT 1 OFFSET 2\")"
+---
+Limit: skip=2, fetch=1 [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+  TableScan: measurements [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]

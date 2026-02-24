@@ -1,0 +1,27 @@
+[package]
+name = "object_store_mock"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = { version = "0.1.89", default-features = false }
+bytes = { version = "1.11.0", default-features = false }
+futures = { version = "0.3.31" }
+object_store.workspace = true
+tokio = { version = "1.49.0", default-features = false, features = [
+    "macros",
+    "rt-multi-thread",
+] }
+workspace-hack = { path = "../workspace-hack" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+futures_test_utils = { path = "../futures_test_utils" }
+http-body-util = { workspace = true }
+http.workspace = true

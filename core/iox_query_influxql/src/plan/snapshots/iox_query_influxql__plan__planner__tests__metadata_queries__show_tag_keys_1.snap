@@ -1,0 +1,5 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SHOW TAG KEYS\")"
+---
+TableScan: tag_keys [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8)]

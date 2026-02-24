@@ -10,9 +10,9 @@ workspace = true
 
 [dependencies]
 # core crates
-iox_time.workspace = true
-iox_system_tables.workspace = true
-observability_deps.workspace = true
+iox_time = { path = "../core/iox_time" }
+iox_system_tables = { path = "../core/iox_system_tables" }
+observability_deps = { path = "../core/observability_deps" }
 
 # crates.io deps
 arrow.workspace = true

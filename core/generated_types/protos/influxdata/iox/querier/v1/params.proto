@@ -1,0 +1,22 @@
+syntax = "proto3";
+package influxdata.iox.querier.v1;
+option go_package = "github.com/influxdata/iox/querier/v1";
+
+// A (name, value) pair representing a parameter in a
+// prepared statement / parameterized query
+message QueryParam {
+  string name = 1;
+  // Tagged union of possible param values
+  oneof value {
+    NullValue null = 2;
+    bool boolean = 3;
+    uint64 u_int64 = 4;
+    int64 int64 = 5;
+    double float64 = 6;
+    string string = 7;
+  }
+  // a singleton enum to represent a null value
+  enum NullValue {
+    NULL_VALUE_UNSPECIFIED = 0;
+  }
+}

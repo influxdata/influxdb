@@ -1,0 +1,9 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT MEAN(f64_field, i64_field) FROM data\")"
+---
+rewriting statement
+caused by
+gather information about select statement
+caused by
+Error during planning: invalid number of arguments for mean, expected 1, got 2

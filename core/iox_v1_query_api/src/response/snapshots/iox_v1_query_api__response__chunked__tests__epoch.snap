@@ -1,0 +1,5 @@
+---
+source: iox_v1_query_api/src/response/chunked.rs
+expression: "collect_output_epoch(ChunkedResponseStream::new(vec![statement], 2),\nSome(Precision::Milliseconds)).await"
+---
+{"results":[{"statement_id":0,"series":[{"name":"m1","columns":["time","t1","f1"],"values":[[1000,"t1a",1],[2000,"t1a",2]]}]}]}

@@ -1,0 +1,27 @@
+[package]
+name = "generated_types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies] # In alphabetical order
+pbjson = { workspace = true }
+pbjson-types = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+tonic = { workspace = true, features = ["gzip", "tls-ring", "tls-native-roots", "zstd"] }
+tracing = { workspace = true }
+uuid = { version = "1" }
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies]
+bytes = "1.11"
+
+[build-dependencies] # In alphabetical order
+tonic-build = { workspace = true }
+pbjson-build = { workspace = true }

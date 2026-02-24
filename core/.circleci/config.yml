@@ -1,0 +1,151 @@
+---
+version: 2.1
+
+orbs:
+  aws-s3:    circleci/aws-s3@2.0.0
+  terraform: circleci/terraform@2.1.0
+  rust: circleci/rust@1.6.1
+
+# Unlike when a commit is pushed to a branch, CircleCI does not automatically
+# execute a workflow when a tag is pushed to a repository. These filters
+# allow the corresponding workflow to execute on any branch or tag.
+any_filter: &any_filter
+  filters:
+    tags:
+      only: /.*/
+    branches:
+      only: /.*/
+
+# Consistent Cargo environment configuration
+cargo_env: &cargo_env
+  # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+  CARGO_INCREMENTAL: "0"
+  # Disable full debug symbol generation to speed up CI build
+  # "1" means line tables only, which is useful for panic tracebacks.
+  CARGO_PROFILE_DEV_DEBUG: "1"
+  # https://github.com/rust-lang/cargo/issues/10280
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
+  # average. At peak this is a bit tight, so lower the CPU count for cargo a bit.
+  CARGO_BUILD_JOBS: "12"
+
+
+commands:
+  rust_components:
+    description: Verify installed components
+    steps:
+      - run:
+          name: Activate toolchain
+          command: |
+            rustup toolchain install
+            rustup component add clippy
+            rustup component add rustfmt
+
+      - run:
+          name: Verify installed components
+          command: |
+            rustup --version
+            rustup show
+            cargo fmt --version
+            cargo clippy --version
+
+jobs:
+  fmt:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      <<: *cargo_env
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Rust fmt
+          command: cargo fmt --all -- --check
+
+  lint:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      <<: *cargo_env
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Clippy
+          command: cargo clippy --all-targets --all-features --workspace -- -D warnings
+      - run:
+          name: Yamllint
+          command: yamllint --config-file .circleci/yamllint.yml --strict .
+
+  cargo-audit:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      <<: *cargo_env
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Install cargo-deny
+          command: cargo install cargo-deny --locked
+      - run:
+          name: cargo-deny Checks
+          command: cargo deny check -s
+
+  doc:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: large # use of a smaller executor runs out of memory
+    environment:
+      <<: *cargo_env
+      # Turn warnings into errors
+      RUSTDOCFLAGS: "-D warnings -A rustdoc::private-intra-doc-links"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Cargo doc
+          command: cargo doc --document-private-items --no-deps --workspace
+      - run:
+          name: Compress Docs
+          command: tar -cvzf rustdoc.tar.gz target/doc/
+      - store_artifacts:
+          path: rustdoc.tar.gz
+
+  # Run all tests
+  test:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
+    environment:
+      <<: *cargo_env
+      RUST_BACKTRACE: "1"
+      TARGET: "x86_64-unknown-linux-gnu"  # Define target for PYO3 setup
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - rust_components
+      - run:
+          name: cargo nextest
+          command: |
+            cargo nextest run --workspace --failure-output immediate-final --no-fail-fast
+      - run:
+          name: v3 feature gated tests in schema crate
+          command: |
+            cargo nextest run -p schema -F v3
+
+workflows:
+  version: 2
+  ci:
+    jobs:
+      - fmt:
+          <<: *any_filter
+      - lint:
+          <<: *any_filter
+      - cargo-audit:
+          <<: *any_filter
+      - test:
+          <<: *any_filter
+      - doc:
+          <<: *any_filter

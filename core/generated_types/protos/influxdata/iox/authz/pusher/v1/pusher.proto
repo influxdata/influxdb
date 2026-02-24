@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package influxdata.iox.authz.pusher.v1;
+
+import "google/protobuf/timestamp.proto";
+import "influxdata/iox/authz/v1/authz.proto";
+
+// this is the root schema of the /conf/authz/*.pb files
+message AuthzConfig {
+  optional google.protobuf.Timestamp last_updated_at = 1;
+  repeated Principal principals = 2;
+}
+
+message Principal {
+  oneof identified_by {
+    bytes sha512_hash = 1;
+    // future: jwt subjects or whatnot
+  }
+  repeated influxdata.iox.authz.v1.Permission permissions = 2;
+  optional influxdata.iox.authz.v1.Subject subject = 3;
+}

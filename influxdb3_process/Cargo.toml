@@ -12,7 +12,7 @@ build = "Core"
 
 [dependencies]
 # Core Crates
-iox_time.workspace = true
+iox_time = { path = "../core/iox_time" }
 
 # Crates.io dependencies
 uuid.workspace = true

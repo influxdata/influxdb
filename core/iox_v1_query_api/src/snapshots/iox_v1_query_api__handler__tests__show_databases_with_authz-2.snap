@@ -1,0 +1,6 @@
+---
+source: iox_v1_query_api/src/handler.rs
+description: SHOW DATABASES -- should return mop database after adding to authz
+expression: res
+---
+{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["foo"],["bar"],["mop"]]}]}]}

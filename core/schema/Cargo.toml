@@ -1,0 +1,29 @@
+[package]
+name = "schema"
+description = "IOx Schema definition"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+base64 = { version = "0.22", optional = true }
+hashbrown = { workspace = true }
+indexmap = { version = "2.13", features = ["std"] }
+tracing = { workspace = true }
+snafu = "0.8"
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies]
+rstest = { version = "0.26.1" }
+
+[features]
+# Enable features from the newly proposed v3 data model, see:
+# https://github.com/influxdata/influxdb/issues/24979
+#
+# This feature is experimental, and is not enabled by default.
+v3 = ["dep:base64"]

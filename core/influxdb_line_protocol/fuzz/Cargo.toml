@@ -1,0 +1,24 @@
+[package]
+name = "influxdb_line_protocol_fuzz"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+influxdb-line-protocol = { path = ".." }
+workspace-hack = { path = "../../workspace-hack" }
+
+[[bin]]
+name = "parsing_errors"
+path = "fuzz_targets/parsing_errors.rs"
+test = false
+doc = false

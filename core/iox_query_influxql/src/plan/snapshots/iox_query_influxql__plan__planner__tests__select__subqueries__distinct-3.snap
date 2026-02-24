@@ -1,0 +1,14 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu\")"
+---
+Sort: cpu AS cpu ASC NULLS LAST, time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, cpu AS cpu, max AS max [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+    Sort: cpu AS cpu ASC NULLS LAST, time ASC NULLS LAST [time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+      Projection: get_field(selector_max(value,time), Utf8("time")) AS time, cpu AS cpu, get_field(selector_max(value,time), Utf8("value")) AS max [time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+        Aggregate: groupBy=[[cpu]], aggr=[[selector_max(value, time)]] [cpu:Dictionary(Int32, Utf8);N, selector_max(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+          Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+            Distinct: [time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+              Projection: TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, cpu.usage_idle AS value [time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                Filter: cpu.usage_idle IS NOT NULL [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]

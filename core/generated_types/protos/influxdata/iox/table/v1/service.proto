@@ -1,0 +1,266 @@
+syntax = "proto3";
+package influxdata.iox.table.v1;
+option go_package = "github.com/influxdata/iox/table/v1";
+
+import "influxdata/iox/partition_template/v1/template.proto";
+import "influxdata/iox/catalog_storage/v1/service.proto";
+import "influxdata/iox/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service TableService {
+  // Get tables within a namespace
+  rpc GetTables(GetTablesRequest) returns (GetTablesResponse);
+
+  // Get a table within a namespace
+  rpc GetTable(GetTableRequest) returns (GetTableResponse);
+
+  // Get tables with storage within a namespace
+  rpc GetTablesWithStorage(GetTablesWithStorageRequest) returns (GetTablesWithStorageResponse);
+
+  // Get a table with storage within a namespace
+  rpc GetTableWithStorage(GetTableWithStorageRequest) returns (GetTableWithStorageResponse);
+
+  // Create a table in a namespace
+  rpc CreateTable(CreateTableRequest) returns (CreateTableResponse);
+
+  // Enable iceberg for a table within a namespace.
+  //
+  // NOTE: Enabling iceberg does NOT provision any infrastructure.
+  //
+  // It simply updates a column in the catalog, but means that the iceberg
+  // exporter is aware of the table being configured for an export.
+  rpc EnableIceberg(EnableIcebergRequest) returns (EnableIcebergResponse);
+
+  // Disable iceberg for a table within a namespace.
+  rpc DisableIceberg(DisableIcebergRequest) returns (DisableIcebergResponse);
+
+  // Delete a table - or, more specifically, mark it as soft-deleted
+  rpc DeleteTable(DeleteTableRequest) returns (DeleteTableResponse);
+
+  // Rename a table
+  rpc RenameTable(RenameTableRequest) returns (RenameTableResponse);
+
+  // Undelete a table
+  rpc UndeleteTable(UndeleteTableRequest) returns (UndeleteTableResponse);
+}
+
+message CreateTableRequest {
+  // Name of the table to be created
+  string name = 1;
+
+  oneof namespace_target {
+    // Name of the namespace to create the table in
+    string namespace_name = 2;
+    // ID of the namespace to create the table in
+    int64 namespace_id = 4;
+  }
+
+  // Partitioning scheme to use for writes to this table. If not specified, the
+  // namespace's partition template will be used.
+  //
+  // Any use of "tag_value" template parts will cause the named column schema to
+  // be set as "tag" as part of this request.
+  optional influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 3;
+}
+
+message CreateTableResponse {
+  Table table = 1;
+}
+
+message Table {
+  // Table ID
+  int64 id = 1;
+
+  // Name of the Table
+  string name = 2;
+
+  // Namespace ID
+  int64 namespace_id = 3;
+
+  // The partitioning scheme applied to writes for this table
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 4;
+
+  // Whether this table has iceberg exports enabled.
+  bool iceberg_enabled = 5;
+
+  // The point in time at which this table was deleted, if it was ever deleted
+  optional google.protobuf.Timestamp deleted_at = 6;
+}
+
+enum TableStatusFilter {
+  TABLE_STATUS_FILTER_UNSPECIFIED = 0;
+  TABLE_STATUS_FILTER_ACTIVE = 1;
+  TABLE_STATUS_FILTER_DELETED = 2;
+}
+
+message TableStatusFilterList {
+  repeated TableStatusFilter inner = 1;
+}
+
+message GetTablesRequest {
+  oneof target {
+    // Name of the namespace to list tables for.
+    string namespace_name = 1 [deprecated = true];
+    // The unique ID of the namespace to list tables for.
+    int64 namespace_id = 2;
+  };
+
+  // How to filter deleted tables in the response of this request
+  // If there is nothing in this field, the returned tables aren't filtered at all;
+  // everything is returned.
+  // If there are items in this field, however, the only tables that are returned
+  // are those whose statuses are contained in this field.
+  //
+  // So, by default, no filtering is done.
+  //
+  // But if someone specified [Active, Deleted] in this field, that would return all
+  // tables which are either active or deleted. At time of writing, that includes all
+  // tables that can exist. However, at some point in the future, we may want to extend
+  // the granularity of this endpoint and allow customers to see all tables that are in
+  // the process of being deleted, or maybe all tables that are in the process of being
+  // created, or maybe we'll need to add some other status like 'hidden'. Who knows.
+  //
+  // With the `SoftDeleted` method of filtering, adding more statuses would cause
+  // exponential blowup with the number of variants that could occur, since we'd want to
+  // support any combination of statuses. With this, however, that extension becomes way
+  // easier and more backwards-compatible.
+  //
+  // We also want this to be, essentialy, an optional list because it allows us to be
+  // be sure that the client is always explicitly specifying their list of filters. If
+  // they leave a repeated field unspecified, we can't tell whether they just don't know
+  // about the filters or if they explicitly want no filters. But making it an optional
+  // allows us to force people to specify their filters, which is very nice for ensuring
+  // everyone is doing what they want.
+  //
+  // It also, for now, allows us to keep backwards-compatibilty, which is important.
+  optional TableStatusFilterList filters = 3;
+}
+message GetTableRequest {
+  oneof namespace_target {
+    // Name of the namespace to get a table from.
+    string namespace_name = 1 [deprecated = true];
+    // The unique ID of the namespace to get a table from.
+    int64 namespace_id = 3;
+  }
+
+  oneof table_target {
+    // Name of the table to get from namespace
+    string table_name = 2 [deprecated = true];
+    // ID of the table to get from namespace
+    int64 table_id = 4;
+  }
+}
+
+message GetTablesResponse {
+  // Tables contained within the namespace.
+  repeated Table tables = 1;
+}
+
+message GetTableResponse {
+  // Table contained within a namespace
+  Table table = 1;
+}
+
+// Request to get a list of tables with storage in a namespace.
+message GetTablesWithStorageRequest {
+  // ID of the namespace for which tables are listed.
+  int64 namespace_id = 1;
+
+  // Field to sort by
+  optional influxdata.iox.catalog_storage.v1.TableSortField sort_field = 2;
+
+  // Direction in which to sort
+  optional influxdata.iox.catalog_storage.v1.SortDirection sort_direction = 3;
+
+  // Number of records to include per page
+  optional int32 page_size = 4;
+
+  // Page number to retrieve
+  optional int32 page_number = 5;
+
+  // Filter by soft-deleted status
+  // If not specified, only the active tables are returned
+  optional influxdata.iox.common.v1.SoftDeleted deleted = 6;
+
+  // Filter tables by name (case-insensitive partial match)
+  // If provided, only tables with names containing this string are returned
+  optional string name_filter = 7;
+
+  // Filter tables by ID (partial match)
+  // If provided, only tables with IDs containing this string are returned
+  optional string id_filter = 8;
+}
+
+// Request to get a specific table with storage.
+message GetTableWithStorageRequest {
+  // ID of the table to get from namespace.
+  int64 table_id = 1;
+
+  // Filter by soft-deleted status
+  // If not specified, only the active table is returned
+  optional influxdata.iox.common.v1.SoftDeleted deleted = 2;
+}
+
+// Response containing a list of tables with storage.
+message GetTablesWithStorageResponse {
+  repeated influxdata.iox.catalog_storage.v1.TableWithStorage tables_with_storage = 1;
+
+  // The total number of items in the unpaged data set
+  int64 total = 2;
+
+  // The total number of pages available
+  int64 pages = 3;
+}
+
+// Response containing details of a specific table with storage.
+message GetTableWithStorageResponse {
+  influxdata.iox.catalog_storage.v1.TableWithStorage table_with_storage = 1;
+}
+
+// Request to enable iceberg exports for the given table.
+message EnableIcebergRequest {
+  int64 table_id = 1;
+  int64 namespace_id = 2;
+}
+
+message EnableIcebergResponse {}
+
+// Request to disable iceberg exports for the given table.
+message DisableIcebergRequest {
+  int64 table_id = 1;
+  int64 namespace_id = 2;
+}
+
+message DisableIcebergResponse {}
+
+message DeleteTableRequest {
+  int64 table_id = 1;
+  // ID of the namespace this table is in. If not specified, the request may be slower as it will
+  // need to do more lookups.
+  int64 namespace_id = 2;
+}
+
+message DeleteTableResponse {
+  Table table = 1;
+}
+
+message RenameTableRequest {
+  int64 table_id = 1;
+  string new_name = 2;
+  // ID of the namespace this table is in. If not specified, the request may be slower as it will
+  // need to do more lookups.
+  int64 namespace_id = 3;
+}
+
+message RenameTableResponse {
+  Table table = 1;
+}
+
+message UndeleteTableRequest {
+  int64 table_id = 1;
+  int64 namespace_id = 2;
+}
+
+message UndeleteTableResponse {
+  Table table = 1;
+}

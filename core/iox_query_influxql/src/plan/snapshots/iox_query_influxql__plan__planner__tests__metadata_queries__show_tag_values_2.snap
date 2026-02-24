@@ -1,0 +1,11 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SHOW TAG VALUES WITH KEY = bar LIMIT 1 OFFSET 2\")"
+---
+SeriesLimit: series=[iox::measurement, key], order=[value ASC NULLS LAST], limit_expr=[value RESPECT NULLS (default: Dictionary(Int32, Utf8(NULL)))], skip=UInt64(2), fetch=UInt64(1) [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+  Sort: iox::measurement ASC NULLS LAST, key ASC NULLS LAST, value ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+    Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+      Distinct: [bar:Dictionary(Int32, Utf8);N]
+        Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
+          Filter: data.time >= TimestampNanosecond(1672444800000000000, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
