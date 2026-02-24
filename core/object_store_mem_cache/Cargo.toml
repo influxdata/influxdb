@@ -1,0 +1,40 @@
+[package]
+name = "object_store_mem_cache"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = { version = "0.1.89", default-features = false }
+bincode.workspace = true
+bytes = { version = "1.11.0", default-features = false }
+dashmap = "6.1.0"
+data_types = { path = "../data_types" }
+futures = { version = "0.3.31" }
+http = { workspace = true }
+indexmap = { version = "2.13", features = ["std"] }
+iox_time = { path = "../iox_time" }
+linear_buffer = { path = "../linear_buffer" }
+metric = { path = "../metric" }
+object_store.workspace = true
+object_store_metrics = { path = "../object_store_metrics" }
+object_store_mock = { path = "../object_store_mock" }
+object_store_size_hinting = { path = "../object_store_size_hinting" }
+tracing = { workspace = true }
+tokio = { version = "1.49.0", default-features = false }
+tracker = { path = "../tracker" }
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies]
+clap = { version = "4", features = ["derive"] }
+futures-concurrency = "7"
+futures_test_utils = { path = "../futures_test_utils" }
+rand = "0.9.2"
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "s3_fifo_concurrency"
+harness = false

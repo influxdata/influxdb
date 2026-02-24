@@ -1,0 +1,9 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT LOG(usage_idle) FROM cpu\")"
+---
+rewriting statement
+caused by
+gather information about select statement
+caused by
+Error during planning: invalid number of arguments for log, expected 2, got 1

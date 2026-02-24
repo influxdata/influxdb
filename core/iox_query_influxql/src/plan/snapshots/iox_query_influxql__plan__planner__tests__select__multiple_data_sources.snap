@@ -1,0 +1,24 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+assertion_line: 4866
+expression: "plan(\"SELECT last(a) / last(b) FROM (SELECT mean(usage_idle) AS a FROM cpu), (SELECT mean(usage_user) AS b FROM cpu)\")"
+---
+Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last_last:Float64;N]
+  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, CASE WHEN get_field(selector_last(b,time), Utf8("value")) = Float64(0) AND get_field(selector_last(a,time), Utf8("value")) IS NOT NULL THEN Float64(0) ELSE get_field(selector_last(a,time), Utf8("value")) / get_field(selector_last(b,time), Utf8("value")) END AS last_last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last_last:Float64;N]
+    Filter: __aggr_count > Int64(0) [selector_last(b,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, selector_last(a,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, __aggr_count:Int64]
+      Aggregate: groupBy=[[]], aggr=[[selector_last(b, time), selector_last(a, time), count(Int64(1)) AS __aggr_count]] [selector_last(b,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, selector_last(a,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, __aggr_count:Int64]
+        Union [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+          Projection: a AS a, CAST(NULL FieldMetadata { inner: {"influxql::filled": "true"} } AS Float64) AS b, time AS time [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+            Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), a:Float64;N]
+              Projection: TimestampNanosecond(0, None) AS time, avg(cpu.usage_idle) AS a [time:Timestamp(Nanosecond, None), a:Float64;N]
+                Filter: __aggr_count > Int64(0) [avg(cpu.usage_idle):Float64;N, __aggr_count:Int64]
+                  Aggregate: groupBy=[[]], aggr=[[avg(cpu.usage_idle), count(Int64(1)) AS __aggr_count]] [avg(cpu.usage_idle):Float64;N, __aggr_count:Int64]
+                    Filter: cpu.usage_idle IS NOT NULL [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+          Projection: CAST(NULL FieldMetadata { inner: {"influxql::filled": "true"} } AS Float64) AS a, b AS b, time AS time [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+            Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), b:Float64;N]
+              Projection: TimestampNanosecond(0, None) AS time, avg(cpu.usage_user) AS b [time:Timestamp(Nanosecond, None), b:Float64;N]
+                Filter: __aggr_count > Int64(0) [avg(cpu.usage_user):Float64;N, __aggr_count:Int64]
+                  Aggregate: groupBy=[[]], aggr=[[avg(cpu.usage_user), count(Int64(1)) AS __aggr_count]] [avg(cpu.usage_user):Float64;N, __aggr_count:Int64]
+                    Filter: cpu.usage_user IS NOT NULL [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]

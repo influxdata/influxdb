@@ -1,0 +1,6 @@
+---
+source: iox_v1_query_api/src/handler.rs
+description: SHOW RETENTION POLICIES -- on handler with SHOW RETENTION POLICIES _not_ enabled
+expression: res
+---
+{"results":[{"statement_id":0,"error":"Database foo not found"}]}

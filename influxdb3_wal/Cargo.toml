@@ -7,11 +7,11 @@ license.workspace = true
 
 [dependencies]
 # Core crates
-data_types.workspace = true
-iox_time.workspace = true
-influxdb-line-protocol = { workspace = true }
-observability_deps.workspace = true
-schema.workspace =  true
+data_types = { path = "../core/data_types" }
+iox_time = { path = "../core/iox_time" }
+influxdb-line-protocol = { path = "../core/influxdb_line_protocol" }
+observability_deps = { path = "../core/observability_deps" }
+schema = { path = "../core/schema" }
 
 # Local Crates
 influxdb3_id = { path = "../influxdb3_id" }

@@ -1,0 +1,46 @@
+[package]
+name = "data_types"
+description = "Shared data types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+arrow-buffer = { workspace = true }
+bytes = "1.11"
+chrono = { version = "0.4", default-features = false }
+croaring = "2.5.2"
+influxdb-line-protocol = { path = "../influxdb_line_protocol" }
+iox_time = { path = "../iox_time" }
+generated_types = { path = "../generated_types" }
+murmur3 = "0.5.2"
+tracing = { workspace = true }
+ordered-float = "5"
+percent-encoding = "2.3.2"
+prost = { workspace = true }
+schema = { path = "../schema" }
+serde_json = "1.0"
+siphasher = "1.0"
+sha2 = { version = "0.10", default-features = false }
+snafu = "0.8"
+sqlx = { workspace = true, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+] }
+thiserror = "2.0.18"
+uuid = { version = "1", features = ["v4"] }
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+assert_matches = "1"
+hex = "0.4.3"
+paste = "1.0.15"
+proptest = { workspace = true }
+rand = "0.9"
+test_helpers = { path = "../test_helpers" }

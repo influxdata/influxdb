@@ -1,0 +1,20 @@
+[package]
+name = "object_store_size_hinting"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+http = { workspace = true }
+object_store.workspace = true
+workspace-hack = { path = "../workspace-hack" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+chrono = { version = "0.4", default-features = false }
+object_store_mock = { path = "../object_store_mock" }

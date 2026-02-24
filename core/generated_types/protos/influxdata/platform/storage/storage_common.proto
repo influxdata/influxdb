@@ -1,0 +1,353 @@
+// This file defines the InfluxDB storage gRPC message types (how the rest of influxdb /
+// flux / influxql talk to the storage system)
+//
+// Copy/pasted, as closely as verbatim as possible, from
+// https://github.com/influxdata/influxdb/blob/master/storage/reads/datatypes/storage_common.proto
+
+syntax = "proto3";
+package influxdata.platform.storage;
+
+import "google/protobuf/any.proto";
+import "influxdata/platform/storage/predicate.proto";
+import "influxdata/platform/storage/source.proto";
+
+
+message OffsetsResponse {
+    message PartitionOffsetResponse {
+        int64 id = 1;
+        int64 offset = 2;
+    }
+    repeated PartitionOffsetResponse partitions = 1;
+}
+
+enum TagKeyMetaNames {
+  // option (gogoproto.goproto_enum_prefix) = false;
+
+  // TagKeyMetaNamesText means the tag keys for measurement and field will
+  // be returned as _measurement and _field respectively.
+  TagKeyMetaNamesText = 0;
+
+  // TagKeyMetaNames means the tag keys for measurement and field will
+  // be returned as \x00 and \xff respectively.
+  TagKeyMetaNamesBinary = 1;
+}
+
+message ReadFilterRequest {
+  google.protobuf.Any ReadSource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+  // KeySort determines the ordering of series keys from the server.
+  KeySort key_sort = 4;
+
+  // TagKeyMetaNames determines the key format used for the measurement and field
+  // tags.
+  TagKeyMetaNames tag_key_meta_names = 5;
+
+  enum KeySort {
+    // option (gogoproto.goproto_enum_prefix) = false;
+
+    // KeySortUnspecified means the key order is unspecified.
+    KeySortUnspecified = 0;
+
+    // KeySortAscending means the key order should be lexicographically ascending.
+    //
+    // NOTE: In order to preserve sort order, canonical tag keys are not
+    // transformed from 0x00 → _measurement and 0xff → _field.
+    KeySortAscending = 1;
+  }
+}
+
+message ReadGroupRequest {
+  google.protobuf.Any ReadSource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+
+  enum Group {
+    // option (gogoproto.goproto_enum_prefix) = false;
+
+    // GroupNone returns all series as a single group.
+    // The single GroupFrame.TagKeys will be the union of all tag keys.
+    GroupNone = 0;
+
+    // GroupBy returns a group for each unique value of the specified GroupKeys.
+    GroupBy = 2;
+  }
+
+  // GroupKeys specifies a list of tag keys used to order the data.
+  // It is dependent on the Group property to determine its behavior.
+  repeated string GroupKeys = 4;
+
+  Group group = 5;
+  Aggregate aggregate = 6;
+
+  // Deprecated field only used in TSM storage-related tests.
+  reserved "Hints";
+}
+
+message Aggregate {
+  enum AggregateType {
+    AggregateTypeNone = 0;
+    AggregateTypeSum = 1;
+    AggregateTypeCount = 2;
+    AggregateTypeMin = 3;
+    AggregateTypeMax = 4;
+    AggregateTypeFirst = 5;
+    AggregateTypeLast = 6;
+    AggregateTypeMean = 7;
+  }
+
+  AggregateType type = 1;
+
+  // additional arguments?
+}
+
+message Tag {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// Response message for ReadFilter and ReadGroup
+message ReadResponse {
+  enum FrameType {
+    FrameTypeSeries = 0;
+    FrameTypePoints = 1;
+  }
+
+  enum DataType {
+    DataTypeFloat = 0;
+    DataTypeInteger = 1;
+    DataTypeUnsigned = 2;
+    DataTypeBoolean = 3;
+    DataTypeString = 4;
+  }
+
+  message Frame {
+    oneof data {
+      GroupFrame group = 7;
+      SeriesFrame series = 1;
+      FloatPointsFrame FloatPoints = 2;
+      IntegerPointsFrame IntegerPoints = 3;
+      UnsignedPointsFrame UnsignedPoints = 4;
+      BooleanPointsFrame BooleanPoints = 5;
+      StringPointsFrame StringPoints = 6;
+    }
+  }
+
+  message GroupFrame {
+    // TagKeys
+    repeated bytes TagKeys = 1;
+    // PartitionKeyVals is the values of the partition key for this group, order matching ReadGroupRequest.GroupKeys
+    repeated bytes PartitionKeyVals = 2;
+  }
+
+  message SeriesFrame {
+    repeated Tag tags = 1; // [(gogoproto.nullable) = false];
+    DataType data_type = 2;
+  }
+
+  message FloatPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated double values = 2;
+  }
+
+  message IntegerPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated int64 values = 2;
+  }
+
+  message UnsignedPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated uint64 values = 2;
+  }
+
+  message BooleanPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated bool values = 2;
+  }
+
+  message StringPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated string values = 2;
+  }
+
+  repeated Frame frames = 1; // [(gogoproto.nullable) = false];
+}
+
+message Capability {
+  // Features contains the specific features supported
+  // by this capability.
+  repeated string features = 1;
+}
+
+message CapabilitiesResponse {
+  // Capabilities contains the set of capabilities supported
+  // by the storage engine. It is a map of method names to
+  // the detailed capability information for the method.
+  map<string, Capability> caps = 1;
+}
+
+// Specifies a continuous range of nanosecond timestamps.
+message TimestampRange {
+  // Start defines the inclusive lower bound.
+  int64 start = 1;
+
+  // End defines the exclusive upper bound.
+  int64 end = 2;
+}
+
+// TagKeysRequest is the request message for Storage.TagKeys.
+message TagKeysRequest {
+  google.protobuf.Any TagsSource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+}
+
+// TagValuesRequest is the request message for Storage.TagValues.
+message TagValuesRequest {
+  google.protobuf.Any TagsSource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+  bytes tag_key = 4;
+}
+
+message ReadSeriesCardinalityRequest {
+  google.protobuf.Any ReadSeriesCardinalitySource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+}
+
+// Response message for Storage.TagKeys, Storage.TagValues Storage.MeasurementNames,
+// Storage.MeasurementTagKeys and Storage.MeasurementTagValues.
+message StringValuesResponse {
+  repeated bytes values = 1;
+}
+
+// Response message for Storage.TagValuesGroupedByMeasurementAndTagKey.
+message TagValuesResponse {
+  string measurement = 1;
+  string key = 2;
+  repeated string values = 3;
+}
+
+// Response message for Storage.SeriesCardinality
+message Int64ValuesResponse {
+  repeated int64 values = 1;
+}
+
+// MeasurementNamesRequest is the request message for Storage.MeasurementNames.
+message MeasurementNamesRequest {
+  google.protobuf.Any source = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+}
+
+// MeasurementTagKeysRequest is the request message for Storage.MeasurementTagKeys.
+message MeasurementTagKeysRequest {
+  google.protobuf.Any source = 1;
+  string measurement = 2;
+  TimestampRange range = 3; // [(gogoproto.nullable) = false];
+  Predicate predicate = 4;
+}
+
+// MeasurementTagValuesRequest is the request message for Storage.MeasurementTagValues.
+message MeasurementTagValuesRequest {
+  google.protobuf.Any source = 1;
+  string measurement = 2;
+  string tag_key = 3;
+  TimestampRange range = 4; // [(gogoproto.nullable) = false];
+  Predicate predicate = 5;
+}
+
+// MeasurementFieldsRequest is the request message for Storage.MeasurementFields.
+message MeasurementFieldsRequest {
+  google.protobuf.Any source = 1;
+  string measurement = 2;
+  TimestampRange range = 3; // [(gogoproto.nullable) = false];
+  Predicate predicate = 4;
+}
+
+// MeasurementFieldsResponse is the response message for Storage.MeasurementFields.
+message MeasurementFieldsResponse {
+  enum FieldType {
+    FieldTypeFloat = 0;
+    FieldTypeInteger = 1;
+    FieldTypeUnsigned = 2;
+    FieldTypeString = 3;
+    FieldTypeBoolean = 4;
+    FieldTypeUndefined = 5;
+  }
+
+  message MessageField {
+    string key = 1;
+    FieldType type = 2;
+    sfixed64 timestamp = 3;
+  }
+
+  repeated MessageField fields = 1; // [(gogoproto.nullable) = false];
+}
+
+message ReadWindowAggregateRequest {
+  google.protobuf.Any ReadSource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+  int64 WindowEvery = 4;
+  int64 Offset = 6;
+  repeated Aggregate aggregate = 5;
+  Window window = 7;
+  // TagKeyMetaNames determines the key format used for the measurement and field
+  // tags.
+  TagKeyMetaNames tag_key_meta_names = 8;
+}
+
+message TagValuesGroupedByMeasurementAndTagKeyRequest {
+  google.protobuf.Any source = 1;
+
+  // MeasurementPatterns holds the patterns to match the measurements
+  // against (the "FROM" part of the SHOW TAG VALUES statement).
+  repeated LiteralOrRegex MeasurementPatterns = 2;
+
+  // TagKeyPredicate holds a predicate for the tags to find values on.
+  // (the "WITH KEY" part of the SHOW TAG VALUES statement.
+  // It's in one of the forms:
+  //  OR(IDENT, OR(IDENT, ...))
+  //  EQ(IDENT)
+  //  NEQ(IDENT)
+  //  EQREGEX(REGEX)
+  //  NEQREGEX(REGEX)
+  TagKeyPredicate TagKeyPredicate = 3;
+
+  // Condition holds any additional condition to evaluate on the results.
+  Predicate Condition = 4;
+}
+
+message TagKeyPredicate {
+  oneof value {
+    string Eq = 1;
+    string Neq = 2;
+    string EqRegex = 3;
+    string NeqRegex = 4;
+    StringList In = 5;
+  }
+}
+
+message StringList {
+  repeated string Vals = 1;
+}
+
+message LiteralOrRegex {
+  oneof value {
+    string literal_value = 1;
+    string regex_value = 2;
+  }
+}
+
+message Window {
+  Duration every = 1;
+  Duration offset = 2;
+}
+
+message Duration {
+  int64 nsecs = 1;
+  int64 months = 2;
+  bool negative = 3;
+}

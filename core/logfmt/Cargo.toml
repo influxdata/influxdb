@@ -1,0 +1,22 @@
+[package]
+name = "logfmt"
+description = "tracing_subscriber layer for writing out logfmt formatted events"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies] # In alphabetical order
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+humantime = "2.3.0"
+unicode-segmentation = "1.12.0"
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+parking_lot = "0.12"
+regex = "1"
+tracing-subscriber = { workspace = true }

@@ -1,0 +1,35 @@
+[package]
+name = "iox_query_influxql"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+assert_matches = "1"
+async-trait = { version = "0.1.89", default-features = false }
+chrono-tz = { version = "0.10" }
+datafusion = { workspace = true }
+datafusion_util = { path = "../datafusion_util" }
+generated_types = { path = "../generated_types" }
+influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
+iox_query = { path = "../iox_query" }
+iox_query_params = { path = "../iox_query_params" }
+itertools = "0.13.0"
+tracing = { workspace = true }
+predicate = { path = "../predicate" }
+query_functions = { path = "../query_functions" }
+regex = "1"
+schema = { path = "../schema" }
+serde_json = "1.0.149"
+thiserror = "2.0"
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+chrono = { version = "0.4", default-features = false }
+insta = { version = "1", features = ["yaml"] }
+test_helpers = { path = "../test_helpers" }

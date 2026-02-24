@@ -1,0 +1,33 @@
+# HELP grpc_request_duration_seconds distribution of request latencies
+# TYPE grpc_request_duration_seconds histogram
+grpc_request_duration_seconds_sum{path="/arrow.flight.protocol.FlightService/DoGet",status="client_error"} 0.000095542
+grpc_request_duration_seconds_count{path="/arrow.flight.protocol.FlightService/DoGet",status="client_error"} 2
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.001"} 0
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.0025"} 0
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.005"} 7411
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.01"} 7876
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.025"} 7986
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.05"} 7987
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.1"} 7987
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.25"} 7987
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="0.5"} 7987
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="1"} 7987
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="2.5"} 7987
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="5"} 7987
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="10"} 7987
+grpc_request_duration_seconds_bucket{path="/arrow.flight.protocol.FlightService/DoGet",status="ok",le="inf"} 7987
+# HELP grpc_requests_total accumulated total requests
+# TYPE grpc_requests_total counter
+grpc_requests_total{path="/arrow.flight.protocol.FlightService/DoGet",status="aborted"} 42
+grpc_requests_total{path="/arrow.flight.protocol.FlightService/DoGet",status="client_error"} 2
+grpc_requests_total{path="/arrow.flight.protocol.FlightService/DoGet",status="ok"} 7987
+grpc_requests_total{path="/arrow.flight.protocol.FlightService/DoGet",status="server_error"} 0
+grpc_requests_total{path="/arrow.flight.protocol.FlightService/DoGet",status="unexpected_response"} 0
+# HELP jemalloc_memstats_bytes jemalloc metrics - http://jemalloc.net/jemalloc.3.html#stats.active
+# TYPE jemalloc_memstats_bytes gauge
+jemalloc_memstats_bytes{stat="active"} 147456
+jemalloc_memstats_bytes{stat="alloc"} 104448
+jemalloc_memstats_bytes{stat="metadata"} 2992152
+jemalloc_memstats_bytes{stat="mapped"} 8536064
+jemalloc_memstats_bytes{stat="resident"} 3047424
+jemalloc_memstats_bytes{stat="retained"} 0

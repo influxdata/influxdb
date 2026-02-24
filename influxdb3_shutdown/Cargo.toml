@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 # influxdb3_core dependencies
-iox_time.workspace = true
-observability_deps.workspace = true
+iox_time = { path = "../core/iox_time" }
+observability_deps = { path = "../core/observability_deps" }
 
 # crates.io dependencies
 futures.workspace = true

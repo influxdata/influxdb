@@ -1,0 +1,74 @@
+syntax = "proto3";
+package influxdata.iox.partition_template.v1;
+option go_package = "github.com/influxdata/iox/partition_template/v1";
+
+// A partitioning template describes how data is split into IOx partitions in
+// the ingest pipeline.
+message PartitionTemplate {
+  // One or more partitioning template parts.
+  //
+  // Each template part is evaluated in sequence, concatinating the final
+  // partition key from the output of each part, delimited by the partition
+  // key delimiter `|`.
+  //
+  // For example, using the partition template below:
+  //
+  // ```text
+  //      [
+  //          TemplatePart::TimeFormat("%Y"),
+  //          TemplatePart::TagValue("a"),
+  //          TemplatePart::TagValue("b"),
+  //          TemplatePart::Bucket("c", 10)
+  //      ]
+  // ```
+  //
+  // The following partition keys are derived:
+  //
+  //   * `time=2023-01-01, a=bananas, b=plátanos, c=ananas`   -> `2023|bananas|plátanos|5`
+  //   * `time=2023-01-01, b=plátanos`                        -> `2023|!|plátanos|!`
+  //   * `time=2023-01-01, another=cat, b=plátanos`           -> `2023|!|plátanos|!`
+  //   * `time=2023-01-01`                                    -> `2023|!|!|!`
+  //   * `time=2023-01-01, a=cat|dog, b=!, c=!`               -> `2023|cat%7Cdog|%21|8`
+  //   * `time=2023-01-01, a=%50, c=%50`                      -> `2023|%2550|!|9`
+  //   * `time=2023-01-01, a=, c=`                            -> `2023|^|!|0`
+  //   * `time=2023-01-01, a=<long string>`                   -> `2023|<long string>#|!|!`
+  //   * `time=2023-01-01, c=<long string>`                   -> `2023|!|!|<bucket ID for untruncated long string>`
+  //
+  // When using the default partitioning template (YYYY-MM-DD) there is no
+  // encoding necessary, as the derived partition key contains a single part, and
+  // no reserved characters. [`TemplatePart::Bucket`] parts by definition will
+  // always be within the part length limit and contain no restricted characters
+  // so are also not percent-encoded and/or truncated.
+  repeated TemplatePart parts = 1;
+}
+
+// A sub-part of a PartitionTemplate.
+message TemplatePart {
+  oneof part {
+    // A tag value matcher extracts a string value from the specified tag 
+    // name.
+    //
+    // If a row does not contain a value for the specified tag name, the
+    // NULL/missing partition key part `!` is rendered.
+    string tag_value = 1;
+
+    // A time format matcher accepts a "strftime"-like format string and
+    // evaluates it against the "time" column.
+    string time_format = 2;
+
+    // A bucketing matcher that sorts data through a uniform hash function on
+    // the values of the given tag name.
+    //
+    // If a row does not contain a value for the specified tag name, the
+    // NULL/missing partition key part `!` is rendered.
+    Bucket bucket = 3;
+  }
+}
+
+// A hash-bucketing sub-part of a PartitionTemplate. 
+message Bucket {
+  // The name of the tag used to derive the bucket the data belongs in.
+  string tag_name = 1;
+  // The number of buckets tag values are distributed across.
+  uint32 num_buckets = 2;
+}

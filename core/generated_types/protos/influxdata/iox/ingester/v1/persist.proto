@@ -1,0 +1,27 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v1;
+option go_package = "github.com/influxdata/iox/ingester/v1";
+
+service PersistService {
+  // The Persist RPC call requests an immediate persistence of all buffed data
+  // for a given namespace, blocking until the data is persisted.
+  //
+  // This endpoint persists the data not currently being persisted in the buffer
+  // for the namespace at the time of the call (if any) and then returns once
+  // the persist job is complete - it does not account for outstanding persist
+  // jobs for the same namespace (which may complete out of order).
+  //
+  // Currently this API endpoint is for internal / experimental use and is
+  // subject to change / removal. Multiple and/or concurrent calls to this
+  // method, invoking it whilst there are outstanding persist operations, or
+  // concurrently calling it with writes you expect to be persisted MAY result
+  // in strange (non-deterministic) behaviour.
+  rpc Persist(PersistRequest) returns (PersistResponse);
+}
+
+message PersistRequest {
+  // The namespace to persist
+  string namespace = 1;
+}
+
+message PersistResponse {}

@@ -1,0 +1,23 @@
+[package]
+name = "iox_query_params"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+datafusion = { workspace = true }
+generated_types = { path = "../generated_types" }
+tracing = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies]
+assert_matches = "1"
+

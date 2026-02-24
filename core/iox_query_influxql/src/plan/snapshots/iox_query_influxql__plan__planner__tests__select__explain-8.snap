@@ -1,0 +1,6 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"EXPLAIN SHOW RETENTION POLICIES\")"
+---
+Explain [plan_type:Utf8, plan:Utf8]
+  TableScan: retention policies [iox::measurement:Dictionary(Int32, Utf8), name:Utf8, duration:Utf8, shardGroupDuration:Utf8, replicaN:Int64, default:Boolean]

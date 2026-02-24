@@ -1,0 +1,115 @@
+syntax = "proto3";
+package influxdata.iox.gossip.v1;
+option go_package = "github.com/influxdata/iox/gossip/v1";
+
+import "google/protobuf/timestamp.proto";
+import "influxdata/iox/column_type/v1/type.proto";
+import "influxdata/iox/partition_template/v1/template.proto";
+
+// A message exchanged via the IOx gossip mechanism describing schema changes.
+message SchemaMessage {
+  // Namespace creation events live inside messages for a different topic now.
+  reserved 1;
+  reserved "namespace_created";
+
+  oneof event {
+    // A new table was created.
+    TableCreated table_created = 2;
+
+    // One or more new columns were added to an existing table.
+    TableUpdated table_updated = 3;
+
+    // A table was dropped
+    TableDropped table_dropped = 4;
+  }
+
+  // Wall-clock time when this consistency probe was enqueued for broadcast
+  // by the sending node.
+  //
+  // Clock-skew yada yada applies to any calculations done by nodes in receipt
+  // of the message.
+  google.protobuf.Timestamp sent_at = 15;
+}
+
+// An incremental/differential addition to an existing table.
+//
+// If the receiving peer does not know of the table being updated, this is a
+// no-op.
+//
+// This type is designed to function as a commutative, operation-based CRDT.
+//
+// A table can contain many columns, each with a string name, and therefore the
+// serialised representation of an entire table can grow to be fairly large -
+// it's infeasible to send all columns for every update due to space constraints
+// of the gossip message transport. Instead only differentials/new additions are
+// gossiped between peers and an external system is relied on to converge state
+// in the case of lost updates.
+message TableUpdated {
+  string table_name = 1;
+  string namespace_name = 2;
+  int64 table_id = 3;
+  // The namespace ID must be included to allow receivers to process messages
+  // correctly for mutable namespace names.
+  int64 namespace_id = 5;
+
+  // The set of columns in this update.
+  repeated Column columns = 4;
+
+  // the router_version of the namespace that holds this table at the point in time
+  // immediately after the change necessitating this message was applied (this field
+  // should follow the same rules about what value to hold (and when) as the
+  // TableDropped.router_version field)
+  int64 router_version = 6;
+
+  // if the version of the table accompanying router_version has the `iceberg_enabled` field set
+  bool iceberg_enabled = 7;
+}
+
+// Initialisation of a new table occurred.
+//
+// This is a superset of the merge-able TableUpdated message, containing
+// immutable and large fields that should not be propagated for each column
+// addition for frame size/performance reasons.
+message TableCreated {
+  // The initialised state of the new table, including all, or a subset of,
+  // columns.
+  //
+  // If the serialised message exceeds the underlying max transport frame size,
+  // a subset of columns is transmitted instead of the full set, and one or more
+  // TableUpdated frames MAY be sent containing the remaining columns.
+  TableUpdated table = 1;
+
+  // Fields below this line MUST be immutable for the lifetime of a table -
+  // there is no merge stategy for them.
+
+  // The table partition template used for partitioning writes for this table.
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 2;
+}
+
+// A table was dropped, which (atow) can only occur due to soft-deletion
+message TableDropped {
+  // The id of the table which was dropped
+  int64 table_id = 1;
+
+  // The name of the table which was dropped
+  optional string table_name = 2;
+
+  // The id of the namespace which contains the dropped table
+  int64 namespace_id = 3;
+
+  // The router_version of the namespace which this table belongs to. The value for
+  // this field should be the same as the value that was set in the catalog as a part
+  // of the table deletion transaction. So if a table deletion made the router version
+  // go from 4 -> 5, this should be 5.
+  int64 router_version = 4;
+}
+
+// Representation of a column schema within a table.
+//
+// Values within this structure MUST be immutable for the lifetime of the
+// column.
+message Column {
+  string name = 1;
+  int64 column_id = 2;
+  influxdata.iox.column_type.v1.ColumnType column_type = 5;
+}

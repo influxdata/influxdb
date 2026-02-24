@@ -1,0 +1,14 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT INTEGRAL(f64_field) FROM data WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(10s) FILL(0)\")"
+---
+Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, integral:Float64;N]
+  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, integral [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, integral:Float64;N]
+    SeriesLimit: series=[], order=[time ASC NULLS LAST], limit_expr=[integral RESPECT NULLS (default: Float64(0))] [time:Timestamp(Nanosecond, None);N, integral:Float64;N]
+      Projection: time, coalesce_struct(sum(integral(data.f64_field)), Float64(0)) AS integral [time:Timestamp(Nanosecond, None);N, integral:Float64;N]
+        Filter: sum(integral(data.f64_field)) IS NOT NULL [time:Timestamp(Nanosecond, None);N, sum(integral(data.f64_field)):Float64;N]
+          Aggregate: groupBy=[[date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[sum(integral(data.f64_field))]] [time:Timestamp(Nanosecond, None);N, sum(integral(data.f64_field)):Float64;N]
+            WindowAggr: windowExpr=[[integral_window(data.f64_field, IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 1000000000 }"), data.time, DurationNanosecond("10000000000"), DurationNanosecond("0")) ORDER BY [data.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS integral(data.f64_field)]] [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N, integral(data.f64_field):Float64;N]
+              Filter: data.time >= TimestampNanosecond(1667181600000000000, None) AND data.time <= TimestampNanosecond(1667181719999999999, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: data.f64_field IS NOT NULL [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]

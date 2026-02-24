@@ -1,0 +1,16 @@
+[package]
+name = "iox_system_tables"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+arrow.workspace = true
+async-trait = "0.1.89"
+datafusion.workspace = true
+futures = "0.3"
+workspace-hack = { path = "../workspace-hack" }
+
+[lints]
+workspace = true

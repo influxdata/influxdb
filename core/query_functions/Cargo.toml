@@ -1,0 +1,24 @@
+[package]
+name = "query_functions"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+chrono = { version = "0.4", default-features = false }
+datafusion = { workspace = true }
+regex = "1"
+regex-syntax = "0.8.8"
+schema = { path = "../schema" }
+snafu = "0.8"
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies]
+datafusion_util = { path = "../datafusion_util" }
+itertools = "0.13.0"
+tokio = { version = "1.49", features = ["macros", "parking_lot"] }

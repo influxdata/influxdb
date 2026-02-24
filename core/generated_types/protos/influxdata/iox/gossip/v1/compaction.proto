@@ -1,0 +1,31 @@
+syntax = "proto3";
+package influxdata.iox.gossip.v1;
+option go_package = "github.com/influxdata/iox/gossip/v1";
+
+import "influxdata/iox/catalog/v1/parquet_file.proto";
+
+// Notification of a compaction round completion.
+//
+// This message defines the output of the compaction round - the files deleted,
+// upgraded, and created. Deleted and upgraded files are addressed by their
+// catalog row IDs ("parquet file ID"), while newly created files are provided
+// with their entire metadata.
+//
+// # Atomicity
+//
+// This message is atomic - it describes the output of a single compaction job
+// in its entirety. It is never split into multiple messages.
+message CompactionEvent {
+  // Files that were deleted by this compaction event, addressed by their
+  // parquet row ID in the catalog.
+  repeated int64 deleted_file_ids = 1;
+
+  // The set of parquet catalog row IDs that were upgraded to
+  // `upgraded_target_level` as part of this compaction event.
+  int64 upgraded_target_level = 2;
+  repeated int64 updated_file_ids = 3;
+
+  // The set of newly created parquet files that were output by this compaction
+  // event.
+  repeated influxdata.iox.catalog.v1.ParquetFile new_files = 4;
+}
