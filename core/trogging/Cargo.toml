@@ -1,0 +1,22 @@
+[package]
+name = "trogging"
+description = "IOx logging pipeline built upon tokio-tracing"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"], optional = true }
+logfmt = { path = "../logfmt" }
+thiserror = "2.0.18"
+tracing-log = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+synchronized-writer = "1"
+regex = "1"

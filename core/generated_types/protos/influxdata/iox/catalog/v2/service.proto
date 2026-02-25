@@ -1,0 +1,1028 @@
+// The API for the catalog service
+
+syntax = "proto3";
+package influxdata.iox.catalog.v2;
+option go_package = "github.com/influxdata/iox/catalog/v2";
+
+import "influxdata/iox/partition_template/v1/template.proto";
+import "influxdata/iox/column_type/v1/type.proto";
+import "influxdata/iox/catalog_cache/v1/value.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+service CatalogService {
+  rpc RootSnapshot(RootSnapshotRequest) returns (RootSnapshotResponse);
+
+  rpc NamespaceCreate(NamespaceCreateRequest) returns (NamespaceCreateResponse);
+  rpc NamespaceCreateOrGet(NamespaceCreateOrGetRequest) returns (NamespaceCreateOrGetResponse);
+  rpc NamespaceUpdateRetentionPeriod(NamespaceUpdateRetentionPeriodRequest) returns (NamespaceUpdateRetentionPeriodResponse);
+  rpc NamespaceList(NamespaceListRequest) returns (stream NamespaceListResponse);
+  rpc NamespaceGetById(NamespaceGetByIdRequest) returns (NamespaceGetByIdResponse);
+  rpc NamespaceGetByName(NamespaceGetByNameRequest) returns (NamespaceGetByNameResponse);
+  rpc NamespaceSoftDelete(NamespaceSoftDeleteRequest) returns (NamespaceSoftDeleteResponse);
+  rpc NamespaceUpdateTableLimit(NamespaceUpdateTableLimitRequest) returns (NamespaceUpdateTableLimitResponse);
+  rpc NamespaceUpdateColumnLimit(NamespaceUpdateColumnLimitRequest) returns (NamespaceUpdateColumnLimitResponse);
+  rpc NamespaceSnapshot(NamespaceSnapshotRequest) returns (NamespaceSnapshotResponse);
+  rpc NamespaceSnapshotByName(NamespaceSnapshotByNameRequest) returns (NamespaceSnapshotByNameResponse);
+  rpc NamespaceRename(NamespaceRenameRequest) returns (NamespaceRenameResponse);
+  rpc NamespaceUndelete(NamespaceUndeleteRequest) returns (NamespaceUndeleteResponse);
+  rpc NamespaceDeleteOld(NamespaceDeleteOldRequest) returns (NamespaceDeleteOldResponse);
+
+  rpc TableCreate(TableCreateRequest) returns (TableCreateResponse);
+  rpc TableGetByIdAndNamespace(TableGetByIdAndNamespaceRequest) returns (TableGetByIdAndNamespaceResponse);
+  // Returns a table record regardless of its soft-deleted status. Essentially deprecated in favor
+  // of `TableGetByIdAndNamespace`.
+  rpc TableGetById(TableGetByIdRequest) returns (TableGetByIdResponse) {
+    option deprecated = true;
+  };
+  rpc TableGetByNamespaceAndName(TableGetByNamespaceAndNameRequest) returns (TableGetByNamespaceAndNameResponse);
+  rpc TableListByNamespaceId(TableListByNamespaceIdRequest) returns (stream TableListByNamespaceIdResponse);
+  rpc TableList(TableListRequest) returns (stream TableListResponse);
+  rpc TableSnapshot(TableSnapshotRequest) returns (TableSnapshotResponse);
+  rpc TableListByIcebergEnabled(TableListByIcebergEnabledRequest) returns (stream TableListByIcebergEnabledResponse);
+  rpc TableEnableIceberg(TableEnableIcebergRequest) returns (TableEnableIcebergResponse);
+  rpc TableDisableIceberg(TableDisableIcebergRequest) returns (TableDisableIcebergResponse);
+  rpc TableSoftDelete(TableSoftDeleteRequest) returns (TableSoftDeleteResponse);
+  rpc TableRename(TableRenameRequest) returns (TableRenameResponse);
+  rpc TableUndelete(TableUndeleteRequest) returns (TableUndeleteResponse);
+  rpc TableDeleteOld(TableDeleteOldRequest) returns (TableDeleteOldResponse);
+
+  rpc ColumnCreateOrGet(ColumnCreateOrGetRequest) returns (ColumnCreateOrGetResponse);
+  rpc ColumnCreateOrGetManyUnchecked(ColumnCreateOrGetManyUncheckedRequest) returns (stream ColumnCreateOrGetManyUncheckedResponse);
+  rpc ColumnListByNamespaceId(ColumnListByNamespaceIdRequest) returns (stream ColumnListByNamespaceIdResponse);
+  rpc ColumnListByTableId(ColumnListByTableIdRequest) returns (stream ColumnListByTableIdResponse);
+  rpc ColumnList(ColumnListRequest) returns (stream ColumnListResponse);
+
+  rpc PartitionCreateOrGet(PartitionCreateOrGetRequest) returns (PartitionCreateOrGetResponse);
+  rpc PartitionCreateOrGetBatch(PartitionCreateOrGetBatchRequest) returns (stream PartitionCreateOrGetBatchResponse);
+  rpc PartitionGetByIdBatch(PartitionGetByIdBatchRequest) returns (stream PartitionGetByIdBatchResponse);
+  rpc PartitionListByTableId(PartitionListByTableIdRequest) returns (stream PartitionListByTableIdResponse);
+  rpc PartitionListIds(PartitionListIdsRequest) returns (stream PartitionListIdsResponse);
+  rpc PartitionCasSortKey(PartitionCasSortKeyRequest) returns (PartitionCasSortKeyResponse);
+  rpc PartitionRecordSkippedCompaction(PartitionRecordSkippedCompactionRequest) returns (PartitionRecordSkippedCompactionResponse);
+  rpc PartitionGetInSkippedCompactions(PartitionGetInSkippedCompactionsRequest) returns (stream PartitionGetInSkippedCompactionsResponse);
+  rpc PartitionGetInSkippedCompactionsV2(stream PartitionGetInSkippedCompactionsV2Request) returns (stream PartitionGetInSkippedCompactionsV2Response);
+  rpc PartitionListSkippedCompactions(PartitionListSkippedCompactionsRequest) returns (stream PartitionListSkippedCompactionsResponse);
+  rpc PartitionDeleteSkippedCompactions(PartitionDeleteSkippedCompactionsRequest) returns (PartitionDeleteSkippedCompactionsResponse);
+  rpc PartitionMostRecentN(PartitionMostRecentNRequest) returns (stream PartitionMostRecentNResponse);
+  rpc PartitionNewFileBetween(PartitionNewFileBetweenRequest) returns (stream PartitionNewFileBetweenResponse);
+  rpc PartitionNeedingColdCompact(PartitionNeedingColdCompactRequest) returns (stream PartitionNeedingColdCompactResponse);
+  rpc PartitionUpdateColdCompact(PartitionUpdateColdCompactRequest) returns (PartitionUpdateColdCompactResponse);
+  rpc PartitionUpdateStorageSize(PartitionUpdateStorageSizeRequest) returns (PartitionUpdateStorageSizeResponse);
+  rpc PartitionListOldStyle(PartitionListOldStyleRequest) returns (stream PartitionListOldStyleResponse) {
+    option deprecated = true;
+  };
+  rpc PartitionDeleteByRetention(PartitionDeleteByRetentionRequest) returns (stream PartitionDeleteByRetentionResponse);
+  rpc PartitionDeleteBatch(PartitionDeleteBatchRequest) returns (stream PartitionDeleteBatchResponse);
+  rpc PartitionSnapshot(PartitionSnapshotRequest) returns (PartitionSnapshotResponse);
+  rpc PartitionMigrate(PartitionMigrateRequest) returns (PartitionMigrateResponse);
+  rpc PartitionGetNamespaceIdsInRange(PartitionGetNamespaceIdsInRangeRequest) returns (stream PartitionGetNamespaceIdsInRangeResponse);
+  rpc PartitionGetMaxId(PartitionGetMaxIdRequest) returns (PartitionGetMaxIdResponse);
+
+  // Partition retention methods
+  rpc PartitionRetentionUpsert(PartitionRetentionUpsertRequest) returns (PartitionRetentionUpsertResponse);
+  rpc PartitionRetentionBulkInsert(PartitionRetentionBulkInsertRequest) returns (PartitionRetentionBulkInsertResponse);
+  rpc PartitionRetentionGetByPartitionId(PartitionRetentionGetByPartitionIdRequest) returns (PartitionRetentionGetByPartitionIdResponse);
+  rpc PartitionRetentionGetMaxId(PartitionRetentionGetMaxIdRequest) returns (PartitionRetentionGetMaxIdResponse);
+  rpc PartitionRetentionListPartitionsNeedingComputation(PartitionRetentionListPartitionsNeedingComputationRequest) returns (stream PartitionRetentionListPartitionsNeedingComputationResponse);
+  rpc PartitionRetentionListPartitionsForParquetRetention(PartitionRetentionListPartitionsForParquetRetentionRequest) returns (stream PartitionRetentionListPartitionsForParquetRetentionResponse);
+  rpc PartitionRetentionListPartitionsForPartitionRetention(PartitionRetentionListPartitionsForPartitionRetentionRequest) returns (stream PartitionRetentionListPartitionsForPartitionRetentionResponse);
+  rpc PartitionRetentionGetPartitionComputeData(PartitionRetentionGetPartitionComputeDataRequest) returns (PartitionRetentionGetPartitionComputeDataResponse);
+  rpc PartitionRetentionInvalidateByNamespaceId(PartitionRetentionInvalidateByNamespaceIdRequest) returns (PartitionRetentionInvalidateByNamespaceIdResponse);
+
+  rpc ParquetFileFlagForDeleteByRetention(ParquetFileFlagForDeleteByRetentionRequest) returns (stream ParquetFileFlagForDeleteByRetentionResponse);
+  rpc ParquetFileDeleteOldIdsOnly(ParquetFileDeleteOldIdsOnlyRequest) returns (stream ParquetFileDeleteOldIdsOnlyResponse);
+  rpc ParquetFileDeleteOldIdsCount(ParquetFileDeleteOldIdsCountRequest) returns (ParquetFileDeleteOldIdsCountResponse);
+  rpc ParquetFileListByPartitionNotToDeleteBatch(ParquetFileListByPartitionNotToDeleteBatchRequest) returns (stream ParquetFileListByPartitionNotToDeleteBatchResponse);
+  rpc ParquetFileActiveAsOf(ParquetFileActiveAsOfRequest) returns (stream ParquetFileActiveAsOfResponse);
+  rpc ParquetFileGetByObjectStoreId(ParquetFileGetByObjectStoreIdRequest) returns (ParquetFileGetByObjectStoreIdResponse);
+  rpc ParquetFileExistsByObjectStoreIdBatch(stream ParquetFileExistsByObjectStoreIdBatchRequest) returns (stream ParquetFileExistsByObjectStoreIdBatchResponse);
+  rpc ParquetFileExistsByPartitionAndObjectStoreIdBatch(stream ParquetFileExistsByPartitionAndObjectStoreIdBatchRequest) returns (stream ParquetFileExistsByPartitionAndObjectStoreIdBatchResponse);
+
+  // Returns only the Parquet File ID of created files. Essentially deprecated in favor of
+  // `ParquetFileCreateUpgradeDeleteFull` to get the returned values for the catalog-assigned
+  // `id`, `created_at`, and possibly `max_l0_created_at` fields.
+  rpc ParquetFileCreateUpgradeDelete(ParquetFileCreateUpgradeDeleteRequest) returns (ParquetFileCreateUpgradeDeleteResponse) {
+    option deprecated = true;
+  };
+  // Streams full ParquetFile messages for created files
+  rpc ParquetFileCreateUpgradeDeleteFull(ParquetFileCreateUpgradeDeleteFullRequest) returns (stream ParquetFileCreateUpgradeDeleteFullResponse);
+
+  rpc ParquetFileListByTableId(ParquetFileListByTableIdRequest) returns (stream ParquetFileListByTableIdResponse);
+  rpc ParquetFileListByNamespaceId(ParquetFileListByNamespaceIdRequest) returns (stream ParquetFileListByNamespaceIdResponse);
+  rpc ParquetFileFindOldestAndCountWithoutPartitionHashId(ParquetFileFindOldestAndCountWithoutPartitionHashIdRequest) returns (ParquetFileFindOldestAndCountWithoutPartitionHashIdResponse);
+  rpc ParquetFileMigrate(ParquetFileMigrateRequest) returns (ParquetFileMigrateResponse);
+
+  rpc GetTime(GetTimeRequest) returns (GetTimeResponse);
+}
+
+message RootSnapshotRequest {}
+
+message RootSnapshotResponse {
+  catalog_cache.v1.Root root = 1;
+  uint64 generation = 2;
+}
+
+message NamespaceCreateRequest {
+  string name = 1;
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 2;
+  optional int64 retention_period_ns = 3;
+  ServiceProtectionLimits service_protection_limits = 4;
+}
+
+message NamespaceCreateResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceCreateOrGetRequest {
+  string name = 1;
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 2;
+  optional int64 retention_period_ns = 3;
+  ServiceProtectionLimits service_protection_limits = 4;
+}
+
+message NamespaceCreateOrGetResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceUpdateRetentionPeriodRequest {
+  oneof target {
+    // The name of the namespace to update the retention period for.
+    string name = 1 [deprecated = true];
+    // The unique, immutable ID of the namespace to update the retention period for.
+    int64 id = 3;
+  }
+
+  optional int64 retention_period_ns = 2;
+}
+
+message NamespaceUpdateRetentionPeriodResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceListRequest {
+  SoftDeletedRows deleted = 1;
+}
+
+message NamespaceListResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceGetByIdRequest {
+  int64 id = 1;
+  SoftDeletedRows deleted = 2;
+}
+
+message NamespaceGetByIdResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceGetByNameRequest {
+  string name = 1;
+  // Deprecated and ignored.
+  // Behaves as if always set to SOFT_DELETED_ROWS_EXCLUDE_DELETED
+  optional SoftDeletedRows deleted = 2 [deprecated = true];
+}
+
+message NamespaceGetByNameResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceSoftDeleteRequest {
+  oneof target {
+    // The name of the namespace to soft delete.
+    string name = 1 [deprecated = true];
+    // The unique, immutable ID of the namespace to soft delete.
+    int64 id = 2;
+  }
+}
+
+message NamespaceSoftDeleteResponse {
+  oneof deleted {
+    // this previously only returned the id, but now we need more data about
+    // the namespace and would like to avoid a second grpc call
+    int64 namespace_id = 1 [deprecated = true];
+
+    Namespace namespace = 2;
+  }
+}
+
+message NamespaceUpdateTableLimitRequest {
+  oneof target {
+    // The name of the namespace to update the table limit for.
+    string name = 1 [deprecated = true];
+    // The unique, immutable ID of the namespace to update the table limit for.
+    int64 id = 3;
+  }
+  int32 new_max = 2;
+}
+
+message NamespaceUpdateTableLimitResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceUpdateColumnLimitRequest {
+  oneof target {
+    // The name of the namespace to update the per-table column limit for.
+    string name = 1 [deprecated = true];
+    // The unique, immutable ID of the namespace to update the per-table column
+    // limit for.
+    int64 id = 3;
+  }
+  int32 new_max = 2;
+}
+
+message NamespaceUpdateColumnLimitResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceSnapshotRequest {
+  int64 namespace_id = 1;
+}
+
+message NamespaceSnapshotByNameRequest {
+  string name = 1;
+}
+
+message NamespaceSnapshotResponse {
+  catalog_cache.v1.Namespace namespace = 1;
+  uint64 generation = 2;
+}
+
+message NamespaceSnapshotByNameResponse {
+  catalog_cache.v1.Namespace namespace = 1;
+  uint64 generation = 2;
+}
+
+message NamespaceRenameRequest {
+  int64 id = 1;
+  string new_name = 2;
+}
+
+message NamespaceRenameResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceUndeleteRequest {
+  int64 id = 1;
+}
+
+message NamespaceUndeleteResponse {
+  Namespace namespace = 1;
+}
+
+message NamespaceDeleteOldRequest {
+  int64 older_than = 1;
+  uint32 limit = 2;
+}
+
+message NamespaceDeleteOldResponse {
+  repeated int64 deleted_ids = 1;
+}
+
+message TableCreateRequest {
+  string name = 1;
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 2;
+  int64 namespace_id = 3;
+}
+
+message TableCreateResponse {
+  Table table = 1;
+}
+
+message TableGetByIdAndNamespaceRequest {
+  int64 table_id = 1;
+  int64 namespace_id = 2;
+  SoftDeletedRows deleted = 3;
+}
+
+message TableGetByIdAndNamespaceResponse {
+  Table table = 1;
+}
+
+message TableGetByIdRequest {
+  int64 id = 1;
+}
+
+message TableGetByIdResponse {
+  Table table = 1;
+}
+
+message TableGetByNamespaceAndNameRequest {
+  int64 namespace_id = 1;
+  string name = 2;
+}
+
+message TableGetByNamespaceAndNameResponse {
+  Table table = 1;
+}
+
+message TableListByNamespaceIdRequest {
+  int64 namespace_id = 1;
+  SoftDeletedRows deleted = 2;
+}
+
+message TableListByNamespaceIdResponse {
+  Table table = 1;
+}
+
+message TableListRequest {
+  SoftDeletedRows deleted = 1;
+}
+
+message TableListResponse {
+  Table table = 1;
+}
+
+message TableSnapshotRequest {
+  int64 table_id = 1;
+}
+
+message TableSnapshotResponse {
+  catalog_cache.v1.Table table = 1;
+  uint64 generation = 2;
+}
+
+message TableListByIcebergEnabledResponse {
+  int64 table_id = 1;
+}
+
+message TableListByIcebergEnabledRequest {
+  int64 namespace_id = 2;
+}
+
+message TableEnableIcebergRequest {
+  int64 table_id = 1;
+}
+
+message TableEnableIcebergResponse {
+  Table table = 1;
+  int64 router_version = 2;
+}
+
+message TableDisableIcebergRequest {
+  int64 table_id = 1;
+}
+
+message TableDisableIcebergResponse {
+  Table table = 1;
+  int64 router_version = 2;
+}
+
+message TableSoftDeleteRequest {
+  int64 table_id = 1;
+}
+
+message TableSoftDeleteResponse {
+  Table table = 1;
+  int64 router_version = 2;
+}
+
+message TableRenameRequest {
+  int64 table_id = 1;
+  string new_name = 2;
+}
+
+message TableRenameResponse {
+  Table table = 1;
+  int64 router_version = 2;
+}
+
+message TableUndeleteRequest {
+  int64 table_id = 1;
+}
+
+message TableUndeleteResponse {
+  Table table = 1;
+  int64 router_version = 2;
+}
+
+message TableDeleteOldRequest {
+  int64 older_than = 1;
+  uint32 limit = 2;
+}
+
+message TableDeleteOldResponse {
+  repeated DeletedTable deleted_ids = 1;
+}
+
+message DeletedTable {
+  int64 id = 1;
+  int64 namespace_id = 2;
+}
+
+message ColumnCreateOrGetRequest {
+  string name = 1;
+  int64 table_id = 2;
+  influxdata.iox.column_type.v1.ColumnType column_type = 3;
+}
+
+message ColumnCreateOrGetResponse {
+  Column column = 1;
+}
+
+message ColumnCreateOrGetManyUncheckedRequest {
+  int64 table_id = 1;
+  map<string, influxdata.iox.column_type.v1.ColumnType> columns = 2;
+}
+
+message ColumnCreateOrGetManyUncheckedResponse {
+  Column column = 1;
+}
+
+message ColumnListByNamespaceIdRequest {
+  int64 namespace_id = 1;
+}
+
+message ColumnListByNamespaceIdResponse {
+  Column column = 1;
+}
+
+message ColumnListByTableIdRequest {
+  int64 table_id = 1;
+}
+
+message ColumnListByTableIdResponse {
+  Column column = 1;
+}
+
+message ColumnListRequest {
+  optional SoftDeletedRows deleted = 1;
+}
+
+message ColumnListResponse {
+  Column column = 1;
+}
+
+message PartitionCreateOrGetRequest {
+  string key = 1;
+  int64 table_id = 2;
+}
+
+message PartitionCreateOrGetResponse {
+  Partition partition = 1;
+}
+
+message PartitionCreateOrGetBatchRequest {
+  repeated string keys = 1;
+  int64 table_id = 2;
+}
+
+message PartitionCreateOrGetBatchResponse {
+  Partition partition = 1;
+}
+
+message PartitionGetByIdBatchRequest {
+  repeated int64 partition_ids = 1;
+}
+
+message PartitionGetByIdBatchResponse {
+  Partition partition = 1;
+}
+
+message PartitionGetByHashIdBatchRequest {
+  repeated bytes partition_hash_ids = 1;
+}
+
+message PartitionGetByHashIdBatchResponse {
+  Partition partition = 1;
+}
+
+message PartitionListByTableIdRequest {
+  int64 table_id = 1;
+}
+
+message PartitionListByTableIdResponse {
+  Partition partition = 1;
+}
+
+message PartitionListIdsRequest {}
+
+message PartitionListIdsResponse {
+  int64 partition_id = 1;
+}
+
+message PartitionCasSortKeyRequest {
+  int64 partition_id = 1;
+  SortKeyIds old_sort_key_ids = 2;
+  SortKeyIds new_sort_key_ids = 3;
+}
+
+message PartitionCasSortKeyResponse {
+  oneof res {
+    Partition partition = 1;
+    SortKeyIds current_sort_key = 2;
+  }
+}
+
+message PartitionRecordSkippedCompactionRequest {
+  int64 partition_id = 1;
+  string reason = 2;
+  uint64 num_files = 3;
+  uint64 limit_num_files = 4;
+  uint64 limit_num_files_first_in_partition = 5;
+  uint64 estimated_bytes = 6;
+  uint64 limit_bytes = 7;
+}
+
+message PartitionRecordSkippedCompactionResponse {}
+
+message PartitionGetInSkippedCompactionsRequest {
+  repeated int64 partition_ids = 1;
+}
+
+message PartitionGetInSkippedCompactionsV2Request {
+  int64 partition_id = 1;
+}
+
+message PartitionGetInSkippedCompactionsResponse {
+  SkippedCompaction skipped_compaction = 1;
+}
+
+message PartitionGetInSkippedCompactionsV2Response {
+  SkippedCompaction skipped_compaction = 1;
+}
+
+message PartitionListSkippedCompactionsRequest {}
+
+message PartitionListSkippedCompactionsResponse {
+  SkippedCompaction skipped_compaction = 1;
+}
+
+message PartitionDeleteSkippedCompactionsRequest {
+  int64 partition_id = 1;
+}
+
+message PartitionDeleteSkippedCompactionsResponse {
+  SkippedCompaction skipped_compaction = 1;
+}
+
+message PartitionMostRecentNRequest {
+  uint64 n = 1;
+}
+
+message PartitionMostRecentNResponse {
+  Partition partition = 1;
+}
+
+message PartitionNewFileBetweenRequest {
+  int64 minimum_time = 1;
+  optional int64 maximum_time = 2;
+}
+
+message PartitionNewFileBetweenResponse {
+  int64 partition_id = 1;
+}
+
+message PartitionNeedingColdCompactRequest {
+  int64 maximum_time = 1;
+  uint64 n = 2;
+  optional int64 redo_before_nanos = 3;
+}
+
+message PartitionNeedingColdCompactResponse {
+  int64 partition_id = 1;
+}
+
+message PartitionUpdateColdCompactRequest {
+  int64 partition_id = 1;
+  int64 cold_compact_at = 2;
+}
+
+message PartitionUpdateColdCompactResponse {}
+
+message PartitionUpdateStorageSizeRequest {
+  int64 partition_id = 1;
+  int64 estimated_size_bytes = 2;
+}
+
+message PartitionUpdateStorageSizeResponse {}
+
+message PartitionListOldStyleRequest {}
+
+message PartitionListOldStyleResponse {
+  Partition partition = 1;
+}
+
+message PartitionDeleteByRetentionRequest {
+  optional int64 partition_cutoff_seconds = 1;
+}
+
+message PartitionDeleteByRetentionResponse {
+  int64 table_id = 1;
+  int64 partition_id = 2;
+}
+
+message PartitionDeleteBatchRequest {
+  repeated int64 partition_ids = 1;
+}
+
+message PartitionDeleteBatchResponse {
+  int64 table_id = 1;
+  int64 partition_id = 2;
+}
+
+message PartitionSnapshotRequest {
+  int64 partition_id = 1;
+}
+
+message PartitionSnapshotResponse {
+  catalog_cache.v1.Partition partition = 1;
+  uint64 generation = 2;
+}
+
+message PartitionMigrateRequest {
+  int64 partition_id = 1;
+}
+
+message PartitionMigrateResponse {
+  bytes partition_hash_id = 1;
+}
+
+message PartitionGetNamespaceIdsInRangeRequest {
+  int64 min_partition_id = 1;
+  int64 max_partition_id = 2;
+}
+
+message PartitionGetNamespaceIdsInRangeResponse {
+  int64 partition_id = 1;
+  int64 namespace_id = 2;
+  optional int64 retention_period_ns = 3;
+}
+
+message ParquetFileFlagForDeleteByRetentionRequest {}
+
+message ParquetFileFlagForDeleteByRetentionResponse {
+  ObjectStoreId object_store_id = 1;
+  int64 partition_id = 2;
+}
+
+message ParquetFileDeleteOldIdsOnlyRequest {
+  reserved "cutoff";
+  reserved 2;
+
+  int64 older_than = 1;
+}
+
+message ParquetFileDeleteOldIdsOnlyResponse {
+  ObjectStoreId object_store_id = 1;
+}
+
+message ParquetFileDeleteOldIdsCountRequest {
+  int64 older_than = 1;
+  optional uint32 limit = 2;
+}
+
+message ParquetFileDeleteOldIdsCountResponse {
+  uint64 num_deleted = 1;
+  optional int64 oldest_deleted = 2;
+}
+
+message ParquetFileListByPartitionNotToDeleteBatchRequest {
+  repeated int64 partition_ids = 1;
+}
+
+message ParquetFileListByPartitionNotToDeleteBatchResponse {
+  ParquetFile parquet_file = 1;
+}
+
+message ParquetFileActiveAsOfRequest {
+  int64 as_of = 1;
+}
+
+message ParquetFileActiveAsOfResponse {
+  ParquetFile parquet_file = 1;
+}
+
+message ParquetFileGetByObjectStoreIdRequest {
+  ObjectStoreId object_store_id = 1;
+}
+
+message ParquetFileGetByObjectStoreIdResponse {
+  ParquetFile parquet_file = 1;
+}
+
+message ParquetFileExistsByObjectStoreIdBatchRequest {
+  ObjectStoreId object_store_id = 1;
+}
+
+message ParquetFileExistsByObjectStoreIdBatchResponse {
+  ObjectStoreId object_store_id = 1;
+}
+
+message ParquetFileExistsByPartitionAndObjectStoreIdBatchRequest {
+  ObjectStoreId object_store_id = 1;
+  int64 partition_id = 2;
+}
+
+message ParquetFileExistsByPartitionAndObjectStoreIdBatchResponse {
+  ObjectStoreId object_store_id = 1;
+  int64 partition_id = 2;
+}
+
+message ParquetFileCreateUpgradeDeleteRequest {
+  repeated ObjectStoreId delete = 1;
+  repeated ObjectStoreId upgrade = 2;
+  repeated ParquetFileParams create = 3;
+  int32 target_level = 4;
+  int64 partition_id = 5;
+}
+
+message ParquetFileCreateUpgradeDeleteResponse {
+  repeated int64 created_parquet_file_ids = 1;
+}
+
+message ParquetFileCreateUpgradeDeleteFullRequest {
+  repeated ObjectStoreId delete = 1;
+  repeated ObjectStoreId upgrade = 2;
+  repeated ParquetFileParams create = 3;
+  int32 target_level = 4;
+  int64 partition_id = 5;
+}
+
+message ParquetFileCreateUpgradeDeleteFullResponse {
+  ParquetFile parquet_file = 1;
+}
+
+message ParquetFileListByTableIdRequest {
+  int64 table_id = 1;
+  optional int32 compaction_level = 2;
+}
+
+message ParquetFileListByTableIdResponse {
+  ParquetFile file = 1;
+}
+
+message ParquetFileListByNamespaceIdRequest {
+  int64 namespace_id = 1;
+  SoftDeletedRows deleted = 2;
+}
+
+message ParquetFileListByNamespaceIdResponse {
+  ParquetFile file = 1;
+}
+
+message ParquetFileFindOldestAndCountWithoutPartitionHashIdRequest {}
+
+message ParquetFileFindOldestAndCountWithoutPartitionHashIdResponse {
+  optional ParquetFile oldest = 1;
+  int64 count = 2;
+}
+
+message ParquetFileMigrateRequest {
+  ObjectStoreId object_store_id = 1;
+  bytes partition_hash_id = 2;
+}
+
+message ParquetFileMigrateResponse {
+  ParquetFile file = 1;
+}
+
+message GetTimeRequest {}
+
+message GetTimeResponse {
+  google.protobuf.Timestamp time = 1;
+}
+
+message ServiceProtectionLimits {
+  optional int32 max_tables = 1;
+  optional int32 max_columns_per_table = 2;
+}
+
+message Namespace {
+  int64 id = 1;
+  string name = 2;
+  optional int64 retention_period_ns = 3;
+  int32 max_tables = 4;
+  int32 max_columns_per_table = 5;
+  optional int64 deleted_at = 6;
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 7;
+  // A monotonically increasing counter tracking the version of this namespace's
+  // metadata, as managed by the router.
+  int64 router_version = 8;
+  // The time at which this namespace was created, or `None` if this namespace was created before
+  // this field existed.
+  optional int64 created_at = 9;
+}
+
+enum SoftDeletedRows {
+  SOFT_DELETED_ROWS_UNSPECIFIED = 0;
+  SOFT_DELETED_ROWS_ALL_ROWS = 1;
+  SOFT_DELETED_ROWS_EXCLUDE_DELETED = 2;
+  SOFT_DELETED_ROWS_ONLY_DELETED = 3;
+}
+
+message Table {
+  int64 id = 1;
+  int64 namespace_id = 2;
+  string name = 3;
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 4;
+  bool iceberg_enabled = 5;
+  optional int64 deleted_at = 6;
+  // The time at which this table was created, or `None` if this table was created before
+  // this field existed.
+  optional int64 created_at = 7;
+}
+
+message Column {
+  int64 id = 1;
+  int64 table_id = 2;
+  string name = 3;
+  influxdata.iox.column_type.v1.ColumnType column_type = 4;
+}
+
+message SortKeyIds {
+  repeated int64 column_ids = 2;
+}
+
+message Partition {
+  int64 id = 1;
+  bytes hash_id = 2;
+  int64 table_id = 3;
+  string partition_key = 4;
+  SortKeyIds sort_key_ids = 5;
+  optional int64 new_file_at = 6;
+  optional int64 cold_compact_at = 7;
+  optional int64 created_at = 8;
+  optional int64 max_time = 9;
+  optional int64 estimated_size_bytes = 10;
+}
+
+message SkippedCompaction {
+  int64 partition_id = 1;
+  string reason = 2;
+  int64 skipped_at = 3;
+  int64 estimated_bytes = 4;
+  int64 limit_bytes = 5;
+  int64 num_files = 6;
+  int64 limit_num_files = 7;
+  int64 limit_num_files_first_in_partition = 8;
+}
+
+message ObjectStoreId {
+  fixed64 high64 = 1;
+  fixed64 low64 = 2;
+}
+
+message ColumnSet {
+  repeated int64 column_ids = 1;
+}
+
+enum ParquetFileSource {
+  PARQUET_FILE_SOURCE_UNSPECIFIED = 0;
+  PARQUET_FILE_SOURCE_BULK_INGEST = 1;
+}
+
+message ParquetFileParams {
+  int64 namespace_id = 1;
+  int64 table_id = 2;
+  int64 partition_id = 3;
+  optional bytes partition_hash_id = 4;
+  ObjectStoreId object_store_id = 5;
+  int64 min_time = 6;
+  int64 max_time = 7;
+  int64 file_size_bytes = 8;
+  int64 row_count = 9;
+  int32 compaction_level = 10;
+  int64 created_at = 11 [deprecated = true];
+  ColumnSet column_set = 12;
+
+  oneof maybe_max_l0_created_at {
+    int64 computed = 15;
+    google.protobuf.Empty not_compacted = 16;
+  }
+
+  // This field is in the process of being deprecated in favor of `maybe_max_l0_created_at`.
+  // Services running old code that receive this message may still use this value, but new
+  // code will ignore it. When all services in all environments are using
+  // `maybe_max_l0_created_at` instead, this field can be removed.
+  int64 max_l0_created_at = 13 [deprecated = true];
+
+  ParquetFileSource source = 14;
+}
+
+message ParquetFile {
+  reserved 4;
+
+  int64 id = 1;
+  int64 namespace_id = 2;
+  int64 table_id = 3;
+  int64 partition_id = 15;
+  bytes partition_hash_id = 16;
+  ObjectStoreId object_store_id = 5;
+  int64 min_time = 6;
+  int64 max_time = 7;
+  optional int64 to_delete = 8;
+  int64 file_size_bytes = 9;
+  int64 row_count = 10;
+  int32 compaction_level = 11;
+  int64 created_at = 12;
+  ColumnSet column_set = 13;
+  int64 max_l0_created_at = 14;
+  ParquetFileSource source = 17;
+}
+
+// Partition retention messages
+message PartitionRetention {
+  int64 partition_id = 1;
+  int64 namespace_id = 2;
+  optional int64 retention_period_ns = 3;
+  optional int64 retention_start_time_ns = 4;
+  optional int64 retention_end_time_ns = 5;
+}
+
+message PartitionRetentionUpsertRequest {
+  int64 partition_id = 1;
+  int64 namespace_id = 2;
+  optional int64 retention_period_ns = 3;
+  optional int64 retention_start_time_ns = 4;
+  optional int64 retention_end_time_ns = 5;
+}
+
+message PartitionRetentionUpsertResponse {
+  PartitionRetention partition_retention = 1;
+}
+
+message PartitionRetentionBulkInsertRequest {
+  repeated PartitionRetention entries = 1;
+}
+
+message PartitionRetentionBulkInsertResponse {
+  int64 inserted_count = 1;
+}
+
+message PartitionRetentionGetByPartitionIdRequest {
+  int64 partition_id = 1;
+}
+
+message PartitionRetentionGetByPartitionIdResponse {
+  optional PartitionRetention partition_retention = 1;
+}
+
+message PartitionRetentionListPartitionsNeedingComputationRequest {
+  int32 limit = 1;
+}
+
+message PartitionRetentionListPartitionsNeedingComputationResponse {
+  int64 partition_id = 1;
+}
+
+message PartitionRetentionListPartitionsForParquetRetentionRequest {
+  int64 cutoff_time_ns = 1;
+  int32 limit = 2;
+}
+
+message PartitionRetentionListPartitionsForParquetRetentionResponse {
+  int64 partition_id = 1;
+}
+
+message PartitionRetentionListPartitionsForPartitionRetentionRequest {
+  int64 cutoff_time_ns = 1;
+  int32 limit = 2;
+}
+
+message PartitionRetentionListPartitionsForPartitionRetentionResponse {
+  int64 partition_id = 1;
+}
+
+message PartitionRetentionInvalidateByNamespaceIdRequest {
+  int64 namespace_id = 1;
+}
+
+message PartitionRetentionInvalidateByNamespaceIdResponse {
+  int32 invalidated_count = 1;
+}
+
+message PartitionRetentionGetPartitionComputeDataRequest {
+  repeated int64 partition_ids = 1;
+}
+
+message PartitionRetentionGetPartitionComputeDataResponse {
+  repeated PartitionComputeData compute_data = 1;
+}
+
+message PartitionComputeData {
+  int64 partition_id = 1;
+  string partition_key = 2;
+  int64 namespace_id = 3;
+  optional int64 retention_period_ns = 4;
+  optional influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 5;
+}
+
+message PartitionGetMaxIdRequest {
+  // Empty request
+}
+
+message PartitionGetMaxIdResponse {
+  // The maximum partition ID, if any partitions exist
+  optional int64 max_partition_id = 1;
+}
+
+message PartitionRetentionGetMaxIdRequest {
+  // Empty request
+}
+
+message PartitionRetentionGetMaxIdResponse {
+  // The maximum partition ID in partition_retention table, if any entries exist
+  optional int64 max_partition_id = 1;
+}

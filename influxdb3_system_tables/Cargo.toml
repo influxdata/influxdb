@@ -16,11 +16,11 @@ influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 influxdb3_write = { path = "../influxdb3_write" }
 
 # Core crates
-iox_query.workspace = true
-iox_query_influxql.workspace = true
-iox_query_params.workspace = true
-iox_system_tables.workspace = true
-observability_deps.workspace = true
+iox_query = { path = "../core/iox_query" }
+iox_query_influxql = { path = "../core/iox_query_influxql" }
+iox_query_params = { path = "../core/iox_query_params" }
+iox_system_tables = { path = "../core/iox_system_tables" }
+observability_deps = { path = "../core/observability_deps" }
 
 # Crates.io crates
 arrow.workspace = true
@@ -35,7 +35,10 @@ serde_json.workspace = true
 tonic.workspace = true
 
 [dev-dependencies]
+# core deps
+# local deps
 influxdb3_types = { path = "../influxdb3_types"}
+# crates.io deps
 pretty_assertions.workspace = true
 test-log.workspace = true
 tokio.workspace = true

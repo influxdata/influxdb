@@ -1,0 +1,6 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT f64_field FROM data_1\")"
+snapshot_kind: text
+---
+EmptyRelation: rows=0 [iox::measurement:Dictionary(Int32, Utf8)]

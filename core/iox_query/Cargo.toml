@@ -1,0 +1,70 @@
+[package]
+name = "iox_query"
+description = "IOx Query Interface and Executor"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+# This crate is designed to be independent of the rest of the IOx
+# server and specific storage systems such as Mutable Buffer and Read Buffer.
+#
+# The rationale for this is to:
+#
+# 1. Keep change/compile/link time down during development when working on just this crate
+# 2. Allow for query logic testing without bringing in all the storage systems.
+
+[dependencies] # In alphabetical order
+arrow = { workspace = true }
+arrow_util = { path = "../arrow_util" }
+async-trait = "0.1"
+bytes = "1.11"
+chrono = { version = "0.4", default-features = false }
+data_types = { path = "../data_types" }
+datafusion = { workspace = true }
+datafusion_util = { path = "../datafusion_util" }
+datafusion-udf-wasm-host = { workspace = true }
+datafusion-udf-wasm-query = { workspace = true }
+executor = { path = "../executor" }
+futures = "0.3"
+hashbrown = { workspace = true }
+indexmap = { version = "2.13", features = ["std"] }
+influxdb-line-protocol = { path = "../influxdb_line_protocol" }
+itertools = "0.13.0"
+iox_query_params = { path = "../iox_query_params" }
+iox_query_udf = { path = "../iox_query_udf" }
+iox_time = { path = "../iox_time" }
+influxdb_iox_client = { path = "../influxdb_iox_client" }
+jemalloc_stats = { path = "../jemalloc_stats" }
+metric = { path = "../metric" }
+object_store = { workspace = true }
+object_store_size_hinting = { path = "../object_store_size_hinting" }
+tracing = { workspace = true }
+parking_lot = "0.12"
+parquet_file = { path = "../parquet_file" }
+query_functions = { path = "../query_functions" }
+schema = { path = "../schema" }
+snafu = "0.8"
+tokio = { version = "1.49", features = ["macros", "parking_lot"] }
+tokio-stream = "0.1"
+trace = { path = "../trace" }
+tracker = { path = "../tracker" }
+uuid = { version = "1", features = ["v4"] }
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+criterion = { version = "0.8", default-features = false, features = ["rayon"] }
+insta = { version = "1", features = ["yaml"] }
+metric_exporters = { path = "../metric_exporters" }
+proptest = { workspace = true }
+rand = "0.9"
+regex = "1"
+serde = { version = "1.0", features = ["derive"] }
+test_helpers = { path = "../test_helpers" }
+
+[[bench]]
+name = "deduplicate"
+harness = false

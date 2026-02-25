@@ -1,0 +1,135 @@
+syntax = "proto3";
+package influxdata.iox.gossip.v1;
+option go_package = "github.com/influxdata/iox/gossip/v1";
+
+import "influxdata/iox/gossip/v1/schema.proto";
+import "influxdata/iox/gossip/v1/namespace.proto";
+
+// An RPC service provided by peers wishing to take part in anti-entropy of
+// their schema caches.
+service AntiEntropyService {
+  // Return the computed Merkle Search Tree difference between the senders
+  // serialised compact MST representation included in the request, and the
+  // receivers local MST.
+  //
+  // The caller of this RPC sends their serialised MST page ranges, and the
+  // callee performs the tree diff, returning the key ranges identified as
+  // containing inconsistencies.
+  rpc GetTreeDiff(GetTreeDiffRequest) returns (GetTreeDiffResponse);
+
+  // Fetch all schemas in the peer cache within the specified inclusive key
+  // range bounds.
+  rpc GetRange(GetRangeRequest) returns (stream GetRangeResponse);
+}
+
+// Request the receiver perform a Merkle Search Tree diff against the provided
+// set of MST pages.
+message GetTreeDiffRequest {
+  // Serialised representation of the sender's MST.
+  repeated PageRange pages = 1;
+}
+
+// The set of namespace name ranges that contain inconsistencies.
+message GetTreeDiffResponse {
+  // Computed diff ranges containing MST inconsistencies between the two nodes.
+  repeated DiffRange ranges = 1;
+}
+
+// A compact representation of a single page in a Merkle Search Tree.
+message PageRange {
+  // Minimum namespace ID in this page (inclusive).
+  int64 min = 1;
+
+  // Maximum namespace ID in this page (inclusive).
+  int64 max = 2;
+
+  // A 16-byte MST page hash covering all entries in this page.
+  bytes page_hash = 3;
+}
+
+// An inclusive range of namespace IDs which contains at least one
+// inconsistent schema.
+message DiffRange {
+  // Minimum inconsistent namespace ID in this diff range (inclusive).
+  int64 min = 1;
+
+  // Maximum inconsistent namespace ID in this diff range (inclusive).
+  int64 max = 2;
+}
+
+// Fetch the namespace schemas with namespace IDs falling within the specified
+// inclusive range.
+message GetRangeRequest {
+  // Minimum namespace ID in this range to be fetched (inclusive).
+  int64 min = 1;
+
+  // Maximum namespace ID in this range to be fetched (inclusive).
+  int64 max = 2;
+}
+
+// A set of namespace entries for a range request.
+message GetRangeResponse {
+  repeated NamespaceEntry entries = 1;
+}
+
+// An encapsulation of a complete entry for a namespace in a peer's namespace
+// cache, used for convergence with other peers.
+message NamespaceEntry {
+  oneof namespace {
+    // The entry is for an active namespace.
+    ActiveNamespace active = 1;
+    // The entry is for a soft deleted namespace.
+    NamespaceSoftDeleted soft_deleted = 2;
+  }
+}
+
+// A composition of a "namespace create" event and zero-or-more "table create"
+// events which represent a cached, active namespace.
+//
+// Convergence is achieved by reapplying these gossip events and merging their
+// content into the local node's schema cache.
+message ActiveNamespace {
+  // The "namespace create" event containing namespace parameters.
+  influxdata.iox.gossip.v1.NamespaceCreated namespace = 1;
+
+  // The "table create" events containing the set of all tables and their
+  // parameters.
+  repeated influxdata.iox.gossip.v1.TableCreated tables = 2;
+
+  // The 'table dropped' events which are necessary to recreate tables that
+  // were dropped before we even saw them being created
+  repeated influxdata.iox.gossip.v1.TableDropped dropped_tables = 3;
+}
+
+// A message type which can be used to identify whether a peer is running a
+// compatible sync protocol. This allows for breaking changes to the sync
+// protocol or its message formats, without peers trying to sync with an
+// incompatible peer with potentially incorrect results.
+enum ProtocolVersion {
+  // The unspecified protocol version — this indicates a peer operating the
+  // unversioned (initial) protocol.
+  PROTOCOL_VERSION_UNSPECIFIED = 0;
+  // The first "versioned" protocol change — this represents a breaking change
+  // in the sync protocol from using namespace names for merkle search tree
+  // pages to namespace IDs.
+  PROTOCOL_VERSION_V1 = 1;
+  // This protocol change modified the `GetRangeResponse` in a way that allows
+  // peers to return lists of heterogenous entry states (Active, SoftDeleted, etc.).
+  PROTOCOL_VERSION_V2 = 2;
+}
+
+// A gossip frame sent to peers to begin a sync round / consistency check.
+message ConsistencyProbe {
+  // A 16-byte Merkle Search Tree root hash covering the schema cache content.
+  bytes root_hash = 1;
+
+  // The gRPC bind port on the sender.
+  //
+  // Peers will combine this port with the source address of gossip frames to
+  // derive the gRPC address for sync operations.
+  uint32 grpc_port = 2;
+
+  // The protocol version the sending peer is running. If not matching,
+  // inconsistencies can be ignored.
+  ProtocolVersion version = 3;
+}

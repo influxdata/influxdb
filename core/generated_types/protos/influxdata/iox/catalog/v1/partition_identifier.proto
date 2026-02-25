@@ -1,0 +1,20 @@
+syntax = "proto3";
+package influxdata.iox.catalog.v1;
+option go_package = "github.com/influxdata/iox/catalog/v1";
+
+message PartitionIdentifier {
+  // Use PartitionHashIdentifier now that all partitions and Parquet files have hash IDs.
+  option deprecated = true;
+
+  // Either the catalog-assigned partition ID or the hash identifier created from the
+  // table ID and partition key.
+  oneof id {
+    int64 catalog_id = 1;
+    bytes hash_id = 2;
+  }
+}
+
+// The hash identifier of a partition created from the table ID and partition key.
+message PartitionHashIdentifier {
+    bytes hash_id = 1;
+}

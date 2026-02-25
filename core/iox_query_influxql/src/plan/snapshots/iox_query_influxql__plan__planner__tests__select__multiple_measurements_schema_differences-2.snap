@@ -1,0 +1,18 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s)\")"
+---
+Sort: iox::measurement ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, mean:Float64;N, mean_1:Float64;N]
+  Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, mean:Float64;N, mean_1:Float64;N]
+    Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, avg(cpu.usage_idle) AS mean, CAST(NULL AS Float64) AS mean_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, mean:Float64;N, mean_1:Float64;N]
+      GapFill: series=[], time=date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), time, TimestampNanosecond(0, None)), fill=[avg(cpu.usage_idle)], range=Unbounded..Included(Literal(TimestampNanosecond(1672531200000000000, None), None)) [time:Timestamp(Nanosecond, None);N, avg(cpu.usage_idle):Float64;N]
+        Aggregate: groupBy=[[date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[avg(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, avg(cpu.usage_idle):Float64;N]
+          Filter: cpu.time <= TimestampNanosecond(1672531200000000000, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            Filter: cpu.usage_idle IS NOT NULL [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+              TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+    Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, time, CAST(NULL AS Float64) AS mean, avg(disk.bytes_free) AS mean_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, mean:Float64;N, mean_1:Float64;N]
+      GapFill: series=[], time=date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), time, TimestampNanosecond(0, None)), fill=[avg(disk.bytes_free)], range=Unbounded..Included(Literal(TimestampNanosecond(1672531200000000000, None), None)) [time:Timestamp(Nanosecond, None);N, avg(disk.bytes_free):Float64;N]
+        Aggregate: groupBy=[[date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), disk.time, TimestampNanosecond(0, None)) AS time]], aggr=[[avg(disk.bytes_free)]] [time:Timestamp(Nanosecond, None);N, avg(disk.bytes_free):Float64;N]
+          Filter: disk.time <= TimestampNanosecond(1672531200000000000, None) [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            Filter: disk.bytes_free IS NOT NULL [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+              TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]

@@ -1,0 +1,19 @@
+[package]
+name = "service_common"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies] # In alphabetical order
+arrow = { workspace = true }
+arrow-flight = { workspace = true }
+datafusion = { workspace = true }
+executor = { path = "../executor" }
+object_store.workspace = true
+tonic = { workspace = true, features = ["tls-ring"] }
+workspace-hack = { path = "../workspace-hack" }
+

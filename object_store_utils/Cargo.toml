@@ -9,12 +9,15 @@ license.workspace = true
 test-helpers = []
 
 [dependencies]
+# core deps
+observability_deps = { path = "../core/observability_deps" }
+
+# crates.io deps
 async-trait.workspace = true
 backon.workspace = true
 bytes.workspace = true
 futures.workspace = true
 object_store.workspace = true
-observability_deps.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

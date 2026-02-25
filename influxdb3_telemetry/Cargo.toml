@@ -9,10 +9,13 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+# core deps
+observability_deps = { path = "../core/observability_deps" }
+
+# crates.io deps
 futures-util.workspace = true
 futures.workspace = true
 num.workspace = true
-observability_deps.workspace = true
 parking_lot.workspace = true
 reqwest.workspace = true
 serde.workspace = true

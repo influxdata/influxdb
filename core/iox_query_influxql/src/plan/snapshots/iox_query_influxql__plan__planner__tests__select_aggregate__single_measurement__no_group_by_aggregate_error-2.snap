@@ -1,0 +1,9 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT count(f64_field) + f64_field FROM data\")"
+---
+rewriting statement
+caused by
+gather information about select statement
+caused by
+Error during planning: mixing aggregate and non-aggregate columns is not supported

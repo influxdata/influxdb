@@ -1,0 +1,16 @@
+[package]
+name = "backoff"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+tokio = { version = "1.49", features = ["macros", "time"] }
+tracing = { workspace = true }
+rand = "0.9"
+snafu = "0.8"
+workspace-hack = { path = "../workspace-hack" }

@@ -1,0 +1,6 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"EXPLAIN SHOW MEASUREMENTS\")"
+---
+Explain [plan_type:Utf8, plan:Utf8]
+  TableScan: measurements [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]

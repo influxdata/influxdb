@@ -1,0 +1,9 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT foo, f64_field FROM data where time >= '0001-01-01T00:00:00Z' and time < '0001-01-01T00:00:00Z'\")"
+---
+rewriting statement
+caused by
+split condition
+caused by
+Error during planning: timestamp out of range: 0001-01-01 00:00:00 +00:00

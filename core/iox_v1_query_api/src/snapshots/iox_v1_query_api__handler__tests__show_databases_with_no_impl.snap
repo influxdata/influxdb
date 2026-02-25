@@ -1,0 +1,6 @@
+---
+source: iox_v1_query_api/src/handler.rs
+description: SHOW DATABASES -- on handler with SHOW DATABASES _not_ enabled
+expression: res
+---
+{"results":[{"statement_id":0,"error":"must specify a 'db' parameter, or provide the database in the InfluxQL query"}]}

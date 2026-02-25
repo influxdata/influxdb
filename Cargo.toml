@@ -22,8 +22,66 @@ members = [
     "influxdb3_types",
     "influxdb3_wal",
     "influxdb3_write",
-    "iox_query_influxql_rewrite",
     "object_store_utils",
+    "core/arrow_util",
+    "core/authz",
+    "core/backoff",
+    "core/catalog_cache",
+    "core/client_util",
+    "core/data_types",
+    "core/datafusion_util",
+    "core/error_reporting",
+    "core/executor",
+    "core/flightsql",
+    "core/futures_test_utils",
+    "core/generated_types",
+    "core/influxdb_influxql_parser",
+    "core/influxdb_iox_client",
+    "core/influxdb_line_protocol",
+    "core/influxdb2_client",
+    "core/ingester_query_grpc",
+    "core/iox_http",
+    "core/iox_http_util",
+    "core/iox_query",
+    "core/iox_query_influxql",
+    "core/iox_query_influxql_rewrite",
+    "core/iox_query_params",
+    "core/iox_query_udf",
+    "core/iox_system_tables",
+    "core/iox_time",
+    "core/iox_v1_query_api",
+    "core/jemalloc_stats",
+    "core/linear_buffer",
+    "core/logfmt",
+    "core/metric",
+    "core/metric_exporters",
+    "core/mutable_batch",
+    "core/mutable_batch_lp",
+    "core/object_store_mem_cache",
+    "core/object_store_metrics",
+    "core/object_store_mock",
+    "core/object_store_size_hinting",
+    "core/observability_deps",
+    "core/panic_logging",
+    "core/parquet_file",
+    "core/partition",
+    "core/predicate",
+    "core/query_functions",
+    "core/schema",
+    "core/service_common",
+    "core/service_grpc_flight",
+    "core/sharder",
+    "core/test_helpers",
+    "core/test_helpers_authz",
+    "core/tokio_metrics_bridge",
+    "core/tokio_watchdog",
+    "core/tower_trailer",
+    "core/trace",
+    "core/trace_exporters",
+    "core/trace_http",
+    "core/tracker",
+    "core/trogging",
+    "core/workspace-hack",
 ]
 default-members = ["influxdb3"]
 
@@ -38,6 +96,11 @@ exclude = [
     ".github/",
     ".kodiak.toml",
     "LICENSE*",
+    # Fuzz crates depend on libfuzzer-sys which compiles C++ with
+    # platform-specific flags that break cross-compilation. They are
+    # intended to be run separately via `cargo fuzz`.
+    "core/influxdb_line_protocol/fuzz",
+    "core/mutable_batch_lp/fuzz",
 ]
 
 [workspace.package]
@@ -49,7 +112,15 @@ exclude = [
 # then this will be `3.1.0-nightly`. Once `3.1.0` is released, this will be bumped to `3.2.0-nightly`,
 # and will remain that regardless of how many `3.1.x` patch releases are done prior to the `3.2.0`
 # release.
-version = "3.10.0-nightly"
+#
+# NOTE(tjh): uses `-oss-nightly` instead of `-nightly` to distinguish dependencies with the same
+# package name in the `oss/` workspace from those in `ent/` workspace. Since the `ent/influxdb3`
+# package depends on the `oss/influxdb3` package, this is an easy workaround to package name
+# collisions in the `ent/Cargo.lock` file.
+#
+# For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
+# stripping the `-oss`.
+version = "3.10.0-oss-nightly"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -70,6 +141,7 @@ backon = { version = "1.5.0", features = ["tokio"] }
 backtrace = "0.3"
 base64 = "0.21.7"
 bimap = "0.6.3"
+bincode = { version = "2", default-features = false, features = ["alloc", "derive"] }
 bitcode = { version = "0.6.3", features = ["serde"] }
 byteorder = "1.3.4"
 bytes = "1.11"
@@ -78,6 +150,7 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive", "env", "string"] }
 clap_builder = "4.5.47"
 clru = "0.6.2"
+comfy-table = { version = "7.1.0" }
 crc32fast = "1.2.0"
 criterion = { version = "0.5", features = ["html_reports"] }
 cron = "0.15"
@@ -85,7 +158,8 @@ crossbeam-channel = "0.5.11"
 csv = "1.3.0"
 owo-colors = "4.2.0"
 # Use DataFusion fork (see below)
-datafusion = { version = "50" }
+datafusion = { version = "50.3.0" }
+datafusion-proto = { version = "50.3.0" }
 dashmap = "6.1.0"
 dotenvy = "0.15.7"
 flate2 = "1.0.27"
@@ -144,6 +218,8 @@ sha2 = "0.10.8"
 snafu = "0.8"
 snap = "1.0.0"
 sqlparser = "0.48.0"
+# NOTE(tjh): explicitly add sqlite feature as the `data_types` crate relies on it
+sqlx = { version = "0.8.6", features = ["sqlite"] }
 # Delaying upgrade until <https://github.com/GuillaumeGomez/sysinfo/issues/1496> is fixed
 sysinfo = "<0.38"
 tempfile = "3.14.0"
@@ -157,6 +233,9 @@ tonic-build = "0.13"
 tonic-health = "0.13"
 tonic-reflection = "0.13"
 tower = "0.5"
+tracing = { version = "0.1", features = ["log", "max_level_trace"] }
+tracing-log = { version = "0.2" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "parking_lot"] }
 twox-hash = "2.1.0"
 unicode-segmentation = "1.11.0"
 url = "2.5.0"
@@ -164,40 +243,13 @@ urlencoding = "1.1"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 num = { version = "0.4.3" }
 
-# Core.git crates we depend on
-arrow_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-authz = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-data_types = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-datafusion_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-executor = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-iox_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-iox_http_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-iox_query = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-iox_query_params = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-iox_query_influxql = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-iox_system_tables = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-iox_time = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-iox_v1_query_api = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-metric = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-metric_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-object_store_metrics = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-observability_deps = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-panic_logging = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-parquet_file = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-query_functions = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-schema = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b", features = ["v3"]}
-service_common = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-service_grpc_flight = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-test_helpers = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-tokio_metrics_bridge = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-trace = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-trace_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-trace_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-tracker = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b" }
-trogging = { git = "https://github.com/influxdata/influxdb3_core", rev = "349d802bf9a54ab5876399ab013502eeb0d52a6b", features = ["clap"] }
+# NOTE(tjh): this comment copied verbatim from influxdb3_core Cargo.toml:
+# unify features between workspace-hack members and packages that are excluded from this hack
+smallvec = { version = "1.15.1", features = ["union"] }
+
+# Datafusion UDF WASM hosting for the iox_query_udf crate:
+datafusion-udf-wasm-host = { git = "https://github.com/influxdata/datafusion-udf-wasm.git", rev = "9b2243ad3305ca3e29af38e8cc9097cb853f1fce", default-features = false }
+datafusion-udf-wasm-query = { git = "https://github.com/influxdata/datafusion-udf-wasm.git", rev = "9b2243ad3305ca3e29af38e8cc9097cb853f1fce" }
 
 [workspace.lints.rust]
 missing_copy_implementations = "deny"
@@ -258,4 +310,5 @@ datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev =
 datafusion-common = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "5f35b8287ea793772c7d89d412908af84af0d901" }
 datafusion-execution = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "5f35b8287ea793772c7d89d412908af84af0d901" }
 datafusion-expr = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "5f35b8287ea793772c7d89d412908af84af0d901" }
+datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "5f35b8287ea793772c7d89d412908af84af0d901" }
 datafusion-sql = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "5f35b8287ea793772c7d89d412908af84af0d901" }

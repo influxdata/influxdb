@@ -10,18 +10,18 @@ workspace = true
 
 [dependencies]
 # Core Crates
-data_types.workspace = true
-datafusion_util.workspace = true
-executor.workspace = true
-influxdb-line-protocol.workspace = true
-iox_http.workspace = true
-iox_query.workspace = true
-iox_time.workspace = true
-metric.workspace = true
-parquet_file.workspace = true
-observability_deps.workspace = true
-schema.workspace = true
-trace.workspace = true
+data_types = { path = "../core/data_types" }
+datafusion_util = { path = "../core/datafusion_util" }
+executor = { path = "../core/executor" }
+influxdb-line-protocol = { path = "../core/influxdb_line_protocol" }
+iox_http = { path = "../core/iox_http" }
+iox_query = { path = "../core/iox_query" }
+iox_time = { path = "../core/iox_time" }
+metric = { path = "../core/metric" }
+parquet_file = { path = "../core/parquet_file" }
+observability_deps = { path = "../core/observability_deps" }
+schema = { path = "../core/schema" }
+trace = { path = "../core/trace" }
 
 # Local deps
 influxdb3_cache = { path = "../influxdb3_cache" }
@@ -71,12 +71,14 @@ regex.workspace = true
 
 [dev-dependencies]
 # Core Crates
+arrow_util = { path = "../core/arrow_util" }
+query_functions = { path = "../core/query_functions" }
+test_helpers = { path = "../core/test_helpers" }
+
+# crates.io deps
 arrow-schema.workspace = true
-arrow_util.workspace = true
 insta.workspace = true
 pretty_assertions.workspace = true
-query_functions.workspace = true
-test_helpers.workspace = true
 test-log.workspace = true
 rstest.workspace = true
 criterion.workspace = true

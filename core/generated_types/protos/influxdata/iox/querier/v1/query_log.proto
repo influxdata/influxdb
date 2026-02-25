@@ -1,0 +1,136 @@
+syntax = "proto3";
+package influxdata.iox.querier.v1;
+option go_package = "github.com/influxdata/iox/querier/v1";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+import "influxdata/iox/querier/v1/params.proto";
+
+service QueryLogService {
+    // Get the process-local query log.
+    rpc GetLog(GetLogRequest) returns (stream GetLogResponse);
+}
+
+message GetLogRequest {}
+
+// Describe a single query.
+message LogEntry {
+  // Unique entry ID.
+  string id = 1;
+
+  // Current lifecycle phase of the query.
+  Phase phase = 16;
+
+  // Namespace ID.
+  int64 namespace_id = 2;
+
+  // Namespace name.
+  string namespace_name = 3;
+
+  // Query type, e.g. `sql`.
+  string query_type = 4;
+
+  // Query text.
+  string query_text = 5;
+
+  // Query parameters
+  repeated QueryParam query_params = 21;
+
+  // Authentication ID
+  optional string auth_id = 25;
+
+  // Trace ID.
+  string trace_id = 6;
+
+  // Start timestamp.
+  google.protobuf.Timestamp issue_time = 7;
+
+  // Number of partitions the query was executed on.
+  uint64 partitions = 18;
+
+  // Number of parquet files the query was executed on.
+  uint64 parquet_files = 19;
+
+  // Number of partitions under a `DeduplicateExec` in this query
+  uint64 deduplicated_partitions = 23;
+
+  // Number of files under a `DeduplicateExec` in this query
+  uint64 deduplicated_parquet_files = 24;
+
+  reserved 8;
+  reserved 'query_completed_duration';
+
+  // Duration it took to acquire a semaphore permit, relative to `issue_time`.
+  google.protobuf.Duration permit_duration = 10;
+
+  // Duration it took to plan the query, relative to `issue_time` + `permit_duration`.
+  google.protobuf.Duration plan_duration = 11;
+
+  // Duration it took to execute the query, relative to `issue_time` +
+  // `permit_duration` + `plan_duration`.
+  google.protobuf.Duration execute_duration = 12;
+
+  // Duration from `issue_time` til the query ended somehow.
+  google.protobuf.Duration end2end_duration = 13;
+
+  // CPU duration spend for computation.
+  google.protobuf.Duration compute_duration = 15;
+
+  // Maximum memory allocated when executing the query.
+  int64 max_memory = 20;
+
+  IngesterMetrics ingester_metrics = 22;
+
+  // If the query completed successfully.
+  bool success = 9;
+
+  // If the query is currently running (in any state).
+  bool running = 14;
+
+  // If the query was cancelled.
+  bool cancelled = 17;
+}
+
+message IngesterMetrics {
+  // Total time spent waiting on ingester before planning
+  google.protobuf.Duration latency_to_plan = 1;
+
+  // Total time spent waiting on all data from ingester(s)
+  google.protobuf.Duration latency_to_data = 2;
+
+  // Total response size from ingester(s) in bytes
+  uint64 response_size_bytes = 3;
+
+  // Total number of rows from ingester(s)
+  uint64 response_row_count = 4;
+
+  // Total number of partitions from ingester(s)
+  uint64 partition_count = 5;
+}
+
+// Metadata for the entire response.
+message Metadata {
+  // Maximum size of the query log.
+  uint64 max_size = 1;
+
+  // Number of evicted entries due to the "max size" constraint.
+  uint64 evicted = 2;
+}
+
+message GetLogResponse {
+  oneof data {
+    Metadata metadata = 1;
+    LogEntry entry = 2;
+  }
+}
+
+enum Phase {
+  PHASE_UNSPECIFIED = 0;
+  PHASE_RECEIVED = 1;
+  PHASE_PLANNED = 2;
+  PHASE_PERMIT = 3;
+  PHASE_CANCEL = 4;
+  PHASE_SUCCESS = 5;
+  PHASE_FAIL = 6;
+}

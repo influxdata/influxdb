@@ -1,0 +1,8 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT tag0, atan2(u64_field, 2) FROM all_types\")"
+---
+Sort: time ASC NULLS LAST, tag0 ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), tag0:Dictionary(Int32, Utf8);N, atan2:Float64;N]
+  Projection: Dictionary(Int32, Utf8("all_types")) AS iox::measurement, all_types.time AS time, all_types.tag0 AS tag0, atan2(all_types.u64_field, Float64(2)) AS atan2 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), tag0:Dictionary(Int32, Utf8);N, atan2:Float64;N]
+    Filter: all_types.u64_field IS NOT NULL [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+      TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]

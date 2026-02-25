@@ -1,0 +1,28 @@
+[package]
+name = "influxdb_influxql_parser"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies] # In alphabetical order
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono-tz = { version = "0.10" }
+iox_query_params = { path = "../iox_query_params/" }
+nom = { version = "8", default-features = false, features = ["std"] }
+num-integer = { version = "0.1", default-features = false, features = [
+    "i128",
+    "std",
+] }
+num-traits = "0.2"
+thiserror = "2.0.18"
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+assert_matches = "1"
+insta = { version = "1.46.1", features = ["yaml"] }
+paste = "1.0.15"
+test_helpers = { path = "../test_helpers" }

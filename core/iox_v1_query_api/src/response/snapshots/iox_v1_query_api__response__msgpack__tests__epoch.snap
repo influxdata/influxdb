@@ -1,0 +1,5 @@
+---
+source: iox_v1_query_api/src/response/msgpack.rs
+expression: collect_output(stream).await
+---
+[[[0,[["m1",["time","t1","f1"],[[1000000,"t1a",1],[2000000,"t1a",2]]]]]]]

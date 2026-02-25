@@ -1,0 +1,233 @@
+use crate::{Batch, PartitionKeyError, PartitioningColumn};
+use data_types::partition_template::{
+    ENCODED_PARTITION_KEY_CHARS, PARTITION_KEY_MAX_PART_LEN, PARTITION_KEY_PART_TRUNCATED,
+    PARTITION_KEY_VALUE_EMPTY_STR, PARTITION_KEY_VALUE_NULL_STR, TemplatePart,
+};
+use percent_encoding::utf8_percent_encode;
+use std::borrow::Cow;
+use unicode_segmentation::UnicodeSegmentation;
+
+pub(crate) mod bucket;
+pub use bucket::BucketHasher;
+
+pub(crate) mod strftime;
+pub use strftime::StrftimeFormatter;
+
+/// A [`TablePartitionTemplateOverride`] is made up of one of more
+/// [`TemplatePart`]s that are rendered and joined together by
+/// [`PARTITION_KEY_DELIMITER`] to form a single partition key.
+///
+/// To avoid allocating intermediate strings, and performing column lookups for
+/// every row, each [`TemplatePart`] is converted to a [`Template`].
+///
+/// [`Template::fmt_row`] can then be used to render the template for that
+/// particular row to the provided string, without performing any additional
+/// column lookups
+///
+/// [`TablePartitionTemplateOverride`]: `data_types::partition_template::TablePartitionTemplateOverride`
+/// [`PARTITION_KEY_DELIMITER`]: `data_types::partition_template::PARTITION_KEY_DELIMITER`
+#[derive(Debug)]
+#[expect(clippy::large_enum_variant)]
+pub(crate) enum Template<'a, T: PartitioningColumn> {
+    TagValue(&'a T, Option<&'a T::TagIdentityKey>),
+    TimeFormat(&'a [i64], StrftimeFormatter<'a>),
+    Bucket(&'a T, BucketHasher, Option<&'a T::TagIdentityKey>),
+
+    /// This batch is missing a partitioning tag column.
+    MissingTag,
+}
+
+impl<'a, T, B> From<(TemplatePart<'a>, &'a B, &'a [i64])> for Template<'a, T>
+where
+    T: PartitioningColumn,
+    B: Batch<Column = T>,
+{
+    fn from((v, batch, time): (TemplatePart<'a>, &'a B, &'a [i64])) -> Self {
+        match v {
+            TemplatePart::TagValue(col_name) => batch
+                .column(col_name)
+                .map_or_else(|| Template::MissingTag, |v| Template::TagValue(v, None)),
+            TemplatePart::TimeFormat(fmt) => {
+                Template::TimeFormat(time, StrftimeFormatter::new(fmt))
+            }
+            TemplatePart::Bucket(col_name, num_buckets) => batch.column(col_name).map_or_else(
+                || Template::MissingTag,
+                |v| Template::Bucket(v, BucketHasher::new(num_buckets), None),
+            ),
+        }
+    }
+}
+
+impl<T> Template<'_, T>
+where
+    T: PartitioningColumn,
+{
+    /// Renders this template to `out` for the row `idx`.
+    pub(crate) fn fmt_row<W: std::fmt::Write>(
+        &mut self,
+        out: &mut W,
+        idx: usize,
+    ) -> Result<(), PartitionKeyError> {
+        match self {
+            Template::TagValue(col, last_key) if col.is_valid(idx) => {
+                let this_key = col
+                    .get_tag_identity_key(idx)
+                    .ok_or_else(|| PartitionKeyError::TagValueNotTag(col.type_description()))?;
+
+                // Update the "is identical" tracking key for this new,
+                // potentially different key.
+                *last_key = Some(this_key);
+
+                out.write_str(encode_key_part(col.get_tag_value(this_key).unwrap()).as_ref())?
+            }
+            Template::TimeFormat(t, fmt) => fmt.render(t[idx], out)?,
+            Template::Bucket(col, bucketer, last_key) if col.is_valid(idx) => {
+                let this_key = col
+                    .get_tag_identity_key(idx)
+                    .ok_or_else(|| PartitionKeyError::TagValueNotTag(col.type_description()))?;
+                let this_value = col.get_tag_value(this_key).unwrap();
+                let bucket = bucketer.assign_bucket(this_value);
+
+                // Update the "is identical" tracking key for this new,
+                // potentially different key.
+                *last_key = Some(this_key);
+
+                write!(out, "{bucket}")?
+            }
+            // Either a tag that has no value for this given row index, or the
+            // batch does not contain this tag at all.
+            Template::TagValue(_, last_key) => {
+                // This row doesn't have a tag value, which should be carried
+                // forwards to be checked against the next row.
+                *last_key = None;
+                out.write_str(PARTITION_KEY_VALUE_NULL_STR)?
+            }
+            // Either a tag that has no value for this given row index, or the
+            // batch does not contain this tag at all.
+            Template::Bucket(_, _, last_key) => {
+                // This row doesn't have a tag value, which should be carried
+                // forwards to be checked against the next row.
+                *last_key = None;
+                out.write_str(PARTITION_KEY_VALUE_NULL_STR)?
+            }
+            Template::MissingTag => out.write_str(PARTITION_KEY_VALUE_NULL_STR)?,
+        }
+
+        Ok(())
+    }
+
+    /// Returns true if the partition key generated by `self` for `idx` will be
+    /// identical to the last generated key.
+    pub(crate) fn is_identical(&mut self, idx: usize) -> bool {
+        match self {
+            Template::TagValue(col, last_key) if col.is_valid(idx) => {
+                let this_key = match col.get_tag_identity_key(idx) {
+                    Some(key) => key,
+                    // This is an error, but for the purposes of identical checks,
+                    // it is treated as not identical, causing the error to be
+                    // raised when formatting is attempted.
+                    None => return false,
+                };
+
+                // Check if the key matches the last key, indicating the same value is going to
+                // be rendered.
+                last_key.map(|v| v == this_key).unwrap_or_default()
+            }
+            Template::TimeFormat(t, fmt) => {
+                // Check if the last value matches the current value, after
+                // optionally applying the precision reduction optimisation.
+                fmt.equals_last(t[idx])
+            }
+            Template::Bucket(col, fmt, last_key) if col.is_valid(idx) => {
+                // To perform an equality check for `idx` when it is a
+                // `Bucket` template part we must check in order:
+                //
+                //     1. If this dictionary key is the same as the
+                //        previous
+                //     2. If the assigned bucket is the same as the
+                //        previous
+                //
+                // While just checking the bucket is correct, checking
+                // the dictionary key first avoids unnecessary throwaway
+                // hashing work.
+                let this_key = match col.get_tag_identity_key(idx) {
+                    Some(key) => key,
+                    // This is an error, but for the purposes of identical checks,
+                    // it is treated as not identical, causing the error to be
+                    // raised when formatting is attempted.
+                    None => return false,
+                };
+
+                match last_key {
+                    Some(v) if this_key == *v => true,
+                    Some(_) => {
+                        col.get_tag_value(this_key)
+                            .map(|this_value| {
+                                // Grab the last assigned bucket, assign
+                                // a bucket for the current value and
+                                // check for equality.
+                                fmt.last_assigned_bucket()
+                                    .map(|last_bucket| last_bucket == fmt.assign_bucket(this_value))
+                                    .unwrap_or_default()
+                            })
+                            .unwrap_or_default()
+                    }
+                    None => false,
+                }
+            }
+            // The last row did not contain this key, and neither does this.
+            Template::TagValue(_, None) | Template::Bucket(_, _, None) => true,
+            // The last row did contain a key, but this one does not (therefore
+            // it differs).
+            Template::TagValue(_, Some(_)) | Template::Bucket(_, _, Some(_)) => false,
+            // The batch does not contain this tag at all - it always matches
+            // with the previous row.
+            Template::MissingTag => true,
+        }
+    }
+}
+
+pub(crate) fn encode_key_part(s: &str) -> Cow<'_, str> {
+    // Encode reserved characters and non-ascii characters.
+    let as_str: Cow<'_, str> = utf8_percent_encode(s, &ENCODED_PARTITION_KEY_CHARS).into();
+
+    match as_str.len() {
+        0 => Cow::Borrowed(PARTITION_KEY_VALUE_EMPTY_STR),
+        1..=PARTITION_KEY_MAX_PART_LEN => as_str,
+        _ => {
+            // This string exceeds the maximum byte length limit and must be
+            // truncated.
+            //
+            // Truncation of unicode strings can be tricky - this implementation
+            // avoids splitting unicode code-points nor graphemes. See the
+            // partition_template module docs in data_types before altering
+            // this.
+
+            // Preallocate the string to hold the long partition key part.
+            let mut buf = String::with_capacity(PARTITION_KEY_MAX_PART_LEN);
+
+            // This is a slow path, re-encoding the original input string -
+            // fortunately this is an uncommon path.
+            //
+            // Walk the string, encoding each grapheme (which includes spaces)
+            // individually, tracking the total length of the encoded string.
+            // Once it hits 199 bytes, stop and append a #.
+
+            let mut bytes = 0;
+            s.graphemes(true)
+                .map(|v| Cow::from(utf8_percent_encode(v, &ENCODED_PARTITION_KEY_CHARS)))
+                .take_while(|v| {
+                    bytes += v.len(); // Byte length of encoded grapheme
+                    bytes < PARTITION_KEY_MAX_PART_LEN
+                })
+                .for_each(|v| buf.push_str(v.as_ref()));
+
+            // Append the truncation marker.
+            buf.push(PARTITION_KEY_PART_TRUNCATED);
+
+            assert!(buf.len() <= PARTITION_KEY_MAX_PART_LEN);
+
+            Cow::Owned(buf)
+        }
+    }
+}

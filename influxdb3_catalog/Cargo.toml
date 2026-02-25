@@ -7,12 +7,12 @@ license.workspace = true
 
 [dependencies]
 # Core Crates
-data_types.workspace = true
-influxdb-line-protocol.workspace = true
-iox_time.workspace = true
-metric.workspace = true
-observability_deps.workspace = true
-schema.workspace = true
+data_types = { path = "../core/data_types" }
+influxdb-line-protocol = { path = "../core/influxdb_line_protocol" }
+iox_time = { path = "../core/iox_time" }
+metric = { path = "../core/metric" }
+observability_deps = { path = "../core/observability_deps" }
+schema = { path = "../core/schema", features = ["v3"] }
 
 # Local deps
 influxdb3_authz = { path = "../influxdb3_authz/" }
@@ -53,6 +53,9 @@ tokio.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+# core deps
+test_helpers = { path = "../core/test_helpers" }
+
 # local deps
 influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 
@@ -60,7 +63,6 @@ influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 insta.workspace = true
 pretty_assertions.workspace = true
 rstest.workspace = true
-test_helpers.workspace = true
 test-log.workspace = true
 
 [lints]

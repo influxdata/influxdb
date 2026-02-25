@@ -1,0 +1,6 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT MEAN(foo) FROM data\")"
+snapshot_kind: text
+---
+EmptyRelation: rows=0 [iox::measurement:Dictionary(Int32, Utf8)]
