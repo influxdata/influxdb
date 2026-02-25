@@ -33,7 +33,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Default)]
 pub struct TableBuffer {
-    chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
+    chunk_time_to_chunks: BTreeMap<i64, Vec<MutableTableChunk>>,
     snapshotting_chunks: Vec<SnapshotChunk>,
 }
 
@@ -43,16 +43,27 @@ impl TableBuffer {
     }
 
     pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[Row]) {
-        let buffer_chunk = self
-            .chunk_time_to_chunks
-            .entry(chunk_time)
-            .or_insert_with(|| MutableTableChunk {
-                timestamp_min: i64::MAX,
-                timestamp_max: i64::MIN,
-                data: Default::default(),
-                row_count: 0,
-            });
+        let chunks = self.chunk_time_to_chunks.entry(chunk_time).or_default();
 
+        let mut incoming_per_column = HashMap::new();
+        for r in rows {
+            for f in &r.fields {
+                if let FieldData::String(s) = &f.value {
+                    *incoming_per_column.entry(f.id).or_default() += s.len();
+                }
+            }
+        }
+
+        let needs_new_chunk = chunks.is_empty()
+            || chunks
+                .last()
+                .is_some_and(|c| c.would_exceed_limit_with(&incoming_per_column));
+
+        if needs_new_chunk {
+            chunks.push(MutableTableChunk::new());
+        }
+
+        let buffer_chunk = chunks.last_mut().unwrap();
         buffer_chunk.add_rows(rows);
     }
 
@@ -93,17 +104,18 @@ impl TableBuffer {
             *ts = ts.union(&sc.timestamp_min_max);
             v.push(rb);
         }
-        for (t, c) in self
-            .chunk_time_to_chunks
-            .iter()
-            .filter(|(_, c)| filter.test_time_stamp_min_max(c.timestamp_min, c.timestamp_max))
-        {
-            let ts_min_max = TimestampMinMax::new(c.timestamp_min, c.timestamp_max);
-            let (ts, v) = batches
-                .entry(*t)
-                .or_insert_with(|| (ts_min_max, Vec::new()));
-            *ts = ts.union(&ts_min_max);
-            v.push(c.record_batch(Arc::clone(&table_def))?);
+        for (t, chunks) in self.chunk_time_to_chunks.iter() {
+            for c in chunks
+                .iter()
+                .filter(|c| filter.test_time_stamp_min_max(c.timestamp_min, c.timestamp_max))
+            {
+                let ts_min_max = TimestampMinMax::new(c.timestamp_min, c.timestamp_max);
+                let (ts, v) = batches
+                    .entry(*t)
+                    .or_insert_with(|| (ts_min_max, Vec::new()));
+                *ts = ts.union(&ts_min_max);
+                v.push(c.record_batch(Arc::clone(&table_def))?);
+            }
         }
         Ok(batches)
     }
@@ -114,6 +126,7 @@ impl TableBuffer {
         } else {
             self.chunk_time_to_chunks
                 .values()
+                .flatten()
                 .map(|c| (c.timestamp_min, c.timestamp_max))
                 .fold((i64::MAX, i64::MIN), |(a_min, b_min), (a_max, b_max)| {
                     (a_min.min(b_min), a_max.max(b_max))
@@ -133,9 +146,11 @@ impl TableBuffer {
     pub fn computed_size(&self) -> usize {
         let mut size = size_of::<Self>();
 
-        for c in self.chunk_time_to_chunks.values() {
-            for builder in c.data.values() {
-                size += size_of::<ColumnId>() + size_of::<String>() + builder.size();
+        for chunks in self.chunk_time_to_chunks.values() {
+            for c in chunks {
+                for builder in c.data.values() {
+                    size += size_of::<ColumnId>() + size_of::<String>() + builder.size();
+                }
             }
         }
 
@@ -153,21 +168,23 @@ impl TableBuffer {
             .filter(|k| **k < older_than_chunk_time)
             .copied()
             .collect::<Vec<_>>();
-        self.snapshotting_chunks = keys_to_remove
-            .into_iter()
-            .map(|chunk_time| {
-                let chunk = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
+
+        let mut snapshot_chunks = Vec::new();
+        for chunk_time in keys_to_remove {
+            let chunks = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
+            for chunk in chunks {
                 let timestamp_min_max = chunk.timestamp_min_max();
                 let (schema, record_batch) = chunk.into_schema_record_batch(Arc::clone(&table_def));
 
-                SnapshotChunk {
+                snapshot_chunks.push(SnapshotChunk {
                     chunk_time,
                     timestamp_min_max,
                     record_batch,
                     schema,
-                }
-            })
-            .collect::<Vec<_>>();
+                });
+            }
+        }
+        self.snapshotting_chunks = snapshot_chunks;
 
         self.snapshotting_chunks.clone()
     }
@@ -191,6 +208,7 @@ impl std::fmt::Debug for TableBuffer {
         let (min_time, max_time, row_count) = self
             .chunk_time_to_chunks
             .values()
+            .flatten()
             .map(|c| (c.timestamp_min, c.timestamp_max, c.row_count))
             .fold(
                 (i64::MAX, i64::MIN, 0),
@@ -198,8 +216,9 @@ impl std::fmt::Debug for TableBuffer {
                     (a_min.min(b_min), a_max.max(b_max), a_count + b_count)
                 },
             );
+        let chunk_count: usize = self.chunk_time_to_chunks.values().map(|v| v.len()).sum();
         f.debug_struct("TableBuffer")
-            .field("chunk_count", &self.chunk_time_to_chunks.len())
+            .field("chunk_count", &chunk_count)
             .field("timestamp_min", &min_time)
             .field("timestamp_max", &max_time)
             .field("row_count", &row_count)
@@ -212,6 +231,74 @@ struct MutableTableChunk {
     timestamp_max: i64,
     data: BTreeMap<ColumnId, Builder>,
     row_count: usize,
+    string_bytes_per_column: HashMap<ColumnId, usize>,
+}
+
+// Test infrastructure for configurable string size limit - thread-local for test isolation.
+#[cfg(test)]
+thread_local! {
+    static TEST_VAR_COL_MAX_BYTES: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(influxdb3_types::arrow_limits::ARROW_VAR_COL_MAX_BYTES)
+    };
+}
+
+/// Returns the variable-column byte capacity limit.
+fn var_col_max_bytes() -> usize {
+    #[cfg(test)]
+    {
+        TEST_VAR_COL_MAX_BYTES.with(|c| c.get())
+    }
+    #[cfg(not(test))]
+    {
+        influxdb3_types::arrow_limits::ARROW_VAR_COL_MAX_BYTES
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug)]
+struct VarColMaxGuard(usize);
+
+#[cfg(test)]
+impl VarColMaxGuard {
+    fn new(cap: usize) -> Self {
+        let prev = TEST_VAR_COL_MAX_BYTES.with(|c| {
+            let prev = c.get();
+            c.set(cap);
+            prev
+        });
+        Self(prev)
+    }
+}
+
+#[cfg(test)]
+impl Drop for VarColMaxGuard {
+    fn drop(&mut self) {
+        TEST_VAR_COL_MAX_BYTES.with(|c| c.set(self.0));
+    }
+}
+
+impl MutableTableChunk {
+    fn new() -> Self {
+        Self {
+            timestamp_min: i64::MAX,
+            timestamp_max: i64::MIN,
+            data: Default::default(),
+            row_count: 0,
+            string_bytes_per_column: HashMap::new(),
+        }
+    }
+
+    fn would_exceed_limit_with(&self, incoming_per_column: &HashMap<ColumnId, usize>) -> bool {
+        let limit = var_col_max_bytes();
+        incoming_per_column.iter().any(|(col_id, additional)| {
+            let existing = self
+                .string_bytes_per_column
+                .get(col_id)
+                .copied()
+                .unwrap_or(0);
+            existing.saturating_add(*additional) > limit
+        })
+    }
 }
 
 impl MutableTableChunk {
@@ -269,6 +356,8 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::String(v) => {
+                        *self.string_bytes_per_column.entry(f.id).or_default() += v.len();
+
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             // keep arrow's default for data_capacity.
                             let mut string_builder =
@@ -445,9 +534,7 @@ fn array_ref_nulls_for_type(data_type: InfluxColumnType, len: usize) -> ArrayRef
         }
         InfluxColumnType::Field(InfluxFieldType::String) => {
             let mut builder = StringBuilder::new();
-            for _ in 0..len {
-                builder.append_null();
-            }
+            builder.append_nulls(len);
             Arc::new(builder.finish())
         }
         InfluxColumnType::Field(InfluxFieldType::UInteger) => {
@@ -794,5 +881,113 @@ mod tests {
                 .collect::<Vec<RecordBatch>>();
             assert_batches_sorted_eq!(t.expected_output, &batches);
         }
+    }
+
+    #[tokio::test]
+    async fn test_chunk_splits_on_large_string_payload() {
+        let _guard = VarColMaxGuard::new(99);
+
+        let writer = TestWriter::new().await;
+
+        let rows1 = writer
+            .write_to_rows(
+                "tbl,tag=a val=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" 1",
+                0,
+            )
+            .await;
+
+        let rows2 = writer
+            .write_to_rows(
+                "tbl,tag=b val=\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" 2",
+                0,
+            )
+            .await;
+
+        let rows3 = writer
+            .write_to_rows(
+                "tbl,tag=c val=\"cccccccccccccccccccccccccccccccccccccccccccccccccc\" 3",
+                0,
+            )
+            .await;
+
+        let table_def = writer.db_schema().table_definition("tbl").unwrap();
+
+        let mut table_buffer = TableBuffer::new();
+
+        table_buffer.buffer_chunk(0, &rows1);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+
+        table_buffer.buffer_chunk(0, &rows2);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 2);
+
+        table_buffer.buffer_chunk(0, &rows3);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 3);
+
+        let batches = table_buffer
+            .partitioned_record_batches(Arc::clone(&table_def), &ChunkFilter::default())
+            .unwrap();
+
+        assert_eq!(batches.len(), 1);
+        let (ts_min_max, record_batches) = batches.get(&0).unwrap();
+        assert_eq!(ts_min_max.min, 1);
+        assert_eq!(ts_min_max.max, 3);
+        assert_eq!(record_batches.len(), 3);
+
+        let total_rows: usize = record_batches.iter().map(|rb| rb.num_rows()).sum();
+        assert_eq!(total_rows, 3);
+    }
+
+    #[tokio::test]
+    async fn test_chunk_accumulates_when_under_limit() {
+        let _guard = VarColMaxGuard::new(100);
+
+        let writer = TestWriter::new().await;
+
+        let rows1 = writer
+            .write_to_rows("tbl,tag=a val=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" 1", 0)
+            .await;
+
+        let rows2 = writer
+            .write_to_rows("tbl,tag=b val=\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" 2", 0)
+            .await;
+
+        let rows3 = writer
+            .write_to_rows("tbl,tag=c val=\"cccccccccccccccccccccccccccccc\" 3", 0)
+            .await;
+
+        let rows4 = writer
+            .write_to_rows("tbl,tag=d val=\"dddddddddddddddddddddddddddddd\" 4", 0)
+            .await;
+
+        let table_def = writer.db_schema().table_definition("tbl").unwrap();
+
+        let mut table_buffer = TableBuffer::new();
+
+        table_buffer.buffer_chunk(0, &rows1);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+
+        table_buffer.buffer_chunk(0, &rows2);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+
+        table_buffer.buffer_chunk(0, &rows3);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+
+        table_buffer.buffer_chunk(0, &rows4);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 2);
+
+        let chunks = table_buffer.chunk_time_to_chunks.get(&0).unwrap();
+        assert_eq!(chunks[0].row_count, 3);
+        assert_eq!(chunks[1].row_count, 1);
+
+        let batches = table_buffer
+            .partitioned_record_batches(Arc::clone(&table_def), &ChunkFilter::default())
+            .unwrap();
+
+        let (ts_min_max, record_batches) = batches.get(&0).unwrap();
+        assert_eq!(ts_min_max.min, 1);
+        assert_eq!(ts_min_max.max, 4);
+
+        let total_rows: usize = record_batches.iter().map(|rb| rb.num_rows()).sum();
+        assert_eq!(total_rows, 4);
     }
 }
