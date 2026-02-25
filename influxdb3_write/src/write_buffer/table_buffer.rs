@@ -48,8 +48,11 @@ impl TableBuffer {
         let mut incoming_per_column = HashMap::new();
         for r in rows {
             for f in &r.fields {
-                if let FieldData::String(s) = &f.value {
-                    *incoming_per_column.entry(f.id).or_default() += s.len();
+                match &f.value {
+                    FieldData::String(s) | FieldData::Tag(s) => {
+                        *incoming_per_column.entry(f.id).or_default() += s.len();
+                    }
+                    _ => {}
                 }
             }
         }
@@ -336,6 +339,8 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::Tag(v) => {
+                        *self.string_bytes_per_column.entry(f.id).or_default() += v.len();
+
                         if let Entry::Vacant(e) = self.data.entry(f.id) {
                             // keep arrow's defaults for value_capacity and data_capacity.
                             let mut tag_builder = StringDictionaryBuilder::with_capacity(
@@ -989,5 +994,48 @@ mod tests {
 
         let total_rows: usize = record_batches.iter().map(|rb| rb.num_rows()).sum();
         assert_eq!(total_rows, 4);
+    }
+
+    #[tokio::test]
+    async fn test_chunk_splits_on_large_tag_payload() {
+        let _guard = VarColMaxGuard::new(99);
+        let writer = TestWriter::new().await;
+        let tag_a = "a".repeat(50);
+        let tag_b = "b".repeat(50);
+        let tag_c = "c".repeat(50);
+
+        let rows1 = writer
+            .write_to_rows(format!("tbl,tag={tag_a} val=1.0 1"), 0)
+            .await;
+
+        let rows2 = writer
+            .write_to_rows(format!("tbl,tag={tag_b} val=2.0 2"), 0)
+            .await;
+
+        let rows3 = writer
+            .write_to_rows(format!("tbl,tag={tag_c} val=3.0 3"), 0)
+            .await;
+
+        let table_def = writer.db_schema().table_definition("tbl").unwrap();
+        let mut table_buffer = TableBuffer::new();
+        table_buffer.buffer_chunk(0, &rows1);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+        table_buffer.buffer_chunk(0, &rows2);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 2);
+        table_buffer.buffer_chunk(0, &rows3);
+        assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 3);
+
+        let batches = table_buffer
+            .partitioned_record_batches(Arc::clone(&table_def), &ChunkFilter::default())
+            .unwrap();
+
+        assert_eq!(batches.len(), 1);
+        let (ts_min_max, record_batches) = batches.get(&0).unwrap();
+        assert_eq!(ts_min_max.min, 1);
+        assert_eq!(ts_min_max.max, 3);
+        assert_eq!(record_batches.len(), 3);
+
+        let total_rows: usize = record_batches.iter().map(|rb| rb.num_rows()).sum();
+        assert_eq!(total_rows, 3);
     }
 }
