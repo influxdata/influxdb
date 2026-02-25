@@ -1,6 +1,11 @@
 # https://github.com/jdstrand/language-checker/blob/main/docs/rules.md
 # https://github.com/jdstrand/language-checker/blob/main/pkg/rule/default.yaml
 
+ignore_files:
+  # NOTE(tjh): Ignore crates from IOx until inclusivity checks are enforced
+  # on them upstream
+  - core/
+
 rules:
   # exclude the 'dummy' rule
   - name: dummy
