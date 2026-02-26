@@ -56,11 +56,11 @@ func (c *TagValueSeriesIDCache) get(name, key, value []byte) *tsdb.SeriesIDSet {
 	return nil
 }
 
-// exists returns true if the an item exists for the tuple {name, key, value}.
-func (c *TagValueSeriesIDCache) exists(name, key, value []byte) bool {
-	if mmap, ok := c.cache[string(name)]; ok {
-		if tkmap, ok := mmap[string(key)]; ok {
-			_, ok := tkmap[string(value)]
+// exists returns true if the item exists for the tuple {name, key, value}.
+func (c *TagValueSeriesIDCache) exists(name, key, value string) bool {
+	if mmap, ok := c.cache[name]; ok {
+		if tkmap, ok := mmap[key]; ok {
+			_, ok := tkmap[value]
 			return ok
 		}
 	}
@@ -97,8 +97,13 @@ func (c *TagValueSeriesIDCache) measurementContainsSets(name []byte) bool {
 // the cache is at its limit, then the least recently used item is evicted.
 func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSet) {
 	c.Lock()
+	// Convert once; the same string backing array is shared between
+	// the cache element (used during eviction) and the map keys.
+	nameStr := string(name)
+	keyStr := string(key)
+	valueStr := string(value)
 	// Check under the write lock if the relevant item is now in the cache.
-	if c.exists(name, key, value) {
+	if c.exists(nameStr, keyStr, valueStr) {
 		c.Unlock()
 		return
 	}
@@ -108,12 +113,6 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 	if ss != nil {
 		ss = ss.Clone()
 	}
-
-	// Convert once; the same string backing array is shared between
-	// the cache element (used during eviction) and the map keys.
-	nameStr := string(name)
-	keyStr := string(key)
-	valueStr := string(value)
 
 	// Create list item, and add to the front of the eviction list.
 	listElement := c.evictor.PushFront(&seriesIDCacheElement{
