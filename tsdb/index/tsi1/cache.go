@@ -109,34 +109,40 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 		ss = ss.Clone()
 	}
 
+	// Convert once; the same string backing array is shared between
+	// the cache element (used during eviction) and the map keys.
+	nameStr := string(name)
+	keyStr := string(key)
+	valueStr := string(value)
+
 	// Create list item, and add to the front of the eviction list.
 	listElement := c.evictor.PushFront(&seriesIDCacheElement{
-		name:        string(name),
-		key:         string(key),
-		value:       string(value),
+		name:        nameStr,
+		key:         keyStr,
+		value:       valueStr,
 		SeriesIDSet: ss,
 	})
 
 	// Add the listElement to the set of items.
-	if mmap, ok := c.cache[string(name)]; ok {
-		if tkmap, ok := mmap[string(key)]; ok {
-			if _, ok := tkmap[string(value)]; ok {
+	if mmap, ok := c.cache[nameStr]; ok {
+		if tkmap, ok := mmap[keyStr]; ok {
+			if _, ok := tkmap[valueStr]; ok {
 				goto EVICT
 			}
 
 			// Add the set to the map
-			tkmap[string(value)] = listElement
+			tkmap[valueStr] = listElement
 			goto EVICT
 		}
 
 		// No series set map for the tag key - first tag value for the tag key.
-		mmap[string(key)] = map[string]*list.Element{string(value): listElement}
+		mmap[keyStr] = map[string]*list.Element{valueStr: listElement}
 		goto EVICT
 	}
 
 	// No map for the measurement - first tag key for the measurment.
-	c.cache[string(name)] = map[string]map[string]*list.Element{
-		string(key): map[string]*list.Element{string(value): listElement},
+	c.cache[nameStr] = map[string]map[string]*list.Element{
+		keyStr: map[string]*list.Element{valueStr: listElement},
 	}
 
 EVICT:
