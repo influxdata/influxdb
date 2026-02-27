@@ -45,12 +45,12 @@ var (
 
 // Statistics gathered by the store.
 const (
-	statDatabaseSeries       = "numSeries"           // number of series in a database
-	statDatabaseMeasurements = "numMeasurements"     // number of measurements in a database
-	statTagValueCacheBytes   = "tagValueCacheBytes"  // bytes used by the tag value series ID cache
-	statPointsWritten        = "pointsWritten"       // number of points parsed by engines successfully
-	statValuesWritten        = "valuesWritten"        // number of values parsed by engines successfully
-	statSeriesCreated        = "seriesCreated"        // number of series created since startup
+	statDatabaseSeries       = "numSeries"          // number of series in a database
+	statDatabaseMeasurements = "numMeasurements"    // number of measurements in a database
+	statTagValueCacheBytes   = "tagValueCacheBytes" // bytes used by the tag value series ID cache
+	statPointsWritten        = "pointsWritten"      // number of points parsed by engines successfully
+	statValuesWritten        = "valuesWritten"      // number of values parsed by engines successfully
+	statSeriesCreated        = "seriesCreated"      // number of series created since startup
 )
 
 // SeriesFileDirectory is the name of the directory containing series files for
