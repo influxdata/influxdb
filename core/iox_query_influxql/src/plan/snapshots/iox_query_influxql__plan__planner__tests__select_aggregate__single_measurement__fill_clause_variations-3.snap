@@ -1,0 +1,13 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT COUNT(f64_field) FROM data WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(10s) FILL(-1)\")"
+---
+Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+    SeriesLimit: series=[], order=[time ASC NULLS LAST], limit_expr=[count RESPECT NULLS (default: Int64(-1))] [time:Timestamp(Nanosecond, None);N, count:Int64;N]
+      Projection: time, coalesce_struct(count(data.f64_field), Int64(-1)) AS count [time:Timestamp(Nanosecond, None);N, count:Int64;N]
+        GapFill: series=[], time=date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), time, TimestampNanosecond(0, None)), fill=[COALESCE(count(data.f64_field), -1)], range=Included(Literal(TimestampNanosecond(1667181600000000000, None), None))..Included(Literal(TimestampNanosecond(1667181719999999999, None), None)) [time:Timestamp(Nanosecond, None);N, count(data.f64_field):Int64]
+          Aggregate: groupBy=[[date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[count(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, count(data.f64_field):Int64]
+            Filter: data.time >= TimestampNanosecond(1667181600000000000, None) AND data.time <= TimestampNanosecond(1667181719999999999, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+              Filter: data.f64_field IS NOT NULL [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]

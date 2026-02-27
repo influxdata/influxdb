@@ -1,0 +1,19 @@
+syntax = "proto3";
+package influxdata.iox.common.v1;
+option go_package = "github.com/influxdata/iox/common/v1";
+
+// Clients can specify a filter for soft-deleted status
+// when listing namespaces or tables.
+//
+// If not specified, the default is to list only active
+// objects.
+enum SoftDeleted {
+    // Client has not specified a filter by soft-deleted status
+    SOFT_DELETED_UNSPECIFIED = 0;
+    // List object irrespective of their soft-deleted status
+    SOFT_DELETED_LIST_ALL = 1;
+    // List only object which are active
+    SOFT_DELETED_ONLY_ACTIVE = 2;
+    // List only soft-deleted object
+    SOFT_DELETED_ONLY_DELETED = 3;
+}

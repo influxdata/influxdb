@@ -1,0 +1,21 @@
+[package]
+name = "metric_exporters"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies] # In alphabetical order
+tracing = { workspace = true }
+metric = { path = "../metric" }
+prometheus = { version = "0.14", default-features = false }
+reqwest.workspace = true
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+mockito = { version = "1.7", default-features = false }
+test_helpers = { path = "../test_helpers" }
+tokio = { version = "1", features = ["rt"] }

@@ -1,0 +1,28 @@
+[package]
+name = "ingester_query_grpc"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies] # In alphabetical order
+base64 = "0.22"
+data_types = { path = "../data_types" }
+datafusion = { workspace = true }
+datafusion-proto = { workspace = true }
+pbjson = { workspace = true }
+predicate = { path = "../predicate" }
+prost = { workspace = true }
+query_functions = { path = "../query_functions" }
+serde = { version = "1.0", features = ["derive"] }
+snafu = "0.8"
+tonic = { workspace = true, features = ["tls-ring", "tls-native-roots"] }
+workspace-hack = { path = "../workspace-hack" }
+
+[build-dependencies] # In alphabetical order
+tonic-build = { workspace = true }
+prost-build = { workspace = true }
+pbjson-build = { workspace = true }

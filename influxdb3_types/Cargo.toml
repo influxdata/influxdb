@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 # Core Crates
-iox_http.workspace = true
-iox_query_params.workspace = true
+iox_http = { path = "../core/iox_http" }
+iox_query_params = { path = "../core/iox_query_params" }
 
 # Local deps
 influxdb3_authz = { path = "../influxdb3_authz" }

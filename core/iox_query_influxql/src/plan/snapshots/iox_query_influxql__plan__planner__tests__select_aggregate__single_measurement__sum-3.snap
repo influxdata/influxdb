@@ -1,0 +1,10 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT SUM(u64_field) FROM all_types\")"
+---
+Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), sum:UInt64;N]
+  Projection: Dictionary(Int32, Utf8("all_types")) AS iox::measurement, TimestampNanosecond(0, None) AS time, sum(all_types.u64_field) AS sum [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), sum:UInt64;N]
+    Filter: __aggr_count > Int64(0) [sum(all_types.u64_field):UInt64;N, __aggr_count:Int64]
+      Aggregate: groupBy=[[]], aggr=[[sum(all_types.u64_field), count(Int64(1)) AS __aggr_count]] [sum(all_types.u64_field):UInt64;N, __aggr_count:Int64]
+        Filter: all_types.u64_field IS NOT NULL [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+          TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]

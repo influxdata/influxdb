@@ -1,0 +1,10 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT FIRST(f), first FROM name_clash\")"
+---
+Sort: time ASC NULLS LAST, first_1 ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, first:Float64;N, first_1:Dictionary(Int32, Utf8);N]
+  Projection: Dictionary(Int32, Utf8("name_clash")) AS iox::measurement, get_field(selector_first(name_clash.f,name_clash.time,name_clash.first), Utf8("time")) AS time, get_field(selector_first(name_clash.f,name_clash.time,name_clash.first), Utf8("value")) AS first, get_field(selector_first(name_clash.f,name_clash.time,name_clash.first), Utf8("other_1")) AS first_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, first:Float64;N, first_1:Dictionary(Int32, Utf8);N]
+    Filter: __aggr_count > Int64(0) [selector_first(name_clash.f,name_clash.time,name_clash.first):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "other_1", data_type: Dictionary(Int32, Utf8), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, __aggr_count:Int64]
+      Aggregate: groupBy=[[]], aggr=[[selector_first(name_clash.f, name_clash.time, name_clash.first), count(Int64(1)) AS __aggr_count]] [selector_first(name_clash.f,name_clash.time,name_clash.first):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "other_1", data_type: Dictionary(Int32, Utf8), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, __aggr_count:Int64]
+        Filter: name_clash.f IS NOT NULL [f:Float64;N, first:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+          TableScan: name_clash [f:Float64;N, first:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]

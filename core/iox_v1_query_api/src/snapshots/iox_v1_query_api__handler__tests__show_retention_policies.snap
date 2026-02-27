@@ -1,0 +1,6 @@
+---
+source: iox_v1_query_api/src/handler.rs
+description: "SHOW RETENTION POLICIES -- on `foo` database which contains one default policy"
+expression: res
+---
+{"results":[{"statement_id":0,"series":[{"name":"retention_policies","columns":["name","duration","shardGroupDuration","replicaN","futureWriteLimit","pastWriteLimit","default"],"values":[["autogen","0ns","604800s",1,"0ns","0ns",true]]}]}]}

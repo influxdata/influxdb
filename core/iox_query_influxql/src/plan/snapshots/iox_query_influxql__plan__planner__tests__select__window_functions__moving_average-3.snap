@@ -1,0 +1,9 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT MOVING_AVERAGE(MEAN(usage_idle), usage_system) FROM cpu GROUP BY TIME(10s)\")"
+---
+rewriting statement
+caused by
+gather information about select statement
+caused by
+Error during planning: expected integer argument in moving_average()

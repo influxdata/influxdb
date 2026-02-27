@@ -1,0 +1,9 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT DISTINCT(usage_idle), usage_system FROM cpu\")"
+---
+rewriting statement
+caused by
+gather information about select statement
+caused by
+Error during planning: aggregate function distinct() cannot be combined with other functions or fields

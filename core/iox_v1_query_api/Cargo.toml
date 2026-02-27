@@ -1,0 +1,55 @@
+[package]
+name = "iox_v1_query_api"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies] # In alphabetical order
+anyhow = "1.0.99"
+arrow = { workspace = true }
+authz = { path = "../authz", features = ["http"] }
+bytes = "1.11.0"
+chrono = "0.4.43"
+datafusion = { workspace = true }
+futures = "0.3"
+generated_types = { path = "../generated_types" }
+http = { workspace = true }
+http-body-util = { workspace = true }
+iox_http_util = { path = "../iox_http_util" }
+iox_query = { path = "../iox_query" }
+iox_query_params = { path = "../iox_query_params" }
+iox_query_influxql = { path = "../iox_query_influxql" }
+iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
+mime = "0.3.16"
+multer = "3.1.0"
+trace_http = { path = "../trace_http" }
+tracing = { workspace = true }
+rmp-serde = "1.3.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.149"
+serde_urlencoded = "0.7.0"
+schema = { path = "../schema" }
+thiserror = "2.0.18"
+trace = { path = "../trace" }
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+async-trait = "0.1"
+data_types = { path = "../data_types" }
+datafusion_util = { path = "../datafusion_util" }
+insta = { version = "1.46.1", features = ["json", "redactions"] }
+iox_time = { path = "../iox_time" }
+metric = { path = "../metric" }
+tokio = { version = "1.49", features = [
+    "macros",
+    "net",
+    "parking_lot",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "time",
+] }

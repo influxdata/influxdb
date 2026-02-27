@@ -1,0 +1,69 @@
+syntax = "proto3";
+package influxdata.iox.wal.v1;
+option go_package = "github.com/influxdata/iox/wal/v1";
+
+import "influxdata/iox/delete/v1/service.proto";
+import "influxdata/pbdata/v1/influxdb_pb_data_protocol.proto";
+
+/// Persist information that can be saved to the WAL. Used during replay to evict data from memory.
+message PersistOp {
+  // The table ID of the persisted data.
+  int64 table_id = 1;
+
+  // Sequence numbers of the writes which were persisted
+  // for the corresponding table.
+  SequenceNumberSet sequence_numbers = 2;
+}
+
+// A set of sequence numbers corresponding to writes in an ingester.
+message SequenceNumberSet {
+  repeated uint64 sequence_numbers = 1;
+}
+
+// WAL operation with a sequence number, used to inform read buffers when to evict data
+message SequencedWalOp {
+  // Was the op-level sequence number.
+  reserved "sequence_number";
+  reserved 1;
+
+  // A mapping which assigns a sequence number per table ID affected by this WAL
+  // operation.
+  //
+  // Because this operation contains data for exactly one partition per table,
+  // this transitively tracks the sequence numbers per partition within this op.
+  map<int64, uint64> table_write_sequence_numbers = 5 [deprecated = true];
+
+  oneof op {
+    influxdata.pbdata.v1.DatabaseBatch write = 2 [deprecated = true];
+    influxdata.iox.delete.v1.DeletePayload delete = 3;
+    PersistOp persist = 4;
+    WriteWithSequenceNumbers write_with_sequence_numbers = 6;
+  }
+}
+
+// Tracks table IDs to writes within a WAL operation.
+//
+// This consolidates a write to a table with the sequence numbers
+// of the data contained within the partitions.
+//
+// NOTE: The purpose of this message is to sunset the use of the
+// map in every sequenced WAL operation, as not all operations
+// are for writes which contain sequence numbers. This will avoid
+// serialising an empty map for these operations which do not
+// use this information. As such, the original `table_write_sequence_numbers`
+// is marked as deprecated.
+message WriteWithSequenceNumbers {
+  influxdata.pbdata.v1.DatabaseBatch batch = 1;
+  // A mapping which assigns a sequence number per table ID affected by this WAL
+  // operation.
+  //
+  // Because this operation contains data for exactly one partition per table,
+  // this transitively tracks the sequence numbers per partition within this op.
+  map<int64, uint64> table_write_sequence_numbers = 2;
+}
+
+// Collection of WAL operations (they get batched into a single write into the WAL)
+message WalOpBatch {
+  // the ops
+  repeated SequencedWalOp ops = 1;
+}

@@ -1,0 +1,10 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT MOVING_AVERAGE(f64_field, 3) FROM data\")"
+---
+Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), moving_average:Float64;N]
+  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, data.time AS time, moving_average(data.f64_field,Int64(3)) AS moving_average [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), moving_average:Float64;N]
+    Filter: moving_average(data.f64_field,Int64(3)) IS NOT NULL [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N, moving_average(data.f64_field,Int64(3)):Float64;N]
+      WindowAggr: windowExpr=[[moving_average(data.f64_field, Int64(3)) ORDER BY [data.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS moving_average(data.f64_field,Int64(3))]] [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N, moving_average(data.f64_field,Int64(3)):Float64;N]
+        Filter: data.f64_field IS NOT NULL [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+          TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]

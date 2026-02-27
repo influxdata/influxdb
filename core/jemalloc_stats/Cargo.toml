@@ -1,0 +1,21 @@
+[package]
+name = "jemalloc_stats"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snafu = "0.8"
+tikv-jemalloc-ctl = { version = "0.5.4", features = ["use_std"] }
+tokio = { version = "1.49.0", features = ["rt", "sync", "time"] }
+workspace-hack = { path = "../workspace-hack" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tikv-jemallocator = { version = "0.5", features = [
+    "unprefixed_malloc_on_supported_platforms",
+] }
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }

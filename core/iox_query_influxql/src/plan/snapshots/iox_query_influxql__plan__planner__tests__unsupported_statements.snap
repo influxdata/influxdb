@@ -1,0 +1,5 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"CREATE DATABASE foo\")"
+---
+This feature is not implemented: CREATE DATABASE

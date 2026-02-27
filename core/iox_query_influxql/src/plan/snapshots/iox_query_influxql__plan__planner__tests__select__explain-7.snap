@@ -1,0 +1,6 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"EXPLAIN SHOW FIELD KEYS\")"
+---
+Explain [plan_type:Utf8, plan:Utf8]
+  TableScan: field_keys [iox::measurement:Utf8, fieldKey:Utf8, fieldType:Utf8]

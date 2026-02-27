@@ -1,0 +1,7 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT SUM(bool_field) FROM data\")"
+---
+Error during planning: Execution error: Function 'sum' user-defined coercion failed with "Execution error: Sum not supported for Boolean" No function matches the given name and argument types 'sum(Boolean)'. You might need to add explicit type casts.
+	Candidate functions:
+	sum(UserDefined)

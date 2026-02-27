@@ -1,0 +1,23 @@
+---
+source: iox_v1_query_api/src/response/stream.rs
+expression: chunks
+---
+- name: m1
+  columns:
+    - time
+    - tag0
+    - tag1
+    - val
+  values:
+    - - "1970-01-01T00:00:01Z"
+      - a
+      - "1"
+      - 1
+    - - "1970-01-01T00:00:02Z"
+      - a
+      - "1"
+      - 2
+    - - "1970-01-01T00:00:03Z"
+      - a
+      - "1"
+      - 3

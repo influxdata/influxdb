@@ -1,0 +1,7 @@
+---
+source: iox_v1_query_api/src/response/json.rs
+expression: collect_output(stream).await
+---
+{
+  "error": "json: unsupported value: +Inf"
+}

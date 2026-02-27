@@ -1,0 +1,58 @@
+[package]
+name = "influxdb_iox_client"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["flight", "format"]
+flight = [
+    "arrow",
+    "arrow-flight",
+    "dep:bytes",
+    "dep:iox_query_params",
+    "dep:prost",
+    "dep:rand",
+]
+format = [
+    "arrow",
+    "dep:arrow_util",
+    "dep:comfy-table",
+    "dep:schema",
+    "dep:serde_json",
+]
+
+[dependencies]
+arrow = { workspace = true, optional = true }
+arrow-flight = { workspace = true, optional = true }
+arrow_util = { path = "../arrow_util", optional = true }
+bytes = { version = "1.11", optional = true }
+client_util = { path = "../client_util" }
+comfy-table = { workspace = true, optional = true }
+futures = "0.3"
+futures-util = { version = "0.3" }
+influxdb-line-protocol = { path = "../influxdb_line_protocol" }
+iox_query_params = { path = "../iox_query_params", optional = true }
+generated_types = { path = "../generated_types" }
+prost = { workspace = true, optional = true }
+rand = { version = "0.9.2", optional = true }
+reqwest = { workspace = true, features = ["stream", "rustls-tls-native-roots"] }
+schema = { path = "../schema", optional = true }
+serde_json = { version = "1.0.149", optional = true }
+tokio = { version = "1.49", features = [
+    "macros",
+    "parking_lot",
+    "rt-multi-thread",
+] }
+tokio-stream = "0.1.18"
+thiserror = "2.0.18"
+tonic-reflection = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+insta = { version = "1" }
+tempfile = "3"

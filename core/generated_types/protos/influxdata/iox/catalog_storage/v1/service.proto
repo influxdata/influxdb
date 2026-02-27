@@ -1,0 +1,240 @@
+// The API for the catalog storage service.
+// Provides storage information, such as namespace and table size.
+
+syntax = "proto3";
+package influxdata.iox.catalog_storage.v1;
+option go_package = "github.com/influxdata/iox/catalog_storage/v1";
+
+import "influxdata/iox/partition_template/v1/template.proto";
+import "influxdata/iox/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service CatalogStorageService {
+    rpc GetNamespacesWithStorage(GetNamespacesWithStorageRequest) returns (GetNamespacesWithStorageResponse);
+    rpc GetNamespaceWithStorage(GetNamespaceWithStorageRequest) returns (GetNamespaceWithStorageResponse);
+
+    rpc GetTablesWithStorage(GetTablesWithStorageRequest) returns (GetTablesWithStorageResponse);
+    rpc GetTableWithStorage(GetTableWithStorageRequest) returns (GetTableWithStorageResponse);
+}
+
+enum SortDirection {
+    // No sort direction specified.
+    SORT_DIRECTION_UNSPECIFIED = 0;
+
+    // Ascending order.
+    SORT_DIRECTION_ASC = 1;
+
+    // Descending order.
+    SORT_DIRECTION_DESC = 2;
+}
+
+// ============
+// Namespace
+// ============
+
+enum NamespaceSortField {
+    // No sort field specified.
+    NAMESPACE_SORT_FIELD_UNSPECIFIED = 0;
+
+    // Sort by namespace ID.
+    NAMESPACE_SORT_FIELD_ID = 1;
+
+    // Sort by namespace name.
+    NAMESPACE_SORT_FIELD_NAME = 2;
+
+    // Sort by retention period.
+    NAMESPACE_SORT_FIELD_RETENTION_PERIOD = 3;
+
+    // Sort by the total size of the namespace.
+    NAMESPACE_SORT_FIELD_STORAGE = 4 [deprecated = true];
+
+    // Sort by the total number of tables in the namespace.
+    NAMESPACE_SORT_FIELD_TABLE_COUNT = 5;
+}
+
+// Request to get a list of namespaces with storage.
+message GetNamespacesWithStorageRequest {
+    // Field to sort by
+    optional NamespaceSortField sort_field = 1;
+
+    // Direction in which to sort
+    optional SortDirection sort_direction = 2;
+
+    // Number of records to include per page
+    optional int32 page_size = 3;
+
+    // Page number to retrieve
+    optional int32 page_number = 4;
+
+    // Filter by soft-deleted status
+    // If not specified, only the active namespaces are returned
+    optional influxdata.iox.common.v1.SoftDeleted deleted = 5;
+
+    // Filter namespaces by name (case-insensitive partial match)
+    // If provided, only namespaces with names containing this string are returned
+    optional string name_filter = 6;
+
+    // Filter namespaces by ID (partial match)
+    // If provided, only namespaces with IDs containing this string are returned
+    optional string id_filter = 7;
+}
+
+// Request to get a specific namespace with storage.
+message GetNamespaceWithStorageRequest {
+    // ID of the namespace to get.
+    int64 id = 1;
+
+    // Filter by soft-deleted status
+    // If not specified, only the active namespace is returned
+    optional influxdata.iox.common.v1.SoftDeleted deleted = 2;
+}
+
+// Response containing a list of namespaces with storage.
+message GetNamespacesWithStorageResponse {
+    repeated NamespaceWithStorage namespaces_with_storage = 1;
+
+    int64 total = 2;
+
+    int64 pages = 3;
+}
+
+// Response containing a specific namespace with storage.
+message GetNamespaceWithStorageResponse {
+    NamespaceWithStorage namespace_with_storage = 1;
+}
+
+message NamespaceWithStorage {
+    // Namespace ID.
+    int64 id = 1;
+
+    // Name of the Namespace.
+    string name = 2;
+
+    // Retention period in nanoseconds.
+    //
+    // NULL means "infinite retention".
+    optional int64 retention_period_ns = 3;
+
+    // The maximum number of tables which this namespace is allowed to contain.
+    int32 max_tables = 4;
+
+    // The maximum number of columns a table belonging to this namespace may have.
+    int32 max_columns_per_table = 5;
+
+    // The default partitioning scheme used for any new tables that are created
+    // in this namespace, if any.
+    influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 6;
+
+    // Total size of the namespace, in bytes.
+    int64 size_bytes = 7;
+
+    // Total number of active tables in this namespace.
+    int32 table_count = 8;
+
+    // The timestamp at which this namespace was marked for deletion
+    // (soft-deleted).
+    //
+    // An explcitly unset value indicates the namespace is active and not marked
+    // for deletion.
+    optional google.protobuf.Timestamp deleted_at = 9;
+}
+
+// ============
+// Table
+// ============
+
+enum TableSortField {
+    // No sort field specified.
+    TABLE_SORT_FIELD_UNSPECIFIED = 0;
+
+    // Sort by table name.
+    TABLE_SORT_FIELD_NAME = 1;
+
+    // Sort by the total size of the table.
+    TABLE_SORT_FIELD_STORAGE = 2 [deprecated = true];
+}
+
+// Request to get a list of tables with storage in a namespace.
+message GetTablesWithStorageRequest {
+    // ID of the namespace for which tables are listed.
+    int64 namespace_id = 1;
+
+    // Field to sort by
+    optional TableSortField sort_field = 2;
+
+    // Direction in which to sort
+    optional SortDirection sort_direction = 3;
+
+    // Number of records to include per page
+    optional int32 page_size = 4;
+
+    // Page number to retrieve
+    optional int32 page_number = 5;
+
+    // Filter by soft-deleted status
+    // If not specified, only the active tables are returned
+    optional influxdata.iox.common.v1.SoftDeleted deleted = 6;
+
+    // Filter tables by name (case-insensitive partial match)
+    // If provided, only tables with names containing this string are returned
+    optional string name_filter = 7;
+
+    // Filter tables by ID (partial match)
+    // If provided, only tables with IDs containing this string are returned
+    optional string id_filter = 8;
+}
+
+// Request to get a specific table with storage.
+message GetTableWithStorageRequest {
+    // ID of the table to get from namespace.
+    int64 table_id = 1;
+
+    // Filter by soft-deleted status
+    // If not specified, only the active table is returned
+    optional influxdata.iox.common.v1.SoftDeleted deleted = 2;
+}
+
+// Response containing a list of tables with storage.
+message GetTablesWithStorageResponse {
+    repeated TableWithStorage tables_with_storage = 1;
+
+    // The total number of items in the unpaged data set
+    int64 total = 2;
+
+    // The total number of pages available
+    int64 pages = 3;
+}
+
+// Response containing details of a specific table with storage.
+message GetTableWithStorageResponse {
+    TableWithStorage table_with_storage = 1;
+}
+
+message TableWithStorage {
+    // Table ID.
+    int64 id = 1;
+
+    // Name of the Table.
+    string name = 2;
+
+    // Namespace ID.
+    int64 namespace_id = 3;
+
+    // The partitioning scheme applied to writes for this table.
+    influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 4;
+
+    // Total size of the table, in bytes.
+    int64 size_bytes = 5;
+
+    // The timestamp at which this table was marked for deletion
+    // (soft-deleted).
+    //
+    // An explcitly unset value indicates the table is active and not marked
+    // for deletion.
+    optional google.protobuf.Timestamp deleted_at = 6;
+
+    // Total number of active columns in this table.
+    int64 column_count = 7;
+    
+    bool iceberg_enabled = 8;
+}
