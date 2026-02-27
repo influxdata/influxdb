@@ -207,7 +207,7 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	seenIndexes := make(map[uintptr]bool)
 	for _, sh := range shards {
 		idx, err := sh.Index()
-		if err != nil {
+		if err != nil || idx == nil {
 			continue
 		}
 		id := idx.UniqueReferenceID()
