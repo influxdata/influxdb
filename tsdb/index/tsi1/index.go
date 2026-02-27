@@ -1094,7 +1094,10 @@ func (i *Index) TagValueCacheBytes() int64 {
 // collectTagValueCacheMetrics starts a background goroutine that periodically
 // samples the tag value cache heap size. It exits when the index is closed.
 func (i *Index) collectTagValueCacheMetrics() {
-	const cacheTrigger = 10 * time.Minute
+	// take an initial sample
+	atomic.StoreInt64(&i.cacheBytes, int64(i.tagValueCache.HeapSize()))
+
+	const cacheTrigger = 10 * time.Second
 	go func() {
 		ticker := time.NewTicker(cacheTrigger)
 		defer ticker.Stop()
