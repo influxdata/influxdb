@@ -1,0 +1,10 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT SUM(*) FROM data\")"
+---
+Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), sum_f64_field:Float64;N, sum_i64_field:Int64;N, sum_mixedCase:Float64;N, sum_"with space":Float64;N]
+  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, sum(data.f64_field) AS sum_f64_field, sum(data.i64_field) AS sum_i64_field, sum(data.mixedCase) AS sum_mixedCase, sum(data.with space) AS sum_"with space" [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), sum_f64_field:Float64;N, sum_i64_field:Int64;N, sum_mixedCase:Float64;N, sum_"with space":Float64;N]
+    Filter: __aggr_count > Int64(0) [sum(data.f64_field):Float64;N, sum(data.i64_field):Int64;N, sum(data.mixedCase):Float64;N, sum(data.with space):Float64;N, __aggr_count:Int64]
+      Aggregate: groupBy=[[]], aggr=[[sum(data.f64_field), sum(data.i64_field), sum(data.mixedCase), sum(data.with space), count(Int64(1)) AS __aggr_count]] [sum(data.f64_field):Float64;N, sum(data.i64_field):Int64;N, sum(data.mixedCase):Float64;N, sum(data.with space):Float64;N, __aggr_count:Int64]
+        Filter: data.f64_field IS NOT NULL OR data.i64_field IS NOT NULL OR data.mixedCase IS NOT NULL OR data.with space IS NOT NULL [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+          TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]

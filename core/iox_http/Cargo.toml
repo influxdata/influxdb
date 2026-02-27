@@ -1,0 +1,34 @@
+[package]
+name = "iox_http"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# crates.io dependencies in alphabetical order
+async-trait = "0.1"
+hyper = { workspace = true }
+hyper-util = { workspace = true, features = ["client-legacy"] }
+parking_lot = "0.12"
+serde = "1.0"
+serde_urlencoded = "0.7"
+thiserror = "2.0"
+
+# workspace dependencies in alphabetical order
+authz = { path = "../authz", features = ["http"] }
+data_types = { path = "../data_types" }
+iox_http_util = { path = "../iox_http_util" }
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies]
+# crates.io dependencies in alphabetical order
+assert_matches = "1.5"
+base64 = "0.22.1"
+paste = "1.0.15"
+tokio = { version = "1", features = ["test-util"] }
+
+# workspace dependencies in alphabetical order
+
+[lints]
+workspace = true

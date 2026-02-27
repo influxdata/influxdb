@@ -33,8 +33,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn get_git_hash() -> String {
     let out = match std::env::var("GIT_HASH") {
-        Ok(v) => v,
-        Err(_) => {
+        Ok(v) if !v.is_empty() => v,
+        _ => {
             let output = Command::new("git")
                 // We used `git describe`, but when you tag a build the commit hash goes missing when
                 // using describe. So, switching it to use `rev-parse` which is consistent with the
@@ -56,14 +56,17 @@ fn get_git_hash() -> String {
 
 fn get_git_hash_short() -> String {
     let out = match std::env::var("GIT_HASH_SHORT") {
-        Ok(v) => v,
-        Err(_) => {
-            let output = Command::new("git")
-                .args(["rev-parse", "--short", "HEAD"])
-                .output()
-                .expect("failed to execute git rev-parse to read the current git hash");
-            String::from_utf8(output.stdout).expect("non-utf8 found in git hash")
-        }
+        Ok(v) if !v.is_empty() => v,
+        _ => match std::env::var("GIT_HASH") {
+            Ok(v) if !v.is_empty() => v.chars().take(7).collect(),
+            _ => {
+                let output = Command::new("git")
+                    .args(["rev-parse", "--short", "HEAD"])
+                    .output()
+                    .expect("failed to execute git rev-parse to read the current git hash");
+                String::from_utf8(output.stdout).expect("non-utf8 found in git hash")
+            }
+        },
     };
 
     assert!(!out.is_empty(), "attempting to embed empty git hash");

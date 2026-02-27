@@ -1,0 +1,25 @@
+[package]
+name = "flightsql"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+arrow-flight = { workspace = true }
+arrow_util = { path = "../arrow_util" }
+datafusion = { workspace = true }
+generated_types = { path = "../generated_types" }
+iox_query = { path = "../iox_query" }
+iox_query_params = { path = "../iox_query_params/" }
+# Crates.io dependencies, in alphabetical order
+bytes = "1.11"
+futures = "0.3"
+snafu = "0.8"
+prost = { workspace = true }
+tracing = { workspace = true }
+workspace-hack = { path = "../workspace-hack" }

@@ -1,0 +1,6 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SHOW TAG KEYS LIMIT 1 OFFSET 2\")"
+---
+SeriesLimit: series=[iox::measurement], order=[tagKey ASC NULLS LAST], limit_expr=[tagKey RESPECT NULLS (default: Dictionary(Int32, Utf8(NULL)))], skip=UInt64(2), fetch=UInt64(1) [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8);N]
+  TableScan: tag_keys [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8)]

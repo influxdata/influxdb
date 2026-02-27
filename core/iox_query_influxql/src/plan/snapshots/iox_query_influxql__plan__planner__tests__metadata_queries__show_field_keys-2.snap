@@ -1,0 +1,6 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SHOW FIELD KEYS LIMIT 1 OFFSET 2\")"
+---
+SeriesLimit: series=[iox::measurement], order=[fieldKey ASC NULLS LAST], limit_expr=[fieldKey RESPECT NULLS (default: Utf8(NULL))], skip=UInt64(2), fetch=UInt64(1) [iox::measurement:Utf8, fieldKey:Utf8;N, fieldType:Utf8]
+  TableScan: field_keys [iox::measurement:Utf8, fieldKey:Utf8, fieldType:Utf8]

@@ -1,0 +1,14 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT * FROM (SELECT MEAN(value) AS mean_value FROM (SELECT f64_field AS value FROM data))\")"
+---
+Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_value:Float64;N]
+  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time AS time, mean_value AS mean_value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_value:Float64;N]
+    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), mean_value:Float64;N]
+      Projection: TimestampNanosecond(0, None) AS time, avg(value) AS mean_value [time:Timestamp(Nanosecond, None), mean_value:Float64;N]
+        Filter: __aggr_count > Int64(0) [avg(value):Float64;N, __aggr_count:Int64]
+          Aggregate: groupBy=[[]], aggr=[[avg(value), count(Int64(1)) AS __aggr_count]] [avg(value):Float64;N, __aggr_count:Int64]
+            Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Float64;N]
+              Projection: data.time AS time, data.f64_field AS value [time:Timestamp(Nanosecond, None), value:Float64;N]
+                Filter: data.f64_field IS NOT NULL [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]

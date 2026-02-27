@@ -1,0 +1,5 @@
+---
+source: iox_v1_query_api/src/response/json.rs
+expression: collect_output(stream).await
+---
+{"results":[{"statement_id":0,"series":[{"name":"m1","columns":["time","t1","f1"],"values":[["1970-01-01T00:00:01Z","t1a",1],["1970-01-01T00:00:02Z","t1a",2],["1970-01-01T00:00:03Z","t1a",3]]},{"name":"m2","columns":["time","t1","f1"],"values":[["1970-01-01T00:00:01Z","t1a",1.5]]}]}]}

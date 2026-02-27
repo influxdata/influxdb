@@ -1,0 +1,312 @@
+syntax = "proto3";
+package influxdata.iox.namespace.v1;
+option go_package = "github.com/influxdata/iox/namespace/v1";
+
+import "influxdata/iox/partition_template/v1/template.proto";
+import "influxdata/iox/catalog_storage/v1/service.proto";
+import "influxdata/iox/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service NamespaceService {
+  // Get all namespaces
+  rpc GetNamespaces(GetNamespacesRequest) returns (GetNamespacesResponse);
+
+  // Get a specific namespace.
+  rpc GetNamespace(GetNamespaceRequest) returns (GetNamespaceResponse);
+
+  // Create a namespace
+  rpc CreateNamespace(CreateNamespaceRequest) returns (CreateNamespaceResponse);
+
+  // Delete a namespace
+  rpc DeleteNamespace(DeleteNamespaceRequest) returns (DeleteNamespaceResponse);
+
+  // Restore a soft-deleted namespace
+  rpc UndeleteNamespace(UndeleteNamespaceRequest) returns (UndeleteNamespaceResponse);
+
+  // Update the name of a namespace
+  rpc UpdateNamespaceName(UpdateNamespaceNameRequest) returns (UpdateNamespaceNameResponse);
+
+  // Update retention period
+  rpc UpdateNamespaceRetention(UpdateNamespaceRetentionRequest)
+      returns (UpdateNamespaceRetentionResponse);
+
+  // Update a service protection limit of a namespace
+  rpc UpdateNamespaceServiceProtectionLimit(
+      UpdateNamespaceServiceProtectionLimitRequest)
+      returns (UpdateNamespaceServiceProtectionLimitResponse);
+
+  // Get all namespaces with storage information
+  rpc GetNamespacesWithStorage(GetNamespacesWithStorageRequest) returns (GetNamespacesWithStorageResponse);
+
+  // Get a specific namespace with storage information
+  rpc GetNamespaceWithStorage(GetNamespaceWithStorageRequest) returns (GetNamespaceWithStorageResponse);
+}
+
+// How to filter deleted namespaces in the response of requests this is in.
+//
+// This should generally only be used inside the `NamespaceStatusFilterList` type,
+// so that it can be effecitvely an `optional repeated` field. This is important so that
+// we can determine if someone actually wanted the filters they specified - if we make
+// it just a `repeated` field, they could send nothing for the filters, and thus get some
+// implicit behavior that they may start relying on without realizing it. But if we make
+// it optional, we can fallback to old behavior (since they're probably relying on that right now)
+//
+// Unfortunately, we do have to have the `unspecified` variant because we, once again,
+// need to be able to distinguish between intentionally sending something and relying on
+// implicit behavior.
+//
+// Within `NamespaceStatusFilterList`, we treat a lack of filters as a request to include
+// nothing. Since they opted into having a filter, but then specified that the filter should
+// let nothing be returned, we treat that as a nonsensical operation and reject it, returning
+// an error.
+//
+// We could just make this a repeated list (instead of repeated optional) and treat `None` as
+// a request to return everything, regardless of filters, but we don't do that to keep
+// consistent with the behavior of `TableStatusFilter` in the `TableService` specification
+// (read that spec for its rationale).
+//
+// So if someone specified [Active, Deleted] in this field, that would return all
+// namespaces which are either active or deleted. At time of writing, that includes all
+// namespaces that can exist. However, at some point in the future, we may want to extend
+// the granularity of this endpoint and allow customers to see all namespaces that are in
+// the process of being deleted, or maybe all namespaces that are in the process of being
+// created, or maybe we'll need to add some other status like 'hidden'. Who knows.
+//
+// With the `SoftDeleted` method of filtering, adding more statuses would cause
+// exponential blowup with the number of variants that could occur, since we'd want to
+// support any combination of statuses. With this, however, that extension becomes way
+// easier and more backwards-compatible.
+//
+// Currently, the endpoints that use this filter status also have a deprecated `SoftDeleted`
+// field. This deprecated field will eventually be completely removed, once we are certain
+// granite (which, as far as I know, is the only consumer of this API) is not using this
+// deprecated method of filtering anymore.
+//
+// While we have both of these fields, though, we need to make them both work. To do that,
+// we set two rules:
+// 1. If a request leaves the optional `filters` value unspecified, we just fallback to the
+//   old behavior, from before this field existed. This means parsing the `SoftDeleted` field
+//   and following its behavior (or only returning active tables if the `SoftDeleted` field
+//   was left unspecified)
+// 2. If a request specifies the `filters` field, use it as the only filter, and completely
+//   discard whatever was sent for the `SoftDeleted` field.
+enum NamespaceStatusFilter {
+  NAMESPACE_STATUS_FILTER_UNSPECIFIED = 0;
+  NAMESPACE_STATUS_FILTER_ACTIVE = 1;
+  NAMESPACE_STATUS_FILTER_DELETED = 2;
+}
+
+// See [`NamespaceStatusFilter`] for details
+message NamespaceStatusFilterList {
+  repeated NamespaceStatusFilter inner = 1;
+}
+
+message GetNamespacesRequest {
+  // An optional filter against the soft deletion status of returned namespaces.
+  //
+  // If not specified, only the active namespaces are returned. This is to
+  // support legacy clients using the prior behaviour.
+  optional influxdata.iox.common.v1.SoftDeleted deleted = 1 [deprecated = true];
+
+  // See type-level comment for details.
+  optional NamespaceStatusFilterList filters = 2;
+}
+
+message GetNamespacesResponse { repeated Namespace namespaces = 1; }
+
+message GetNamespaceRequest {
+  oneof target {
+    // Name of the namespace to get
+    string name = 1 [deprecated = true];
+    // ID of the namespace to get
+    int64 id = 2;
+  }
+}
+
+message GetNamespaceResponse { Namespace namespace = 1; }
+
+message CreateNamespaceRequest {
+  // Name of the namespace to be created
+  string name = 1;
+
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention", and 0 is mapped to NULL. Negative values
+  // are rejected.
+  optional int64 retention_period_ns = 2;
+
+  // Partitioning scheme to use for tables created in this namespace
+  optional influxdata.iox.partition_template.v1.PartitionTemplate
+      partition_template = 3;
+
+  ServiceProtectionLimits service_protection_limits = 4;
+}
+
+message CreateNamespaceResponse { Namespace namespace = 1; }
+
+message DeleteNamespaceRequest {
+  oneof target {
+    // Name of the namespace to be deleted
+    string name = 1 [deprecated = true];
+    // ID of the namespace to be deleted
+    int64 id = 2;
+  }
+}
+
+message DeleteNamespaceResponse { Namespace namespace = 1; }
+
+message UndeleteNamespaceRequest {
+  // ID of the namespace to be undeleted
+  int64 id = 1;
+}
+
+message UndeleteNamespaceResponse { Namespace namespace = 1; }
+
+message UpdateNamespaceNameRequest {
+  // ID of the namespace to update
+  int64 id = 1;
+  // The new name to update the namespace with
+  string new_name = 2;
+}
+
+message UpdateNamespaceNameResponse { Namespace namespace = 1; }
+
+message UpdateNamespaceRetentionRequest {
+  oneof target {
+    // Name of the namespace to be set
+    string name = 1 [deprecated = true];
+    // ID of the namespace to be set
+    int64 id = 3;
+  }
+
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention", and 0 is mapped to NULL. Negative values
+  // are rejected.
+  optional int64 retention_period_ns = 2;
+}
+
+message UpdateNamespaceRetentionResponse { Namespace namespace = 1; }
+
+message UpdateNamespaceServiceProtectionLimitRequest {
+  oneof target {
+    // Name of the namespace to have its service protection limits updated.
+    string name = 1 [deprecated = true];
+    // ID of the namespace to have its service protection limits updated.
+    int64 id = 4;
+  }
+
+  // The service protection limit to update.
+  oneof limit_update {
+    // Change the maximum number of tables the namespace may have.
+    int32 max_tables = 2;
+    // Change the maximum number of columns each table in the namespace may
+    // have.
+    int32 max_columns_per_table = 3;
+  }
+}
+
+message UpdateNamespaceServiceProtectionLimitResponse {
+  Namespace namespace = 1;
+}
+
+message ServiceProtectionLimits {
+  // Change the maximum number of tables the namespace may have.
+  optional int32 max_tables = 2;
+  // Change the maximum number of columns each table in the namespace may
+  // have.
+  optional int32 max_columns_per_table = 3;
+}
+
+message Namespace {
+  // Namespace ID
+  int64 id = 1;
+
+  // Name of the Namespace
+  string name = 2;
+
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention".
+  optional int64 retention_period_ns = 3;
+
+  // The maximum number of tables which this namespace is allowed to contain.
+  int32 max_tables = 4;
+
+  // The maximum number of columns a table belonging to this namespace may have.
+  int32 max_columns_per_table = 5;
+
+  // The default partitioning scheme used for any new tables that are created
+  // in this namespace, if any.
+  optional influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 6;
+
+  // A monotonically increasing counter tracking the version of this namespace's
+  // non-schema properties, as used across routers.
+  int64 router_version = 7;
+
+  // The timestamp at which this namespace was marked for deletion
+  // (soft-deleted).
+  //
+  // An explcitly unset value indicates the namespace is active and not marked
+  // for deletion.
+  optional google.protobuf.Timestamp deleted_at = 8;
+}
+
+// Request to get a list of namespaces with storage.
+message GetNamespacesWithStorageRequest {
+  // Field to sort by
+  optional influxdata.iox.catalog_storage.v1.NamespaceSortField sort_field = 1;
+
+  // Direction in which to sort
+  optional influxdata.iox.catalog_storage.v1.SortDirection sort_direction = 2;
+
+  // Number of records to include per page
+  optional int32 page_size = 3;
+
+  // Page number to retrieve
+  optional int32 page_number = 4;
+
+  // Filter by soft-deleted status
+  // If not specified, only the active namespaces are returned
+  optional influxdata.iox.common.v1.SoftDeleted deleted = 5 [deprecated = true];
+
+  // See type-level comment for details.
+  optional NamespaceStatusFilterList filters = 6;
+
+  // Filter namespaces by name (case-insensitive partial match)
+  // If provided, only namespaces with names containing this string are returned
+  optional string name_filter = 7;
+
+  // Filter namespaces by ID (partial match)
+  // If provided, only namespaces with IDs containing this string are returned
+  optional string id_filter = 8;
+}
+
+// Request to get a specific namespace with storage.
+message GetNamespaceWithStorageRequest {
+  // ID of the namespace to get.
+  int64 id = 1;
+
+  // Filter by soft-deleted status
+  // If not specified, only the active namespaces are returned
+  optional influxdata.iox.common.v1.SoftDeleted deleted = 2 [deprecated = true];
+
+  // See type-level comment for details.
+  optional NamespaceStatusFilterList filters = 3;
+}
+
+// Response containing a list of namespaces with storage.
+message GetNamespacesWithStorageResponse {
+  repeated influxdata.iox.catalog_storage.v1.NamespaceWithStorage namespaces_with_storage = 1;
+
+  // The total number of items in the unpaged data set
+  int64 total = 2;
+
+  // The total number of pages available
+  int64 pages = 3;
+}
+
+// Response containing a specific namespace with storage.
+message GetNamespaceWithStorageResponse {
+  influxdata.iox.catalog_storage.v1.NamespaceWithStorage namespace_with_storage = 1;
+}

@@ -1,0 +1,5 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SHOW RETENTION POLICIES ON my_db\")"
+---
+This feature is not implemented: SHOW RETENTION POLICIES ON <database>

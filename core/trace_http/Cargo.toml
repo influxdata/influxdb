@@ -1,0 +1,28 @@
+[package]
+name = "trace_http"
+description = "Distributed tracing support for HTTP services"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bytes = "1.11"
+trace = { path = "../trace" }
+futures = "0.3"
+hashbrown = { workspace = true }
+http = { workspace = true }
+http-body = { workspace = true }
+itertools = "0.13"
+metric = { path = "../metric" }
+tracing = { workspace = true }
+parking_lot = "0.12"
+pin-project = "1.1"
+snafu = "0.8"
+tower = { workspace = true }
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies]

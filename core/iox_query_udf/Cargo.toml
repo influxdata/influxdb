@@ -1,0 +1,21 @@
+[package]
+name = "iox_query_udf"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+datafusion-udf-wasm-host = { workspace = true }
+datafusion-udf-wasm-query = { workspace = true }
+workspace-hack = { path = "../workspace-hack" }
+
+[build-dependencies]
+sha2 = "0.10.8"
+ureq = "3.1.4"
+
+[dev-dependencies]
+tokio = { version = "1.49", features = ["macros"] }

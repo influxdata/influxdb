@@ -13,6 +13,10 @@ ignore = [
     # from object_store. We've removed our direct dependency and migrated to
     # rustls-pki-types. Remove once object_store updates.
     "RUSTSEC-2025-0134",
+    # bincode is unmaintained but does not have any known issues;
+    # there are multiple replacements at this time but there isn't
+    # yet a clear choice
+    "RUSTSEC-2025-0141",
 ]
 git-fetch-with-cli = true
 
@@ -30,6 +34,7 @@ allow = [
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
+    "NCSA",
     "Unicode-DFS-2016",
     "Unicode-3.0",
     "Zlib",

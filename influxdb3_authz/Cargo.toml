@@ -7,9 +7,9 @@ license.workspace = true
 
 [dependencies]
 # core crates
-authz.workspace = true
-observability_deps.workspace = true
-iox_time.workspace = true
+authz = { path = "../core/authz" }
+observability_deps = { path = "../core/observability_deps" }
+iox_time = { path = "../core/iox_time" }
 
 # local deps
 influxdb3_id = { path = "../influxdb3_id" }

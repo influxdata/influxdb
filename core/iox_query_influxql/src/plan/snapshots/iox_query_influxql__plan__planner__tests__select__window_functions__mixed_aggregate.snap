@@ -1,0 +1,13 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT DIFFERENCE(MEAN(usage_idle)), MEAN(usage_idle) FROM cpu GROUP BY TIME(10s)\")"
+---
+Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, difference:Float64;N, mean:Float64;N]
+  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, difference(avg(cpu.usage_idle)) AS difference, avg(cpu.usage_idle) AS mean [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, difference:Float64;N, mean:Float64;N]
+    Filter: time <= TimestampNanosecond(1672531209999999999, None) [time:Timestamp(Nanosecond, None);N, avg(cpu.usage_idle):Float64;N, difference(avg(cpu.usage_idle)):Float64;N]
+      WindowAggr: windowExpr=[[difference(avg(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS difference(avg(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, avg(cpu.usage_idle):Float64;N, difference(avg(cpu.usage_idle)):Float64;N]
+        GapFill: series=[], time=date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), time, TimestampNanosecond(0, None)), fill=[avg(cpu.usage_idle)], range=Unbounded..Included(Literal(TimestampNanosecond(1672531200000000000, None), None)) [time:Timestamp(Nanosecond, None);N, avg(cpu.usage_idle):Float64;N]
+          Aggregate: groupBy=[[date_bin_wallclock(IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 10000000000 }"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[avg(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, avg(cpu.usage_idle):Float64;N]
+            Filter: cpu.time <= TimestampNanosecond(1672531200000000000, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+              Filter: cpu.usage_idle IS NOT NULL [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]

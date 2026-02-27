@@ -1,0 +1,37 @@
+[package]
+name = "catalog_cache"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bytes = "1.11"
+dashmap = "6.1.0"
+futures = "0.3"
+generated_types = { path = "../generated_types" }
+hyper = { workspace = true }
+hyper-util = { workspace = true, features = ["client-legacy", "server-graceful"] }
+iox_http_util = { path = "../iox_http_util" }
+tracing = { workspace = true }
+reqwest = { workspace = true }
+snafu = "0.8"
+tokio = { version = "1.49", default-features = false, features = [
+    "macros",
+    "rt",
+] }
+tokio-util = "0.7"
+url = "2.5"
+workspace-hack = { path = "../workspace-hack" }
+metric = { path = "../metric" }
+
+[dev-dependencies]
+criterion = "0.8.1"
+data_types = { path = "../data_types" }
+
+[[bench]]
+name = "list_encode"
+harness = false

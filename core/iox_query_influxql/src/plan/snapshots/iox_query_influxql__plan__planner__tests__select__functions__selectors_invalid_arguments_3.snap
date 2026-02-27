@@ -1,0 +1,9 @@
+---
+source: iox_query_influxql/src/plan/planner.rs
+expression: "plan(\"SELECT MIN(usage_idle, usage_idle) FROM cpu\")"
+---
+rewriting statement
+caused by
+gather information about select statement
+caused by
+Error during planning: invalid number of arguments for min, expected 1, got 2

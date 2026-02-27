@@ -1,0 +1,15 @@
+[package]
+name = "linear_buffer"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+# avoid compiling all the workspace-hack dependencies for MIRI tests
+[target.'cfg(not(miri))'.dependencies]
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies]

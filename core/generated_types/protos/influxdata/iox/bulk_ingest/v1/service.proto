@@ -1,0 +1,104 @@
+syntax = "proto3";
+package influxdata.iox.bulk_ingest.v1;
+option go_package = "github.com/influxdata/iox/bulk_ingest/v1";
+
+import "google/protobuf/timestamp.proto";
+
+service BulkIngestService {
+  // Generate the Parquet metadata that a bulk ingest process should use for the specified data
+  rpc NewParquetMetadata(NewParquetMetadataRequest) returns (NewParquetMetadataResponse);
+
+  // Given a partition and the suggested sort order expressed as columns in order by cardinality
+  // (low-to-high, as observed in all data to be imported for this partition), update the sort key
+  // in the catalog by merging these new columns with the existing catalog sort key, then return
+  // the full sort key.
+  rpc UpsertSortKey(UpsertSortKeyRequest) returns (UpsertSortKeyResponse);
+
+  // Given a Parquet file that a bulk ingester has uploaded to object storage, validate it contains
+  // the metadata and signature provided in this request, then add it to the catalog.
+  rpc FinalizeParquet(FinalizeParquetRequest) returns (FinalizeParquetResponse);
+}
+
+message NewParquetMetadataRequest {
+  oneof namespace_target {
+    // Name of the namespace the data will be imported into
+    string namespace_name = 1 [deprecated = true];
+    // ID of the namespace the data will be imported into
+    int64 namespace_id = 6;
+  }
+  oneof table_target {
+    // Name of the table the data will be imported into
+    string table_name = 2 [deprecated = true];
+    // ID of the table the data will be imported into
+    int64 table_id = 7;
+  }
+
+  // Partition key of this data
+  string partition_key = 3;
+
+  // The set of column names that will appear in this Parquet file, ordered by cardinality of the
+  // full data set (not just the cardinality of the data appearing in this file), used to sort this
+  // file.
+  //
+  // This is not necessarily the column order that will be uploaded later.
+  //
+  // Will be merged with the set of columns in the catalog for this partition's sort key and then
+  // returned in the metadata blob.
+  //
+  // This request will return an error if any columns are unknown or have no schema information.
+  repeated string file_sort_key = 4;
+
+  // Timestamp when the dataset to be imported was generated - used to order older/newer data
+  google.protobuf.Timestamp data_created_at = 5;
+}
+
+message NewParquetMetadataResponse {
+   // The Parquet metadata blob.
+   //
+   // Opaque payload consisting of a `key=value` map to be inserted into the Parquet file metadata.
+   //
+   // Metadata is IOxMetadata + ECDSA signature to ensure it is not tampered with.
+   map<string, string> metadata = 1;
+
+   // A pre-authorised, signed URL which should be used to PUT the file to object storage
+   string upload_url = 2;
+}
+
+message UpsertSortKeyRequest {
+  oneof namespace_target {
+    // Name of the namespace in which to upsert the sort key
+    string namespace_name = 1 [deprecated = true];
+    // ID of the namespace in which to upsert the sort key
+    int64 namespace_id = 5;
+  }
+
+  oneof table_target {
+    // Name of the table in which to upsert the sort key
+    string table_name = 2 [deprecated = true];
+    // ID of the table in which to upsert the sort key
+    int64 table_id = 6;
+  }
+
+  // The partition key for which to upsert the sort key
+  string partition_key = 3;
+
+  // The sort key columns to potentially add to the catalog if needed
+  repeated string columns = 4;
+}
+
+message UpsertSortKeyResponse {
+   // The full catalog sort key that files to be imported must be sorted by, to be filtered by
+   // which columns actually occur in the file
+   repeated string sort_key = 3;
+}
+
+message FinalizeParquetRequest {
+   // The Parquet metadata blob.
+   //
+   // Opaque payload consisting of a `key=value` map to be inserted into the Parquet file metadata.
+   //
+   // Metadata is IOxMetadata + ECDSA signature to ensure it is not tampered with.
+   map<string, string> metadata = 1;
+}
+
+message FinalizeParquetResponse {}
