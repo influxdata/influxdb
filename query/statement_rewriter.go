@@ -12,8 +12,6 @@ var matchAllRegex = regexp.MustCompile(`.+`)
 // RewriteStatement rewrites stmt into a new statement, if applicable.
 func RewriteStatement(stmt influxql.Statement) (influxql.Statement, error) {
 	switch stmt := stmt.(type) {
-	case *influxql.ShowFieldKeysStatement:
-		return rewriteShowFieldKeysStatement(stmt)
 	case *influxql.ShowFieldKeyCardinalityStatement:
 		return rewriteShowFieldKeyCardinalityStatement(stmt)
 	case *influxql.ShowMeasurementsStatement:
@@ -35,23 +33,6 @@ func RewriteStatement(stmt influxql.Statement) (influxql.Statement, error) {
 	default:
 		return stmt, nil
 	}
-}
-
-func rewriteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement) (influxql.Statement, error) {
-	return &influxql.SelectStatement{
-		Fields: influxql.Fields([]*influxql.Field{
-			{Expr: &influxql.VarRef{Val: "fieldKey"}},
-			{Expr: &influxql.VarRef{Val: "fieldType"}},
-		}),
-		Sources:    rewriteSources(stmt.Sources, "_fieldKeys", stmt.Database),
-		Condition:  rewriteSourcesCondition(stmt.Sources, nil),
-		Offset:     stmt.Offset,
-		Limit:      stmt.Limit,
-		SortFields: stmt.SortFields,
-		OmitTime:   true,
-		Dedupe:     true,
-		IsRawQuery: true,
-	}, nil
 }
 
 func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinalityStatement) (influxql.Statement, error) {
