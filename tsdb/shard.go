@@ -428,9 +428,7 @@ func (s *Shard) closeNoLock() error {
 	}
 
 	if e := s.index.Close(); e == nil {
-		s.mu.Lock()
 		s.index = nil
-		s.mu.Unlock()
 	}
 	return err
 }
