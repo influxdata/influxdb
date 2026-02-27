@@ -1098,18 +1098,19 @@ func (i *Index) collectTagValueCacheMetrics() {
 	atomic.StoreInt64(&i.cacheBytes, int64(i.tagValueCache.HeapSize()))
 
 	const cacheTrigger = 10 * time.Second
-	go func() {
+	closing := i.closing
+	go func(closing <-chan struct{}) {
 		ticker := time.NewTicker(cacheTrigger)
 		defer ticker.Stop()
 		for {
 			select {
-			case <-i.closing:
+			case <-closing:
 				return
 			case <-ticker.C:
 				atomic.StoreInt64(&i.cacheBytes, int64(i.tagValueCache.HeapSize()))
 			}
 		}
-	}()
+	}(closing)
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
