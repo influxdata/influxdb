@@ -3,6 +3,7 @@ package tsi1
 import (
 	"container/list"
 	"sync"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -189,6 +190,29 @@ func (c *TagValueSeriesIDCache) checkEviction() {
 	if len(c.cache[string(name)]) == 0 {
 		delete(c.cache, string(name))
 	}
+}
+
+// HeapSize estimates the total heap memory usage of the cache in bytes.
+func (c *TagValueSeriesIDCache) HeapSize() int {
+	c.RLock()
+	defer c.RUnlock()
+
+	size := int(unsafe.Sizeof(*c))
+	for name, mmap := range c.cache {
+		size += len(name) + int(unsafe.Sizeof(mmap))
+		for key, tkmap := range mmap {
+			size += len(key) + int(unsafe.Sizeof(tkmap))
+			for value, ele := range tkmap {
+				size += len(value) + int(unsafe.Sizeof(ele))
+				elem := ele.Value.(*seriesIDCacheElement)
+				size += len(elem.name) + len(elem.key) + len(elem.value)
+				if elem.SeriesIDSet != nil {
+					size += elem.SeriesIDSet.Bytes()
+				}
+			}
+		}
+	}
+	return size
 }
 
 // seriesIDCacheElement is an item stored within a cache.

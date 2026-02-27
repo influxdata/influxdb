@@ -159,6 +159,13 @@ type Index struct {
 
 	// Number of partitions used by the index.
 	PartitionN uint64
+
+	// Number of bytes cache is currently using.
+	// Updated periodically by CollectTagValueCacheMetrics goroutine.
+	cacheBytes int64
+
+	// Closed when the index is closing, to signal background goroutines to stop.
+	closing chan struct{}
 }
 
 func (i *Index) UniqueReferenceID() uintptr {
@@ -180,6 +187,7 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 		sSketch:           hll.NewDefaultPlus(),
 		sTSketch:          hll.NewDefaultPlus(),
 		PartitionN:        DefaultPartitionN,
+		closing:           make(chan struct{}),
 	}
 
 	for _, option := range options {
@@ -260,6 +268,9 @@ func (i *Index) Open() (rErr error) {
 		return errors.New("index already open")
 	}
 
+	// Re-initialize closing channel for reopen support.
+	i.closing = make(chan struct{})
+
 	// Ensure root exists.
 	if err := os.MkdirAll(i.path, 0777); err != nil {
 		return err
@@ -303,6 +314,10 @@ func (i *Index) Open() (rErr error) {
 	// Mark opened.
 	i.opened = true
 	i.logger.Info(fmt.Sprintf("index opened with %d partitions", partitionN))
+
+	// Start background goroutine to periodically collect cache metrics.
+	i.collectTagValueCacheMetrics()
+
 	return nil
 }
 
@@ -350,6 +365,14 @@ func (i *Index) Close() error {
 
 // close closes the index without locking
 func (i *Index) close() (rErr error) {
+	// Signal background goroutines to stop.
+	select {
+	case <-i.closing:
+		// Already closed.
+	default:
+		close(i.closing)
+	}
+
 	for _, p := range i.partitions {
 		if (p != nil) && p.IsOpen() {
 			if pErr := p.Close(); pErr != nil {
@@ -1060,6 +1083,30 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 		}
 	}
 	return tsdb.MergeSeriesIDIterators(a...), nil
+}
+
+// TagValueCacheBytes returns the most recently sampled heap size of the
+// tag value series ID cache, in bytes.
+func (i *Index) TagValueCacheBytes() int64 {
+	return atomic.LoadInt64(&i.cacheBytes)
+}
+
+// collectTagValueCacheMetrics starts a background goroutine that periodically
+// samples the tag value cache heap size. It exits when the index is closed.
+func (i *Index) collectTagValueCacheMetrics() {
+	const cacheTrigger = 10 * time.Minute
+	go func() {
+		ticker := time.NewTicker(cacheTrigger)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-i.closing:
+				return
+			case <-ticker.C:
+				atomic.StoreInt64(&i.cacheBytes, int64(i.tagValueCache.HeapSize()))
+			}
+		}
+	}()
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.

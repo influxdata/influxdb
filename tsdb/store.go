@@ -45,11 +45,12 @@ var (
 
 // Statistics gathered by the store.
 const (
-	statDatabaseSeries       = "numSeries"       // number of series in a database
-	statDatabaseMeasurements = "numMeasurements" // number of measurements in a database
-	statPointsWritten        = "pointsWritten"   // number of points parsed by engines successfully
-	statValuesWritten        = "valuesWritten"   // number of values parsed by engines successfully
-	statSeriesCreated        = "seriesCreated"   // number of series created since startup
+	statDatabaseSeries       = "numSeries"           // number of series in a database
+	statDatabaseMeasurements = "numMeasurements"     // number of measurements in a database
+	statTagValueCacheBytes   = "tagValueCacheBytes"  // bytes used by the tag value series ID cache
+	statPointsWritten        = "pointsWritten"       // number of points parsed by engines successfully
+	statValuesWritten        = "valuesWritten"        // number of values parsed by engines successfully
+	statSeriesCreated        = "seriesCreated"        // number of series created since startup
 )
 
 // SeriesFileDirectory is the name of the directory containing series files for
@@ -217,12 +218,28 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 			continue
 		}
 
+		// Collect tag value cache bytes from unique indexes for this database.
+		var tagValueCacheBytes int64
+		s.mu.RLock()
+		uniqueIndexes := make(map[uintptr]Index)
+		for _, sh := range s.shards {
+			if sh.database == database {
+				idx := sh.index
+				uniqueIndexes[idx.UniqueReferenceID()] = idx
+			}
+		}
+		s.mu.RUnlock()
+		for _, idx := range uniqueIndexes {
+			tagValueCacheBytes += idx.TagValueCacheBytes()
+		}
+
 		statistics = append(statistics, models.Statistic{
 			Name: "database",
 			Tags: models.StatisticTags{"database": database}.Merge(tags),
 			Values: map[string]interface{}{
 				statDatabaseSeries:       sc,
 				statDatabaseMeasurements: mc,
+				statTagValueCacheBytes:   tagValueCacheBytes,
 			},
 		})
 	}
