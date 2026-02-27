@@ -201,6 +201,22 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	s.mu.RLock()
 	shards := s.shardsSlice()
 	s.mu.RUnlock()
+
+	// Collect tag value cache bytes from unique indexes, grouped by database.
+	dbCacheBytes := make(map[string]int64)
+	seenIndexes := make(map[uintptr]bool)
+	for _, sh := range shards {
+		idx, err := sh.Index()
+		if err != nil {
+			continue
+		}
+		id := idx.UniqueReferenceID()
+		if !seenIndexes[id] {
+			seenIndexes[id] = true
+			dbCacheBytes[sh.Database()] += idx.TagValueCacheBytes()
+		}
+	}
+
 	// Add all the series and measurements cardinality estimations.
 	databases := s.Databases()
 	statistics := make([]models.Statistic, 0, len(databases))
@@ -218,28 +234,13 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 			continue
 		}
 
-		// Collect tag value cache bytes from unique indexes for this database.
-		var tagValueCacheBytes int64
-		s.mu.RLock()
-		uniqueIndexes := make(map[uintptr]Index)
-		for _, sh := range s.shards {
-			if sh.database == database {
-				idx := sh.index
-				uniqueIndexes[idx.UniqueReferenceID()] = idx
-			}
-		}
-		s.mu.RUnlock()
-		for _, idx := range uniqueIndexes {
-			tagValueCacheBytes += idx.TagValueCacheBytes()
-		}
-
 		statistics = append(statistics, models.Statistic{
 			Name: "database",
 			Tags: models.StatisticTags{"database": database}.Merge(tags),
 			Values: map[string]interface{}{
 				statDatabaseSeries:       sc,
 				statDatabaseMeasurements: mc,
-				statTagValueCacheBytes:   tagValueCacheBytes,
+				statTagValueCacheBytes:   dbCacheBytes[database],
 			},
 		})
 	}
