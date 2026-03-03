@@ -1431,7 +1431,6 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -1757,7 +1756,6 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -2083,7 +2081,6 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -2409,7 +2406,6 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -3961,7 +3957,6 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -4287,7 +4282,6 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -4613,7 +4607,6 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -4939,7 +4932,6 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -5265,7 +5257,6 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -6817,7 +6808,6 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -7143,7 +7133,6 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -7469,7 +7458,6 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -7795,7 +7783,6 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -8121,7 +8108,6 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -9659,7 +9645,6 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -9985,7 +9970,6 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -10311,7 +10295,6 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -10637,7 +10620,6 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -10963,7 +10945,6 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -12501,7 +12482,6 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -12827,7 +12807,6 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -13153,7 +13132,6 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -13479,7 +13457,6 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
@@ -13805,7 +13782,6 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		id := tags.ID()
 
 		var dpKey string
-		fmt.Printf("%T\n", itr)
 		if len(itr.opt.DatePartDimensions) > 0 {
 			// Extract date part values from the end of Aux
 			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {

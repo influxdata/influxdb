@@ -2,9 +2,11 @@ package query
 
 import (
 	"math"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxql"
 )
 
@@ -229,6 +231,10 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 					return false
 				}
 				row.GroupingKeys[dpd.Expr.String()] = dpd.Val
+				if slices.Exists(AvailableDatePartExprs, strings.TrimSuffix(expr.String(), "::integer")) {
+					row.Values[i] = dpd.Val
+					continue
+				}
 			}
 		}
 		row.Values[i] = v
