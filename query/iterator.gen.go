@@ -10,7 +10,6 @@ import (
 	"container/heap"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"sort"
 	"sync"
