@@ -1124,7 +1124,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey

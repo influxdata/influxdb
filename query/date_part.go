@@ -25,6 +25,11 @@ const (
 	DatePartArgCount = 2
 
 	DatePartDimensionsString = "date_part_dimensions"
+
+	// DatePartKeySeparator separates tag IDs from date_part keys in composite
+	// grouping keys. Double-null cannot appear in a valid tag ID because
+	// InfluxDB disallows empty tag keys and values.
+	DatePartKeySeparator = "\x00\x00"
 )
 
 type DatePartExpr int
@@ -211,6 +216,9 @@ type DatePartValuer struct {
 var _ influxql.CallValuer = DatePartValuer{}
 
 func (v DatePartValuer) Value(key string) (interface{}, bool) {
+	if v.Valuer == nil {
+		return nil, false
+	}
 	// Convert the special date_part symbol back to "time"
 	if key == DatePartTimeString {
 		key = models.TimeString
@@ -249,7 +257,6 @@ type DatePartDimension struct {
 	Name string
 	Expr DatePartExpr
 }
-
 
 type DecodedDatePartKey struct {
 	Expr DatePartExpr

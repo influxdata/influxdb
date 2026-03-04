@@ -231,9 +231,9 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 					return false
 				}
 				if row.GroupingKeys == nil {
-				row.GroupingKeys = make(map[string]int64)
-			}
-			row.GroupingKeys[dpd.Expr.String()] = dpd.Val
+					row.GroupingKeys = make(map[string]int64)
+				}
+				row.GroupingKeys[dpd.Expr.String()] = dpd.Val
 				if slices.Exists(AvailableDatePartExprs, strings.TrimSuffix(expr.String(), "::integer")) {
 					row.Values[i] = dpd.Val
 					continue

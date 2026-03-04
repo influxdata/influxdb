@@ -343,4 +343,3 @@ func TestDatePartValuer_Value(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, now, val)
 }
-

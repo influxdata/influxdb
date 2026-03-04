@@ -219,7 +219,7 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	itr.stats = itr.statsBuf
 
 	// Check to see if we need to set "time" as a ref
-	itr.timeRefMap = needTimeRef(opt)
+	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -722,7 +722,7 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	itr.stats = itr.statsBuf
 
 	// Check to see if we need to set "time" as a ref
-	itr.timeRefMap = needTimeRef(opt)
+	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -1225,7 +1225,7 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	itr.stats = itr.statsBuf
 
 	// Check to see if we need to set "time" as a ref
-	itr.timeRefMap = needTimeRef(opt)
+	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -1728,7 +1728,7 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	itr.stats = itr.statsBuf
 
 	// Check to see if we need to set "time" as a ref
-	itr.timeRefMap = needTimeRef(opt)
+	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -2231,7 +2231,7 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	itr.stats = itr.statsBuf
 
 	// Check to see if we need to set "time" as a ref
-	itr.timeRefMap = needTimeRef(opt)
+	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
@@ -2646,27 +2646,3 @@ func (c *booleanDescendingCursor) nextTSM() {
 }
 
 var _ = fmt.Print
-
-// timeRefFns is a string slice of function names that require
-// an available reference to the timestamp of a given point
-var timeRefFns = []string{query.DatePartString}
-
-// needTimeRef iterates through a conditional within our query
-// and returns true if we need a reference to 'time'
-func needTimeRef(opts query.IteratorOptions) bool {
-	if opts.Condition != nil {
-		found := false
-		influxql.WalkFunc(opts.Condition, func(n influxql.Node) {
-			if call, ok := n.(*influxql.Call); ok {
-				for _, fn := range timeRefFns {
-					if call.Name == fn {
-						found = true
-						return
-					}
-				}
-			}
-		})
-		return found
-	}
-	return false
-}

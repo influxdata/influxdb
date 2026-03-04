@@ -633,6 +633,11 @@ type IteratorOptions struct {
 
 	// Authorizer can limit access to data
 	Authorizer FineAuthorizer
+
+	// NeedTimeRef indicates whether the condition contains functions (e.g. date_part)
+	// that require a reference to the point's timestamp. Cached here to avoid
+	// repeatedly walking the condition AST for every iterator creation.
+	NeedTimeRef bool
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
@@ -699,6 +704,7 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	}
 
 	opt.Condition = condition
+	opt.NeedTimeRef = conditionNeedsTimeRef(condition)
 	opt.Ascending = stmt.TimeAscending()
 	opt.Dedupe = stmt.Dedupe
 	opt.StripName = stmt.StripName
@@ -716,6 +722,21 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	opt.Authorizer = sopt.Authorizer
 
 	return opt, nil
+}
+
+// conditionNeedsTimeRef returns true if the condition expression contains
+// function calls that require access to the point's timestamp (e.g. date_part).
+func conditionNeedsTimeRef(condition influxql.Expr) bool {
+	if condition == nil {
+		return false
+	}
+	found := false
+	influxql.WalkFunc(condition, func(n influxql.Node) {
+		if call, ok := n.(*influxql.Call); ok && call.Name == DatePartString {
+			found = true
+		}
+	})
+	return found
 }
 
 func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {

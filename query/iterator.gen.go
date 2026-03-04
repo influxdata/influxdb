@@ -1120,7 +1120,7 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -1445,7 +1445,7 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -1770,7 +1770,7 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -2095,7 +2095,7 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -2420,7 +2420,7 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -3971,7 +3971,7 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -4296,7 +4296,7 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -4621,7 +4621,7 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -4946,7 +4946,7 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -5271,7 +5271,7 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -6822,7 +6822,7 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -7147,7 +7147,7 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -7472,7 +7472,7 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -7797,7 +7797,7 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -8122,7 +8122,7 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -9659,7 +9659,7 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -9984,7 +9984,7 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -10309,7 +10309,7 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -10634,7 +10634,7 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -10959,7 +10959,7 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -12496,7 +12496,7 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -12821,7 +12821,7 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -13146,7 +13146,7 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -13471,7 +13471,7 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
@@ -13796,7 +13796,7 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
-					id = tags.ID() + dpKey
+					id = tags.ID() + DatePartKeySeparator + dpKey
 				} else {
 					// GROUP BY date_part only
 					id = dpKey
