@@ -8674,6 +8674,32 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			name:    `GROUP BY host and isodow with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('isodow', time)`,
+			// isodow: Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"isodow":0},"columns":["time","count","isodow"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` + // server01 Mon (isodow=0): value 2
+				`["2023-01-01T00:00:00Z",1,2],` + // server01 Wed (isodow=2): value 4
+				`["2023-01-01T00:00:00Z",1,4],` + // server01 Fri (isodow=4): value 5
+				`["2023-01-01T00:00:00Z",1,5],` + // server01 Sat (isodow=5): value 3
+				`["2023-01-01T00:00:00Z",2,6]` + // server01 Sun (isodow=6): values 1,6
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"isodow":0},"columns":["time","count","isodow"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` + // server02 Mon (isodow=0): value 7
+				`["2023-01-01T00:00:00Z",2,1],` + // server02 Tue (isodow=1): values 10,12
+				`["2023-01-01T00:00:00Z",1,3],` + // server02 Thu (isodow=3): value 8
+				`["2023-01-01T00:00:00Z",1,5],` + // server02 Sat (isodow=5): value 11
+				`["2023-01-01T00:00:00Z",1,6]` + // server02 Sun (isodow=6): value 9
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"isodow":0},"columns":["time","count","isodow"],"values":[` +
+				`["2023-01-01T00:00:00Z",5,0],` + // server03 Mon (isodow=0): values 15,16,17,18,19
+				`["2023-01-01T00:00:00Z",1,2],` + // server03 Wed (isodow=2): value 13
+				`["2023-01-01T00:00:00Z",1,3]` + // server03 Thu (isodow=3): value 14
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
 		// GROUP BY tag + date_part with WHERE filter
 		&Query{
 			name:    `GROUP BY host and dow with WHERE weekday filter and SUM`,
