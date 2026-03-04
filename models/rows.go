@@ -36,13 +36,24 @@ func (r *Row) tagsHash() uint64 {
 
 func (r *Row) groupingKeysHash() uint64 {
 	h := NewInlineFNV64a()
+	keys := r.groupingKeysKeys()
 	buf := make([]byte, 8)
-	for k, v := range r.GroupingKeys {
+	for _, k := range keys {
 		h.Write([]byte(k))
-		binary.LittleEndian.PutUint64(buf, uint64(v))
+		binary.LittleEndian.PutUint64(buf, uint64(r.GroupingKeys[k]))
 		h.Write(buf)
 	}
 	return h.Sum64()
+}
+
+// groupingKeysKeys returns a sorted list of grouping key names.
+func (r *Row) groupingKeysKeys() []string {
+	a := make([]string, 0, len(r.GroupingKeys))
+	for k := range r.GroupingKeys {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
 }
 
 // tagKeys returns a sorted list of tag keys.

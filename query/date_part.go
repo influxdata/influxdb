@@ -250,20 +250,6 @@ type DatePartDimension struct {
 	Expr DatePartExpr
 }
 
-func ComputeDatePartDimensions(dims []DatePartDimension, timePoint int64) (string, error) {
-	var dp int64
-	buf := make([]byte, len(dims)*8)
-	for i, dim := range dims {
-		output, ok := ExtractDatePartExpr(time.Unix(0, timePoint).UTC(), dim.Expr)
-		if !ok {
-			return "", errors.New("date_part: dimension " + dim.Name + " does not exist")
-		}
-		binary.BigEndian.PutUint64(buf[i*8:], uint64(output))
-		dp += int64(binary.BigEndian.Uint64(buf[i*8:]))
-	}
-
-	return string(buf), nil
-}
 
 type DecodedDatePartKey struct {
 	Expr DatePartExpr

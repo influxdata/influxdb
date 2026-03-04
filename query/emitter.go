@@ -38,7 +38,6 @@ func (e *Emitter) Emit() (*models.Row, bool, error) {
 	for {
 		// Scan the next row. If there are no rows left, return the current row.
 		var row Row
-		row.GroupingKeys = make(map[string]int64)
 		if !e.cur.Scan(&row) {
 			if err := e.cur.Err(); err != nil {
 				return nil, false, err
