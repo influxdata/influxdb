@@ -872,10 +872,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 
 				for _, row := range r.Series {
 					if !lastSeries.SameSeries(row) {
-						// Next row is for a different series than last.
 						break
 					}
-					// Values are for the same series, so append them.
 					lastSeries.Values = append(lastSeries.Values, row.Values...)
 					lastSeries.Partial = row.Partial
 					rowsMerged++

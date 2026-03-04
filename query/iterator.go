@@ -589,10 +589,11 @@ type IteratorOptions struct {
 	Sources []influxql.Source
 
 	// Group by interval and tags.
-	Interval   Interval
-	Dimensions []string            // The final dimensions of the query (stays the same even in subqueries).
-	GroupBy    map[string]struct{} // Dimensions to group points by in intermediate iterators.
-	Location   *time.Location
+	Interval           Interval
+	Dimensions         []string // The final dimensions of the query (stays the same even in subqueries).
+	DatePartDimensions []DatePartDimension
+	GroupBy            map[string]struct{} // Dimensions to group points by in intermediate iterators.
+	Location           *time.Location
 
 	// Fill options.
 	Fill      influxql.FillOption
@@ -632,6 +633,11 @@ type IteratorOptions struct {
 
 	// Authorizer can limit access to data
 	Authorizer FineAuthorizer
+
+	// NeedTimeRef indicates whether the condition contains functions (e.g. date_part)
+	// that require a reference to the point's timestamp. Cached here to avoid
+	// repeatedly walking the condition AST for every iterator creation.
+	NeedTimeRef bool
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
@@ -682,9 +688,23 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 			opt.Dimensions = append(opt.Dimensions, d.Val)
 			opt.GroupBy[d.Val] = struct{}{}
 		}
+
+		if d, ok := d.Expr.(*influxql.Call); ok && d.Name == DatePartString {
+			// This should already be validated during compileDatePartDimensions
+			arg, _ := d.Args[0].(*influxql.StringLiteral)
+			expr, ok := ParseDatePartExpr(arg.Val)
+			if !ok {
+				return opt, fmt.Errorf("invalid date part expression: %s", d.Args[0].String())
+			}
+			opt.DatePartDimensions = append(opt.DatePartDimensions, DatePartDimension{
+				Name: arg.Val,
+				Expr: expr,
+			})
+		}
 	}
 
 	opt.Condition = condition
+	opt.NeedTimeRef = conditionNeedsTimeRef(condition)
 	opt.Ascending = stmt.TimeAscending()
 	opt.Dedupe = stmt.Dedupe
 	opt.StripName = stmt.StripName
@@ -702,6 +722,21 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	opt.Authorizer = sopt.Authorizer
 
 	return opt, nil
+}
+
+// conditionNeedsTimeRef returns true if the condition expression contains
+// function calls that require access to the point's timestamp (e.g. date_part).
+func conditionNeedsTimeRef(condition influxql.Expr) bool {
+	if condition == nil {
+		return false
+	}
+	found := false
+	influxql.WalkFunc(condition, func(n influxql.Node) {
+		if call, ok := n.(*influxql.Call); ok && call.Name == DatePartString {
+			found = true
+		}
+	})
+	return found
 }
 
 func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {

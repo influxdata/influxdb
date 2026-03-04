@@ -8,8 +8,8 @@ import (
 	"sort"
 	"sync"
 	"time"
-	"sync"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"google.golang.org/protobuf/proto"
 )
@@ -556,6 +556,8 @@ func (s *{{$k.name}}IteratorScanner) ScanAt(ts int64, name string, tags Tags, m 
 		switch v.(type) {
 		case float64, int64, uint64, string, bool:
 			m[k.Val] = v
+		case DecodedDatePartKey:
+		    m[DatePartDimensionsString] = v
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -1043,10 +1045,11 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Next() (*{{$v.Name}}Point, erro
 
 // {{$k.name}}Reduce{{$v.Name}}Point stores the reduced data for a name/tag combination.
 type {{$k.name}}Reduce{{$v.Name}}Point struct {
-	Name       string
-	Tags       Tags
-	Aggregator {{$k.Name}}PointAggregator
-	Emitter    {{$v.Name}}PointEmitter
+	Name        string
+	Tags        Tags
+	DatePartKey string
+	Aggregator  {{$k.Name}}PointAggregator
+	Emitter     {{$v.Name}}PointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -1105,15 +1108,40 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		var dpKey string
+		if len(itr.opt.DatePartDimensions) > 0 {
+			// Extract date part values from the end of Aux
+			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
+				dpValues := curr.Aux[startIdx:]
+
+				var err error
+				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
+				if err != nil {
+					return nil, err
+				}
+
+				// Create composite grouping key
+				if len(itr.dims) > 0 {
+					// GROUP BY tags AND date_part
+					id = tags.ID() + DatePartKeySeparator + dpKey
+				} else {
+					// GROUP BY date_part only
+					id = dpKey
+				}
+			}
+		}
+
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
 		if rp == nil {
 			aggregator, emitter := itr.create()
 			rp = &{{$k.name}}Reduce{{$v.Name}}Point{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+				Name:        curr.Name,
+				Tags:        tags,
+				DatePartKey: dpKey,
+				Aggregator:  aggregator,
+				Emitter:     emitter,
 			}
 			m[id] = rp
 		}
@@ -1153,6 +1181,17 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			} else {
 				sortedByTime = false
 			}
+
+			// Append date part values to Aux for multi-level reduces
+			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
+				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				if err == nil {
+					for _, val := range dpValues {
+						points[i].Aux = append(points[i].Aux, val)
+					}
+				}
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -1369,7 +1408,7 @@ func new{{$k.Name}}FilterIterator(input {{$k.Name}}Iterator, cond influxql.Expr,
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}

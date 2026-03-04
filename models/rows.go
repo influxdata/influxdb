@@ -1,21 +1,26 @@
 package models
 
 import (
+	"encoding/binary"
 	"sort"
 )
 
 // Row represents a single row returned from the execution of a statement.
 type Row struct {
-	Name    string            `json:"name,omitempty"`
-	Tags    map[string]string `json:"tags,omitempty"`
-	Columns []string          `json:"columns,omitempty"`
-	Values  [][]interface{}   `json:"values,omitempty"`
-	Partial bool              `json:"partial,omitempty"`
+	Name         string            `json:"name,omitempty"`
+	Tags         map[string]string `json:"tags,omitempty"`
+	GroupingKeys map[string]int64  `json:"grouping_keys,omitempty"`
+	Columns      []string          `json:"columns,omitempty"`
+	Values       [][]interface{}   `json:"values,omitempty"`
+	Partial      bool              `json:"partial,omitempty"`
 }
 
 // SameSeries returns true if r contains values for the same series as o.
 func (r *Row) SameSeries(o *Row) bool {
-	return r.tagsHash() == o.tagsHash() && r.Name == o.Name
+	if o.GroupingKeys == nil && r.GroupingKeys == nil {
+		return r.tagsHash() == o.tagsHash() && r.Name == o.Name
+	}
+	return r.tagsHash() == o.tagsHash() && r.Name == o.Name && r.groupingKeysHash() == o.groupingKeysHash()
 }
 
 // tagsHash returns a hash of tag key/value pairs.
@@ -27,6 +32,28 @@ func (r *Row) tagsHash() uint64 {
 		h.Write([]byte(r.Tags[k]))
 	}
 	return h.Sum64()
+}
+
+func (r *Row) groupingKeysHash() uint64 {
+	h := NewInlineFNV64a()
+	keys := r.groupingKeysKeys()
+	buf := make([]byte, 8)
+	for _, k := range keys {
+		h.Write([]byte(k))
+		binary.LittleEndian.PutUint64(buf, uint64(r.GroupingKeys[k]))
+		h.Write(buf)
+	}
+	return h.Sum64()
+}
+
+// groupingKeysKeys returns a sorted list of grouping key names.
+func (r *Row) groupingKeysKeys() []string {
+	a := make([]string, 0, len(r.GroupingKeys))
+	for k := range r.GroupingKeys {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
 }
 
 // tagKeys returns a sorted list of tag keys.

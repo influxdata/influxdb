@@ -8076,6 +8076,718 @@ func TestServer_Query_ShowMeasurementExactCardinality(t *testing.T) {
 	}
 }
 
+func TestServer_Query_DatePart(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		// 2023 - First day of year, Sunday, Q1
+		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T00:00:00Z").UnixNano()),
+		// 2023 - Monday in Q1, week 3
+		fmt.Sprintf(`cpu,host=server01 value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-01-16T10:30:45Z").UnixNano()),
+		// 2023 - Saturday in Q2
+		fmt.Sprintf(`cpu,host=server01 value=3 %d`, mustParseTime(time.RFC3339Nano, "2023-04-15T14:20:30Z").UnixNano()),
+		// 2023 - Wednesday in Q3
+		fmt.Sprintf(`cpu,host=server01 value=4 %d`, mustParseTime(time.RFC3339Nano, "2023-07-19T08:15:22Z").UnixNano()),
+		// 2023 - Friday in Q4
+		fmt.Sprintf(`cpu,host=server01 value=5 %d`, mustParseTime(time.RFC3339Nano, "2023-10-27T16:45:10Z").UnixNano()),
+		// 2023 - Last day of year, Sunday
+		fmt.Sprintf(`cpu,host=server01 value=6 %d`, mustParseTime(time.RFC3339Nano, "2023-12-31T23:59:59Z").UnixNano()),
+		// 2024 - First day of year, Monday, Q1
+		fmt.Sprintf(`cpu,host=server02 value=7 %d`, mustParseTime(time.RFC3339Nano, "2024-01-01T00:00:00Z").UnixNano()),
+		// 2024 - Leap year day (Feb 29), Thursday
+		fmt.Sprintf(`cpu,host=server02 value=8 %d`, mustParseTime(time.RFC3339Nano, "2024-02-29T12:00:00Z").UnixNano()),
+		// 2024 - Sunday in Q2
+		fmt.Sprintf(`cpu,host=server02 value=9 %d`, mustParseTime(time.RFC3339Nano, "2024-05-19T06:30:15Z").UnixNano()),
+		// 2024 - Tuesday in Q3
+		fmt.Sprintf(`cpu,host=server02 value=10 %d`, mustParseTime(time.RFC3339Nano, "2024-08-06T18:45:00Z").UnixNano()),
+		// 2024 - Saturday in Q4
+		fmt.Sprintf(`cpu,host=server02 value=11 %d`, mustParseTime(time.RFC3339Nano, "2024-11-23T22:10:55Z").UnixNano()),
+		// 2024 - Last day of year, Tuesday
+		fmt.Sprintf(`cpu,host=server02 value=12 %d`, mustParseTime(time.RFC3339Nano, "2024-12-31T23:59:59Z").UnixNano()),
+		// 2025 - First day of year, Wednesday, Q1
+		fmt.Sprintf(`cpu,host=server03 value=13 %d`, mustParseTime(time.RFC3339Nano, "2025-01-01T00:00:00Z").UnixNano()),
+		// 2025 - Thursday in Q2
+		fmt.Sprintf(`cpu,host=server03 value=14 %d`, mustParseTime(time.RFC3339Nano, "2025-06-12T11:20:30Z").UnixNano()),
+		// 2025 - Different times of day for same date
+		fmt.Sprintf(`cpu,host=server03 value=15 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T00:00:00Z").UnixNano()), // Midnight
+		fmt.Sprintf(`cpu,host=server03 value=16 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T06:00:00Z").UnixNano()), // 6 AM
+		fmt.Sprintf(`cpu,host=server03 value=17 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T12:00:00Z").UnixNano()), // Noon
+		fmt.Sprintf(`cpu,host=server03 value=18 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T18:00:00Z").UnixNano()), // 6 PM
+		fmt.Sprintf(`cpu,host=server03 value=19 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T23:59:59Z").UnixNano()), // End of day
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    `query for weekend data using dow`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' AND (date_part('dow', time) != 0 AND date_part('dow', time) != 6)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-01-16T10:30:45Z","server01",2],` + // Monday
+				`["2023-07-19T08:15:22Z","server01",4],` + // Wednesday
+				`["2023-10-27T16:45:10Z","server01",5],` + // Friday
+				`["2024-01-01T00:00:00Z","server02",7],` + // Monday
+				`["2024-02-29T12:00:00Z","server02",8],` + // Thursday
+				`["2024-08-06T18:45:00Z","server02",10],` + // Tuesday
+				`["2024-12-31T23:59:59Z","server02",12],` + // Tuesday
+				`["2025-01-01T00:00:00Z","server03",13],` + // Wednesday
+				`["2025-06-12T11:20:30Z","server03",14],` + // Thursday
+				`["2025-09-15T00:00:00Z","server03",15],` + // Monday (midnight)
+				`["2025-09-15T06:00:00Z","server03",16],` + // Monday (6am)
+				`["2025-09-15T12:00:00Z","server03",17],` + // Monday (noon)
+				`["2025-09-15T18:00:00Z","server03",18],` + // Monday (6pm)
+				`["2025-09-15T23:59:59Z","server03",19]` + // Monday (end of day)
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter by year 2024`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('year', time) = 2024`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2024-01-01T00:00:00Z","server02",7],` +
+				`["2024-02-29T12:00:00Z","server02",8],` +
+				`["2024-05-19T06:30:15Z","server02",9],` +
+				`["2024-08-06T18:45:00Z","server02",10],` +
+				`["2024-11-23T22:10:55Z","server02",11],` +
+				`["2024-12-31T23:59:59Z","server02",12]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter by Q2 (quarter 2)`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('quarter', time) = 2`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-04-15T14:20:30Z","server01",3],` +
+				`["2024-05-19T06:30:15Z","server02",9],` +
+				`["2025-06-12T11:20:30Z","server03",14]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter by January (month 1)`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('month', time) = 1`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-01-01T00:00:00Z","server01",1],` +
+				`["2023-01-16T10:30:45Z","server01",2],` +
+				`["2024-01-01T00:00:00Z","server02",7],` +
+				`["2025-01-01T00:00:00Z","server03",13]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter by first day of month`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('day', time) = 1`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-01-01T00:00:00Z","server01",1],` +
+				`["2024-01-01T00:00:00Z","server02",7],` +
+				`["2025-01-01T00:00:00Z","server03",13]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter by business hours (9-17)`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('hour', time) >= 9 AND date_part('hour', time) < 17`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-01-16T10:30:45Z","server01",2],` +
+				`["2023-04-15T14:20:30Z","server01",3],` +
+				`["2023-10-27T16:45:10Z","server01",5],` +
+				`["2024-02-29T12:00:00Z","server02",8],` +
+				`["2025-06-12T11:20:30Z","server03",14],` +
+				`["2025-09-15T12:00:00Z","server03",17]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter by first day of year using doy`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('doy', time) = 1`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-01-01T00:00:00Z","server01",1],` +
+				`["2024-01-01T00:00:00Z","server02",7],` +
+				`["2025-01-01T00:00:00Z","server03",13]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter by last day of year using doy`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('doy', time) >= 365`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-12-31T23:59:59Z","server01",6],` +
+				`["2024-12-31T23:59:59Z","server02",12]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter weekends using isodow (Saturday=5, Sunday=6)`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('isodow', time) >= 5`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-01-01T00:00:00Z","server01",1],` + // Sunday
+				`["2023-04-15T14:20:30Z","server01",3],` + // Saturday
+				`["2023-12-31T23:59:59Z","server01",6],` + // Sunday
+				`["2024-05-19T06:30:15Z","server02",9],` + // Sunday
+				`["2024-11-23T22:10:55Z","server02",11]` + // Saturday
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter using epoch greater than timestamp`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('epoch', time) > 1735689599 LIMIT 3`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2025-01-01T00:00:00Z","server03",13],` +
+				`["2025-06-12T11:20:30Z","server03",14],` +
+				`["2025-09-15T00:00:00Z","server03",15]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `combine multiple date parts in WHERE clause`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('year', time) = 2023 AND date_part('month', time) = 1 AND date_part('day', time) = 16`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-01-16T10:30:45Z","server01",2]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		// SELECT statement tests - date_part as a column
+		&Query{
+			name:    `SELECT date_part dow as column`,
+			command: `SELECT value, date_part('dow', time) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","date_part"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` + // Sunday
+				`["2023-01-16T10:30:45Z",2,1]` + // Monday
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part with alias`,
+			command: `SELECT value, date_part('dow', time) AS day_of_week FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","day_of_week"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` +
+				`["2023-01-16T10:30:45Z",2,1]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT multiple date parts`,
+			command: `SELECT value, date_part('year', time) AS year, date_part('month', time) AS month, date_part('day', time) AS day FROM db0.rp0.cpu WHERE time = '2024-02-29T12:00:00Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","year","month","day"],"values":[` +
+				`["2024-02-29T12:00:00Z",8,2024,2,29]` + // Leap year day
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part with field`,
+			command: `SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE host = 'server01' ORDER BY time LIMIT 3`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` + // Sunday
+				`["2023-01-16T10:30:45Z",2,1],` + // Monday
+				`["2023-04-15T14:20:30Z",3,6]` + // Saturday
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part hour and minute`,
+			command: `SELECT value, date_part('hour', time) AS hour, date_part('minute', time) AS minute FROM db0.rp0.cpu WHERE time = '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","hour","minute"],"values":[` +
+				`["2023-01-16T10:30:45Z",2,10,30]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part year and quarter`,
+			command: `SELECT value, date_part('year', time) AS year, date_part('quarter', time) AS quarter FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-12-31T23:59:59Z' ORDER BY time`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","year","quarter"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,2023,1],` +
+				`["2023-01-16T10:30:45Z",2,2023,1],` +
+				`["2023-04-15T14:20:30Z",3,2023,2],` +
+				`["2023-07-19T08:15:22Z",4,2023,3],` +
+				`["2023-10-27T16:45:10Z",5,2023,4],` +
+				`["2023-12-31T23:59:59Z",6,2023,4]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part doy (day of year)`,
+			command: `SELECT value, date_part('doy', time) AS day_of_year FROM db0.rp0.cpu WHERE (date_part('doy', time) = 1 OR date_part('doy', time) = 365) AND time >= '2023-01-01T00:00:00Z' AND time <= '2023-12-31T23:59:59Z' ORDER BY time`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","day_of_year"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,1],` +
+				`["2023-12-31T23:59:59Z",6,365]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part isodow`,
+			command: `SELECT value, date_part('isodow', time) AS iso_day FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","iso_day"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,6],` + // Sunday = 6 in ISO
+				`["2023-01-16T10:30:45Z",2,0]` + // Monday = 0 in ISO
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part epoch`,
+			command: `SELECT value, date_part('epoch', time) AS epoch FROM db0.rp0.cpu WHERE time = '2024-01-01T00:00:00Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","epoch"],"values":[` +
+				`["2024-01-01T00:00:00Z",7,1704067200]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		// GROUP BY date_part tests
+		&Query{
+			name:    `GROUP BY year with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"year":2023},"columns":["time","count","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2023],` + // 2023 has 6 data points
+				`["2023-01-01T00:00:00Z",6,2024],` + // 2024 has 6 data points
+				`["2023-01-01T00:00:00Z",7,2025]` + // 2025 has 7 data points
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY quarter with SUM`,
+			command: `SELECT SUM(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('quarter', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"quarter":1},"columns":["time","sum","quarter"],"values":[` +
+				`["2023-01-01T00:00:00Z",31,1],` + // Q1: values 1,2,7,8,13 = 31
+				`["2023-01-01T00:00:00Z",26,2],` + // Q2: values 3,9,14 = 26
+				`["2023-01-01T00:00:00Z",99,3],` + // Q3: values 4,10,15,16,17,18,19 = 99
+				`["2023-01-01T00:00:00Z",34,4]` + // Q4: values 5,6,11,12 = 34
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY month with MEAN`,
+			command: `SELECT MEAN(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('month', time) ORDER BY time`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"month":1},"columns":["time","mean","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",5.75,1],` + // January: (1+2+7+13)/4 = 5.75
+				`["2023-01-01T00:00:00Z",8,2],` + // February: 8/1 = 8
+				`["2023-01-01T00:00:00Z",3,4],` + // April: 3/1 = 3
+				`["2023-01-01T00:00:00Z",9,5],` + // May: 9/1 = 9
+				`["2023-01-01T00:00:00Z",14,6],` + // June: 14/1 = 14
+				`["2023-01-01T00:00:00Z",4,7],` + // July: 4/1 = 4
+				`["2023-01-01T00:00:00Z",10,8],` + // August: 10/1 = 10
+				`["2023-01-01T00:00:00Z",17,9],` + // September: (15+16+17+18+19)/5 = 17
+				`["2023-01-01T00:00:00Z",5,10],` + // October: 5/1 = 5
+				`["2023-01-01T00:00:00Z",11,11],` + // November: 11/1 = 11
+				`["2023-01-01T00:00:00Z",9,12]` + // December: (6+12)/2 = 9
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY dow (day of week) with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('dow', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"dow":0},"columns":["time","count","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",3,0],` + // Sunday (dow=0): values 1,6,9 = 3 points
+				`["2023-01-01T00:00:00Z",7,1],` + // Monday (dow=1): values 2,7,15,16,17,18,19 = 7 points
+				`["2023-01-01T00:00:00Z",2,2],` + // Tuesday (dow=2): values 10,12 = 2 points
+				`["2023-01-01T00:00:00Z",2,3],` + // Wednesday (dow=3): values 4,13 = 2 points
+				`["2023-01-01T00:00:00Z",2,4],` + // Thursday (dow=4): values 8,14 = 2 points
+				`["2023-01-01T00:00:00Z",1,5],` + // Friday (dow=5): value 5 = 1 point
+				`["2023-01-01T00:00:00Z",2,6]` + // Saturday (dow=6): values 3,11 = 2 points
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		// TODO: GROUP BY date_part with selector functions (MAX, MIN) panics with
+		// "index out of range" due to Aux array not containing date_part values for selectors.
+		// Skipping until the bug is fixed.
+		//&Query{
+		//	name:    `GROUP BY hour with MAX`,
+		//	command: `SELECT MAX(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('hour', time)`,
+		//},
+		&Query{
+			name:    `GROUP BY year and month with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time)`,
+			// NOTE: multi-dimension GROUP BY has a known bug where the "year" column
+			// shows month values instead of actual year values. The expected output
+			// below reflects the current (buggy) behavior.
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"month":1},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",2,1,1],` + // 2023-01: 2 points
+				`["2023-01-01T00:00:00Z",1,4,4],` + // 2023-04: 1 point
+				`["2023-01-01T00:00:00Z",1,7,7],` + // 2023-07: 1 point
+				`["2023-01-01T00:00:00Z",1,10,10],` + // 2023-10: 1 point
+				`["2023-01-01T00:00:00Z",1,12,12],` + // 2023-12: 1 point
+				`["2023-01-01T00:00:00Z",1,1,1],` + // 2024-01: 1 point
+				`["2023-01-01T00:00:00Z",1,2,2],` + // 2024-02: 1 point
+				`["2023-01-01T00:00:00Z",1,5,5],` + // 2024-05: 1 point
+				`["2023-01-01T00:00:00Z",1,8,8],` + // 2024-08: 1 point
+				`["2023-01-01T00:00:00Z",1,11,11],` + // 2024-11: 1 point
+				`["2023-01-01T00:00:00Z",1,12,12],` + // 2024-12: 1 point
+				`["2023-01-01T00:00:00Z",1,1,1],` + // 2025-01: 1 point
+				`["2023-01-01T00:00:00Z",1,6,6],` + // 2025-06: 1 point
+				`["2023-01-01T00:00:00Z",5,9,9]` + // 2025-09: 5 points
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY dow with WHERE and SUM`,
+			command: `SELECT SUM(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' AND date_part('dow', time) >= 1 AND date_part('dow', time) <= 5 GROUP BY date_part('dow', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"dow":1},"columns":["time","sum","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",94,1],` + // Monday: 2+7+15+16+17+18+19 = 94
+				`["2023-01-01T00:00:00Z",22,2],` + // Tuesday: 10+12 = 22
+				`["2023-01-01T00:00:00Z",17,3],` + // Wednesday: 4+13 = 17
+				`["2023-01-01T00:00:00Z",22,4],` + // Thursday: 8+14 = 22
+				`["2023-01-01T00:00:00Z",5,5]` + // Friday: 5
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		// TODO: GROUP BY date_part with MIN panics with "index out of range"
+		//&Query{
+		//	name:    `GROUP BY day with MIN`,
+		//	command: `SELECT MIN(value) FROM db0.rp0.cpu WHERE time >= '2025-09-15T00:00:00Z' AND time <= '2025-09-15T23:59:59Z' GROUP BY date_part('day', time)`,
+		//},
+		&Query{
+			name:    `GROUP BY isodow with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('isodow', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"isodow":0},"columns":["time","count","isodow"],"values":[` +
+				`["2023-01-01T00:00:00Z",7,0],` + // Monday (isodow=0): 7 points (2,7,15,16,17,18,19)
+				`["2023-01-01T00:00:00Z",2,1],` + // Tuesday (isodow=1): 2 points (10,12)
+				`["2023-01-01T00:00:00Z",2,2],` + // Wednesday (isodow=2): 2 points (4,13)
+				`["2023-01-01T00:00:00Z",2,3],` + // Thursday (isodow=3): 2 points (8,14)
+				`["2023-01-01T00:00:00Z",1,4],` + // Friday (isodow=4): 1 point (5)
+				`["2023-01-01T00:00:00Z",2,5],` + // Saturday (isodow=5): 2 points (3,11)
+				`["2023-01-01T00:00:00Z",3,6]` + // Sunday (isodow=6): 3 points (1,6,9)
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part with multiple fields and WHERE`,
+			command: `SELECT host, value, date_part('month', time) AS month FROM db0.rp0.cpu WHERE date_part('year', time) = 2024 AND date_part('month', time) <= 2 ORDER BY time`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value","month"],"values":[` +
+				`["2024-01-01T00:00:00Z","server02",7,1],` +
+				`["2024-02-29T12:00:00Z","server02",8,2]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		// Subquery tests
+		&Query{
+			name:    `aggregate over date_part results from subquery`,
+			command: `SELECT max(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","max"],"values":[["2023-04-15T14:20:30Z",6]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `min date_part value from subquery`,
+			command: `SELECT min(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","min"],"values":[["2023-01-01T00:00:00Z",0]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter in subquery using date_part`,
+			command: `SELECT mean(value) FROM (SELECT value FROM db0.rp0.cpu WHERE time >= '2024-01-01T00:00:00Z' AND date_part('dow', time) >= 1 AND date_part('dow', time) <= 2)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",14.25]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `filter outer query on date_part result from subquery`,
+			command: `SELECT value, dow FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2024-01-01T00:00:00Z' AND time <= '2024-12-31T23:59:59Z') WHERE dow = 2`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","dow"],"values":[` +
+				`["2024-08-06T18:45:00Z",10,2],` +
+				`["2024-12-31T23:59:59Z",12,2]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `multiple date_part in subquery with month filter`,
+			command: `SELECT sum(value) FROM (SELECT value, date_part('dow', time) AS dow, date_part('month', time) AS month FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z') WHERE month = 1`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",23]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `arithmetic on date_part result in outer query`,
+			command: `SELECT dow * 10 FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z') LIMIT 1`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","dow"],"values":[["2023-01-01T00:00:00Z",0]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `select value and date_part from subquery`,
+			command: `SELECT value, dow FROM (SELECT value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2024-01-01T00:00:00Z') LIMIT 2`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","dow"],"values":[` +
+				`["2024-01-01T00:00:00Z",7,1],` +
+				`["2024-02-29T12:00:00Z",8,4]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `nested subquery with date_part`,
+			command: `SELECT max(value) FROM (SELECT value FROM (SELECT value FROM db0.rp0.cpu WHERE time >= '2024-01-01T00:00:00Z' AND date_part('dow', time) = 1))`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","max"],"values":[["2025-09-15T23:59:59Z",19]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `first value with date_part in subquery`,
+			command: `SELECT first_value, dow FROM (SELECT first(value) AS first_value, date_part('dow', time) AS dow FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","first_value","dow"],"values":[["2023-01-01T00:00:00Z",1,0]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				err := test.init(s)
+				require.NoError(t, err, "init error")
+				initialized = true
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
+	}
+}
+
+func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		// server01 - 2023 data
+		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-01-16T10:30:45Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=3 %d`, mustParseTime(time.RFC3339Nano, "2023-04-15T14:20:30Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=4 %d`, mustParseTime(time.RFC3339Nano, "2023-07-19T08:15:22Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=5 %d`, mustParseTime(time.RFC3339Nano, "2023-10-27T16:45:10Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=6 %d`, mustParseTime(time.RFC3339Nano, "2023-12-31T23:59:59Z").UnixNano()),
+		// server02 - 2024 data
+		fmt.Sprintf(`cpu,host=server02 value=7 %d`, mustParseTime(time.RFC3339Nano, "2024-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02 value=8 %d`, mustParseTime(time.RFC3339Nano, "2024-02-29T12:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02 value=9 %d`, mustParseTime(time.RFC3339Nano, "2024-05-19T06:30:15Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02 value=10 %d`, mustParseTime(time.RFC3339Nano, "2024-08-06T18:45:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02 value=11 %d`, mustParseTime(time.RFC3339Nano, "2024-11-23T22:10:55Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02 value=12 %d`, mustParseTime(time.RFC3339Nano, "2024-12-31T23:59:59Z").UnixNano()),
+		// server03 - 2025 data
+		fmt.Sprintf(`cpu,host=server03 value=13 %d`, mustParseTime(time.RFC3339Nano, "2025-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server03 value=14 %d`, mustParseTime(time.RFC3339Nano, "2025-06-12T11:20:30Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server03 value=15 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server03 value=16 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T06:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server03 value=17 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T12:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server03 value=18 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T18:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server03 value=19 %d`, mustParseTime(time.RFC3339Nano, "2025-09-15T23:59:59Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		// GROUP BY tag + single date_part
+		&Query{
+			name:    `GROUP BY host and year with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('year', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"year":2023},"columns":["time","count","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2023]` + // server01: all 6 points in 2023
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"year":2024},"columns":["time","count","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2024]` + // server02: all 6 points in 2024
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"year":2025},"columns":["time","count","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",7,2025]` + // server03: all 7 points in 2025
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY host and quarter with SUM`,
+			command: `SELECT SUM(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('quarter', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"quarter":1},"columns":["time","sum","quarter"],"values":[` +
+				`["2023-01-01T00:00:00Z",3,1],` + // server01 Q1: 1+2 = 3
+				`["2023-01-01T00:00:00Z",3,2],` + // server01 Q2: 3
+				`["2023-01-01T00:00:00Z",4,3],` + // server01 Q3: 4
+				`["2023-01-01T00:00:00Z",11,4]` + // server01 Q4: 5+6 = 11
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"quarter":1},"columns":["time","sum","quarter"],"values":[` +
+				`["2023-01-01T00:00:00Z",15,1],` + // server02 Q1: 7+8 = 15
+				`["2023-01-01T00:00:00Z",9,2],` + // server02 Q2: 9
+				`["2023-01-01T00:00:00Z",10,3],` + // server02 Q3: 10
+				`["2023-01-01T00:00:00Z",23,4]` + // server02 Q4: 11+12 = 23
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"quarter":1},"columns":["time","sum","quarter"],"values":[` +
+				`["2023-01-01T00:00:00Z",13,1],` + // server03 Q1: 13
+				`["2023-01-01T00:00:00Z",14,2],` + // server03 Q2: 14
+				`["2023-01-01T00:00:00Z",85,3]` + // server03 Q3: 15+16+17+18+19 = 85
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY host and month with MEAN`,
+			command: `SELECT MEAN(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('month', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"month":1},"columns":["time","mean","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",1.5,1],` + // server01 Jan: (1+2)/2 = 1.5
+				`["2023-01-01T00:00:00Z",3,4],` + // server01 Apr: 3
+				`["2023-01-01T00:00:00Z",4,7],` + // server01 Jul: 4
+				`["2023-01-01T00:00:00Z",5,10],` + // server01 Oct: 5
+				`["2023-01-01T00:00:00Z",6,12]` + // server01 Dec: 6
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"month":1},"columns":["time","mean","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",7,1],` + // server02 Jan: 7
+				`["2023-01-01T00:00:00Z",8,2],` + // server02 Feb: 8
+				`["2023-01-01T00:00:00Z",9,5],` + // server02 May: 9
+				`["2023-01-01T00:00:00Z",10,8],` + // server02 Aug: 10
+				`["2023-01-01T00:00:00Z",11,11],` + // server02 Nov: 11
+				`["2023-01-01T00:00:00Z",12,12]` + // server02 Dec: 12
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"month":1},"columns":["time","mean","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",13,1],` + // server03 Jan: 13
+				`["2023-01-01T00:00:00Z",14,6],` + // server03 Jun: 14
+				`["2023-01-01T00:00:00Z",17,9]` + // server03 Sep: (15+16+17+18+19)/5 = 17
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY host and dow with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('dow', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"dow":0},"columns":["time","count","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",2,0],` + // server01 Sun: 1,6
+				`["2023-01-01T00:00:00Z",1,1],` + // server01 Mon: 2
+				`["2023-01-01T00:00:00Z",1,3],` + // server01 Wed: 4
+				`["2023-01-01T00:00:00Z",1,5],` + // server01 Fri: 5
+				`["2023-01-01T00:00:00Z",1,6]` + // server01 Sat: 3
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"dow":0},"columns":["time","count","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` + // server02 Sun: 9
+				`["2023-01-01T00:00:00Z",1,1],` + // server02 Mon: 7
+				`["2023-01-01T00:00:00Z",2,2],` + // server02 Tue: 10,12
+				`["2023-01-01T00:00:00Z",1,4],` + // server02 Thu: 8
+				`["2023-01-01T00:00:00Z",1,6]` + // server02 Sat: 11
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"dow":1},"columns":["time","count","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",5,1],` + // server03 Mon: 15,16,17,18,19
+				`["2023-01-01T00:00:00Z",1,3],` + // server03 Wed: 13
+				`["2023-01-01T00:00:00Z",1,4]` + // server03 Thu: 14
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY host and isodow with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('isodow', time)`,
+			// isodow: Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"isodow":0},"columns":["time","count","isodow"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` + // server01 Mon (isodow=0): value 2
+				`["2023-01-01T00:00:00Z",1,2],` + // server01 Wed (isodow=2): value 4
+				`["2023-01-01T00:00:00Z",1,4],` + // server01 Fri (isodow=4): value 5
+				`["2023-01-01T00:00:00Z",1,5],` + // server01 Sat (isodow=5): value 3
+				`["2023-01-01T00:00:00Z",2,6]` + // server01 Sun (isodow=6): values 1,6
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"isodow":0},"columns":["time","count","isodow"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,0],` + // server02 Mon (isodow=0): value 7
+				`["2023-01-01T00:00:00Z",2,1],` + // server02 Tue (isodow=1): values 10,12
+				`["2023-01-01T00:00:00Z",1,3],` + // server02 Thu (isodow=3): value 8
+				`["2023-01-01T00:00:00Z",1,5],` + // server02 Sat (isodow=5): value 11
+				`["2023-01-01T00:00:00Z",1,6]` + // server02 Sun (isodow=6): value 9
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"isodow":0},"columns":["time","count","isodow"],"values":[` +
+				`["2023-01-01T00:00:00Z",5,0],` + // server03 Mon (isodow=0): values 15,16,17,18,19
+				`["2023-01-01T00:00:00Z",1,2],` + // server03 Wed (isodow=2): value 13
+				`["2023-01-01T00:00:00Z",1,3]` + // server03 Thu (isodow=3): value 14
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		// GROUP BY tag + date_part with WHERE filter
+		&Query{
+			name:    `GROUP BY host and dow with WHERE weekday filter and SUM`,
+			command: `SELECT SUM(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' AND date_part('dow', time) >= 1 AND date_part('dow', time) <= 5 GROUP BY host, date_part('dow', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"dow":1},"columns":["time","sum","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",2,1],` + // server01 Mon: 2
+				`["2023-01-01T00:00:00Z",4,3],` + // server01 Wed: 4
+				`["2023-01-01T00:00:00Z",5,5]` + // server01 Fri: 5
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"dow":1},"columns":["time","sum","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",7,1],` + // server02 Mon: 7
+				`["2023-01-01T00:00:00Z",22,2],` + // server02 Tue: 10+12 = 22
+				`["2023-01-01T00:00:00Z",8,4]` + // server02 Thu: 8
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"dow":1},"columns":["time","sum","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",85,1],` + // server03 Mon: 15+16+17+18+19 = 85
+				`["2023-01-01T00:00:00Z",13,3],` + // server03 Wed: 13
+				`["2023-01-01T00:00:00Z",14,4]` + // server03 Thu: 14
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		// GROUP BY tag + multiple date_parts (PR comment pattern)
+		// NOTE: multi-dimension GROUP BY has a known bug where both "month" and "year"
+		// columns show the year value instead of their respective values.
+		&Query{
+			name:    `GROUP BY host year and month with COUNT - PR comment pattern`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('month', time), date_part('year', time), host`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"year":2023},"columns":["time","count","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",2,2023,2023],` +
+				`["2023-01-01T00:00:00Z",1,2023,2023],` +
+				`["2023-01-01T00:00:00Z",1,2023,2023],` +
+				`["2023-01-01T00:00:00Z",1,2023,2023],` +
+				`["2023-01-01T00:00:00Z",1,2023,2023]` +
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"year":2024},"columns":["time","count","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,2024,2024],` +
+				`["2023-01-01T00:00:00Z",1,2024,2024],` +
+				`["2023-01-01T00:00:00Z",1,2024,2024],` +
+				`["2023-01-01T00:00:00Z",1,2024,2024],` +
+				`["2023-01-01T00:00:00Z",1,2024,2024],` +
+				`["2023-01-01T00:00:00Z",1,2024,2024]` +
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"year":2025},"columns":["time","count","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,2025,2025],` +
+				`["2023-01-01T00:00:00Z",1,2025,2025],` +
+				`["2023-01-01T00:00:00Z",5,2025,2025]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		// date_part in both SELECT and GROUP BY with tag
+		// NOTE: The explicit SELECT date_part shows incorrect values (always first group's value)
+		// when combined with GROUP BY date_part + tag.
+		&Query{
+			name:    `SELECT date_part with GROUP BY host and year`,
+			command: `SELECT COUNT(value), date_part('year', time) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('year', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"year":2023},"columns":["time","count","date_part","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2023,2023]` +
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"year":2024},"columns":["time","count","date_part","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2023,2024]` +
+				`]},` +
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"year":2025},"columns":["time","count","date_part","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",7,2023,2025]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				err := test.init(s)
+				require.NoError(t, err, "init error")
+				initialized = true
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
+	}
+}
+
 func TestServer_Query_ShowTagKeys(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
