@@ -72,8 +72,9 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 		{
 			StatementID: 0,
 			Series: []*models.Row{{
-				Name:    "cpu",
-				Columns: []string{"time", "value"},
+				Name:         "cpu",
+				Columns:      []string{"time", "value"},
+				GroupingKeys: map[string]int64{},
 				Values: [][]interface{}{
 					{time.Unix(0, 0).UTC(), float64(100)},
 					{time.Unix(1, 0).UTC(), float64(200)},

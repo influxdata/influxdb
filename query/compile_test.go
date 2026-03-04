@@ -170,7 +170,7 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT count(distinct()) FROM cpu`, err: `distinct function requires at least one argument`},
 		{s: `SELECT count(distinct(value, host)) FROM cpu`, err: `distinct function can only have one argument`},
 		{s: `SELECT count(distinct(2)) FROM cpu`, err: `expected field argument in distinct()`},
-		{s: `SELECT value FROM cpu GROUP BY now()`, err: `only time() calls allowed in dimensions`},
+		{s: `SELECT value FROM cpu GROUP BY now()`, err: `only time() and date_part() calls allowed in dimensions`},
 		{s: `SELECT value FROM cpu GROUP BY time()`, err: `time dimension expected 1 or 2 arguments`},
 		{s: `SELECT value FROM cpu GROUP BY time(5m, 30s, 1ms)`, err: `time dimension expected 1 or 2 arguments`},
 		{s: `SELECT value FROM cpu GROUP BY time('unexpected')`, err: `time dimension must have duration argument`},
