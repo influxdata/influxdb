@@ -218,7 +218,7 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	}
 	itr.stats = itr.statsBuf
 
-	// Check to see if we need to set "time" as a ref
+	// Use the cached NeedTimeRef from IteratorOptions
 	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
@@ -721,7 +721,7 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	}
 	itr.stats = itr.statsBuf
 
-	// Check to see if we need to set "time" as a ref
+	// Use the cached NeedTimeRef from IteratorOptions
 	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
@@ -1224,7 +1224,7 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	}
 	itr.stats = itr.statsBuf
 
-	// Check to see if we need to set "time" as a ref
+	// Use the cached NeedTimeRef from IteratorOptions
 	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
@@ -1727,7 +1727,7 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	}
 	itr.stats = itr.statsBuf
 
-	// Check to see if we need to set "time" as a ref
+	// Use the cached NeedTimeRef from IteratorOptions
 	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
@@ -2230,7 +2230,7 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	}
 	itr.stats = itr.statsBuf
 
-	// Check to see if we need to set "time" as a ref
+	// Use the cached NeedTimeRef from IteratorOptions
 	itr.timeRefMap = opt.NeedTimeRef
 
 	if len(aux) > 0 {
