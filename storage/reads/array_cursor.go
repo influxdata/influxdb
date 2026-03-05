@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -20,7 +22,7 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error) {
 	switch agg.Type {
 	case datatypes.Aggregate_AggregateTypeFirst, datatypes.Aggregate_AggregateTypeLast:
-		return newLimitArrayCursor(cursor), nil
+		return newLimitArrayCursor(cursor)
 	}
 	return newWindowAggregateArrayCursor(ctx, agg, interval.Window{}, cursor)
 }
@@ -32,22 +34,24 @@ func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate
 
 	switch agg.Type {
 	case datatypes.Aggregate_AggregateTypeCount:
-		return newWindowCountArrayCursor(cursor, window), nil
+		return newWindowCountArrayCursor(cursor, window)
 	case datatypes.Aggregate_AggregateTypeSum:
 		return newWindowSumArrayCursor(cursor, window)
 	case datatypes.Aggregate_AggregateTypeFirst:
-		return newWindowFirstArrayCursor(cursor, window), nil
+		return newWindowFirstArrayCursor(cursor, window)
 	case datatypes.Aggregate_AggregateTypeLast:
-		return newWindowLastArrayCursor(cursor, window), nil
+		return newWindowLastArrayCursor(cursor, window)
 	case datatypes.Aggregate_AggregateTypeMin:
-		return newWindowMinArrayCursor(cursor, window), nil
+		return newWindowMinArrayCursor(cursor, window)
 	case datatypes.Aggregate_AggregateTypeMax:
-		return newWindowMaxArrayCursor(cursor, window), nil
+		return newWindowMaxArrayCursor(cursor, window)
 	case datatypes.Aggregate_AggregateTypeMean:
 		return newWindowMeanArrayCursor(cursor, window)
 	default:
-		// TODO(sgc): should be validated higher up
-		panic("invalid aggregate")
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unsupported window aggregate cursor: %s", agg.Type),
+		}
 	}
 }
 
@@ -101,7 +105,7 @@ func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool) 
 	return m
 }
 
-func (m *multiShardArrayCursors) createCursor(row SeriesRow) cursors.Cursor {
+func (m *multiShardArrayCursors) createCursor(row SeriesRow) (cursors.Cursor, error) {
 	m.req.Name = row.Name
 	m.req.Tags = row.SeriesTags
 	m.req.Field = row.Field
@@ -120,26 +124,29 @@ func (m *multiShardArrayCursors) createCursor(row SeriesRow) cursors.Cursor {
 	}
 
 	if cur == nil || err != nil {
-		return nil
+		return nil, err
 	}
 
 	switch c := cur.(type) {
 	case cursors.IntegerArrayCursor:
 		m.cursors.i.reset(c, row.Query, cond)
-		return &m.cursors.i
+		return &m.cursors.i, nil
 	case cursors.FloatArrayCursor:
 		m.cursors.f.reset(c, row.Query, cond)
-		return &m.cursors.f
+		return &m.cursors.f, nil
 	case cursors.UnsignedArrayCursor:
 		m.cursors.u.reset(c, row.Query, cond)
-		return &m.cursors.u
+		return &m.cursors.u, nil
 	case cursors.StringArrayCursor:
 		m.cursors.s.reset(c, row.Query, cond)
-		return &m.cursors.s
+		return &m.cursors.s, nil
 	case cursors.BooleanArrayCursor:
 		m.cursors.b.reset(c, row.Query, cond)
-		return &m.cursors.b
+		return &m.cursors.b, nil
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unsupported cursor type: %s", arrayCursorType(cur)),
+		}
 	}
 }
