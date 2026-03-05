@@ -56,11 +56,11 @@ func (c *TagValueSeriesIDCache) get(name, key, value []byte) *tsdb.SeriesIDSet {
 	return nil
 }
 
-// exists returns true if the an item exists for the tuple {name, key, value}.
-func (c *TagValueSeriesIDCache) exists(name, key, value []byte) bool {
-	if mmap, ok := c.cache[string(name)]; ok {
-		if tkmap, ok := mmap[string(key)]; ok {
-			_, ok := tkmap[string(value)]
+// exists returns true if the item exists for the tuple {name, key, value}.
+func (c *TagValueSeriesIDCache) exists(name, key, value string) bool {
+	if mmap, ok := c.cache[name]; ok {
+		if tkmap, ok := mmap[key]; ok {
+			_, ok := tkmap[value]
 			return ok
 		}
 	}
@@ -97,8 +97,13 @@ func (c *TagValueSeriesIDCache) measurementContainsSets(name []byte) bool {
 // the cache is at its limit, then the least recently used item is evicted.
 func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSet) {
 	c.Lock()
+	// Convert once; the same string backing array is shared between
+	// the cache element (used during eviction) and the map keys.
+	nameStr := string(name)
+	keyStr := string(key)
+	valueStr := string(value)
 	// Check under the write lock if the relevant item is now in the cache.
-	if c.exists(name, key, value) {
+	if c.exists(nameStr, keyStr, valueStr) {
 		c.Unlock()
 		return
 	}
@@ -111,32 +116,32 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 
 	// Create list item, and add to the front of the eviction list.
 	listElement := c.evictor.PushFront(&seriesIDCacheElement{
-		name:        string(name),
-		key:         string(key),
-		value:       string(value),
+		name:        nameStr,
+		key:         keyStr,
+		value:       valueStr,
 		SeriesIDSet: ss,
 	})
 
 	// Add the listElement to the set of items.
-	if mmap, ok := c.cache[string(name)]; ok {
-		if tkmap, ok := mmap[string(key)]; ok {
-			if _, ok := tkmap[string(value)]; ok {
+	if mmap, ok := c.cache[nameStr]; ok {
+		if tkmap, ok := mmap[keyStr]; ok {
+			if _, ok := tkmap[valueStr]; ok {
 				goto EVICT
 			}
 
 			// Add the set to the map
-			tkmap[string(value)] = listElement
+			tkmap[valueStr] = listElement
 			goto EVICT
 		}
 
 		// No series set map for the tag key - first tag value for the tag key.
-		mmap[string(key)] = map[string]*list.Element{string(value): listElement}
+		mmap[keyStr] = map[string]*list.Element{valueStr: listElement}
 		goto EVICT
 	}
 
 	// No map for the measurement - first tag key for the measurement.
-	c.cache[string(name)] = map[string]map[string]*list.Element{
-		string(key): {string(value): listElement},
+	c.cache[nameStr] = map[string]map[string]*list.Element{
+		keyStr: {valueStr: listElement},
 	}
 
 EVICT:
