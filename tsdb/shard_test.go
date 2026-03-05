@@ -270,8 +270,8 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := sh.WritePoints(context.Background(), []models.Point{pt}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err := sh.WritePoints(context.Background(), []models.Point{pt}); err == nil {
+		t.Fatal("expected partial write error: got nil")
 	}
 
 	mf := sh.MeasurementFields([]byte("cpu"))
@@ -362,6 +362,74 @@ func TestShardWriteAddNewField(t *testing.T) {
 	if got, exp := sh.SeriesN(), int64(1); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
+}
+
+func TestShardWriteDropField(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "shard_test")
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		require.NoError(t, err, "error removing temp dir")
+	}(tmpDir)
+
+	tmpShard := filepath.Join(tmpDir, "shard")
+	tmpWal := filepath.Join(tmpDir, "wal")
+
+	sfile := MustOpenSeriesFile(t)
+	defer func(sfile *SeriesFile) {
+		err := sfile.Close()
+		require.NoError(t, err, "error closing series file")
+	}(sfile)
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	err := sh.Open(t.Context())
+	require.NoError(t, err, "error opening shard")
+
+	defer func(sh *tsdb.Shard) {
+		err := sh.Close()
+		require.NoError(t, err, "error closing shard")
+	}(sh)
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints(t.Context(), []models.Point{pt})
+	require.NoError(t, err, "error writing point")
+
+	pt = models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0, "value2": 2.0, "time": time.Now().Unix()},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints(t.Context(), []models.Point{pt})
+	require.Error(t, err, "writing point should error with partial write")
+	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid. Field \"time\" has been stripped from point. dropped=0 for database:")
+
+	// Point should not be written and fully dropped due to having a single "time" field
+	pt = models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"time": time.Now().Unix()},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints(t.Context(), []models.Point{pt})
+	require.Error(t, err, "writing point should error with partial write")
+	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid dropped=1")
+
+	require.Equal(t, int64(1), sh.SeriesN(), "wrong number of series")
+
+	mf := sh.MeasurementFields([]byte("cpu"))
+	require.NotNil(t, mf, "measurement fields should not be nil")
+	require.Equal(t, 2, mf.FieldN(), "measurement fields should have 2 values")
 }
 
 // Tests concurrently writing to the same shard with different field types which
