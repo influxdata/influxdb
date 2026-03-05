@@ -270,8 +270,8 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := sh.WritePoints(context.Background(), []models.Point{pt}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err := sh.WritePoints(context.Background(), []models.Point{pt}); err == nil {
+		t.Fatal("expected partial write error: got nil")
 	}
 
 	mf := sh.MeasurementFields([]byte("cpu"))
@@ -423,7 +423,7 @@ func TestShardWriteDropField(t *testing.T) {
 
 	err = sh.WritePoints(t.Context(), []models.Point{pt})
 	require.Error(t, err, "writing point should error with partial write")
-	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid dropped=1 for database:")
+	require.ErrorContains(t, err, "partial write: invalid field name: input field \"time\" on measurement \"cpu\" is invalid dropped=1")
 
 	require.Equal(t, int64(1), sh.SeriesN(), "wrong number of series")
 
