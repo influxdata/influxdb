@@ -176,7 +176,17 @@ impl AllSystemSchemaTablesProvider {
                 InfluxdbSchemaTable::new(Arc::clone(&db_schema)),
             ))),
         );
-        if db_schema.name.as_ref() == INTERNAL_DB_NAME {
+        let is_internal_database = db_schema.name.as_ref() == INTERNAL_DB_NAME;
+        // `system.tables` is available for all databases but restricts tables
+        // to that contained in the mentioned database only.
+        tables.insert(
+            TABLES_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(TablesTable::new(
+                Arc::clone(&catalog),
+                (!is_internal_database).then_some(Arc::clone(&db_schema.name)),
+            )))),
+        );
+        if is_internal_database {
             tables.insert(
                 TOKENS_TABLE_NAME,
                 Arc::new(SystemTableProvider::new(Arc::new(TokenSystemTable::new(
@@ -199,12 +209,6 @@ impl AllSystemSchemaTablesProvider {
             tables.insert(
                 DATABASES_TABLE_NAME,
                 Arc::new(SystemTableProvider::new(Arc::new(DatabasesTable::new(
-                    Arc::clone(&catalog),
-                )))),
-            );
-            tables.insert(
-                TABLES_TABLE_NAME,
-                Arc::new(SystemTableProvider::new(Arc::new(TablesTable::new(
                     Arc::clone(&catalog),
                 )))),
             );
