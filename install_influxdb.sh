@@ -166,9 +166,13 @@ PORT=8181
 
 # Set the default (latest) version here. Users may specify a version using the
 # --version arg (handled below)
-INFLUXDB_VERSION="3.8.0"
+INFLUXDB_VERSION_FLAG_SET="0"
+INFLUXDB_OSS_VERSION="3.8.3"
+INFLUXDB_ENT_VERSION="3.8.4"
+
 EDITION="Core"
 EDITION_TAG="core"
+INFLUXDB_VERSION="${INFLUXDB_OSS_VERSION}"
 
 # ==============================================================================
 # SECTION 2: COMMAND LINE ARGUMENT PARSING
@@ -178,11 +182,15 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --version)
             INFLUXDB_VERSION="$2"
+            INFLUXDB_VERSION_FLAG_SET=1
             shift 2
             ;;
         enterprise)
             EDITION="Enterprise"
             EDITION_TAG="enterprise"
+            if [ "${INFLUXDB_VERSION_FLAG_SET}" == "0" ]; then
+                INFLUXDB_VERSION="${INFLUXDB_ENT_VERSION}"
+            fi
             shift 1
             ;;
         *)
