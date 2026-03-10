@@ -11,13 +11,15 @@ use iox_system_tables::IoxSystemTable;
 #[derive(Debug)]
 pub(crate) struct TablesTable {
     catalog: Arc<Catalog>,
+    database: Option<Arc<str>>,
     schema: SchemaRef,
 }
 
 impl TablesTable {
-    pub(crate) fn new(catalog: Arc<Catalog>) -> Self {
+    pub(crate) fn new(catalog: Arc<Catalog>, database: Option<Arc<str>>) -> Self {
         Self {
             catalog,
+            database,
             schema: tables_schema(),
         }
     }
@@ -52,7 +54,15 @@ impl IoxSystemTable for TablesTable {
         _filters: Option<Vec<Expr>>,
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
-        let databases = self.catalog.list_db_schema();
+        let databases = if let Some(database) = &self.database {
+            let db_schema = self
+                .catalog
+                .db_schema(database)
+                .ok_or_else(|| DataFusionError::Plan(format!("database not found: {database}")))?;
+            vec![db_schema]
+        } else {
+            self.catalog.list_db_schema()
+        };
 
         // Count total tables across all databases
         let total_tables: usize = databases
