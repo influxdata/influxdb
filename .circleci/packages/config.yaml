@@ -86,9 +86,6 @@ packages:
         group:  root
         perms:  0644
         target: lib/systemd/system/influxdb.service
-    rpm_attributes:
-      - 750,influxdb,influxdb:/var/log/influxdb
-      - 750,influxdb,influxdb:/var/lib/influxdb
     source: .circleci/packages/influxdb
     deb:
       recommends:
@@ -96,3 +93,12 @@ packages:
     rpm:
       recommends:
         - influxdata-archive-keyring
+      owned_dirs:
+        - owner: influxdb
+          group: influxdb
+          perms: 0750
+          target: var/log/influxdb
+        - owner: influxdb
+          group: influxdb
+          perms: 0750
+          target: var/lib/influxdb
