@@ -49,9 +49,14 @@ then
         -waldir  "${WAL_DIR}"
 fi
 
+PIDDIR=/var/lib/influxdb
+if [ ! -d "$PIDDIR" ]; then
+    mkdir -p "$PIDDIR"
+fi
+
 /usr/bin/influxd -config "${CONFIG}" ${INFLUXD_OPTS} &
 PID=$!
-echo $PID > /var/lib/influxdb/influxd.pid
+echo $PID > "${PIDDIR}/influxd.pid"
 
 PROTOCOL="http"
 BIND_ADDRESS=$(influxd config | grep -A5 "\[http\]" | grep '^  bind-address' | cut -d ' ' -f5 | tr -d '"')
