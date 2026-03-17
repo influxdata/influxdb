@@ -342,11 +342,10 @@ impl MutableTableChunk {
                         *self.string_bytes_per_column.entry(f.id).or_default() += v.len();
 
                         if let Entry::Vacant(e) = self.data.entry(f.id) {
-                            // keep arrow's defaults for value_capacity and data_capacity.
                             let mut tag_builder = StringDictionaryBuilder::with_capacity(
                                 builder_capacity,
-                                1024,
-                                1024,
+                                builder_capacity.min(1024),
+                                (builder_capacity * 64).min(1024),
                             );
                             // append nulls for all previous rows
                             tag_builder.append_nulls(row_index + self.row_count);
@@ -364,9 +363,10 @@ impl MutableTableChunk {
                         *self.string_bytes_per_column.entry(f.id).or_default() += v.len();
 
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            // keep arrow's default for data_capacity.
-                            let mut string_builder =
-                                StringBuilder::with_capacity(builder_capacity, 1024);
+                            let mut string_builder = StringBuilder::with_capacity(
+                                builder_capacity,
+                                (builder_capacity * 64).min(1024),
+                            );
                             // append nulls for all previous rows
                             string_builder.append_nulls(row_index + self.row_count);
                             Builder::String(string_builder)
