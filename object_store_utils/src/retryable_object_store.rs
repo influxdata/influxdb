@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -5,8 +6,8 @@ use std::time::Duration;
 use backon::{ExponentialBuilder, Retryable};
 use futures::stream::{BoxStream, StreamExt};
 use object_store::{
-    Error as ObjectStoreError, GetResult, ObjectMeta, ObjectStore, PutPayload, PutResult, Result,
-    path::Path,
+    Error as ObjectStoreError, GetOptions, GetResult, ListResult, ObjectMeta, ObjectStore,
+    PutOptions, PutPayload, PutResult, Result, path::Path,
 };
 use observability_deps::tracing::warn;
 
@@ -83,6 +84,38 @@ fn get_default_retry_params() -> RetryParams {
     DEFAULT_PARAMS.get().cloned().unwrap_or_default()
 }
 
+async fn retry_operation<T, F, Fut>(
+    retry_params: RetryParams,
+    context_message: String,
+    operation_label: &'static str,
+    path: &Path,
+    default_should_retry: Option<fn(&ObjectStoreError) -> bool>,
+    op: F,
+) -> Result<T>
+where
+    F: Fn() -> Fut + Send + Sync,
+    Fut: Future<Output = Result<T>> + Send,
+{
+    let retry_builder = retry_params.exponential_builder();
+
+    let retryable = op.retry(&retry_builder).notify({
+        move |err: &ObjectStoreError, dur: Duration| {
+            warn!(
+                "{context_message}: Retrying object store {operation_label} operation for {path} after error: {err}. Retry after {}ms",
+                dur.as_millis()
+            );
+        }
+    });
+
+    if let Some(when_fn) = retry_params.when {
+        retryable.when(move |err| when_fn(err)).await
+    } else if let Some(default_should_retry) = default_should_retry {
+        retryable.when(default_should_retry).await
+    } else {
+        retryable.await
+    }
+}
+
 /// Extension trait for ObjectStore that provides automatic retry capabilities with exponential backoff.
 ///
 /// This trait adds retry variants for common ObjectStore operations, allowing for resilient
@@ -108,40 +141,80 @@ pub trait RetryableObjectStore: ObjectStore {
         context_message: String,
         retry_params: RetryParams,
     ) -> Result<GetResult> {
-        let path_clone = path.clone();
         let store = self;
 
-        let retry_builder = retry_params.exponential_builder();
+        retry_operation(
+            retry_params,
+            context_message,
+            "get",
+            path,
+            Some(|err| !matches!(err, ObjectStoreError::NotFound { .. })),
+            || async { store.get(path).await },
+        )
+        .await
+    }
 
-        if let Some(when_fn) = retry_params.when {
-            (|| async { store.get(&path_clone).await })
-                .retry(&retry_builder)
-                .notify(|err: &ObjectStoreError, dur: Duration| {
-                    warn!(
-                        "{}: Retrying object store get operation for path '{}' after error: {}. Retry after {}ms",
-                        context_message,
-                        path_clone,
-                        err,
-                        dur.as_millis()
-                    );
-                })
-                .when(move |err| when_fn(err))
-                .await
-        } else {
-            (|| async { store.get(&path_clone).await })
-                .retry(&retry_builder)
-                .notify(|err: &ObjectStoreError, dur: Duration| {
-                    warn!(
-                        "{}: Retrying object store get operation for path '{}' after error: {}. Retry after {}ms",
-                        context_message,
-                        path_clone,
-                        err,
-                        dur.as_millis()
-                    );
-                })
-                .when(|err| !matches!(err, ObjectStoreError::NotFound { .. }))
-                .await
-        }
+    async fn get_opts_with_default_retries(
+        &self,
+        path: &Path,
+        options: GetOptions,
+        context_message: String,
+    ) -> Result<GetResult> {
+        self.get_opts_with_retries(path, options, context_message, get_default_retry_params())
+            .await
+    }
+
+    async fn get_opts_with_retries(
+        &self,
+        path: &Path,
+        options: GetOptions,
+        context_message: String,
+        retry_params: RetryParams,
+    ) -> Result<GetResult> {
+        let store = self;
+
+        retry_operation(
+            retry_params,
+            context_message,
+            "get_opts",
+            path,
+            Some(|err| {
+                !matches!(
+                    err,
+                    ObjectStoreError::NotFound { .. } | ObjectStoreError::Precondition { .. }
+                )
+            }),
+            || async { store.get_opts(path, options.clone()).await },
+        )
+        .await
+    }
+
+    async fn head_with_default_retries(
+        &self,
+        path: &Path,
+        context_message: String,
+    ) -> Result<ObjectMeta> {
+        self.head_with_retries(path, context_message, get_default_retry_params())
+            .await
+    }
+
+    async fn head_with_retries(
+        &self,
+        path: &Path,
+        context_message: String,
+        retry_params: RetryParams,
+    ) -> Result<ObjectMeta> {
+        let store = self;
+
+        retry_operation(
+            retry_params,
+            context_message,
+            "head",
+            path,
+            Some(|err| !matches!(err, ObjectStoreError::NotFound { .. })),
+            || async { store.head(path).await },
+        )
+        .await
     }
 
     async fn put_with_default_retries(
@@ -154,6 +227,49 @@ pub trait RetryableObjectStore: ObjectStore {
             .await
     }
 
+    async fn put_opts_with_default_retries(
+        &self,
+        path: &Path,
+        payload: PutPayload,
+        options: PutOptions,
+        context_message: String,
+    ) -> Result<PutResult> {
+        self.put_opts_with_retries(
+            path,
+            payload,
+            options,
+            context_message,
+            get_default_retry_params(),
+        )
+        .await
+    }
+
+    async fn put_opts_with_retries(
+        &self,
+        path: &Path,
+        payload: PutPayload,
+        options: PutOptions,
+        context_message: String,
+        retry_params: RetryParams,
+    ) -> Result<PutResult> {
+        let store = self;
+
+        retry_operation(
+            retry_params,
+            context_message,
+            "put_opts",
+            path,
+            Some(|err| {
+                !matches!(
+                    err,
+                    ObjectStoreError::NotFound { .. } | ObjectStoreError::Precondition { .. }
+                )
+            }),
+            || async { store.put_opts(path, payload.clone(), options.clone()).await },
+        )
+        .await
+    }
+
     async fn put_with_retries(
         &self,
         path: &Path,
@@ -164,36 +280,39 @@ pub trait RetryableObjectStore: ObjectStore {
         let path_clone = path.clone();
         let store = self;
 
-        let retry_builder = retry_params.exponential_builder();
+        retry_operation(retry_params, context_message, "put", path, None, || async {
+            store.put(&path_clone, payload.clone()).await
+        })
+        .await
+    }
 
-        if let Some(when_fn) = retry_params.when {
-            (|| async { store.put(&path_clone, payload.clone()).await })
-                .retry(&retry_builder)
-                .notify(|err: &ObjectStoreError, dur: Duration| {
-                    warn!(
-                        "{}: Retrying object store put operation for path '{}' after error: {}. Retry after {}ms",
-                        context_message,
-                        path_clone,
-                        err,
-                        dur.as_millis()
-                    );
-                })
-                .when(move |err| when_fn(err))
-                .await
-        } else {
-            (|| async { store.put(&path_clone, payload.clone()).await })
-                .retry(&retry_builder)
-                .notify(|err: &ObjectStoreError, dur: Duration| {
-                    warn!(
-                        "{}: Retrying object store put operation for path '{}' after error: {}. Retry after {}ms",
-                        context_message,
-                        path_clone,
-                        err,
-                        dur.as_millis()
-                    );
-                })
-                .await
-        }
+    async fn raw_delete_with_retries(
+        &self,
+        path: &Path,
+        context_message: String,
+        retry_params: RetryParams,
+    ) -> Result<()> {
+        let path_clone = path.clone();
+        let store = self;
+
+        retry_operation(
+            retry_params,
+            context_message,
+            "delete",
+            path,
+            Some(|err| !matches!(err, ObjectStoreError::NotFound { .. })),
+            || async { store.delete(&path_clone).await },
+        )
+        .await
+    }
+
+    async fn raw_delete_with_default_retries(
+        &self,
+        path: &Path,
+        context_message: String,
+    ) -> Result<()> {
+        self.raw_delete_with_retries(path, context_message, get_default_retry_params())
+            .await
     }
 
     async fn delete_with_default_retries(
@@ -211,50 +330,64 @@ pub trait RetryableObjectStore: ObjectStore {
         context_message: String,
         retry_params: RetryParams,
     ) -> Result<()> {
-        let path_clone = path.clone();
+        match self
+            .raw_delete_with_retries(path, context_message, retry_params)
+            .await
+        {
+            Err(ObjectStoreError::NotFound { .. }) => Ok(()),
+            other => other,
+        }
+    }
+
+    async fn list_with_delimiter_with_default_retries(
+        &self,
+        prefix: Option<&Path>,
+        context_message: String,
+    ) -> Result<ListResult> {
+        self.list_with_delimiter_with_retries(prefix, context_message, get_default_retry_params())
+            .await
+    }
+
+    async fn list_with_delimiter_with_retries(
+        &self,
+        prefix: Option<&Path>,
+        context_message: String,
+        retry_params: RetryParams,
+    ) -> Result<ListResult> {
+        let prefix_clone = prefix.cloned();
+        let prefix_str = prefix
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "<root>".to_string());
+        let retry_builder = retry_params.exponential_builder();
         let store = self;
 
-        let retry_builder = retry_params.exponential_builder();
-
-        // Use custom when predicate if provided, otherwise default to not retrying NotFound
-        let result = if let Some(when_fn) = retry_params.when {
-            (|| async { store.delete(&path_clone).await })
+        if let Some(when_fn) = retry_params.when {
+            (|| async { store.list_with_delimiter(prefix_clone.as_ref()).await })
                 .retry(&retry_builder)
                 .notify(|err: &ObjectStoreError, dur: Duration| {
                     warn!(
-                        "{}: Retrying object store delete operation for path '{}' after error: {}. Retry after {}ms",
-                        context_message,
-                        path_clone,
-                        err,
+                        "{context_message}: Retrying object store list_with_delimiter operation for prefix '{prefix_str}' after error: {err}. Retry after {}ms",
                         dur.as_millis()
                     );
                 })
                 .when(move |err| when_fn(err))
                 .await
         } else {
-            // Default behavior: don't retry NotFound errors
-            (|| async { store.delete(&path_clone).await })
+            (|| async { store.list_with_delimiter(prefix_clone.as_ref()).await })
                 .retry(&retry_builder)
                 .notify(|err: &ObjectStoreError, dur: Duration| {
-                    // Only log if it's not a NotFound error
-                    if !matches!(err, ObjectStoreError::NotFound { .. }) {
-                        warn!(
-                            "{}: Retrying object store delete operation for path '{}' after error: {}. Retry after {}ms",
-                            context_message,
-                            path_clone,
-                            err,
-                            dur.as_millis()
-                        );
-                    }
+                    warn!(
+                        "{context_message}: Retrying object store list_with_delimiter operation for prefix '{prefix_str}' after error: {err}. Retry after {}ms",
+                        dur.as_millis()
+                    );
                 })
-                .when(|err| !matches!(err, ObjectStoreError::NotFound { .. }))
+                .when(|err| {
+                    !matches!(
+                        err,
+                        ObjectStoreError::NotFound { .. }
+                    )
+                })
                 .await
-        };
-
-        // Convert NotFound errors to success (idempotent delete)
-        match result {
-            Err(ObjectStoreError::NotFound { .. }) => Ok(()),
-            other => other,
         }
     }
 

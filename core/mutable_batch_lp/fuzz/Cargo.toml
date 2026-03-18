@@ -18,7 +18,7 @@ libfuzzer-sys = "0.4"
 mutable_batch_lp = { path = ".." }
 mutable_batch = { path = "../../mutable_batch" }
 partition = { path = "../../partition" }
-workspace-hack = { path = "../../workspace-hack" }
+
 
 [[bin]]
 name = "lines_converter"

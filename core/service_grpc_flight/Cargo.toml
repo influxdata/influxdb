@@ -20,6 +20,7 @@ tracing = { workspace = true }
 iox_query = { path = "../iox_query" }
 iox_query_influxql = { path = "../iox_query_influxql" }
 iox_query_params = { path = "../iox_query_params" }
+pin-project = "1"
 service_common = { path = "../service_common" }
 tower_trailer = { path = "../tower_trailer" }
 trace = { path = "../trace" }
@@ -33,8 +34,8 @@ futures = "0.3"
 prost = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.149"
-snafu = "0.8"
-tokio = { version = "1.49", features = [
+snafu = "0.9"
+tokio = { version = "1.50", features = [
     "macros",
     "net",
     "parking_lot",
@@ -43,10 +44,17 @@ tokio = { version = "1.49", features = [
     "sync",
     "time",
 ] }
-workspace-hack = { path = "../workspace-hack" }
+
+
+[features]
+flight-query-observer = []
 
 [dev-dependencies]
 assert_matches = "1"
 async-trait = "0.1"
+executor = { path = "../executor" }
+iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 test_helpers = { path = "../test_helpers" }
+
+# NOTE: planning_saturation bench removed - depends on iox_tests/querier not available in oss

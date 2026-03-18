@@ -14,10 +14,9 @@ arrow = { workspace = true }
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 hashbrown = { workspace = true }
-iox_time = { path = "../iox_time" }
 schema = { path = "../schema" }
-snafu = "0.8"
-workspace-hack = { path = "../workspace-hack" }
+snafu = "0.9"
+
 
 [dev-dependencies]
 assert_matches = "1.5.0"

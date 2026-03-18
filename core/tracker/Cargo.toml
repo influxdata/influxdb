@@ -19,13 +19,13 @@ tracing = { workspace = true }
 parking_lot = "0.12"
 pin-project = "1.1"
 sysinfo = "0.38"
-tokio = { version = "1.49", features = ["macros", "parking_lot", "sync", "time"] }
+tokio = { version = "1.50", features = ["macros", "parking_lot", "sync", "time"] }
 tokio-util = { version = "0.7.18" }
 trace = { path = "../trace"}
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
-tempfile = "3.24.0"
+tempfile = "3.27.0"
 # Need the multi-threaded executor for testing
-tokio = { version = "1.49", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
+tokio = { version = "1.50", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
 test_helpers = { path = "../test_helpers" }

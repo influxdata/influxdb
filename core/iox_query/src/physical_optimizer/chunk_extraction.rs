@@ -3,7 +3,7 @@ use std::sync::Arc;
 use arrow::datatypes::SchemaRef;
 use datafusion::{
     datasource::{
-        physical_plan::{FileScanConfig, ParquetSource},
+        physical_plan::{FileScanConfig, FileSource, ParquetSource},
         source::DataSourceExec,
     },
     error::DataFusionError,
@@ -137,9 +137,9 @@ impl ExecutionPlanVisitor for ExtractChunksVisitor {
                     String::from("not parquet files").into(),
                 ));
             };
-            if parquet_source.predicate().is_some() {
+            if parquet_source.filter().is_some() {
                 return Err(DataFusionError::External(
-                    String::from("ParquetSource has predicate").into(),
+                    String::from("ParquetSource has filter").into(),
                 ));
             }
 
@@ -250,11 +250,12 @@ mod tests {
         let schema_with_col1 = iox_schema.select_by_indices(&[1]).as_arrow();
         let schema_with_col2 = iox_schema.select_by_indices(&[2]).as_arrow();
 
-        let plan = UnionExec::new(vec![
+        let plan = UnionExec::try_new(vec![
             Arc::new(EmptyExec::new(schema_with_col1)),
             Arc::new(EmptyExec::new(schema_with_col2)),
-        ]);
-        assert!(extract_chunks(&plan).is_none());
+        ])
+        .unwrap();
+        assert!(extract_chunks(&*plan).is_none());
     }
 
     #[test]
@@ -284,11 +285,12 @@ mod tests {
         let sort_key2 = Arc::new(SortKeyBuilder::new().with_col("tag2").build());
         let chunk1 = Arc::new(chunk(1)) as Arc<dyn QueryChunk>;
         let schema = chunk1.schema().as_arrow();
-        let plan = UnionExec::new(vec![
+        let plan = UnionExec::try_new(vec![
             chunks_to_physical_nodes(&schema, Some(&sort_key1), vec![Arc::clone(&chunk1)], 1),
             chunks_to_physical_nodes(&schema, Some(&sort_key2), vec![chunk1], 1),
-        ]);
-        assert!(extract_chunks(&plan).is_none());
+        ])
+        .unwrap();
+        assert!(extract_chunks(&*plan).is_none());
     }
 
     #[test]

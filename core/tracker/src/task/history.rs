@@ -117,9 +117,9 @@ impl<K: Copy + Hash + Eq + Ord, V> SizeLimitedHashMap<K, V> {
     ///
     /// This returns the replaced value (if any).
     pub(crate) fn push(&mut self, key: K, value: V) -> Option<(K, V)> {
-        if let Entry::Occupied(mut occupied) = self.values.entry(key) {
+        if let Entry::Occupied(occupied) = self.values.entry(key) {
             // If already exists - replace existing value
-            occupied.insert(value);
+            occupied.replace_entry(value);
 
             return None;
         }

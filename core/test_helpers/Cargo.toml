@@ -16,10 +16,10 @@ parking_lot = "0.12"
 prometheus-parse = "0.2.5"
 reqwest = { workspace = true, features = ["stream", "rustls-tls-native-roots"] }
 serde =  { version = "1.0", features = ["derive"] }
-tempfile = "3.24.0"
+tempfile = "3.27.0"
 thiserror = "2.0.18"
-tokio = { version = "1.49.0", default-features = false, features = ["time"] }
+tokio = { version = "1.50.0", default-features = false, features = ["time"] }
 tracing = { workspace = true }
 tracing-log = { workspace = true }
 tracing-subscriber = { workspace = true }
-workspace-hack = { path = "../workspace-hack" }
+

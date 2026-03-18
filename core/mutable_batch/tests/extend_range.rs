@@ -2,10 +2,8 @@
 #![expect(unused_crate_dependencies)]
 
 use arrow_util::assert_batches_eq;
-use data_types::{StatValues, Statistics};
 use mutable_batch::{MutableBatch, writer::Writer};
 use schema::Projection;
-use std::{collections::BTreeMap, num::NonZeroU64};
 
 #[test]
 fn test_extend_range() {
@@ -111,64 +109,4 @@ fn test_extend_range() {
         ],
         &[a.clone().try_into_arrow(Projection::All).unwrap()]
     );
-
-    let stats: BTreeMap<_, _> = a
-        .columns()
-        .map(|(_, k, v)| (k.as_str(), v.stats()))
-        .collect();
-
-    assert_eq!(
-        stats["bool"],
-        Statistics::Bool(StatValues {
-            min: Some(false),
-            max: Some(false),
-            total_count: 8,
-            null_count: Some(7),
-            distinct_count: None
-        })
-    );
-
-    assert_eq!(
-        stats["f64"],
-        Statistics::F64(StatValues {
-            min: Some(5.),
-            max: Some(23.),
-            total_count: 8,
-            null_count: Some(5),
-            distinct_count: None
-        })
-    );
-
-    assert_eq!(
-        stats["tag1"],
-        Statistics::String(StatValues {
-            min: Some("v1".to_string()),
-            max: Some("v2".to_string()),
-            total_count: 8,
-            null_count: Some(4),
-            distinct_count: Some(NonZeroU64::new(3).unwrap())
-        })
-    );
-
-    assert_eq!(
-        stats["tag3"],
-        Statistics::String(StatValues {
-            min: Some("v1".to_string()),
-            max: Some("v3".to_string()),
-            total_count: 8,
-            null_count: Some(5),
-            distinct_count: Some(NonZeroU64::new(3).unwrap())
-        })
-    );
-
-    assert_eq!(
-        stats["time"],
-        Statistics::I64(StatValues {
-            min: Some(0),
-            max: Some(8),
-            total_count: 8,
-            null_count: Some(0),
-            distinct_count: None
-        })
-    )
 }

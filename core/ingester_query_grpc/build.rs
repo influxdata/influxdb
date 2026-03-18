@@ -29,22 +29,18 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         println!("cargo:rerun-if-changed={}", proto_file.display());
     }
 
-    let mut config = prost_build::Config::new();
-
-    config
-        .compile_well_known_types()
+    let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
+    tonic_prost_build::configure()
+        .compile_well_known_types(true)
         .disable_comments([".google"])
         .extern_path(".google.protobuf", "::pbjson_types")
-        .btree_map([
+        .btree_map(
             ".influxdata.iox.ingester.v1.IngesterQueryResponseMetadata.unpersisted_partitions",
-        ]);
-
-    let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
-    tonic_build::configure()
+        )
         .file_descriptor_set_path(&descriptor_path)
         // protoc in ubuntu builder needs this option
         .protoc_arg("--experimental_allow_proto3_optional")
-        .compile_protos_with_config(config, &proto_files, &[root])?;
+        .compile_protos(&proto_files, &[root.to_path_buf()])?;
 
     let descriptor_set = std::fs::read(descriptor_path)?;
 

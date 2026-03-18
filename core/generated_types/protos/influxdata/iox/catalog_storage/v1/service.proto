@@ -46,7 +46,7 @@ enum NamespaceSortField {
     NAMESPACE_SORT_FIELD_RETENTION_PERIOD = 3;
 
     // Sort by the total size of the namespace.
-    NAMESPACE_SORT_FIELD_STORAGE = 4 [deprecated = true];
+    NAMESPACE_SORT_FIELD_STORAGE = 4;
 
     // Sort by the total number of tables in the namespace.
     NAMESPACE_SORT_FIELD_TABLE_COUNT = 5;
@@ -151,7 +151,7 @@ enum TableSortField {
     TABLE_SORT_FIELD_NAME = 1;
 
     // Sort by the total size of the table.
-    TABLE_SORT_FIELD_STORAGE = 2 [deprecated = true];
+    TABLE_SORT_FIELD_STORAGE = 2;
 }
 
 // Request to get a list of tables with storage in a namespace.

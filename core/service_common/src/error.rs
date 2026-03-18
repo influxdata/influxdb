@@ -1,8 +1,12 @@
 //! Utilities for error handling in IOx services
+use std::sync::Arc;
+
 use arrow::error::ArrowError;
 use arrow_flight::error::FlightError;
 use datafusion::error::DataFusionError;
 use datafusion::parquet::errors::ParquetError;
+use object_store_mem_cache::cache_system::s3_fifo_cache::EntriesInUseError;
+use tokio::task::JoinError;
 
 /// Converts a [`DataFusionError`] into the appropriate [`tonic::Code`]
 ///
@@ -38,7 +42,6 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         // Since we are not sure they are all internal errors, we classify them as InvalidArgument
         // so the user has a chance to see them.
         | DataFusionError::Execution(_)
-        | DataFusionError::ExecutionJoin(_)
         // DataFusion most often returns "NotImplemented" when a
         // particular SQL feature is not implemented. This
         // information is useful to the user who may be able to
@@ -75,6 +78,8 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         // with DataFusion at the moment
         | DataFusionError::Substrait(_)
         | DataFusionError::Internal(_) => tonic::Code::Internal,
+        // Join errors are tokio-task based and need translation
+        DataFusionError::ExecutionJoin(e) => join_error_to_tonic_code(e),
         // explicitly don't have a catchall here so any
         // newly added DataFusion error will raise a compiler error for us to address
     }
@@ -113,7 +118,8 @@ fn arrow_error_to_tonic_code(e: &ArrowError) -> tonic::Code {
         | ArrowError::ParquetError(_)
         | ArrowError::CDataInterface(_)
         | ArrowError::DictionaryKeyOverflowError
-        | ArrowError::RunEndIndexOverflowError => tonic::Code::InvalidArgument,
+        | ArrowError::RunEndIndexOverflowError
+        | ArrowError::AvroError(_) => tonic::Code::InvalidArgument,
     }
 }
 
@@ -138,14 +144,20 @@ fn dyn_error_to_tonic_code(e: &(dyn std::error::Error + Send + Sync + 'static)) 
         arrow_error_to_tonic_code(e)
     } else if let Some(e) = e.downcast_ref::<DataFusionError>() {
         datafusion_error_to_tonic_code(e)
+    } else if let Some(e) = e.downcast_ref::<EntriesInUseError>() {
+        entries_in_use_error_to_tonic_code(e)
     } else if let Some(e) = e.downcast_ref::<executor::JobError>() {
         executor_error_to_tonic_code(e)
     } else if let Some(e) = e.downcast_ref::<FlightError>() {
         flight_error_to_tonic_code(e)
+    } else if let Some(e) = e.downcast_ref::<JoinError>() {
+        join_error_to_tonic_code(e)
     } else if let Some(e) = e.downcast_ref::<object_store::Error>() {
         object_store_error_to_tonic_code(e)
     } else if let Some(e) = e.downcast_ref::<ParquetError>() {
         parquet_error_to_tonic_code(e)
+    } else if let Some(e) = e.downcast_ref::<Arc<dyn std::error::Error + Send + Sync>>() {
+        dyn_error_to_tonic_code(e.as_ref())
     } else {
         // All other, unclassified cases are signalled as "internal error" to the user since they cannot do
         // anything about it (except for reporting a bug). Note that DataFusion "external" error is only from
@@ -182,6 +194,24 @@ fn object_store_error_to_tonic_code(e: &object_store::Error) -> tonic::Code {
         | Error::UnknownConfigurationKey { .. } => tonic::Code::Internal,
         // enum is non exhaustive so it is not possible to match all variants here
         _ => tonic::Code::Internal,
+    }
+}
+
+fn entries_in_use_error_to_tonic_code(_e: &EntriesInUseError) -> tonic::Code {
+    // this is not an enum and there's only one reasonable code
+    tonic::Code::ResourceExhausted
+}
+
+fn join_error_to_tonic_code(e: &JoinError) -> tonic::Code {
+    if e.is_cancelled() {
+        // this may happen during shutdown
+        tonic::Code::Unavailable
+    } else if e.is_panic() {
+        // this is always a bug
+        tonic::Code::Internal
+    } else {
+        // usually this never happens, but we treat it as "internal" anyways
+        tonic::Code::Internal
     }
 }
 
@@ -317,6 +347,53 @@ mod test {
             })),
             tonic::Code::InvalidArgument,
         );
+        do_transl_test(
+            DataFusionError::ObjectStore(Box::new(object_store::Error::NotFound {
+                path: "x.parquet".to_owned(),
+                source: "bar".into(),
+            })),
+            tonic::Code::Internal,
+        );
+        do_transl_test(
+            DataFusionError::ObjectStore(Box::new(object_store::Error::Generic {
+                store: "foo",
+                source: "bar".into(),
+            })),
+            tonic::Code::Internal,
+        );
+        do_transl_test(
+            DataFusionError::ObjectStore(Box::new(object_store::Error::Generic {
+                store: "foo",
+                source: Box::new(EntriesInUseError),
+            })),
+            tonic::Code::ResourceExhausted,
+        );
+        do_transl_test(
+            DataFusionError::External(Box::new(Arc::new(object_store::Error::Generic {
+                store: "foo",
+                source: Box::new(EntriesInUseError),
+            })
+                as Arc<dyn std::error::Error + Send + Sync>)),
+            tonic::Code::ResourceExhausted,
+        );
+
+        // join error
+        do_transl_test(
+            DataFusionError::External(Box::new(join_error_cancel())),
+            tonic::Code::Unavailable,
+        );
+        do_transl_test(
+            DataFusionError::ExecutionJoin(Box::new(join_error_cancel())),
+            tonic::Code::Unavailable,
+        );
+        do_transl_test(
+            DataFusionError::External(Box::new(join_error_panic())),
+            tonic::Code::Internal,
+        );
+        do_transl_test(
+            DataFusionError::ExecutionJoin(Box::new(join_error_panic())),
+            tonic::Code::Internal,
+        );
 
         // all dyn errors in a row
         do_transl_test(
@@ -351,5 +428,31 @@ mod test {
         fn to_code(&self) -> tonic::Code {
             flight_error_to_tonic_code(self)
         }
+    }
+
+    fn join_error_cancel() -> JoinError {
+        tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let join_handle = tokio::task::spawn(async {
+                    loop {
+                        tokio::task::coop::consume_budget().await
+                    }
+                });
+                join_handle.abort();
+                join_handle.await.unwrap_err()
+            })
+    }
+
+    fn join_error_panic() -> JoinError {
+        tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap()
+            .block_on(async {
+                tokio::task::spawn(async { panic!("foo") })
+                    .await
+                    .unwrap_err()
+            })
     }
 }

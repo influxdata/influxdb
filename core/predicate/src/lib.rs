@@ -1,6 +1,3 @@
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 pub mod rpc_predicate;
 
 use data_types::TimestampRange;

@@ -1,11 +1,14 @@
 use async_trait::async_trait;
+use metric::{Attributes, Observation};
 use object_store_metrics::cache_state::CacheState;
 use std::{
+    any::Any,
+    collections::BTreeMap,
     fmt::Debug,
     future::Future,
     hash::Hash,
     sync::{
-        Arc,
+        Arc, Mutex, Weak,
         atomic::{AtomicU64, Ordering},
     },
 };
@@ -17,7 +20,7 @@ use tracker::{
 // for benchmarks and tests
 pub use s3_fifo::{S3Config, S3Fifo, s3_fifo_entry_overhead_size};
 
-use crate::cache_system::{AsyncDrop, DynError, InUse};
+use crate::cache_system::{AsyncDrop, DynError, InUse, s3_fifo_cache::s3_fifo::S3FifoStats};
 
 use super::{
     Cache, CacheFn, CacheRequestResult, HasSize,
@@ -47,6 +50,22 @@ where
     inflight_semaphore: Arc<InstrumentedAsyncSemaphore>,
 }
 
+/// Error indicating that all entries in the cache are currently in use. This
+/// error is returned when an insertion is attempted but cannot be performed.
+#[derive(Clone, Copy, Debug)]
+pub struct EntriesInUseError;
+
+impl std::fmt::Display for EntriesInUseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "EntriesInUseError: all cache entries are currently in use, insertion failed"
+        )
+    }
+}
+
+impl std::error::Error for EntriesInUseError {}
+
 impl<K, V, D> S3FifoCache<K, V, D>
 where
     K: Clone + Eq + Hash + HasSize + Send + Sync + Debug + 'static,
@@ -63,8 +82,14 @@ where
         ));
         let inflight_semaphore = Arc::new(semaphore_metrics.new_semaphore(config.inflight_bytes));
 
+        let cache_name = config.cache_name;
+        let cache = Arc::new(S3Fifo::new(config, metric_registry));
+        metric_registry
+            .register_instrument(S3FifoInstrument::INSTRUMENT_NAME, S3FifoInstrument::default)
+            .register_cache(cache_name, &cache);
+
         Self {
-            cache: Arc::new(S3Fifo::new(config, metric_registry)),
+            cache,
             gen_counter: Default::default(),
             loader: Default::default(),
             hook,
@@ -109,12 +134,16 @@ where
         ));
         let inflight_semaphore = Arc::new(semaphore_metrics.new_semaphore(config.inflight_bytes));
 
+        let cache_name = config.cache_name;
         let cache = Arc::new(S3Fifo::new_from_snapshot::<Q>(
             config,
             metric_registry,
             snapshot_data,
             shared_seed,
         )?);
+        metric_registry
+            .register_instrument(S3FifoInstrument::INSTRUMENT_NAME, S3FifoInstrument::default)
+            .register_cache(cache_name, &cache);
 
         Ok(Self {
             cache,
@@ -190,16 +219,34 @@ where
                         //   and creating this loader future, the S3-FIFO might have been updated. In that case
                         //   `S3Fifo::get_or_put` will return the exiting entry, but also the to-be-inserted (that we
                         //   originally fetched here) one as "to be evicted" (so we don't have two copies).
+                        // - If the cache is full and all entries are in-use, get_or_put returns Err with the value.
+                        //   In that case, we return the fetched value without caching it.
                         let k = Arc::clone(&k_captured);
-                        let (entry, evicted) = tokio::task::spawn_blocking(move || {
-                            let (entry, evicted) = cache.get_or_put(k, v, generation);
-                            (entry, evicted)
-                        })
-                        .await
-                        .expect("never fails");
+                        let result =
+                            tokio::task::spawn_blocking(move || cache.get_or_put(k, v, generation))
+                                .await
+                                .expect("never fails");
 
-                        evicted.async_drop().await;
-                        Ok(entry.value().clone())
+                        match result {
+                            Ok((entry, evicted)) => {
+                                evicted.async_drop().await;
+                                Ok(entry.value().clone())
+                            }
+                            Err((value, evicted)) => {
+                                // Balance hook.fetched that was called before eviction failed
+                                hook_captured.evict(
+                                    generation,
+                                    &k_captured,
+                                    EvictResult::Fetched { size: value.size() },
+                                );
+                                evicted.async_drop().await;
+
+                                value.async_drop().await;
+                                let msg: DynError = Arc::new(EntriesInUseError);
+
+                                Err(msg)
+                            }
+                        }
                     } else {
                         // notify "fetched" and instantly evict, because underlying cache is gone (during shutdown)
                         let size = v.size();
@@ -319,6 +366,121 @@ async fn try_acquire_permit(
         .map_err(|e| Arc::new(e) as DynError)
 }
 
+/// This is [`S3Fifo`] but with `K` & `V` types erased and only a [`statistics`](S3Fifo::statistics) method
+trait S3FifoStatProvider: Debug + Send + Sync + 'static {
+    /// Get statistics.
+    fn statistics(&self) -> S3FifoStats;
+}
+
+impl<K, V> S3FifoStatProvider for S3Fifo<K, V>
+where
+    K: Debug + Eq + Hash + HasSize + Send + Sync + 'static + ?Sized,
+    V: HasSize + InUse + Send + Sync + 'static,
+{
+    fn statistics(&self) -> S3FifoStats {
+        self.statistics()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct S3FifoInstrument {
+    caches: Arc<Mutex<BTreeMap<&'static str, Weak<dyn S3FifoStatProvider>>>>,
+}
+
+impl S3FifoInstrument {
+    const INSTRUMENT_NAME: &str = "s3_fifo_instrument";
+    const METRIC_NAME_ENTRIES: &str = "s3_fifo_instrument_entries";
+    const METRIC_NAME_TOMBSTONES: &str = "s3_fifo_instrument_tombstones";
+    const METRIC_NAME_BYTES: &str = "s3_fifo_instrument_bytes";
+
+    fn register_cache<K, V>(&self, name: &'static str, cache: &Arc<S3Fifo<K, V>>)
+    where
+        K: Debug + Eq + Hash + HasSize + Send + Sync + 'static + ?Sized,
+        V: HasSize + InUse + Send + Sync + 'static,
+    {
+        self.caches
+            .lock()
+            .expect("not poisoned")
+            .entry(name)
+            .or_insert_with(|| Arc::downgrade(cache) as _);
+    }
+}
+
+impl metric::Instrument for S3FifoInstrument {
+    fn report(&self, reporter: &mut dyn metric::Reporter) {
+        let stats = {
+            let caches = self.caches.lock().expect("not poisoned");
+            caches
+                .iter()
+                .flat_map(|(name, cache)| {
+                    let cache = cache.upgrade()?;
+                    let stats = cache.statistics();
+                    Some((*name, stats))
+                })
+                .collect::<Vec<_>>()
+        };
+
+        reporter.start_metric(
+            Self::METRIC_NAME_ENTRIES,
+            "Number of entries in the different S3-FIFO sub data structures",
+            metric::MetricKind::U64Gauge,
+        );
+        for (cache, stats) in &stats {
+            reporter.report_observation(
+                &Attributes::from(&[("cache", *cache), ("part", "main")]),
+                Observation::U64Gauge(stats.main_entries as _),
+            );
+            reporter.report_observation(
+                &Attributes::from(&[("cache", *cache), ("part", "small")]),
+                Observation::U64Gauge(stats.small_entries as _),
+            );
+            reporter.report_observation(
+                &Attributes::from(&[("cache", *cache), ("part", "ghost")]),
+                Observation::U64Gauge(stats.ghost_entries as _),
+            );
+        }
+        reporter.finish_metric();
+
+        reporter.start_metric(
+            Self::METRIC_NAME_TOMBSTONES,
+            "Number of tombstones in the different S3-FIFO sub data structures",
+            metric::MetricKind::U64Gauge,
+        );
+        for (cache, stats) in &stats {
+            reporter.report_observation(
+                &Attributes::from(&[("cache", *cache), ("part", "ghost")]),
+                Observation::U64Gauge(stats.ghost_tombstones as _),
+            );
+        }
+        reporter.finish_metric();
+
+        reporter.start_metric(
+            Self::METRIC_NAME_BYTES,
+            "Number of bytes in the different S3-FIFO sub data structures",
+            metric::MetricKind::U64Gauge,
+        );
+        for (cache, stats) in &stats {
+            reporter.report_observation(
+                &Attributes::from(&[("cache", *cache), ("part", "main")]),
+                Observation::U64Gauge(stats.main_bytes as _),
+            );
+            reporter.report_observation(
+                &Attributes::from(&[("cache", *cache), ("part", "small")]),
+                Observation::U64Gauge(stats.small_bytes as _),
+            );
+            reporter.report_observation(
+                &Attributes::from(&[("cache", *cache), ("part", "ghost")]),
+                Observation::U64Gauge(stats.ghost_bytes as _),
+            );
+        }
+        reporter.finish_metric();
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use core::panic;
@@ -331,7 +493,7 @@ mod tests {
         AsyncDrop,
         hook::test_utils::{NoOpHook, TestHook, TestHookRecord},
         s3_fifo_cache::s3_fifo::{
-            Version, VersionedSnapshot,
+            S3_FIFO_EVICTION_BAILOUT_METRIC, Version, VersionedSnapshot,
             test_migration::{TestNewLockedState, assert_versioned_snapshot},
         },
         test_utils::{
@@ -342,6 +504,7 @@ mod tests {
 
     use futures::future::FutureExt;
     use futures_test_utils::AssertFutureExt;
+    use metric::{Attributes, RawReporter, U64Counter, assert_counter};
     use tokio::sync::Barrier;
 
     #[test]
@@ -952,19 +1115,29 @@ mod tests {
         assert!(keys.contains(&key2), "key2 should be in the cache");
     }
 
+    /// Test that when all cache entries are in-use, new fetches complete
+    /// successfully but bypass caching instead of blocking forever (fail-fast
+    /// behavior).
+    ///
+    /// This test verifies the fix for EAR-6658 (55-hour deadlock at Heineken).
+    /// Previously, when eviction couldn't make progress because all entries
+    /// were in-use, the cache would livelock. Now it gracefully degrades by
+    /// returning an error.
     #[tokio::test]
     async fn test_in_use_prevents_eviction() {
         // Create cache with very limited space - only enough for 1 entry (size 10)
+        let metrics = metric::Registry::new();
+        let hook = Arc::new(TestHook::default());
         let cache = S3FifoCache::<Arc<str>, Arc<str>, ()>::new(
             S3Config {
                 cache_name: "test",
                 max_memory_size: 20, // Only enough space for 1 entry
                 max_ghost_memory_size: 100,
                 move_to_main_threshold: 0.1,
-                hook: Arc::new(NoOpHook::default()),
+                hook: Arc::clone(&hook) as _,
                 inflight_bytes: 100,
             },
-            &metric::Registry::new(),
+            &metrics,
         );
 
         let key1 = Arc::from("key1");
@@ -998,30 +1171,39 @@ mod tests {
             size_hint2,
         );
         assert_eq!(cache_state.kind(), CacheStateKind::NewEntry);
-        let (mut res2, _) = extract_future_and_state(cache_state);
 
-        // Give some time for the cache to try eviction
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        // The fetch should fail since eviction cannot proceed
+        let failed_fetch = cache_state.await_inner().await;
+        assert!(
+            failed_fetch.is_err(),
+            "Fetch should fail due to eviction failure"
+        );
 
-        // key1 should still be in cache because it's in use
+        // key1 should still be in cache because it couldn't be evicted (in-use)
         assert!(
             cache.get(&key1).is_some(),
             "key1 should still be in cache due to InUse protection"
         );
 
-        // res2 should still be pending because key1 couldn't be evicted to make space
-        res2.assert_pending().await;
+        // key2 should NOT be in cache because eviction failed (fail-fast)
+        assert!(
+            cache.get(&key2).is_none(),
+            "key2 should not be cached when eviction fails"
+        );
 
-        // Drop the reference to key1's value - this should allow eviction
+        // Drop references and verify normal eviction works after that
         drop(held_value);
         drop(value1);
 
-        // Small delay to allow eviction to proceed
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-
-        // res2 should now complete successfully
-        let value2 = res2.await.unwrap();
-        assert_eq!(value2, Arc::from("value2"));
+        // Now insert key2 again - this time eviction should succeed
+        let cache_state = cache.get_or_fetch(
+            &key2,
+            Box::new(move || futures::future::ready(Ok(Arc::from("value2_new"))).boxed()),
+            (),
+            12,
+        );
+        let value2_new = cache_state.await_inner().await.unwrap();
+        assert_eq!(value2_new, Arc::from("value2_new"));
 
         // key1 should now be evicted and key2 should be in cache
         assert!(
@@ -1029,6 +1211,27 @@ mod tests {
             "key1 should be evicted after reference dropped"
         );
         assert!(cache.get(&key2).is_some(), "key2 should be in cache");
+
+        assert_counter!(
+            metrics,
+            U64Counter,
+            S3_FIFO_EVICTION_BAILOUT_METRIC,
+            labels = Attributes::from(&[("cache", "test")]),
+            value = 1,
+        );
+        assert_eq!(
+            hook.records(),
+            vec![
+                TestHookRecord::Insert(0, Arc::clone(&key1)),
+                TestHookRecord::Fetched(0, Arc::clone(&key1), Ok(92)),
+                TestHookRecord::Insert(1, Arc::clone(&key2)),
+                TestHookRecord::Fetched(1, Arc::clone(&key2), Ok(92)),
+                TestHookRecord::Evict(1, Arc::clone(&key2), EvictResult::Fetched { size: 12 }),
+                TestHookRecord::Insert(2, Arc::clone(&key2)),
+                TestHookRecord::Fetched(2, Arc::clone(&key2), Ok(100)),
+                TestHookRecord::Evict(0, Arc::clone(&key1), EvictResult::Fetched { size: 92 }),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -1240,6 +1443,7 @@ mod tests {
     #[tokio::test]
     async fn test_evict_keys_main_queue_and_ghost() {
         let hook = Arc::new(TestHook::default());
+        let registry = metric::Registry::new();
         let cache = S3FifoCache::<Arc<str>, Arc<str>, ()>::new(
             S3Config {
                 cache_name: "test",
@@ -1249,7 +1453,7 @@ mod tests {
                 hook: Arc::clone(&hook) as _,
                 inflight_bytes: 50,
             },
-            &metric::Registry::new(),
+            &registry,
         );
 
         // Insert 6 keys in order: key1, key2, key3, key4, key5, key6
@@ -1379,6 +1583,61 @@ mod tests {
                 .contains_key_in_ghost(&Arc::new(Arc::clone(&inserted_keys[3]))),
             "key4 should still be in ghost after eviction"
         );
+
+        // Check metrics
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        let metric_entries = reporter
+            .metric(S3FifoInstrument::METRIC_NAME_ENTRIES)
+            .unwrap();
+        assert_eq!(
+            metric_entries
+                .observation(&[("cache", "test"), ("part", "main")])
+                .unwrap(),
+            &Observation::U64Gauge(2),
+        );
+        assert_eq!(
+            metric_entries
+                .observation(&[("cache", "test"), ("part", "small")])
+                .unwrap(),
+            &Observation::U64Gauge(0),
+        );
+        assert_eq!(
+            metric_entries
+                .observation(&[("cache", "test"), ("part", "ghost")])
+                .unwrap(),
+            &Observation::U64Gauge(3),
+        );
+        let metric_tombstones = reporter
+            .metric(S3FifoInstrument::METRIC_NAME_TOMBSTONES)
+            .unwrap();
+        assert_eq!(
+            metric_tombstones
+                .observation(&[("cache", "test"), ("part", "ghost")])
+                .unwrap(),
+            &Observation::U64Gauge(0),
+        );
+        let metric_bytes = reporter
+            .metric(S3FifoInstrument::METRIC_NAME_BYTES)
+            .unwrap();
+        assert_eq!(
+            metric_bytes
+                .observation(&[("cache", "test"), ("part", "main")])
+                .unwrap(),
+            &Observation::U64Gauge(200),
+        );
+        assert_eq!(
+            metric_bytes
+                .observation(&[("cache", "test"), ("part", "small")])
+                .unwrap(),
+            &Observation::U64Gauge(0),
+        );
+        assert_eq!(
+            metric_bytes
+                .observation(&[("cache", "test"), ("part", "ghost")])
+                .unwrap(),
+            &Observation::U64Gauge(72),
+        );
     }
 
     #[tokio::test]
@@ -1458,11 +1717,111 @@ mod tests {
         let v = Arc::new(V);
         let (_entry, evicted) = cache
             .cache
-            .get_or_put(Arc::new(Arc::clone(&k)), Arc::clone(&v), 0);
+            .get_or_put(Arc::new(Arc::clone(&k)), Arc::clone(&v), 0)
+            .unwrap();
         assert!(evicted.is_empty());
 
         let (_, res) = tokio::join!(barrier_2.wait(), fut);
         let v2 = res.unwrap();
         assert!(Arc::ptr_eq(&v, &v2));
+    }
+
+    /// Test that eviction does not livelock when all cache entries are in-use.
+    ///
+    /// This test reproduces the bug from EAR-6658 where the eviction loop in
+    /// `evict_from_main_queue` would spin forever when all entries were held
+    /// by callers, causing a 55-hour deadlock.
+    ///
+    /// The test fills the cache, holds references to all entries, then attempts
+    /// to insert a new entry. Before the fix, this would livelock. After the fix,
+    /// the insertion should complete (returning an error).
+    #[tokio::test]
+    async fn test_eviction_does_not_livelock_when_all_entries_in_use() {
+        // Create cache with limited space - only room for ~2 small entries
+        let metrics = metric::Registry::new();
+        let hook = Arc::new(TestHook::default());
+        let cache = S3FifoCache::<Arc<str>, Arc<str>, ()>::new(
+            S3Config {
+                cache_name: "test",
+                max_memory_size: 100,
+                max_ghost_memory_size: 200,
+                move_to_main_threshold: 0.1,
+                hook: Arc::clone(&hook) as _,
+                inflight_bytes: 1000, // Large enough to not block on semaphore
+            },
+            &metrics,
+        );
+
+        let key1 = Arc::from("key1");
+        let key2 = Arc::from("key2");
+        let key3 = Arc::from("key3");
+
+        // Insert first entry and hold a reference
+        let state1 = cache.get_or_fetch(
+            &key1,
+            Box::new(|| futures::future::ready(Ok(Arc::from("value1"))).boxed()),
+            (),
+            92,
+        );
+        let _held1 = state1.await_inner().await.unwrap();
+
+        // Insert second entry and hold a reference
+        let state2 = cache.get_or_fetch(
+            &key2,
+            Box::new(|| futures::future::ready(Ok(Arc::from("value2"))).boxed()),
+            (),
+            92,
+        );
+        let _held2 = state2.await_inner().await.unwrap();
+
+        // Both entries are now in-use (we hold references via _held1 and _held2)
+        // The cache is full. Attempting to insert a third entry would previously
+        // cause the eviction loop to spin forever.
+
+        // With a 2-second timeout, this should fail (timeout) before the fix
+        // and succeed after the fix.
+        let result = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            let state3 = cache.get_or_fetch(
+                &key3,
+                Box::new(|| futures::future::ready(Ok(Arc::from("value3"))).boxed()),
+                (),
+                92,
+            );
+            state3.await_inner().await
+        })
+        .await;
+
+        // Before fix: This times out (eviction livelocks)
+        // After fix: This succeeds (eviction bails out, value returned without caching)
+        assert!(
+            result.is_ok(),
+            "Eviction livelocked! The insertion timed out after 2 seconds."
+        );
+
+        let inner_result = result.unwrap();
+        assert!(
+            inner_result.is_err(),
+            "Should return an error since eviction could not make progress"
+        );
+
+        assert_counter!(
+            metrics,
+            U64Counter,
+            S3_FIFO_EVICTION_BAILOUT_METRIC,
+            labels = Attributes::from(&[("cache", "test")]),
+            value = 1,
+        );
+        assert_eq!(
+            hook.records(),
+            vec![
+                TestHookRecord::Insert(0, Arc::from("key1")),
+                TestHookRecord::Fetched(0, Arc::from("key1"), Ok(92)),
+                TestHookRecord::Insert(1, Arc::from("key2")),
+                TestHookRecord::Fetched(1, Arc::from("key2"), Ok(92)),
+                TestHookRecord::Insert(2, Arc::from("key3")),
+                TestHookRecord::Fetched(2, Arc::from("key3"), Ok(92)),
+                TestHookRecord::Evict(2, Arc::from("key3"), EvictResult::Fetched { size: 12 }),
+            ]
+        );
     }
 }

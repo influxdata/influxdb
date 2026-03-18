@@ -11,7 +11,7 @@ workspace = true
 [dependencies] # In alphabetical order
 metric = { path = "../metric" }
 tracing = { workspace = true }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }

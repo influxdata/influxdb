@@ -8,8 +8,9 @@ use datafusion::common::cast::as_timestamp_nanosecond_array;
 use datafusion::common::{internal_err, plan_err};
 use datafusion::error::Result;
 use datafusion::logical_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature,
-    TIMEZONE_WILDCARD, TypeSignature, Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl,
+    Signature, TIMEZONE_WILDCARD, TypeSignature, Volatility,
+    scalar_doc_sections::DOC_SECTION_DATETIME,
 };
 use datafusion::scalar::ScalarValue;
 
@@ -18,6 +19,30 @@ pub(crate) const TZ_UDF_NAME: &str = "tz";
 /// A static instance of the `tz` scalar function.
 pub static TZ_UDF: LazyLock<Arc<ScalarUDF>> =
     LazyLock::new(|| Arc::new(ScalarUDF::from(TzUDF::default())));
+
+static TZ_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_DATETIME,
+        "Converts a timestamp to the specified timezone. If the input timestamp has no timezone, \
+it is assumed to be UTC. If no timezone argument is provided, defaults to UTC.",
+        "tz(time_expression[, timezone])",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT tz(time, 'America/New_York') AS time_ny
+FROM home
+```"#,
+    )
+    .with_argument(
+        "time_expression",
+        "Time expression to convert. Can be a constant, column, or function.",
+    )
+    .with_argument(
+        "timezone",
+        "Optional. IANA timezone string (e.g. `America/New_York`, `Europe/London`). Defaults to `UTC`.",
+    )
+    .build()
+});
 
 /// A scalar UDF that converts a timestamp to a different timezone.
 /// This function understands that input timestamps are in UTC despite
@@ -113,6 +138,10 @@ impl ScalarUDFImpl for TzUDF {
                 )
             }
         }
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        Some(&TZ_DOCUMENTATION)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

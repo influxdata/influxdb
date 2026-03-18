@@ -177,6 +177,12 @@ fn wal_replay_concurrency_limit_default() -> String {
     std::cmp::max(num_cpus::get(), MIN_REPLAY_PRELOAD_CONCURRENCY).to_string()
 }
 
+fn parse_snapshot_concurrency_limit(s: &str) -> Result<NonZeroUsize, String> {
+    let n: usize = s.parse().map_err(|e| format!("{e}"))?;
+    NonZeroUsize::new(n)
+        .ok_or_else(|| "snapshot concurrency limit must be greater than 0".to_string())
+}
+
 /// Try to keep all the memory size in MB instead of raw bytes, also allow
 /// them to be configured as a percentage of total memory using MemorySizeMb
 #[derive(Clone, Debug, clap::Parser)]
@@ -570,6 +576,16 @@ pub struct Config {
         default_value = wal_replay_concurrency_limit_default()
     )]
     pub wal_replay_concurrency_limit: usize,
+
+    /// Maximum number of concurrent snapshot persistence tasks.
+    /// Setting this too high can lead to OOM
+    #[clap(
+        long = "snapshot-concurrency-limit",
+        env = "INFLUXDB3_SNAPSHOT_CONCURRENCY_LIMIT",
+        default_value_t = NonZeroUsize::new(num_cpus::get()).expect("num_cpus returns non-zero"),
+        value_parser = parse_snapshot_concurrency_limit,
+    )]
+    pub parquet_snapshot_concurrency_limit: NonZeroUsize,
 
     /// The duration from when a database or table is soft-deleted until the data is scheduled to
     /// be hard deleted.
@@ -1026,6 +1042,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         n_snapshots_to_load_on_start,
         shutdown: shutdown_manager.register(),
         wal_replay_concurrency_limit: config.wal_replay_concurrency_limit,
+        parquet_snapshot_concurrency_limit: config.parquet_snapshot_concurrency_limit,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;

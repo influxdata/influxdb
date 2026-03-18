@@ -76,6 +76,7 @@ async fn snapshot_works_with_not_all_columns_in_buffer() {
         .unwrap(),
         persisted_files: Arc::new(PersistedFiles::new(None)),
         parquet_cache: None,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     };
     let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
 
@@ -271,6 +272,7 @@ async fn snapshot_skips_deleted_table() {
         .unwrap(),
         persisted_files: Arc::new(PersistedFiles::new(None)),
         parquet_cache: None,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     };
     let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
 

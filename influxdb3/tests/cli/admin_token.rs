@@ -544,6 +544,59 @@ async fn test_delete_named_admin_token() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_delete_token_with_yes_flag() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let operator_token = parse_token(result);
+    let result = server
+        .run(
+            vec![
+                "create",
+                "token",
+                "--admin",
+                "--name",
+                "to_delete",
+                "--token",
+                &operator_token,
+            ],
+            args,
+        )
+        .unwrap();
+    assert_contains!(&result, "New token created successfully!");
+    let result = server
+        .run(vec!["show", "tokens", "--token", &operator_token], args)
+        .unwrap();
+    assert_contains!(result, "to_delete");
+    let result = server
+        .run(
+            vec!["delete", "token"],
+            &[
+                "--token-name",
+                "to_delete",
+                "--token",
+                &operator_token,
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+                "--yes",
+            ],
+        )
+        .unwrap();
+    assert_contains!(result, "deleted successfully");
+    let result = server
+        .run(vec!["show", "tokens", "--token", &operator_token], args)
+        .unwrap();
+    assert_not_contains!(result, "to_delete");
+}
+
+#[test_log::test(tokio::test)]
 async fn test_check_named_admin_token_expiry_works() {
     let mut server = TestServer::configure()
         .with_auth()

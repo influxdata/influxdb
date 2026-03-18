@@ -4,9 +4,6 @@
 
 use std::str::FromStr;
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 pub mod chunk;
 pub mod metadata;
 pub mod serialize;

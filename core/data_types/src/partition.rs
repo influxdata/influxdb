@@ -4,6 +4,9 @@ use crate::{NamespacePartitionTemplateOverride, PARTITION_KEY_DELIMITER};
 
 use super::{ColumnsByName, SortKeyIds, TableId, Timestamp};
 
+use generated_types::influxdata::pbdata::v1::{
+    InternedStrings, PackedStrings, TableBatch, column::Values,
+};
 use schema::sort::SortKey;
 use sha2::Digest;
 use std::{fmt::Display, sync::Arc};
@@ -18,6 +21,84 @@ pub struct TableBatchWithoutId {
     pub columns: Vec<generated_types::influxdata::pbdata::v1::Column>,
     /// The number of rows that should exist in each column, same as `TableBatch`
     pub row_count: u32,
+}
+
+/// Get the approximate size of the given batch, if it was transformed into a [`TableBatch`] (so
+/// just if it also had an id: i64).
+pub fn table_batch_size(batch: &TableBatchWithoutId) -> usize {
+    fn packed_strs_heap_size(packed_strs: &PackedStrings) -> usize {
+        let PackedStrings { values, offsets } = packed_strs;
+
+        values.capacity() + (offsets.capacity() * std::mem::size_of::<u32>())
+    }
+
+    let TableBatchWithoutId {
+        columns,
+        row_count: _,
+    } = batch;
+
+    // we are actually calculating the heap size of a TableBatch that might come from `batch`, so we
+    // do want to get the size of `TableBatch` and not `TableBatchWithoutId`.
+    let stack_size = std::mem::size_of::<TableBatch>();
+    let columns_size = columns
+        .iter()
+        .map(|c| {
+            let stack_size = std::mem::size_of_val(c);
+            let name_size = c.column_name.capacity();
+            let null_mask_size = c.null_mask.capacity();
+            let values_size = c.values.as_ref().map_or(0, |v| {
+                let Values {
+                    i64_values,
+                    f64_values,
+                    u64_values,
+                    string_values,
+                    bool_values,
+                    bytes_values,
+                    packed_string_values,
+                    interned_string_values,
+                } = v;
+
+                let i64_size = i64_values.capacity() * std::mem::size_of::<i64>();
+                let f64_size = f64_values.capacity() * std::mem::size_of::<f64>();
+                let u64_size = u64_values.capacity() * std::mem::size_of::<u64>();
+                let str_size = string_values
+                    .iter()
+                    .map(|s| std::mem::size_of_val(s) + s.capacity())
+                    .sum::<usize>();
+                let bools_size = bool_values.capacity() * std::mem::size_of::<bool>();
+                let bytes_size = bytes_values
+                    .iter()
+                    .map(|b: &Vec<u8>| std::mem::size_of_val(b) + b.capacity())
+                    .sum::<usize>();
+
+                let packed_str_size = packed_string_values
+                    .as_ref()
+                    .map_or(0, packed_strs_heap_size);
+
+                let interned_str_size = interned_string_values.as_ref().map_or(0, |i_s| {
+                    let InternedStrings { dictionary, values } = i_s;
+
+                    let dict_size = dictionary.as_ref().map_or(0, packed_strs_heap_size);
+                    let values_size = values.capacity() * std::mem::size_of::<u32>();
+
+                    dict_size + values_size
+                });
+
+                i64_size
+                    + f64_size
+                    + u64_size
+                    + str_size
+                    + bools_size
+                    + bytes_size
+                    + packed_str_size
+                    + interned_str_size
+            });
+
+            stack_size + name_size + null_mask_size + values_size
+        })
+        .sum::<usize>();
+
+    stack_size + columns_size
 }
 
 /// Serialise a [`PartitionHashId`] to the `PartitionHashIdentifier` protobuf representation.
@@ -542,6 +623,7 @@ pub(crate) mod tests {
 
     use super::*;
 
+    use generated_types::influxdata::pbdata::v1::{Column, column::SemanticType};
     use proptest::proptest;
 
     /// A fixture test asserting the partition hash generation
@@ -624,5 +706,68 @@ pub(crate) mod tests {
         fn write(&mut self, bytes: &[u8]) {
             self.written.push(bytes.to_vec());
         }
+    }
+
+    #[test]
+    fn check_table_batch_size() {
+        let tb = TableBatchWithoutId {
+            columns: vec![],
+            row_count: 0,
+        };
+
+        assert_eq!(table_batch_size(&tb), std::mem::size_of::<TableBatch>());
+
+        let tb = TableBatchWithoutId {
+            columns: vec![Column {
+                column_name: "a".to_string(),
+                semantic_type: SemanticType::Tag.into(),
+                values: Some(Values {
+                    interned_string_values: Some(InternedStrings {
+                        dictionary: Some(PackedStrings {
+                            values: "a".to_string(),
+                            offsets: vec![0, 1],
+                        }),
+                        values: vec![0],
+                    }),
+                    ..Values::default()
+                }),
+                null_mask: vec![],
+            }],
+            row_count: 1,
+        };
+
+        assert_eq!(table_batch_size(&tb), 374);
+
+        let tb = TableBatchWithoutId {
+            columns: vec![
+                Column {
+                    column_name: "a".to_string(),
+                    semantic_type: SemanticType::Tag.into(),
+                    values: Some(Values {
+                        interned_string_values: Some(InternedStrings {
+                            dictionary: Some(PackedStrings {
+                                values: "aaabbb".to_string(),
+                                offsets: vec![0, 3, 6],
+                            }),
+                            values: vec![1, 0],
+                        }),
+                        ..Values::default()
+                    }),
+                    null_mask: vec![0],
+                },
+                Column {
+                    column_name: "b".to_string(),
+                    semantic_type: SemanticType::Field.into(),
+                    values: Some(Values {
+                        bytes_values: vec![vec![u8::MAX, 0, u8::MAX]],
+                        ..Values::default()
+                    }),
+                    null_mask: vec![0b10],
+                },
+            ],
+            row_count: 2,
+        };
+
+        assert_eq!(table_batch_size(&tb), 737);
     }
 }

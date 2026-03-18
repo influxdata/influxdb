@@ -3,7 +3,7 @@
 use influxdb_line_protocol::{Error, parse_lines};
 use libfuzzer_sys::fuzz_target;
 
-use workspace_hack as _;
+
 
 fuzz_target!(|line_protocol: &str| {
     for line_result in parse_lines(line_protocol) {

@@ -13,7 +13,7 @@ use influxdb_influxql_parser::expression::walk::{
 use influxdb_influxql_parser::expression::{
     AsVarRefExpr, Call, Expr, VarRef, VarRefDataType, WildcardType,
 };
-use influxdb_influxql_parser::functions::is_scalar_math_function;
+use influxdb_influxql_parser::functions::{is_date_part_function, is_scalar_math_function};
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{
@@ -1154,6 +1154,7 @@ impl FieldChecker {
                 Ok(())
             }
             Expr::Call(c) if is_scalar_math_function(&c.name) => self.check_math_function(c),
+            Expr::Call(c) if is_date_part_function(&c.name) => self.check_date_part_function(c),
             Expr::Call(c) => self.check_aggregate_function(c),
             Expr::Binary(b) => match (&*b.lhs, &*b.rhs) {
                 (Expr::Literal(_), Expr::Literal(_)) => {
@@ -1207,6 +1208,22 @@ impl FieldChecker {
                 self.check_expr(e)
             }
         })
+    }
+
+    fn check_date_part_function(&mut self, c: &Call) -> Result<()> {
+        let name = c.name.as_str();
+        check_exp_args!(name, 2, c.args);
+        lit_string!(name, c.args, 0);
+        if !matches!(
+            &c.args[1],
+            Expr::VarRef(VarRef {
+                name,
+                data_type: _
+            }) if name.deref() == "time"
+        ) {
+            return error::query("date_part: second argument must be time".to_string());
+        }
+        Ok(())
     }
 
     /// Validate `c` is an aggregate, window aggregate or selector function.
@@ -2102,6 +2119,25 @@ mod test {
         // aggregate functions require a field reference
         let sel = parse_select("SELECT sum(1) FROM cpu");
         assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in sum(), got Literal(Integer(1))");
+
+        // Test rules for date_part function
+        let sel = parse_select("SELECT date_part('hour', time) FROM cpu");
+        select_statement_info(&sel).unwrap();
+
+        // date_part expects exactly 2 arguments
+        let sel = parse_select("SELECT date_part('hour') FROM cpu");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for date_part, expected 2, got 1");
+
+        let sel = parse_select("SELECT date_part('hour', time, time) FROM cpu");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for date_part, expected 2, got 3");
+
+        // date_part first argument must be a string literal
+        let sel = parse_select("SELECT date_part(usage_idle, time) FROM cpu");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected string argument in date_part()");
+
+        // date_part second argument must be time
+        let sel = parse_select("SELECT date_part('hour', usage_idle) FROM cpu");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "date_part: second argument must be time");
     }
 
     mod rewrite_statement {

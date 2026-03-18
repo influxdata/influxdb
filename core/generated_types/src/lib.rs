@@ -14,9 +14,6 @@
     missing_copy_implementations
 )]
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use std::{collections::HashMap, sync::LazyLock};
 
 use prost::Message;
@@ -436,6 +433,9 @@ pub mod influxdata {
                 target_from_impls!($proto_type, Name, Id);
             };
             ($proto_type:ty, $name_variant:ident, $id_variant:ident) => {
+                // The proto oneof variants include deprecated *name fields (e.g. table_name).
+                // We still accept them for backwards compatibility when mapping to Target.
+                #[allow(deprecated)]
                 impl From<$proto_type> for Target {
                     fn from(value: $proto_type) -> Self {
                         use $proto_type::*;
@@ -445,6 +445,9 @@ pub mod influxdata {
                         }
                     }
                 }
+                // Converting Target::Name back into the proto variant hits deprecated fields.
+                // Suppress the warning locally until the deprecated variants are removed.
+                #[allow(deprecated)]
                 impl From<Target> for $proto_type {
                     fn from(value: Target) -> Self {
                         match value {
@@ -709,6 +712,7 @@ mod tests {
             "influxdata.iox.namespace.v1.NamespaceService",
             "influxdata.iox.ingester.v1.PersistService",
             "influxdata.iox.ingester.v1.WriteService",
+            "influxdata.iox.ingester.v1.ReadinessService",
             "influxdata.iox.querier.v1.QueryLogService",
             "grpc.health.v1.Health",
             "influxdata.iox.compactor.v1.CompactionService",

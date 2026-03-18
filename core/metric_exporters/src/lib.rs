@@ -1,6 +1,4 @@
 use reqwest::Client;
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
 
 use metric::{Attributes, MetricKind, Observation, Registry};
 use std::io::Write;

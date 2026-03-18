@@ -303,6 +303,7 @@ pub struct DeleteDatabaseQuery<'a> {
     server: &'a TestServer,
     name: String,
     hard_delete: Option<String>,
+    yes: bool,
 }
 
 impl TestServer {
@@ -311,6 +312,7 @@ impl TestServer {
             server: self,
             name: name.into(),
             hard_delete: None,
+            yes: false,
         }
     }
 }
@@ -318,6 +320,11 @@ impl TestServer {
 impl DeleteDatabaseQuery<'_> {
     pub fn with_hard_delete(mut self, when: impl Into<String>) -> Self {
         self.hard_delete = Some(when.into());
+        self
+    }
+
+    pub fn with_yes(mut self) -> Self {
+        self.yes = true;
         self
     }
 
@@ -329,15 +336,28 @@ impl DeleteDatabaseQuery<'_> {
             args.push(hard_delete);
         }
 
-        self.server.run_with_confirmation(
-            vec![
-                "delete",
-                "database",
-                "--tls-ca",
-                "../testing-certs/rootCA.pem",
-            ],
-            &args,
-        )
+        if self.yes {
+            args.push("--yes");
+            self.server.run(
+                vec![
+                    "delete",
+                    "database",
+                    "--tls-ca",
+                    "../testing-certs/rootCA.pem",
+                ],
+                &args,
+            )
+        } else {
+            self.server.run_with_confirmation(
+                vec![
+                    "delete",
+                    "database",
+                    "--tls-ca",
+                    "../testing-certs/rootCA.pem",
+                ],
+                &args,
+            )
+        }
     }
 }
 
@@ -426,6 +446,7 @@ pub struct DeleteTableQuery<'a> {
     db_name: String,
     table_name: String,
     hard_delete: Option<String>,
+    yes: bool,
 }
 
 impl TestServer {
@@ -439,6 +460,7 @@ impl TestServer {
             db_name: db_name.into(),
             table_name: table_name.into(),
             hard_delete: None,
+            yes: false,
         }
     }
 }
@@ -446,6 +468,11 @@ impl TestServer {
 impl DeleteTableQuery<'_> {
     pub fn with_hard_delete(mut self, when: impl Into<String>) -> Self {
         self.hard_delete = Some(when.into());
+        self
+    }
+
+    pub fn with_yes(mut self) -> Self {
+        self.yes = true;
         self
     }
 
@@ -464,8 +491,13 @@ impl DeleteTableQuery<'_> {
         args.push("--tls-ca");
         args.push("../testing-certs/rootCA.pem");
 
-        self.server
-            .run_with_confirmation(vec!["delete", "table"], &args)
+        if self.yes {
+            args.push("--yes");
+            self.server.run(vec!["delete", "table"], &args)
+        } else {
+            self.server
+                .run_with_confirmation(vec!["delete", "table"], &args)
+        }
     }
 }
 

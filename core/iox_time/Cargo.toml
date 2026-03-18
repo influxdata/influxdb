@@ -10,9 +10,9 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-chrono = { version = "0.4.43", default-features = false, features = ["clock", "std"] }
+chrono = { version = "0.4.44", default-features = false, features = ["clock", "std"] }
 parking_lot = "0.12"
-tokio = { version = "1.49", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-workspace-hack = { path = "../workspace-hack" }
+tokio = { version = "1.50", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+
 
 [dev-dependencies]

@@ -15,8 +15,8 @@ base64 = { version = "0.22", optional = true }
 hashbrown = { workspace = true }
 indexmap = { version = "2.13", features = ["std"] }
 tracing = { workspace = true }
-snafu = "0.8"
-workspace-hack = { path = "../workspace-hack" }
+snafu = "0.9"
+
 
 [dev-dependencies]
 rstest = { version = "0.26.1" }

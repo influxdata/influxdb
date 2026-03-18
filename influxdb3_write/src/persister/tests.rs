@@ -384,7 +384,7 @@ async fn get_parquet_bytes() {
         .unwrap();
 
     // Assert we've written all the expected rows
-    assert_eq!(parquet.meta_data.num_rows, 10);
+    assert_eq!(parquet.meta_data.file_metadata().num_rows(), 10);
 }
 
 #[tokio::test]
@@ -418,7 +418,7 @@ async fn persist_and_load_parquet_bytes() {
         .unwrap();
 
     // Assert we've written all the expected rows
-    assert_eq!(meta.num_rows, 10);
+    assert_eq!(meta.file_metadata().num_rows(), 10);
 
     let bytes = persister.load_parquet_file(path).await.unwrap();
 

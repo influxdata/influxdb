@@ -85,7 +85,7 @@ expression: table_info
   },
   {
     "column_name": "time",
-    "data_type": "Timestamp(Nanosecond, None)",
+    "data_type": "Timestamp(ns)",
     "is_nullable": "NO",
     "table_catalog": "public",
     "table_name": "metrics",

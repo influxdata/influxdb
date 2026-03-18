@@ -15,7 +15,7 @@ use parking_lot::RwLock;
 use pin_project::{pin_project, pinned_drop};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-pub use tokio::sync::AcquireError;
+pub use tokio::sync::{AcquireError, TryAcquireError};
 use trace::span::{Span, SpanRecorder};
 
 const SPAN_NAME_ACQUIRE: &str = "acquire";
@@ -137,7 +137,7 @@ impl AsyncSemaphoreMetrics {
 /// Instrumented version of [`tokio::sync::Semaphore`].
 ///
 /// # Tracing
-/// All `acquire*` methods take an optional span. This span will be exported as:
+/// All `acquire*` and `try_acquire*` methods take an optional span. This span will be exported as:
 ///
 /// - **happy acquire path:** `<start>...<acquire event>...<end>` with OK status
 /// - **acquire failure:** `<start>...<end>` with ERROR status
@@ -146,7 +146,8 @@ impl AsyncSemaphoreMetrics {
 pub struct InstrumentedAsyncSemaphore {
     /// Underlying semaphore implementation.
     ///
-    /// This is wrapped into an [`Arc`] so we can use a single implementation for the owned and non-owned implementation.
+    /// This is wrapped into an [`Arc`] so we can use a single implementation for the owned and non-owned
+    /// implementation.
     inner: Arc<Semaphore>,
 
     /// Number of total permits (acquired and available).
@@ -187,6 +188,17 @@ impl InstrumentedAsyncSemaphore {
         self.acquire_many(1, span).await
     }
 
+    /// Try to acquire a single permit, returning [`tokio::sync::TryAcquireError::NoPermits`] immediately if there are
+    /// no permits left.
+    ///
+    /// See [`tokio::sync::Semaphore::try_acquire`] for details.
+    pub fn try_acquire(
+        &self,
+        span: Option<Span>,
+    ) -> Result<InstrumentedAsyncSemaphorePermit<'_>, TryAcquireError> {
+        self.try_acquire_many(1, span)
+    }
+
     /// Acquire `n` permits.
     ///
     /// See [`tokio::sync::Semaphore::acquire_many`] for details.
@@ -202,6 +214,22 @@ impl InstrumentedAsyncSemaphore {
         })
     }
 
+    /// Try to acquire `n` permits, returning [`tokio::sync::TryAcquireError::NoPermits`] immediately if there aren't
+    /// enough permits left.
+    ///
+    /// See [`tokio::sync::Semaphore::try_acquire_many`] for details.
+    pub fn try_acquire_many(
+        &self,
+        n: u32,
+        span: Option<Span>,
+    ) -> Result<InstrumentedAsyncSemaphorePermit<'_>, TryAcquireError> {
+        let owned_permit = self.try_acquire_impl(n, span)?;
+        Ok(InstrumentedAsyncSemaphorePermit {
+            owned_permit,
+            phantom: Default::default(),
+        })
+    }
+
     pub async fn acquire_owned(
         self: &Arc<Self>,
         span: Option<Span>,
@@ -210,6 +238,16 @@ impl InstrumentedAsyncSemaphore {
         //       single implementation for the owned and non-owned variant while still providing a comparable API to
         //       the ordinary tokio semaphore.
         self.acquire_impl(1, span).await
+    }
+
+    pub fn try_acquire_owned(
+        self: &Arc<Self>,
+        span: Option<Span>,
+    ) -> Result<InstrumentedAsyncOwnedSemaphorePermit, TryAcquireError> {
+        // NOTE: We deliberately take `self: &Arc<Self>` here even though we strictly don't need it so we have use a
+        //       single implementation for the owned and non-owned variant while still providing a comparable API to
+        //       the ordinary tokio semaphore.
+        self.try_acquire_impl(1, span)
     }
 
     pub async fn acquire_many_owned(
@@ -241,6 +279,45 @@ impl InstrumentedAsyncSemaphore {
             span_recorder_acquire: Some(span_recorder_acquire),
             span_recorder_all: Some(span_recorder_all),
         }
+    }
+
+    fn try_acquire_impl(
+        &self,
+        n: u32,
+        span: Option<Span>,
+    ) -> Result<InstrumentedAsyncOwnedSemaphorePermit, TryAcquireError> {
+        let mut span_recorder_all = SpanRecorder::new(span);
+        let mut span_recorder_acquire =
+            SpanRecorder::new(span_recorder_all.child_span(SPAN_NAME_ACQUIRE));
+
+        let t_start = Instant::now();
+
+        let permit = Arc::clone(&self.inner)
+            .try_acquire_many_owned(n)
+            .inspect_err(|_e| {
+                span_recorder_all.error("TryAcquireError");
+            })?;
+
+        self.metrics.permits_acquired.inc(n as u64);
+        self.metrics.holders_acquired.inc(1);
+
+        let acquire_duration = t_start.elapsed();
+        self.metrics.acquire_duration.record(acquire_duration);
+
+        span_recorder_acquire.ok(SPAN_MSG_ACQUIRED);
+        drop(span_recorder_acquire);
+
+        let span_recorder_permit =
+            SpanRecorder::new(span_recorder_all.child_span(SPAN_NAME_PERMIT));
+
+        Ok(InstrumentedAsyncOwnedSemaphorePermit {
+            inner: permit,
+            n,
+            metrics: Arc::clone(&self.metrics),
+            acquire_duration,
+            span_recorder_permit,
+            span_recorder_all,
+        })
     }
 
     /// return the total number of permits (available + already acquired).
@@ -510,7 +587,7 @@ impl Deref for InstrumentedAsyncSemaphorePermit<'_> {
 mod tests {
     use std::time::Duration;
 
-    use test_helpers::timeout::FutureTimeout;
+    use test_helpers::{assert_error, timeout::FutureTimeout};
     use tokio::{pin, sync::Barrier};
     use trace::{RingBufferTraceCollector, ctx::SpanContext, span::SpanStatus};
 
@@ -632,6 +709,42 @@ mod tests {
 
         drop_permit_barrier.wait().await;
         task.await.unwrap();
+
+        assert_eq!(metrics.holders_acquired.fetch(), 0);
+        assert_eq!(metrics.permits_acquired.fetch(), 0); // = 1 + 5 - 5 + 7 - 1 - 7
+    }
+
+    #[test]
+    fn test_try_permits_acquired_and_holders_acquired() {
+        let metrics = Arc::new(AsyncSemaphoreMetrics::new_unregistered());
+        let semaphore = Arc::new(metrics.new_semaphore(10));
+
+        assert_eq!(metrics.holders_acquired.fetch(), 0);
+        assert_eq!(metrics.permits_acquired.fetch(), 0);
+
+        let p1 = semaphore.try_acquire(None).unwrap();
+        let p2 = semaphore.try_acquire_many(5, None).unwrap();
+
+        assert_error!(
+            semaphore.try_acquire_many(7, None),
+            TryAcquireError::NoPermits,
+        );
+
+        assert_eq!(metrics.holders_acquired.fetch(), 2);
+        assert_eq!(metrics.permits_acquired.fetch(), 6); // = 1 + 5
+
+        drop(p2);
+        let permit = semaphore.try_acquire_many(7, None).unwrap();
+
+        assert_eq!(metrics.holders_acquired.fetch(), 2);
+        assert_eq!(metrics.permits_acquired.fetch(), 8); // = 1 + 5 - 5 + 7
+
+        drop(p1);
+
+        assert_eq!(metrics.holders_acquired.fetch(), 1);
+        assert_eq!(metrics.permits_acquired.fetch(), 7); // = 1 + 5 - 5 + 7 - 1
+
+        drop(permit);
 
         assert_eq!(metrics.holders_acquired.fetch(), 0);
         assert_eq!(metrics.permits_acquired.fetch(), 0); // = 1 + 5 - 5 + 7 - 1 - 7

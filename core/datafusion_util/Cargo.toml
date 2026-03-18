@@ -16,11 +16,11 @@ futures = "0.3"
 object_store = { workspace = true }
 pin-project = "1.1"
 schema = { path = "../schema" }
-tokio = { version = "1.49", features = ["parking_lot", "sync"] }
+tokio = { version = "1.50", features = ["parking_lot", "sync"] }
 tokio-stream = "0.1"
 tracing = { workspace = true }
 url = "2.5"
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 assert_matches = "1"

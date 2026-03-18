@@ -7,10 +7,8 @@ use datafusion_udf_wasm_query::{
     ComponentFn, Lang, UdfQueryParser, format::StripIndentationFormatter,
 };
 
-// Workaround for "unused crate" lint false positives.
 #[cfg(test)]
 use tokio as _;
-use workspace_hack as _;
 
 /// Python component.
 ///

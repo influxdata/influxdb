@@ -98,7 +98,7 @@ pub(crate) fn transform_data_source_exec_to_regrouped_disjoint_ranges(
         .iter()
         .flat_map(|g| g.iter())
         .collect::<Vec<_>>();
-    let schema = Arc::clone(&cfg.file_schema);
+    let schema = Arc::clone(cfg.file_schema());
 
     // Regroup partitioned files from same file source
     let regrouped_files = group_same_file_sources(files)?;

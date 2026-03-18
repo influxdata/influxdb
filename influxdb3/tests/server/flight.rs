@@ -1,4 +1,3 @@
-use arrow_flight::Ticket;
 use arrow_flight::sql::SqlInfo;
 use arrow_util::assert_batches_eq;
 use arrow_util::assert_batches_sorted_eq;
@@ -218,30 +217,27 @@ async fn flight_influxql() {
     // This is no longer supported in 3.0, see
     // https://github.com/influxdata/influxdb_iox/pull/11254
     {
-        let ticket = Ticket::new(
-            r#"{
-                    "database": "foo",
-                    "sql_query": "SELECT time, host, region, usage FROM foo.autogen.cpu",
-                    "query_type": "influxql"
-                }"#,
-        );
-        let response = client.do_get(ticket).await.unwrap_err().to_string();
+        let response = client
+            .query("foo")
+            .influxql("SELECT time, host, region, usage FROM foo.autogen.cpu")
+            .run()
+            .await
+            .unwrap_err()
+            .to_string();
 
         assert_contains!(response, "database prefix in qualified measurement syntax");
     }
 
     // InfluxQL-specific query to show measurements:
     {
-        let ticket = Ticket::new(
-            r#"{
-                    "database": "foo",
-                    "sql_query": "SHOW MEASUREMENTS",
-                    "query_type": "influxql"
-                }"#,
-        );
-        let response = client.do_get(ticket).await.unwrap();
+        let response = client
+            .query("foo")
+            .influxql("SHOW MEASUREMENTS")
+            .run()
+            .await
+            .unwrap();
 
-        let batches = collect_stream(response).await;
+        let batches = collect_stream(response.into_inner()).await;
         assert_batches_sorted_eq!(
             [
                 "+------------------+------+",
@@ -256,15 +252,97 @@ async fn flight_influxql() {
 
     // An InfluxQL query that is not supported over Flight:
     {
+        let response = client
+            .query("foo")
+            .influxql("SHOW DATABASES")
+            .run()
+            .await
+            .unwrap_err();
+
+        assert_contains!(
+            response.to_string(),
+            "This feature is not implemented: SHOW DATABASES"
+        );
+    }
+}
+
+/// Test that InfluxQL queries work via JSON-encoded Flight tickets.
+///
+/// The server supports a legacy JSON ticket format for `do_get`:
+/// ```json
+/// {"database": "db", "sql_query": "...", "query_type": "influxql"}
+/// ```
+/// This test ensures that path remains functional alongside the protobuf
+/// `ReadInfo` path tested in `flight_influxql`.
+#[tokio::test]
+async fn flight_influxql_json_ticket() {
+    use arrow_flight::Ticket;
+
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9 2998574936\n\
+             cpu,host=s1,region=us-east usage=0.89 2998574937\n\
+             cpu,host=s1,region=us-east usage=0.85 2998574938",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    // Use the raw FlightClient (not the influxdb_iox_client wrapper) so we can
+    // call `do_get` with hand-crafted JSON tickets, exercising the legacy
+    // JSON-encoded ticket path that some clients still use.
+    let mut client = server.flight_client().await.into_inner();
+
+    // InfluxQL-specific query to show measurements:
+    {
         let ticket = Ticket::new(
             r#"{
-                    "database": "foo",
-                    "sql_query": "SHOW DATABASES",
-                    "query_type": "influxql"
-                }"#,
+                "database": "foo",
+                "sql_query": "SHOW MEASUREMENTS",
+                "query_type": "influxql"
+            }"#,
+        );
+        let response = client.do_get(ticket).await.unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+------------------+------+",
+                "| iox::measurement | name |",
+                "+------------------+------+",
+                "| measurements     | cpu  |",
+                "+------------------+------+",
+            ],
+            &batches
+        );
+    }
+
+    // Qualified measurement names (e.g., `db.autogen.measurement`) are not
+    // supported in 3.0, see https://github.com/influxdata/influxdb_iox/pull/11254
+    {
+        let ticket = Ticket::new(
+            r#"{
+                "database": "foo",
+                "sql_query": "SELECT time, host, region, usage FROM foo.autogen.cpu",
+                "query_type": "influxql"
+            }"#,
+        );
+        let response = client.do_get(ticket).await.unwrap_err().to_string();
+        assert_contains!(response, "database prefix in qualified measurement syntax");
+    }
+
+    // An InfluxQL query that is not supported over Flight:
+    {
+        let ticket = Ticket::new(
+            r#"{
+                "database": "foo",
+                "sql_query": "SHOW DATABASES",
+                "query_type": "influxql"
+            }"#,
         );
         let response = client.do_get(ticket).await.unwrap_err();
-
         assert_contains!(
             response.to_string(),
             "This feature is not implemented: SHOW DATABASES"

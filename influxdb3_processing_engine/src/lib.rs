@@ -10,9 +10,10 @@ use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::channel::CatalogUpdateReceiver;
 use influxdb3_catalog::log::{
-    CatalogBatch, DatabaseCatalogOp, DeleteTriggerLog, PluginType, TriggerDefinition,
-    TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
+    CatalogBatch, DatabaseCatalogOp, DeleteOp, DeleteTriggerLog, PluginType, SoftDeleteDatabaseLog,
+    TriggerDefinition, TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
 };
+use influxdb3_id::DbId;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_py_api::system_py::CacheStore;
 use influxdb3_sys_events::SysEventStore;
@@ -24,7 +25,7 @@ use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier};
 use influxdb3_write::Bufferer;
 use iox_http_util::Response;
 use iox_time::TimeProvider;
-use observability_deps::tracing::{debug, error, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::Mutex;
 use std::any::Any;
 use std::fs;
@@ -115,6 +116,11 @@ pub struct ProcessingEngineManagerImpl {
     sys_event_store: Arc<SysEventStore>,
     cache: Arc<Mutex<CacheStore>>,
     plugin_event_tx: RwLock<PluginChannels>,
+    /// Stores (original_db_name, request_trigger_paths) during soft delete for use
+    /// during the subsequent hard delete. After soft delete, the database is renamed
+    /// and may be removed from the catalog entirely, so the hard delete handler cannot
+    /// reliably resolve the original name or trigger paths from the catalog.
+    soft_deleted_trigger_info: RwLock<HashMap<DbId, (String, Vec<String>)>>,
 }
 
 #[derive(Debug, Default)]
@@ -213,6 +219,64 @@ impl PluginChannels {
         }
     }
 
+    async fn shutdown_all_for_db(&self, db: &str, request_paths: &[String]) -> Vec<Receiver<()>> {
+        let mut receivers = Vec::new();
+
+        if let Some(trigger_map) = self.wal_triggers.get(db) {
+            for (trigger_name, sender) in trigger_map {
+                let (tx, rx) = oneshot::channel();
+                if sender.send(WalEvent::Shutdown(tx)).await.is_err() {
+                    warn!(
+                        db,
+                        trigger_name,
+                        "failed to send shutdown to WAL trigger during database deletion"
+                    );
+                } else {
+                    receivers.push(rx);
+                }
+            }
+        }
+
+        if let Some(trigger_map) = self.schedule_triggers.get(db) {
+            for (trigger_name, sender) in trigger_map {
+                let (tx, rx) = oneshot::channel();
+                if sender.send(ScheduleEvent::Shutdown(tx)).await.is_err() {
+                    warn!(
+                        db,
+                        trigger_name,
+                        "failed to send shutdown to schedule trigger during database deletion"
+                    );
+                } else {
+                    receivers.push(rx);
+                }
+            }
+        }
+
+        for path in request_paths {
+            if let Some(sender) = self.request_triggers.get(path.as_str()) {
+                let (tx, rx) = oneshot::channel();
+                if sender.send(RequestEvent::Shutdown(tx)).await.is_err() {
+                    warn!(
+                        db,
+                        path, "failed to send shutdown to request trigger during database deletion"
+                    );
+                } else {
+                    receivers.push(rx);
+                }
+            }
+        }
+
+        receivers
+    }
+
+    fn remove_all_for_db(&mut self, db: &str, request_paths: &[String]) {
+        self.wal_triggers.remove(db);
+        self.schedule_triggers.remove(db);
+        for path in request_paths {
+            self.request_triggers.remove(path.as_str());
+        }
+    }
+
     fn add_wal_trigger(&mut self, db: String, trigger: String) -> mpsc::Receiver<WalEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
         self.wal_triggers.entry(db).or_default().insert(trigger, tx);
@@ -307,6 +371,7 @@ impl ProcessingEngineManagerImpl {
             time_provider,
             plugin_event_tx: Default::default(),
             cache,
+            soft_deleted_trigger_info: Default::default(),
         });
 
         background_catalog_update(Arc::clone(&pem), catalog_sub);
@@ -1162,74 +1227,209 @@ pub struct PluginFileInfo {
     pub last_modified_millis: i64,
 }
 
+fn request_trigger_paths(catalog: &Catalog, db_id: &DbId) -> Option<Vec<String>> {
+    let db_schema = catalog.db_schema_by_id(db_id)?;
+    Some(
+        db_schema
+            .processing_engine_triggers
+            .resource_iter()
+            .filter_map(|trigger| {
+                if let TriggerSpecificationDefinition::RequestPath { path } = &trigger.trigger {
+                    Some(path.clone())
+                } else {
+                    None
+                }
+            })
+            .collect(),
+    )
+}
+
 fn background_catalog_update(
     processing_engine_manager: Arc<ProcessingEngineManagerImpl>,
     mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(catalog_update) = subscription.recv().await {
-            for batch in catalog_update
-                .batches()
-                .filter_map(CatalogBatch::as_database)
-            {
-                for op in batch.ops.iter() {
-                    let processing_engine_manager = Arc::clone(&processing_engine_manager);
-                    match op {
-                        DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
-                            trigger_name,
-                            database_name,
-                            disabled,
-                            ..
-                        }) => {
-                            if !disabled
-                                && let Err(error) = processing_engine_manager
-                                    .run_trigger(database_name, trigger_name)
-                                    .await
-                            {
-                                error!(?error, "failed to run the created trigger");
+            for batch in catalog_update.batches() {
+                match batch {
+                    CatalogBatch::Database(batch) => {
+                        for op in batch.ops.iter() {
+                            let processing_engine_manager = Arc::clone(&processing_engine_manager);
+                            match op {
+                                DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
+                                    trigger_name,
+                                    database_name,
+                                    disabled,
+                                    ..
+                                }) => {
+                                    if !disabled
+                                        && let Err(error) = processing_engine_manager
+                                            .run_trigger(database_name, trigger_name)
+                                            .await
+                                    {
+                                        error!(?error, "failed to run the created trigger");
+                                    }
+                                }
+                                DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
+                                    db_name,
+                                    trigger_name,
+                                    ..
+                                }) => {
+                                    if let Err(error) = processing_engine_manager
+                                        .run_trigger(db_name, trigger_name)
+                                        .await
+                                    {
+                                        error!(?error, "failed to run the trigger");
+                                    }
+                                }
+                                DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
+                                    trigger_name,
+                                    force: true,
+                                    ..
+                                }) => {
+                                    if let Err(error) = processing_engine_manager
+                                        .stop_trigger(&batch.database_name, trigger_name)
+                                        .await
+                                    {
+                                        error!(?error, "failed to disable the trigger");
+                                    }
+                                }
+                                DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
+                                    db_name,
+                                    trigger_name,
+                                    ..
+                                }) => {
+                                    if let Err(error) = processing_engine_manager
+                                        .stop_trigger(db_name, trigger_name)
+                                        .await
+                                    {
+                                        error!(?error, "failed to disable the trigger");
+                                    }
+                                }
+                                DatabaseCatalogOp::SoftDeleteDatabase(SoftDeleteDatabaseLog {
+                                    database_id,
+                                    database_name,
+                                    hard_deletion_time,
+                                    ..
+                                }) => {
+                                    info!(
+                                        %database_name,
+                                        "database soft deleted, disabling all triggers"
+                                    );
+                                    let request_paths = request_trigger_paths(
+                                        &processing_engine_manager.catalog,
+                                        database_id,
+                                    )
+                                    .unwrap_or_else(|| {
+                                        warn!(
+                                            ?database_id,
+                                            "database schema not found when collecting \
+                                             request trigger paths; request triggers \
+                                             may not be cleaned up"
+                                        );
+                                        Vec::new()
+                                    });
+                                    if hard_deletion_time.is_some() {
+                                        // Store info for the subsequent hard delete
+                                        // handler, which cannot resolve the original
+                                        // name from the catalog (the db is renamed on
+                                        // soft delete and may be fully removed on hard
+                                        // delete before the event reaches us).
+                                        processing_engine_manager
+                                            .soft_deleted_trigger_info
+                                            .write()
+                                            .await
+                                            .insert(
+                                                *database_id,
+                                                (database_name.to_string(), request_paths.clone()),
+                                            );
+                                    }
+                                    let shutdown_rxs = processing_engine_manager
+                                        .plugin_event_tx
+                                        .write()
+                                        .await
+                                        .shutdown_all_for_db(database_name, &request_paths)
+                                        .await;
+                                    for rx in shutdown_rxs {
+                                        if rx.await.is_err() {
+                                            warn!(
+                                                %database_name,
+                                                "shutdown receiver dropped during \
+                                                 database soft delete"
+                                            );
+                                        }
+                                    }
+                                    if hard_deletion_time.is_none() {
+                                        // No hard delete will follow, so do
+                                        // full cleanup now.
+                                        processing_engine_manager
+                                            .plugin_event_tx
+                                            .write()
+                                            .await
+                                            .remove_all_for_db(database_name, &request_paths);
+                                        processing_engine_manager
+                                            .cache
+                                            .lock()
+                                            .drop_all_trigger_caches_for_db(database_name);
+                                    }
+                                }
+                                _ => (),
                             }
                         }
-                        DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
-                            db_name,
-                            trigger_name,
-                            ..
-                        }) => {
-                            if let Err(error) = processing_engine_manager
-                                .run_trigger(db_name, trigger_name)
-                                .await
-                            {
-                                error!(?error, "failed to run the trigger");
-                            }
-                        }
-                        DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
-                            trigger_name,
-                            force: true,
-                            ..
-                        }) => {
-                            if let Err(error) = processing_engine_manager
-                                .stop_trigger(&batch.database_name, trigger_name)
-                                .await
-                            {
-                                error!(?error, "failed to disable the trigger");
-                            }
-                        }
-                        DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
-                            db_name,
-                            trigger_name,
-                            ..
-                        }) => {
-                            if let Err(error) = processing_engine_manager
-                                .stop_trigger(db_name, trigger_name)
-                                .await
-                            {
-                                error!(?error, "failed to disable the trigger");
-                            }
-                        }
-                        // NOTE(trevor/catalog-refactor): it is not clear that any other operation needs to be
-                        // handled, based on the existing code, but we could potentially
-                        // handle database deletion, trigger creation/deletion/enable here
-                        _ => (),
                     }
+                    CatalogBatch::Delete(batch) => {
+                        for op in batch.ops.iter() {
+                            let processing_engine_manager = Arc::clone(&processing_engine_manager);
+                            if let DeleteOp::DeleteDatabase(db_id) = op {
+                                // Use info stored during soft delete — the catalog may
+                                // have already renamed or removed the database by this
+                                // point.
+                                let Some((database_name, request_paths)) =
+                                    processing_engine_manager
+                                        .soft_deleted_trigger_info
+                                        .write()
+                                        .await
+                                        .remove(db_id)
+                                else {
+                                    warn!(
+                                        ?db_id,
+                                        "no soft delete info found for hard delete, \
+                                         triggers may have already been cleaned up"
+                                    );
+                                    continue;
+                                };
+                                info!(
+                                    %database_name,
+                                    "database hard deleted, removing all triggers"
+                                );
+                                let shutdown_rxs = processing_engine_manager
+                                    .plugin_event_tx
+                                    .write()
+                                    .await
+                                    .shutdown_all_for_db(&database_name, &request_paths)
+                                    .await;
+                                for rx in shutdown_rxs {
+                                    if rx.await.is_err() {
+                                        warn!(
+                                            %database_name,
+                                            "shutdown receiver dropped during \
+                                             database hard delete"
+                                        );
+                                    }
+                                }
+                                processing_engine_manager
+                                    .plugin_event_tx
+                                    .write()
+                                    .await
+                                    .remove_all_for_db(&database_name, &request_paths);
+                                processing_engine_manager
+                                    .cache
+                                    .lock()
+                                    .drop_all_trigger_caches_for_db(&database_name);
+                            }
+                        }
+                    }
+                    _ => (),
                 }
             }
         }

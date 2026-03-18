@@ -10,22 +10,27 @@ workspace = true
 
 [dependencies]
 arrow = { workspace = true }
+bitvec = "1"
 chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }
+generated_types = { path = "../generated_types" }
 hashbrown = { workspace = true }
 mutable_batch = { path = "../mutable_batch" }
 percent-encoding = "2.3.2"
 schema = { path = "../schema" }
+table_batch = { path = "../table_batch" }
 thiserror = "2.0.18"
 unicode-segmentation = "1.12.0"
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 assert_matches = "1.5.0"
 criterion = { version = "0.8", default-features = false, features = ["rayon"] }
-generated_types = { path = "../generated_types" }
+influxdb-line-protocol = { path = "../influxdb_line_protocol", features = [ "test_helpers" ] }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
+mutable_batch_pb = { path = "../mutable_batch_pb" }
 paste = "1.0.15"
+pretty_assertions = "1"
 proptest = { workspace = true }
 rand = "0.9"
 

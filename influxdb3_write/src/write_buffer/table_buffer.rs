@@ -33,7 +33,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Default)]
 pub struct TableBuffer {
-    chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
+    chunk_time_to_chunks: BTreeMap<i64, Vec<MutableTableChunk>>,
     snapshotting_chunks: Vec<SnapshotChunk>,
 }
 
@@ -43,16 +43,30 @@ impl TableBuffer {
     }
 
     pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[Row]) {
-        let buffer_chunk = self
-            .chunk_time_to_chunks
-            .entry(chunk_time)
-            .or_insert_with(|| MutableTableChunk {
-                timestamp_min: i64::MAX,
-                timestamp_max: i64::MIN,
-                data: Default::default(),
-                row_count: 0,
-            });
+        let chunks = self.chunk_time_to_chunks.entry(chunk_time).or_default();
 
+        let mut incoming_per_column = HashMap::new();
+        for r in rows {
+            for f in &r.fields {
+                match &f.value {
+                    FieldData::String(s) | FieldData::Tag(s) => {
+                        *incoming_per_column.entry(f.id).or_default() += s.len();
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let needs_new_chunk = chunks.is_empty()
+            || chunks
+                .last()
+                .is_some_and(|c| c.would_exceed_limit_with(&incoming_per_column));
+
+        if needs_new_chunk {
+            chunks.push(MutableTableChunk::new());
+        }
+
+        let buffer_chunk = chunks.last_mut().unwrap();
         buffer_chunk.add_rows(rows);
     }
 
@@ -93,17 +107,18 @@ impl TableBuffer {
             *ts = ts.union(&sc.timestamp_min_max);
             v.push(rb);
         }
-        for (t, c) in self
-            .chunk_time_to_chunks
-            .iter()
-            .filter(|(_, c)| filter.test_time_stamp_min_max(c.timestamp_min, c.timestamp_max))
-        {
-            let ts_min_max = TimestampMinMax::new(c.timestamp_min, c.timestamp_max);
-            let (ts, v) = batches
-                .entry(*t)
-                .or_insert_with(|| (ts_min_max, Vec::new()));
-            *ts = ts.union(&ts_min_max);
-            v.push(c.record_batch(Arc::clone(&table_def))?);
+        for (t, chunks) in self.chunk_time_to_chunks.iter() {
+            for c in chunks
+                .iter()
+                .filter(|c| filter.test_time_stamp_min_max(c.timestamp_min, c.timestamp_max))
+            {
+                let ts_min_max = TimestampMinMax::new(c.timestamp_min, c.timestamp_max);
+                let (ts, v) = batches
+                    .entry(*t)
+                    .or_insert_with(|| (ts_min_max, Vec::new()));
+                *ts = ts.union(&ts_min_max);
+                v.push(c.record_batch(Arc::clone(&table_def))?);
+            }
         }
         Ok(batches)
     }
@@ -114,6 +129,7 @@ impl TableBuffer {
         } else {
             self.chunk_time_to_chunks
                 .values()
+                .flatten()
                 .map(|c| (c.timestamp_min, c.timestamp_max))
                 .fold((i64::MAX, i64::MIN), |(a_min, b_min), (a_max, b_max)| {
                     (a_min.min(b_min), a_max.max(b_max))
@@ -133,9 +149,11 @@ impl TableBuffer {
     pub fn computed_size(&self) -> usize {
         let mut size = size_of::<Self>();
 
-        for c in self.chunk_time_to_chunks.values() {
-            for builder in c.data.values() {
-                size += size_of::<ColumnId>() + size_of::<String>() + builder.size();
+        for chunks in self.chunk_time_to_chunks.values() {
+            for c in chunks {
+                for builder in c.data.values() {
+                    size += size_of::<ColumnId>() + size_of::<String>() + builder.size();
+                }
             }
         }
 
@@ -153,21 +171,23 @@ impl TableBuffer {
             .filter(|k| **k < older_than_chunk_time)
             .copied()
             .collect::<Vec<_>>();
-        self.snapshotting_chunks = keys_to_remove
-            .into_iter()
-            .map(|chunk_time| {
-                let chunk = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
+
+        let mut snapshot_chunks = Vec::new();
+        for chunk_time in keys_to_remove {
+            let chunks = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
+            for chunk in chunks {
                 let timestamp_min_max = chunk.timestamp_min_max();
                 let (schema, record_batch) = chunk.into_schema_record_batch(Arc::clone(&table_def));
 
-                SnapshotChunk {
+                snapshot_chunks.push(SnapshotChunk {
                     chunk_time,
                     timestamp_min_max,
                     record_batch,
                     schema,
-                }
-            })
-            .collect::<Vec<_>>();
+                });
+            }
+        }
+        self.snapshotting_chunks = snapshot_chunks;
 
         self.snapshotting_chunks.clone()
     }
@@ -191,6 +211,7 @@ impl std::fmt::Debug for TableBuffer {
         let (min_time, max_time, row_count) = self
             .chunk_time_to_chunks
             .values()
+            .flatten()
             .map(|c| (c.timestamp_min, c.timestamp_max, c.row_count))
             .fold(
                 (i64::MAX, i64::MIN, 0),
@@ -198,8 +219,9 @@ impl std::fmt::Debug for TableBuffer {
                     (a_min.min(b_min), a_max.max(b_max), a_count + b_count)
                 },
             );
+        let chunk_count: usize = self.chunk_time_to_chunks.values().map(|v| v.len()).sum();
         f.debug_struct("TableBuffer")
-            .field("chunk_count", &self.chunk_time_to_chunks.len())
+            .field("chunk_count", &chunk_count)
             .field("timestamp_min", &min_time)
             .field("timestamp_max", &max_time)
             .field("row_count", &row_count)
@@ -212,6 +234,74 @@ struct MutableTableChunk {
     timestamp_max: i64,
     data: BTreeMap<ColumnId, Builder>,
     row_count: usize,
+    string_bytes_per_column: HashMap<ColumnId, usize>,
+}
+
+// Test infrastructure for configurable string size limit - thread-local for test isolation.
+#[cfg(test)]
+thread_local! {
+    static TEST_VAR_COL_MAX_BYTES: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(influxdb3_types::arrow_limits::ARROW_VAR_COL_MAX_BYTES)
+    };
+}
+
+/// Returns the variable-column byte capacity limit.
+fn var_col_max_bytes() -> usize {
+    #[cfg(test)]
+    {
+        TEST_VAR_COL_MAX_BYTES.with(|c| c.get())
+    }
+    #[cfg(not(test))]
+    {
+        influxdb3_types::arrow_limits::ARROW_VAR_COL_MAX_BYTES
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug)]
+struct VarColMaxGuard(usize);
+
+#[cfg(test)]
+impl VarColMaxGuard {
+    fn new(cap: usize) -> Self {
+        let prev = TEST_VAR_COL_MAX_BYTES.with(|c| {
+            let prev = c.get();
+            c.set(cap);
+            prev
+        });
+        Self(prev)
+    }
+}
+
+#[cfg(test)]
+impl Drop for VarColMaxGuard {
+    fn drop(&mut self) {
+        TEST_VAR_COL_MAX_BYTES.with(|c| c.set(self.0));
+    }
+}
+
+impl MutableTableChunk {
+    fn new() -> Self {
+        Self {
+            timestamp_min: i64::MAX,
+            timestamp_max: i64::MIN,
+            data: Default::default(),
+            row_count: 0,
+            string_bytes_per_column: HashMap::new(),
+        }
+    }
+
+    fn would_exceed_limit_with(&self, incoming_per_column: &HashMap<ColumnId, usize>) -> bool {
+        let limit = var_col_max_bytes();
+        incoming_per_column.iter().any(|(col_id, additional)| {
+            let existing = self
+                .string_bytes_per_column
+                .get(col_id)
+                .copied()
+                .unwrap_or(0);
+            existing.saturating_add(*additional) > limit
+        })
+    }
 }
 
 impl MutableTableChunk {
@@ -249,12 +339,13 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::Tag(v) => {
+                        *self.string_bytes_per_column.entry(f.id).or_default() += v.len();
+
                         if let Entry::Vacant(e) = self.data.entry(f.id) {
-                            // keep arrow's defaults for value_capacity and data_capacity.
                             let mut tag_builder = StringDictionaryBuilder::with_capacity(
                                 builder_capacity,
-                                1024,
-                                1024,
+                                builder_capacity.min(1024),
+                                (builder_capacity * 64).min(1024),
                             );
                             // append nulls for all previous rows
                             tag_builder.append_nulls(row_index + self.row_count);
@@ -269,10 +360,13 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::String(v) => {
+                        *self.string_bytes_per_column.entry(f.id).or_default() += v.len();
+
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            // keep arrow's default for data_capacity.
-                            let mut string_builder =
-                                StringBuilder::with_capacity(builder_capacity, 1024);
+                            let mut string_builder = StringBuilder::with_capacity(
+                                builder_capacity,
+                                (builder_capacity * 64).min(1024),
+                            );
                             // append nulls for all previous rows
                             string_builder.append_nulls(row_index + self.row_count);
                             Builder::String(string_builder)
@@ -445,9 +539,7 @@ fn array_ref_nulls_for_type(data_type: InfluxColumnType, len: usize) -> ArrayRef
         }
         InfluxColumnType::Field(InfluxFieldType::String) => {
             let mut builder = StringBuilder::new();
-            for _ in 0..len {
-                builder.append_null();
-            }
+            builder.append_nulls(len);
             Arc::new(builder.finish())
         }
         InfluxColumnType::Field(InfluxFieldType::UInteger) => {

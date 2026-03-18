@@ -40,8 +40,8 @@ use observability_deps::tracing::{debug, error, info, trace, warn};
 use parking_lot::RwLock;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
+use parquet::file::metadata::ParquetMetaData;
 use parquet::file::properties::WriterProperties;
-use parquet::format::FileMetaData;
 use tokio::sync::Semaphore;
 
 #[derive(Debug, thiserror::Error)]
@@ -889,7 +889,7 @@ impl Persister {
         &self,
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
-    ) -> Result<(u64, FileMetaData, ParquetFileDataToCache)> {
+    ) -> Result<(u64, ParquetMetaData, ParquetFileDataToCache)> {
         // so we have serialized parquet file bytes
         let parquet = self.serialize_to_parquet(record_batch).await?;
         let bytes_written = parquet.bytes.len() as u64;
@@ -936,7 +936,7 @@ pub async fn serialize_to_parquet(
     }
 
     let writer_meta = writer.close()?;
-    if writer_meta.num_rows == 0 {
+    if writer_meta.file_metadata().num_rows() == 0 {
         return Err(PersisterError::NoRows);
     }
 
@@ -949,7 +949,7 @@ pub async fn serialize_to_parquet(
 #[derive(Debug)]
 pub struct ParquetBytes {
     pub bytes: Bytes,
-    pub meta_data: FileMetaData,
+    pub meta_data: ParquetMetaData,
 }
 
 /// Wraps an [`ArrowWriter`] to track its buffered memory in a
@@ -995,10 +995,8 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
     }
 
     /// closes the writer, flushing any remaining data and returning
-    /// the written [`FileMetaData`]
-    ///
-    /// [`FileMetaData`]: parquet::format::FileMetaData
-    pub fn close(self) -> Result<parquet::format::FileMetaData> {
+    /// the written [`ParquetMetaData`]
+    pub fn close(self) -> Result<ParquetMetaData> {
         // reservation is returned on drop
         Ok(self.inner.close()?)
     }

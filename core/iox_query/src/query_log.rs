@@ -178,6 +178,9 @@ pub struct QueryLogEntryState {
     /// Number of partitions processed by the query.
     pub partitions: Option<u64>,
 
+    /// Number of rows returned by this query.
+    pub num_rows: Option<u64>,
+
     /// Number of parquet files processed by the query.
     pub parquet_files: Option<u64>,
 
@@ -517,6 +520,7 @@ impl QueryLogEntry {
             ingester_metrics,
             deduplicated_parquet_files,
             deduplicated_partitions,
+            num_rows,
         } = state;
 
         optional_struct!(
@@ -541,6 +545,7 @@ impl QueryLogEntry {
             trace_id=trace_id.map(|id| format!("{:x}", id.get())),
             issue_time=%issue_time,
             partitions,
+            num_rows,
             parquet_files,
             deduplicated_partitions,
             deduplicated_parquet_files,
@@ -594,6 +599,7 @@ impl QueryLogEntry {
             ingester_metrics,
             deduplicated_parquet_files,
             deduplicated_partitions,
+            num_rows,
         } = state;
 
         metrics.phase_entered.get(*phase).inc(1);
@@ -613,6 +619,7 @@ impl QueryLogEntry {
         record_metric_if_now_set!(ingester_metrics, prev_state, metrics);
         record_metric_if_now_set!(deduplicated_parquet_files, prev_state, metrics);
         record_metric_if_now_set!(deduplicated_partitions, prev_state, metrics);
+        record_metric_if_now_set!(num_rows, prev_state, metrics);
     }
 
     pub fn emit_line_protocol(
@@ -707,6 +714,35 @@ impl QueryLog {
         }
     }
 
+    /// Push a query log entry with an externally-provided query ID.
+    ///
+    /// This is used by the enterprise query executor to pass through
+    /// a query ID from an external source (e.g., a flight ticket).
+    #[cfg(feature = "external-query-id")]
+    #[expect(clippy::too_many_arguments)]
+    pub fn push_with_query_id(
+        &self,
+        query_id: Uuid,
+        namespace_id: NamespaceId,
+        namespace_name: Arc<str>,
+        query_type: &'static str,
+        query_text: QueryText,
+        query_params: StatementParams,
+        auth_id: Option<String>,
+        trace_id: Option<TraceId>,
+    ) -> QueryCompletedToken<StateReceived> {
+        self.push_entry(
+            query_id,
+            namespace_id,
+            namespace_name,
+            query_type,
+            query_text,
+            query_params,
+            auth_id,
+            trace_id,
+        )
+    }
+
     #[expect(clippy::too_many_arguments)]
     pub fn push(
         &self,
@@ -718,9 +754,33 @@ impl QueryLog {
         auth_id: Option<String>,
         trace_id: Option<TraceId>,
     ) -> QueryCompletedToken<StateReceived> {
+        self.push_entry(
+            (self.id_gen)(),
+            namespace_id,
+            namespace_name,
+            query_type,
+            query_text,
+            query_params,
+            auth_id,
+            trace_id,
+        )
+    }
+
+    #[expect(clippy::too_many_arguments)]
+    fn push_entry(
+        &self,
+        query_id: Uuid,
+        namespace_id: NamespaceId,
+        namespace_name: Arc<str>,
+        query_type: &'static str,
+        query_text: QueryText,
+        query_params: StatementParams,
+        auth_id: Option<String>,
+        trace_id: Option<TraceId>,
+    ) -> QueryCompletedToken<StateReceived> {
         let entry = Arc::new(QueryLogEntry {
             state: Mutex::new(Arc::new(QueryLogEntryState {
-                id: (self.id_gen)(),
+                id: query_id,
                 namespace_id,
                 namespace_name,
                 query_type,
@@ -743,6 +803,7 @@ impl QueryLog {
                 ingester_metrics: None,
                 deduplicated_parquet_files: Default::default(),
                 deduplicated_partitions: Default::default(),
+                num_rows: Default::default(),
             })),
         });
         entry.emit(&self.metrics, None, self.query_log_write_client.clone());
@@ -894,6 +955,7 @@ where
         self.collect_compute_time(state);
         self.collect_memory_usage(state);
         self.collect_ingester_metrics(state);
+        self.collect_num_rows(state);
     }
 
     fn collect_compute_time(&self, state: &mut QueryLogEntryState) {
@@ -913,6 +975,12 @@ where
     fn collect_ingester_metrics(&self, state: &mut QueryLogEntryState) {
         if let Some(plan) = self.state.plan() {
             state.ingester_metrics = Some(collect_ingester_metrics(plan.as_ref()));
+        }
+    }
+
+    fn collect_num_rows(&self, state: &mut QueryLogEntryState) {
+        if let Some(plan) = self.state.plan() {
+            state.num_rows = collect_num_rows(plan.as_ref());
         }
     }
 
@@ -1208,6 +1276,30 @@ fn collect_ingester_metrics(plan: &dyn ExecutionPlan) -> IngesterMetrics {
     }
 }
 
+/// Collect the number of rows from an [`ExecutionPlan`].
+///
+/// ## Note
+/// This function returns returns an [`Option`] to distinguish between
+/// no metrics being available and no rows being returned by a query.
+///
+/// Specifically:
+/// - A return value of [`None`] means that no metrics were available.
+/// - A return value of `Some(0)` would indicate that a query produced no results.
+fn collect_num_rows(plan: &dyn ExecutionPlan) -> Option<u64> {
+    let mut num_rows: Option<u64> = None;
+    if let Some(metrics) = plan.metrics() {
+        if let Some(rows) = metrics.output_rows() {
+            *num_rows.get_or_insert(0) += rows as u64;
+        }
+        for child in plan.children() {
+            if let Some(child_rows) = collect_num_rows(child.as_ref()) {
+                *num_rows.get_or_insert(0) += child_rows;
+            }
+        }
+    }
+
+    num_rows
+}
 #[derive(Debug)]
 pub struct PermitAndToken {
     pub permit: InstrumentedAsyncOwnedSemaphorePermit,
@@ -1261,6 +1353,7 @@ struct Metrics {
     phase_current: PhaseMetric<U64Gauge>,
     partitions: U64Histogram,
     parquet_files: U64Histogram,
+    num_rows: U64Histogram,
     permit_duration: DurationHistogram,
     plan_duration: DurationHistogram,
     execute_duration: DurationHistogram,
@@ -1369,6 +1462,29 @@ impl Metrics {
                     "influxdb_iox_query_log_deduplicated_partitions",
                     "The number of partitions that are held under a `DeduplicateExec`",
                     || U64HistogramOptions::new([0, 1, 10, 100, 1_000, 10_000, u64::MAX]),
+                )
+                .recorder([]),
+            num_rows: registry
+                .register_metric_with_options::<U64Histogram, _>(
+                    "influxdb_iox_query_log_num_rows",
+                    "The number of rows returned per query",
+                    || {
+                        U64HistogramOptions::new([
+                            0,
+                            1,
+                            10,
+                            100,
+                            200,
+                            500,
+                            1_000,
+                            2_000,
+                            5_000,
+                            10_000,
+                            20_000,
+                            100_000,
+                            u64::MAX,
+                        ])
+                    },
                 )
                 .recorder([]),
         }
@@ -1743,6 +1859,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 0
@@ -1829,6 +1962,7 @@ mod test_super {
             deduplicated_partitions: Some(0),
             deduplicated_parquet_files: Some(0),
             plan_duration: Some(Duration::from_millis(1)),
+            num_rows: None,
             phase: QueryPhase::Planned,
             ..expected
         };
@@ -2008,6 +2142,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -2268,6 +2419,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -2352,6 +2520,7 @@ mod test_super {
             end2end_duration: Some(Duration::from_millis(111)),
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
+            num_rows: Some(10),
             success: true,
             running: false,
             phase: QueryPhase::Success,
@@ -2534,6 +2703,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 1
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 1
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 1
+        influxdb_iox_query_log_num_rows_sum 10
+        influxdb_iox_query_log_num_rows_count 1
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -2616,7 +2802,7 @@ mod test_super {
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
+        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
         "#);
     }
 
@@ -2820,6 +3006,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 0
@@ -3086,6 +3289,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -3346,6 +3566,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -3430,6 +3667,7 @@ mod test_super {
             end2end_duration: Some(Duration::from_millis(111)),
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
+            num_rows: Some(10),
             success: true,
             running: false,
             phase: QueryPhase::Success,
@@ -3612,6 +3850,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 1
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 1
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 1
+        influxdb_iox_query_log_num_rows_sum 10
+        influxdb_iox_query_log_num_rows_count 1
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -3694,7 +3949,7 @@ mod test_super {
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
+        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
         "#);
     }
 
@@ -3896,6 +4151,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 0
@@ -4161,6 +4433,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -4421,6 +4710,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -4505,6 +4811,7 @@ mod test_super {
             end2end_duration: Some(Duration::from_millis(111)),
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
+            num_rows: Some(10),
             success: true,
             running: false,
             phase: QueryPhase::Success,
@@ -4687,6 +4994,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 1
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 1
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 1
+        influxdb_iox_query_log_num_rows_sum 10
+        influxdb_iox_query_log_num_rows_count 1
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -4769,7 +5093,7 @@ mod test_super {
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
+        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
         "#);
     }
 
@@ -4971,6 +5295,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 0
@@ -5086,6 +5427,7 @@ mod test_super {
             end2end_duration: Some(Duration::from_millis(111)),
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
+            num_rows: Some(10),
             running: false,
             phase: QueryPhase::Fail,
             ingester_metrics: Some(IngesterMetrics::default()),
@@ -5267,6 +5609,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 1
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 1
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 1
+        influxdb_iox_query_log_num_rows_sum 10
+        influxdb_iox_query_log_num_rows_count 1
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -5349,7 +5708,7 @@ mod test_super {
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "fail"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = false; running = false; cancelled = false;
+        level = INFO; message = query; when = "fail"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = false; running = false; cancelled = false;
         "#);
     }
 
@@ -5550,6 +5909,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 0
@@ -5839,6 +6215,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 0
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 0
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 0
+        influxdb_iox_query_log_num_rows_sum 0
+        influxdb_iox_query_log_num_rows_count 0
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -5955,6 +6348,7 @@ mod test_super {
             // partial stats collected
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
+            num_rows: Some(10),
             running: false,
             phase: QueryPhase::Cancel,
             ingester_metrics: Some(IngesterMetrics::default()),
@@ -6136,6 +6530,23 @@ mod test_super {
         influxdb_iox_query_log_max_memory_bucket{le="inf"} 1
         influxdb_iox_query_log_max_memory_sum 0
         influxdb_iox_query_log_max_memory_count 1
+        # HELP influxdb_iox_query_log_num_rows The number of rows returned per query
+        # TYPE influxdb_iox_query_log_num_rows histogram
+        influxdb_iox_query_log_num_rows_bucket{le="0"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="1"} 0
+        influxdb_iox_query_log_num_rows_bucket{le="10"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="200"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="500"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="1000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="2000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="5000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="10000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="20000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="100000"} 1
+        influxdb_iox_query_log_num_rows_bucket{le="inf"} 1
+        influxdb_iox_query_log_num_rows_sum 10
+        influxdb_iox_query_log_num_rows_count 1
         # HELP influxdb_iox_query_log_parquet_files Number of parquet files processed by the query
         # TYPE influxdb_iox_query_log_parquet_files histogram
         influxdb_iox_query_log_parquet_files_bucket{le="0"} 1
@@ -6218,7 +6629,7 @@ mod test_super {
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
         level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "cancel"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = false; running = false; cancelled = true;
+        level = INFO; message = query; when = "cancel"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = false; running = false; cancelled = true;
         "#);
     }
 
@@ -6282,6 +6693,7 @@ mod test_super {
                 execute_duration: None,
                 end2end_duration: None,
                 compute_duration: None,
+                num_rows: None,
                 max_memory: None,
                 success: false,
                 running: true,
@@ -6379,6 +6791,10 @@ mod test_super {
             let t = datafusion::physical_plan::metrics::Time::default();
             t.add_duration(Duration::from_millis(1_337));
             metrics.push(Arc::new(Metric::new(MetricValue::ElapsedCompute(t), None)));
+
+            let rows = datafusion::physical_plan::metrics::Count::new();
+            rows.add(10);
+            metrics.push(Arc::new(Metric::new(MetricValue::OutputRows(rows), None)));
 
             Some(metrics)
         }

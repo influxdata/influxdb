@@ -193,8 +193,8 @@ mod tests {
                 "1/2/partition4/file44",
             ]),
         ];
-        let plan = UnionExec::new(execs);
-        let metrics = ParquetFileMetrics::plan_metrics(&plan);
+        let plan = UnionExec::try_new(execs).unwrap();
+        let metrics = ParquetFileMetrics::plan_metrics(&*plan);
         assert_eq!(
             metrics,
             ParquetFileMetrics {
@@ -234,8 +234,8 @@ mod tests {
                 "1/2/partition1/file44",
             ]),
         ];
-        let plan = UnionExec::new(execs);
-        let metrics = ParquetFileMetrics::plan_metrics(&plan);
+        let plan = UnionExec::try_new(execs).unwrap();
+        let metrics = ParquetFileMetrics::plan_metrics(&*plan);
         assert_eq!(
             metrics,
             ParquetFileMetrics {
@@ -268,8 +268,8 @@ mod tests {
             )),
         ];
 
-        let plan = UnionExec::new(execs);
-        let metrics = ParquetFileMetrics::plan_metrics(&plan);
+        let plan = UnionExec::try_new(execs).unwrap();
+        let metrics = ParquetFileMetrics::plan_metrics(&*plan);
 
         assert_eq!(
             metrics,
@@ -314,8 +314,8 @@ mod tests {
                 false,
             )),
         ];
-        let plan = UnionExec::new(execs);
-        let metrics = ParquetFileMetrics::plan_metrics(&plan);
+        let plan = UnionExec::try_new(execs).unwrap();
+        let metrics = ParquetFileMetrics::plan_metrics(&*plan);
         assert_eq!(
             metrics,
             ParquetFileMetrics {

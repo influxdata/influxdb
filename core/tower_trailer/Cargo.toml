@@ -16,6 +16,6 @@ http-body = { workspace = true }
 parking_lot = "0.12"
 pin-project = "1.1"
 tower = { workspace = true }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]

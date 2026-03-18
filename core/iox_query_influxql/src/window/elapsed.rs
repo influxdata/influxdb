@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use crate::error;
-use crate::window::difference::window_difference;
 use arrow::array::{Array, ArrayRef, AsArray, PrimitiveArray};
 use arrow::datatypes::IntervalUnit::MonthDayNano;
 use arrow::datatypes::TimeUnit::Nanosecond;
@@ -9,6 +8,7 @@ use arrow::datatypes::{DataType, Field, FieldRef, Int64Type};
 use datafusion::common::{Result, ScalarValue};
 use datafusion::logical_expr::function::{PartitionEvaluatorArgs, WindowUDFFieldArgs};
 use datafusion::logical_expr::{PartitionEvaluator, Signature, Volatility, WindowUDFImpl};
+use query_functions::difference::window_difference;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub(super) struct ElapsedUDWF {

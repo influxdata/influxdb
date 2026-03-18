@@ -19,7 +19,7 @@ iox_query_params = { path = "../iox_query_params/" }
 # Crates.io dependencies, in alphabetical order
 bytes = "1.11"
 futures = "0.3"
-snafu = "0.8"
+snafu = "0.9"
 prost = { workspace = true }
 tracing = { workspace = true }
-workspace-hack = { path = "../workspace-hack" }
+

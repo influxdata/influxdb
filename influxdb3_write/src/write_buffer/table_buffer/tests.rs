@@ -233,3 +233,184 @@ async fn test_time_filters() {
         assert_batches_sorted_eq!(t.expected_output, &batches);
     }
 }
+
+#[tokio::test]
+async fn test_chunk_splits_on_large_string_payload() {
+    // Set a low limit so we can test chunk splitting without using huge amounts of memory.
+    // Each string is 50 bytes, so with a limit of 99 bytes:
+    // - rows1 (50 bytes): 0 + 50 <= 99, fits in chunk1
+    // - rows2 (50 bytes): 50 + 50 = 100 > 99, predictive check triggers new chunk2
+    // - rows3 (50 bytes): 50 + 50 = 100 > 99, predictive check triggers new chunk3
+    let _guard = VarColMaxGuard::new(99);
+
+    let writer = TestWriter::new().await;
+
+    // Each string is 50 bytes
+    let rows1 = writer
+        .write_to_rows(
+            "tbl,tag=a val=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" 1",
+            0,
+        )
+        .await;
+
+    let rows2 = writer
+        .write_to_rows(
+            "tbl,tag=b val=\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" 2",
+            0,
+        )
+        .await;
+
+    let rows3 = writer
+        .write_to_rows(
+            "tbl,tag=c val=\"cccccccccccccccccccccccccccccccccccccccccccccccccc\" 3",
+            0,
+        )
+        .await;
+
+    let table_def = writer.db_schema().table_definition("tbl").unwrap();
+
+    let mut table_buffer = TableBuffer::new();
+
+    // Buffer first batch - chunk is empty, 0 + 50 <= 99, goes to chunk1
+    // After: chunk1.string_bytes_per_column[val] = 50
+    table_buffer.buffer_chunk(0, &rows1);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+
+    // Buffer second batch - predictive check: 50 + 50 = 100 > 99, triggers new chunk
+    // After: chunk2.string_bytes_per_column[val] = 50
+    table_buffer.buffer_chunk(0, &rows2);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 2);
+
+    // Buffer third batch - predictive check: 50 + 50 = 100 > 99, triggers new chunk
+    // After: chunk3.string_bytes_per_column[val] = 50
+    table_buffer.buffer_chunk(0, &rows3);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 3);
+
+    // Verify all data can be retrieved
+    let batches = table_buffer
+        .partitioned_record_batches(Arc::clone(&table_def), &ChunkFilter::default())
+        .unwrap();
+
+    assert_eq!(batches.len(), 1); // 1 time partition
+    let (ts_min_max, record_batches) = batches.get(&0).unwrap();
+    assert_eq!(ts_min_max.min, 1);
+    assert_eq!(ts_min_max.max, 3);
+    assert_eq!(record_batches.len(), 3); // 3 chunks -> 3 record batches
+
+    // Check total row count across all batches
+    let total_rows: usize = record_batches.iter().map(|rb| rb.num_rows()).sum();
+    assert_eq!(total_rows, 3);
+}
+
+#[tokio::test]
+async fn test_chunk_accumulates_when_under_limit() {
+    // Test that multiple writes accumulate in the same chunk when under the limit.
+    // Each string is 30 bytes, limit is 100 bytes:
+    // - rows1 (30 bytes): 0 + 30 <= 100, fits in chunk1
+    // - rows2 (30 bytes): 30 + 30 = 60 <= 100, still fits in chunk1
+    // - rows3 (30 bytes): 60 + 30 = 90 <= 100, still fits in chunk1
+    // - rows4 (30 bytes): 90 + 30 = 120 > 100, triggers new chunk2
+    let _guard = VarColMaxGuard::new(100);
+
+    let writer = TestWriter::new().await;
+
+    // Each string is 30 bytes
+    let rows1 = writer
+        .write_to_rows("tbl,tag=a val=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" 1", 0)
+        .await;
+
+    let rows2 = writer
+        .write_to_rows("tbl,tag=b val=\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" 2", 0)
+        .await;
+
+    let rows3 = writer
+        .write_to_rows("tbl,tag=c val=\"cccccccccccccccccccccccccccccc\" 3", 0)
+        .await;
+
+    let rows4 = writer
+        .write_to_rows("tbl,tag=d val=\"dddddddddddddddddddddddddddddd\" 4", 0)
+        .await;
+
+    let table_def = writer.db_schema().table_definition("tbl").unwrap();
+
+    let mut table_buffer = TableBuffer::new();
+
+    // First three writes should all go to the same chunk
+    table_buffer.buffer_chunk(0, &rows1);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+
+    table_buffer.buffer_chunk(0, &rows2);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+
+    table_buffer.buffer_chunk(0, &rows3);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+
+    // Fourth write should trigger a new chunk
+    table_buffer.buffer_chunk(0, &rows4);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 2);
+
+    // Verify chunk sizes: first chunk should have 3 rows, second chunk should have 1 row
+    let chunks = table_buffer.chunk_time_to_chunks.get(&0).unwrap();
+    assert_eq!(chunks[0].row_count, 3);
+    assert_eq!(chunks[1].row_count, 1);
+
+    // Verify all data can be retrieved
+    let batches = table_buffer
+        .partitioned_record_batches(Arc::clone(&table_def), &ChunkFilter::default())
+        .unwrap();
+
+    let (ts_min_max, record_batches) = batches.get(&0).unwrap();
+    assert_eq!(ts_min_max.min, 1);
+    assert_eq!(ts_min_max.max, 4);
+
+    let total_rows: usize = record_batches.iter().map(|rb| rb.num_rows()).sum();
+    assert_eq!(total_rows, 4);
+}
+
+#[tokio::test]
+async fn test_chunk_splits_on_large_tag_payload() {
+    // Each tag value is 50 bytes, limit is 99 bytes:
+    // - rows1 (50 byte tag): 0 + 50 <= 99, fits in chunk1
+    // - rows2 (50 byte tag): 50 + 50 = 100 > 99, triggers new chunk2
+    // - rows3 (50 byte tag): 50 + 50 = 100 > 99, triggers new chunk3
+    let _guard = VarColMaxGuard::new(99);
+    let writer = TestWriter::new().await;
+    let tag_a = "a".repeat(50);
+    let tag_b = "b".repeat(50);
+    let tag_c = "c".repeat(50);
+
+    let rows1 = writer
+        .write_to_rows(format!("tbl,tag={tag_a} val=1.0 1"), 0)
+        .await;
+
+    let rows2 = writer
+        .write_to_rows(format!("tbl,tag={tag_b} val=2.0 2"), 0)
+        .await;
+
+    let rows3 = writer
+        .write_to_rows(format!("tbl,tag={tag_c} val=3.0 3"), 0)
+        .await;
+
+    let table_def = writer.db_schema().table_definition("tbl").unwrap();
+    let mut table_buffer = TableBuffer::new();
+    table_buffer.buffer_chunk(0, &rows1);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 1);
+    table_buffer.buffer_chunk(0, &rows2);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 2);
+    table_buffer.buffer_chunk(0, &rows3);
+    assert_eq!(table_buffer.chunk_time_to_chunks.get(&0).unwrap().len(), 3);
+
+    // Verify all data can be retrieved
+    let batches = table_buffer
+        .partitioned_record_batches(Arc::clone(&table_def), &ChunkFilter::default())
+        .unwrap();
+
+    assert_eq!(batches.len(), 1);
+    let (ts_min_max, record_batches) = batches.get(&0).unwrap();
+    assert_eq!(ts_min_max.min, 1);
+    assert_eq!(ts_min_max.max, 3);
+    assert_eq!(record_batches.len(), 3);
+
+    let total_rows: usize = record_batches.iter().map(|rb| rb.num_rows()).sum();
+    assert_eq!(total_rows, 3);
+}

@@ -47,7 +47,7 @@ pub async fn wait_for_signal() {
 
 /// Manage application shutdown
 ///
-/// This deries `Clone`, as the underlying `tokio` types can be shared via clone.
+/// This derives `Clone`, as the underlying `tokio` types can be shared via clone.
 #[derive(Debug, Clone)]
 pub struct ShutdownManager {
     frontend_shutdown: CancellationToken,
@@ -108,6 +108,11 @@ impl ShutdownManager {
     pub fn shutdown(&self) {
         self.backend_shutdown.cancel();
     }
+
+    /// Check if backend has been shutdown
+    pub fn is_backend_shutdown(&self) -> bool {
+        self.backend_shutdown.is_cancelled()
+    }
 }
 
 /// A token that a component can obtain via [`register`][ShutdownManager::register]
@@ -143,6 +148,10 @@ impl ShutdownToken {
     /// Future that completes when [`ShutdownManager`] that issued this token is shutdown
     pub async fn wait_for_shutdown(&self) {
         self.token.cancelled().await;
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.token.is_cancelled()
     }
 
     /// Signal back to the [`ShutdownManager`] that the component that owns this token is finished
@@ -210,7 +219,7 @@ where
     }
 
     /// The return conditions for this method are,
-    ///   - the original task [`Self::task`] output if it exits cleanly
+    ///   - the original task output if it exits cleanly
     ///   - the task itself runs into an error
     ///       - the task gets aborted, returns [`AbortableTaskRunnerError::Aborted`].
     ///         it can be argued that this is not an error but useful to distinguish this exit

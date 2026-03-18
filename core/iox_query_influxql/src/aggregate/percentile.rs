@@ -19,7 +19,7 @@ impl PercentileUDF {
     pub(super) fn new() -> Self {
         Self {
             signature: Signature::one_of(
-                crate::NUMERICS
+                query_functions::NUMERICS
                     .iter()
                     .flat_map(|dt| {
                         [

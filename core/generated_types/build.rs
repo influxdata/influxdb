@@ -86,6 +86,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         ingester_path.join("parquet_metadata.proto"),
         ingester_path.join("persist.proto"),
         ingester_path.join("write.proto"),
+        ingester_path.join("readiness.proto"),
         namespace_path.join("service.proto"),
         object_store_path.join("service.proto"),
         partition_template_path.join("template.proto"),
@@ -114,25 +115,24 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         println!("cargo:rerun-if-changed={}", proto_file.display());
     }
 
-    let mut config = tonic_build::Config::new();
-
-    config
-        .compile_well_known_types()
+    let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
+    tonic_prost_build::configure()
+        .compile_well_known_types(true)
         .disable_comments([".google"])
         .extern_path(".google.protobuf", "::pbjson_types")
-        .btree_map([
+        .btree_map(
             ".influxdata.iox.ingester.v1.IngesterQueryResponseMetadata.unpersisted_partitions",
-            ".influxdata.iox.schema.v1.UpsertSchemaRequest.columns",
-        ])
-        .type_attribute(".influxdata.iox.partition_template", "#[derive(Hash)]")
-        .bytes([".influxdata.iox.catalog_cache.v1"]);
-
-    let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
-    tonic_build::configure()
+        )
+        .btree_map(".influxdata.iox.schema.v1.UpsertSchemaRequest.columns")
+        .type_attribute(
+            ".influxdata.iox.partition_template.v1.PartitionTemplate",
+            "#[derive(Hash)]",
+        )
+        .bytes(".influxdata.iox.catalog_cache.v1")
         .file_descriptor_set_path(&descriptor_path)
         // protoc in ubuntu builder needs this option
         .protoc_arg("--experimental_allow_proto3_optional")
-        .compile_protos_with_config(config, &proto_files, &[root])?;
+        .compile_protos(&proto_files, &[root.to_path_buf()])?;
 
     let descriptor_set = std::fs::read(descriptor_path)?;
 

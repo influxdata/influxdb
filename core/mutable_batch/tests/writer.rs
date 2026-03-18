@@ -3,20 +3,9 @@
 
 use arrow_util::assert_batches_eq;
 use core::iter::empty;
-use data_types::{StatValues, Statistics};
-use mutable_batch::{MutableBatch, TimestampSummary, writer::Writer};
+use data_types::TimestampMinMax;
+use mutable_batch::{MutableBatch, writer::Writer};
 use schema::Projection;
-use std::num::NonZeroU64;
-
-fn get_stats(batch: &MutableBatch) -> Vec<(&str, Statistics)> {
-    let mut stats: Vec<_> = batch
-        .columns()
-        .map(|(_, name, col)| (name.as_str(), col.stats()))
-        .collect();
-
-    stats.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
-    stats
-}
 
 #[test]
 fn test_basic() {
@@ -75,8 +64,6 @@ fn test_basic() {
 
     writer.commit();
 
-    let stats: Vec<_> = get_stats(&batch);
-
     let expected_data = &[
         "+-------+-------+-------+-----+-------+------+------+------+--------------------------------+-----+",
         "| b1    | b2    | f64   | i64 | i64_2 | tag1 | tag2 | tag3 | time                           | u64 |",
@@ -89,72 +76,10 @@ fn test_basic() {
         "+-------+-------+-------+-----+-------+------+------+------+--------------------------------+-----+",
     ];
 
-    let expected_stats = vec![
-        (
-            "b1",
-            Statistics::Bool(StatValues::new(Some(false), Some(true), 5, Some(0))),
-        ),
-        (
-            "b2",
-            Statistics::Bool(StatValues::new(Some(false), Some(true), 5, Some(1))),
-        ),
-        (
-            "f64",
-            Statistics::F64(StatValues::new(Some(-24.), Some(477.), 5, Some(1))),
-        ),
-        (
-            "i64",
-            Statistics::I64(StatValues::new(Some(-3), Some(234), 5, Some(0))),
-        ),
-        (
-            "i64_2",
-            Statistics::I64(StatValues::new(Some(-8), Some(-8), 5, Some(4))),
-        ),
-        (
-            "tag1",
-            Statistics::String(StatValues::new_with_distinct(
-                Some("v1".to_string()),
-                Some("v2".to_string()),
-                5,
-                Some(0),
-                Some(NonZeroU64::new(2).unwrap()),
-            )),
-        ),
-        (
-            "tag2",
-            Statistics::String(StatValues::new_with_distinct(
-                Some("v1".to_string()),
-                Some("v2".to_string()),
-                5,
-                Some(2),
-                Some(NonZeroU64::new(3).unwrap()),
-            )),
-        ),
-        (
-            "tag3",
-            Statistics::String(StatValues::new_with_distinct(
-                Some("v1".to_string()),
-                Some("v2".to_string()),
-                5,
-                Some(1),
-                Some(NonZeroU64::new(3).unwrap()),
-            )),
-        ),
-        (
-            "time",
-            Statistics::I64(StatValues::new(Some(3), Some(7), 5, Some(0))),
-        ),
-        (
-            "u64",
-            Statistics::U64(StatValues::new(Some(5), Some(23), 5, Some(3))),
-        ),
-    ];
-
     assert_batches_eq!(
         expected_data,
         &[batch.clone().try_into_arrow(Projection::All).unwrap()]
     );
-    assert_eq!(stats, expected_stats);
 
     let mut writer = Writer::new(&mut batch, 4);
     writer
@@ -167,14 +92,11 @@ fn test_basic() {
 
     std::mem::drop(writer);
 
-    let stats: Vec<_> = get_stats(&batch);
-
-    // Writer dropped, should not impact stats or data
+    // Writer dropped, should not impact data
     assert_batches_eq!(
         expected_data,
         &[batch.clone().try_into_arrow(Projection::All).unwrap()]
     );
-    assert_eq!(stats, expected_stats);
 
     let err = Writer::new(&mut batch, 1)
         .write_tag("b1", None, vec!["err"].into_iter())
@@ -212,14 +134,11 @@ fn test_basic() {
 
     assert_eq!(err.as_str(), "Key not found in dictionary: 1");
 
-    let stats: Vec<_> = get_stats(&batch);
-
     // Writer not committed, should not impact stats or data
     assert_batches_eq!(
         expected_data,
         &[batch.clone().try_into_arrow(Projection::All).unwrap()]
     );
-    assert_eq!(stats, expected_stats);
 
     let mut writer = Writer::new(&mut batch, 17);
 
@@ -247,8 +166,6 @@ fn test_basic() {
         .unwrap();
 
     writer.commit();
-
-    let stats: Vec<_> = get_stats(&batch);
 
     let expected_data = &[
         "+-------+-------+--------+-----+-------+------+------+------+--------------------------------+-----+",
@@ -279,82 +196,13 @@ fn test_basic() {
         "+-------+-------+--------+-----+-------+------+------+------+--------------------------------+-----+",
     ];
 
-    let expected_stats = vec![
-        (
-            "b1",
-            Statistics::Bool(StatValues::new(Some(false), Some(true), 22, Some(17))),
-        ),
-        (
-            "b2",
-            Statistics::Bool(StatValues::new(Some(false), Some(true), 22, Some(18))),
-        ),
-        (
-            "f64",
-            Statistics::F64(StatValues::new(Some(-222.), Some(945.), 22, Some(13))),
-        ),
-        (
-            "i64",
-            Statistics::I64(StatValues::new(Some(-3), Some(234), 22, Some(17))),
-        ),
-        (
-            "i64_2",
-            Statistics::I64(StatValues::new(Some(-8), Some(-8), 22, Some(21))),
-        ),
-        (
-            "tag1",
-            Statistics::String(StatValues::new_with_distinct(
-                Some("v1".to_string()),
-                Some("v2".to_string()),
-                22,
-                Some(17),
-                Some(NonZeroU64::new(3).unwrap()),
-            )),
-        ),
-        (
-            "tag2",
-            Statistics::String(StatValues::new_with_distinct(
-                Some("v1".to_string()),
-                Some("v4".to_string()),
-                22,
-                Some(6),
-                Some(NonZeroU64::new(4).unwrap()),
-            )),
-        ),
-        (
-            "tag3",
-            Statistics::String(StatValues::new_with_distinct(
-                Some("v1".to_string()),
-                Some("v2".to_string()),
-                22,
-                Some(1),
-                Some(NonZeroU64::new(3).unwrap()),
-            )),
-        ),
-        (
-            "time",
-            Statistics::I64(StatValues::new(Some(0), Some(16), 22, Some(0))),
-        ),
-        (
-            "u64",
-            Statistics::U64(StatValues::new(Some(5), Some(23), 22, Some(20))),
-        ),
-    ];
-
     assert_batches_eq!(
         expected_data,
         &[batch.clone().try_into_arrow(Projection::All).unwrap()]
     );
-    assert_eq!(stats, expected_stats);
 
-    let mut expected_timestamps = TimestampSummary::default();
-    for t in [
-        7, 5, 7, 3, 5, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-    ] {
-        expected_timestamps.record_nanos(t)
-    }
-
-    let timestamps = batch.timestamp_summary().unwrap();
-    assert_eq!(timestamps, expected_timestamps);
+    let timestamps = batch.timestamp_minmax().unwrap();
+    assert_eq!(timestamps, TimestampMinMax { min: 0, max: 16 });
 }
 
 #[test]
@@ -385,7 +233,7 @@ fn test_null_only() {
 
     writer.commit();
 
-    let stats: Vec<_> = get_stats(&batch);
+    // let stats: Vec<_> = get_stats(&batch);
 
     let expected_data = &[
         "+----+-----+-----+--------+------+--------------------------------+-----+",
@@ -395,68 +243,8 @@ fn test_null_only() {
         "+----+-----+-----+--------+------+--------------------------------+-----+",
     ];
 
-    let expected_stats = vec![
-        (
-            "b1",
-            Statistics::Bool(StatValues::new(None, None, 1, Some(1))),
-        ),
-        (
-            "f64",
-            Statistics::F64(StatValues::new(None, None, 1, Some(1))),
-        ),
-        (
-            "i64",
-            Statistics::I64(StatValues::new(None, None, 1, Some(1))),
-        ),
-        (
-            "string",
-            Statistics::String(StatValues::new(None, None, 1, Some(1))),
-        ),
-        (
-            "tag1",
-            Statistics::String(StatValues::new_with_distinct(
-                None,
-                None,
-                1,
-                Some(1),
-                Some(1.try_into().unwrap()),
-            )),
-        ),
-        (
-            "time",
-            Statistics::I64(StatValues::new(Some(42), Some(42), 1, Some(0))),
-        ),
-        (
-            "u64",
-            Statistics::U64(StatValues::new(None, None, 1, Some(1))),
-        ),
-    ];
-
     assert_batches_eq!(
         expected_data,
         &[batch.clone().try_into_arrow(Projection::All).unwrap()]
     );
-    pretty_assertions::assert_eq!(expected_stats, stats);
-}
-
-#[test]
-fn test_nan_stats() {
-    let mut batch = MutableBatch::new();
-
-    let mut writer = Writer::new(&mut batch, 3);
-
-    writer
-        .write_f64s_from_slice("f64", &[4.2, f64::NAN, 2.4])
-        .unwrap();
-
-    writer.commit();
-
-    let stats: Vec<_> = get_stats(&batch);
-
-    let expected_stats = vec![(
-        "f64",
-        Statistics::F64(StatValues::new(Some(2.4), Some(4.2), 3, Some(0))),
-    )];
-
-    pretty_assertions::assert_eq!(expected_stats, stats);
 }

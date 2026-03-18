@@ -7,9 +7,6 @@ use futures_test_utils::{AssertFutureExt, FutureObserver};
 use rand::Rng;
 use tokio::sync::Barrier;
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 #[derive(Debug, Clone, Parser)]
 struct BenchmarkParams {
     /// Run actual benchmark.

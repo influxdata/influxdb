@@ -1,6 +1,3 @@
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use std::{any::Any, collections::VecDeque, sync::Arc};
 
 use parking_lot::Mutex;

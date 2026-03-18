@@ -13,7 +13,7 @@ data_types = { path = "../data_types" }
 mutable_batch = { path = "../mutable_batch" }
 parking_lot = "0.12"
 siphasher = "1.0"
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = [

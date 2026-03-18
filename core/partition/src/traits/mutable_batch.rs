@@ -20,14 +20,14 @@ impl PartitioningColumn for MutableBatchColumn {
     fn get_tag_identity_key(&self, idx: usize) -> Option<&Self::TagIdentityKey> {
         debug_assert!(PartitioningColumn::is_valid(self, idx));
         match self.data() {
-            ColumnData::Tag(col_data, _, _) => Some(&col_data[idx]),
+            ColumnData::Tag(col_data, _) => Some(&col_data[idx]),
             _ => None,
         }
     }
 
     fn get_tag_value<'a>(&'a self, tag_identity_key: &'a Self::TagIdentityKey) -> Option<&'a str> {
         match self.data() {
-            ColumnData::Tag(_, dictionary, _) => dictionary.lookup_id(*tag_identity_key),
+            ColumnData::Tag(_, dictionary) => dictionary.lookup_id(*tag_identity_key),
             _ => None,
         }
     }
@@ -54,7 +54,7 @@ impl Batch for MutableBatch {
             .map_err(|_| TimeColumnError::NotFound)?;
 
         match &time_column.data() {
-            ColumnData::I64(col_data, _) => Ok(col_data),
+            ColumnData::I64(col_data) => Ok(col_data),
             x => unreachable!("expected i64 got {}", x),
         }
     }

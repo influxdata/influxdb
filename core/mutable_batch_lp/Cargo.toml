@@ -15,8 +15,8 @@ influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 itertools = "0.13.0"
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }
-snafu = "0.8"
-workspace-hack = { path = "../workspace-hack" }
+snafu = "0.9"
+
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }

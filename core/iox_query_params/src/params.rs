@@ -15,6 +15,7 @@ use arrow::{
     },
     record_batch::RecordBatch,
 };
+use datafusion::common::metadata::ScalarAndMetadata;
 use datafusion::scalar::ScalarValue;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -499,6 +500,13 @@ impl From<StatementParam> for ScalarValue {
             StatementParam::Float64(f) => Self::Float64(Some(f)),
             StatementParam::String(s) => Self::Utf8(Some(s)),
         }
+    }
+}
+
+/// Convert to DataFusion [ScalarAndMetadata] for use with [datafusion::common::ParamValues]
+impl From<StatementParam> for ScalarAndMetadata {
+    fn from(value: StatementParam) -> Self {
+        ScalarValue::from(value).into()
     }
 }
 

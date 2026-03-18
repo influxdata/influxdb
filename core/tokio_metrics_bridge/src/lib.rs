@@ -8,7 +8,6 @@ mod not_tokio_unstable {
     use metric as _;
     use parking_lot as _;
     use tokio as _;
-    use workspace_hack as _;
 }
 
 #[cfg(tokio_unstable)]

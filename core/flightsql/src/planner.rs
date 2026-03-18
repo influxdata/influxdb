@@ -526,8 +526,8 @@ async fn plan_get_tables(
             };
 
             let table_type = "VIEW";
-            let schema = Schema::from(table.schema());
-            builder.append(&catalog_name, schema_name, table_name, table_type, &schema)?;
+            let schema = table.schema().as_arrow();
+            builder.append(&catalog_name, schema_name, table_name, table_type, schema)?;
         }
 
         for schema_name in catalog.schema_names() {

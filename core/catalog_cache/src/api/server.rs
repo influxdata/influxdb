@@ -426,10 +426,9 @@ pub mod test_util {
                             let conn = graceful.watch(conn);
 
                             tokio::task::spawn(async move {
-                                if let Err(err) = conn
-                                    .await {
-                                        println!("Error serving connection: {err:?}");
-                                    };
+                                if let Err(err) = conn.await {
+                                    println!("Error serving connection: {err:?}");
+                                };
                             });
                         },
                     }

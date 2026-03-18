@@ -11,7 +11,7 @@ http = { workspace = true }
 http-body = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [lints]
 workspace = true

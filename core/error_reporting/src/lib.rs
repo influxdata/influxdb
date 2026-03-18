@@ -1,7 +1,5 @@
 //! Utilities for error reporting in IOx
 
-use workspace_hack as _;
-
 use core::error::Error;
 use core::fmt::Display;
 

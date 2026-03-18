@@ -6,10 +6,10 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-futures = { version = "0.3.31" }
+futures = { version = "0.3.32" }
 futures-concurrency = "7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 clap = { version = "4", features = ["derive"] }

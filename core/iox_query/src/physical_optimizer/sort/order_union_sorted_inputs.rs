@@ -1856,7 +1856,7 @@ mod test {
         - "   ReorderPartitionsExec: mapped_partition_indices=[5, 0, 1, 2, 3, 4]"
         - "     SortExec: TopK(fetch=1), expr=[time@1 DESC], preserve_partitioning=[true]"
         - "       UnionExec"
-        - "         DataSourceExec: file_groups={5 groups: [[4.parquet:0..100000000], [5.parquet:0..100000000], [6.parquet:0..100000000], [7.parquet:0..100000000], [8.parquet:0..100000000]]}, projection=[tag, time], output_ordering=[tag@0 ASC, time@1 ASC], file_type=parquet, predicate=time@1 > 0, pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
+        - "         DataSourceExec: file_groups={5 groups: [[4.parquet:0..100000000], [5.parquet:0..100000000], [6.parquet:0..100000000], [7.parquet:0..100000000], [8.parquet:0..100000000]]}, projection=[tag, time], output_ordering=[tag@0 ASC, time@1 ASC], file_type=parquet, predicate=time@1 > 0 AND DynamicFilter [ empty ], pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
         - "         ProjectionExec: expr=[tag@0 as tag, time@1 as time]"
         - "           DeduplicateExec: [tag@0 ASC,time@1 ASC]"
         - "             SortPreservingMergeExec: [tag@0 ASC, time@1 ASC, __chunk_order@2 ASC]"
@@ -1896,7 +1896,7 @@ mod test {
         - " ProgressiveEvalExec: fetch=1, input_ranges=[(45)->(49), (50)->(54), (55)->(58), (60)->(64), (65)->(69), (90)->(100)]"
         - "   SortExec: TopK(fetch=1), expr=[time@1 ASC], preserve_partitioning=[true]"
         - "     UnionExec"
-        - "       DataSourceExec: file_groups={5 groups: [[8.parquet:0..100000000], [7.parquet:0..100000000], [6.parquet:0..100000000], [5.parquet:0..100000000], [4.parquet:0..100000000]]}, projection=[tag, time], output_ordering=[tag@0 ASC, time@1 ASC], file_type=parquet, predicate=time@1 > 0, pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
+        - "       DataSourceExec: file_groups={5 groups: [[8.parquet:0..100000000], [7.parquet:0..100000000], [6.parquet:0..100000000], [5.parquet:0..100000000], [4.parquet:0..100000000]]}, projection=[tag, time], output_ordering=[tag@0 ASC, time@1 ASC], file_type=parquet, predicate=time@1 > 0 AND DynamicFilter [ empty ], pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
         - "       ProjectionExec: expr=[tag@0 as tag, time@1 as time]"
         - "         DeduplicateExec: [tag@0 ASC,time@1 ASC]"
         - "           SortPreservingMergeExec: [tag@0 ASC, time@1 ASC, __chunk_order@2 ASC]"
@@ -1998,7 +1998,7 @@ mod test {
             @r#"
         - " ProgressiveEvalExec: fetch=1, input_ranges=[(65)->(69), (60)->(64), (55)->(58), (50)->(54), (45)->(49)]"
         - "   SortExec: TopK(fetch=1), expr=[time@1 DESC], preserve_partitioning=[true]"
-        - "     DataSourceExec: file_groups={5 groups: [[1.parquet:0..100000000], [2.parquet:0..100000000], [3.parquet:0..100000000], [4.parquet:0..100000000], [5.parquet:0..100000000]]}, projection=[tag, time], output_ordering=[tag@0 ASC, time@1 ASC], file_type=parquet, predicate=time@1 > 0 AND DynamicFilterPhysicalExpr [ true ], pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
+        - "     DataSourceExec: file_groups={5 groups: [[1.parquet:0..100000000], [2.parquet:0..100000000], [3.parquet:0..100000000], [4.parquet:0..100000000], [5.parquet:0..100000000]]}, projection=[tag, time], output_ordering=[tag@0 ASC, time@1 ASC], file_type=parquet, predicate=time@1 > 0 AND DynamicFilter [ empty ], pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
         "#
         );
 
@@ -2028,7 +2028,7 @@ mod test {
             @r#"
         - " ProgressiveEvalExec: fetch=1, input_ranges=[(45)->(49), (50)->(54), (55)->(58), (60)->(64), (65)->(69)]"
         - "   SortExec: TopK(fetch=1), expr=[time@1 ASC], preserve_partitioning=[true]"
-        - "     DataSourceExec: file_groups={5 groups: [[5.parquet:0..100000000], [4.parquet:0..100000000], [3.parquet:0..100000000], [2.parquet:0..100000000], [1.parquet:0..100000000]]}, projection=[tag, time], output_ordering=[tag@0 ASC, time@1 ASC], file_type=parquet, predicate=time@1 > 0 AND DynamicFilterPhysicalExpr [ true ], pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
+        - "     DataSourceExec: file_groups={5 groups: [[5.parquet:0..100000000], [4.parquet:0..100000000], [3.parquet:0..100000000], [2.parquet:0..100000000], [1.parquet:0..100000000]]}, projection=[tag, time], output_ordering=[tag@0 ASC, time@1 ASC], file_type=parquet, predicate=time@1 > 0 AND DynamicFilter [ empty ], pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
         "#
         );
     }
@@ -2119,7 +2119,7 @@ mod test {
 
         /// Create a union of this plan with another plan
         fn union(self, other: Self) -> Self {
-            let inner = Arc::new(UnionExec::new(vec![self.inner, other.inner]));
+            let inner = UnionExec::try_new(vec![self.inner, other.inner]).unwrap();
             Self { inner }
         }
 

@@ -45,7 +45,10 @@ use datafusion_util::config::{
 };
 use executor::{DedicatedExecutor, get_io_runtime};
 use futures::TryStreamExt;
-use query_functions::{register_iox_scalar_functions, selectors::register_selector_aggregates};
+use query_functions::{
+    register_iox_scalar_functions, register_iox_window_functions,
+    selectors::register_selector_aggregates,
+};
 use std::{fmt, num::NonZeroUsize, str::FromStr, sync::Arc};
 use trace::{
     ctx::SpanContext,
@@ -353,6 +356,7 @@ impl IOxSessionConfig {
         let inner = SessionContext::new_with_state(state);
         register_selector_aggregates(&inner);
         register_iox_scalar_functions(&inner);
+        register_iox_window_functions(&inner);
         if let Some(default_catalog) = self.default_catalog {
             inner.register_catalog(DEFAULT_CATALOG, default_catalog);
         }
@@ -361,8 +365,9 @@ impl IOxSessionConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum QueryLanguage {
+    #[default]
     Sql,
     InfluxQL,
 }
@@ -380,6 +385,15 @@ impl std::fmt::Display for NoSuchQueryLanguage {
 }
 
 impl std::error::Error for NoSuchQueryLanguage {}
+
+impl std::fmt::Display for QueryLanguage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Sql => write!(f, "SQL"),
+            Self::InfluxQL => write!(f, "InfluxQL"),
+        }
+    }
+}
 
 impl FromStr for QueryLanguage {
     type Err = NoSuchQueryLanguage;

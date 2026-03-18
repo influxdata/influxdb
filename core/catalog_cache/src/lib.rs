@@ -47,12 +47,10 @@
 
 use std::sync::Arc;
 
-// Workaround for "unused crate" lint false positives.
 #[cfg(test)]
 use criterion as _;
 #[cfg(test)]
 use data_types as _;
-use workspace_hack as _;
 
 use bytes::Bytes;
 use std::sync::atomic::AtomicBool;

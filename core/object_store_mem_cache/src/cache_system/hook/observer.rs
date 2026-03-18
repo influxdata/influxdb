@@ -18,11 +18,11 @@ pub struct ObserverHook {
     evict_fetched_bytes: U64Counter,
     evict_failed_elements: U64Counter,
     #[cfg_attr(not(test), expect(dead_code))]
-    limit_bytes: Option<U64Gauge>,
+    limit_bytes: U64Gauge,
 }
 
 impl ObserverHook {
-    pub fn new(cache: &'static str, metrics: &metric::Registry, limit_bytes: Option<u64>) -> Self {
+    pub fn new(cache: &'static str, metrics: &metric::Registry, limit_bytes: u64) -> Self {
         let metric_elements = metrics.register_metric::<U64Counter>(
             "mem_cache_change_elements",
             "Change of in-mem cache accounted by elements",
@@ -31,6 +31,14 @@ impl ObserverHook {
             "mem_cache_change_bytes",
             "Change of in-mem cache accounted by bytes",
         );
+
+        let limit_bytes_gauge = metrics
+            .register_metric::<U64Gauge>(
+                "mem_cache_limit_bytes",
+                "Limit of in-mem cache accounted by bytes",
+            )
+            .recorder(&[("cache", cache)]);
+        limit_bytes_gauge.set(limit_bytes);
 
         Self {
             inserted_elements: metric_elements
@@ -70,16 +78,7 @@ impl ObserverHook {
                 ("transition", "evicted"),
                 ("state", "failed"),
             ]),
-            limit_bytes: limit_bytes.map(|limit| {
-                let gauge = metrics
-                    .register_metric::<U64Gauge>(
-                        "mem_cache_limit_bytes",
-                        "Limit of in-mem cache accounted by bytes",
-                    )
-                    .recorder(&[("cache", cache)]);
-                gauge.set(limit);
-                gauge
-            }),
+            limit_bytes: limit_bytes_gauge,
         }
     }
 }
@@ -144,9 +143,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_new_limit() {
+    fn test_new() {
         let registry = metric::Registry::new();
-        let hook = ObserverHook::new("my_cache", &registry, Some(42));
+        let hook = ObserverHook::new("my_cache", &registry, 42);
 
         assert_eq!(
             Metrics::read(&hook),
@@ -159,28 +158,7 @@ mod tests {
                 evict_fetched_elements: 0,
                 evict_fetched_bytes: 0,
                 evict_failed_elements: 0,
-                limit_bytes: Some(42),
-            },
-        );
-    }
-
-    #[test]
-    fn test_new_no_limit() {
-        let registry = metric::Registry::new();
-        let hook = ObserverHook::new("my_cache", &registry, None);
-
-        assert_eq!(
-            Metrics::read(&hook),
-            Metrics {
-                inserted_elements: 0,
-                fetched_ok_elements: 0,
-                fetched_ok_bytes: 0,
-                fetched_err_elements: 0,
-                evict_unfetched_elements: 0,
-                evict_fetched_elements: 0,
-                evict_fetched_bytes: 0,
-                evict_failed_elements: 0,
-                limit_bytes: None,
+                limit_bytes: 42,
             },
         );
     }
@@ -188,7 +166,7 @@ mod tests {
     #[test]
     fn test_insert() {
         let registry = metric::Registry::new();
-        let hook = ObserverHook::new("my_cache", &registry, None);
+        let hook = ObserverHook::new("my_cache", &registry, 1337);
 
         hook.insert(1, &Arc::new("foo"));
         hook.insert(2, &Arc::new("bar"));
@@ -203,7 +181,7 @@ mod tests {
                 evict_fetched_elements: 0,
                 evict_fetched_bytes: 0,
                 evict_failed_elements: 0,
-                limit_bytes: None,
+                limit_bytes: 1337,
             },
         );
     }
@@ -211,7 +189,7 @@ mod tests {
     #[test]
     fn test_fetch() {
         let registry = metric::Registry::new();
-        let hook = ObserverHook::new("my_cache", &registry, None);
+        let hook = ObserverHook::new("my_cache", &registry, 1337);
 
         assert_eq!(
             hook.fetched(1, &Arc::new("foo"), Ok(42)),
@@ -236,7 +214,7 @@ mod tests {
                 evict_fetched_elements: 0,
                 evict_fetched_bytes: 0,
                 evict_failed_elements: 0,
-                limit_bytes: None,
+                limit_bytes: 1337,
             },
         );
     }
@@ -244,7 +222,7 @@ mod tests {
     #[test]
     fn test_evict() {
         let registry = metric::Registry::new();
-        let hook = ObserverHook::new("my_cache", &registry, None);
+        let hook = ObserverHook::new("my_cache", &registry, 1337);
 
         hook.evict(1, &Arc::new("foo"), EvictResult::Unfetched);
         hook.evict(2, &Arc::new("bar1"), EvictResult::Fetched { size: 42 });
@@ -263,7 +241,7 @@ mod tests {
                 evict_fetched_elements: 2,
                 evict_fetched_bytes: 85,
                 evict_failed_elements: 3,
-                limit_bytes: None,
+                limit_bytes: 1337,
             },
         );
     }
@@ -278,7 +256,7 @@ mod tests {
         evict_fetched_elements: u64,
         evict_fetched_bytes: u64,
         evict_failed_elements: u64,
-        limit_bytes: Option<u64>,
+        limit_bytes: u64,
     }
 
     impl Metrics {
@@ -304,7 +282,7 @@ mod tests {
                 evict_fetched_elements: evict_fetched_elements.fetch(),
                 evict_fetched_bytes: evict_fetched_bytes.fetch(),
                 evict_failed_elements: evict_failed_elements.fetch(),
-                limit_bytes: limit_bytes.as_ref().map(|g| g.fetch()),
+                limit_bytes: limit_bytes.fetch(),
             }
         }
     }

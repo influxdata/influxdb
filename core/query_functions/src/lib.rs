@@ -3,9 +3,7 @@
 #![warn(missing_docs)]
 #![expect(unreachable_pub)]
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
+use arrow::datatypes::DataType;
 use datafusion::{
     execution::FunctionRegistry,
     prelude::{Expr, SessionContext, lit},
@@ -18,8 +16,14 @@ pub mod coalesce_struct;
 /// Wallclock based date binning
 pub mod date_bin_wallclock;
 
+/// Difference window function.
+pub mod difference;
+
 /// Grouping by structs
 pub mod group_by;
+
+/// Non-negative adapater for derivative and difference.
+pub mod non_negative;
 
 /// Regular Expressions
 mod regex;
@@ -46,6 +50,10 @@ pub use crate::regex::REGEX_MATCH_UDF_NAME;
 pub use crate::regex::REGEX_NOT_MATCH_UDF_NAME;
 pub use crate::regex::clean_non_meta_escapes;
 pub use crate::sleep::SLEEP_UDF_NAME;
+
+/// A list of the numeric types supported by InfluxDB that can be be used
+/// as input to user-defined functions.
+pub static NUMERICS: &[DataType] = &[DataType::Int64, DataType::UInt64, DataType::Float64];
 
 /// Return an Expr that invokes a InfluxRPC compatible regex match to
 /// determine which values satisfy the pattern. Equivalent to:
@@ -113,6 +121,15 @@ pub fn register_iox_scalar_functions(ctx: &SessionContext) {
     for f in registry.udfs() {
         let udf = registry.udf(&f).unwrap();
         ctx.register_udf(udf.as_ref().clone())
+    }
+}
+
+/// registers iox window functions into the [`SessionContext`] so they can be invoked via SQL
+pub fn register_iox_window_functions(ctx: &SessionContext) {
+    let registry = registry_iox_udfs();
+    for f in registry.udwfs() {
+        let udf = registry.udwf(&f).unwrap();
+        ctx.register_udwf(udf.as_ref().clone())
     }
 }
 
