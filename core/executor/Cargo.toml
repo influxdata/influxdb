@@ -12,9 +12,9 @@ workspace = true
 futures = "0.3"
 metric = { path = "../metric" }
 parking_lot = "0.12"
-snafu = "0.8"
-tokio = { version = "1.49" }
+snafu = "0.9"
+tokio = { version = "1.50" }
 tokio_metrics_bridge = { path = "../tokio_metrics_bridge" }
 tokio_watchdog = { path = "../tokio_watchdog" }
 tracing = { workspace = true }
-workspace-hack = { path = "../workspace-hack" }
+

@@ -211,6 +211,12 @@ impl<'a> TypeEvaluator<'a> {
             | "holt_winters_with_fit" => Some(VarRefDataType::Float),
             "elapsed" => Some(VarRefDataType::Integer),
 
+            // The datafusion date_part function can either return an
+            // integer or a float, depending on the part. The planner
+            // casts everything to an integer to be consistent with
+            // InfluxDB 1.x.
+            "date_part" => Some(VarRefDataType::Integer),
+
             name => self.eval_scalar(name, &arg_types)?,
         })
     }

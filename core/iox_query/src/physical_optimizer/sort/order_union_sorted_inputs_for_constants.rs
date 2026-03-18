@@ -63,7 +63,7 @@ mod test {
         let plan_sort2 = Arc::new(SortExec::new(sort_order.clone(), plan_projection_2));
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(
@@ -143,7 +143,7 @@ mod test {
         let plan_sort3 = Arc::new(SortExec::new(sort_order.clone(), plan_projection_3));
 
         // union the 3 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2, plan_sort3]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2, plan_sort3]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(
@@ -220,7 +220,7 @@ mod test {
         let plan_sort2 = Arc::new(SortExec::new(sort_order.clone(), plan_projection_2));
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(
@@ -289,7 +289,7 @@ mod test {
         let plan_sort2 = Arc::new(SortExec::new(sort_order.clone(), plan_projection_2));
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(
@@ -408,7 +408,7 @@ mod test {
         let plan_sort2 = Arc::new(SortExec::new(sort_order.clone(), plan_projection_2));
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(sort_order, plan_union));
@@ -469,7 +469,7 @@ mod test {
         );
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_projection_2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_projection_2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(
@@ -534,7 +534,7 @@ mod test {
         let plan_sort2 = Arc::new(SortExec::new(sort_order_3_cols.clone(), plan_projection_2));
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(sort_order_3_cols, plan_union));
@@ -599,7 +599,7 @@ mod test {
         let plan_sort2 = Arc::new(SortExec::new(sort_order_two_cols(), plan_projection_1));
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(
@@ -673,7 +673,7 @@ mod test {
         let plan_sort2 = Arc::new(SortExec::new(sort_order.clone(), plan_projection_2));
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(
@@ -748,7 +748,7 @@ mod test {
         let plan_sort2 = Arc::new(SortExec::new(sort_order.clone(), plan_projection_2));
 
         // union the 2 sorts
-        let plan_union = Arc::new(UnionExec::new(vec![plan_sort1, plan_sort2]));
+        let plan_union = UnionExec::try_new(vec![plan_sort1, plan_sort2]).unwrap();
 
         // add sort preserving merge on top
         let plan_spm = Arc::new(SortPreservingMergeExec::new(

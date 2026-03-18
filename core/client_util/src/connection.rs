@@ -5,7 +5,7 @@ use http::{HeaderValue, Uri};
 use iox_http_util::TryIntoUri;
 use std::time::Duration;
 use thiserror::Error;
-use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 
 /// The connection type used for clients. Use [`Builder`] to create
 /// instances of [`Connection`] objects
@@ -129,6 +129,7 @@ pub struct Builder {
     headers: Vec<(HeaderName, HeaderValue)>,
     connect_timeout: Duration,
     timeout: Duration,
+    ca_certificate_pem: Option<Vec<u8>>,
 }
 
 impl std::default::Default for Builder {
@@ -138,6 +139,7 @@ impl std::default::Default for Builder {
             connect_timeout: DEFAULT_CONNECT_TIMEOUT,
             timeout: DEFAULT_TIMEOUT,
             headers: Default::default(),
+            ca_certificate_pem: None,
         }
     }
 }
@@ -157,8 +159,12 @@ impl Builder {
     }
 
     fn create_endpoint(&self, uri: Uri) -> Result<Endpoint> {
+        let mut tls_config = ClientTlsConfig::new().with_native_roots();
+        if let Some(pem) = &self.ca_certificate_pem {
+            tls_config = tls_config.ca_certificate(Certificate::from_pem(pem));
+        }
         let endpoint = Endpoint::from(uri)
-            .tls_config(ClientTlsConfig::new().with_native_roots())?
+            .tls_config(tls_config)?
             .user_agent(&self.user_agent)?
             .connect_timeout(self.connect_timeout)
             .timeout(self.timeout);
@@ -173,9 +179,15 @@ impl Builder {
             .layer(SetRequestHeadersLayer::new(self.headers))
             .service(channel);
 
-        let http_client = reqwest::Client::builder()
+        let mut http_builder = reqwest::Client::builder()
             .connection_verbose(true)
-            .default_headers(headers_map)
+            .default_headers(headers_map);
+        if let Some(pem) = &self.ca_certificate_pem {
+            let cert =
+                reqwest::Certificate::from_pem(pem).expect("CA certificate PEM should be valid");
+            http_builder = http_builder.add_root_certificate(cert);
+        }
+        let http_client = http_builder
             .build()
             .expect("reqwest::Client should have built");
 
@@ -223,6 +235,17 @@ impl Builder {
     /// [`connect_timeout`]: Self::connect_timeout
     pub fn timeout(self, timeout: Duration) -> Self {
         Self { timeout, ..self }
+    }
+
+    /// Add a custom CA certificate (PEM-encoded) for TLS connections.
+    ///
+    /// The certificate is applied to both gRPC (tonic) and HTTP (reqwest) clients.
+    /// Native root certificates are always included alongside any custom CA.
+    pub fn ca_certificate_pem(self, pem: impl Into<Vec<u8>>) -> Self {
+        Self {
+            ca_certificate_pem: Some(pem.into()),
+            ..self
+        }
     }
 }
 

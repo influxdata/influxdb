@@ -1,6 +1,3 @@
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use chrono::{DateTime, DurationRound, TimeDelta, TimeZone, Timelike, Utc};
 use parking_lot::{RwLock, lock_api::RwLockUpgradableReadGuard};
 use std::{

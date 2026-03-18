@@ -102,9 +102,6 @@
 //! common reporting data model, they can plug into `Registry`
 //!
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use parking_lot::Mutex;
 use std::any::Any;
 use std::borrow::Cow;

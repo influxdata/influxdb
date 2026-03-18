@@ -1,0 +1,12 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v1;
+option go_package = "github.com/influxdata/iox/ingester/v1";
+
+service ReadinessService {
+  rpc Ready(ReadyRequest) returns (ReadyResponse);
+}
+
+message ReadyRequest {};
+message ReadyResponse {
+  bool ready = 1;
+};

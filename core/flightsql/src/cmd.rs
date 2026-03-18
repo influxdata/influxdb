@@ -17,7 +17,11 @@ use arrow_flight::sql::{
 };
 use arrow_util::display::pretty_format_batches;
 use bytes::Bytes;
-use datafusion::{common::ParamValues, error::DataFusionError, scalar::ScalarValue};
+use datafusion::{
+    common::{ParamValues, metadata::ScalarAndMetadata},
+    error::DataFusionError,
+    scalar::ScalarValue,
+};
 use generated_types::influxdata::iox::querier::v1::FlightSqlPreparedStatementHandle;
 use prost::Message;
 use snafu::ResultExt;
@@ -67,7 +71,7 @@ impl PreparedStatementHandle {
                 .map(|(field, col)| {
                     Ok((
                         field.name().to_owned(),
-                        ScalarValue::try_from_array(col, 0)?,
+                        ScalarAndMetadata::from(ScalarValue::try_from_array(col, 0)?),
                     ))
                 })
                 .collect::<Result<HashMap<_, _>, DataFusionError>>()?,

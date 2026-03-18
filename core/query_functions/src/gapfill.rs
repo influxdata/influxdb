@@ -25,7 +25,8 @@ use datafusion::{
     error::{DataFusionError, Result},
     functions::datetime::date_bin,
     logical_expr::{
-        ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+        Documentation, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+        Volatility, scalar_doc_sections::DOC_SECTION_DATETIME,
     },
     physical_plan::ColumnarValue,
 };
@@ -54,6 +55,68 @@ pub(crate) static DATE_BIN_WALLCLOCK_GAPFILL: LazyLock<Arc<ScalarUDF>> = LazyLoc
     Arc::new(ScalarUDF::from(GapFillWrapper::new(
         date_bin_wallclock::date_bin_wallclock(),
     )))
+});
+
+static DATE_BIN_GAPFILL_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_DATETIME,
+        "Calculates time intervals and fills gaps in data with null values where no data exists for an interval. \
+Must be used in a `GROUP BY` clause. Must also be used with `locf()` or `interpolate()` to fill gaps.",
+        "date_bin_gapfill(interval, expression[, origin_timestamp])",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  date_bin_gapfill(INTERVAL '30 minutes', time) as _time,
+  room,
+  avg(temp) as temp
+FROM home
+WHERE time >= '2022-01-01T08:00:00Z' AND time < '2022-01-01T10:00:00Z'
+GROUP BY _time, room
+```"#,
+    )
+    .with_argument(
+        "interval",
+        "Bin interval. Supports nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, and weeks.",
+    )
+    .with_argument("expression", "Time expression to bin. Can be a constant, column, or function.")
+    .with_argument("origin_timestamp", "Optional. Starting point for bin boundaries. Defaults to the Unix epoch.")
+    .with_related_udf("date_bin_wallclock_gapfill")
+    .with_related_udf("locf")
+    .with_related_udf("interpolate")
+    .build()
+});
+
+static DATE_BIN_WALLCLOCK_GAPFILL_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_DATETIME,
+        "Calculates wallclock-based time intervals and fills gaps in data with null values where no data exists for an interval. \
+Uses the timezone of the input expression for wallclock calculations. \
+Must be used in a `GROUP BY` clause. Must also be used with `locf()` or `interpolate()` to fill gaps.",
+        "date_bin_wallclock_gapfill(interval, expression[, origin_timestamp])",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  date_bin_wallclock_gapfill(INTERVAL '30 minutes', tz(time, 'America/Los_Angeles')) as time,
+  room,
+  avg(temp) as temp
+FROM home
+WHERE time >= '2022-01-01T08:00:00Z' AND time < '2022-01-01T10:00:00Z'
+GROUP BY 1, room
+```"#,
+    )
+    .with_argument(
+        "interval",
+        "Bin interval. Supports nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, and weeks.",
+    )
+    .with_argument("expression", "Time expression to bin. The timezone comes from the data type of this argument.")
+    .with_argument("origin_timestamp", "Optional. Wallclock timestamp without timezone for bin boundaries. Defaults to the Unix epoch.")
+    .with_related_udf("date_bin_gapfill")
+    .with_related_udf("date_bin_wallclock")
+    .with_related_udf("locf")
+    .with_related_udf("interpolate")
+    .build()
 });
 
 /// Wrapper around date_bin style functions to enable gap filling
@@ -89,6 +152,16 @@ impl ScalarUDFImpl for GapFillWrapper {
             self.name
         )))
     }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        if self.name == DATE_BIN_GAPFILL_UDF_NAME {
+            Some(&DATE_BIN_GAPFILL_DOCUMENTATION)
+        } else if self.name == DATE_BIN_WALLCLOCK_GAPFILL_UDF_NAME {
+            Some(&DATE_BIN_WALLCLOCK_GAPFILL_DOCUMENTATION)
+        } else {
+            None
+        }
+    }
 }
 
 impl GapFillWrapper {
@@ -99,11 +172,13 @@ impl GapFillWrapper {
         let Signature {
             type_signature,
             volatility: _,
+            parameter_names,
         } = udf.signature().clone();
         // We don't want this to be optimized away before we can give a helpful error message
         let signature = Signature {
             type_signature,
             volatility: Volatility::Volatile,
+            parameter_names,
         };
         Self {
             udf,
@@ -120,6 +195,34 @@ impl GapFillWrapper {
 
 /// The name of the locf UDF given to DataFusion.
 pub const LOCF_UDF_NAME: &str = "locf";
+
+static LOCF_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_DATETIME,
+        "Fills null values by carrying the last observed value forward. \
+Used with `date_bin_gapfill` or `date_bin_wallclock_gapfill` to fill gaps in time series data.",
+        "locf(aggregate_expression)",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  date_bin_gapfill(INTERVAL '30 minutes', time) as _time,
+  room,
+  locf(avg(temp))
+FROM home
+WHERE time >= '2022-01-01T08:00:00Z' AND time < '2022-01-01T10:00:00Z'
+GROUP BY _time, room
+```"#,
+    )
+    .with_argument(
+        "aggregate_expression",
+        "Aggregate function and column to gap-fill. For example: `avg(temp)`, `min(sal)`.",
+    )
+    .with_related_udf("interpolate")
+    .with_related_udf("date_bin_gapfill")
+    .with_related_udf("date_bin_wallclock_gapfill")
+    .build()
+});
 
 /// The virtual function definition for the `locf` gap-filling
 /// function. This function is never actually invoked, but is used to
@@ -156,6 +259,10 @@ impl ScalarUDFImpl for LocfUDF {
             "{LOCF_UDF_NAME} is not yet implemented"
         )))
     }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        Some(&LOCF_DOCUMENTATION)
+    }
 }
 
 /// (Non-)Implementation of locf.
@@ -173,6 +280,32 @@ pub(crate) static LOCF: LazyLock<Arc<ScalarUDF>> = LazyLock::new(|| {
 
 /// The name of the interpolate UDF given to DataFusion.
 pub const INTERPOLATE_UDF_NAME: &str = "interpolate";
+
+static INTERPOLATE_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_DATETIME,
+        "Fills null values by linearly interpolating between non-null values. \
+Used with `date_bin_gapfill` or `date_bin_wallclock_gapfill` to fill gaps in time series data. \
+Only supports numeric types (Float64, Int64, UInt64).",
+        "interpolate(aggregate_expression)",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  date_bin_gapfill(INTERVAL '30 minutes', time) as _time,
+  room,
+  interpolate(avg(temp))
+FROM home
+WHERE time >= '2022-01-01T08:00:00Z' AND time < '2022-01-01T10:00:00Z'
+GROUP BY _time, room
+```"#,
+    )
+    .with_argument("aggregate_expression", "Aggregate function and column to gap-fill by interpolation. For example: `avg(temp)`, `min(sal)`.")
+    .with_related_udf("locf")
+    .with_related_udf("date_bin_gapfill")
+    .with_related_udf("date_bin_wallclock_gapfill")
+    .build()
+});
 
 /// The virtual function definition for the `interpolate` gap-filling
 /// function. This function is never actually invoked, but is used to
@@ -208,6 +341,10 @@ impl ScalarUDFImpl for InterpolateUDF {
         Err(DataFusionError::NotImplemented(format!(
             "{INTERPOLATE_UDF_NAME} is not yet implemented"
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        Some(&INTERPOLATE_DOCUMENTATION)
     }
 }
 

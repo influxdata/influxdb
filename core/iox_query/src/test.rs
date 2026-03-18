@@ -1457,7 +1457,7 @@ pub(crate) mod test_utils {
     }
 
     pub fn union_exec(input: Vec<Arc<dyn ExecutionPlan>>) -> Arc<dyn ExecutionPlan> {
-        Arc::new(UnionExec::new(input))
+        UnionExec::try_new(input).unwrap()
     }
 
     pub fn sort_exec(
@@ -1601,5 +1601,383 @@ mod meta_test {
             ],
         }
         "#);
+    }
+}
+
+#[cfg(test)]
+mod ear_6643 {
+    //! Reproducer for EAR-6643: "Invalid offset in sparse column chunk data"
+    use arrow::array::{StringArray, TimestampNanosecondArray};
+    use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+    use arrow::record_batch::RecordBatch;
+    use chrono::DateTime;
+    use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::basic::Compression;
+    use datafusion::parquet::file::properties::WriterProperties;
+    use datafusion::prelude::*;
+    use datafusion_util::config::iox_session_config;
+    use std::fs::File;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    const PARQUET_FILENAME: &str = "ear_6643_reproducer.parquet";
+
+    fn parquet_path() -> PathBuf {
+        std::env::temp_dir().join(PARQUET_FILENAME)
+    }
+
+    // Time range constants (ISO 8601)
+    const TIME_IN_RANGE_START: &str = "2024-01-01T07:00:00Z";
+    const TIME_IN_RANGE_END: &str = "2024-01-01T12:00:00Z";
+    const TIME_BEFORE_RANGE: &str = "2024-01-01T03:00:00Z";
+
+    /// Parse ISO 8601 timestamp to nanoseconds since epoch
+    fn parse_timestamp_nanos(s: &str) -> i64 {
+        DateTime::parse_from_rfc3339(s)
+            .unwrap()
+            .timestamp_nanos_opt()
+            .unwrap()
+    }
+
+    /// Create minimal parquet file that triggers https://github.com/influxdata/EAR/issues/6643
+    /// Data layout:
+    /// - Tag column
+    ///     - 3 tag values 'a', 'b', 'c' with rows sorted by tag values
+    ///     - When querying `tag IN ('a', 'c')` this creates range selector list: `[select, skip, select]`
+    /// - Time column
+    ///     - Times interleaved: even rows in predicate range, odd rows out of predicate range
+    ///     - When querying on a time range this creates a sparse selection to trigger Mask strategy
+    fn create_parquet() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new(
+                "time",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                false,
+            ),
+            Field::new("tag", DataType::Utf8, false),
+        ]));
+
+        let tag_vals = ["a", "b", "c"];
+
+        let in_range_start = parse_timestamp_nanos(TIME_IN_RANGE_START);
+        let in_range_end = parse_timestamp_nanos(TIME_IN_RANGE_END);
+        let before_range = parse_timestamp_nanos(TIME_BEFORE_RANGE);
+
+        let rows_per_rg = 300;
+        let num_row_groups = 2;
+        let rows_per_tag = rows_per_rg / tag_vals.len();
+
+        // Limit rows per page so each tag section spans multiple pages.
+        // This ensures the skip section (tag='b') contains at least one full page.
+        let rows_per_page = rows_per_tag / 3;
+
+        let props = WriterProperties::builder()
+            .set_compression(Compression::SNAPPY)
+            .set_max_row_group_size(rows_per_rg)
+            .set_data_page_row_count_limit(rows_per_page)
+            .build();
+
+        let file = File::create(parquet_path()).unwrap();
+        let mut writer = ArrowWriter::try_new(file, Arc::clone(&schema), Some(props)).unwrap();
+
+        for _ in 0..num_row_groups {
+            let mut row_idx = 0;
+            for tag in &tag_vals {
+                // Write each tag section as separate batch to trigger page breaks
+                let mut times = Vec::with_capacity(rows_per_tag);
+                let mut tags = Vec::with_capacity(rows_per_tag);
+
+                for j in 0..rows_per_tag {
+                    // Interleave times: even=in-range, odd=out-of-range
+                    let time = if row_idx % 2 == 0 {
+                        in_range_start + (j as i64 * 1_000_000) % (in_range_end - in_range_start)
+                    } else {
+                        before_range + (j as i64 * 1_000_000)
+                    };
+                    times.push(time);
+                    tags.push(*tag);
+                    row_idx += 1;
+                }
+
+                let batch = RecordBatch::try_new(
+                    Arc::clone(&schema),
+                    vec![
+                        Arc::new(TimestampNanosecondArray::from(times)),
+                        Arc::new(StringArray::from(tags)),
+                    ],
+                )
+                .unwrap();
+
+                writer.write(&batch).unwrap();
+            }
+            writer.flush().unwrap();
+        }
+
+        writer.close().unwrap();
+    }
+
+    /// Reproducer for EAR-6643: "Invalid offset in sparse column chunk data"
+    ///
+    /// Related Issues:
+    /// - https://github.com/apache/arrow-rs/issues/9239
+    /// - https://github.com/influxdata/influxdb_iox/issues/15939
+    /// - https://github.com/influxdata/EAR/issues/6643
+    ///
+    /// The bug occurs due to changes introduced in parquet 57.1.0 and when the following conditions are met:
+    ///
+    /// 1. A predicate uses [`RowSelectionStrategy::Selectors`] with a [`RowSelector`] list that skips an entire page.
+    /// 2. Another predicate uses [`RowSelectionStrategy::Mask`] by triggering the [mask run-length threshold].
+    /// 3. The column with [`RowSelectionStrategy::Mask`] is not in the output projection, so
+    ///    the [`should_force_selectors`] function will not force it to use [`RowSelectionStrategy::Selectors`].
+    /// 4. The mask strategy will try to fetch pages that were skipped, resulting in an error.
+    ///
+    /// ## Query Details
+    ///
+    /// 1. Querying `tag IN ('a', 'c')` on sorted tag values creates [`RowSelectionStrategy::Selectors`] with [`RowSelector`] list: `[select 100 rows, skip 100 rows, select 100 rows]`
+    ///    **Note**: it is important that the "skipped" section skips an entire page. For this reproducer, the page size is reduced to just 100 rows.
+    /// 2. Evaluating the time range predicates creates an average run-length below the [mask run-length threshold], which triggers [`RowSelectionStrategy::Mask`].
+    /// 3. `time` is **not** in the projection list. This prevents [`should_force_selectors`] from returning true and switching the strategy to [`RowSelectionStrategy::Selectors`].
+    /// 4. Scanning rows with [`RowSelectionStrategy::Mask`] will attempt to fetch the skipped page.
+    ///
+    /// [`RowSelectionStrategy::Selectors`]: https://github.com/apache/arrow-rs/blob/57.1.0/parquet/src/arrow/arrow_reader/selection.rs#L58
+    /// [`RowSelectionStrategy::Mask`]: https://github.com/apache/arrow-rs/blob/57.1.0/parquet/src/arrow/arrow_reader/selection.rs#L60
+    /// [`RowSelector`]: https://github.com/apache/arrow-rs/blob/57.1.0/parquet/src/arrow/arrow_reader/selection.rs#L66-L72
+    /// [`should_force_selectors`]: https://github.com/apache/arrow-rs/blob/57.1.0/parquet/src/arrow/arrow_reader/selection.rs#L275
+    /// [mask run-length threshold]: https://github.com/apache/arrow-rs/blob/57.1.0/parquet/src/arrow/arrow_reader/selection.rs#L47
+    #[tokio::test]
+    async fn test_ear_6643_reproducer() {
+        create_parquet();
+
+        let ctx = SessionContext::new_with_config(iox_session_config());
+        ctx.register_parquet(
+            "data",
+            parquet_path().to_str().unwrap(),
+            ParquetReadOptions::default(),
+        )
+        .await
+        .unwrap();
+
+        let df = ctx
+            .sql(&format!(
+                "SELECT tag FROM data \
+             WHERE tag IN ('a', 'c') \
+             AND time >= '{TIME_IN_RANGE_START}' \
+             AND time < '{TIME_IN_RANGE_END}'"
+            ))
+            .await
+            .unwrap();
+
+        let results = df.collect().await.unwrap();
+        insta::assert_debug_snapshot!(
+        arrow_util::test_util::batches_to_lines(&results),
+        @r#"
+    [
+        "+-----+",
+        "| tag |",
+        "+-----+",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| a   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "| c   |",
+        "+-----+",
+    ]
+    "#
+        );
     }
 }

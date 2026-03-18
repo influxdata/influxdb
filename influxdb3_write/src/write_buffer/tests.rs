@@ -202,6 +202,7 @@ async fn writes_data_to_wal_and_is_queryable() {
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         shutdown: ShutdownManager::new_testing().register(),
         wal_replay_concurrency_limit: 1,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
     .await
     .unwrap();
@@ -311,6 +312,7 @@ async fn writes_data_to_wal_and_is_queryable() {
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         shutdown: ShutdownManager::new_testing().register(),
         wal_replay_concurrency_limit: 1,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
     .await
     .unwrap();
@@ -407,6 +409,7 @@ async fn last_cache_create_and_delete_is_durable() {
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: ShutdownManager::new_testing().register(),
             wal_replay_concurrency_limit: 1,
+            parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
         })
         .await
         .unwrap()
@@ -668,6 +671,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         shutdown: ShutdownManager::new_testing().register(),
         wal_replay_concurrency_limit: 1,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
     .await
     .unwrap();
@@ -2867,6 +2871,7 @@ async fn setup_inner(
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         shutdown: ShutdownManager::new_testing().register(),
         wal_replay_concurrency_limit: 1,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
     .await
     .unwrap();
@@ -3026,6 +3031,7 @@ async fn setup_with_checkpointing(
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         shutdown: ShutdownManager::new_testing().register(),
         wal_replay_concurrency_limit: 1,
+        parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
     .await
     .unwrap();

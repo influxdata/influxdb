@@ -196,7 +196,7 @@ impl<T: Message + Default + GetId> MessageList<T> {
     }
 }
 
-impl<T: Message + Default + GetId> std::fmt::Debug for MessageList<T> {
+impl<T: Message + Default + GetId + std::fmt::Debug> std::fmt::Debug for MessageList<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut l = f.debug_list();
         for idx in 0..self.len() {

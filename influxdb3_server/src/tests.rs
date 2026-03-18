@@ -1360,6 +1360,7 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             shutdown: shutdown_manager.register(),
             wal_replay_concurrency_limit: 1,
+            parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
         },
     )
     .await

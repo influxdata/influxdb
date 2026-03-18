@@ -9,8 +9,8 @@ license.workspace = true
 workspace = true
 
 [dependencies] # In alphabetical order
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 datafusion = { workspace = true }
-snafu = "0.8"
+snafu = "0.9"

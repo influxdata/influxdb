@@ -17,18 +17,14 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use arrow_util::bitset::BitSet;
-use data_types::{
-    IsNan, StatValues, Statistics,
-    partition_template::{TemplatePart, test_table_partition_override},
-};
-use hashbrown::HashSet;
+use data_types::partition_template::{TemplatePart, test_table_partition_override};
 use mutable_batch::{MutableBatch, WritePayload, writer::Writer};
 use partition::PartitionWrite;
 use pretty_assertions::assert_eq;
 use rand::TryRngCore;
 use rand::prelude::*;
 use schema::Projection;
-use std::{collections::BTreeMap, num::NonZeroU64, ops::Range, sync::Arc};
+use std::{ops::Range, sync::Arc};
 
 fn make_rng() -> StdRng {
     let seed = rand::rngs::OsRng
@@ -99,17 +95,6 @@ fn filter_vec<T: Clone>(ranges: &[Range<usize>], src: &[T]) -> Vec<T> {
         .collect()
 }
 
-fn compute_stats<T: PartialOrd + IsNan + ToOwned<Owned = T>>(data: &[Option<T>]) -> StatValues<T> {
-    let mut stats = StatValues::new_empty();
-    for d in data {
-        match d {
-            Some(v) => stats.update(v),
-            None => stats.update_for_nulls(1),
-        }
-    }
-    stats
-}
-
 impl Expected {
     /// Returns a filtered version of `self` based on the provided `ranges`
     fn filter(self, ranges: &[Range<usize>]) -> Self {
@@ -134,58 +119,6 @@ impl Expected {
         self.i64_expected.extend_from_slice(&other.i64_expected);
         self.u64_expected.extend_from_slice(&other.u64_expected);
         self.f64_expected.extend_from_slice(&other.f64_expected);
-    }
-
-    /// Reports the statistics indexed by column
-    fn stats(&self) -> BTreeMap<String, Statistics> {
-        let mut stats = BTreeMap::new();
-        stats.insert(
-            "b1".to_string(),
-            Statistics::Bool(compute_stats(&self.bool_expected)),
-        );
-        stats.insert(
-            "f1".to_string(),
-            Statistics::F64(compute_stats(&self.f64_expected)),
-        );
-        stats.insert(
-            "i1".to_string(),
-            Statistics::I64(compute_stats(&self.i64_expected)),
-        );
-        stats.insert(
-            "s1".to_string(),
-            Statistics::String(compute_stats(&self.string_expected)),
-        );
-        stats.insert(
-            "u1".to_string(),
-            Statistics::U64(compute_stats(&self.u64_expected)),
-        );
-
-        let mut tag_stats = StatValues::new_empty();
-        let mut tags = HashSet::new();
-        for tag in &self.tag_expected {
-            match tag {
-                Some(v) => {
-                    tags.insert(v.as_str());
-                    tag_stats.update(v);
-                }
-                None => tag_stats.update_for_nulls(1),
-            }
-        }
-
-        // Null counts as a distinct value
-        match tag_stats.null_count {
-            None => unreachable!("mutable batch keeps null counts"),
-            Some(0) => tag_stats.distinct_count = NonZeroU64::new(tags.len() as u64),
-            Some(_) => tag_stats.distinct_count = NonZeroU64::new(tags.len() as u64 + 1),
-        }
-
-        stats.insert("t1".to_string(), Statistics::String(tag_stats));
-
-        let mut time_stats = StatValues::new_empty();
-        self.time_expected.iter().for_each(|x| time_stats.update(x));
-        stats.insert("time".to_string(), Statistics::I64(time_stats));
-
-        stats
     }
 
     /// Converts this to a [`RecordBatch`]
@@ -408,14 +341,6 @@ fn test_writer_fuzz() {
         arrow_util::display::pretty_format_batches(&[actual]).unwrap(),
         arrow_util::display::pretty_format_batches(&[expected.batch()]).unwrap()
     );
-
-    let actual_statistics: BTreeMap<String, Statistics> = batch
-        .columns()
-        .map(|(_, name, col)| (name.clone(), col.stats()))
-        .collect();
-    let expected_statistics = expected.stats();
-
-    assert_eq!(actual_statistics, expected_statistics);
 }
 
 #[test]
@@ -432,13 +357,6 @@ fn test_partition_write() {
         // match what actually gets written to a MutableBatch
         let mut temp = MutableBatch::new();
         write.write_to_batch(&mut temp).unwrap();
-
-        let stats = match temp.column("time").unwrap().stats() {
-            Statistics::I64(stats) => stats,
-            _ => unreachable!(),
-        };
-
-        assert_eq!(write.rows().get() as u64, stats.total_count);
     };
 
     let table_partition_template =

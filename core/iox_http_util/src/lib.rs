@@ -9,9 +9,6 @@
 //! This crate is lower-level than `iox_http`; this crate is meant to be more general-purpose and
 //! `iox_http` is meant for services providing HTTP APIs.
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use futures::{Stream, StreamExt, TryStreamExt};
 use http_body::Frame;
 use http_body_util::{BodyExt, Empty, Full, StreamBody};

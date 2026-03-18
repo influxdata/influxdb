@@ -6,7 +6,11 @@ use datafusion::{
     error::DataFusionError,
     execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation},
 };
-use parquet::{arrow::ArrowWriter, errors::ParquetError, file::properties::WriterProperties};
+use parquet::{
+    arrow::ArrowWriter,
+    errors::ParquetError,
+    file::{metadata::ParquetMetaData, properties::WriterProperties},
+};
 use thiserror::Error;
 use tracing::warn;
 
@@ -96,10 +100,8 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
     }
 
     /// closes the writer, flushing any remaining data and returning
-    /// the written [`FileMetaData`]
-    ///
-    /// [`FileMetaData`]: parquet::format::FileMetaData
-    pub fn close(self) -> Result<parquet::format::FileMetaData> {
+    /// the written [`ParquetMetaData`]
+    pub fn close(self) -> Result<ParquetMetaData> {
         // reservation is returned on drop
         Ok(self.inner.close()?)
     }

@@ -65,7 +65,7 @@ impl RecordBatchesExec {
         output_sort_key_memo: Option<SortKey>,
     ) -> Self {
         let chunks: Vec<_> = chunks.into_iter().collect();
-        let statistics = build_statistics_for_chunks(&chunks, Arc::clone(&schema));
+        let statistics = build_statistics_for_chunks(&chunks, &schema);
 
         let chunk_order_field = schema.field_with_name(CHUNK_ORDER_COLUMN_NAME).ok();
         let eq_properties = if chunk_order_field.is_some() {

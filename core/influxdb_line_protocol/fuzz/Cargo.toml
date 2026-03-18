@@ -15,7 +15,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 influxdb-line-protocol = { path = ".." }
-workspace-hack = { path = "../../workspace-hack" }
+
 
 [[bin]]
 name = "parsing_errors"

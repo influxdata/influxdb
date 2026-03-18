@@ -11,8 +11,8 @@ workspace = true
 [dependencies]
 metric = { path = "../metric" }
 tracing = { workspace = true }
-tokio = { version = "1.49", features = ["macros", "net", "parking_lot", "rt-multi-thread", "sync", "time"] }
-workspace-hack = { path = "../workspace-hack" }
+tokio = { version = "1.50", features = ["macros", "net", "parking_lot", "rt-multi-thread", "sync", "time"] }
+
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }

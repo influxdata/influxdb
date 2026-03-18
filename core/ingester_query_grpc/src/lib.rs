@@ -3,8 +3,7 @@
 // control over.
 #![expect(clippy::derive_partial_eq_without_eq, clippy::allow_attributes)]
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
+use tonic_prost as _;
 
 pub use tonic;
 

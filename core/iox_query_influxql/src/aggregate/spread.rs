@@ -19,7 +19,7 @@ impl SpreadUDF {
     pub(super) fn new() -> Self {
         Self {
             signature: Signature::one_of(
-                crate::NUMERICS
+                query_functions::NUMERICS
                     .iter()
                     .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
                     .collect(),

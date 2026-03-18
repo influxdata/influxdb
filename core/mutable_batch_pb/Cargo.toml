@@ -1,0 +1,36 @@
+[package]
+name = "mutable_batch_pb"
+description = "Conversion logic for binary write protocol <-> MutableBatch"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arrow_util = { path = "../arrow_util" }
+data_types = { path = "../data_types/" }
+dml = { path = "../dml" }
+generated_types = { path = "../generated_types" }
+hashbrown = { workspace = true }
+mutable_batch = { path = "../mutable_batch" }
+schema = { path = "../schema" }
+snafu = "0.9"
+
+
+[dev-dependencies]
+data_types = { path = "../data_types" }
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+partition = { path = "../partition" }
+criterion = "0.8"
+
+[lib]
+# Allow --save-baseline to work
+# https://github.com/bheisler/criterion.rs/issues/275
+bench = false
+
+[[bench]]
+name = "write_table_batch"
+harness = false

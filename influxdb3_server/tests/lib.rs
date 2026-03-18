@@ -265,6 +265,7 @@ impl TestService {
             shutdown: ShutdownManager::new_testing().register(),
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             wal_replay_concurrency_limit: 1,
+            parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
         })
         .await
         .unwrap();

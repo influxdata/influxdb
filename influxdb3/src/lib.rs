@@ -27,19 +27,20 @@ use trogging::{
 };
 
 pub mod commands {
-    pub mod common;
+    pub use influxdb3_commands::common;
+    pub use influxdb3_commands::disable;
+    pub use influxdb3_commands::enable;
+    pub use influxdb3_commands::helpers;
+    pub use influxdb3_commands::install;
+    pub use influxdb3_commands::query;
+    pub use influxdb3_commands::test;
+    pub use influxdb3_commands::write;
+    // Local (not shared)
     pub mod create;
     pub mod delete;
-    pub mod disable;
-    pub mod enable;
-    pub mod helpers;
-    pub mod install;
-    pub mod query;
     pub mod serve;
     pub mod show;
-    pub mod test;
     pub mod update;
-    pub mod write;
 }
 
 enum ReturnCode {
@@ -142,6 +143,10 @@ impl Command {
 }
 
 pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
+    // Install the default rustls crypto provider (ring) before any TLS usage.
+    // Required when both ring and aws-lc-rs are in the dependency tree.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     #[cfg(unix)]
     install_crash_handler(); // attempt to render a useful stacktrace to stderr
 

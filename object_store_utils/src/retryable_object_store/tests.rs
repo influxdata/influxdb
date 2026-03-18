@@ -1,10 +1,10 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use object_store::memory::InMemory;
+use object_store::{PutMode, UpdateVersion, memory::InMemory};
 
 use super::*;
-use crate::{ErrorConfig, TestObjectStore};
+use crate::{ErrorConfig, OperationKind, TestObjectStore};
 
 // Helper function to create test retry params with very short delays
 fn test_retry_params(max_retries: usize) -> RetryParams {
@@ -56,6 +56,81 @@ async fn get_with_retries() {
     );
 }
 
+// Retries get_opts through a transient failure and still returns the object.
+#[tokio::test]
+async fn get_opts_with_retries_retries_transient_errors() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let path = Path::from("opts.txt");
+    let data = PutPayload::from("test data");
+
+    inner
+        .put(&path, data.clone())
+        .await
+        .expect("setup: direct put to InMemory should succeed");
+
+    let concrete_store = Arc::new(
+        TestObjectStore::new(Arc::clone(&inner))
+            .with_error_config(ErrorConfig::FirstCallFails)
+            .with_failure_predicate(|ctx| ctx.kind == OperationKind::GetOpts),
+    );
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+    concrete_store.reset_call_count();
+
+    let result = test_store
+        .get_opts_with_retries(
+            &path,
+            GetOptions::default(),
+            "test context".to_string(),
+            test_retry_params(3),
+        )
+        .await;
+
+    assert!(result.is_ok(), "Should succeed after retry");
+    assert_eq!(
+        concrete_store.get_call_count(),
+        2,
+        "Should make exactly 2 calls (1 failure + 1 successful retry)"
+    );
+}
+
+// Confirms get_opts stops immediately on Precondition errors (no retry loop).
+#[tokio::test]
+async fn get_opts_precondition_not_retried() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let path = Path::from("opts_precondition.txt");
+    inner
+        .put(&path, PutPayload::from("data"))
+        .await
+        .expect("setup: direct put to InMemory should succeed");
+
+    let concrete_store = Arc::new(TestObjectStore::new(Arc::clone(&inner)));
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+    concrete_store.reset_call_count();
+
+    let options = GetOptions {
+        if_match: Some("mismatch".to_string()),
+        ..GetOptions::default()
+    };
+
+    let result = test_store
+        .get_opts_with_retries(
+            &path,
+            options,
+            "precondition get_opts".to_string(),
+            test_retry_params(4),
+        )
+        .await;
+
+    assert!(matches!(result, Err(ObjectStoreError::Precondition { .. })));
+    assert_eq!(
+        concrete_store.get_call_count(),
+        1,
+        "Precondition failures should not be retried"
+    );
+}
+
 #[tokio::test]
 async fn put_with_retries() {
     // Setup: TestObjectStore that fails every 2nd call
@@ -101,6 +176,80 @@ async fn put_with_retries() {
         concrete_store.get_call_count(),
         3,
         "Total calls should be 3 (1 from first put + 2 from second put with retry)"
+    );
+}
+
+// Retries put_opts through a transient failure and completes the write.
+#[tokio::test]
+async fn put_opts_with_retries_retries_transient_errors() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let concrete_store = Arc::new(
+        TestObjectStore::new(Arc::clone(&inner))
+            .with_error_config(ErrorConfig::FirstCallFails)
+            .with_failure_predicate(|ctx| ctx.kind == OperationKind::PutOpts),
+    );
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+    let path = Path::from("put_opts.txt");
+
+    concrete_store.reset_call_count();
+
+    let result = test_store
+        .put_opts_with_retries(
+            &path,
+            PutPayload::from("payload"),
+            PutOptions::default(),
+            "test context".to_string(),
+            test_retry_params(3),
+        )
+        .await;
+
+    assert!(result.is_ok(), "Should succeed after retry");
+    assert_eq!(
+        concrete_store.get_call_count(),
+        2,
+        "Should make exactly 2 calls (1 failure + 1 successful retry)"
+    );
+}
+
+// Ensures put_opts surfaces Precondition errors without retrying.
+#[tokio::test]
+async fn put_opts_precondition_not_retried() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let path = Path::from("put_opts_precondition.txt");
+    inner
+        .put(&path, PutPayload::from("initial"))
+        .await
+        .expect("setup: direct put to InMemory should succeed");
+
+    let concrete_store = Arc::new(TestObjectStore::new(Arc::clone(&inner)));
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+    concrete_store.reset_call_count();
+
+    let options = PutOptions {
+        mode: PutMode::Update(UpdateVersion {
+            e_tag: Some("bogus".to_string()),
+            version: None,
+        }),
+        ..Default::default()
+    };
+
+    let result = test_store
+        .put_opts_with_retries(
+            &path,
+            PutPayload::from("next"),
+            options,
+            "precondition put_opts".to_string(),
+            test_retry_params(4),
+        )
+        .await;
+
+    assert!(matches!(result, Err(ObjectStoreError::Precondition { .. })));
+    assert_eq!(
+        concrete_store.get_call_count(),
+        1,
+        "Precondition failures should not be retried"
     );
 }
 
@@ -152,6 +301,49 @@ async fn list_with_retries() {
         2,
         "Should make exactly 2 list calls (1 failure + 1 successful retry)"
     );
+}
+
+// Verifies list_with_delimiter retries a transient failure and still returns prefixes.
+#[tokio::test]
+async fn list_with_delimiter_with_retries_retries_transient_errors() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+    let path1 = Path::from("imports/job1/file1.txt");
+    let path2 = Path::from("imports/job2/file2.txt");
+    inner
+        .put(&path1, PutPayload::from("data1"))
+        .await
+        .expect("setup: direct put to InMemory should succeed");
+    inner
+        .put(&path2, PutPayload::from("data2"))
+        .await
+        .expect("setup: direct put to InMemory should succeed");
+
+    let concrete_store = Arc::new(
+        TestObjectStore::new(Arc::clone(&inner))
+            .with_error_config(ErrorConfig::FirstCallFails)
+            .with_failure_predicate(|ctx| ctx.kind == OperationKind::ListWithDelimiter),
+    );
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+    concrete_store.reset_call_count();
+
+    let prefix = Path::from("imports");
+    let result = test_store
+        .list_with_delimiter_with_retries(
+            Some(&prefix),
+            "test context".to_string(),
+            test_retry_params(3),
+        )
+        .await
+        .expect("List should succeed after retry");
+
+    assert_eq!(
+        concrete_store.get_call_count(),
+        2,
+        "Should make exactly 2 calls (1 failure + 1 successful retry)"
+    );
+    assert_eq!(result.common_prefixes.len(), 2);
+    assert!(result.objects.is_empty(), "No direct children at prefix");
 }
 
 #[tokio::test]
@@ -325,20 +517,73 @@ async fn no_retry_on_not_found() {
 }
 
 #[tokio::test]
-async fn delete_idempotent_on_not_found() {
-    // Setup: Empty store
+async fn raw_delete_returns_ok_for_existing_file() {
     let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let path = Path::from("existing.txt");
+    inner
+        .put(&path, PutPayload::from("data"))
+        .await
+        .expect("setup: put should succeed");
+
     let test_store: Arc<dyn ObjectStore> = Arc::new(TestObjectStore::new(Arc::clone(&inner)));
 
-    let path = Path::from("nonexistent.txt");
+    let result = test_store
+        .raw_delete_with_retries(&path, "test context".to_string(), test_retry_params(3))
+        .await;
 
-    // Test: Delete non-existent file should succeed (idempotent)
+    assert!(result.is_ok(), "delete should succeed for existing file");
+
+    let get_result = inner.get(&path).await;
+    assert!(
+        matches!(get_result, Err(ObjectStoreError::NotFound { .. })),
+        "File should be deleted from store"
+    );
+}
+
+#[tokio::test]
+async fn raw_delete_preserves_not_found() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let concrete_store = Arc::new(
+        TestObjectStore::new(Arc::clone(&inner))
+            .with_error_config(ErrorConfig::FirstCallFails)
+            .with_error_type(crate::ErrorType::NotFound)
+            .with_failure_predicate(|ctx| ctx.kind == OperationKind::Delete),
+    );
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+    let path = Path::from("test.txt");
+
+    let result = test_store
+        .raw_delete_with_retries(&path, "test context".to_string(), test_retry_params(3))
+        .await;
+
+    assert!(
+        matches!(result, Err(ObjectStoreError::NotFound { .. })),
+        "raw_delete should preserve NotFound error"
+    );
+}
+
+#[tokio::test]
+async fn delete_idempotent_on_not_found() {
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let concrete_store = Arc::new(
+        TestObjectStore::new(Arc::clone(&inner))
+            .with_error_config(ErrorConfig::FirstCallFails)
+            .with_error_type(crate::ErrorType::NotFound)
+            .with_failure_predicate(|ctx| ctx.kind == OperationKind::Delete),
+    );
+    let test_store: Arc<dyn ObjectStore> = Arc::clone(&concrete_store) as _;
+
+    let path = Path::from("test.txt");
+
     let result = test_store
         .delete_with_retries(&path, "test context".to_string(), test_retry_params(3))
         .await;
 
-    // Should succeed even though file doesn't exist
-    assert!(result.is_ok(), "Delete should be idempotent");
+    assert!(
+        result.is_ok(),
+        "delete_with_retries should convert NotFound to Ok"
+    );
 }
 
 #[tokio::test]

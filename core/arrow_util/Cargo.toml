@@ -22,10 +22,10 @@ comfy-table = { workspace = true}
 hashbrown = { workspace = true }
 num-traits = "0.2"
 parquet = { workspace = true }
-regex = "1.12.2"
-snafu = "0.8"
+regex = "1.12.3"
+snafu = "0.9"
 uuid = "1"
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 datafusion = { workspace = true }

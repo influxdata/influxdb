@@ -3,8 +3,7 @@
 //! The partitioning template, derived partition key format, and encodings are
 //! described in detail in the [`data_types::partition_template`] module.
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
+use generated_types::influxdata::pbdata::v1::{Column, column::Values};
 
 mod filter;
 pub mod template;
@@ -14,7 +13,7 @@ use std::{num::NonZeroUsize, ops::Range};
 
 use arrow::{array::UInt64Array, compute::take, error::ArrowError, record_batch::RecordBatch};
 use data_types::{
-    PartitionKey,
+    PartitionKey, TableBatchWithoutId,
     partition_template::{
         MAXIMUM_NUMBER_OF_TEMPLATE_PARTS, PARTITION_KEY_DELIMITER, TablePartitionTemplateOverride,
         TemplatePart,
@@ -22,6 +21,10 @@ use data_types::{
 };
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, WritePayload};
+use table_batch::{
+    ValueCollection,
+    builder::{DictionaryBuffer, StringBuffer, slice_values},
+};
 use thiserror::Error;
 
 use self::template::Template;
@@ -204,7 +207,7 @@ pub enum PartitionWriteError {
 /// A [`MutableBatch`] with a non-zero set of row ranges to write
 #[derive(Debug)]
 pub struct PartitionWrite<'a, T> {
-    batch: &'a T,
+    pub batch: &'a T,
     ranges: Vec<Range<usize>>,
     row_count: NonZeroUsize,
 }
@@ -263,6 +266,7 @@ where
                 }
             }
         }
+
         Ok(partition_ranges)
     }
 
@@ -307,6 +311,87 @@ where
         }
 
         Ok(maybe_pw)
+    }
+}
+
+impl PartitionWrite<'_, TableBatchWithoutId> {
+    pub fn yield_batch(self) -> TableBatchWithoutId {
+        let columns = self
+            .batch
+            .columns
+            .iter()
+            .filter_map(|col| {
+                let (values, null_mask) = col.values.as_ref().and_then(|v| {
+                    macro_rules! check_field {
+                        ($name:ident) => {
+                            if !v.$name.is_empty() {
+                                let (values, nulls) = slice_values::<_, Vec<_>>(
+                                    &self.ranges,
+                                    &v.$name,
+                                    &col.null_mask,
+                                )?;
+                                return Some((
+                                    Values {
+                                        $name: values,
+                                        ..Values::default()
+                                    },
+                                    nulls,
+                                ));
+                            }
+                        };
+                    }
+
+                    check_field!(i64_values);
+                    check_field!(u64_values);
+                    check_field!(f64_values);
+                    check_field!(bool_values);
+                    check_field!(string_values);
+                    check_field!(bytes_values);
+
+                    if let Some(strs) = v.interned_string_values.as_ref().filter(|s| !s.is_empty())
+                    {
+                        let (values, nulls) = slice_values::<_, DictionaryBuffer>(
+                            &self.ranges,
+                            strs,
+                            &col.null_mask,
+                        )?;
+                        return Some((
+                            Values {
+                                interned_string_values: values,
+                                ..Values::default()
+                            },
+                            nulls,
+                        ));
+                    }
+
+                    if let Some(strs) = v.packed_string_values.as_ref().filter(|s| !s.is_empty()) {
+                        let (values, nulls) =
+                            slice_values::<_, StringBuffer>(&self.ranges, strs, &col.null_mask)?;
+                        return Some((
+                            Values {
+                                packed_string_values: values,
+                                ..Values::default()
+                            },
+                            nulls,
+                        ));
+                    }
+
+                    None::<(_, _)>
+                })?;
+
+                Some(Column {
+                    column_name: col.column_name.to_string(),
+                    semantic_type: col.semantic_type,
+                    null_mask,
+                    values: Some(values),
+                })
+            })
+            .collect();
+
+        TableBatchWithoutId {
+            columns,
+            row_count: u32::try_from(self.row_count.get()).unwrap(),
+        }
     }
 }
 
@@ -369,12 +454,10 @@ impl PartitionWrite<'_, RecordBatch> {
 }
 
 #[cfg(test)]
-mod tests {
-    // Workaround for "unused crate" lint false positives.
+pub(crate) mod tests {
     // These crates are used in integration tests but not unit tests
     use criterion as _;
-    use generated_types as _;
-    use mutable_batch_lp as _;
+    use mutable_batch_lp::LinesConverter;
 
     use std::{borrow::Cow, collections::HashMap};
 
@@ -384,6 +467,10 @@ mod tests {
     use assert_matches::assert_matches;
     use chrono::{DateTime, Datelike, Days, TimeZone, Utc, format::StrftimeItems};
     use data_types::partition_template::{ColumnValue, test_table_partition_override};
+    use influxdb_line_protocol::{
+        ParsedLine,
+        test_helpers::{arbitrary_nonempty_range_within, arbitrary_parsed_lines_same_table},
+    };
     use mutable_batch::{MutableBatch, writer::Writer};
     use proptest::{prelude::*, prop_compose, proptest, strategy::Strategy};
     use rand::TryRngCore;
@@ -1682,6 +1769,72 @@ mod tests {
             }
 
             assert_eq!(observed_rows, row_count);
+        }
+    }
+
+    pub(crate) fn lines_to_table_batch(
+        lines: Vec<ParsedLine<'static>>,
+    ) -> (TableBatchWithoutId, MutableBatch) {
+        let mut converter = LinesConverter::new(42);
+        for (idx, line) in lines.into_iter().enumerate() {
+            converter.add_line_to_batch(line, idx).unwrap();
+        }
+        let mut mb_iter = converter.finish().unwrap().0.into_iter();
+        let mb = mb_iter.next().unwrap().1;
+        assert_eq!(mb_iter.next(), None);
+
+        // this transformation is tested by
+        // `router::line_protocol::mutable_batch_builder::ensure_line_parses_same_to_batch_types`
+        (mutable_batch_pb::encode::encode_batch_without_id(&mb), mb)
+    }
+
+    fn slice_lines_and_check(lines: Vec<ParsedLine<'static>>, ranges: &[Range<usize>]) {
+        let expected_lines = ranges
+            .iter()
+            .flat_map(|r| lines[r.clone()].iter())
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let (initial_batch, _) = lines_to_table_batch(lines);
+
+        let row_count = NonZeroUsize::new(
+            ranges
+                .iter()
+                .map(|Range { start, end }| end - start)
+                .sum::<usize>(),
+        )
+        .unwrap();
+
+        let mut sliced = PartitionWrite {
+            batch: &initial_batch,
+            ranges: ranges.to_vec(),
+            row_count,
+        }
+        .yield_batch();
+
+        let (mut expected_batch, _) = lines_to_table_batch(expected_lines);
+
+        // We may have a situation where the first line of `initial` doesn't have the same
+        // fields as `expected_lines`, so their field orderings is different. So we just sort to
+        // make it deterministic.
+        sliced.columns.sort_by_key(|c| c.column_name.clone());
+        expected_batch
+            .columns
+            .sort_by_key(|c| c.column_name.clone());
+
+        pretty_assertions::assert_eq!(sliced, expected_batch);
+    }
+
+    proptest! {
+        #[test]
+        fn partition_table_batch_slices(
+            (ranges, lines) in arbitrary_parsed_lines_same_table(false)
+                .prop_flat_map(|lines| (
+                    proptest::collection::vec(arbitrary_nonempty_range_within(lines.len()), 1..10),
+                    Just(lines)
+                ))
+        ) {
+            slice_lines_and_check(lines, &ranges);
         }
     }
 }

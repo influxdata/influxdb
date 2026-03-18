@@ -10,8 +10,7 @@ async-trait = { version = "0.1.89", default-features = false }
 bincode.workspace = true
 bytes = { version = "1.11.0", default-features = false }
 dashmap = "6.1.0"
-data_types = { path = "../data_types" }
-futures = { version = "0.3.31" }
+futures = { version = "0.3.32" }
 http = { workspace = true }
 indexmap = { version = "2.13", features = ["std"] }
 iox_time = { path = "../iox_time" }
@@ -22,9 +21,9 @@ object_store_metrics = { path = "../object_store_metrics" }
 object_store_mock = { path = "../object_store_mock" }
 object_store_size_hinting = { path = "../object_store_size_hinting" }
 tracing = { workspace = true }
-tokio = { version = "1.49.0", default-features = false }
+tokio = { version = "1.50.0", default-features = false }
 tracker = { path = "../tracker" }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 clap = { version = "4", features = ["derive"] }

@@ -14,9 +14,6 @@
 use http::Extensions;
 use object_store::GetOptions;
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 /// Object that encodes/holds the size hint.
 #[derive(Debug, Clone)]
 struct SizeHint(u64);

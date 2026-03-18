@@ -8,7 +8,7 @@ use crate::internal::{Error as InternalError, ParseResult, expect, verify};
 use crate::keywords::keyword;
 use crate::literal::{Literal, literal_no_regex, literal_regex};
 use crate::parameter::parameter;
-use crate::select::is_valid_now_call;
+use crate::select::{is_valid_date_part_call, is_valid_now_call};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::char;
@@ -334,10 +334,11 @@ fn reduce_expr(
     })
 }
 
-/// Returns true if `expr` is a valid [`Expr::Call`] expression for condtional expressions
-/// in the WHERE clause.
+/// Returns true if `expr` is a valid [`Expr::Call`] expression
+/// for conditional expressions in the WHERE clause.
 pub(crate) fn is_valid_conditional_call(expr: &Expr) -> bool {
     is_valid_now_call(expr)
+        || is_valid_date_part_call(expr)
         || match expr {
             Expr::Call(Call { name, .. }) => is_scalar_math_function(name),
             _ => false,
@@ -345,10 +346,10 @@ pub(crate) fn is_valid_conditional_call(expr: &Expr) -> bool {
 }
 
 impl ConditionalExpression {
-    /// Parse the `now()` function call
+    /// Parse the `now()` & `date_part()` function calls
     fn call(i: &str) -> ParseResult<&str, Expr> {
         verify(
-            "invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions",
+            "invalid expression, the only valid function calls are 'now' with no arguments, date_part(<literal>, time), or scalar math functions",
             call_expression::<Self>,
             is_valid_conditional_call,
         )(i)
@@ -453,12 +454,45 @@ mod test {
 
         assert_expect_error!(
             arithmetic_expression("sum(foo)"),
-            "invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions"
+            "invalid expression, the only valid function calls are 'now' with no arguments, date_part(<literal>, time), or scalar math functions"
         );
 
         assert_expect_error!(
             arithmetic_expression("now(1)"),
-            "invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions"
+            "invalid expression, the only valid function calls are 'now' with no arguments, date_part(<literal>, time), or scalar math functions"
+        );
+
+        // date_part() function call is permitted in conditional expressions
+        let (_, got) = arithmetic_expression("date_part('hour', time) + 3").unwrap();
+        assert_eq!(
+            got,
+            binary_op!(
+                call!(
+                    "date_part",
+                    Expr::Literal(crate::literal::Literal::String("hour".into())),
+                    var_ref!("time")
+                ),
+                Add,
+                3
+            )
+        );
+
+        // date_part with wrong second argument is rejected
+        assert_expect_error!(
+            arithmetic_expression("date_part('hour', foo)"),
+            "invalid expression, the only valid function calls are 'now' with no arguments, date_part(<literal>, time), or scalar math functions"
+        );
+
+        // date_part with wrong number of arguments is rejected
+        assert_expect_error!(
+            arithmetic_expression("date_part('hour')"),
+            "invalid expression, the only valid function calls are 'now' with no arguments, date_part(<literal>, time), or scalar math functions"
+        );
+
+        // date_part with non-string first argument is rejected
+        assert_expect_error!(
+            arithmetic_expression("date_part(time, time)"),
+            "invalid expression, the only valid function calls are 'now' with no arguments, date_part(<literal>, time), or scalar math functions"
         );
     }
 
@@ -616,6 +650,33 @@ mod test {
 
         // Invalid operator
         assert_error!(parse_conditional_expression("a ~= /foo/"), ref e @ ParseError { .. } if e.pos == 2);
+    }
+
+    #[test]
+    fn test_date_part_in_conditional() {
+        // date_part can be used in conditional expressions (WHERE clause)
+        let (_, got) = conditional_expression("date_part('hour', time) = 12").unwrap();
+        assert_eq!(
+            got,
+            *cond_op!(
+                call!(
+                    "date_part",
+                    Expr::Literal(crate::literal::Literal::String("hour".into())),
+                    var_ref!("time")
+                ),
+                Eq,
+                12
+            )
+        );
+
+        // date_part combined with AND
+        let (_, got) =
+            conditional_expression("date_part('hour', time) >= 9 AND date_part('hour', time) < 17")
+                .unwrap();
+        assert_eq!(
+            got.to_string(),
+            "date_part('hour', time) >= 9 AND date_part('hour', time) < 17"
+        );
     }
 
     /// Validate the [`FromStr`] implementation for [`ConditionalExpression`].

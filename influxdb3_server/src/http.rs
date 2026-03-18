@@ -879,6 +879,10 @@ impl IntoResponse for Error {
                 .status(StatusCode::METHOD_NOT_ALLOWED)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
+            Self::MissingDb(_) | Self::MissingTable(_) => ResponseBuilder::new()
+                .status(StatusCode::NOT_FOUND)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
             _ => ResponseBuilder::new()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(bytes_to_response_body(self.to_string()))

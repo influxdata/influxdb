@@ -58,7 +58,12 @@ use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::storage::DataSourceExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
-use std::{borrow::Borrow, num::NonZeroU64, sync::Arc, time::Duration};
+use std::{
+    borrow::Borrow,
+    num::{NonZeroU64, NonZeroUsize},
+    sync::Arc,
+    time::Duration,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -187,6 +192,7 @@ pub struct WriteBufferImplArgs {
     pub n_snapshots_to_load_on_start: NonZeroU64,
     pub shutdown: ShutdownToken,
     pub wal_replay_concurrency_limit: usize,
+    pub parquet_snapshot_concurrency_limit: NonZeroUsize,
 }
 
 impl WriteBufferImpl {
@@ -206,6 +212,7 @@ impl WriteBufferImpl {
             n_snapshots_to_load_on_start,
             shutdown,
             wal_replay_concurrency_limit,
+            parquet_snapshot_concurrency_limit,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // Calculate sequence cutoff based on n_snapshots_to_load_on_start
@@ -393,6 +400,7 @@ impl WriteBufferImpl {
             distinct_cache_provider: Arc::clone(&distinct_cache),
             persisted_files: Arc::clone(&persisted_files),
             parquet_cache: parquet_cache.clone(),
+            parquet_snapshot_concurrency_limit,
         }));
 
         // create the wal instance, which will replay into the queryable buffer and start

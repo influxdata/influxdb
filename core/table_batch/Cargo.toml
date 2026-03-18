@@ -1,0 +1,23 @@
+[package]
+name = "table_batch"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+generated_types = { path = "../generated_types/" }
+hashbrown = { workspace = true }
+influxdb-line-protocol = { path = "../influxdb_line_protocol/" }
+schema = { path = "../schema" }
+bitvec = { version = "1", default-features = false }
+
+
+[dev-dependencies]
+arrow_util = { path = "../arrow_util" }
+influxdb-line-protocol = { path = "../influxdb_line_protocol/", features = [ "test_helpers" ] }
+pretty_assertions = "1"
+proptest = { workspace = true }
+
+[lints]
+workspace = true

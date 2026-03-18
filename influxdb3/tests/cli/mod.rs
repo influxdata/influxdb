@@ -833,6 +833,42 @@ async fn test_delete_missing_table() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_delete_database_with_yes_flag() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_delete_db_yes";
+    server.create_database(db_name).run().unwrap();
+    let result = server.delete_database(db_name).with_yes().run().unwrap();
+    assert!(
+        result.contains("deleted successfully"),
+        "Expected success message, got: {result}"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table_with_yes_flag() {
+    let server = TestServer::spawn().await;
+    let db_name = "test_delete_tbl_yes";
+    server.create_database(db_name).run().unwrap();
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,host=a val=1",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+    let result = server
+        .delete_table(db_name, "cpu")
+        .with_yes()
+        .run()
+        .unwrap();
+    assert!(
+        result.contains("deleted successfully"),
+        "Expected success message, got: {result}"
+    );
+}
+
+#[test_log::test(tokio::test)]
 async fn test_delete_table_when_database_deleted() {
     // Testing deleting a table from a database that has already been deleted
     // should not succeed.

@@ -5,8 +5,6 @@ use core::hint::black_box;
 use arrow_util::bitset::iter_set_positions_with_offset;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use workspace_hack as _;
-
 fn run_tests(bytes: &[u8], offset: usize, name: &'static str, c: &mut Criterion) {
     c.bench_function(name, |b| {
         b.iter(|| {

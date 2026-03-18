@@ -14,6 +14,7 @@ use std::{
     collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use sha2::Digest;
@@ -21,12 +22,12 @@ use sha2::Digest;
 /// GIT hash of the commit in <https://github.com/influxdata/datafusion-udf-wasm>.
 ///
 /// See module level comment on how to update this.
-const COMMIT: &str = "9b2243ad3305ca3e29af38e8cc9097cb853f1fce";
+const COMMIT: &str = "89ab4ae6312c3a44859ddd43d9df4d4300d3086a";
 
 /// Timestamp of the WASM build.
 ///
 /// See module level comment on how to update this.
-const BUILD_TIMESTAMP: &str = "2026-01-21T01:05:14+00:00";
+const BUILD_TIMESTAMP: &str = "2026-01-28T11:46:19+00:00";
 
 /// SHA256 checksum of the `sha256sum.txt` release artifact.
 ///
@@ -34,7 +35,7 @@ const BUILD_TIMESTAMP: &str = "2026-01-21T01:05:14+00:00";
 ///
 /// See module level comment on how to update this.
 const SHA256_TXT_CHECKSUM: &str =
-    "sha256:b5b6d75035c5041370f113900c1026f2f76449ffba0e559d6418fd8a04780676";
+    "sha256:1fcd991e5e03f9c2e56e7ba5e9d56af9343b53bf9c3383b19e7ca985a9d3d823";
 
 fn main() {
     let sha256sum_txt_checksum = SHA256_TXT_CHECKSUM.to_lowercase().replace("sha256:", "");
@@ -74,15 +75,20 @@ fn fetch_artifact(name: &str, checksum: &str) -> PathBuf {
         "https://github.com/influxdata/datafusion-udf-wasm/releases/download/wasm-binaries%2F{build_ts}%2F{COMMIT}/{name}"
     );
 
-    // scope for file and response
-    {
-        let response = ureq::get(&url)
-            .call()
-            .unwrap_or_else(|e| panic!("download `{url}`: {e}"));
-        let mut data = response.into_body().into_reader();
-        let mut file = File::create(&target_file).unwrap();
-        std::io::copy(&mut data, &mut file).unwrap();
-        file.sync_all().unwrap();
+    // retry loop for download
+    for retry in 1.. {
+        match download(&url, &target_file) {
+            Ok(()) => {
+                break;
+            }
+            Err(e) if retry < 100 => {
+                println!("cargo::warning=download of `{url}` failed, retrying: {e}");
+                std::thread::sleep(Duration::from_secs(1));
+            }
+            Err(e) => {
+                panic!("download of `{url}` failed: {e}");
+            }
+        }
     }
 
     let actual_checksum = sha256(&target_file);
@@ -92,6 +98,16 @@ fn fetch_artifact(name: &str, checksum: &str) -> PathBuf {
     );
 
     target_file
+}
+
+/// Download file to path.
+fn download(url: &str, path: &Path) -> Result<(), std::io::Error> {
+    let response = ureq::get(url).call().map_err(std::io::Error::other)?;
+    let mut data = response.into_body().into_reader();
+    let mut file = File::create(path)?;
+    std::io::copy(&mut data, &mut file)?;
+    file.sync_all()?;
+    Ok(())
 }
 
 /// Get SHA256 of given file.

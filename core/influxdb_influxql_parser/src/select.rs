@@ -316,6 +316,19 @@ pub(crate) fn is_valid_now_call(expr: &Expr) -> bool {
     }
 }
 
+/// Returns true if `expr` is a valid [`Expr::Call`] expression for the `date_part` function.
+pub(crate) fn is_valid_date_part_call(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call(Call { name, args }) => {
+            name == "date_part"
+                && args.len() == 2
+                && matches!(&args[0], Expr::Literal(Literal::String(_)))
+                && matches!(&args[1], Expr::VarRef(VarRef { name, data_type:_ } ) if &**name == "time")
+        }
+        _ => false,
+    }
+}
+
 impl TimeCallOffsetArgument {
     /// Parse the `now()` function call
     fn now_call(i: &str) -> ParseResult<&str, Expr> {
@@ -1400,6 +1413,98 @@ mod test {
             wildcard("*::foo"),
             "invalid wildcard type specifier, expected TAG or FIELD"
         );
+    }
+
+    #[test]
+    fn test_is_valid_date_part_call() {
+        use crate::expression::arithmetic::Expr;
+        use crate::expression::{Call, VarRef};
+        use crate::literal::Literal;
+
+        // Valid: date_part('hour', time)
+        let expr = Expr::Call(Call {
+            name: "date_part".into(),
+            args: vec![
+                Expr::Literal(Literal::String("hour".into())),
+                Expr::VarRef(VarRef {
+                    name: "time".into(),
+                    data_type: None,
+                }),
+            ],
+        });
+        assert!(is_valid_date_part_call(&expr));
+
+        // Valid: different date part names
+        for part in &["year", "month", "day", "minute", "second", "dow", "doy"] {
+            let expr = Expr::Call(Call {
+                name: "date_part".into(),
+                args: vec![
+                    Expr::Literal(Literal::String((*part).into())),
+                    Expr::VarRef(VarRef {
+                        name: "time".into(),
+                        data_type: None,
+                    }),
+                ],
+            });
+            assert!(is_valid_date_part_call(&expr), "expected valid for {part}");
+        }
+
+        // Invalid: wrong function name
+        let expr = Expr::Call(Call {
+            name: "now".into(),
+            args: vec![],
+        });
+        assert!(!is_valid_date_part_call(&expr));
+
+        // Invalid: first argument is not a string literal
+        let expr = Expr::Call(Call {
+            name: "date_part".into(),
+            args: vec![
+                Expr::VarRef(VarRef {
+                    name: "hour".into(),
+                    data_type: None,
+                }),
+                Expr::VarRef(VarRef {
+                    name: "time".into(),
+                    data_type: None,
+                }),
+            ],
+        });
+        assert!(!is_valid_date_part_call(&expr));
+
+        // Invalid: second argument is not `time`
+        let expr = Expr::Call(Call {
+            name: "date_part".into(),
+            args: vec![
+                Expr::Literal(Literal::String("hour".into())),
+                Expr::VarRef(VarRef {
+                    name: "foo".into(),
+                    data_type: None,
+                }),
+            ],
+        });
+        assert!(!is_valid_date_part_call(&expr));
+
+        // Invalid: wrong number of arguments (1)
+        let expr = Expr::Call(Call {
+            name: "date_part".into(),
+            args: vec![Expr::Literal(Literal::String("hour".into()))],
+        });
+        assert!(!is_valid_date_part_call(&expr));
+
+        // Invalid: wrong number of arguments (0)
+        let expr = Expr::Call(Call {
+            name: "date_part".into(),
+            args: vec![],
+        });
+        assert!(!is_valid_date_part_call(&expr));
+
+        // Invalid: not a Call expression
+        let expr = Expr::VarRef(VarRef {
+            name: "date_part".into(),
+            data_type: None,
+        });
+        assert!(!is_valid_date_part_call(&expr));
     }
 
     #[test]

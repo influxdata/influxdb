@@ -135,9 +135,16 @@ where
         }
     }
 
-    #[cfg(test)]
+    /// Number of entries in set.
+    ///
+    /// This only accounts the actual valid entries. See [`n_tombstones`](Self::n_tombstones) for the tombstone count.
     pub(crate) fn len(&self) -> usize {
-        self.set.len()
+        self.set.len() - self.n_tombstones
+    }
+
+    /// Number of tombstones.
+    pub(crate) fn n_tombstones(&self) -> usize {
+        self.n_tombstones
     }
 
     #[cfg(test)]
@@ -177,23 +184,35 @@ where
         decoder: &mut D,
     ) -> Result<Self, bincode::error::DecodeError> {
         let set_len: u8 = Decode::decode(decoder)?;
-        // Manually reconstruct the IndexSet from decoded entries
-        // since IndexSet does not implement Decode.
+        let mut memory_size = 0;
         let mut set = IndexSet::new();
         for _ in 0..set_len {
             let entry: Entry<T> = Decode::decode(decoder)?;
-            set.insert(entry);
+            match entry {
+                Entry::Data(o) => {
+                    memory_size += o.size();
+                    set.insert(Entry::Data(o));
+                }
+                Entry::Tombstone(_) => {
+                    // skip, no need to re-hydrate tombstones
+                }
+            }
         }
 
-        let memory_size: usize = Decode::decode(decoder)?;
-        let tombstone_counter: u64 = Decode::decode(decoder)?;
-        let n_tombstones: usize = Decode::decode(decoder)?;
+        // We decode these since they where part of the original encoding, but we can re-compute this during decoding
+        // anyways which is probably better to ensure that everything is "in sync" (esp. when the `HasSize`
+        // implementations changed).
+        let _memory_size_decoded: usize = Decode::decode(decoder)?;
+
+        // They are part of the encoded data but we are not hydrating tombstones during decoding.
+        let _tombstone_counter_decoded: u64 = Decode::decode(decoder)?;
+        let _n_tombstones_decoded: usize = Decode::decode(decoder)?;
 
         Ok(Self {
             set,
             memory_size,
-            tombstone_counter,
-            n_tombstones,
+            tombstone_counter: 0,
+            n_tombstones: 0,
         })
     }
 }
@@ -349,10 +368,10 @@ mod tests {
         // Verify the state before encoding
         let original_memory_size = ordered_set.memory_size();
         let original_len = ordered_set.len();
-        let original_n_tombstones = ordered_set.n_tombstones;
+        let original_n_tombstones = ordered_set.n_tombstones();
         let original_tombstone_counter = ordered_set.tombstone_counter;
         assert_eq!(original_memory_size, "first".len() + "third".len());
-        assert_eq!(original_len, 4); // 2 data + 2 tombstones
+        assert_eq!(original_len, 2);
         assert_eq!(original_n_tombstones, 2);
         assert_eq!(original_tombstone_counter, 2);
 
@@ -360,21 +379,33 @@ mod tests {
         let encoded = bincode::encode_to_vec(&ordered_set, bincode::config::standard())
             .expect("Failed to encode OrderedSet");
 
+        // Ensure that our encoding is stable and backwards compatible.
+        assert_eq!(
+            encoded,
+            vec![
+                4, 1, 5, 102, 105, 114, 115, 116, 2, 0, 1, 5, 116, 104, 105, 114, 100, 2, 1, 10, 2,
+                2
+            ]
+        );
+
         // Decode the OrderedSet
-        let (decoded_set, _): (OrderedSet<TestData>, usize) =
+        let (decoded_set, bytes_decoded): (OrderedSet<TestData>, usize) =
             bincode::decode_from_slice(&encoded, bincode::config::standard())
                 .expect("Failed to decode OrderedSet");
+        assert_eq!(bytes_decoded, encoded.len(), "trailing data");
 
-        // Verify the decoded state matches the original
+        // Verify the decoded state matches the original, except for tombstones that are not hydrated.
         assert_eq!(decoded_set.memory_size(), original_memory_size);
         assert_eq!(decoded_set.len(), original_len);
-        assert_eq!(decoded_set.n_tombstones, original_n_tombstones);
-        assert_eq!(decoded_set.tombstone_counter, original_tombstone_counter);
+        assert_eq!(decoded_set.n_tombstones, 0);
+        assert_eq!(decoded_set.tombstone_counter, 0);
 
-        // Verify that Data & Tombstone entries are correctly decoded
+        // Verify that Data entries are correctly decoded
         assert!(
             matches!(decoded_set.set[0], Entry::Data(ref data) if data == &TestData("first".to_string()))
         );
-        assert!(matches!(decoded_set.set[1], Entry::Tombstone(_)));
+
+        // Verify that there are NOT Tombstone entries.
+        assert!(decoded_set.set.iter().all(|e| matches!(e, Entry::Data(_))));
     }
 }

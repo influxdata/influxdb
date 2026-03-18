@@ -1,4 +1,4 @@
-use crate::{NUMERICS, error};
+use crate::error;
 use arrow::array::{Array, ArrayRef, Int64Array};
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::{Result, ScalarValue, downcast_value};
@@ -6,6 +6,7 @@ use datafusion::logical_expr::function::{PartitionEvaluatorArgs, WindowUDFFieldA
 use datafusion::logical_expr::{
     PartitionEvaluator, Signature, TypeSignature, Volatility, WindowUDFImpl,
 };
+use query_functions::NUMERICS;
 use std::collections::VecDeque;
 use std::sync::Arc;
 

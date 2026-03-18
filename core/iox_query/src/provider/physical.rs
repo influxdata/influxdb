@@ -238,11 +238,11 @@ pub fn chunks_to_physical_nodes(
             .iter()
             .map(|(_meta, chunk)| Arc::clone(chunk))
             .collect::<Vec<_>>();
-        let statistics = build_statistics_for_chunks(&query_chunks, Arc::clone(schema));
+        let statistics = build_statistics_for_chunks(&query_chunks, schema);
 
         // Tell datafusion about the sort key, if any
         let output_ordering = sort_key.and_then(|sort_key| arrow_sort_key_exprs(&sort_key, schema));
-        let output_ordering = if has_chunk_order_col {
+        let sort_order = if has_chunk_order_col {
             let suffix = std::iter::once(PhysicalSortExpr {
                 expr: Arc::new(
                     Column::new_with_schema(CHUNK_ORDER_COLUMN_NAME, schema)
@@ -293,7 +293,7 @@ pub fn chunks_to_physical_nodes(
         .collect();
 
         // No sort order is represented by an empty Vec
-        let output_ordering = output_ordering
+        let output_ordering = sort_order
             .map(|sort_order| vec![sort_order])
             .unwrap_or_default();
 
@@ -669,9 +669,8 @@ mod tests {
         assert_eq!(plan_record_batches_exec.schema(), plan.schema());
 
         // Statistics of 2 chunks are the same
-        let record_batch_stats =
-            build_statistics_for_chunks(&[record_batch_chunk], Arc::clone(&schema));
-        let parquet_stats = build_statistics_for_chunks(&[parquet_chunk], schema);
+        let record_batch_stats = build_statistics_for_chunks(&[record_batch_chunk], &schema);
+        let parquet_stats = build_statistics_for_chunks(&[parquet_chunk], &schema);
         assert_eq!(record_batch_stats, parquet_stats);
 
         // Statistics of the corresponding plans should also be the same except the CHUNK_ORDER_COLUMN_NAME

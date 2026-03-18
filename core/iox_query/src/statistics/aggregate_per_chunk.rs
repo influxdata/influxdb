@@ -189,7 +189,7 @@ struct DFStatsAggregatorCol {
 /// build DF statistics for given chunks and a schema
 pub fn build_statistics_for_chunks(
     chunks: &[Arc<dyn QueryChunk>],
-    schema: SchemaRef,
+    schema: &SchemaRef,
 ) -> DFStatistics {
     let chunk_order_field = schema.field_with_name(CHUNK_ORDER_COLUMN_NAME).ok();
     let chunk_order_only_schema = chunk_order_field.map(|field| Schema::new(vec![field.clone()]));
@@ -198,7 +198,7 @@ pub fn build_statistics_for_chunks(
 
     chunks
         .iter()
-        .fold(DFStatsAggregator::new(&schema), |mut agg, chunk| {
+        .fold(DFStatsAggregator::new(schema), |mut agg, chunk| {
             agg.update(&chunk.stats(), chunk.schema().as_arrow().as_ref());
 
             if let Some(schema) = chunk_order_only_schema.as_ref() {
@@ -705,11 +705,10 @@ mod test {
             },
         ];
 
-        let record_batch_stats =
-            build_statistics_for_chunks(&[record_batch_chunk], Arc::clone(&schema));
+        let record_batch_stats = build_statistics_for_chunks(&[record_batch_chunk], &schema);
         assert_eq!(record_batch_stats.column_statistics, expected_stats);
 
-        let parquet_stats = build_statistics_for_chunks(&[parquet_chunk], schema);
+        let parquet_stats = build_statistics_for_chunks(&[parquet_chunk], &schema);
         assert_eq!(parquet_stats.column_statistics, expected_stats);
     }
 
@@ -798,14 +797,12 @@ mod test {
             },
         ];
 
-        let record_batch_stats = build_statistics_for_chunks(
-            &[record_batch_chunk_1, record_batch_chunk_2],
-            Arc::clone(&schema),
-        );
+        let record_batch_stats =
+            build_statistics_for_chunks(&[record_batch_chunk_1, record_batch_chunk_2], &schema);
         assert_eq!(record_batch_stats.column_statistics, expected_stats);
 
         let parquet_stats =
-            build_statistics_for_chunks(&[parquet_chunk_1, parquet_chunk_2], schema);
+            build_statistics_for_chunks(&[parquet_chunk_1, parquet_chunk_2], &schema);
         assert_eq!(parquet_stats.column_statistics, expected_stats);
     }
 }

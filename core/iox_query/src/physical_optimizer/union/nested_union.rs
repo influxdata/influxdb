@@ -58,7 +58,7 @@ impl PhysicalOptimizerRule for NestedUnion {
                 }
 
                 if found_union {
-                    return Ok(Transformed::yes(Arc::new(UnionExec::new(children_new))));
+                    return Ok(Transformed::yes(UnionExec::try_new(children_new)?));
                 }
             }
 
@@ -86,15 +86,20 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "index out of bounds: the len is 0 but the index is 0")]
     fn test_union_empty() {
         // empty UnionExecs cannot be created in the first place
-        UnionExec::new(vec![]);
+        let err = UnionExec::try_new(vec![]).unwrap_err();
+        assert!(
+            err.to_string().contains("requires at least one input"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
     fn test_union_not_nested() {
-        let plan = Arc::new(UnionExec::new(vec![other_node()]));
+        // Note: UnionExec::try_new returns the input directly for single-input case,
+        // so we use 2 inputs here to get an actual UnionExec
+        let plan = UnionExec::try_new(vec![other_node(), other_node()]).unwrap();
         let opt = NestedUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
@@ -102,9 +107,11 @@ mod tests {
         input:
           - " UnionExec"
           - "   EmptyExec"
+          - "   EmptyExec"
         output:
           Ok:
             - " UnionExec"
+            - "   EmptyExec"
             - "   EmptyExec"
         "#
         );
@@ -112,10 +119,11 @@ mod tests {
 
     #[test]
     fn test_union_nested() {
-        let plan = Arc::new(UnionExec::new(vec![
-            Arc::new(UnionExec::new(vec![other_node(), other_node()])),
+        let plan = UnionExec::try_new(vec![
+            UnionExec::try_new(vec![other_node(), other_node()]).unwrap(),
             other_node(),
-        ]));
+        ])
+        .unwrap();
         let opt = NestedUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
@@ -138,13 +146,17 @@ mod tests {
 
     #[test]
     fn test_union_deeply_nested() {
-        let plan = Arc::new(UnionExec::new(vec![
-            Arc::new(UnionExec::new(vec![
+        // Note: innermost union uses 2 inputs because UnionExec::try_new
+        // returns the input directly for single-input case
+        let plan = UnionExec::try_new(vec![
+            UnionExec::try_new(vec![
                 other_node(),
-                Arc::new(UnionExec::new(vec![other_node()])),
-            ])),
+                UnionExec::try_new(vec![other_node(), other_node()]).unwrap(),
+            ])
+            .unwrap(),
             other_node(),
-        ]));
+        ])
+        .unwrap();
         let opt = NestedUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
@@ -155,10 +167,12 @@ mod tests {
           - "     EmptyExec"
           - "     UnionExec"
           - "       EmptyExec"
+          - "       EmptyExec"
           - "   EmptyExec"
         output:
           Ok:
             - " UnionExec"
+            - "   EmptyExec"
             - "   EmptyExec"
             - "   EmptyExec"
             - "   EmptyExec"

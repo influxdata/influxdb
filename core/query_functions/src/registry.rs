@@ -9,7 +9,7 @@ use datafusion::{
     logical_expr::{AggregateUDF, ScalarUDF, WindowUDF, planner::ExprPlanner},
 };
 
-use crate::{date_bin_wallclock, gapfill, regex, sleep, to_timestamp, tz, window};
+use crate::{date_bin_wallclock, difference, gapfill, regex, sleep, to_timestamp, tz, window};
 
 /// Contains IOx UDFs
 static IOX_REGISTRY: LazyLock<IOxFunctionRegistry> = LazyLock::new(IOxFunctionRegistry::new);
@@ -30,6 +30,24 @@ static ALL_REGISTRY: LazyLock<Box<dyn FunctionRegistry + 'static + Send + Sync>>
                 )
                 .expect("should register iox UDF");
         }
+        for fn_name in iox_registry.udafs() {
+            registry
+                .register_udaf(
+                    iox_registry
+                        .udaf(&fn_name)
+                        .expect("iox registry is missing udaf"),
+                )
+                .expect("should register iox UDAF");
+        }
+        for fn_name in iox_registry.udwfs() {
+            registry
+                .register_udwf(
+                    iox_registry
+                        .udwf(&fn_name)
+                        .expect("iox registry is missing udwf"),
+                )
+                .expect("should register iox UDWF");
+        }
         Box::new(registry)
     });
 
@@ -44,6 +62,20 @@ impl IOxFunctionRegistry {
 }
 
 impl FunctionRegistry for IOxFunctionRegistry {
+    fn udafs(&self) -> HashSet<String> {
+        HashSet::new()
+    }
+
+    fn udwfs(&self) -> HashSet<String> {
+        [
+            difference::DIFFERENCE_UDWF_NAME,
+            difference::NON_NEGATIVE_DIFFERENCE_UDWF_NAME,
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
+    }
+
     fn udfs(&self) -> HashSet<String> {
         [
             to_timestamp::TO_TIMESTAMP_FUNCTION_NAME,
@@ -93,9 +125,15 @@ impl FunctionRegistry for IOxFunctionRegistry {
     }
 
     fn udwf(&self, name: &str) -> DataFusionResult<Arc<WindowUDF>> {
-        Err(DataFusionError::Plan(format!(
-            "IOx FunctionRegistry does not contain user defined window function '{name}'"
-        )))
+        match name {
+            difference::DIFFERENCE_UDWF_NAME => Ok(difference::DIFFERENCE_UDWF.clone()),
+            difference::NON_NEGATIVE_DIFFERENCE_UDWF_NAME => {
+                Ok(difference::NON_NEGATIVE_DIFFERENCE_UDWF.clone())
+            }
+            _ => Err(DataFusionError::Plan(format!(
+                "IOx FunctionRegistry does not contain function '{name}'"
+            ))),
+        }
     }
 
     fn expr_planners(&self) -> Vec<Arc<dyn ExprPlanner>> {

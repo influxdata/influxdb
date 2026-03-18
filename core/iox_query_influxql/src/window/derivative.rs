@@ -1,4 +1,4 @@
-use crate::{NUMERICS, delta_time, error};
+use crate::{delta_time, error};
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DataType, Field, IntervalUnit::MonthDayNano, TimeUnit};
@@ -7,6 +7,7 @@ use datafusion::logical_expr::function::{PartitionEvaluatorArgs, WindowUDFFieldA
 use datafusion::logical_expr::{
     PartitionEvaluator, Signature, TIMEZONE_WILDCARD, TypeSignature, Volatility, WindowUDFImpl,
 };
+use query_functions::NUMERICS;
 use std::sync::Arc;
 
 #[derive(Debug, PartialEq, Eq, Hash)]

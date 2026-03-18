@@ -1,11 +1,8 @@
 //! Contains the IOx InfluxQL query planner
 
-use arrow::datatypes::DataType;
 use datafusion::{common::Result, scalar::ScalarValue};
 
 use tracing::warn;
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
 
 mod aggregate;
 mod error;
@@ -14,10 +11,6 @@ pub mod plan;
 pub mod show_databases;
 pub mod show_retention_policies;
 mod window;
-
-/// A list of the numeric types supported by InfluxQL that can be be used
-/// as input to user-defined functions.
-static NUMERICS: &[DataType] = &[DataType::Int64, DataType::UInt64, DataType::Float64];
 
 /// Calculate the nanosecond time difference, scaled to the unit.
 pub(crate) fn delta_time(

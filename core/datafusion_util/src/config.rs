@@ -30,9 +30,7 @@ pub fn iox_session_config() -> SessionConfig {
     options.execution.parquet.pushdown_filters = true;
     options.execution.parquet.reorder_filters = true;
     options.execution.parquet.schema_force_view_types = false;
-    if let Some(time_zone) = TIME_DATA_TIMEZONE() {
-        options.execution.time_zone = time_zone.to_string();
-    }
+    options.execution.time_zone = TIME_DATA_TIMEZONE().map(|v| v.to_string());
     options.optimizer.repartition_sorts = true;
     options.optimizer.prefer_existing_union = true;
     // DataSourceExec now returns estimates rather than actual

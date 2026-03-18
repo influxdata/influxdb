@@ -193,6 +193,7 @@ pub(crate) fn strip_influxql_metadata_from_plan(plan: LogicalPlan) -> Result<Log
 mod tests {
     use super::*;
     use arrow::datatypes::DataType;
+    use datafusion::common::datatype::DataTypeExt;
     use datafusion::{
         common::{Column, DFSchema},
         functions_aggregate::sum::sum_udaf,
@@ -490,9 +491,9 @@ mod tests {
         let schema = make_schema();
 
         // Placeholder expression (returns false for _ wildcard pattern)
-        let expr = Expr::Placeholder(datafusion::logical_expr::expr::Placeholder::new(
+        let expr = Expr::Placeholder(datafusion::logical_expr::expr::Placeholder::new_with_field(
             "placeholder".to_string(),
-            Some(DataType::Int64),
+            Some(DataType::Int64.into_nullable_field_ref()),
         ));
         assert!(!expr_is_influxql_filled(&expr, &schema));
     }

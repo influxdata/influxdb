@@ -91,8 +91,114 @@ where
         decoder: &mut D,
     ) -> Result<Self, bincode::error::DecodeError> {
         let queue: std::collections::VecDeque<T> = bincode::Decode::decode(decoder)?;
-        let memory_size: usize = bincode::Decode::decode(decoder)?;
 
-        Ok(Self { queue, memory_size })
+        // This was encoded but we rather want to re-calculate it, just in case the `HasSize` implementation has changed.
+        let _memory_size_decoded: usize = bincode::Decode::decode(decoder)?;
+
+        Ok(Self::new(queue))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bincode::{Decode, Encode};
+
+    // Simple test type that implements all required traits
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
+    struct TestData(String);
+
+    impl HasSize for TestData {
+        fn size(&self) -> usize {
+            self.0.len()
+        }
+    }
+
+    #[test]
+    fn test_new() {
+        let fifo = Fifo::<TestData>::new(
+            [TestData("foo".to_owned()), TestData("bar".to_owned())]
+                .into_iter()
+                .collect(),
+        );
+        assert_eq!(fifo.memory_size(), 6);
+        assert_eq!(fifo.len(), 2);
+    }
+
+    #[test]
+    fn test_push_pop() {
+        let mut fifo = Fifo::<TestData>::new(Default::default());
+
+        fifo.push_back(TestData("foo".to_owned()));
+        assert_eq!(fifo.memory_size(), 3);
+        assert_eq!(fifo.len(), 1);
+
+        fifo.push_back(TestData("bar".to_owned()));
+        assert_eq!(fifo.memory_size(), 6);
+        assert_eq!(fifo.len(), 2);
+
+        assert_eq!(fifo.pop_front(), Some(TestData("foo".to_owned())));
+        assert_eq!(fifo.memory_size(), 3);
+        assert_eq!(fifo.len(), 1);
+
+        fifo.push_back(TestData("x".to_owned()));
+        assert_eq!(fifo.memory_size(), 4);
+        assert_eq!(fifo.len(), 2);
+
+        assert_eq!(fifo.pop_front(), Some(TestData("bar".to_owned())));
+        assert_eq!(fifo.memory_size(), 1);
+        assert_eq!(fifo.len(), 1);
+
+        assert_eq!(fifo.pop_front(), Some(TestData("x".to_owned())));
+        assert_eq!(fifo.memory_size(), 0);
+        assert_eq!(fifo.len(), 0);
+
+        assert_eq!(fifo.pop_front(), None);
+        assert_eq!(fifo.memory_size(), 0);
+        assert_eq!(fifo.len(), 0);
+    }
+
+    #[test]
+    fn test_drain() {
+        let mut fifo = Fifo::<TestData>::new(Default::default());
+        fifo.push_back(TestData("foo".to_owned()));
+        fifo.push_back(TestData("bar".to_owned()));
+        assert_eq!(fifo.memory_size(), 6);
+        assert_eq!(fifo.len(), 2);
+
+        let drained = fifo.drain().collect::<Vec<_>>();
+        assert_eq!(
+            drained,
+            vec![TestData("foo".to_owned()), TestData("bar".to_owned())]
+        );
+        assert_eq!(fifo.len(), 0);
+        assert_eq!(fifo.memory_size(), 0);
+    }
+
+    #[test]
+    fn test_serde() {
+        let mut fifo = Fifo::<TestData>::new(Default::default());
+        fifo.push_back(TestData("foo".to_owned()));
+        fifo.push_back(TestData("bar".to_owned()));
+
+        let encoded = bincode::encode_to_vec(&fifo, bincode::config::standard())
+            .expect("Failed to encode OrderedSet");
+
+        // Ensure that our encoding is stable and backwards compatible.
+        assert_eq!(encoded, vec![2, 3, 102, 111, 111, 3, 98, 97, 114, 6]);
+
+        // Decode the OrderedSet
+        let (decoded_fifo, bytes_decoded): (Fifo<TestData>, usize) =
+            bincode::decode_from_slice(&encoded, bincode::config::standard())
+                .expect("Failed to decode OrderedSet");
+        assert_eq!(bytes_decoded, encoded.len(), "trailing data");
+
+        assert_eq!(fifo.len(), decoded_fifo.len());
+        assert_eq!(fifo.memory_size(), decoded_fifo.memory_size());
+        let dump = decoded_fifo.iter().cloned().collect::<Vec<_>>();
+        assert_eq!(
+            dump,
+            vec![TestData("foo".to_owned()), TestData("bar".to_owned())]
+        );
     }
 }

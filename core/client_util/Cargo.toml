@@ -16,10 +16,10 @@ reqwest = { workspace = true, features = ["stream", "rustls-tls-native-roots"] }
 thiserror = "2.0.18"
 tonic = { workspace = true, features = ["gzip", "tls-ring", "tls-native-roots", "zstd"] }
 tower = { workspace = true }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
-tokio = { version = "1.49", features = [
+tokio = { version = "1.50", features = [
     "macros",
     "parking_lot",
     "rt-multi-thread",

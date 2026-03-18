@@ -133,90 +133,35 @@ use std::{
 
 use arrow::{
     datatypes::{DataType, Schema, SchemaRef},
-    ipc::writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions},
+    ipc::writer::{CompressionContext, DictionaryTracker, IpcDataGenerator, IpcWriteOptions},
     record_batch::RecordBatch,
 };
-use arrow_flight::FlightData;
-use futures::{Stream, StreamExt, stream::BoxStream};
+use arrow_flight::{FlightData, error::FlightError};
+use data_types::GrpcTimeoutDuration;
+use futures::Stream;
+use generated_types::tonic::{Code, Status};
 use tokio::time::{Interval, MissedTickBehavior};
 use tracing::{info, warn};
 
+#[pin_project::pin_project(project = MaybeSleepProj)]
+#[allow(clippy::large_enum_variant)]
+enum MaybeSleep {
+    Sleep(#[pin] tokio::time::Sleep),
+    None,
+}
+
 /// Keep alive underlying response stream by sending regular empty [`RecordBatch`]es.
-pub(crate) struct KeepAliveStream<E>
+#[pin_project::pin_project]
+pub(crate) struct KeepAliveStream<S>
 where
-    E: 'static,
-{
-    inner: BoxStream<'static, Result<FlightData, E>>,
-}
-
-impl<E> KeepAliveStream<E>
-where
-    E: 'static,
-{
-    /// Create new keep-alive wrapper from the underlying stream and the given interval.
-    ///
-    /// The interval is measured from the last message -- which can either be a "real" message or a keep-alive.
-    pub(crate) fn new<S>(s: S, interval: Duration) -> Self
-    where
-        S: Stream<Item = Result<FlightData, E>> + Send + 'static,
-    {
-        let mut ticker = tokio::time::interval(interval);
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        ticker.reset(); // otherwise first tick return immediately
-        let state = State {
-            inner: s.boxed(),
-            schema: None,
-            ticker,
-        };
-
-        let inner = futures::stream::unfold(state, async move |mut state| {
-            loop {
-                tokio::select! {
-                    _ = state.ticker.tick() => {
-                        let Some(data) = build_empty_batch_msg(state.schema.as_ref()) else {
-                            continue;
-                        };
-                        info!("stream keep-alive");
-                        return Some((Ok(data), state));
-                    }
-                    res = state.inner.next() => {
-                        // peek at content to detect schema transmission
-                        if let Some(Ok(data)) = &res &&
-                           let Some(schema) = decode_schema(data) &&
-                           check_schema(&schema) {
-                            state.schema = Some(Arc::new(schema));
-                        }
-
-                        state.ticker.reset();
-                        return res.map(|res| (res, state));
-                    }
-                }
-            }
-        })
-        .boxed();
-
-        Self { inner }
-    }
-}
-
-impl<E> Stream for KeepAliveStream<E>
-where
-    E: 'static,
-{
-    type Item = Result<FlightData, E>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.inner.poll_next_unpin(cx)
-    }
-}
-
-/// Inner state of [`KeepAliveStream`]
-struct State<E>
-where
-    E: 'static,
+    S: Stream<Item = Result<FlightData, FlightError>> + Send + 'static,
 {
     /// The underlying stream that is kept alive.
-    inner: BoxStream<'static, Result<FlightData, E>>,
+    #[pin]
+    inner: S,
+
+    #[pin]
+    sleep: MaybeSleep,
 
     /// A [`Schema`] that was already received from the stream.
     ///
@@ -226,6 +171,100 @@ where
 
     /// Keep-alive ticker.
     ticker: Interval,
+
+    /// The query that started this stream. Useful for logging to correlate keep-alive messages with the query that triggered them.
+    query: String,
+
+    /// If we've returned a stream-ending message from [`Self::poll_next`] before. This
+    /// stream-ending message can either be a `Poll::Ready(None)`, indicating that we've provided
+    /// all the batches that this stream can provide, or a timeout error, indicating that we've been
+    /// generating batches for longer than our timeout allows, and that this stream won't return any
+    /// more useful data. This ensures that we don't erroneously return a timeout error if we
+    /// somehow end up calling this again after we've returned all the batches that we have (or vice
+    /// versa, returning more batches after reaching a timeout). Obviously, any caller of
+    /// [`Self::poll_next`] *shouldn't* call it again after they've gotten `None`, but it's good to
+    /// just be defensive regardless.
+    is_finished: bool,
+}
+
+impl<S> KeepAliveStream<S>
+where
+    S: Stream<Item = Result<FlightData, FlightError>> + Send + 'static,
+{
+    /// Create new keep-alive wrapper from the underlying stream and the given interval.
+    ///
+    /// The interval is measured from the last message -- which can either be a "real" message or a keep-alive.
+    pub(crate) fn new(
+        inner: S,
+        interval: Duration,
+        query: String,
+        timeout: Option<GrpcTimeoutDuration>,
+    ) -> Self {
+        let mut ticker = tokio::time::interval(interval);
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        ticker.reset(); // otherwise first tick return immediately
+        let sleep = timeout.map_or(MaybeSleep::None, |dur| {
+            MaybeSleep::Sleep(tokio::time::sleep(dur.0))
+        });
+
+        Self {
+            inner,
+            sleep,
+            schema: None,
+            ticker,
+            query,
+            is_finished: false,
+        }
+    }
+}
+
+impl<S> Stream for KeepAliveStream<S>
+where
+    S: Stream<Item = Result<FlightData, FlightError>> + Send + 'static,
+{
+    type Item = Result<FlightData, FlightError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let slf = self.project();
+
+        if *slf.is_finished {
+            return Poll::Ready(None);
+        }
+
+        if let Poll::Ready(res) = slf.inner.poll_next(cx) {
+            // peek at content to detect schema transmission
+            if let Some(Ok(data)) = &res
+                && let Some(schema) = decode_schema(data)
+                && check_schema(&schema)
+            {
+                *slf.schema = Some(Arc::new(schema));
+            }
+
+            *slf.is_finished = res.is_none();
+
+            slf.ticker.reset();
+            return Poll::Ready(res);
+        }
+
+        if let MaybeSleepProj::Sleep(slp) = slf.sleep.project()
+            && let Poll::Ready(()) = slp.poll(cx)
+        {
+            *slf.is_finished = true;
+            return Poll::Ready(Some(Err(FlightError::Tonic(Box::new(Status::new(
+                Code::ResourceExhausted,
+                "grpc-timeout elapsed",
+            ))))));
+        }
+
+        if let Poll::Ready(_) = slf.ticker.poll_tick(cx)
+            && let Some(data) = build_empty_batch_msg(slf.schema.as_ref())
+        {
+            info!(query = slf.query.as_str(), "stream keep-alive");
+            return Poll::Ready(Some(Ok(data)));
+        }
+
+        Poll::Pending
+    }
 }
 
 /// Decode [`Schema`] from response data stream.
@@ -267,7 +306,13 @@ fn build_empty_batch_msg(schema: Option<&SchemaRef>) -> Option<FlightData> {
     let data_gen = IpcDataGenerator::default();
     let mut dictionary_tracker = DictionaryTracker::new(true);
     let write_options = IpcWriteOptions::default();
-    let batch_data = match data_gen.encoded_batch(&batch, &mut dictionary_tracker, &write_options) {
+    let mut compression_context = CompressionContext::default();
+    let batch_data = match data_gen.encode(
+        &batch,
+        &mut dictionary_tracker,
+        &write_options,
+        &mut compression_context,
+    ) {
         Ok((dicts_data, batch_data)) => {
             assert!(dicts_data.is_empty());
             batch_data
@@ -311,7 +356,7 @@ mod tests {
         decode::FlightRecordBatchStream, encode::FlightDataEncoderBuilder, error::FlightError,
     };
     use datafusion::assert_batches_eq;
-    use futures::TryStreamExt;
+    use futures::{StreamExt, TryStreamExt, stream::BoxStream};
     use test_helpers::{assert_contains, assert_not_contains, tracing::TracingCapture};
 
     use super::{test_util::make_stream_slow, *};
@@ -319,7 +364,7 @@ mod tests {
     type BatchStream = BoxStream<'static, Result<RecordBatch, FlightError>>;
     type FlightStream = BoxStream<'static, Result<FlightData, FlightError>>;
 
-    const LOG_KEEP_ALIVE: &str = "level = INFO; message = stream keep-alive";
+    const LOG_KEEP_ALIVE: &str = "level = INFO; message = stream keep-alive; query = \"\"";
     const LOG_SCHEMA_TOO_LATE: &str =
         "level = WARN; message = cannot send keep-alive because no schema was transmitted yet";
 
@@ -493,7 +538,7 @@ mod tests {
                 s
             };
             let s = if let Some(keep_alive) = keep_alive {
-                KeepAliveStream::new(s, keep_alive).boxed()
+                KeepAliveStream::new(s, keep_alive, String::new(), None).boxed()
             } else {
                 s
             };

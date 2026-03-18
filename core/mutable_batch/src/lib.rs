@@ -6,20 +6,17 @@
 //! owner of its buffers, permitting mutability. The in-memory layout is similar, however,
 //! permitting fast conversion to [`RecordBatch`].
 
-// Workaround for "unused crate" lint false positives.
 #[cfg(test)]
 use partition as _;
 #[cfg(test)]
 use pretty_assertions as _;
 #[cfg(test)]
 use rand as _;
-use workspace_hack as _;
 
 use crate::column::{Column, ColumnData};
 use arrow::record_batch::RecordBatch;
-use data_types::{ColumnType, StatValues, Statistics};
+use data_types::{ColumnType, TimestampMinMax};
 use hashbrown::HashMap;
-use iox_time::Time;
 use schema::{Projection, Schema, TIME_COLUMN_NAME, builder::SchemaBuilder};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeSet, ops::Range};
@@ -171,38 +168,21 @@ impl MutableBatch {
 
     /// Returns a summary of the write timestamps in this chunk if a
     /// time column exists
-    pub fn timestamp_summary(&self) -> Option<TimestampSummary> {
+    pub fn timestamp_minmax(&self) -> Option<TimestampMinMax> {
         let col_data = self.time_column().ok()?;
-        let mut summary = TimestampSummary::default();
+        let mut min_max = None;
 
         for t in col_data {
-            summary.record_nanos(*t)
+            match min_max.as_mut() {
+                None => min_max = Some((*t, *t)),
+                Some((min, max)) => {
+                    *min = (*min).min(*t);
+                    *max = (*max).max(*t);
+                }
+            }
         }
 
-        Some(summary)
-    }
-
-    /// Read the minimum timestamp (in nanoseconds) for `self` from the column
-    /// statistics.
-    ///
-    /// This is an O(1) operation.
-    ///
-    /// # Panics
-    ///
-    /// Panics if there is no "time" column in this batch or no statistics are
-    /// present.
-    pub fn timestamp_min(&self) -> i64 {
-        let idx = self
-            .column_names
-            .get(TIME_COLUMN_NAME)
-            .expect("no time column in batch");
-
-        let col = self.columns.get(*idx).unwrap();
-
-        match col.stats() {
-            Statistics::I64(v) => v.min.unwrap(),
-            _ => unreachable!("time column is i64"),
-        }
+        min_max.map(|(min, max)| TimestampMinMax { min, max })
     }
 
     /// Extend this [`MutableBatch`] with the contents of `other`
@@ -257,7 +237,7 @@ impl MutableBatch {
     fn time_column(&self) -> Result<&[i64]> {
         let time_column = self.column(TIME_COLUMN_NAME)?;
         match &time_column.data {
-            ColumnData::I64(col_data, _) => Ok(col_data),
+            ColumnData::I64(col_data) => Ok(col_data),
             x => unreachable!("expected i64 got {} for time column", x),
         }
     }
@@ -298,42 +278,6 @@ impl MutableBatch {
     }
 }
 
-/// A description of the distribution of timestamps in a
-/// set of writes, bucketed based on minute within the hour
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct TimestampSummary {
-    /// Stores the count of how many rows in the set of writes have a timestamp
-    /// with a minute matching a given index
-    ///
-    /// E.g. a row with timestamp 12:31:12 would store a count at index 31
-    pub counts: [u32; 60],
-
-    /// Standard timestamp statistics
-    pub stats: StatValues<i64>,
-}
-
-impl Default for TimestampSummary {
-    fn default() -> Self {
-        Self {
-            counts: [0; 60],
-            stats: Default::default(),
-        }
-    }
-}
-
-impl TimestampSummary {
-    /// Records a timestamp value
-    pub fn record(&mut self, timestamp: Time) {
-        self.counts[timestamp.minute() as usize] += 1;
-        self.stats.update(&timestamp.timestamp_nanos())
-    }
-
-    /// Records a timestamp value from nanos
-    pub fn record_nanos(&mut self, timestamp_nanos: i64) {
-        self.record(Time::from_timestamp_nanos(timestamp_nanos))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use mutable_batch_lp::lines_to_batches;
@@ -349,7 +293,6 @@ mod tests {
 
         assert_eq!(batch.size_data(), 128);
         assert_eq!(batch.columns().len(), 5);
-        assert_eq!(batch.timestamp_min(), 1234);
 
         let batches = lines_to_batches(
             "cpu,t1=hellomore,t2=world f1=1.1,f2=1i 1234\ncpu,t1=h,t2=w f1=2.2,f2=2i 42",
@@ -359,7 +302,6 @@ mod tests {
         let batch = batches.get("cpu").unwrap();
         assert_eq!(batch.size_data(), 138);
         assert_eq!(batch.columns().len(), 5);
-        assert_eq!(batch.timestamp_min(), 42);
     }
 
     #[test]

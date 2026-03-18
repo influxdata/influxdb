@@ -75,6 +75,7 @@ service CatalogService {
   rpc PartitionDeleteByRetention(PartitionDeleteByRetentionRequest) returns (stream PartitionDeleteByRetentionResponse);
   rpc PartitionDeleteBatch(PartitionDeleteBatchRequest) returns (stream PartitionDeleteBatchResponse);
   rpc PartitionSnapshot(PartitionSnapshotRequest) returns (PartitionSnapshotResponse);
+  rpc PartitionSnapshotBatch(PartitionSnapshotBatchRequest) returns (stream PartitionSnapshotBatchResponse);
   rpc PartitionMigrate(PartitionMigrateRequest) returns (PartitionMigrateResponse);
   rpc PartitionGetNamespaceIdsInRange(PartitionGetNamespaceIdsInRangeRequest) returns (stream PartitionGetNamespaceIdsInRangeResponse);
   rpc PartitionGetMaxId(PartitionGetMaxIdRequest) returns (PartitionGetMaxIdResponse);
@@ -627,6 +628,15 @@ message PartitionSnapshotRequest {
 }
 
 message PartitionSnapshotResponse {
+  catalog_cache.v1.Partition partition = 1;
+  uint64 generation = 2;
+}
+
+message PartitionSnapshotBatchRequest {
+  repeated int64 partition_id = 1;
+}
+
+message PartitionSnapshotBatchResponse {
   catalog_cache.v1.Partition partition = 1;
   uint64 generation = 2;
 }

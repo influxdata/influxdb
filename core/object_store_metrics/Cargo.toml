@@ -17,10 +17,10 @@ iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 object_store = { workspace = true }
 tracing = { workspace = true }
-pin-project = "1.1.10"
-tokio = { version = "1.49", features = ["io-util"] }
+pin-project = "1.1.11"
+tokio = { version = "1.50", features = ["io-util"] }
 tracker = { path = "../tracker" }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies] # In alphabetical order
 futures_test_utils = { path = "../futures_test_utils" }
@@ -29,6 +29,6 @@ object_store_mem_cache = { path = "../object_store_mem_cache" }
 object_store_mock = { path = "../object_store_mock" }
 object_store_size_hinting = { path = "../object_store_size_hinting" }
 rust_decimal = "1.40.0"
-tempfile = "3.24.0"
+tempfile = "3.27.0"
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.49", features = ["macros", "io-util"] }
+tokio = { version = "1.50", features = ["macros", "io-util"] }

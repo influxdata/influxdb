@@ -207,7 +207,7 @@ impl MemCacheObjectStoreParams<'_> {
                 hook: Arc::new(HookChain::new([Arc::new(ObserverHook::new(
                     CACHE_NAME,
                     metrics,
-                    Some(memory_limit.get() as u64),
+                    memory_limit.get() as u64,
                 )) as _])),
                 inflight_bytes,
             },

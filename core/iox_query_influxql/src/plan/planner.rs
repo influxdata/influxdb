@@ -78,7 +78,7 @@ use influxdb_influxql_parser::expression::{
     VarRefDataType,
 };
 use influxdb_influxql_parser::functions::{
-    is_aggregate_function, is_now_function, is_scalar_math_function,
+    is_aggregate_function, is_date_part_function, is_now_function, is_scalar_math_function,
 };
 use influxdb_influxql_parser::literal::Number;
 use influxdb_influxql_parser::parameter::{BindParameterError, replace_bind_params_with_values};
@@ -2637,6 +2637,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         if is_scalar_math_function(call.name.as_str()) {
             return self.scalar_math_func_to_df_expr(tz, fill_config, scope, call, schema);
         }
+        if is_date_part_function(call.name.as_str()) {
+            return self.date_part_func_to_df_expr(tz, fill_config, scope, call, schema);
+        }
 
         match scope {
             ExprScope::Where => {
@@ -3243,6 +3246,40 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             }
             _ => Ok(Expr::ScalarFunction(ScalarFunction { func, args })),
         }
+    }
+
+    /// Map the InfluxQL scalar function call to a DataFusion scalar function expression.
+    fn date_part_func_to_df_expr(
+        &self,
+        tz: &Option<Arc<str>>,
+        fill_config: &Option<VirtualColumnFillConfig>,
+        scope: ExprScope,
+        call: &Call,
+        schema: &IQLSchema<'a>,
+    ) -> Result<Expr> {
+        let args = call
+            .args
+            .iter()
+            .map(|e| self.expr_to_df_expr(tz, fill_config, scope, e, schema))
+            .collect::<Result<Vec<Expr>>>()?;
+
+        let func = self
+            .iox_ctx
+            .inner()
+            .state()
+            .udf(call.name.as_str())
+            .map_err(|_| {
+                DataFusionError::Plan(format!(
+                    "There is no UDF function named {}",
+                    call.name.as_str()
+                ))
+            })?;
+        let expr = Expr::ScalarFunction(ScalarFunction { func, args });
+        // The result of date_part will either be Int32 of Float64,
+        // depending on the part, cast it to Int64 as that makes it
+        // consistent with InfluxDB 1.x.
+        let expr = expr.cast_to(&DataType::Int64, &schema.df_schema)?;
+        Ok(expr)
     }
 
     /// Map an InfluxQL arithmetic expression to a DataFusion [`Expr`].

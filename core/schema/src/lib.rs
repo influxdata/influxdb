@@ -36,9 +36,6 @@
 //! - New readers: Read v2 format when available, correctly parse legacy format
 //! - New writers: Write only v2 format
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use std::{
     cmp::Ordering,
     collections::HashMap,

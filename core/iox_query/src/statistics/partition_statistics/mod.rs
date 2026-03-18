@@ -70,7 +70,7 @@ impl PartitionStatistics for DataSourceExec {
             return Ok(unknown_statistics_by_partition(self));
         };
 
-        let file_schema = &cfg.file_schema;
+        let file_schema = cfg.file_schema();
         let target_schema = Arc::clone(&self.schema());
 
         // get per partition (a.k.a. file group)
@@ -1721,7 +1721,9 @@ mod test {
 
         // use a plan with only col C
         let data_source_exec = DataSourceExec::from_data_source(
-            filegroups_config.with_projection(Some(vec![2])).build(),
+            filegroups_config
+                .with_projection_indices(Some(vec![2]))
+                .build(),
         ) as _;
         let projected = col(col_name, &plan_schema)?; // plan_schema
         let plan = proj_exec(&data_source_exec, vec![(projected, "C".into())]);
@@ -1856,7 +1858,7 @@ mod test {
         // make plan config, using a plan with only cols b & c
         let data_source_exec = DataSourceExec::from_data_source(
             filegroups_config_builder
-                .with_projection(Some(vec![1, 2]))
+                .with_projection_indices(Some(vec![1, 2]))
                 .build(),
         ) as _;
         let proj_c = col("c", &plan_schema)?; // plan_schema
@@ -1997,7 +1999,7 @@ mod test {
         );
         let scan = DataSourceExec::from_data_source(
             filegroups_config_builder
-                .with_projection(Some(vec![0, 1, 2]))
+                .with_projection_indices(Some(vec![0, 1, 2]))
                 .build(),
         ) as _;
 

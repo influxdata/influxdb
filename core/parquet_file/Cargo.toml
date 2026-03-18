@@ -25,10 +25,9 @@ parquet = { workspace = true }
 pbjson-types = { workspace = true }
 prost = { workspace = true }
 schema = { path = "../schema" }
-snafu = "0.8"
+snafu = "0.9"
 thiserror = "2.0.18"
-thrift = "0.17"
-tokio = { version = "1.49", features = [
+tokio = { version = "1.50", features = [
     "macros",
     "parking_lot",
     "rt",
@@ -37,7 +36,7 @@ tokio = { version = "1.49", features = [
 ] }
 uuid = { version = "1", features = ["v4"] }
 zstd = { version = "0.13", default-features = false }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies] # In alphabetical order
 rand = "0.9.2"

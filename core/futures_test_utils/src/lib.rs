@@ -11,14 +11,12 @@ use std::{
 use futures::{FutureExt, task::ArcWake};
 use futures_concurrency::future::FutureExt as _;
 
-// Workaround for "unused crate" lint false positives.
 #[cfg(test)]
 use clap as _;
 #[cfg(test)]
 use futures_concurrency as _;
 #[cfg(test)]
 use rand as _;
-use workspace_hack as _;
 
 /// Helper trait for asserting state of a future
 pub trait AssertFutureExt {

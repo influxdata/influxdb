@@ -1,5 +1,6 @@
 use bincode::{Decode, Encode};
 use dashmap::DashMap;
+use metric::U64Counter;
 use std::{
     collections::{HashSet, VecDeque},
     fmt::{Debug, Formatter},
@@ -9,6 +10,7 @@ use std::{
         atomic::{AtomicU8, Ordering},
     },
 };
+use tracing::warn;
 use tracker::{LockMetrics, Mutex};
 
 use crate::cache_system::{
@@ -183,6 +185,8 @@ where
     locked_state: Mutex<LockedState<K, V>>,
     entries: Entries<K, V>,
     config: S3Config<K>,
+    /// Counter for eviction bailouts (when all entries are in-use).
+    eviction_bailout_counter: U64Counter,
 }
 
 impl<K, V> Debug for S3Fifo<K, V>
@@ -198,6 +202,11 @@ where
     }
 }
 
+/// Metric name for eviction bailouts. This metric counts the number of times
+/// eviction was attempted but all entries were in use, leading to a bailout
+/// from the eviction process.
+pub(super) const S3_FIFO_EVICTION_BAILOUT_METRIC: &str = "mem_cache_eviction_bailout";
+
 impl<K, V> S3Fifo<K, V>
 where
     K: Debug + Eq + Hash + HasSize + Send + Sync + 'static + ?Sized,
@@ -209,6 +218,12 @@ where
             metric_registry,
             &[("lock", "s3fifo"), ("cache", config.cache_name)],
         ));
+        let eviction_bailout_counter: U64Counter = metric_registry
+            .register_metric::<U64Counter>(
+                S3_FIFO_EVICTION_BAILOUT_METRIC,
+                "Count of times eviction bailed out due to all entries being in use",
+            )
+            .recorder(&[("cache", config.cache_name)]);
         Self {
             locked_state: lock_metrics.new_mutex(LockedState {
                 main: Default::default(),
@@ -217,6 +232,7 @@ where
             }),
             entries: Default::default(),
             config,
+            eviction_bailout_counter,
         }
     }
 
@@ -269,36 +285,57 @@ where
             metric_registry,
             &[("lock", "s3fifo"), ("cache", config.cache_name)],
         ));
+        let eviction_bailout_counter: U64Counter = metric_registry
+            .register_metric::<U64Counter>(
+                S3_FIFO_EVICTION_BAILOUT_METRIC,
+                "amount of failed evictions due to all entries being in use",
+            )
+            .recorder(&[]);
         Ok(Self {
             locked_state: lock_metrics.new_mutex(locked_state),
             entries,
             config,
+            eviction_bailout_counter,
         })
     }
 
-    /// Gets entry from the set, or inserts it if it does not exist yet.
-    /// Returns the entry and any evicted entries.
+    /// Gets entry from the set, or inserts it if it does not exist yet. Returns
+    /// the entry and any evicted entries. In the case that eviction fails, the
+    /// value is returned for use instead along with any evicted entries.
     ///
     /// # Hook Interaction
-    /// If the key already exists, this calls [`Hook::evict`] w/ [`EvictResult::Unfetched`] on the provided new data
-    /// since the new data is rejected.
+    /// If the key already exists, this calls [`Hook::evict`] w/
+    /// [`EvictResult::Unfetched`] on the provided new data since the new data
+    /// is rejected.
     ///
     /// If the key is new, it calls [`Hook::fetched`].
     ///
-    /// If inserting a new key leads to eviction of existing data, [`Hook::evict`] w/ [`EvictResult::Fetched`] is
-    /// called. [`EvictResult::Failed`] is NOT used since we also account for the size of errrors.
+    /// If inserting a new key leads to eviction of existing data,
+    /// [`Hook::evict`] w/ [`EvictResult::Fetched`] is called.
+    /// [`EvictResult::Failed`] is NOT used since we also account for the size
+    /// of errors.
     ///
     /// # Concurrency
-    /// Acquires a lock and blocks other calls to [`get_or_put`](Self::get_or_put).
+    /// Acquires a lock and blocks other calls to
+    /// [`get_or_put`](Self::get_or_put).
     ///
-    /// Does NOT block read methods like [`get`](Self::get), [`len`](Self::len), and [`is_empty`](Self::is_empty),
-    /// except for short-lived internal locks within [`DashMap`].
+    /// Does NOT block read methods like [`get`](Self::get), [`len`](Self::len),
+    /// and [`is_empty`](Self::is_empty), except for short-lived internal locks
+    /// within [`DashMap`].
+    ///
+    /// # Returns
+    /// - `Ok((entry, evicted))` on success - the entry is now in cache, evicted
+    ///   contains any removed entries
+    /// - `Err((value, evicted))` if eviction failed - the value is returned for
+    ///   use, evicted contains any entries that were removed before eviction
+    ///   failed
+    #[expect(clippy::type_complexity)]
     pub fn get_or_put(
         &self,
         key: Arc<K>,
         value: V,
         generation: u64,
-    ) -> (CacheEntry<K, V>, Evicted<K, V>) {
+    ) -> Result<(CacheEntry<K, V>, Evicted<K, V>), (V, Evicted<K, V>)> {
         // Lock the state BEFORE checking `self.entries`. We won't prevent concurrent reads with it but we prevent that
         // concurrent writes could check `entries`, find the key absent and then double-insert the data into the locked state.
         let mut guard = self.locked_state.lock();
@@ -319,7 +356,7 @@ where
             // and preventing other operations from proceeding
             drop(guard);
 
-            return (
+            return Ok((
                 entry,
                 vec![
                     S3FifoEntry {
@@ -330,7 +367,7 @@ where
                     }
                     .into(),
                 ],
-            );
+            ));
         }
 
         let entry = Arc::new(S3FifoEntry {
@@ -343,22 +380,51 @@ where
         self.config
             .hook
             .fetched(generation, &entry.key, Ok(entry.size()));
-        self.entries
-            .insert(Arc::clone(&entry.key), Arc::clone(&entry));
-        let (evicted_entries, evicted_keys) = if guard.ghost.remove(&entry.key) {
-            let evicted = guard.evict(&self.entries, &self.config);
-            guard.main.push_back(Arc::clone(&entry));
-            evicted
-        } else {
-            let evicted = guard.evict(&self.entries, &self.config);
-            guard.small.push_back(Arc::clone(&entry));
-            evicted
-        };
 
-        drop(guard);
-        drop_it(evicted_keys);
+        let exorcised = guard.ghost.remove(&entry.key);
+        let res = guard.evict(&self.entries, &self.config);
 
-        (entry, evicted_entries)
+        match (exorcised, res) {
+            (exorcised, Ok(success)) => {
+                let g = Arc::clone(&entry);
+
+                if exorcised {
+                    guard.main.push_back(g);
+                } else {
+                    guard.small.push_back(g);
+                }
+
+                let v = Arc::clone(&entry);
+                let k = Arc::clone(&entry.key);
+                self.entries.insert(k, v);
+
+                drop(guard);
+                drop_it(success.keys);
+
+                Ok((entry, success.entries))
+            }
+            (_, Err(failed)) => {
+                // We failed to evict, so it doesn't matter if we removed from
+                // the ghost or not.
+                let queue_len = guard.main.len() + guard.small.len();
+                self.entries.remove(&entry.key);
+
+                drop(guard);
+                drop_it(failed.keys);
+
+                self.eviction_bailout_counter.inc(1);
+                warn!(
+                    queue_len,
+                    "cache eviction failed: all entries in use, bypassing cache"
+                );
+
+                // We're the only owner since we just removed it from entries
+                let inner = Arc::try_unwrap(entry)
+                    .unwrap_or_else(|_| panic!("entry should have single owner"));
+                let value = inner.value.into_inner().expect("not poisoned");
+                Err((value, failed.entries))
+            }
+        }
     }
 
     /// Gets entry from the set, returns `None` if the key is NOT stored.
@@ -489,6 +555,21 @@ where
             .map_err(|e| crate::cache_system::utils::str_err(&e.to_string()))?;
 
         Ok(versioned_snapshot.state)
+    }
+
+    /// Get statistics.
+    pub(crate) fn statistics(&self) -> S3FifoStats {
+        let guard = self.locked_state.lock();
+
+        S3FifoStats {
+            main_entries: guard.main.len(),
+            main_bytes: guard.main.memory_size(),
+            small_entries: guard.small.len(),
+            small_bytes: guard.small.memory_size(),
+            ghost_entries: guard.ghost.len(),
+            ghost_tombstones: guard.ghost.n_tombstones(),
+            ghost_bytes: guard.ghost.memory_size(),
+        }
     }
 
     #[cfg(test)]
@@ -707,6 +788,18 @@ where
     }
 }
 
+/// Represents an eviction attempt. This struct contains the evicted entries,
+/// their keys, and an [EvictionResult] indicating success or failure.
+struct EvictionAttempt<K, V>
+where
+    K: ?Sized,
+{
+    entries: Vec<CacheEntry<K, V>>,
+    keys: Vec<Arc<K>>,
+}
+
+type EvictionResult<K, V> = Result<EvictionAttempt<K, V>, EvictionAttempt<K, V>>;
+
 impl<K, V> LockedState<K, V>
 where
     K: Debug + Eq + Hash + HasSize + Send + Sync + 'static + ?Sized,
@@ -720,12 +813,8 @@ where
         self.ghost.push_back(key);
     }
 
-    /// Evict entries, returning any evicted entries.
-    fn evict(
-        &mut self,
-        entries: &Entries<K, V>,
-        config: &S3Config<K>,
-    ) -> (Vec<CacheEntry<K, V>>, Vec<Arc<K>>) {
+    /// Evict entries, returning an [EvictionAttempt] with the result.
+    fn evict(&mut self, entries: &Entries<K, V>, config: &S3Config<K>) -> EvictionResult<K, V> {
         let small_queue_threshold =
             (config.move_to_main_threshold * config.max_memory_size as f64) as usize;
         let mut evicted_entries = Vec::with_capacity(8);
@@ -733,18 +822,32 @@ where
 
         while self.small.memory_size() + self.main.memory_size() >= config.max_memory_size {
             if self.small.memory_size() >= small_queue_threshold {
-                self.evict_from_small_queue(
+                match self.evict_from_small_queue(
                     entries,
                     config,
                     &mut evicted_entries,
                     &mut evicted_keys,
-                );
+                ) {
+                    Ok(_) => continue,
+                    Err(_) => { /* fallthrough to main queue eviction */ }
+                }
             } else {
-                self.evict_from_main_queue(entries, config, &mut evicted_entries);
+                match self.evict_from_main_queue(entries, config, &mut evicted_entries) {
+                    Ok(_) => continue,
+                    Err(_) => {
+                        return Err(EvictionAttempt {
+                            entries: evicted_entries,
+                            keys: evicted_keys,
+                        });
+                    }
+                }
             }
         }
 
-        (evicted_entries, evicted_keys)
+        Ok(EvictionAttempt {
+            entries: evicted_entries,
+            keys: evicted_keys,
+        })
     }
 
     /// Evict at most one entry from the "small" queue.
@@ -754,7 +857,11 @@ where
     /// - **move to "main" queue:** If the entry was used, move it to the back of the "main" queue
     /// - **move to "ghost" set:** If the entry was NOT used, remove it from the cache and add its key to the "ghost" set.
     ///
-    /// The method returns if an unused entry was removed or if there are no entries left.
+    /// Returns `Ok` if an entry was evicted, `Err` if no entry could be evicted
+    /// (either the queue was empty or all entries moved to main).
+    ///
+    /// Note: This function cannot livelock because entries move from small to main,
+    /// not back to small.
     ///
     /// See [S3-FIFO] for the defintion of the different queue/set types.
     ///
@@ -766,7 +873,7 @@ where
         config: &S3Config<K>,
         evicted_entries: &mut Vec<CacheEntry<K, V>>,
         evicted_keys: &mut Vec<Arc<K>>,
-    ) {
+    ) -> Result<(), ()> {
         while let Some(mut tail) = self.small.pop_front() {
             if tail.freq.load(Ordering::SeqCst) > 0 || entry_likely_in_use(&tail) {
                 self.main.push_back(tail);
@@ -787,9 +894,10 @@ where
                     .hook
                     .evict(tail.generation, &tail.key, EvictResult::Fetched { size });
                 evicted_entries.push(tail);
-                break;
+                return Ok(());
             }
         }
+        Err(())
     }
 
     /// Evict at most one entry from the "main" queue.
@@ -800,7 +908,11 @@ where
     ///   counter by one.
     /// - **move to "ghost" set:** If the entry was NOT used, remove it from the cache and add its key to the "ghost" set.
     ///
-    /// The method returns if an unused entry was removed or if there are no entries left.
+    /// Returns `Ok` if an entry was evicted, `Err` if no entry could be evicted
+    ///
+    /// The method will bail out after `queue_len * 4` iterations to prevent livelocking
+    /// when all entries are in-use. The factor of 4 accounts for the maximum frequency
+    /// counter value (3), giving each entry enough chances to have its freq decremented.
     ///
     /// See [S3-FIFO] for the defintion of the different queue/set types.
     ///
@@ -811,8 +923,21 @@ where
         entries: &Entries<K, V>,
         config: &S3Config<K>,
         evicted_entries: &mut Vec<CacheEntry<K, V>>,
-    ) {
-        while let Some(mut tail) = self.main.pop_front() {
+    ) -> Result<(), ()> {
+        let queue_len = self.main.len();
+        if queue_len == 0 {
+            return Ok(());
+        }
+
+        // freq maxes at 3, so 4 passes should drain all counters
+        let max_iterations = queue_len.saturating_mul(4);
+        let mut iterations = 0;
+
+        while iterations < max_iterations
+            && let Some(mut tail) = self.main.pop_front()
+        {
+            iterations += 1;
+
             let was_not_zero = tail
                 .freq
                 .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |f| f.checked_sub(1))
@@ -836,9 +961,10 @@ where
                     .hook
                     .evict(tail.generation, &tail.key, EvictResult::Fetched { size });
                 evicted_entries.push(tail);
-                break;
+                return Ok(());
             }
         }
+        Err(())
     }
 
     /// Remove multiple keys from the small and main queues.
@@ -877,6 +1003,35 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct S3FifoStats {
+    /// Number of entries in `main` queue.
+    pub(crate) main_entries: usize,
+
+    /// Number of bytes in `main` queue.
+    pub(crate) main_bytes: usize,
+
+    /// Number of entries in `small` queue.
+    pub(crate) small_entries: usize,
+
+    /// Number of bytes in `small` queue.
+    pub(crate) small_bytes: usize,
+
+    /// Number of entries in `ghost` queue.
+    ///
+    /// This accounts the actual entries, NOT the tombstones. See [`ghost_tombstones`](Self::ghost_tombstones) for
+    /// that.
+    pub(crate) ghost_entries: usize,
+
+    /// Number of tombstones entries in the `ghost` queue.
+    ///
+    /// Tombstones are used to amortize deletions from this queue. The are cleaned up regularly.
+    pub(crate) ghost_tombstones: usize,
+
+    /// Number of bytes in `ghost` queue.
+    pub(crate) ghost_bytes: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Barrier;
@@ -893,7 +1048,9 @@ mod tests {
 
             // prime S3-FIFO with an entry
             let barrier_a = Arc::new(Barrier::new(2));
-            let (_, evicted) = s3.get_or_put(DropBarrier::new("k", &barrier_a), Arc::new("v"), 0);
+            let (_, evicted) = s3
+                .get_or_put(DropBarrier::new("k", &barrier_a), Arc::new("v"), 0)
+                .unwrap();
             drop_it(evicted);
 
             let barrier_b = Arc::new(Barrier::new(3));
@@ -918,7 +1075,9 @@ mod tests {
 
             // prime S3-FIFO with an entry
             let barrier_a = Arc::new(Barrier::new(2));
-            let (_, evicted) = s3.get_or_put(Arc::new("k"), DropBarrier::new("v", &barrier_a), 0);
+            let (_, evicted) = s3
+                .get_or_put(Arc::new("k"), DropBarrier::new("v", &barrier_a), 0)
+                .unwrap();
             drop_it(evicted);
 
             let barrier_b = Arc::new(Barrier::new(3));
@@ -1046,7 +1205,9 @@ mod tests {
         {
             let s3_captured = Arc::clone(s3);
             self.spawn(move || {
-                let (_, evicted) = s3_captured.get_or_put(k, v, 0);
+                let (_, evicted) = s3_captured
+                    .get_or_put(k, v, 0)
+                    .unwrap_or_else(|_| panic!("cache insertion should succeed"));
                 drop_it(evicted);
             })
         }

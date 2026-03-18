@@ -6,8 +6,6 @@
 #![warn(missing_docs)]
 
 use thiserror::Error;
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
 
 mod columns;
 pub use columns::*;
@@ -23,6 +21,7 @@ pub mod snapshot;
 
 pub use service_limits::*;
 
+use core::time::Duration;
 use generated_types::google::protobuf as google;
 use generated_types::influxdata::iox::{
     Target, catalog::v1 as catalog_proto, catalog::v2 as catalog_v2_proto,
@@ -2407,6 +2406,95 @@ impl FileRange {
     }
 }
 
+/// A duration pulled from the `grpc-timeout` header, newtype'd so we don't confuse durations at
+/// some points and so that we can impl FromStr
+#[derive(Debug, Copy, Clone)]
+pub struct GrpcTimeoutDuration(pub Duration);
+
+/// An error that can arise from trying to parse the `grpc-timeout` duration
+#[derive(thiserror::Error, Debug)]
+pub enum GrpcTimeoutParseError {
+    /// The header was empty
+    #[error("The provided value was empty")]
+    EmptyValue,
+    /// There were too many digits in the header before the suffix - the grpc spec specifies that
+    /// there must be no more than 8.
+    #[error(
+        "The provided value contained too many digits in the prefix; expected a maximum of 8 but got {0}"
+    )]
+    TooManyDigits(usize),
+    /// The value (number before the suffix) couldn't be parsed to a u64
+    #[error(
+        "Failed to parse the value; provided {value:?} and encountered the following error: {err}"
+    )]
+    UnparseableValue {
+        /// The value which we couldn't parse
+        value: String,
+        /// The error arising from the failure to parse
+        err: <u64 as FromStr>::Err,
+    },
+    /// The suffix which specifies the time base (e.g. seconds, hours, milliseconds, etc)
+    #[error("The value contained an unrecognized suffic of {0:?}")]
+    UnrecognizedSuffix(String),
+}
+
+impl FromStr for GrpcTimeoutDuration {
+    type Err = GrpcTimeoutParseError;
+    fn from_str(val: &str) -> Result<Self, Self::Err> {
+        if val.is_empty() {
+            return Err(GrpcTimeoutParseError::EmptyValue);
+        }
+
+        let (timeout_value, timeout_unit) = val
+            // `HeaderValue::to_str` only returns `Ok` if the header contains ASCII so this
+            // `split_at` will never panic from trying to split in the middle of a character.
+            // See https://docs.rs/http/1/http/header/struct.HeaderValue.html#method.to_str
+            //
+            // `len - 1` also wont panic since we just checked `s.is_empty`.
+            .split_at(val.len() - 1);
+
+        // gRPC spec specifies `TimeoutValue` will be at most 8 digits
+        // Caping this at 8 digits also prevents integer overflow from ever occurring
+        let num_digits = timeout_value.len();
+        if num_digits > 8 {
+            return Err(GrpcTimeoutParseError::TooManyDigits(num_digits));
+        }
+
+        let timeout_value: u64 =
+            timeout_value
+                .parse()
+                .map_err(|err| GrpcTimeoutParseError::UnparseableValue {
+                    value: timeout_value.to_string(),
+                    err,
+                })?;
+
+        const SECONDS_IN_MINUTE: u64 = 60;
+        const SECONDS_IN_HOUR: u64 = 60 * SECONDS_IN_MINUTE;
+
+        let duration = match timeout_unit {
+            // Hours
+            "H" => Duration::from_secs(timeout_value * SECONDS_IN_HOUR),
+            // Minutes
+            "M" => Duration::from_secs(timeout_value * SECONDS_IN_MINUTE),
+            // Seconds
+            "S" => Duration::from_secs(timeout_value),
+            // Milliseconds
+            "m" => Duration::from_millis(timeout_value),
+            // Microseconds
+            "u" => Duration::from_micros(timeout_value),
+            // Nanoseconds
+            "n" => Duration::from_nanos(timeout_value),
+            _ => {
+                return Err(GrpcTimeoutParseError::UnrecognizedSuffix(
+                    timeout_unit.to_string(),
+                ));
+            }
+        };
+
+        Ok(Self(duration))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3526,5 +3614,66 @@ mod tests {
             catalog_storage_proto::TableWithStorage::from(table_deleted.clone());
         let round_trip_table_deleted = TableWithStorage::try_from(catalog_proto_table).unwrap();
         assert_eq!(table_deleted, round_trip_table_deleted);
+    }
+
+    mod grpc_timeout_parsing {
+        use super::{Duration, FromStr, GrpcTimeoutDuration};
+
+        #[test]
+        fn test_hours() {
+            let parsed_duration = GrpcTimeoutDuration::from_str("3H").unwrap().0;
+            assert_eq!(Duration::from_secs(3 * 60 * 60), parsed_duration);
+        }
+
+        #[test]
+        fn test_minutes() {
+            let parsed_duration = GrpcTimeoutDuration::from_str("1M").unwrap().0;
+            assert_eq!(Duration::from_secs(60), parsed_duration);
+        }
+
+        #[test]
+        fn test_seconds() {
+            let parsed_duration = GrpcTimeoutDuration::from_str("42S").unwrap().0;
+            assert_eq!(Duration::from_secs(42), parsed_duration);
+        }
+
+        #[test]
+        fn test_milliseconds() {
+            let parsed_duration = GrpcTimeoutDuration::from_str("13m").unwrap().0;
+            assert_eq!(Duration::from_millis(13), parsed_duration);
+        }
+
+        #[test]
+        fn test_microseconds() {
+            let parsed_duration = GrpcTimeoutDuration::from_str("2u").unwrap().0;
+            assert_eq!(Duration::from_micros(2), parsed_duration);
+        }
+
+        #[test]
+        fn test_nanoseconds() {
+            let parsed_duration = GrpcTimeoutDuration::from_str("82n").unwrap().0;
+            assert_eq!(Duration::from_nanos(82), parsed_duration);
+        }
+
+        #[test]
+        #[should_panic(expected = "UnrecognizedSuffix")]
+        fn test_invalid_unit() {
+            // "f" is not a valid TimeoutUnit
+            GrpcTimeoutDuration::from_str("82f").unwrap();
+        }
+
+        #[test]
+        #[should_panic(expected = "TooManyDigits")]
+        fn test_too_many_digits() {
+            // gRPC spec states TimeoutValue will be at most 8 digits
+            GrpcTimeoutDuration::from_str("123456789H").unwrap();
+        }
+
+        #[test]
+        #[should_panic(expected = "UnparseableValue")]
+        fn test_invalid_digits() {
+            // The value must be digits, not human-language-words
+            GrpcTimeoutDuration::from_str("oneH").unwrap();
+        }
     }
 }

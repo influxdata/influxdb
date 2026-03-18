@@ -6,6 +6,7 @@ use crate::{CacheKey, CacheValue};
 use futures::channel::oneshot;
 use futures::future::{Either, select};
 use futures::{StreamExt, pin_mut};
+use hyper::StatusCode;
 use snafu::{ResultExt, Snafu};
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -123,8 +124,14 @@ impl QuorumCatalogCache {
 
         match select(fut1, fut2).await {
             Either::Left((result, fut)) | Either::Right((result, fut)) => match (local, result) {
+                // If a remote peer also confirms that it's None, then it's None.
                 (None, Ok(None)) => Ok(None),
+                // If we have a value, and a remote peer returns `NotModified`, that means that they
+                // concur with the value that we have (even if we might disagree on the generation
+                // that we're looking at - the underlying data is equivalent).
                 (Some(l), Err(ClientError::NotModified)) => Ok(Some(l)),
+                // If a remote peer has a value that they say is equal or newer, then we take it,
+                // insert it if needed, and return it.
                 (Some(l), Ok(Some(r))) if l.generation <= r.generation => {
                     // preempt write from remote to local that arrives late
                     if l.generation < r.generation {
@@ -132,40 +139,118 @@ impl QuorumCatalogCache {
                     }
                     Ok(Some(r))
                 }
-                (local, r1) => {
-                    // r1 either failed or did not return anything
-                    let r2 = fut.await;
-                    match (local, r1, r2) {
-                        (Some(l), _, Err(ClientError::NotModified)) => Ok(Some(l)),
-                        (None, _, Ok(None)) | (_, Ok(None), Ok(None)) => Ok(None),
-                        (Some(l), _, Ok(Some(r))) if l.generation <= r.generation => {
-                            // preempt write from remote to local that arrives late
-                            if l.generation < r.generation {
-                                self.local.insert(key, r.clone())?;
-                            }
-                            Ok(Some(r))
+                // If we get here, then we either:
+                // 1. Got an error from this peer that wasn't `NotModified`
+                // 2. Got a `None` value from the peer when we expected it to be `Some(_)`
+                // 3. Got a value from the peer whose generation was less than our current
+                //    generation, meaning that it's out of date.
+                (local, r1) => match (local, r1, fut.await) {
+                    // If we get here, that means that we've got a concurrance between our own
+                    // storage and the second peer - they haven't seen it modified since our
+                    // version. All good.
+                    (Some(l), _, Err(ClientError::NotModified)) => Ok(Some(l)),
+                    // If we get here, then we get a confirmation between either our own cache and
+                    // the second peer, or the two other peers.
+                    (None, _, Ok(None)) | (_, Ok(None), Ok(None)) => Ok(None),
+                    // If we get here, then we have a newer or equal message from this second peer.
+                    // Let's take it and update the cache based on it.
+                    (Some(l), _, Ok(Some(r))) if l.generation <= r.generation => {
+                        // preempt write from remote to local that arrives late
+                        if l.generation < r.generation {
+                            self.local.insert(key, r.clone())?;
                         }
-                        (local, Ok(Some(l)), Ok(Some(r))) if l.generation == r.generation => {
-                            if local.map(|x| x.generation < l.generation).unwrap_or(true) {
-                                self.local.insert(key, l.clone())?;
-                            }
-                            Ok(Some(l))
-                        }
-                        (l, r1, r2) => Err(Error::Quorum {
-                            local_generation: l.map(|x| x.generation()),
-                            remote_generations: Box::new([
-                                (
-                                    self.replicas[0].endpoint().clone(),
-                                    r1.map(|x| x.map(|x| x.generation)),
-                                ),
-                                (
-                                    self.replicas[1].endpoint().clone(),
-                                    r2.map(|x| x.map(|x| x.generation)),
-                                ),
-                            ]),
-                        }),
+                        Ok(Some(r))
                     }
-                }
+                    // If we get here, we see that the two peers agree on the value, so that will be
+                    // the result of our quorum read. Then, if we see that { we either have no local
+                    // value or our local value is younger than the one from the remotes }, we store
+                    // the value that we got from the remotes and return it. We only store it if
+                    // it's newer because we don't want to go backwards in time (to a previous
+                    // generation), and we return the value that we have a concurrance on because
+                    // that's this function's purpose - to find the newest value that we agree on.
+                    (local, Ok(Some(l)), Ok(Some(r))) if l.generation == r.generation => {
+                        if local.is_none_or(|x| x.generation < l.generation) {
+                            self.local.insert(key, l.clone())?;
+                        }
+                        Ok(Some(l))
+                    }
+                    // In this situation, one of the remote peers is unreachable (specifically,
+                    // they're going through a rollout, since 503s are what we get during rollouts),
+                    // and we can't agree with the only responding peer about what the value should
+                    // actually be. In this case, we could keep retrying the unreachable peer until
+                    // we get a response, but that's basically always going to take longer than just
+                    // pulling from the catalog itself. Especially if we're in a rollout situation
+                    // where one of the caches is down - we know that we're already in a degraded
+                    // state, so we should just take the quickest path to get things moving.
+                    //
+                    // So we just return `None` here, which tells the callers that we don't know
+                    // what the value is, and that we should pull it from our source of truth and
+                    // broadcast that to the other nodes (so that next time this function is called,
+                    // we should be able to agree with the other functioning node on what the value
+                    // is)
+                    //
+                    // This arm also MUST remain at this point in the order of arms - it can't be
+                    // merged with the one above that also returns Ok(None) because the order of
+                    // checks is important
+                    (_, _, Err(ClientError::Get { source }))
+                    | (_, Err(ClientError::Get { source }), _)
+                        if source
+                            .status()
+                            .is_some_and(|c| c == StatusCode::SERVICE_UNAVAILABLE) =>
+                    {
+                        Ok(None)
+                    }
+                    // So. if we're here, we're in 1 of the following situations:
+                    // 1. `(None, Some(_), Err(e)) | (None, Err(e), Some(_)) if !matches!(e,
+                    //    ClientError::Get { .. })`, meaning that we have `None`, one of the peers
+                    //    returned `Some`, and the other returned an error, which provides us with
+                    //    no useful information. We just need to try again in this case.
+                    // 2. `(Some(a), None, Err(e)) | (Some(a), Err(e), None) if !matches!(e,
+                    //    ClientError::Get { .. } | ClientError::NotModified`, meaning that we have
+                    //    a value, a different remote peer says they have no value, and we get an
+                    //    error when trying to contact the third node. In this case, we once again
+                    //    have no consensus about the actual value, so we just return an error and
+                    //    try again.
+                    // 3. `(Some(a), Some(b), None | Err(_)) | (Some(a), None | Err(_), Some(b)) if
+                    //    a > b` - in this case, we were able to get a value out of a peer, but it's
+                    //    older than the value that we have. We don't want to return our local value
+                    //    in this case, because (as far as we know) we are the only ones who have
+                    //    that value, and we don't want to return data that could then disappear if
+                    //    this node crashes. If this node crashes, we can always fetch the data from
+                    //    the catalog again, but we don't want to return data of generation N+1,
+                    //    then crash, then have the client ask again and receive data from
+                    //    generation N (since that's what the other nodes have) - that would be very
+                    //    confusing for them.
+                    // 4. `(Some(a), Some(b), Some(c)) if a > b && a > c && b != c` - in this case,
+                    //    we have three different values for what we're looking at, but they all
+                    //    have different generations and our generation is the newest. In this case,
+                    //    we really don't know what the true value is due to the mismatch between
+                    //    generations, and we don't want to return our local data for the same
+                    //    reason as stated in #3.
+                    // 5. `(Some(_), Err(e1), Err(e2)) if e1 != ClientError::NotModified && e2 !=
+                    //    ClientError::NotModified` - this just means that we can't reach either of
+                    //    the other peers, so we can't be sure about anything.
+                    // 6. `(None, Err(_), Err(_))` - in this case, the errors might still be
+                    //    `ClientError::NotModified`, we still treat it as an overall error since we
+                    //    don't expect to get back a `NotModified` if we have a `None` locally
+                    //    (since that means that there's no generation associated with the value,
+                    //    and the `NotModified` error case is a direct response to the generation,
+                    //    so it can't be sent back if we have no generation to send with the
+                    //    request)
+                    (l, r1, r2) => Err(Error::Quorum {
+                        local_generation: l.map(|x| x.generation()),
+                        remote_generations: Box::new([
+                            (
+                                self.replicas[0].endpoint().clone(),
+                                r1.map(|x| x.map(|x| x.generation)),
+                            ),
+                            (
+                                self.replicas[1].endpoint().clone(),
+                                r2.map(|x| x.map(|x| x.generation)),
+                            ),
+                        ]),
+                    }),
+                },
             },
         }
     }
@@ -349,12 +434,18 @@ pub struct WarmupStats {
 
 #[cfg(test)]
 mod tests {
+    use hyper_util::{
+        rt::{TokioExecutor, TokioIo},
+        server::{conn::auto::Builder, graceful::GracefulShutdown},
+    };
+    use iox_http_util::ResponseBuilder;
+    use test_helpers::maybe_start_logging;
+    use tokio::{net::TcpListener, task::JoinHandle};
+
     use super::*;
     use crate::api::client::Error as ClientError;
     use crate::api::server::test_util::TestCacheServer;
-    use std::future::Future;
-    use std::task::Context;
-    use std::time::Duration;
+    use std::{future::Future, net::SocketAddr, task::Context, time::Duration};
 
     #[tokio::test]
     async fn test_basic() {
@@ -542,6 +633,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_warm() {
+        maybe_start_logging();
+
         let metric_registry = Arc::new(metric::Registry::new());
         let local = Arc::new(CatalogCache::default());
         let r1 = TestCacheServer::bind_ephemeral(&metric_registry).await;
@@ -772,5 +865,130 @@ mod tests {
             .to_string(),
             "Failed to establish a read quorum: local=1, remote=['http://foo/'=>Ok(1), 'http://bar/'=>Err(Missing generation header)]",
         );
+    }
+
+    struct FailingCacheServer {
+        addr: SocketAddr,
+        shutdown: CancellationToken,
+        handle: Option<JoinHandle<()>>,
+        metric_registry: Arc<metric::Registry>,
+    }
+
+    impl FailingCacheServer {
+        /// Create a new [`TestCacheServer`] bound to an ephemeral port
+        async fn bind_ephemeral(metric_registry: &Arc<metric::Registry>) -> Self {
+            Self::bind(&SocketAddr::from(([127, 0, 0, 1], 0)), metric_registry).await
+        }
+
+        /// Create a new [`CatalogCacheServer`] bound to the provided [`SocketAddr`]
+        async fn bind(addr: &SocketAddr, metric_registry: &Arc<metric::Registry>) -> Self {
+            // convert hyper::Incoming to the more generic BoxBody
+            let service =
+                hyper::service::service_fn::<_, hyper::body::Incoming, _>(|_| async move {
+                    ResponseBuilder::new()
+                        .status(StatusCode::SERVICE_UNAVAILABLE)
+                        .body(String::new())
+                });
+
+            let listener = TcpListener::bind(addr).await.unwrap();
+            let addr = listener.local_addr().unwrap();
+
+            // graceful shutdown guide: https://hyper.rs/guides/1/server/graceful-shutdown/
+            let shutdown = CancellationToken::new();
+            let signal = shutdown.clone().cancelled_owned();
+            let graceful = GracefulShutdown::new();
+
+            let handle = tokio::task::spawn(async move {
+                tokio::pin!(signal);
+                loop {
+                    tokio::select! {
+                        _ = signal.as_mut() => break,
+                        res = listener.accept() => {
+                            // server guide: https://hyper.rs/guides/1/server/hello-world/
+                            // we use hyper_util's Builder to handle both http1 and http2
+
+                            let (stream, _) = res.unwrap();
+
+                            let conn = Builder::new(TokioExecutor::new())
+                                .serve_connection_with_upgrades(TokioIo::new(stream), service)
+                                .into_owned();
+                            let conn = graceful.watch(conn);
+
+                            tokio::task::spawn(async move { conn.await.unwrap() });
+                        },
+                    }
+                }
+                graceful.shutdown().await;
+            });
+
+            Self {
+                addr,
+                shutdown,
+                handle: Some(handle),
+                metric_registry: Arc::clone(metric_registry),
+            }
+        }
+
+        /// Returns a [`CatalogCacheClient`] for communicating with this server
+        fn client(&self) -> CatalogCacheClient {
+            // Use localhost to test DNS resolution
+            let addr = format!("http://localhost:{}", self.addr.port());
+            CatalogCacheClient::builder(addr.parse().unwrap(), Arc::clone(&self.metric_registry))
+                .build()
+                .unwrap()
+        }
+
+        /// Triggers and waits for graceful shutdown
+        async fn shutdown(mut self) {
+            self.shutdown.cancel();
+            if let Some(x) = self.handle.take() {
+                x.await.unwrap()
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn one_catalog_down_with_503s_causes_new_snapshot() {
+        let metric_registry = Arc::new(metric::Registry::new());
+        let local = Arc::new(CatalogCache::default());
+        let good_remote = TestCacheServer::bind_ephemeral(&metric_registry).await;
+        let bad_remote = FailingCacheServer::bind_ephemeral(&metric_registry).await;
+
+        let replicas = Arc::new([good_remote.client(), bad_remote.client()]);
+        let quorum = QuorumCatalogCache::new(Arc::clone(&local), Arc::clone(&replicas));
+
+        let key = CacheKey::Table(1);
+        let v0 = CacheValue::new("v0".into(), 0);
+
+        // local = None, good = None, bad = Err(503)
+        // local and good agree on None, so it should return None.
+        let res = quorum.get(key).await.unwrap();
+        assert_eq!(res, None);
+
+        good_remote.cache().insert(key, v0.clone()).unwrap();
+
+        // local = None, good = Some(v0), bad = Err(503)
+        // We can't get a quorum, but the failing remote is reporting 503, so we just return None
+        // and fetch and broadcast a new snapshot
+        let res = quorum.get(key).await.unwrap();
+        assert_eq!(res, None);
+
+        local.insert(key, v0.clone()).unwrap();
+
+        // local = Some(v0), good = Some(v0), bad = Err(503)
+        // local and good agree with each other, so we should have a good result
+        let res = quorum.get(key).await.unwrap().unwrap();
+        assert_eq!(res, v0);
+
+        local.insert(key, CacheValue::new("v1".into(), 1)).unwrap();
+
+        // local = Some(v1), good = Some(v0), bad = Err(503)
+        // Since local is newer than the only good remote and the bad remote is returning 503, we
+        // should get None and do a snapshot
+        let res = quorum.get(key).await.unwrap();
+        assert_eq!(res, None);
+
+        bad_remote.shutdown().await;
+        good_remote.shutdown().await;
     }
 }
