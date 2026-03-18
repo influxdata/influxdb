@@ -279,13 +279,14 @@ func DecodeDatePartDimension(dims []DatePartDimension, datePartKey string) ([]De
 
 // ComputeDatePartKeyFromValues creates a date_part key from pre-computed values in the Aux field.
 // This is used when timestamps have been normalized and we need to extract the grouping key from Aux.
-func ComputeDatePartKeyFromValues(dims []DatePartDimension, auxValues []interface{}) (string, error) {
+func ComputeDatePartKeyFromValues(dims []DatePartDimension, auxValues []interface{}) ([]string, error) {
 	if len(auxValues) < len(dims) {
-		return "", errors.New("ComputeDatePartKeyFromValues: not enough aux values for date_part dimensions")
+		return nil, errors.New("ComputeDatePartKeyFromValues: not enough aux values for date_part dimensions")
 	}
 
-	buf := make([]byte, len(dims)*8)
+	outputs := make([]string, 0)
 	for i := range dims {
+		buf := make([]byte, 8)
 		// The aux values are stored as int64 values
 		var val int64
 		switch v := auxValues[i].(type) {
@@ -300,10 +301,11 @@ func ComputeDatePartKeyFromValues(dims []DatePartDimension, auxValues []interfac
 		case DecodedDatePartKey:
 			val = v.Val
 		default:
-			return "", fmt.Errorf("ComputeDatePartKeyFromValues: unexpected aux value type: %T", v)
+			return nil, fmt.Errorf("ComputeDatePartKeyFromValues: unexpected aux value type: %T", v)
 		}
-		binary.BigEndian.PutUint64(buf[i*8:], uint64(val))
+		binary.BigEndian.PutUint64(buf[8:], uint64(val))
+		outputs = append(outputs, string(buf))
 	}
 
-	return string(buf), nil
+	return outputs, nil
 }

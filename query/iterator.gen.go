@@ -10,6 +10,7 @@ import (
 	"container/heap"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"sync"
@@ -1442,6 +1443,7 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					return nil, err
 				}
 
+				fmt.Printf("dpkey=%s, dpValues=%v\n", string(dpKey), dpValues)
 				// Create composite grouping key
 				if len(itr.dims) > 0 {
 					// GROUP BY tags AND date_part
