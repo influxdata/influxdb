@@ -8403,24 +8403,28 @@ func TestServer_Query_DatePart(t *testing.T) {
 		&Query{
 			name:    `GROUP BY year and month with COUNT`,
 			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time)`,
-			// NOTE: multi-dimension GROUP BY has a known bug where the "year" column
-			// shows month values instead of actual year values. The expected output
-			// below reflects the current (buggy) behavior.
-			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"month":1},"columns":["time","count","year","month"],"values":[` +
-				`["2023-01-01T00:00:00Z",2,1,1],` + // 2023-01: 2 points
-				`["2023-01-01T00:00:00Z",1,4,4],` + // 2023-04: 1 point
-				`["2023-01-01T00:00:00Z",1,7,7],` + // 2023-07: 1 point
-				`["2023-01-01T00:00:00Z",1,10,10],` + // 2023-10: 1 point
-				`["2023-01-01T00:00:00Z",1,12,12],` + // 2023-12: 1 point
-				`["2023-01-01T00:00:00Z",1,1,1],` + // 2024-01: 1 point
-				`["2023-01-01T00:00:00Z",1,2,2],` + // 2024-02: 1 point
-				`["2023-01-01T00:00:00Z",1,5,5],` + // 2024-05: 1 point
-				`["2023-01-01T00:00:00Z",1,8,8],` + // 2024-08: 1 point
-				`["2023-01-01T00:00:00Z",1,11,11],` + // 2024-11: 1 point
-				`["2023-01-01T00:00:00Z",1,12,12],` + // 2024-12: 1 point
-				`["2023-01-01T00:00:00Z",1,1,1],` + // 2025-01: 1 point
-				`["2023-01-01T00:00:00Z",1,6,6],` + // 2025-06: 1 point
-				`["2023-01-01T00:00:00Z",5,9,9]` + // 2025-09: 5 points
+			// Each date_part dimension produces its own series with null for the
+			// non-active dimension column.
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				// month dimension
+				`{"name":"cpu","grouping_keys":{"month":1},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",4,null,1],` + // Jan: 4 points
+				`["2023-01-01T00:00:00Z",1,null,2],` + // Feb: 1 point
+				`["2023-01-01T00:00:00Z",1,null,4],` + // Apr: 1 point
+				`["2023-01-01T00:00:00Z",1,null,5],` + // May: 1 point
+				`["2023-01-01T00:00:00Z",1,null,6],` + // Jun: 1 point
+				`["2023-01-01T00:00:00Z",1,null,7],` + // Jul: 1 point
+				`["2023-01-01T00:00:00Z",1,null,8],` + // Aug: 1 point
+				`["2023-01-01T00:00:00Z",5,null,9],` + // Sep: 5 points
+				`["2023-01-01T00:00:00Z",1,null,10],` + // Oct: 1 point
+				`["2023-01-01T00:00:00Z",1,null,11],` + // Nov: 1 point
+				`["2023-01-01T00:00:00Z",2,null,12]` + // Dec: 2 points
+				`]},` +
+				// year dimension
+				`{"name":"cpu","grouping_keys":{"year":2023},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2023,null],` + // 2023: 6 points
+				`["2023-01-01T00:00:00Z",6,2024,null],` + // 2024: 6 points
+				`["2023-01-01T00:00:00Z",7,2025,null]` + // 2025: 7 points
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
@@ -8723,31 +8727,46 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 			params: url.Values{"db": []string{"db0"}},
 		},
 		// GROUP BY tag + multiple date_parts (PR comment pattern)
-		// NOTE: multi-dimension GROUP BY has a known bug where both "month" and "year"
-		// columns show the year value instead of their respective values.
+		// Each date_part dimension produces its own series per host, with null
+		// for the non-active dimension column.
 		&Query{
 			name:    `GROUP BY host year and month with COUNT - PR comment pattern`,
 			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('month', time), date_part('year', time), host`,
 			exp: `{"results":[{"statement_id":0,"series":[` +
+				// server01 - month dimension
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"month":1},"columns":["time","count","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",2,1,null],` + // Jan: 2 points
+				`["2023-01-01T00:00:00Z",1,4,null],` + // Apr: 1 point
+				`["2023-01-01T00:00:00Z",1,7,null],` + // Jul: 1 point
+				`["2023-01-01T00:00:00Z",1,10,null],` + // Oct: 1 point
+				`["2023-01-01T00:00:00Z",1,12,null]` + // Dec: 1 point
+				`]},` +
+				// server01 - year dimension
 				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"year":2023},"columns":["time","count","month","year"],"values":[` +
-				`["2023-01-01T00:00:00Z",2,2023,2023],` +
-				`["2023-01-01T00:00:00Z",1,2023,2023],` +
-				`["2023-01-01T00:00:00Z",1,2023,2023],` +
-				`["2023-01-01T00:00:00Z",1,2023,2023],` +
-				`["2023-01-01T00:00:00Z",1,2023,2023]` +
+				`["2023-01-01T00:00:00Z",6,null,2023]` + // 2023: 6 points
 				`]},` +
+				// server02 - month dimension
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"month":1},"columns":["time","count","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,1,null],` + // Jan: 1 point
+				`["2023-01-01T00:00:00Z",1,2,null],` + // Feb: 1 point
+				`["2023-01-01T00:00:00Z",1,5,null],` + // May: 1 point
+				`["2023-01-01T00:00:00Z",1,8,null],` + // Aug: 1 point
+				`["2023-01-01T00:00:00Z",1,11,null],` + // Nov: 1 point
+				`["2023-01-01T00:00:00Z",1,12,null]` + // Dec: 1 point
+				`]},` +
+				// server02 - year dimension
 				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"year":2024},"columns":["time","count","month","year"],"values":[` +
-				`["2023-01-01T00:00:00Z",1,2024,2024],` +
-				`["2023-01-01T00:00:00Z",1,2024,2024],` +
-				`["2023-01-01T00:00:00Z",1,2024,2024],` +
-				`["2023-01-01T00:00:00Z",1,2024,2024],` +
-				`["2023-01-01T00:00:00Z",1,2024,2024],` +
-				`["2023-01-01T00:00:00Z",1,2024,2024]` +
+				`["2023-01-01T00:00:00Z",6,null,2024]` + // 2024: 6 points
 				`]},` +
+				// server03 - month dimension
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"month":1},"columns":["time","count","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,1,null],` + // Jan: 1 point
+				`["2023-01-01T00:00:00Z",1,6,null],` + // Jun: 1 point
+				`["2023-01-01T00:00:00Z",5,9,null]` + // Sep: 5 points
+				`]},` +
+				// server03 - year dimension
 				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"year":2025},"columns":["time","count","month","year"],"values":[` +
-				`["2023-01-01T00:00:00Z",1,2025,2025],` +
-				`["2023-01-01T00:00:00Z",1,2025,2025],` +
-				`["2023-01-01T00:00:00Z",5,2025,2025]` +
+				`["2023-01-01T00:00:00Z",7,null,2025]` + // 2025: 7 points
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
