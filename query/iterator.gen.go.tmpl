@@ -1047,7 +1047,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Next() (*{{$v.Name}}Point, erro
 type {{$k.name}}Reduce{{$v.Name}}Point struct {
 	Name        string
 	Tags        Tags
-	DatePartKey string
+	GroupingKey string
 	Aggregator  {{$k.Name}}PointAggregator
 	Emitter     {{$v.Name}}PointEmitter
 }
@@ -1108,91 +1108,35 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
-			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
-			// from a prior reduce's emit phase) or a first-level reduce (aux contains
-			// raw int64 date_part values appended by the storage layer).
-			handled := false
-			for _, av := range curr.Aux {
-				if dpk, ok := av.(DecodedDatePartKey); ok {
-					// Second-level reduce: preserve the existing single-dimension key.
-					dimKey, err := ComputeSingleDimensionKey(
-						DatePartDimension{Expr: dpk.Expr}, dpk)
-					if err != nil {
-						return nil, err
-					}
-					if len(itr.dims) > 0 {
-						dimKey = tags.ID() + DatePartKeySeparator + dimKey
-					}
-					dpKey, err := EncodeSingleDimensionKey(
-						DatePartDimension{Expr: dpk.Expr}, dpk)
-					if err != nil {
-						return nil, err
-					}
-					rp := m[dimKey]
-					if rp == nil {
-						aggregator, emitter := itr.create()
-						rp = &{{$k.name}}Reduce{{$v.Name}}Point{
-							Name:        curr.Name,
-							Tags:        tags,
-							DatePartKey: dpKey,
-							Aggregator:  aggregator,
-							Emitter:     emitter,
-						}
-						m[dimKey] = rp
-					}
-					rp.Aggregator.Aggregate{{$k.Name}}(curr)
-					handled = true
-					break
-				}
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-
-			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
-				// First-level reduce: raw int64 date_part values at end of Aux.
-				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-
-				for dimIdx, dim := range itr.opt.DatePartDimensions {
-					dpVal := curr.Aux[startIdx+dimIdx]
-
-					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
-					if err != nil {
-						return nil, err
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &{{$k.name}}Reduce{{$v.Name}}Point{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
 					}
-					if len(itr.dims) > 0 {
-						dimKey = tags.ID() + DatePartKeySeparator + dimKey
-					}
-
-					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
-					if err != nil {
-						return nil, err
-					}
-
-					rp := m[dimKey]
-					if rp == nil {
-						aggregator, emitter := itr.create()
-						rp = &{{$k.name}}Reduce{{$v.Name}}Point{
-							Name:        curr.Name,
-							Tags:        tags,
-							DatePartKey: dpKey,
-							Aggregator:  aggregator,
-							Emitter:     emitter,
-						}
-						m[dimKey] = rp
-					}
-					rp.Aggregator.Aggregate{{$k.Name}}(curr)
+					m[entry.DimKey] = rp
 				}
+				rp.Aggregator.Aggregate{{$k.Name}}(curr)
 			}
 		} else {
-			// No date_part dimensions — use the default single aggregator. 
 			rp := m[id]
 			if rp == nil {
 				aggregator, emitter := itr.create()
 				rp = &{{$k.name}}Reduce{{$v.Name}}Point{
-					Name:        curr.Name,
-					Tags:        tags,
-					DatePartKey: "",
-					Aggregator:  aggregator,
-					Emitter:     emitter,
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
 				}
 				m[id] = rp
 			}
@@ -1234,9 +1178,8 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 				sortedByTime = false
 			}
 
-			// Append single date_part value to Aux for multi-level reduces
-			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
 				if err == nil {
 					points[i].Aux = append(points[i].Aux, dpVal)
 				}

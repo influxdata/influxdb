@@ -343,3 +343,104 @@ func TestDatePartValuer_Value(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, now, val)
 }
+
+func TestDatePartGrouper_ResolveKeys_FirstLevel(t *testing.T) {
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "month", Expr: query.Month},
+	})
+
+	aux := []interface{}{int64(3)}
+	entries, err := g.ResolveKeys(aux, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].DimKey == "" {
+		t.Fatal("expected non-empty DimKey")
+	}
+	if entries[0].EncodedKey == "" {
+		t.Fatal("expected non-empty EncodedKey")
+	}
+}
+
+func TestDatePartGrouper_ResolveKeys_FirstLevel_WithTags(t *testing.T) {
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "month", Expr: query.Month},
+	})
+
+	aux := []interface{}{int64(3)}
+	entries, err := g.ResolveKeys(aux, "host=server01", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].DimKey == "" {
+		t.Fatal("expected non-empty DimKey")
+	}
+}
+
+func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "month", Expr: query.Month},
+	})
+
+	aux := []interface{}{query.DecodedDatePartKey{Expr: query.Month, Val: 3}}
+	entries, err := g.ResolveKeys(aux, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+}
+
+func TestDatePartGrouper_DecodeEntry(t *testing.T) {
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "month", Expr: query.Month},
+	})
+
+	aux := []interface{}{int64(7)}
+	entries, err := g.ResolveKeys(aux, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decoded, err := g.DecodeEntry(entries[0].EncodedKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dpk, ok := decoded.(query.DecodedDatePartKey)
+	if !ok {
+		t.Fatalf("expected DecodedDatePartKey, got %T", decoded)
+	}
+	if dpk.Val != 7 {
+		t.Fatalf("expected val 7, got %d", dpk.Val)
+	}
+}
+
+func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "year", Expr: query.Year},
+		{Name: "month", Expr: query.Month},
+	})
+
+	aux := []interface{}{int64(2026), int64(3)}
+	entries, err := g.ResolveKeys(aux, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+
+	for _, e := range entries {
+		_, err := g.DecodeEntry(e.EncodedKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}

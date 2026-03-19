@@ -325,3 +325,65 @@ func DecodeSingleDimensionKey(datePartKey string) (DecodedDatePartKey, error) {
 	val := int64(binary.BigEndian.Uint64(b[1:9]))
 	return DecodedDatePartKey{Expr: expr, Val: val}, nil
 }
+
+// DatePartGrouper implements DimensionGrouper for date_part GROUP BY dimensions.
+type DatePartGrouper struct {
+	dims []DatePartDimension
+}
+
+func NewDatePartGrouper(dims []DatePartDimension) *DatePartGrouper {
+	return &DatePartGrouper{dims: dims}
+}
+
+func (g *DatePartGrouper) ResolveKeys(aux []interface{}, tagID string, hasTags bool) ([]GroupingEntry, error) {
+	// Check for second-level reduce: aux contains DecodedDatePartKey from a prior emit.
+	for _, av := range aux {
+		if dpk, ok := av.(DecodedDatePartKey); ok {
+			dimKey, err := ComputeSingleDimensionKey(
+				DatePartDimension{Expr: dpk.Expr}, dpk)
+			if err != nil {
+				return nil, err
+			}
+			if hasTags {
+				dimKey = tagID + DatePartKeySeparator + dimKey
+			}
+			dpKey, err := EncodeSingleDimensionKey(
+				DatePartDimension{Expr: dpk.Expr}, dpk)
+			if err != nil {
+				return nil, err
+			}
+			return []GroupingEntry{{DimKey: dimKey, EncodedKey: dpKey}}, nil
+		}
+	}
+
+	// First-level reduce: raw int64 values at end of aux.
+	if len(aux) < len(g.dims) {
+		return nil, nil
+	}
+	startIdx := len(aux) - len(g.dims)
+	entries := make([]GroupingEntry, 0, len(g.dims))
+
+	for i, dim := range g.dims {
+		dpVal := aux[startIdx+i]
+
+		dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+		if err != nil {
+			return nil, err
+		}
+		if hasTags {
+			dimKey = tagID + DatePartKeySeparator + dimKey
+		}
+
+		dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, GroupingEntry{DimKey: dimKey, EncodedKey: dpKey})
+	}
+	return entries, nil
+}
+
+func (g *DatePartGrouper) DecodeEntry(encodedKey string) (interface{}, error) {
+	return DecodeSingleDimensionKey(encodedKey)
+}

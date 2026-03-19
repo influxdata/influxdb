@@ -592,6 +592,7 @@ type IteratorOptions struct {
 	Interval           Interval
 	Dimensions         []string // The final dimensions of the query (stays the same even in subqueries).
 	DatePartDimensions []DatePartDimension
+	DimensionGrouper   DimensionGrouper
 	GroupBy            map[string]struct{} // Dimensions to group points by in intermediate iterators.
 	Location           *time.Location
 
@@ -701,6 +702,10 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 				Expr: expr,
 			})
 		}
+	}
+
+	if len(opt.DatePartDimensions) > 0 {
+		opt.DimensionGrouper = NewDatePartGrouper(opt.DatePartDimensions)
 	}
 
 	opt.Condition = condition
