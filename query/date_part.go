@@ -283,43 +283,37 @@ func extractVal(auxVal interface{}) (int64, error) {
 }
 
 // DatePartGrouper implements DimensionGrouper for date_part GROUP BY dimensions.
-// Buffers are reused across calls to avoid per-point allocations in the reduce loop.
+// All methods are safe for concurrent use — no shared mutable state.
+// Encoding buffers use stack-allocated fixed-size arrays to avoid heap allocations.
 type DatePartGrouper struct {
-	dims    []DatePartDimension
-	entries []GroupingEntry // reusable slice, reset to [:0] each call
-	compBuf [8]byte         // reusable buffer for dimension key encoding
-	encBuf  [9]byte         // reusable buffer for encoded key
-	keyBuf  strings.Builder // reusable buffer for composite key building
+	dims []DatePartDimension
 }
 
 func NewDatePartGrouper(dims []DatePartDimension) *DatePartGrouper {
-	return &DatePartGrouper{
-		dims:    dims,
-		entries: make([]GroupingEntry, 0, len(dims)),
-	}
+	return &DatePartGrouper{dims: dims}
 }
 
-// computeDimKey writes a grouping key into g.keyBuf and returns it as a string.
+// computeDimKey builds a grouping key string.
 // Format: "exprName:<8-byte big-endian value>" optionally prefixed with "tagID\x00\x00".
-func (g *DatePartGrouper) computeDimKey(expr DatePartExpr, val int64, tagID string, hasTags bool) string {
-	g.keyBuf.Reset()
+// Uses a stack-allocated [8]byte for the binary encoding.
+func computeDimKey(expr DatePartExpr, val int64, tagID string, hasTags bool) string {
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], uint64(val))
+	valStr := string(buf[:])
 	if hasTags {
-		g.keyBuf.WriteString(tagID)
-		g.keyBuf.WriteString(DatePartKeySeparator)
+		return tagID + DatePartKeySeparator + expr.String() + ":" + valStr
 	}
-	g.keyBuf.WriteString(expr.String())
-	g.keyBuf.WriteByte(':')
-	binary.BigEndian.PutUint64(g.compBuf[:], uint64(val))
-	g.keyBuf.Write(g.compBuf[:])
-	return g.keyBuf.String()
+	return expr.String() + ":" + valStr
 }
 
 // encodeKey encodes a dimension value into a 9-byte string (1 byte expr + 8 bytes value)
 // that can be stored on a reduce point and later decoded.
-func (g *DatePartGrouper) encodeKey(expr DatePartExpr, val int64) string {
-	g.encBuf[0] = byte(expr)
-	binary.BigEndian.PutUint64(g.encBuf[1:], uint64(val))
-	return string(g.encBuf[:])
+// Uses a stack-allocated [9]byte for the binary encoding.
+func encodeKey(expr DatePartExpr, val int64) string {
+	var buf [9]byte
+	buf[0] = byte(expr)
+	binary.BigEndian.PutUint64(buf[1:], uint64(val))
+	return string(buf[:])
 }
 
 // decodeKey decodes a 9-byte encoded key back into a DecodedDatePartKey.
@@ -337,12 +331,10 @@ func (g *DatePartGrouper) ResolveKeys(aux []interface{}, tagID string, hasTags b
 	// Check for second-level reduce: aux contains DecodedDatePartKey from a prior emit.
 	for _, av := range aux {
 		if dpk, ok := av.(DecodedDatePartKey); ok {
-			g.entries = g.entries[:0]
-			g.entries = append(g.entries, GroupingEntry{
-				DimKey:     g.computeDimKey(dpk.Expr, dpk.Val, tagID, hasTags),
-				EncodedKey: g.encodeKey(dpk.Expr, dpk.Val),
-			})
-			return g.entries, nil
+			return []GroupingEntry{{
+				DimKey:     computeDimKey(dpk.Expr, dpk.Val, tagID, hasTags),
+				EncodedKey: encodeKey(dpk.Expr, dpk.Val),
+			}}, nil
 		}
 	}
 
@@ -351,7 +343,7 @@ func (g *DatePartGrouper) ResolveKeys(aux []interface{}, tagID string, hasTags b
 		return nil, nil
 	}
 	startIdx := len(aux) - len(g.dims)
-	g.entries = g.entries[:0]
+	entries := make([]GroupingEntry, 0, len(g.dims))
 
 	for i, dim := range g.dims {
 		val, err := extractVal(aux[startIdx+i])
@@ -359,12 +351,12 @@ func (g *DatePartGrouper) ResolveKeys(aux []interface{}, tagID string, hasTags b
 			return nil, err
 		}
 
-		g.entries = append(g.entries, GroupingEntry{
-			DimKey:     g.computeDimKey(dim.Expr, val, tagID, hasTags),
-			EncodedKey: g.encodeKey(dim.Expr, val),
+		entries = append(entries, GroupingEntry{
+			DimKey:     computeDimKey(dim.Expr, val, tagID, hasTags),
+			EncodedKey: encodeKey(dim.Expr, val),
 		})
 	}
-	return g.entries, nil
+	return entries, nil
 }
 
 func (g *DatePartGrouper) DecodeEntry(encodedKey string) (interface{}, error) {
