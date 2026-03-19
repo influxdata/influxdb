@@ -286,10 +286,10 @@ func extractVal(auxVal interface{}) (int64, error) {
 // Buffers are reused across calls to avoid per-point allocations in the reduce loop.
 type DatePartGrouper struct {
 	dims    []DatePartDimension
-	entries []GroupingEntry  // reusable slice, reset to [:0] each call
-	compBuf [8]byte          // reusable buffer for dimension key encoding
-	encBuf  [9]byte          // reusable buffer for encoded key
-	keyBuf  strings.Builder  // reusable buffer for composite key building
+	entries []GroupingEntry // reusable slice, reset to [:0] each call
+	compBuf [8]byte         // reusable buffer for dimension key encoding
+	encBuf  [9]byte         // reusable buffer for encoded key
+	keyBuf  strings.Builder // reusable buffer for composite key building
 }
 
 func NewDatePartGrouper(dims []DatePartDimension) *DatePartGrouper {
