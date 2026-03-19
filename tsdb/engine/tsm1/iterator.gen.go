@@ -282,8 +282,12 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 
 		// Compute and append date part dimension values.
 		if len(itr.opt.DatePartDimensions) > 0 {
+			// Truncate aux back to the base length so date_part values don't
+			// accumulate across calls (itr.point is a reused buffer).
+			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			t := time.Unix(0, seek).UTC()
 			for _, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
@@ -785,8 +789,12 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 
 		// Compute and append date part dimension values.
 		if len(itr.opt.DatePartDimensions) > 0 {
+			// Truncate aux back to the base length so date_part values don't
+			// accumulate across calls (itr.point is a reused buffer).
+			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			t := time.Unix(0, seek).UTC()
 			for _, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
@@ -1288,8 +1296,12 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 
 		// Compute and append date part dimension values.
 		if len(itr.opt.DatePartDimensions) > 0 {
+			// Truncate aux back to the base length so date_part values don't
+			// accumulate across calls (itr.point is a reused buffer).
+			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			t := time.Unix(0, seek).UTC()
 			for _, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
@@ -1791,8 +1803,12 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 
 		// Compute and append date part dimension values.
 		if len(itr.opt.DatePartDimensions) > 0 {
+			// Truncate aux back to the base length so date_part values don't
+			// accumulate across calls (itr.point is a reused buffer).
+			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			t := time.Unix(0, seek).UTC()
 			for _, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
@@ -2294,8 +2310,12 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 
 		// Compute and append date part dimension values.
 		if len(itr.opt.DatePartDimensions) > 0 {
+			// Truncate aux back to the base length so date_part values don't
+			// accumulate across calls (itr.point is a reused buffer).
+			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			t := time.Unix(0, seek).UTC()
 			for _, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(time.Unix(0, seek).UTC(), dim.Expr)
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}

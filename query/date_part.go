@@ -263,96 +263,86 @@ type DecodedDatePartKey struct {
 	Val  int64
 }
 
-// ComputeSingleDimensionKey creates a grouping key for a single date_part dimension.
-// The key format is "dimName:binaryValue" so that keys for different dimensions
-// sort into separate groups.
-func ComputeSingleDimensionKey(dim DatePartDimension, auxVal interface{}) (string, error) {
-	var val int64
+// extractVal extracts an int64 from the aux value types used by date_part.
+func extractVal(auxVal interface{}) (int64, error) {
 	switch v := auxVal.(type) {
 	case int64:
-		val = v
+		return v, nil
 	case float64:
-		val = int64(v)
+		return int64(v), nil
 	case *int64:
 		if v != nil {
-			val = *v
+			return *v, nil
 		}
+		return 0, nil
 	case DecodedDatePartKey:
-		val = v.Val
+		return v.Val, nil
 	default:
-		return "", fmt.Errorf("ComputeSingleDimensionKey: unexpected aux value type: %T", v)
+		return 0, fmt.Errorf("date_part: unexpected aux value type: %T", v)
 	}
-
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(val))
-	return dim.Expr.String() + ":" + string(buf), nil
-}
-
-// EncodeSingleDimensionKey encodes a single dimension value into a DatePartKey
-// that can be stored on a reduce point and later decoded.
-// Format: 1 byte for DatePartExpr + 8 bytes for the value.
-func EncodeSingleDimensionKey(dim DatePartDimension, auxVal interface{}) (string, error) {
-	var val int64
-	switch v := auxVal.(type) {
-	case int64:
-		val = v
-	case float64:
-		val = int64(v)
-	case *int64:
-		if v != nil {
-			val = *v
-		}
-	case DecodedDatePartKey:
-		val = v.Val
-	default:
-		return "", fmt.Errorf("EncodeSingleDimensionKey: unexpected aux value type: %T", v)
-	}
-
-	buf := make([]byte, 9)
-	buf[0] = byte(dim.Expr)
-	binary.BigEndian.PutUint64(buf[1:], uint64(val))
-	return string(buf), nil
-}
-
-// DecodeSingleDimensionKey decodes a DatePartKey that was encoded by EncodeSingleDimensionKey.
-// Returns a single DecodedDatePartKey.
-func DecodeSingleDimensionKey(datePartKey string) (DecodedDatePartKey, error) {
-	b := []byte(datePartKey)
-	if len(b) < 9 {
-		return DecodedDatePartKey{}, errors.New("DecodeSingleDimensionKey: key too short")
-	}
-	expr := DatePartExpr(b[0])
-	val := int64(binary.BigEndian.Uint64(b[1:9]))
-	return DecodedDatePartKey{Expr: expr, Val: val}, nil
 }
 
 // DatePartGrouper implements DimensionGrouper for date_part GROUP BY dimensions.
+// Buffers are reused across calls to avoid per-point allocations in the reduce loop.
 type DatePartGrouper struct {
-	dims []DatePartDimension
+	dims    []DatePartDimension
+	entries []GroupingEntry  // reusable slice, reset to [:0] each call
+	compBuf [8]byte          // reusable buffer for dimension key encoding
+	encBuf  [9]byte          // reusable buffer for encoded key
+	keyBuf  strings.Builder  // reusable buffer for composite key building
 }
 
 func NewDatePartGrouper(dims []DatePartDimension) *DatePartGrouper {
-	return &DatePartGrouper{dims: dims}
+	return &DatePartGrouper{
+		dims:    dims,
+		entries: make([]GroupingEntry, 0, len(dims)),
+	}
+}
+
+// computeDimKey writes a grouping key into g.keyBuf and returns it as a string.
+// Format: "exprName:<8-byte big-endian value>" optionally prefixed with "tagID\x00\x00".
+func (g *DatePartGrouper) computeDimKey(expr DatePartExpr, val int64, tagID string, hasTags bool) string {
+	g.keyBuf.Reset()
+	if hasTags {
+		g.keyBuf.WriteString(tagID)
+		g.keyBuf.WriteString(DatePartKeySeparator)
+	}
+	g.keyBuf.WriteString(expr.String())
+	g.keyBuf.WriteByte(':')
+	binary.BigEndian.PutUint64(g.compBuf[:], uint64(val))
+	g.keyBuf.Write(g.compBuf[:])
+	return g.keyBuf.String()
+}
+
+// encodeKey encodes a dimension value into a 9-byte string (1 byte expr + 8 bytes value)
+// that can be stored on a reduce point and later decoded.
+func (g *DatePartGrouper) encodeKey(expr DatePartExpr, val int64) string {
+	g.encBuf[0] = byte(expr)
+	binary.BigEndian.PutUint64(g.encBuf[1:], uint64(val))
+	return string(g.encBuf[:])
+}
+
+// decodeKey decodes a 9-byte encoded key back into a DecodedDatePartKey.
+func decodeKey(encodedKey string) (DecodedDatePartKey, error) {
+	if len(encodedKey) < 9 {
+		return DecodedDatePartKey{}, errors.New("date_part: encoded key too short")
+	}
+	return DecodedDatePartKey{
+		Expr: DatePartExpr(encodedKey[0]),
+		Val:  int64(binary.BigEndian.Uint64([]byte(encodedKey[1:9]))),
+	}, nil
 }
 
 func (g *DatePartGrouper) ResolveKeys(aux []interface{}, tagID string, hasTags bool) ([]GroupingEntry, error) {
 	// Check for second-level reduce: aux contains DecodedDatePartKey from a prior emit.
 	for _, av := range aux {
 		if dpk, ok := av.(DecodedDatePartKey); ok {
-			dimKey, err := ComputeSingleDimensionKey(
-				DatePartDimension{Expr: dpk.Expr}, dpk)
-			if err != nil {
-				return nil, err
-			}
-			if hasTags {
-				dimKey = tagID + DatePartKeySeparator + dimKey
-			}
-			dpKey, err := EncodeSingleDimensionKey(
-				DatePartDimension{Expr: dpk.Expr}, dpk)
-			if err != nil {
-				return nil, err
-			}
-			return []GroupingEntry{{DimKey: dimKey, EncodedKey: dpKey}}, nil
+			g.entries = g.entries[:0]
+			g.entries = append(g.entries, GroupingEntry{
+				DimKey:     g.computeDimKey(dpk.Expr, dpk.Val, tagID, hasTags),
+				EncodedKey: g.encodeKey(dpk.Expr, dpk.Val),
+			})
+			return g.entries, nil
 		}
 	}
 
@@ -361,29 +351,22 @@ func (g *DatePartGrouper) ResolveKeys(aux []interface{}, tagID string, hasTags b
 		return nil, nil
 	}
 	startIdx := len(aux) - len(g.dims)
-	entries := make([]GroupingEntry, 0, len(g.dims))
+	g.entries = g.entries[:0]
 
 	for i, dim := range g.dims {
-		dpVal := aux[startIdx+i]
-
-		dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
-		if err != nil {
-			return nil, err
-		}
-		if hasTags {
-			dimKey = tagID + DatePartKeySeparator + dimKey
-		}
-
-		dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+		val, err := extractVal(aux[startIdx+i])
 		if err != nil {
 			return nil, err
 		}
 
-		entries = append(entries, GroupingEntry{DimKey: dimKey, EncodedKey: dpKey})
+		g.entries = append(g.entries, GroupingEntry{
+			DimKey:     g.computeDimKey(dim.Expr, val, tagID, hasTags),
+			EncodedKey: g.encodeKey(dim.Expr, val),
+		})
 	}
-	return entries, nil
+	return g.entries, nil
 }
 
 func (g *DatePartGrouper) DecodeEntry(encodedKey string) (interface{}, error) {
-	return DecodeSingleDimensionKey(encodedKey)
+	return decodeKey(encodedKey)
 }
