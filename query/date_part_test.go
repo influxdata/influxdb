@@ -351,18 +351,10 @@ func TestDatePartGrouper_ResolveKeys_FirstLevel(t *testing.T) {
 
 	aux := []interface{}{int64(3)}
 	entries, err := g.ResolveKeys(aux, "", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(entries))
-	}
-	if entries[0].DimKey == "" {
-		t.Fatal("expected non-empty DimKey")
-	}
-	if entries[0].EncodedKey == "" {
-		t.Fatal("expected non-empty EncodedKey")
-	}
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.NotEmpty(t, entries[0].DimKey)
+	require.NotEmpty(t, entries[0].EncodedKey)
 }
 
 func TestDatePartGrouper_ResolveKeys_FirstLevel_WithTags(t *testing.T) {
@@ -372,15 +364,9 @@ func TestDatePartGrouper_ResolveKeys_FirstLevel_WithTags(t *testing.T) {
 
 	aux := []interface{}{int64(3)}
 	entries, err := g.ResolveKeys(aux, "host=server01", true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(entries))
-	}
-	if entries[0].DimKey == "" {
-		t.Fatal("expected non-empty DimKey")
-	}
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.NotEmpty(t, entries[0].DimKey)
 }
 
 func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
@@ -390,12 +376,8 @@ func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
 
 	aux := []interface{}{query.DecodedDatePartKey{Expr: query.Month, Val: 3}}
 	entries, err := g.ResolveKeys(aux, "", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(entries))
-	}
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
 }
 
 func TestDatePartGrouper_DecodeEntry(t *testing.T) {
@@ -405,21 +387,13 @@ func TestDatePartGrouper_DecodeEntry(t *testing.T) {
 
 	aux := []interface{}{int64(7)}
 	entries, err := g.ResolveKeys(aux, "", false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	decoded, err := g.DecodeEntry(entries[0].EncodedKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	dpk, ok := decoded.(query.DecodedDatePartKey)
-	if !ok {
-		t.Fatalf("expected DecodedDatePartKey, got %T", decoded)
-	}
-	if dpk.Val != 7 {
-		t.Fatalf("expected val 7, got %d", dpk.Val)
-	}
+	require.True(t, ok, "expected DecodedDatePartKey, got %T", decoded)
+	require.Equal(t, int64(7), dpk.Val)
 }
 
 func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
@@ -430,17 +404,11 @@ func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
 
 	aux := []interface{}{int64(2026), int64(3)}
 	entries, err := g.ResolveKeys(aux, "", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(entries))
-	}
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
 
 	for _, e := range entries {
 		_, err := g.DecodeEntry(e.EncodedKey)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 }
