@@ -1104,11 +1104,15 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -1422,11 +1426,15 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -1740,11 +1748,15 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -2058,11 +2070,15 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -2376,11 +2392,15 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -3920,11 +3940,15 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -4238,11 +4262,15 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -4556,11 +4584,15 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -4874,11 +4906,15 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -5192,11 +5228,15 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -6736,11 +6776,15 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -7054,11 +7098,15 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -7372,11 +7420,15 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -7690,11 +7742,15 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -8008,11 +8064,15 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -9538,11 +9598,15 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -9856,11 +9920,15 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -10174,11 +10242,15 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -10492,11 +10564,15 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -10810,11 +10886,15 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -12340,11 +12420,15 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -12658,11 +12742,15 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -12976,11 +13064,15 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -13294,11 +13386,15 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
@@ -13612,11 +13708,15 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
+		// Check to see if we have any group bys that are not tags or time.
+		// If we have group by key entries, let's create separate iteratores for them.
+		// If we don't have any, proceed as normal creating an iterator with the id map.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
