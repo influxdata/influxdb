@@ -55,6 +55,33 @@ async fn limits() -> Result<(), Error> {
     };
     assert_eq!(code, StatusCode::UNPROCESSABLE_ENTITY);
 
+    // Test that soft-deleting a database frees up the db and table counts
+    server
+        .delete_database("two")
+        .with_yes()
+        .run()
+        .expect("Did not error when deleting database");
+
+    server
+        .write_lp_to_db(
+            "six",
+            "cpu2000,host=s1,region=us-east usage=0.9 2998574938\n",
+            Precision::Second,
+        )
+        .await?;
+
+    let Err(Error::ApiError { code, .. }) = server
+        .write_lp_to_db(
+            "six",
+            "cpu2001,host=s1,region=us-east usage=0.9 2998574938\n",
+            Precision::Second,
+        )
+        .await
+    else {
+        panic!("Did not error when exceeding table limit after soft-delete");
+    };
+    assert_eq!(code, StatusCode::UNPROCESSABLE_ENTITY);
+
     // Test that we can't add a row 500 columns long
     let mut lp_500 = String::from("cpu,host=foo,region=bar usage=2");
     let mut lp_501 = String::from("cpu,host=foo,region=bar usage=2");

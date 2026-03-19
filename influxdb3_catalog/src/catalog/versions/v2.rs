@@ -933,6 +933,8 @@ impl InnerCatalog {
     pub fn table_count(&self) -> usize {
         self.databases
             .resource_iter()
+            // count if not db deleted _and_ not internal
+            .filter(|db| !db.deleted && db.name().as_ref() != INTERNAL_DB_NAME)
             .map(|db| db.table_count())
             .sum()
     }
