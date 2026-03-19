@@ -10,7 +10,6 @@ import (
 	"container/heap"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"sort"
 	"sync"
@@ -1105,44 +1104,96 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceFloatPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceFloatPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -1179,13 +1230,11 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -1430,45 +1479,96 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				fmt.Printf("dpkey=%s, dpValues=%v\n", string(dpKey), dpValues)
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceIntegerPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceIntegerPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -1505,13 +1605,11 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -1756,44 +1854,96 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceUnsignedPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceUnsignedPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -1830,13 +1980,11 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -2081,44 +2229,96 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceStringPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceStringPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -2155,13 +2355,11 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -2406,44 +2604,96 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &floatReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateFloat(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceBooleanPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceBooleanPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -2480,13 +2730,11 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -3957,44 +4205,96 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceFloatPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceFloatPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -4031,13 +4331,11 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -4282,44 +4580,96 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceIntegerPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceIntegerPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -4356,13 +4706,11 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -4607,44 +4955,96 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceUnsignedPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceUnsignedPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -4681,13 +5081,11 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -4932,44 +5330,96 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceStringPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceStringPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -5006,13 +5456,11 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -5257,44 +5705,96 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &integerReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateInteger(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceBooleanPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceBooleanPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -5331,13 +5831,11 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -6808,44 +7306,96 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceFloatPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceFloatPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -6882,13 +7432,11 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -7133,44 +7681,96 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceIntegerPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceIntegerPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -7207,13 +7807,11 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -7458,44 +8056,96 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceUnsignedPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceUnsignedPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -7532,13 +8182,11 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -7783,44 +8431,96 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceStringPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceStringPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -7857,13 +8557,11 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -8108,44 +8806,96 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &unsignedReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateUnsigned(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceBooleanPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceBooleanPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -8182,13 +8932,11 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -9645,44 +10393,96 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceFloatPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceFloatPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -9719,13 +10519,11 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -9970,44 +10768,96 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceIntegerPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceIntegerPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -10044,13 +10894,11 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -10295,44 +11143,96 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceUnsignedPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceUnsignedPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -10369,13 +11269,11 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -10620,44 +11518,96 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceStringPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceStringPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -10694,13 +11644,11 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -10945,44 +11893,96 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &stringReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateString(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceBooleanPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceBooleanPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -11019,13 +12019,11 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -12482,44 +13480,96 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceFloatPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceFloatPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceFloatPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -12556,13 +13606,11 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -12807,44 +13855,96 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceIntegerPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceIntegerPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceIntegerPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -12881,13 +13981,11 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -13132,44 +14230,96 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceUnsignedPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceUnsignedPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceUnsignedPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -13206,13 +14356,11 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -13457,44 +14605,96 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceStringPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceStringPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceStringPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -13531,13 +14731,11 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -13782,44 +14980,96 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		var dpKey string
-		if len(itr.opt.DatePartDimensions) > 0 {
-			// Extract date part values from the end of Aux
-			if len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+		if len(itr.opt.DatePartDimensions) > 0 && len(curr.Aux) > 0 {
+			// Check if this is a second-level reduce (aux contains DecodedDatePartKey
+			// from a prior reduce's emit phase) or a first-level reduce (aux contains
+			// raw int64 date_part values appended by the storage layer).
+			handled := false
+			for _, av := range curr.Aux {
+				if dpk, ok := av.(DecodedDatePartKey); ok {
+					// Second-level reduce: preserve the existing single-dimension key.
+					dimKey, err := ComputeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+					dpKey, err := EncodeSingleDimensionKey(
+						DatePartDimension{Expr: dpk.Expr}, dpk)
+					if err != nil {
+						return nil, err
+					}
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
+					handled = true
+					break
+				}
+			}
+
+			if !handled && len(curr.Aux) >= len(itr.opt.DatePartDimensions) {
+				// First-level reduce: raw int64 date_part values at end of Aux.
 				startIdx := len(curr.Aux) - len(itr.opt.DatePartDimensions)
-				dpValues := curr.Aux[startIdx:]
 
-				var err error
-				dpKey, err = ComputeDatePartKeyFromValues(itr.opt.DatePartDimensions, dpValues)
-				if err != nil {
-					return nil, err
-				}
+				for dimIdx, dim := range itr.opt.DatePartDimensions {
+					dpVal := curr.Aux[startIdx+dimIdx]
 
-				// Create composite grouping key
-				if len(itr.dims) > 0 {
-					// GROUP BY tags AND date_part
-					id = tags.ID() + DatePartKeySeparator + dpKey
-				} else {
-					// GROUP BY date_part only
-					id = dpKey
+					dimKey, err := ComputeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+					if len(itr.dims) > 0 {
+						dimKey = tags.ID() + DatePartKeySeparator + dimKey
+					}
+
+					dpKey, err := EncodeSingleDimensionKey(dim, dpVal)
+					if err != nil {
+						return nil, err
+					}
+
+					rp := m[dimKey]
+					if rp == nil {
+						aggregator, emitter := itr.create()
+						rp = &booleanReduceBooleanPoint{
+							Name:        curr.Name,
+							Tags:        tags,
+							DatePartKey: dpKey,
+							Aggregator:  aggregator,
+							Emitter:     emitter,
+						}
+						m[dimKey] = rp
+					}
+					rp.Aggregator.AggregateBoolean(curr)
 				}
 			}
-		}
-
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceBooleanPoint{
-				Name:        curr.Name,
-				Tags:        tags,
-				DatePartKey: dpKey,
-				Aggregator:  aggregator,
-				Emitter:     emitter,
+		} else {
+			// No date_part dimensions — use the default single aggregator.
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceBooleanPoint{
+					Name:        curr.Name,
+					Tags:        tags,
+					DatePartKey: "",
+					Aggregator:  aggregator,
+					Emitter:     emitter,
+				}
+				m[id] = rp
 			}
-			m[id] = rp
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -13856,13 +15106,11 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				sortedByTime = false
 			}
 
-			// Append date part values to Aux for multi-level reduces
+			// Append single date_part value to Aux for multi-level reduces
 			if len(itr.opt.DatePartDimensions) > 0 && rp.DatePartKey != "" {
-				dpValues, err := DecodeDatePartDimension(itr.opt.DatePartDimensions, rp.DatePartKey)
+				dpVal, err := DecodeSingleDimensionKey(rp.DatePartKey)
 				if err == nil {
-					for _, val := range dpValues {
-						points[i].Aux = append(points[i].Aux, val)
-					}
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 

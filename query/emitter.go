@@ -9,9 +9,10 @@ type Emitter struct {
 	cur       Cursor
 	chunkSize int
 
-	series  Series
-	row     *models.Row
-	columns []string
+	series       Series
+	groupingKeys map[string]int64
+	row          *models.Row
+	columns      []string
 }
 
 // NewEmitter returns a new instance of Emitter that pulls from itrs.
@@ -53,7 +54,7 @@ func (e *Emitter) Emit() (*models.Row, bool, error) {
 		// Otherwise return existing row and add values to next emitted row.
 		if e.row == nil {
 			e.createRow(row.Series, row.GroupingKeys, row.Values)
-		} else if e.series.SameSeries(row.Series) {
+		} else if e.series.SameSeries(row.Series) && sameGroupingKeys(e.groupingKeys, row.GroupingKeys) {
 			if e.chunkSize > 0 && len(e.row.Values) >= e.chunkSize {
 				r := e.row
 				r.Partial = true
@@ -72,6 +73,7 @@ func (e *Emitter) Emit() (*models.Row, bool, error) {
 // createRow creates a new row attached to the emitter.
 func (e *Emitter) createRow(series Series, groupingKeys map[string]int64, values []interface{}) {
 	e.series = series
+	e.groupingKeys = groupingKeys
 	e.row = &models.Row{
 		Name:         series.Name,
 		Tags:         series.Tags.KeyValues(),
@@ -79,4 +81,19 @@ func (e *Emitter) createRow(series Series, groupingKeys map[string]int64, values
 		Columns:      e.columns,
 		Values:       [][]interface{}{values},
 	}
+}
+
+// sameGroupingKeys returns true if two grouping key maps have the same key names.
+// Values are not compared — rows are grouped by which date_part dimension they
+// belong to, not by individual dimension values.
+func sameGroupingKeys(a, b map[string]int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k := range a {
+		if _, ok := b[k]; !ok {
+			return false
+		}
+	}
+	return true
 }

@@ -8751,6 +8751,119 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
+		// GROUP BY multiple date_parts + tag: each date_part dimension produces
+		// its own series per host, with null for non-active dimension columns.
+		&Query{
+			name:    `GROUP BY year, month, and host with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time), host`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				// server01 - month dimension
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"month":1},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",2,null,1],` + // Jan: 2 points
+				`["2023-01-01T00:00:00Z",1,null,4],` + // Apr: 1 point
+				`["2023-01-01T00:00:00Z",1,null,7],` + // Jul: 1 point
+				`["2023-01-01T00:00:00Z",1,null,10],` + // Oct: 1 point
+				`["2023-01-01T00:00:00Z",1,null,12]` + // Dec: 1 point
+				`]},` +
+				// server01 - year dimension
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"year":2023},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2023,null]` + // 2023: 6 points
+				`]},` +
+				// server02 - month dimension
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"month":1},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,null,1],` + // Jan: 1 point
+				`["2023-01-01T00:00:00Z",1,null,2],` + // Feb: 1 point
+				`["2023-01-01T00:00:00Z",1,null,5],` + // May: 1 point
+				`["2023-01-01T00:00:00Z",1,null,8],` + // Aug: 1 point
+				`["2023-01-01T00:00:00Z",1,null,11],` + // Nov: 1 point
+				`["2023-01-01T00:00:00Z",1,null,12]` + // Dec: 1 point
+				`]},` +
+				// server02 - year dimension
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"year":2024},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2024,null]` + // 2024: 6 points
+				`]},` +
+				// server03 - month dimension
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"month":1},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,null,1],` + // Jan: 1 point
+				`["2023-01-01T00:00:00Z",1,null,6],` + // Jun: 1 point
+				`["2023-01-01T00:00:00Z",5,null,9]` + // Sep: 5 points
+				`]},` +
+				// server03 - year dimension
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"year":2025},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",7,2025,null]` + // 2025: 7 points
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY month, year, and host with SUM - reversed dimension order`,
+			command: `SELECT SUM(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('month', time), date_part('year', time), host`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				// server01 - month dimension
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"month":1},"columns":["time","sum","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",3,1,null],` + // Jan: 1+2 = 3
+				`["2023-01-01T00:00:00Z",3,4,null],` + // Apr: 3
+				`["2023-01-01T00:00:00Z",4,7,null],` + // Jul: 4
+				`["2023-01-01T00:00:00Z",5,10,null],` + // Oct: 5
+				`["2023-01-01T00:00:00Z",6,12,null]` + // Dec: 6
+				`]},` +
+				// server01 - year dimension
+				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":{"year":2023},"columns":["time","sum","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",21,null,2023]` + // 2023: 1+2+3+4+5+6 = 21
+				`]},` +
+				// server02 - month dimension
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"month":1},"columns":["time","sum","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",7,1,null],` + // Jan: 7
+				`["2023-01-01T00:00:00Z",8,2,null],` + // Feb: 8
+				`["2023-01-01T00:00:00Z",9,5,null],` + // May: 9
+				`["2023-01-01T00:00:00Z",10,8,null],` + // Aug: 10
+				`["2023-01-01T00:00:00Z",11,11,null],` + // Nov: 11
+				`["2023-01-01T00:00:00Z",12,12,null]` + // Dec: 12
+				`]},` +
+				// server02 - year dimension
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"year":2024},"columns":["time","sum","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",57,null,2024]` + // 2024: 7+8+9+10+11+12 = 57
+				`]},` +
+				// server03 - month dimension
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"month":1},"columns":["time","sum","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",13,1,null],` + // Jan: 13
+				`["2023-01-01T00:00:00Z",14,6,null],` + // Jun: 14
+				`["2023-01-01T00:00:00Z",85,9,null]` + // Sep: 15+16+17+18+19 = 85
+				`]},` +
+				// server03 - year dimension
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"year":2025},"columns":["time","sum","month","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",112,null,2025]` + // 2025: 13+14+15+16+17+18+19 = 112
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY year, month, and host with COUNT and WHERE year filter`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' AND date_part('year', time) >= 2024 GROUP BY date_part('year', time), date_part('month', time), host`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				// server02 - month dimension (only 2024 data passes filter)
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"month":1},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,null,1],` + // Jan: 1 point
+				`["2023-01-01T00:00:00Z",1,null,2],` + // Feb: 1 point
+				`["2023-01-01T00:00:00Z",1,null,5],` + // May: 1 point
+				`["2023-01-01T00:00:00Z",1,null,8],` + // Aug: 1 point
+				`["2023-01-01T00:00:00Z",1,null,11],` + // Nov: 1 point
+				`["2023-01-01T00:00:00Z",1,null,12]` + // Dec: 1 point
+				`]},` +
+				// server02 - year dimension
+				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":{"year":2024},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2024,null]` + // 2024: 6 points
+				`]},` +
+				// server03 - month dimension (all data passes: 2025)
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"month":1},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,null,1],` + // Jan: 1 point
+				`["2023-01-01T00:00:00Z",1,null,6],` + // Jun: 1 point
+				`["2023-01-01T00:00:00Z",5,null,9]` + // Sep: 5 points
+				`]},` +
+				// server03 - year dimension
+				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":{"year":2025},"columns":["time","count","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",7,2025,null]` + // 2025: 7 points
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
 		// date_part in both SELECT and GROUP BY with tag
 		// NOTE: The explicit SELECT date_part shows incorrect values (always first group's value)
 		// when combined with GROUP BY date_part + tag.

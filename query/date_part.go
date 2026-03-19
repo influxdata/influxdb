@@ -263,49 +263,65 @@ type DecodedDatePartKey struct {
 	Val  int64
 }
 
-func DecodeDatePartDimension(dims []DatePartDimension, datePartKey string) ([]DecodedDatePartKey, error) {
-	output := make([]DecodedDatePartKey, len(dims))
-
-	for i, dim := range dims {
-		output[i].Expr = dim.Expr
-		if len([]byte(datePartKey)) < (i+1)*8 {
-			return nil, errors.New("DecodeDatePartDimension(): datePartKey length not within required range")
+// ComputeSingleDimensionKey creates a grouping key for a single date_part dimension.
+// The key format is "dimName:binaryValue" so that keys for different dimensions
+// sort into separate groups.
+func ComputeSingleDimensionKey(dim DatePartDimension, auxVal interface{}) (string, error) {
+	var val int64
+	switch v := auxVal.(type) {
+	case int64:
+		val = v
+	case float64:
+		val = int64(v)
+	case *int64:
+		if v != nil {
+			val = *v
 		}
-		output[i].Val = int64(binary.BigEndian.Uint64([]byte(datePartKey[i*8 : (i+1)*8])))
+	case DecodedDatePartKey:
+		val = v.Val
+	default:
+		return "", fmt.Errorf("ComputeSingleDimensionKey: unexpected aux value type: %T", v)
 	}
 
-	return output, nil
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(val))
+	return dim.Expr.String() + ":" + string(buf), nil
 }
 
-// ComputeDatePartKeyFromValues creates a date_part key from pre-computed values in the Aux field.
-// This is used when timestamps have been normalized and we need to extract the grouping key from Aux.
-func ComputeDatePartKeyFromValues(dims []DatePartDimension, auxValues []interface{}) ([]string, error) {
-	if len(auxValues) < len(dims) {
-		return nil, errors.New("ComputeDatePartKeyFromValues: not enough aux values for date_part dimensions")
-	}
-
-	outputs := make([]string, 0)
-	for i := range dims {
-		buf := make([]byte, 8)
-		// The aux values are stored as int64 values
-		var val int64
-		switch v := auxValues[i].(type) {
-		case int64:
-			val = v
-		case float64:
-			val = int64(v)
-		case *int64:
-			if v != nil {
-				val = *v
-			}
-		case DecodedDatePartKey:
-			val = v.Val
-		default:
-			return nil, fmt.Errorf("ComputeDatePartKeyFromValues: unexpected aux value type: %T", v)
+// EncodeSingleDimensionKey encodes a single dimension value into a DatePartKey
+// that can be stored on a reduce point and later decoded.
+// Format: 1 byte for DatePartExpr + 8 bytes for the value.
+func EncodeSingleDimensionKey(dim DatePartDimension, auxVal interface{}) (string, error) {
+	var val int64
+	switch v := auxVal.(type) {
+	case int64:
+		val = v
+	case float64:
+		val = int64(v)
+	case *int64:
+		if v != nil {
+			val = *v
 		}
-		binary.BigEndian.PutUint64(buf[8:], uint64(val))
-		outputs = append(outputs, string(buf))
+	case DecodedDatePartKey:
+		val = v.Val
+	default:
+		return "", fmt.Errorf("EncodeSingleDimensionKey: unexpected aux value type: %T", v)
 	}
 
-	return outputs, nil
+	buf := make([]byte, 9)
+	buf[0] = byte(dim.Expr)
+	binary.BigEndian.PutUint64(buf[1:], uint64(val))
+	return string(buf), nil
+}
+
+// DecodeSingleDimensionKey decodes a DatePartKey that was encoded by EncodeSingleDimensionKey.
+// Returns a single DecodedDatePartKey.
+func DecodeSingleDimensionKey(datePartKey string) (DecodedDatePartKey, error) {
+	b := []byte(datePartKey)
+	if len(b) < 9 {
+		return DecodedDatePartKey{}, errors.New("DecodeSingleDimensionKey: key too short")
+	}
+	expr := DatePartExpr(b[0])
+	val := int64(binary.BigEndian.Uint64(b[1:9]))
+	return DecodedDatePartKey{Expr: expr, Val: val}, nil
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxql"
 )
 
@@ -190,6 +189,10 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 }
 
 func (cur *scannerCursorBase) Scan(row *Row) bool {
+	// Clear date_part state from previous scan so it doesn't leak across rows.
+	delete(cur.m, DatePartDimensionsString)
+	row.GroupingKeys = nil
+
 	ts, name, tags := cur.scan(cur.m)
 	if ts == ZeroTime {
 		return false
@@ -234,7 +237,9 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 					row.GroupingKeys = make(map[string]int64)
 				}
 				row.GroupingKeys[dpd.Expr.String()] = dpd.Val
-				if slices.Exists(AvailableDatePartExprs, strings.TrimSuffix(expr.String(), "::integer")) {
+				// Only set the column value if this field matches the dimension
+				exprName := strings.TrimSuffix(expr.String(), "::integer")
+				if exprName == dpd.Expr.String() {
 					row.Values[i] = dpd.Val
 					continue
 				}

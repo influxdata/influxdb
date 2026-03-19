@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/binary"
 	"sort"
 )
 
@@ -37,11 +36,8 @@ func (r *Row) tagsHash() uint64 {
 func (r *Row) groupingKeysHash() uint64 {
 	h := NewInlineFNV64a()
 	keys := r.groupingKeysKeys()
-	buf := make([]byte, 8)
 	for _, k := range keys {
 		h.Write([]byte(k))
-		binary.LittleEndian.PutUint64(buf, uint64(r.GroupingKeys[k]))
-		h.Write(buf)
 	}
 	return h.Sum64()
 }
