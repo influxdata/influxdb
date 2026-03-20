@@ -195,6 +195,16 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 		return err
 	}
 
+	// Validate gzip compression level early to fail fast on invalid input.
+	if _, levelErr := NewCompressionLevelFromString(cmd.gzipCompressionLevel); levelErr != nil {
+		return levelErr
+	}
+
+	// gzipCompressionLevel only applies to portable backups.
+	if cmd.gzipCompressionLevel != "default" && !cmd.portable {
+		return errors.New("-gzipCompressionLevel requires -portable flag")
+	}
+
 	cmd.BackupFiles = []string{}
 
 	// for portable saving, if needed
