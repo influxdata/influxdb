@@ -371,7 +371,10 @@ func (cmd *Command) backupShard(db, rp, sid string, verifyLocation bool) (err er
 		var zw *gzip.Writer
 		switch level {
 		case DefaultCompression:
-			zw = gzip.NewWriter(out)
+			zw, err = gzip.NewWriterLevel(out, gzip.DefaultCompression)
+			if err != nil {
+				return err
+			}
 		case FullCompression:
 			zw, err = gzip.NewWriterLevel(out, gzip.BestCompression)
 			if err != nil {
