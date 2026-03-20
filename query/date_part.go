@@ -91,13 +91,6 @@ func (d DatePartExpr) String() string {
 	return ""
 }
 
-var AvailableDatePartExprs = []string{
-	"year", "quarter", "month", "week", "day",
-	"hour", "minute", "second",
-	"millisecond", "microsecond", "nanosecond",
-	"dow", "doy", "epoch", "isodow",
-}
-
 func ParseDatePartExpr(t string) (DatePartExpr, bool) {
 	switch strings.ToLower(t) {
 	case "year":
@@ -194,7 +187,11 @@ func ValidateDatePart(args []influxql.Expr) error {
 
 	_, ok = ParseDatePartExpr(exprStr.Val)
 	if !ok {
-		return fmt.Errorf("date_part: first argument must be one of the following: [%s]", strings.Join(AvailableDatePartExprs, ","))
+		valid := make([]string, 0, Invalid)
+		for i := Year; i < Invalid; i++ {
+			valid = append(valid, i.String())
+		}
+		return fmt.Errorf("date_part: first argument must be one of the following: [%s]", strings.Join(valid, ", "))
 	}
 
 	tstamp, ok := args[1].(*influxql.VarRef)
@@ -263,23 +260,14 @@ type DecodedDatePartKey struct {
 	Val  int64
 }
 
-// extractVal extracts an int64 from the aux value types used by date_part.
+// extractVal extracts an int64 from the aux value at the first-level reduce.
+// The TSM iterator always appends int64 values from ExtractDatePartExpr.
 func extractVal(auxVal interface{}) (int64, error) {
-	switch v := auxVal.(type) {
-	case int64:
-		return v, nil
-	case float64:
-		return int64(v), nil
-	case *int64:
-		if v != nil {
-			return *v, nil
-		}
-		return 0, nil
-	case DecodedDatePartKey:
-		return v.Val, nil
-	default:
-		return 0, fmt.Errorf("date_part: unexpected aux value type: %T", v)
+	v, ok := auxVal.(int64)
+	if !ok {
+		return 0, fmt.Errorf("date_part: unexpected aux value type: %T", auxVal)
 	}
+	return v, nil
 }
 
 // DatePartGrouper implements DimensionGrouper for date_part GROUP BY dimensions.

@@ -942,8 +942,7 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 					return err
 				}
 			case DatePartString:
-				err := c.compileDatePartDimension(expr)
-				if err != nil {
+				if err := ValidateDatePart(expr.Args); err != nil {
 					return err
 				}
 			default:
@@ -1008,13 +1007,6 @@ func (c *compiledStatement) compileTimeDimension(expr *influxql.Call, stmt *infl
 				return errors.New("time dimension offset must be duration or now()")
 			}
 		}
-	}
-	return nil
-}
-
-func (c *compiledStatement) compileDatePartDimension(expr *influxql.Call) error {
-	if err := ValidateDatePart(expr.Args); err != nil {
-		return err
 	}
 	return nil
 }
