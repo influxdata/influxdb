@@ -185,7 +185,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	fs.StringVar(&endArg, "end", "", "")
 	fs.BoolVar(&cmd.portable, "portable", false, "")
 	fs.BoolVar(&cmd.continueOnError, "skip-errors", false, "")
-	fs.StringVar(&cmd.gzipCompressionLevel, "gzipCompressionLevel", "default", "")
+	fs.StringVar(&cmd.gzipCompressionLevel, "gzip-compression-level", "default", "")
 
 	fs.SetOutput(cmd.Stderr)
 	fs.Usage = cmd.printUsage
@@ -202,7 +202,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 
 	// gzipCompressionLevel only applies to portable backups.
 	if cmd.gzipCompressionLevel != "default" && !cmd.portable {
-		return errors.New("-gzipCompressionLevel requires -portable flag")
+		return errors.New("-gzip-compression-level requires -portable flag")
 	}
 
 	cmd.BackupFiles = []string{}
@@ -734,7 +734,7 @@ Usage: influxd backup [options] PATH
             Recommend using '-start <timestamp>' instead.
     -skip-errors
             Optional flag to continue backing up the remaining shards when the current shard fails to backup.
-    -gzipCompressionLevel <level>
+    -gzip-compression-level <level>
             The level of gzip compression to use for portable backups. Options: default, full, speedy, none.
             "default" uses the standard gzip compression, "full" uses best compression ratio, "speedy" uses
             fastest compression, and "none" disables compression. Optional. Defaults to "default".
