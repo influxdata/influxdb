@@ -34,6 +34,30 @@ const (
 	BackupFilePattern = "%s.%s.%05d"
 )
 
+type CompressionLevel int
+
+const (
+	DefaultCompression CompressionLevel = iota
+	FullCompression
+	SpeedyCompression
+	NoCompression
+)
+
+func NewCompressionLevelFromString(s string) (CompressionLevel, error) {
+	switch s {
+	case "default":
+		return DefaultCompression, nil
+	case "full":
+		return FullCompression, nil
+	case "speedy":
+		return SpeedyCompression, nil
+	case "none":
+		return NoCompression, nil
+	default:
+		return -1, fmt.Errorf("unknown compression level: %s, required: [default, full, speedy, none]", s)
+	}
+}
+
 // Command represents the program execution for "influxd backup".
 type Command struct {
 	// The logger passed to the ticker during execution.
@@ -55,10 +79,11 @@ type Command struct {
 	start    time.Time
 	end      time.Time
 
-	portable         bool
-	manifest         backup_util.Manifest
-	portableFileBase string
-	continueOnError  bool
+	portable             bool
+	manifest             backup_util.Manifest
+	portableFileBase     string
+	continueOnError      bool
+	gzipCompressionLevel string
 
 	BackupFiles []string
 }
@@ -160,6 +185,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	fs.StringVar(&endArg, "end", "", "")
 	fs.BoolVar(&cmd.portable, "portable", false, "")
 	fs.BoolVar(&cmd.continueOnError, "skip-errors", false, "")
+	fs.StringVar(&cmd.gzipCompressionLevel, "gzipCompressionLevel", "default", "")
 
 	fs.SetOutput(cmd.Stderr)
 	fs.Usage = cmd.printUsage
@@ -337,7 +363,33 @@ func (cmd *Command) backupShard(db, rp, sid string, verifyLocation bool) (err er
 				}
 			}
 		}()
-		zw := gzip.NewWriter(out)
+		level, levelErr := NewCompressionLevelFromString(cmd.gzipCompressionLevel)
+		if levelErr != nil {
+			return levelErr
+		}
+
+		var zw *gzip.Writer
+		switch level {
+		case DefaultCompression:
+			zw = gzip.NewWriter(out)
+		case FullCompression:
+			zw, err = gzip.NewWriterLevel(out, gzip.BestCompression)
+			if err != nil {
+				return err
+			}
+		case SpeedyCompression:
+			zw, err = gzip.NewWriterLevel(out, gzip.BestSpeed)
+			if err != nil {
+				return err
+			}
+		case NoCompression:
+			zw, err = gzip.NewWriterLevel(out, gzip.NoCompression)
+			if err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown compression level: %d", level)
+		}
 		defer func() {
 			if zw != nil {
 				if e := zw.Close(); err == nil {
@@ -667,8 +719,12 @@ Usage: influxd backup [options] PATH
     -since <2015-12-24T08:12:23Z>
             Create an incremental backup of all points after the timestamp (RFC3339 format). Optional. 
             Recommend using '-start <timestamp>' instead.
-    -skip-errors 
-            Optional flag to continue backing up the remaining shards when the current shard fails to backup. 
+    -skip-errors
+            Optional flag to continue backing up the remaining shards when the current shard fails to backup.
+    -gzipCompressionLevel <level>
+            The level of gzip compression to use for portable backups. Options: default, full, speedy, none.
+            "default" uses the standard gzip compression, "full" uses best compression ratio, "speedy" uses
+            fastest compression, and "none" disables compression. Optional. Defaults to "default".
 `)
 
 }
