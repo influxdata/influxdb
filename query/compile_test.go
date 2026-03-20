@@ -381,7 +381,7 @@ func TestCompile_Failures(t *testing.T) {
 		// date_part validation tests
 		{s: `SELECT date_part() FROM cpu`, err: `invalid number of arguments for date_part, expected 2, got 0`},
 		{s: `SELECT date_part('dow') FROM cpu`, err: `invalid number of arguments for date_part, expected 2, got 1`},
-		{s: `SELECT date_part('invalid', time) FROM cpu`, err: `date_part: first argument must be one of the following: [year,quarter,month,week,day,hour,minute,second,millisecond,microsecond,nanosecond,dow,doy,epoch,isodow]`},
+		{s: `SELECT date_part('invalid', time) FROM cpu`, err: `date_part: first argument must be one of the following: [year, quarter, month, week, day, hour, minute, second, millisecond, microsecond, nanosecond, dow, doy, epoch, isodow]`},
 		{s: `SELECT date_part('dow', value) FROM cpu`, err: `date_part: second argument must be time VarRef`},
 		{s: `SELECT date_part(123, time) FROM cpu`, err: `date_part: first argument must be a string`},
 		// Verify multiple selectors without date_part still error
