@@ -82,6 +82,20 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 // The compression level is determined by the "gzip_compression_level" query parameter.
 // Valid values are: default, full, speedy, none. If not specified, "default" is used.
 func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
+	// Pre-build handlers for each named compression level so we avoid
+	// allocating a new handler on every request.
+	levelHandlers := make(map[int]func(http.Handler) http.Handler)
+	for _, cl := range []backup.CompressionLevel{backup.DefaultCompression, backup.FullCompression, backup.SpeedyCompression} {
+		gl := cl.GzipLevel()
+		handler, err := gziphandler.NewGzipLevelHandler(gl)
+		if err != nil {
+			// Should never happen for valid gzip levels; log and fall through at request time.
+			h.Logger.Error("failed to create gzip handler", zap.Int("level", gl), zap.Error(err))
+			continue
+		}
+		levelHandlers[gl] = handler
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		levelStr := r.URL.Query().Get("gzip_compression_level")
 		if levelStr == "" {
@@ -101,17 +115,30 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 
 		// gziphandler rejects gzip.NoCompression (0); handle it directly
 		// by wrapping the response in a gzip writer with no compression.
+		// We intentionally bypass Accept-Encoding negotiation here because
+		// the restore process expects a valid gzip stream regardless of the
+		// compression level chosen.
 		if level == gzip.NoCompression {
 			w.Header().Set("Content-Encoding", "gzip")
-			gz, _ := gzip.NewWriterLevel(w, gzip.NoCompression)
+			gz, err := gzip.NewWriterLevel(w, gzip.NoCompression)
+			if err != nil {
+				h.HandleHTTPError(r.Context(), &errors.Error{
+					Code: errors.EInternal,
+					Msg:  fmt.Sprintf("failed to create gzip writer: %v", err),
+				}, w)
+				return
+			}
 			defer gz.Close()
-			next.ServeHTTP(gzipResponseWriter{Writer: gz, ResponseWriter: w}, r)
+			next.ServeHTTP(gzipResponseWriter{gz: gz, ResponseWriter: w}, r)
 			return
 		}
 
-		handler, err := gziphandler.NewGzipLevelHandler(level)
-		if err != nil {
-			h.HandleHTTPError(r.Context(), err, w)
+		handler, ok := levelHandlers[level]
+		if !ok {
+			h.HandleHTTPError(r.Context(), &errors.Error{
+				Code: errors.EInternal,
+				Msg:  fmt.Sprintf("no gzip handler for level %d", level),
+			}, w)
 			return
 		}
 		handler(next).ServeHTTP(w, r)
@@ -120,12 +147,20 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 
 // gzipResponseWriter wraps an http.ResponseWriter to route Write calls through a gzip.Writer.
 type gzipResponseWriter struct {
-	io.Writer
+	gz *gzip.Writer
 	http.ResponseWriter
 }
 
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
+	return w.gz.Write(b)
+}
+
+// Flush flushes the gzip writer's buffer and then the underlying ResponseWriter if it supports flushing.
+func (w gzipResponseWriter) Flush() {
+	_ = w.gz.Flush()
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // requireOperPermissions returns an "unauthorized" response for requests that do not have OperPermissions.
