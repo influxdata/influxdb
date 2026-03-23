@@ -1,6 +1,7 @@
 package http
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -96,13 +97,35 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 			return
 		}
 
-		handler, err := gziphandler.NewGzipLevelHandler(cl.GzipLevel())
+		level := cl.GzipLevel()
+
+		// gziphandler rejects gzip.NoCompression (0); handle it directly
+		// by wrapping the response in a gzip writer with no compression.
+		if level == gzip.NoCompression {
+			w.Header().Set("Content-Encoding", "gzip")
+			gz, _ := gzip.NewWriterLevel(w, gzip.NoCompression)
+			defer gz.Close()
+			next.ServeHTTP(gzipResponseWriter{Writer: gz, ResponseWriter: w}, r)
+			return
+		}
+
+		handler, err := gziphandler.NewGzipLevelHandler(level)
 		if err != nil {
 			h.HandleHTTPError(r.Context(), err, w)
 			return
 		}
 		handler(next).ServeHTTP(w, r)
 	})
+}
+
+// gzipResponseWriter wraps an http.ResponseWriter to route Write calls through a gzip.Writer.
+type gzipResponseWriter struct {
+	io.Writer
+	http.ResponseWriter
+}
+
+func (w gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
 }
 
 // requireOperPermissions returns an "unauthorized" response for requests that do not have OperPermissions.
