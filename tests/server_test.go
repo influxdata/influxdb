@@ -8393,13 +8393,24 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
-		// TODO: GROUP BY date_part with selector functions (MAX, MIN) panics with
-		// "index out of range" due to Aux array not containing date_part values for selectors.
-		// Skipping until the bug is fixed.
-		//&Query{
-		//	name:    `GROUP BY hour with MAX`,
-		//	command: `SELECT MAX(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('hour', time)`,
-		//},
+		&Query{
+			name:    `GROUP BY hour with MAX`,
+			command: `SELECT MAX(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('hour', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"hour":10},"columns":["time","max","hour"],"values":[` +
+				`["2023-01-16T10:30:45Z",2,10],` +
+				`["2023-04-15T14:20:30Z",3,14],` +
+				`["2023-07-19T08:15:22Z",4,8],` +
+				`["2023-10-27T16:45:10Z",5,16],` +
+				`["2024-11-23T22:10:55Z",11,22],` +
+				`["2025-06-12T11:20:30Z",14,11],` +
+				`["2025-09-15T00:00:00Z",15,0],` +
+				`["2025-09-15T06:00:00Z",16,6],` +
+				`["2025-09-15T12:00:00Z",17,12],` +
+				`["2025-09-15T18:00:00Z",18,18],` +
+				`["2025-09-15T23:59:59Z",19,23]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
 		&Query{
 			name:    `GROUP BY year and month with COUNT`,
 			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time)`,
@@ -8440,11 +8451,87 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
-		// TODO: GROUP BY date_part with MIN panics with "index out of range"
-		//&Query{
-		//	name:    `GROUP BY day with MIN`,
-		//	command: `SELECT MIN(value) FROM db0.rp0.cpu WHERE time >= '2025-09-15T00:00:00Z' AND time <= '2025-09-15T23:59:59Z' GROUP BY date_part('day', time)`,
-		//},
+		&Query{
+			name:    `GROUP BY day with MIN`,
+			command: `SELECT MIN(value) FROM db0.rp0.cpu WHERE time >= '2025-09-15T00:00:00Z' AND time <= '2025-09-15T23:59:59Z' GROUP BY date_part('day', time)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"day":15},"columns":["time","min","day"],"values":[["2025-09-15T00:00:00Z",15,15]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY year with FIRST`,
+			command: `SELECT FIRST(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"year":2023},"columns":["time","first","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,2023],` +
+				`["2024-01-01T00:00:00Z",7,2024],` +
+				`["2025-01-01T00:00:00Z",13,2025]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY year with LAST`,
+			command: `SELECT LAST(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":{"year":2023},"columns":["time","last","year"],"values":[` +
+				`["2023-12-31T23:59:59Z",6,2023],` +
+				`["2024-12-31T23:59:59Z",12,2024],` +
+				`["2025-09-15T23:59:59Z",19,2025]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY year and month with MAX`,
+			command: `SELECT MAX(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","grouping_keys":{"month":4},"columns":["time","max","year","month"],"values":[` +
+				`["2023-04-15T14:20:30Z",3,2023,4],` +
+				`["2023-07-19T08:15:22Z",4,2023,7],` +
+				`["2023-10-27T16:45:10Z",5,2023,10]]},` +
+				`{"name":"cpu","grouping_keys":{"year":2023},"columns":["time","max","year","month"],"values":[` +
+				`["2023-12-31T23:59:59Z",6,2023,null]]},` +
+				`{"name":"cpu","grouping_keys":{"month":2},"columns":["time","max","year","month"],"values":[` +
+				`["2024-02-29T12:00:00Z",8,2024,2],` +
+				`["2024-05-19T06:30:15Z",9,2024,5],` +
+				`["2024-08-06T18:45:00Z",10,2024,8],` +
+				`["2024-11-23T22:10:55Z",11,2024,11],` +
+				`["2024-12-31T23:59:59Z",12,2024,12]]},` +
+				`{"name":"cpu","grouping_keys":{"year":2024},"columns":["time","max","year","month"],"values":[` +
+				`["2024-12-31T23:59:59Z",12,2024,null]]},` +
+				`{"name":"cpu","grouping_keys":{"month":1},"columns":["time","max","year","month"],"values":[` +
+				`["2025-01-01T00:00:00Z",13,2025,1],` +
+				`["2025-06-12T11:20:30Z",14,2025,6],` +
+				`["2025-09-15T23:59:59Z",19,2025,9]]},` +
+				`{"name":"cpu","grouping_keys":{"year":2025},"columns":["time","max","year","month"],"values":[` +
+				`["2025-09-15T23:59:59Z",19,2025,null]]}` +
+				`]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `GROUP BY year and month with MIN`,
+			command: `SELECT MIN(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","grouping_keys":{"month":1},"columns":["time","min","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,2023,1]]},` +
+				`{"name":"cpu","grouping_keys":{"year":2023},"columns":["time","min","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,2023,null]]},` +
+				`{"name":"cpu","grouping_keys":{"month":4},"columns":["time","min","year","month"],"values":[` +
+				`["2023-04-15T14:20:30Z",3,2023,4],` +
+				`["2023-07-19T08:15:22Z",4,2023,7],` +
+				`["2023-10-27T16:45:10Z",5,2023,10],` +
+				`["2023-12-31T23:59:59Z",6,2023,12]]},` +
+				`{"name":"cpu","grouping_keys":{"year":2024},"columns":["time","min","year","month"],"values":[` +
+				`["2024-01-01T00:00:00Z",7,2024,null]]},` +
+				`{"name":"cpu","grouping_keys":{"month":2},"columns":["time","min","year","month"],"values":[` +
+				`["2024-02-29T12:00:00Z",8,2024,2],` +
+				`["2024-05-19T06:30:15Z",9,2024,5],` +
+				`["2024-08-06T18:45:00Z",10,2024,8],` +
+				`["2024-11-23T22:10:55Z",11,2024,11]]},` +
+				`{"name":"cpu","grouping_keys":{"year":2025},"columns":["time","min","year","month"],"values":[` +
+				`["2025-01-01T00:00:00Z",13,2025,null]]},` +
+				`{"name":"cpu","grouping_keys":{"month":6},"columns":["time","min","year","month"],"values":[` +
+				`["2025-06-12T11:20:30Z",14,2025,6],` +
+				`["2025-09-15T00:00:00Z",15,2025,9]]}` +
+				`]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
 		&Query{
 			name:    `GROUP BY isodow with COUNT`,
 			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('isodow', time)`,

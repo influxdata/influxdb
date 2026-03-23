@@ -1,7 +1,6 @@
 package query
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -197,7 +196,7 @@ func ValidateDatePart(args []influxql.Expr) error {
 	tstamp, ok := args[1].(*influxql.VarRef)
 	if !ok {
 		return errors.New("date_part: second argument must be a variable reference")
-	} else if !bytes.Equal([]byte(tstamp.Val), models.TimeBytes) {
+	} else if tstamp.Val != models.TimeString {
 		// check if tstamp.Val is "time" keyword currently, we only support using time as the second argument
 		// this may seem redundant, but we would like to keep consistency with SQL date_part
 		return errors.New("date_part: second argument must be time VarRef")

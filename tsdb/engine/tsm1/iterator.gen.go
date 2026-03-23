@@ -280,18 +280,19 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute and append date part dimension values.
+		// Compute date part dimension values in-place. The date_part dims
+		// occupy the last N slots of opt.Aux (added by select.go), so we
+		// overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
-			// Truncate aux back to the base length so date_part values don't
-			// accumulate across calls (itr.point is a reused buffer).
-			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
 			t := time.Unix(0, seek).UTC()
-			for _, dim := range itr.opt.DatePartDimensions {
+			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
-				itr.point.Aux = append(itr.point.Aux, val)
+				itr.point.Aux[baseIdx+i] = val
 			}
 		}
 
@@ -787,18 +788,19 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute and append date part dimension values.
+		// Compute date part dimension values in-place. The date_part dims
+		// occupy the last N slots of opt.Aux (added by select.go), so we
+		// overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
-			// Truncate aux back to the base length so date_part values don't
-			// accumulate across calls (itr.point is a reused buffer).
-			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
 			t := time.Unix(0, seek).UTC()
-			for _, dim := range itr.opt.DatePartDimensions {
+			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
-				itr.point.Aux = append(itr.point.Aux, val)
+				itr.point.Aux[baseIdx+i] = val
 			}
 		}
 
@@ -1294,18 +1296,19 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute and append date part dimension values.
+		// Compute date part dimension values in-place. The date_part dims
+		// occupy the last N slots of opt.Aux (added by select.go), so we
+		// overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
-			// Truncate aux back to the base length so date_part values don't
-			// accumulate across calls (itr.point is a reused buffer).
-			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
 			t := time.Unix(0, seek).UTC()
-			for _, dim := range itr.opt.DatePartDimensions {
+			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
-				itr.point.Aux = append(itr.point.Aux, val)
+				itr.point.Aux[baseIdx+i] = val
 			}
 		}
 
@@ -1801,18 +1804,19 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute and append date part dimension values.
+		// Compute date part dimension values in-place. The date_part dims
+		// occupy the last N slots of opt.Aux (added by select.go), so we
+		// overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
-			// Truncate aux back to the base length so date_part values don't
-			// accumulate across calls (itr.point is a reused buffer).
-			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
 			t := time.Unix(0, seek).UTC()
-			for _, dim := range itr.opt.DatePartDimensions {
+			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
-				itr.point.Aux = append(itr.point.Aux, val)
+				itr.point.Aux[baseIdx+i] = val
 			}
 		}
 
@@ -2308,18 +2312,19 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute and append date part dimension values.
+		// Compute date part dimension values in-place. The date_part dims
+		// occupy the last N slots of opt.Aux (added by select.go), so we
+		// overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
-			// Truncate aux back to the base length so date_part values don't
-			// accumulate across calls (itr.point is a reused buffer).
-			itr.point.Aux = itr.point.Aux[:len(itr.opt.Aux)]
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
 			t := time.Unix(0, seek).UTC()
-			for _, dim := range itr.opt.DatePartDimensions {
+			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
 					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
 				}
-				itr.point.Aux = append(itr.point.Aux, val)
+				itr.point.Aux[baseIdx+i] = val
 			}
 		}
 

@@ -1185,7 +1185,17 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
 				if err == nil {
-					points[i].Aux = append(points[i].Aux, dpVal)
+					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+					// point's Aux via cloneAux, which already contains the raw int64
+					// date_part value(s) appended by the TSM iterator. Replace the
+					// last element in-place so Aux length stays consistent with the
+					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+					// nil Aux, so we append normally.
+					if n := len(points[i].Aux); n > 0 {
+						points[i].Aux[n-1] = dpVal
+					} else {
+						points[i].Aux = append(points[i].Aux, dpVal)
+					}
 				}
 			}
 
