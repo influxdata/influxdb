@@ -1,6 +1,8 @@
 package query
 
 import (
+	"sort"
+
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -10,7 +12,7 @@ type Emitter struct {
 	chunkSize int
 
 	series       Series
-	groupingKeys map[string]int64
+	groupingKeys map[string]struct{}
 	row          *models.Row
 	columns      []string
 }
@@ -71,22 +73,20 @@ func (e *Emitter) Emit() (*models.Row, bool, error) {
 }
 
 // createRow creates a new row attached to the emitter.
-func (e *Emitter) createRow(series Series, groupingKeys map[string]int64, values []interface{}) {
+func (e *Emitter) createRow(series Series, groupingKeys map[string]struct{}, values []interface{}) {
 	e.series = series
 	e.groupingKeys = groupingKeys
 	e.row = &models.Row{
 		Name:         series.Name,
 		Tags:         series.Tags.KeyValues(),
-		GroupingKeys: groupingKeys,
+		GroupingKeys: sortedKeys(groupingKeys),
 		Columns:      e.columns,
 		Values:       [][]interface{}{values},
 	}
 }
 
-// sameGroupingKeys returns true if two grouping key maps have the same key names.
-// Values are not compared — rows are grouped by which date_part dimension they
-// belong to, not by individual dimension values.
-func sameGroupingKeys(a, b map[string]int64) bool {
+// sameGroupingKeys returns true if two grouping key sets have the same dimension names.
+func sameGroupingKeys(a, b map[string]struct{}) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -96,4 +96,17 @@ func sameGroupingKeys(a, b map[string]int64) bool {
 		}
 	}
 	return true
+}
+
+// sortedKeys returns a sorted slice of keys from a set.
+func sortedKeys(m map[string]struct{}) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

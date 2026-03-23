@@ -876,12 +876,12 @@ func columnsEqual(prev, current []string) bool {
 	return reflect.DeepEqual(prev, current)
 }
 
-func groupingKeysEqual(prev, current map[string]int64) bool {
+func groupingKeysEqual(prev, current []string) bool {
 	if len(prev) != len(current) {
 		return false
 	}
-	for k := range prev {
-		if _, ok := current[k]; !ok {
+	for i := range prev {
+		if prev[i] != current[i] {
 			return false
 		}
 	}
@@ -1002,12 +1002,7 @@ func (c *CommandLine) formatResults(result client.Result, separator string, supp
 				rows = append(rows, t)
 			}
 			if len(row.GroupingKeys) > 0 {
-				gkParts := []string{}
-				for k := range row.GroupingKeys {
-					gkParts = append(gkParts, k)
-				}
-				sort.Strings(gkParts)
-				rows = append(rows, fmt.Sprintf("group: %s", strings.Join(gkParts, ", ")))
+				rows = append(rows, fmt.Sprintf("group: %s", strings.Join(row.GroupingKeys, ", ")))
 			}
 		}
 

@@ -8,7 +8,7 @@ import (
 type Row struct {
 	Name         string            `json:"name,omitempty"`
 	Tags         map[string]string `json:"tags,omitempty"`
-	GroupingKeys map[string]int64  `json:"grouping_keys,omitempty"`
+	GroupingKeys []string          `json:"grouping_keys,omitempty"`
 	Columns      []string          `json:"columns,omitempty"`
 	Values       [][]interface{}   `json:"values,omitempty"`
 	Partial      bool              `json:"partial,omitempty"`
@@ -16,7 +16,7 @@ type Row struct {
 
 // SameSeries returns true if r contains values for the same series as o.
 func (r *Row) SameSeries(o *Row) bool {
-	if o.GroupingKeys == nil && r.GroupingKeys == nil {
+	if len(o.GroupingKeys) == 0 && len(r.GroupingKeys) == 0 {
 		return r.tagsHash() == o.tagsHash() && r.Name == o.Name
 	}
 	return r.tagsHash() == o.tagsHash() && r.Name == o.Name && r.groupingKeysHash() == o.groupingKeysHash()
@@ -35,21 +35,10 @@ func (r *Row) tagsHash() uint64 {
 
 func (r *Row) groupingKeysHash() uint64 {
 	h := NewInlineFNV64a()
-	keys := r.groupingKeysKeys()
-	for _, k := range keys {
+	for _, k := range r.GroupingKeys {
 		h.Write([]byte(k))
 	}
 	return h.Sum64()
-}
-
-// groupingKeysKeys returns a sorted list of grouping key names.
-func (r *Row) groupingKeysKeys() []string {
-	a := make([]string, 0, len(r.GroupingKeys))
-	for k := range r.GroupingKeys {
-		a = append(a, k)
-	}
-	sort.Strings(a)
-	return a
 }
 
 // tagKeys returns a sorted list of tag keys.

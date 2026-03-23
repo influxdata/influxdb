@@ -68,9 +68,9 @@ type Row struct {
 	// Values contains the values within the current row.
 	Values []interface{}
 
-	// GroupingKeys contains values for group by clauses
-	// that are not tags or timestamps
-	GroupingKeys map[string]int64
+	// GroupingKeys contains the names of active date_part grouping
+	// dimensions. Actual per-row values are in the Values slice.
+	GroupingKeys map[string]struct{}
 }
 
 type Cursor interface {
@@ -229,19 +229,18 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		}
 		if cur.m != nil {
 			if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
-				dpd, ok := val.(DecodedDatePartKey)
-				if !ok {
-					return false
-				}
-				if row.GroupingKeys == nil {
-					row.GroupingKeys = make(map[string]int64)
-				}
-				row.GroupingKeys[dpd.Expr.String()] = dpd.Val
-				// Only set the column value if this field matches the dimension
-				exprName := strings.TrimSuffix(expr.String(), "::integer")
-				if exprName == dpd.Expr.String() {
-					row.Values[i] = dpd.Val
-					continue
+				if dpd, ok := val.(DecodedDatePartKey); ok {
+					dimName := dpd.Expr.String()
+					if row.GroupingKeys == nil {
+						row.GroupingKeys = make(map[string]struct{})
+					}
+					row.GroupingKeys[dimName] = struct{}{}
+					// Only set the column value if this field matches the dimension
+					exprName := strings.TrimSuffix(expr.String(), "::integer")
+					if exprName == dimName {
+						row.Values[i] = dpd.Val
+						continue
+					}
 				}
 			}
 		}
