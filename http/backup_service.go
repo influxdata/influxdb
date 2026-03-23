@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
@@ -70,10 +71,38 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 
 	h.HandlerFunc(http.MethodGet, backupKVStorePath, h.handleBackupKVStore) // Deprecated
 
-	h.Handler(http.MethodGet, backupShardPath, gziphandler.GzipHandler(http.HandlerFunc(h.handleBackupShard)))
-	h.Handler(http.MethodGet, backupMetadataPath, gziphandler.GzipHandler(h.requireOperPermissions(http.HandlerFunc(h.handleBackupMetadata))))
+	h.Handler(http.MethodGet, backupShardPath, h.gzipHandlerWithLevel(http.HandlerFunc(h.handleBackupShard)))
+	h.Handler(http.MethodGet, backupMetadataPath, h.gzipHandlerWithLevel(h.requireOperPermissions(http.HandlerFunc(h.handleBackupMetadata))))
 
 	return h
+}
+
+// gzipHandlerWithLevel returns an http.Handler that wraps the given handler with gzip compression.
+// The compression level is determined by the "gzip_compression_level" query parameter.
+// Valid values are: default, full, speedy, none. If not specified, "default" is used.
+func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		levelStr := r.URL.Query().Get("gzip_compression_level")
+		if levelStr == "" {
+			levelStr = "default"
+		}
+
+		cl, err := backup.NewCompressionLevelFromString(levelStr)
+		if err != nil {
+			h.HandleHTTPError(r.Context(), &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  err.Error(),
+			}, w)
+			return
+		}
+
+		handler, err := gziphandler.NewGzipLevelHandler(cl.GzipLevel())
+		if err != nil {
+			h.HandleHTTPError(r.Context(), err, w)
+			return
+		}
+		handler(next).ServeHTTP(w, r)
+	})
 }
 
 // requireOperPermissions returns an "unauthorized" response for requests that do not have OperPermissions.
