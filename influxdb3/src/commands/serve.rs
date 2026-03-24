@@ -749,7 +749,8 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         version = %INFLUXDB3_VERSION.as_ref() as &str,
         uuid = %PROCESS_UUID_STR.as_ref() as &str,
         num_cpus,
-        "InfluxDB 3 Core server starting",
+        product_name = influxdb3_server::PRODUCT_NAME,
+        "server starting",
     );
     debug!(%build_malloc_conf, "build configuration");
 
@@ -1553,6 +1554,7 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
             "Start time of the process since unix epoch in seconds.",
         )
         .recorder(&[
+            ("product_name", influxdb3_server::PRODUCT_NAME),
             ("version", INFLUXDB3_VERSION.as_ref()),
             ("git_hash", INFLUXDB3_GIT_HASH),
             ("uuid", PROCESS_UUID_STR.as_ref()),
