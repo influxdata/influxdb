@@ -10,10 +10,6 @@ pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
 pub static INFLUXDB3_VERSION: LazyLock<&'static str> =
     LazyLock::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));
 
-/// Build information.
-pub static INFLUXDB3_BUILD: LazyLock<&'static str> =
-    LazyLock::new(|| env!("INFLUXDB3_BUILD_VERSION"));
-
 /// Build-time GIT revision hash.
 pub static INFLUXDB3_GIT_HASH: &str = env!(
     "GIT_HASH",
@@ -26,16 +22,15 @@ pub static INFLUXDB3_GIT_HASH_SHORT: &str = env!(
     "Can not find find GIT HASH in build environment"
 );
 
-/// Version string that is combined from [`INFLUXDB3_VERSION`] and [`INFLUXDB3_GIT_HASH`].
-pub static VERSION_STRING: LazyLock<&'static str> = LazyLock::new(|| {
-    let s = format!(
-        "{}, revision {}",
+/// Build a version string with a product name, version, and git hash.
+pub fn build_version_string(product: &str) -> String {
+    format!(
+        "{}, {}, revision {}",
+        product,
         &INFLUXDB3_VERSION[..],
         INFLUXDB3_GIT_HASH
-    );
-    let s: Box<str> = Box::from(s);
-    Box::leak(s)
-});
+    )
+}
 
 /// A UUID that is unique for the process lifetime.
 pub static PROCESS_UUID_STR: LazyLock<&'static str> = LazyLock::new(|| {
@@ -90,11 +85,3 @@ pub trait ProcessUuidGetter: Send + Sync {
 
 /// Process start time.
 pub static PROCESS_START_TIME: LazyLock<Time> = LazyLock::new(|| SystemProvider::new().now());
-
-/// String version of [`usize::MAX`].
-#[allow(dead_code)]
-pub static USIZE_MAX: LazyLock<&'static str> = LazyLock::new(|| {
-    let s = usize::MAX.to_string();
-    let s: Box<str> = Box::from(s);
-    Box::leak(s)
-});

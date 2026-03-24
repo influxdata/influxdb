@@ -29,11 +29,12 @@ use hyper_util::server::graceful::GracefulShutdown;
 use hyper_util::service::TowerToHyperService;
 use influxdb3_authz::AuthProvider;
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_process::build_version_string;
 use influxdb3_telemetry::store::TelemetryStore;
 use observability_deps::tracing::{error, info, trace, warn};
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
@@ -49,6 +50,12 @@ use trace_http::ctx::TraceHeaderParser;
 use trace_http::metrics::{MetricFamily, RequestMetrics};
 use trace_http::tower::{ServiceProtocol, TraceLayer};
 use unified_service::{RemoteAddrLayer, UnifiedService};
+
+pub const PRODUCT_NAME: &str = "InfluxDB 3 Core";
+pub const INFLUXDB3_BUILD: &str = "Core";
+
+/// Version string combining the product name, [`influxdb3_process::INFLUXDB3_VERSION`], and [`influxdb3_process::INFLUXDB3_GIT_HASH`].
+pub static VERSION_STRING: LazyLock<String> = LazyLock::new(|| build_version_string(PRODUCT_NAME));
 
 #[derive(Debug, Error)]
 pub enum Error {

@@ -68,6 +68,8 @@ pub enum Error {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PingResponse {
+    #[serde(default)]
+    pub product_name: String,
     pub version: String,
     pub revision: String,
     pub process_id: Uuid,
