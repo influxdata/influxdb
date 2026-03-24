@@ -14,7 +14,7 @@ clippy::future_not_send
 use clap::{CommandFactory, FromArgMatches, parser::ValueSource};
 use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::{TokioDatafusionConfig, TokioIoConfig};
-use influxdb3_process::VERSION_STRING;
+use influxdb3_server::VERSION_STRING;
 use influxdb3_telemetry::ServeInvocationMethod;
 use observability_deps::tracing::warn;
 use owo_colors::OwoColorize;

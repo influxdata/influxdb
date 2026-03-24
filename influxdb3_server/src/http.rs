@@ -1,5 +1,6 @@
 //! HTTP API service implementations for `server`
 
+use crate::INFLUXDB3_BUILD;
 use crate::{CommonServerState, all_paths};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
@@ -38,9 +39,7 @@ use influxdb3_id::TokenId;
 use influxdb3_internal_api::query_executor::{
     QueryExecutor, QueryExecutorError, ShowDatabases, ShowRetentionPolicies,
 };
-use influxdb3_process::{
-    INFLUXDB3_BUILD, INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, ProcessUuidWrapper,
-};
+use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, ProcessUuidWrapper};
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::manager::ProcessingEngineError;
 use influxdb3_types::http::*;
@@ -1084,6 +1083,7 @@ impl HttpApi {
     fn ping(&self) -> Result<Response> {
         let process_uuid = ProcessUuidWrapper::new();
         let body = serde_json::to_string(&PingResponse {
+            product_name: crate::PRODUCT_NAME.to_string(),
             version: INFLUXDB3_VERSION.to_string(),
             revision: INFLUXDB3_GIT_HASH_SHORT.to_string(),
             process_id: *process_uuid.get(),

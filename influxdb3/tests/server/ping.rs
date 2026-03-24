@@ -1,4 +1,4 @@
-use influxdb3_process::{INFLUXDB3_BUILD, INFLUXDB3_VERSION};
+use influxdb3_process::INFLUXDB3_VERSION;
 use reqwest::Method;
 use serde_json::Value;
 
@@ -51,7 +51,7 @@ async fn test_ping() {
                 .unwrap()
                 .to_str()
                 .unwrap(),
-            &INFLUXDB3_BUILD[..]
+            "Core",
         );
 
         let json = resp.json::<Value>().await.unwrap();

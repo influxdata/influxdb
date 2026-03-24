@@ -5,9 +5,6 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[package.metadata.influxdb3]
-build = "Core"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -16,9 +13,6 @@ iox_time = { path = "../core/iox_time" }
 
 # Crates.io dependencies
 uuid.workspace = true
-
-[build-dependencies]
-cargo_metadata.workspace = true
 
 [lints]
 workspace = true
