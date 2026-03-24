@@ -35,7 +35,10 @@ func (r *Row) tagsHash() uint64 {
 
 func (r *Row) groupingKeysHash() uint64 {
 	h := NewInlineFNV64a()
-	for _, k := range r.GroupingKeys {
+	for i, k := range r.GroupingKeys {
+		if i > 0 {
+			h.Write([]byte{0})
+		}
 		h.Write([]byte(k))
 	}
 	return h.Sum64()
