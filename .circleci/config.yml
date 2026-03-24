@@ -481,11 +481,10 @@ jobs:
           steps:
             - run:
                 # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,@executable_path/python/lib'
-                name: adjust LC_LOAD_DYLIB path for darwin
+                name: adjust LC_RPATH path for darwin
                 command: |
-                  export PBS_LIBPYTHON=$(grep '^lib_name=' /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt | cut -d = -f 2)
-                  echo "Running: /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change '/install/lib/lib${PBS_LIBPYTHON}.dylib' '@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
-                  /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change "/install/lib/lib${PBS_LIBPYTHON}.dylib" "@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib" "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                  echo "Running: /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -add_rpath '@executable_path/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                  /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -add_rpath '@executable_path/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
                   # re-sign after install_name_tool since osxcross won't do it
                   echo "Running: /usr/local/bin/rcodesign sign '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
                   /usr/local/bin/rcodesign sign "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"

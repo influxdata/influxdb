@@ -8,6 +8,7 @@ use clap::Parser;
 use influxdb3_client::Precision;
 use secrecy::ExposeSecret;
 use tokio::io;
+use url::Url;
 
 use super::common::InfluxDb3Config;
 
@@ -40,6 +41,10 @@ pub struct Config {
     /// Common InfluxDB 3 server config
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
+
+    /// Override host URL for write operations
+    #[clap(long = "write-host", env = "INFLUXDB3_WRITE_HOST_URL")]
+    write_host_url: Option<Url>,
 
     /// File path to load the write data from
     ///
@@ -81,6 +86,7 @@ pub async fn command(config: Config) -> Result<()> {
         database_name,
         auth_token,
     } = config.influxdb3_config;
+    let host_url = config.write_host_url.unwrap_or(host_url);
     let mut client = influxdb3_client::Client::new(host_url, config.ca_cert, config.tls_no_verify)?;
     if let Some(t) = auth_token {
         client = client.with_auth_token(t.expose_secret());
