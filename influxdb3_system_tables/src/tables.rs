@@ -5,18 +5,18 @@ use arrow::array::{StringViewBuilder, UInt64Builder};
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
 pub(crate) struct TablesTable {
     catalog: Arc<Catalog>,
-    database: Option<Arc<str>>,
+    database: Option<Arc<DatabaseSchema>>,
     schema: SchemaRef,
 }
 
 impl TablesTable {
-    pub(crate) fn new(catalog: Arc<Catalog>, database: Option<Arc<str>>) -> Self {
+    pub(crate) fn new(catalog: Arc<Catalog>, database: Option<Arc<DatabaseSchema>>) -> Self {
         Self {
             catalog,
             database,
@@ -54,12 +54,8 @@ impl IoxSystemTable for TablesTable {
         _filters: Option<Vec<Expr>>,
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
-        let databases = if let Some(database) = &self.database {
-            let db_schema = self
-                .catalog
-                .db_schema(database)
-                .ok_or_else(|| DataFusionError::Plan(format!("database not found: {database}")))?;
-            vec![db_schema]
+        let databases = if let Some(database_schema) = &self.database {
+            vec![Arc::clone(database_schema)]
         } else {
             self.catalog.list_db_schema()
         };

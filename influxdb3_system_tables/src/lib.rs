@@ -183,7 +183,7 @@ impl AllSystemSchemaTablesProvider {
             TABLES_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(TablesTable::new(
                 Arc::clone(&catalog),
-                (!is_internal_database).then_some(Arc::clone(&db_schema.name)),
+                (!is_internal_database).then_some(db_schema),
             )))),
         );
         if is_internal_database {
