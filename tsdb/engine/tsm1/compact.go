@@ -125,6 +125,9 @@ type CompactionGroup []string
 // given compaction run.
 type CompactionPlanner interface {
 	FindGenerations() TsmGenerations
+	// The generations argument to Plan, PlanLevel, and PlamOptimize must be sorted
+	// as it is in DefaultPlanner.FindGenerations
+
 	Plan(generations TsmGenerations, lastWrite time.Time) ([]CompactionGroup, int64)
 	PlanLevel(generations TsmGenerations, level int) ([]CompactionGroup, int64)
 	// PlanOptimize will return the groups for compaction, the compaction group length,
