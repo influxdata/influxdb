@@ -71,7 +71,7 @@ var (
 
 var (
 	// Static objects to prevent small allocs.
-	timeBytes = []byte("time")
+	TimeBytes = []byte("time")
 )
 
 // A ShardError implements the error interface, and contains extra
@@ -606,12 +606,19 @@ func (s *Shard) ready() error {
 }
 
 // LastModified returns the time when this shard was last modified.
+// On error and 0 TSM files this will return time.Time{} (0001-01-01 00:00:00 +0000 UTC)
 func (s *Shard) LastModified() time.Time {
+	t, _ := s.LastModifiedWithErr()
+	return t
+}
+
+// LastModifiedOrErr returns the time when this shard was last modified and an error.
+func (s *Shard) LastModifiedWithErr() (time.Time, error) {
 	engine, err := s.Engine()
 	if err != nil {
-		return time.Time{}
+		return time.Time{}, err
 	}
-	return engine.LastModified()
+	return engine.LastModified(), nil
 }
 
 // Index returns a reference to the underlying index. It returns an error if
@@ -750,7 +757,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		tags := p.Tags()
 
 		// Drop any series w/ a "time" tag, these are illegal
-		if v := tags.Get(timeBytes); v != nil {
+		if v := tags.Get(TimeBytes); v != nil {
 			dropped++
 			if reason == "" {
 				reason = fmt.Sprintf(
@@ -808,7 +815,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		iter := p.FieldIterator()
 		validField := false
 		for iter.Next() {
-			if bytes.Equal(iter.FieldKey(), timeBytes) {
+			if bytes.Equal(iter.FieldKey(), TimeBytes) {
 				continue
 			}
 			validField = true
@@ -835,13 +842,19 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		newFields, partialWriteError := ValidateAndCreateFields(mf, p, s.options.Config.SkipFieldSizeValidation)
 		createdFieldsToSave = append(createdFieldsToSave, newFields...)
 
-		if partialWriteError != nil {
+		if partialWriteError != nil && partialWriteError.Dropped > 0 {
 			if reason == "" {
 				reason = partialWriteError.Reason
 			}
 			dropped += partialWriteError.Dropped
 			s.stats.writesDropped.Add(float64(partialWriteError.Dropped))
 			continue
+			// Sometimes we will drop fields like 'time' but not an entire point
+			// we want to inform the writer that something occurred.
+		} else if partialWriteError != nil {
+			partialWriteError.Database = s.Database()
+			partialWriteError.RetentionPolicy = s.RetentionPolicy()
+			err = *partialWriteError
 		}
 		points[j] = points[i]
 		j++

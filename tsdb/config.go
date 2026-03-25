@@ -51,6 +51,10 @@ const (
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
 
+	// DefaultAggressiveMaxPointsPerBlock is used when we want to further compact blocks
+	// it is 10 times the default amount of points we use per block
+	DefaultAggressiveMaxPointsPerBlock = DefaultMaxPointsPerBlock * 10
+
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
 	DefaultMaxValuesPerTag = 100000
 
@@ -69,7 +73,19 @@ const (
 	// partition snapshot compactions that can run at one time.
 	// A value of 0 results in runtime.GOMAXPROCS(0).
 	DefaultSeriesFileMaxConcurrentSnapshotCompactions = 0
+
+	// MaxTSMFileSize is the maximum size of TSM files.
+	MaxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 )
+
+var SingleGenerationReasonText string = SingleGenerationReason()
+
+// SingleGenerationReason outputs a log message for our single generation compaction
+// when checked for full compaction.
+// 1048576000 is a magic number for bytes per gigabyte.
+func SingleGenerationReason() string {
+	return fmt.Sprintf("not fully compacted and not idle because single generation with more than 2 files under %d GB and more than 1 file(s) under aggressive compaction points per block count (default: %d points)", int(MaxTSMFileSize/1048576000), DefaultAggressiveMaxPointsPerBlock)
+}
 
 // Config holds the configuration for the tsbd package.
 type Config struct {
@@ -115,6 +131,7 @@ type Config struct {
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 	CompactThroughput              toml.Size     `toml:"compact-throughput"`
 	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
+	AggressivePointsPerBlock       toml.Size     `toml:"aggressive-points-per-block"`
 
 	// Limits
 
@@ -123,6 +140,11 @@ type Config struct {
 	// limit is reached are blocked until a running compaction completes.  Snapshot compactions are
 	// not affected by this limit.  A value of 0 limits compactions to runtime.GOMAXPROCS(0).
 	MaxConcurrentCompactions int `toml:"max-concurrent-compactions"`
+
+	// MaxConcurrentOptimizedCompactions is the maximum number of concurrent optimized compactions
+	// that can be running across all shards. Optimized compactions scheduled to run when the limit
+	// is reached are aborted, saving them for a later compaction run.
+	MaxConcurrentOptimizedCompactions int `toml:"max-concurrent-optimized-compactions"`
 
 	// MaxIndexLogFileSize is the threshold, in bytes, when an index write-ahead log file will
 	// compact into an index file. Lower sizes will cause log files to be compacted more quickly
@@ -165,6 +187,7 @@ func NewConfig() Config {
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 		CompactThroughput:              toml.Size(DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
+		AggressivePointsPerBlock:       toml.Size(DefaultAggressiveMaxPointsPerBlock),
 
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 

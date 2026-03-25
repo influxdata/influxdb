@@ -367,40 +367,76 @@ func (e *StatementExecutor) getDefaultRP(ctx context.Context, database string, e
 }
 
 func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q *influxql.DeleteSeriesStatement, database string, ectx *query.ExecutionContext) error {
-	mapping, err := e.getDefaultRP(ctx, database, ectx)
-	if err != nil {
-		return err
+	var rerr error
+	var rp string
+
+	if len(q.Sources) > 0 {
+		// There should only be a single retention policy during delete
+		// Currently wildcard retention policies are not valid in DELETE statements
+		m, ok := q.Sources[0].(*influxql.Measurement)
+		if !ok {
+			return fmt.Errorf("expected influxql.Measurement, got %T", q.Sources[0])
+		}
+		rp = m.RetentionPolicy
 	}
 
-	// Require write for DELETE queries
-	_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+	mappingsFilter := influxdb.DBRPMappingFilter{OrgID: &ectx.OrgID, Database: &database}
+	if rp == "" {
+		defaultRP := true
+		mappingsFilter.Default = &defaultRP
+	} else {
+		mappingsFilter.RetentionPolicy = &rp
+	}
+
+	mappings, _, err := e.DBRP.FindMany(ctx, mappingsFilter)
 	if err != nil {
-		return ectx.Send(ctx, &query.Result{
-			Err: fmt.Errorf("insufficient permissions"),
-		})
+		return err
+	} else if len(mappings) == 0 {
+		return fmt.Errorf("no dbrp mappings found: db=%s, rp=%s, please check to make sure db and rp exist", database, rp)
 	}
 
 	// Convert "now()" to current time.
 	q.Condition = influxql.Reduce(q.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
-	return e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition)
+	for _, mapping := range mappings {
+		// Require write for DELETE queries
+		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+		if err != nil {
+			return ectx.Send(ctx, &query.Result{
+				Err: fmt.Errorf("insufficient permissions"),
+			})
+		}
+
+		rerr = errors.Join(rerr, e.TSDBStore.DeleteSeries(ctx, mapping.BucketID.String(), q.Sources, q.Condition))
+	}
+	return rerr
 }
 
 func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context, q *influxql.DropMeasurementStatement, database string, ectx *query.ExecutionContext) error {
-	mapping, err := e.getDefaultRP(ctx, database, ectx)
+	var rerr error
+	// When running DROP MEASUREMENT we want to ensure that the measurement
+	// is dropped from all retention policy that is mapped to our bucket.
+	// This is specifically for backwards compatibility with influxdb 1.x
+	mappings, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilter{
+		OrgID:    &ectx.OrgID,
+		Database: &database,
+	})
 	if err != nil {
 		return err
 	}
 
-	// Require write for DROP MEASUREMENT queries
-	_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
-	if err != nil {
-		return ectx.Send(ctx, &query.Result{
-			Err: fmt.Errorf("insufficient permissions"),
-		})
+	for _, mapping := range mappings {
+		// Require write for DROP MEASUREMENT queries
+		_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+		if err != nil {
+			return ectx.Send(ctx, &query.Result{
+				Err: fmt.Errorf("insufficient permissions"),
+			})
+		}
+		rerr = errors.Join(rerr, e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name))
 	}
 
-	return e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name)
+	return rerr
 }
 
 type measurementRow struct {

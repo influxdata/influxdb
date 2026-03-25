@@ -76,3 +76,12 @@ packages:
     rpm:
       recommends:
         - influxdata-archive-keyring
+      owned_dirs:
+        - owner: influxdb
+          group: influxdb
+          perms: 0750
+          target: var/log/influxdb
+        - owner: influxdb
+          group: influxdb
+          perms: 0750
+          target: var/lib/influxdb

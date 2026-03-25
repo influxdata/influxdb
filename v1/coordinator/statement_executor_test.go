@@ -387,14 +387,19 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 }
 
 func testExecDeleteSeriesOrDropMeasurement(t *testing.T, qType string) {
+	const DbName = "db0"
+	const Empty = ""
+	const DeleteQuery = "DELETE"
+	const DeleteFromQuery = "DELETE FROM"
+
 	orgID := platform.ID(0xff00)
 	otherOrgID := platform.ID(0xff01)
 	bucketID := platform.ID(0xffee)
 	otherBucketID := platform.ID(0xffef)
 
 	qStr := qType
-	if qStr == "DELETE" {
-		qStr = "DELETE FROM"
+	if qStr == DeleteQuery {
+		qStr = DeleteFromQuery
 	}
 	qErr := errors.New("insufficient permissions")
 
@@ -490,12 +495,15 @@ func testExecDeleteSeriesOrDropMeasurement(t *testing.T, qType string) {
 
 			// setup a DBRP that we can use
 			dbrp := mocks.NewMockDBRPMappingService(ctrl)
-			db := "db0"
 
-			empty := ""
-			isDefault := true
-			filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &db, RetentionPolicy: nil, Default: &isDefault}
-			res := []*influxdb.DBRPMapping{{Database: db, RetentionPolicy: empty, OrganizationID: orgID, BucketID: bucketID, Default: isDefault}}
+			db := DbName
+			filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &db}
+			// DELETE FROM targets only the default RP, DROP MEASUREMENT targets all RPs
+			if qType == DeleteQuery {
+				isDefault := true
+				filt.Default = &isDefault
+			}
+			res := []*influxdb.DBRPMapping{{Database: DbName, RetentionPolicy: Empty, OrganizationID: orgID, BucketID: bucketID, Default: true}}
 			dbrp.EXPECT().
 				FindMany(gomock.Any(), filt).
 				Return(res, 1, nil)

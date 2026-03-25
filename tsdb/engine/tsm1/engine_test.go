@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/deep"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
@@ -1127,7 +1128,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			}
 
 			name, tags := tsdb.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
-			key := fmt.Sprintf("%s%s", name, tags.HashKey())
+			key := fmt.Sprintf("%s%s", name, tags.HashKey(true))
 			seriesIDMap[key] = e.SeriesID
 		}
 
@@ -1351,6 +1352,95 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			if elem.SeriesID != 0 {
 				t.Fatalf("got an undeleted series id, but series should be dropped from index")
 			}
+		})
+	}
+}
+
+// TestEngine_DeleteSeriesRange_MultiTSMLocking checks for locking issues when deleting series
+// ranges from a large number of TSM files. This test is derived from TestEngine_DeleteSeriesRange.
+func TestEngine_DeleteSeriesRange_MultiTSMLocking(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			e, err := NewEngine(t, index)
+			require.NoError(t, err)
+
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+			require.NoError(t, e.Open(t.Context()))
+
+			// In order to trigger potentially locking issues within DeleteSeriesRange, we must create much more
+			// TSM files than the number of CPUs. This combined with how the test data interleaves deleted and not
+			// deleted series within a TSM file triggers locking issues if they are present.
+			numTSMFiles := runtime.NumCPU() * 20
+			var ts int64
+			for range numTSMFiles {
+				ts += 1000000000
+
+				// Create a few points.
+				p1 := MustParsePointString(fmt.Sprintf("cpu,host=0 value=1.1 %d", ts+5000000000)) // Should not be deleted
+				p2 := MustParsePointString(fmt.Sprintf("cpu,host=A value=1.2 %d", ts+1000000000))
+				p3 := MustParsePointString(fmt.Sprintf("cpu,host=A value=1.3 %d", ts+2000000000))
+				p4 := MustParsePointString(fmt.Sprintf("cpu,host=B value=1.3 %d", ts+3000000000)) // Should not be deleted
+				p5 := MustParsePointString(fmt.Sprintf("cpu,host=B value=1.3 %d", ts+4000000000)) // Should not be deleted
+				p6 := MustParsePointString(fmt.Sprintf("cpu,host=C value=1.3 %d", ts))
+				p7 := MustParsePointString(fmt.Sprintf("mem,host=C value=1.3 %d", ts))  // Should not be deleted
+				p8 := MustParsePointString(fmt.Sprintf("disk,host=C value=1.3 %d", ts)) // Should not be deleted
+
+				for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
+					require.NoError(t, e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()), "create series index error")
+				}
+
+				require.NoError(t, e.WritePoints(t.Context(), []models.Point{p1, p2, p3, p4, p5, p6, p7, p8}), "failed to write points")
+				require.NoError(t, e.WriteSnapshot(), "failed to snapshot")
+			}
+
+			keys := e.FileStore.Keys()
+			require.Len(t, keys, 6, "series count mismatch")
+
+			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
+			require.NoError(t, e.DeleteSeriesRange(t.Context(), itr, 0, ts+2000000000), "failed to delete series")
+
+			keys = e.FileStore.Keys()
+			require.Len(t, keys, 4, "series count mismatch")
+
+			require.Contains(t, keys, "cpu,host=B#!~#value", "wrong series deleted")
+
+			// Check that the series still exists in the index
+			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			require.NoError(t, err, "iterator error")
+			defer func() {
+				if iter != nil {
+					require.NoError(t, iter.Close())
+				}
+			}()
+
+			elem, err := iter.Next()
+			require.NoError(t, err)
+			require.NotEqual(t, uint64(0), elem.SeriesID, "series index mismatch: EOF, exp 2 series")
+
+			// Lookup series.
+			name, tags := e.sfile.Series(elem.SeriesID)
+			require.Equal(t, []byte("cpu"), name, "series mismatch")
+
+			require.True(t, tags.Equal(models.NewTags(map[string]string{"host": "0"})) || tags.Equal(models.NewTags(map[string]string{"host": "B"})),
+				`series mismatch: got %s, exp either "host=0" or "host=B"`, tags)
+			require.NoError(t, iter.Close())
+
+			// Deleting remaining series should remove them from the series.
+			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
+			require.NoError(t, e.DeleteSeriesRange(t.Context(), itr, 0, ts+9000000000), "failed to delete series")
+
+			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+			iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			require.NoError(t, err, "iterator error")
+			if iter == nil {
+				return
+			}
+
+			elem, err = iter.Next()
+			require.NoError(t, err)
+			require.Equal(t, uint64(0), elem.SeriesID, "got an undeleted series id, but series should be dropped from index")
 		})
 	}
 }
@@ -2591,6 +2681,8 @@ func NewEngine(tb testing.TB, index string) (*Engine, error) {
 	// store level.
 	seriesIDs := tsdb.NewSeriesIDSet()
 	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
+	// For testing purposes lets set a compaction limiter to 20
+	opt.CompactionLimiter = limiter.NewFixed(20)
 
 	idxPath := filepath.Join(dbPath, "index")
 	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
@@ -2777,13 +2869,22 @@ func MustParsePointString(buf string) models.Point { return MustParsePointsStrin
 
 type mockPlanner struct{}
 
+func (m *mockPlanner) GetAggressiveCompactionPointsPerBlock() int { return 0 }
+func (m *mockPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int) {
+}
 func (m *mockPlanner) Plan(lastWrite time.Time) ([]tsm1.CompactionGroup, int64) { return nil, 0 }
-func (m *mockPlanner) PlanLevel(level int) ([]tsm1.CompactionGroup, int64)      { return nil, 0 }
-func (m *mockPlanner) PlanOptimize() ([]tsm1.CompactionGroup, int64)            { return nil, 0 }
-func (m *mockPlanner) Release(groups []tsm1.CompactionGroup)                    {}
-func (m *mockPlanner) FullyCompacted() (bool, string)                           { return false, "not compacted" }
-func (m *mockPlanner) ForceFull()                                               {}
-func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore)                          {}
+func (m *mockPlanner) PlanLevel(level int) ([]tsm1.CompactionGroup, int64) {
+	return nil, 0
+}
+func (m *mockPlanner) PlanOptimize(lastWrite time.Time) ([]tsm1.CompactionGroup, int64, int64) {
+	return nil, 0, 0
+}
+func (m *mockPlanner) Release(groups []tsm1.CompactionGroup) {}
+func (m *mockPlanner) FullyCompacted() (bool, string) {
+	return false, "not compacted"
+}
+func (m *mockPlanner) ForceFull()                      {}
+func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore) {}
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.
 func ParseTags(s string) query.Tags {

@@ -244,7 +244,7 @@ func (a *args) printSeries(sfile *tsdb.SeriesFile) error {
 
 		deleted := sfile.IsDeleted(e.SeriesID)
 
-		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(), deletedString(deleted))
+		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(true), deletedString(deleted))
 	}
 
 	// Flush & write footer spacing.
@@ -366,7 +366,7 @@ func (a *args) printTagValueSeries(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, nam
 			continue
 		}
 
-		fmt.Fprintf(tw, "            %s%s\n", name, tags.HashKey())
+		fmt.Fprintf(tw, "            %s%s\n", name, tags.HashKey(true))
 		if err := tw.Flush(); err != nil {
 			return fmt.Errorf("failed to flush tabwriter: %w", err)
 		}

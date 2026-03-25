@@ -211,7 +211,7 @@ fi
 # poll the status of the monitor-ci pipeline
 is_failure=0
 attempts=0
-max_attempts=30 # minutes
+max_attempts=40 # minutes
 while [ $attempts -le $max_attempts ];
 do
 

@@ -419,7 +419,7 @@ func (idx *Index) IndexSet() *tsdb.IndexSet {
 
 func (idx *Index) AddSeries(name string, tags map[string]string) error {
 	t := models.NewTags(tags)
-	key := fmt.Sprintf("%s,%s", name, t.HashKey())
+	key := fmt.Sprintf("%s,%s", name, t.HashKey(true))
 	return idx.CreateSeriesIfNotExists([]byte(key), []byte(name), t)
 }
 

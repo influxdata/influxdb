@@ -101,7 +101,7 @@ func joinString(b [][]byte) string {
 }
 
 func tagsToString(wr io.Writer, tags models.Tags, opts ...optionFn) {
-	if k := tags.HashKey(); len(k) > 0 {
+	if k := tags.HashKey(true); len(k) > 0 {
 		fmt.Fprintf(wr, "%s", string(k[1:]))
 	}
 	fmt.Fprintln(wr)

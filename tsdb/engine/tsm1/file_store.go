@@ -20,6 +20,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/pkg/data/gensyncmap"
 	"github.com/influxdata/influxdb/v2/pkg/file"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/pkg/metrics"
@@ -142,8 +143,8 @@ type TSMFile interface {
 	// Unref records that this file is no longer in use.
 	Unref()
 
-	// Stats returns summary information about the TSM file.
-	Stats() FileStat
+	// ExtStats returns extended summary information about the TSM file.
+	ExtStats() (ExtFileStat, error)
 
 	// BlockIterator returns an iterator pointing to the first block in the file and
 	// allows sequential iteration to each and every block.
@@ -172,7 +173,7 @@ type FileStore struct {
 	lastModified time.Time
 	// Most recently known file stats. If nil then stats will need to be
 	// recalculated
-	lastFileStats []FileStat
+	lastFileStats []ExtFileStat
 
 	currentGeneration int
 	dir               string
@@ -195,11 +196,11 @@ type FileStore struct {
 
 	copyFiles bool
 
+	readerOptions []TsmReaderOption
+
 	// newReaderBlockCount keeps track of the current new reader block requests.
 	// If non-zero, no new TSMReader objects may be created.
 	newReaderBlockCount int
-
-	readerOptions []tsmReaderOption
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -210,7 +211,20 @@ type FileStat struct {
 	LastModified     int64
 	MinTime, MaxTime int64
 	MinKey, MaxKey   []byte
+	Generation       int
+	Sequence         int
 }
+
+type FileStats []FileStat
+
+// ExtFileStat holds the same info as FileStat plus extended data that is more computationally expensive to
+// calculate.
+type ExtFileStat struct {
+	FileStat
+	FirstBlockCount int
+}
+
+type ExtFileStats []ExtFileStat
 
 // TombstoneStat holds information about a possible tombstone file on disk.
 type TombstoneStat struct {
@@ -218,6 +232,22 @@ type TombstoneStat struct {
 	Path            string
 	LastModified    int64
 	Size            uint32
+}
+
+// ToExtFileStat converts s to an ExtFileStat. The extended fields are left with default values.
+func (f FileStat) ToExtFileStat() ExtFileStat {
+	return ExtFileStat{
+		FileStat: f,
+	}
+}
+
+// ToExtFileStat converts s to an ExtFileStat. The extended fields are left with default values.
+func (fs FileStats) ToExtFileStats() []ExtFileStat {
+	exts := make([]ExtFileStat, 0, len(fs))
+	for _, f := range fs {
+		exts = append(exts, f.ToExtFileStat())
+	}
+	return exts
 }
 
 // OverlapsTimeRange returns true if the time range of the file intersect min and max.
@@ -236,7 +266,7 @@ func (f FileStat) ContainsKey(key []byte) bool {
 }
 
 // NewFileStore returns a new instance of FileStore based on the given directory.
-func NewFileStore(dir string, tags tsdb.EngineTags, options ...tsmReaderOption) *FileStore {
+func NewFileStore(dir string, tags tsdb.EngineTags, options ...TsmReaderOption) *FileStore {
 	logger := zap.NewNop()
 	fs := &FileStore{
 		dir:          dir,
@@ -246,16 +276,19 @@ func NewFileStore(dir string, tags tsdb.EngineTags, options ...tsmReaderOption) 
 		openLimiter:  limiter.NewFixed(runtime.GOMAXPROCS(0)),
 		stats:        newFileStoreMetrics(tags),
 		purger: &purger{
-			files:  map[string]TSMFile{},
 			logger: logger,
 		},
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
 		copyFiles:     runtime.GOOS == "windows",
-		readerOptions: options,
+		readerOptions: append([]TsmReaderOption{WithParseFileNameFunc(DefaultParseFileName)}, options...),
 	}
-	fs.purger.fileStore = fs
 	return fs
+}
+
+// SupportsCompactionPlanning returns true if f supports all functionality needed for compaction planning.
+func (f *FileStore) SupportsCompactionPlanning() bool {
+	return f.parseFileName != nil
 }
 
 // WithObserver sets the observer for the file store.
@@ -265,9 +298,13 @@ func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
 
 func (f *FileStore) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	f.parseFileName = parseFileNameFunc
+	f.readerOptions = append(f.readerOptions, WithParseFileNameFunc(f.parseFileName))
 }
 
 func (f *FileStore) ParseFileName(path string) (int, int, error) {
+	if f == nil || f.parseFileName == nil {
+		return 0, 0, fmt.Errorf("failed parsing %s: file store is not initialized", path)
+	}
 	return f.parseFileName(path)
 }
 
@@ -593,7 +630,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
-		generation, _, err := f.parseFileName(fn)
+		generation, _, err := f.ParseFileName(fn)
 		if err != nil {
 			return fmt.Errorf("error parsing %q in FileStore.Open: %w", fn, err)
 		}
@@ -840,7 +877,7 @@ func (f *FileStore) KeyCursor(ctx context.Context, key []byte, t int64, ascendin
 }
 
 // Stats returns the stats of the underlying files, preferring the cached version if it is still valid.
-func (f *FileStore) Stats() []FileStat {
+func (f *FileStore) Stats() []ExtFileStat {
 	f.mu.RLock()
 	if len(f.lastFileStats) > 0 {
 		defer f.mu.RUnlock()
@@ -860,11 +897,15 @@ func (f *FileStore) Stats() []FileStat {
 	// If lastFileStats's capacity is far away from the number of entries
 	// we need to add, then we'll reallocate.
 	if cap(f.lastFileStats) < len(f.files)/2 {
-		f.lastFileStats = make([]FileStat, 0, len(f.files))
+		f.lastFileStats = make([]ExtFileStat, 0, len(f.files))
 	}
 
 	for _, fd := range f.files {
-		f.lastFileStats = append(f.lastFileStats, fd.Stats())
+		stats, err := fd.ExtStats()
+		if err != nil {
+			f.logger.Warn("error during fd.Stats", zap.Error(err))
+		}
+		f.lastFileStats = append(f.lastFileStats, stats)
 	}
 	return f.lastFileStats
 }
@@ -890,12 +931,13 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	for _, file := range newFiles {
 		if !strings.HasSuffix(file, tsmTmpExt) && !strings.HasSuffix(file, TSMFileExtension) {
 			// This isn't a .tsm or .tsm.tmp file.
+			f.logger.Debug("wrong file type for rename: not a TSM file", zap.String("file", file))
 			continue
 		}
 
 		// give the observer a chance to process the file first.
 		if err := f.obs.FileFinishing(file); err != nil {
-			return err
+			return fmt.Errorf("error from observer on file rename of %s: %w", file, err)
 		}
 
 		var oldName, newName = file, file
@@ -915,7 +957,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			err = fmt.Errorf("failed opening %s: %w", newName, err)
 			if newName != oldName {
 				if err1 := os.Rename(newName, oldName); err1 != nil {
-					return errors.Join(err, fmt.Errorf("failed renaming %s to %s: %w", oldName, newName, err1))
+					return errors.Join(err, fmt.Errorf("failed renaming %s back to %s: %w", newName, oldName, err1))
 				}
 			}
 			return err
@@ -933,7 +975,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			err = fmt.Errorf("failed creating TSMReader for %s: %w", newName, err)
 			if newName != oldName {
 				if err1 := os.Rename(newName, oldName); err1 != nil {
-					return errors.Join(err, fmt.Errorf("failed renaming %s to %s: %w", oldName, newName, err1))
+					return errors.Join(err, fmt.Errorf("failed renaming %s back to %s: %w", newName, oldName, err1))
 				}
 			}
 			return err
@@ -967,12 +1009,12 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 				// give the observer a chance to process the file first.
 				if err := f.obs.FileUnlinking(file.Path()); err != nil {
-					return err
+					return fmt.Errorf("error from observer on file unlinking %s: %w", file.Path(), err)
 				}
 
 				if ts := file.TombstoneStats(); ts.TombstoneExists {
 					if err := f.obs.FileUnlinking(ts.Path); err != nil {
-						return err
+						return fmt.Errorf("error from observer on tombstone file unlinking %s: %w", ts.Path, err)
 					}
 				}
 
@@ -996,7 +1038,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 					// Rename the TSM file used by this reader
 					tempPath := fmt.Sprintf("%s.%s", file.Path(), TmpTSMFileExtension)
 					if err := file.Rename(tempPath); err != nil {
-						return fmt.Errorf("failed renaming open TSM file to %s: %w", tempPath, err)
+						return fmt.Errorf("failed renaming open TSM file %s to %s: %w", file.Path(), tempPath, err)
 					}
 
 					// Remove the old file and tombstones.  We can't use the normal TSMReader.Remove()
@@ -1068,35 +1110,6 @@ func (f *FileStore) LastModified() time.Time {
 	defer f.mu.RUnlock()
 
 	return f.lastModified
-}
-
-// BlockCount returns number of values stored in the block at location idx
-// in the file at path.  If path does not match any file in the store, 0 is
-// returned.  If idx is out of range for the number of blocks in the file,
-// 0 is returned.
-func (f *FileStore) BlockCount(path string, idx int) int {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	if idx < 0 {
-		return 0
-	}
-
-	for _, fd := range f.files {
-		if fd.Path() == path {
-			iter := fd.BlockIterator()
-			for i := 0; i < idx; i++ {
-				if !iter.Next() {
-					return 0
-				}
-			}
-			_, _, _, _, _, block, _ := iter.Read()
-			// on Error, BlockCount(block) returns 0 for cnt
-			cnt, _ := BlockCount(block)
-			return cnt
-		}
-	}
-	return 0
 }
 
 // We need to determine the possible files that may be accessed by this query given
@@ -1373,12 +1386,12 @@ func DefaultParseFileName(name string) (int, int, error) {
 
 	generation, err := strconv.ParseUint(id[:idx], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+		return 0, 0, fmt.Errorf("cannot parse generation number; file %s is named incorrectly: %w", name, err)
 	}
 
 	sequence, err := strconv.ParseUint(id[idx+1:], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+		return 0, 0, fmt.Errorf("cannot parse sequence number; file %s is named incorrectly: %w", name, err)
 	}
 
 	return int(generation), int(sequence), nil
@@ -1602,82 +1615,107 @@ func (c *KeyCursor) nextDescending() {
 	}
 }
 
+// purger manages asynchronous deletion of TSM files that have been
+// replaced by compaction, but are temporarily held open by queries
 type purger struct {
-	mu        sync.RWMutex
-	fileStore *FileStore
-	files     map[string]TSMFile
-	running   bool
+	files   gensyncmap.Map[string, TSMFile]
+	mu      sync.Mutex
+	running bool
 
 	logger *zap.Logger
 }
 
 func (p *purger) add(files []TSMFile) {
+	if len(files) == 0 {
+		return
+	}
+
 	var fileNames []string
-	p.mu.Lock()
 	for _, f := range files {
 		fileName := f.Path()
 		fileNames = append(fileNames, fileName)
-		p.files[fileName] = f
+		p.files.Store(fileName, f)
 	}
-	p.mu.Unlock()
+
 	p.purge(fileNames)
 }
 
+// purge starts a goroutine to purge files from disk if one isn't already running.
 func (p *purger) purge(fileNames []string) {
 	logger, logEndOp := logger.NewOperation(context.Background(), p.logger, "Purge held files", "filestore_purger")
 
 	logger.Info("added", zap.Int("count", len(fileNames)))
 	logger.Debug("purging", zap.Strings("files", fileNames))
+
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.running {
-		p.mu.Unlock()
 		logger.Info("already running, files added to previous operation")
 		logEndOp()
 		return
 	}
 	p.running = true
-	p.mu.Unlock()
 
 	go func() {
 		var purgeCount int
+		var failCount int
 		defer func() {
 			logger.Info("removed", zap.Int("files", purgeCount))
+			if failCount > 0 {
+				logger.Warn("failed to remove", zap.Int("files", failCount))
+			}
 			logEndOp()
 		}()
-		for {
-			p.mu.Lock()
-			for k, v := range p.files {
+
+		// hasFiles() acquires the lock to check files.Len() and, if empty,
+		// sets running = false before returning. This ensures no race between
+		// add() checking running and the goroutine exiting.
+		for p.hasFiles() {
+			p.files.Range(func(k string, v TSMFile) bool {
 				// In order to ensure that there are no races with this (file held externally calls Ref
 				// after we check InUse), we need to maintain the invariant that every handle to a file
 				// is handed out in use (Ref'd), and handlers only ever relinquish the file once (call Unref
-				// exactly once, and never use it again). InUse is only valid during a write lock, since
-				// we allow calls to Ref and Unref under the read lock and no lock at all respectively.
+				// exactly once, and never use it again).
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
 						logger.Error("close file failed", zap.String("file", k), zap.Error(err))
-						continue
-					}
-
-					if err := v.Remove(); err != nil {
+						failCount++
+					} else if err := v.Remove(); err != nil {
 						logger.Error("remove file failed", zap.String("file", k), zap.Error(err))
-						continue
+						failCount++
+					} else {
+						logger.Debug("successfully removed", zap.String("file", k))
+						purgeCount++
 					}
-					logger.Debug("successfully removed", zap.String("file", k))
-					delete(p.files, k)
-					purgeCount++
+					// Remove the file regardless of success or failure.
+					// Do not retry files which could not be closed or removed.
+					// This is because they have already been closed, or there
+					// is an operating system problem that is unlikely to
+					// resolve by itself.
+					p.files.Delete(k)
 				}
-			}
+				// InUse files are left to be tried later.
+				return true
+			})
 
-			if len(p.files) == 0 {
-				p.running = false
-				p.mu.Unlock()
-				return
-			}
-
-			p.mu.Unlock()
 			time.Sleep(time.Second)
 		}
 	}()
+}
+
+func (p *purger) hasFiles() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	has := false
+
+	// Avoid calling Len() which iterates over the whole map.
+	p.files.Range(func(k string, v TSMFile) bool {
+		has = true
+		return false // stop iteration after finding the first file
+	})
+	p.running = has
+	return has
 }
 
 type tsmReaders []TSMFile

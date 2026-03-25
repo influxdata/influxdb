@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	errors3 "github.com/influxdata/influxdb/v2/pkg/errors"
@@ -538,6 +540,19 @@ func (s *Store) loadShards(ctx context.Context) error {
 
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
+	// Setup optimized limiter.
+	optLim := s.EngineOptions.Config.MaxConcurrentOptimizedCompactions
+	if optLim <= 0 {
+		optLim = 1
+	}
+
+	// Don't allow more optimized compactions to run than overall compactions.
+	if optLim > lim {
+		optLim = lim
+	}
+
+	s.EngineOptions.OptimizedCompactionLimiter = limiter.NewFixed(optLim)
+
 	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
 	throughput := int(s.EngineOptions.Config.CompactThroughput)
 	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
@@ -788,6 +803,35 @@ func (s *Store) Shard(id uint64) *Shard {
 	return sh
 }
 
+// ClearBadShardList will remove all shards from the badShards cache
+// this will allow for lazy loading of bad shards if/when they are no
+// longer in a "bad" state. This method will return any shards that
+// were removed from the cache.
+func (s *Store) ClearBadShardList() map[uint64]error {
+	badShards := s.GetBadShardList()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	clear(s.badShards.shardErrors)
+
+	return badShards
+}
+
+// GetBadShardList is exposed as a method for test purposes
+func (s *Store) GetBadShardList() map[uint64]error {
+	s.badShards.mu.Lock()
+	defer s.badShards.mu.Unlock()
+
+	if s.badShards.shardErrors == nil {
+		s.Logger.Warn("badShards was nil")
+		s.badShards.shardErrors = make(map[uint64]error)
+	}
+
+	shardList := maps.Clone(s.badShards.shardErrors)
+
+	return shardList
+}
+
 type ErrPreviousShardFail struct {
 	error
 }
@@ -1024,18 +1068,47 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 	// Remove any remaining series in the set from the series file, as they don't
 	// exist in any of the database's remaining shards.
-	if ss.Cardinality() > 0 {
+	seriesCount := ss.Cardinality()
+	if seriesCount > 0 {
+		const DeleteLogTrigger = 10_000
+		deleteStart := time.Now()
+		var deletedCount atomic.Uint64
+		var partitionIDs = make(map[int]struct{}, SeriesFilePartitionN)
 		sfile := s.seriesFile(db)
 		if sfile != nil {
 			ss.ForEach(func(id uint64) {
-				if err := sfile.DeleteSeriesID(id); err != nil {
+				p, err := sfile.DeleteSeriesID(id, NoFlush)
+				if err != nil {
 					sfile.Logger.Error(
 						"cannot delete series in shard",
 						zap.Uint64("series_id", id),
 						zap.Uint64("shard_id", shardID),
+						zap.String("series_file_path", sfile.Path()),
 						zap.Error(err))
+				} else {
+					partitionIDs[p.id] = struct{}{}
+					deleted := deletedCount.Add(1)
+
+					if deleted%DeleteLogTrigger == 0 {
+						s.Logger.Info(fmt.Sprintf("DeleteShard: %d series deleted", DeleteLogTrigger),
+							zap.String("db", db),
+							zap.Uint64("shard_id", shardID),
+							zap.String("series_file_path", sfile.Path()),
+							zap.Uint64("deleted", deleted),
+							zap.Uint64("remaining", seriesCount-deleted),
+							zap.Uint64("total", seriesCount),
+							zap.Duration("elapsed", time.Since(deleteStart)))
+					}
 				}
 			})
+
+			if err := sfile.FlushSegments(partitionIDs); err != nil {
+				sfile.Logger.Error(
+					"error while flushing a series file segment",
+					zap.Uint64("shard_id", shardID),
+					zap.String("series_file_path", sfile.Path()),
+					zap.Error(err))
+			}
 		}
 	}
 
