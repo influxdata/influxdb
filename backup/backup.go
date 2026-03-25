@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 )
 
@@ -51,13 +50,15 @@ func (cl CompressionLevel) GzipLevel() int {
 }
 
 type BucketManifestWriter struct {
-	ts *tenant.Service
+	bs influxdb.BucketService
+	os influxdb.OrganizationService
 	mc *meta.Client
 }
 
-func NewBucketManifestWriter(ts *tenant.Service, mc *meta.Client) BucketManifestWriter {
+func NewBucketManifestWriter(bs influxdb.BucketService, os influxdb.OrganizationService, mc *meta.Client) BucketManifestWriter {
 	return BucketManifestWriter{
-		ts: ts,
+		bs: bs,
+		os: os,
 		mc: mc,
 	}
 }
@@ -66,7 +67,7 @@ func NewBucketManifestWriter(ts *tenant.Service, mc *meta.Client) BucketManifest
 // It is intended to be used to write to an HTTP response after appropriate measures have been taken
 // to ensure that the request is authorized.
 func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) error {
-	bkts, _, err := b.ts.FindBuckets(ctx, influxdb.BucketFilter{})
+	bkts, _, err := b.bs.FindBuckets(ctx, influxdb.BucketFilter{})
 	if err != nil {
 		return err
 	}
@@ -74,7 +75,7 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 	l := make([]influxdb.BucketMetadataManifest, 0, len(bkts))
 
 	for _, bkt := range bkts {
-		org, err := b.ts.OrganizationService.FindOrganizationByID(ctx, bkt.OrgID)
+		org, err := b.os.FindOrganizationByID(ctx, bkt.OrgID)
 		if err != nil {
 			return err
 		}
