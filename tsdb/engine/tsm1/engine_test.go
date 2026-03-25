@@ -2985,13 +2985,15 @@ type mockPlanner struct{}
 
 func (m *mockPlanner) GetAggressiveCompactionPointsPerBlock() int { return 0 }
 func (m *mockPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int) {
-	return
 }
-func (m *mockPlanner) Plan(lastWrite time.Time) ([]tsm1.CompactionGroup, int64) { return nil, 0 }
-func (m *mockPlanner) PlanLevel(level int) ([]tsm1.CompactionGroup, int64) {
+func (m *mockPlanner) FindGenerations() tsm1.TsmGenerations { return nil }
+func (m *mockPlanner) Plan(generations tsm1.TsmGenerations, lastWrite time.Time) ([]tsm1.CompactionGroup, int64) {
 	return nil, 0
 }
-func (m *mockPlanner) PlanOptimize(lastWrite time.Time) ([]tsm1.CompactionGroup, int64, int64) {
+func (m *mockPlanner) PlanLevel(generations tsm1.TsmGenerations, level int) ([]tsm1.CompactionGroup, int64) {
+	return nil, 0
+}
+func (m *mockPlanner) PlanOptimize(generations tsm1.TsmGenerations, lastWrite time.Time) ([]tsm1.CompactionGroup, int64, int64) {
 	return nil, 0, 0
 }
 func (m *mockPlanner) Release(groups []tsm1.CompactionGroup) {}
