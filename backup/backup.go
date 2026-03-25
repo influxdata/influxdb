@@ -19,8 +19,9 @@ type BucketManifestWriter struct {
 
 func NewBucketManifestWriter(ts *tenant.Service, mc *meta.Client) BucketManifestWriter {
 	return BucketManifestWriter{
-		ts: ts,
-		mc: mc,
+		ts:     ts,
+		mc:     mc,
+		logger: zap.NewNop(),
 	}
 }
 
@@ -32,10 +33,6 @@ func (b *BucketManifestWriter) WithLogger(logger *zap.Logger) {
 // It is intended to be used to write to an HTTP response after appropriate measures have been taken
 // to ensure that the request is authorized.
 func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) error {
-	if b.logger == nil {
-		b.logger = zap.NewNop()
-	}
-
 	bkts, _, err := b.ts.FindBuckets(ctx, influxdb.BucketFilter{})
 	if err != nil {
 		return err
