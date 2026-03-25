@@ -32,6 +32,10 @@ func (b *BucketManifestWriter) WithLogger(logger *zap.Logger) {
 // It is intended to be used to write to an HTTP response after appropriate measures have been taken
 // to ensure that the request is authorized.
 func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) error {
+	if b.logger == nil {
+		b.logger = zap.NewNop()
+	}
+
 	bkts, _, err := b.ts.FindBuckets(ctx, influxdb.BucketFilter{})
 	if err != nil {
 		return err
@@ -57,16 +61,14 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 		}
 		rpManifests := retentionPolicyToManifest(dbInfo.RetentionPolicies)
 
-		if b.logger != nil {
-			for _, rpManifest := range rpManifests {
-				for _, sg := range rpManifest.ShardGroups {
-					if len(sg.Shards) <= 0 && sg.DeletedAt == nil {
-						b.logger.Warn("Backup: ShardGroup has not been deleted and has no shards",
-							zap.String("bucket", bkt.Name),
-							zap.String("rp", rpManifest.Name),
-							zap.Uint64("shard-group-id", sg.ID), zap.Time("start-time", sg.StartTime),
-							zap.Time("end-time", sg.EndTime))
-					}
+		for _, rpManifest := range rpManifests {
+			for _, sg := range rpManifest.ShardGroups {
+				if len(sg.Shards) <= 0 && sg.DeletedAt == nil {
+					b.logger.Warn("Backup: ShardGroup has not been deleted and has no shards",
+						zap.String("bucket", bkt.Name),
+						zap.String("rp", rpManifest.Name),
+						zap.Uint64("shard-group-id", sg.ID), zap.Time("start-time", sg.StartTime),
+						zap.Time("end-time", sg.EndTime))
 				}
 			}
 		}
