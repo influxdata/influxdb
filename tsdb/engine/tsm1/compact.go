@@ -694,7 +694,7 @@ func (c *DefaultPlanner) isInUse(t *tsmGeneration) bool {
 }
 
 // FindGenerations groups all the TSM files by generation based
-// on their filename, then returns the generations in descending order (newest first).
+// on their filename, then returns the generations in ascending order (oldest first).
 func (c *DefaultPlanner) FindGenerations() TsmGenerations {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

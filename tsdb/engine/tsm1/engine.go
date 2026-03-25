@@ -2363,8 +2363,9 @@ func (e *Engine) planCompactionsInner() ([]PlannedCompactionGroup, []PlannedComp
 	level1Groups := e.planCompactionsLevel(generations, 1)
 	level2Groups := e.planCompactionsLevel(generations, 2)
 	level3Groups := e.planCompactionsLevel(generations, 3)
-	l4Groups, _ := e.CompactionPlan.Plan(generations, e.LastModified())
-	l5Groups, _, l5GenCount := e.CompactionPlan.PlanOptimize(generations, e.LastModified())
+	lastModified := e.LastModified()
+	l4Groups, _ := e.CompactionPlan.Plan(generations, lastModified)
+	l5Groups, _, l5GenCount := e.CompactionPlan.PlanOptimize(generations, lastModified)
 
 	// Some groups in level 4 may contain already optimized files. In these cases, it is
 	// desireable to maintain optimization for the entire group to avoid "going backwards" on the
