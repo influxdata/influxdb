@@ -10,9 +10,6 @@ use parking_lot::Mutex;
 use pin_project::pin_project;
 use tower::{Layer, Service};
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 // re-export public types
 pub use http::HeaderMap;
 

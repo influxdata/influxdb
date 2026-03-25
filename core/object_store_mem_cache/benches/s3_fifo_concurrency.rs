@@ -152,7 +152,8 @@ fn run_bench(
                             let data = Arc::new(Bytes::from(data.as_ref().clone()));
 
                             let t_begin = Instant::now();
-                            let (_, evicted) = store.get_or_put(Arc::new(path(key_idx)), data, 0);
+                            let (_, evicted) =
+                                store.get_or_put(Arc::new(path(key_idx)), data, 0).unwrap();
                             drop(evicted);
                             let t_end = Instant::now();
 

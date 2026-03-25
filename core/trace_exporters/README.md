@@ -6,10 +6,10 @@ _The instructions below use docker, but this is optional._
 
 _Depending on your setup there may be permissions complications that require using`-u`_
 
-Startup a Debian bookworm image
+Startup a Debian trixie image
 
 ```
-docker run -it -v $PWD:/out debian:bookworm-slim
+docker run -it -v $PWD:/out debian:trixie-slim
 ```
 
 Install the thrift-compiler

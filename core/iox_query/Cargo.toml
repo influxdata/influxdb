@@ -47,13 +47,16 @@ parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 query_functions = { path = "../query_functions" }
 schema = { path = "../schema" }
-snafu = "0.8"
-tokio = { version = "1.49", features = ["macros", "parking_lot"] }
+snafu = "0.9"
+tokio = { version = "1.50", features = ["macros", "parking_lot"] }
 tokio-stream = "0.1"
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
-workspace-hack = { path = "../workspace-hack" }
+
+
+[features]
+external-query-id = []
 
 [dev-dependencies] # In alphabetical order
 criterion = { version = "0.8", default-features = false, features = ["rayon"] }

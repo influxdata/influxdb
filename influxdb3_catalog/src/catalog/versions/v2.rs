@@ -1643,6 +1643,22 @@ impl UpdateDatabaseSchema for SoftDeleteDatabaseLog {
             owned.deleted = true;
         }
         owned.hard_delete_time = self.hard_deletion_time.map(Time::from_timestamp_nanos);
+        // Disable all triggers so they are marked as disabled in the catalog
+        let trigger_ids: Vec<_> = owned
+            .processing_engine_triggers
+            .iter()
+            .filter(|(_, t)| !t.disabled)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in trigger_ids {
+            if let Some(mut trigger) = owned.processing_engine_triggers.get_by_id(&id) {
+                Arc::make_mut(&mut trigger).disabled = true;
+                owned
+                    .processing_engine_triggers
+                    .update(id, trigger)
+                    .expect("trigger should exist");
+            }
+        }
         Ok(schema)
     }
 }

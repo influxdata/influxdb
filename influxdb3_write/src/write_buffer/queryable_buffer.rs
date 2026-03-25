@@ -23,15 +23,17 @@ use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use object_store::Error;
 use object_store::path::Path;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use parking_lot::Mutex;
 use parking_lot::RwLock;
-use parquet::format::FileMetaData;
+use parquet::file::metadata::ParquetMetaData;
 use schema::Schema;
 use schema::sort::SortKey;
 use std::any::Any;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Semaphore;
 use tokio::sync::oneshot::{self, Receiver};
 use tokio::task::JoinSet;
 
@@ -45,6 +47,7 @@ pub struct QueryableBuffer {
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<RwLock<BufferState>>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    parquet_snapshot_concurrency_limit: NonZeroUsize,
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshotVersion>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshotVersion>>,
@@ -59,6 +62,7 @@ pub struct QueryableBufferArgs {
     pub distinct_cache_provider: Arc<DistinctCacheProvider>,
     pub persisted_files: Arc<PersistedFiles>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    pub parquet_snapshot_concurrency_limit: NonZeroUsize,
 }
 
 impl QueryableBuffer {
@@ -71,6 +75,7 @@ impl QueryableBuffer {
             distinct_cache_provider,
             persisted_files,
             parquet_cache,
+            parquet_snapshot_concurrency_limit,
         }: QueryableBufferArgs,
     ) -> Self {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
@@ -85,6 +90,7 @@ impl QueryableBuffer {
             persisted_files,
             buffer,
             parquet_cache,
+            parquet_snapshot_concurrency_limit,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
         }
@@ -272,6 +278,7 @@ impl QueryableBuffer {
         let catalog = Arc::clone(&self.catalog);
         let notify_snapshot_tx = self.persisted_snapshot_notify_tx.clone();
         let parquet_cache = self.parquet_cache.clone();
+        let parquet_snapshot_concurrency_limit = self.parquet_snapshot_concurrency_limit;
 
         tokio::spawn(async move {
             info!(
@@ -291,8 +298,13 @@ impl QueryableBuffer {
             let persisted_snapshot = Arc::new(Mutex::new(snapshot));
 
             let persist_jobs_empty = persist_jobs.is_empty();
+            let semaphore = Arc::new(Semaphore::new(parquet_snapshot_concurrency_limit.get()));
             let mut set = JoinSet::new();
             for persist_job in persist_jobs {
+                let permit = Arc::clone(&semaphore)
+                    .acquire_owned()
+                    .await
+                    .expect("semaphore not closed");
                 let persister = Arc::clone(&persister);
                 let executor = Arc::clone(&executor);
                 let persisted_snapshot = Arc::clone(&persisted_snapshot);
@@ -301,6 +313,7 @@ impl QueryableBuffer {
                 let persisted_files = Arc::clone(&persisted_files);
 
                 set.spawn(async move {
+                    let _permit = permit;
                     let path = persist_job.path.to_string();
                     let database_id = persist_job.database_id;
                     let table_id = persist_job.table_id;
@@ -333,7 +346,7 @@ impl QueryableBuffer {
                         id: ParquetFileId::new(),
                         path,
                         size_bytes: file_size_bytes,
-                        row_count: file_meta_data.num_rows as u64,
+                        row_count: file_meta_data.file_metadata().num_rows() as u64,
                         chunk_time,
                         min_time,
                         max_time,
@@ -358,6 +371,13 @@ impl QueryableBuffer {
                         .add_parquet_file(database_id, table_id, parquet_file)
                 });
             }
+
+            debug!(
+                total_spawned = set.len(),
+                available_permits = semaphore.available_permits(),
+                concurrency_limit = parquet_snapshot_concurrency_limit.get(),
+                "persist jobs spawned, awaiting completion"
+            );
 
             set.join_all().await;
 
@@ -533,11 +553,11 @@ struct PersistJob {
 
 pub(crate) struct SortDedupePersistSummary {
     pub file_size_bytes: u64,
-    pub file_meta_data: FileMetaData,
+    pub file_meta_data: ParquetMetaData,
 }
 
 impl SortDedupePersistSummary {
-    fn new(file_size_bytes: u64, file_meta_data: FileMetaData) -> Self {
+    fn new(file_size_bytes: u64, file_meta_data: ParquetMetaData) -> Self {
         Self {
             file_size_bytes,
             file_meta_data,

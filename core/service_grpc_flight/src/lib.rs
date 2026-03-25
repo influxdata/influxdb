@@ -5,8 +5,6 @@
 use keep_alive::KeepAliveStream;
 use planner::Planner;
 use tower_trailer::{HeaderMap, Trailers};
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
 
 mod keep_alive;
 mod planner;
@@ -22,7 +20,7 @@ use arrow_flight::{
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
 };
 use authz::{Authorizer, extract_token};
-use data_types::NamespaceNameError;
+use data_types::{GrpcTimeoutDuration, NamespaceNameError};
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use error_reporting::DisplaySourceChain;
 use flightsql::{BaseTableType, FlightSQLCommand};
@@ -127,6 +125,14 @@ const IOX_FLIGHT_INGESTER_RESPONSE_BYTES_RESPONSE_TRAILER: &str =
 
 /// In which interval should the `DoGet` stream send empty messages as keep alive markers?
 const DO_GET_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
+
+// ── Flight query observer (for enterprise SLL integration) ────────────
+#[cfg(feature = "flight-query-observer")]
+mod observer;
+#[cfg(feature = "flight-query-observer")]
+use observer::ObservedStream;
+#[cfg(feature = "flight-query-observer")]
+pub use observer::{FlightQueryInfo, FlightQueryObservation, FlightQueryObserver, GrpcCode};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -628,11 +634,14 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'sta
 /// [Arrow Flight]: https://arrow.apache.org/docs/format/Flight.html
 /// [Arrow FlightSQL]: https://arrow.apache.org/docs/format/FlightSql.html
 #[derive(Debug)]
-struct FlightService {
+pub struct FlightService {
     server: Arc<dyn QueryDatabase>,
     authz: Option<Arc<dyn Authorizer>>,
+    #[cfg(feature = "flight-query-observer")]
+    observer: Option<Arc<dyn FlightQueryObserver>>,
 }
 
+#[cfg(not(feature = "flight-query-observer"))]
 pub fn make_server(
     server: Arc<dyn QueryDatabase>,
     authz: Option<Arc<dyn Authorizer>>,
@@ -640,7 +649,37 @@ pub fn make_server(
     FlightServer::new(FlightService { server, authz })
 }
 
+#[cfg(feature = "flight-query-observer")]
+pub fn make_server(
+    server: Arc<dyn QueryDatabase>,
+    authz: Option<Arc<dyn Authorizer>>,
+) -> FlightServer<impl Flight> {
+    make_server_with_observer(server, authz, None)
+}
+
+#[cfg(feature = "flight-query-observer")]
+pub fn make_server_with_observer(
+    server: Arc<dyn QueryDatabase>,
+    authz: Option<Arc<dyn Authorizer>>,
+    observer: Option<Arc<dyn FlightQueryObserver>>,
+) -> FlightServer<impl Flight> {
+    FlightServer::new(FlightService {
+        server,
+        authz,
+        observer,
+    })
+}
+
 impl FlightService {
+    pub fn new(server: Arc<dyn QueryDatabase>, authz: Option<Arc<dyn Authorizer>>) -> Self {
+        Self {
+            server,
+            authz,
+            #[cfg(feature = "flight-query-observer")]
+            observer: None,
+        }
+    }
+
     /// Implementation of the `DoGet` method
     #[expect(clippy::too_many_arguments)]
     async fn run_do_get(
@@ -652,6 +691,7 @@ impl FlightService {
         query_config: Option<&QueryConfig>,
         auth_id: Option<String>,
         base_table_type: BaseTableType,
+        grpc_timeout: Option<GrpcTimeoutDuration>,
     ) -> Result<TonicStream<FlightData>, Status> {
         let IoxGetRequest {
             database,
@@ -738,6 +778,7 @@ impl FlightService {
             namespace_name.to_string(),
             &query,
             query_completed_token,
+            grpc_timeout,
         )
         .await?;
 
@@ -795,6 +836,18 @@ impl Flight for FlightService {
         let debug_header = has_debug_header(metadata);
         let query_config = get_query_config(metadata);
         let base_table_type = get_flightsql_base_table_type(metadata)?;
+        let grpc_timeout = metadata.get("grpc-timeout").and_then(|header| {
+            header
+                .to_str()
+                .inspect_err(|e| warn!("grpc-timeout header does not contain utf8: {e}"))
+                .ok()
+                .and_then(|s| {
+                    GrpcTimeoutDuration::from_str(s)
+                        .inspect_err(|e| warn!("Can't parse grpc-timeout header: {e:?}"))
+                        .ok()
+                })
+        });
+
         let ticket = request.into_inner();
 
         // attempt to decode ticket
@@ -827,6 +880,15 @@ impl Flight for FlightService {
         let query = request.query.clone();
         let jaeger_trace = external_span_ctx.format_jaeger();
 
+        // Notify observer (enterprise SLL) that a query is starting.
+        #[cfg(feature = "flight-query-observer")]
+        let observation = self.observer.as_ref().map(|obs| {
+            obs.on_query_start(FlightQueryInfo {
+                database: database.clone(),
+                query_variant: request.query().variant().str(),
+            })
+        });
+
         // `run_do_get` may wait for the semaphore. In this case, we shall send empty "keep alive" messages already. So
         // wrap the whole implementation into the keep alive stream.
         //
@@ -844,6 +906,7 @@ impl Flight for FlightService {
             query_config.as_ref(),
             authz.into_subject(),
             base_table_type,
+            grpc_timeout,
         )
         .await;
 
@@ -870,9 +933,24 @@ impl Flight for FlightService {
             trailers.add_callback(move |trailers| md_captured.write_trailers(trailers));
         }
 
-        let stream = response?;
-
-        Ok(Response::new(Box::pin(stream) as _))
+        #[cfg(feature = "flight-query-observer")]
+        {
+            match (response, observation) {
+                (Ok(stream), Some(obs)) => Ok(Response::new(Box::pin(ObservedStream::new(
+                    stream, obs,
+                )) as _)),
+                (Ok(stream), None) => Ok(Response::new(Box::pin(stream) as _)),
+                (Err(status), Some(obs)) => {
+                    obs.error(status.code());
+                    Err(status)
+                }
+                (Err(status), None) => Err(status),
+            }
+        }
+        #[cfg(not(feature = "flight-query-observer"))]
+        {
+            response.map(|stream| Response::new(Box::pin(stream) as _))
+        }
     }
 
     async fn handshake(
@@ -1316,6 +1394,7 @@ impl GetStream {
         namespace_name: String,
         query: &RunQuery,
         query_completed_token: QueryCompletedToken<StatePlanned>,
+        grpc_timeout: Option<GrpcTimeoutDuration>,
     ) -> Result<Self, Status> {
         let app_metadata = proto::AppMetadata {};
 
@@ -1352,7 +1431,13 @@ impl GetStream {
             .build(query_results);
 
         // keep-alive
-        let inner = KeepAliveStream::new(encoded, DO_GET_KEEP_ALIVE_INTERVAL).boxed();
+        let inner = KeepAliveStream::new(
+            encoded,
+            DO_GET_KEEP_ALIVE_INTERVAL,
+            query.to_string(),
+            grpc_timeout,
+        )
+        .boxed();
 
         Ok(Self {
             inner,
@@ -1463,6 +1548,7 @@ impl QueryResponseMetadata {
             ingester_metrics,
             deduplicated_parquet_files: _,
             deduplicated_partitions: _,
+            num_rows: _,
         } = state.as_ref();
 
         Self::write_trailer_duration(
@@ -1561,6 +1647,8 @@ mod tests {
         let service = FlightService {
             server: Arc::clone(&test_storage) as _,
             authz: Option::<Arc<dyn Authorizer>>::None,
+            #[cfg(feature = "flight-query-observer")]
+            observer: None,
         };
         let ticket = Ticket {
             ticket: br#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#
@@ -1744,6 +1832,8 @@ mod tests {
         let svc = FlightService {
             server: Arc::clone(&test_storage) as _,
             authz: Some(Arc::new(MockAuthorizer {})),
+            #[cfg(feature = "flight-query-observer")]
+            observer: None,
         };
 
         async fn assert_code(svc: &FlightService, want: Code, request: Request<Ticket>) {
@@ -1825,6 +1915,8 @@ mod tests {
         let svc = FlightService {
             server: Arc::clone(&test_storage) as _,
             authz: Some(Arc::new(MockAuthorizer {})),
+            #[cfg(feature = "flight-query-observer")]
+            observer: None,
         };
 
         async fn assert_code(svc: &FlightService, want: Code, request: Request<FlightDescriptor>) {

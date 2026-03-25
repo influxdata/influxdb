@@ -4,7 +4,7 @@ use datafusion::{
     common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     datasource::{
-        physical_plan::{FileScanConfig, FileScanConfigBuilder, ParquetSource},
+        physical_plan::{FileScanConfig, FileScanConfigBuilder, FileSource, ParquetSource},
         source::DataSourceExec,
     },
     error::Result,
@@ -52,8 +52,8 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                             .map(|p| Arc::new(p) as Arc<dyn ExecutionPlan>)
                         })
                         .collect::<Result<Vec<_>>>()?;
-                    let new_union = UnionExec::new(new_inputs);
-                    return Ok(Transformed::yes(Arc::new(new_union)));
+                    let new_union = UnionExec::try_new(new_inputs)?;
+                    return Ok(Transformed::yes(new_union));
                 } else if let Some(child_parquet) = child_any.downcast_ref::<DataSourceExec>() {
                     let Some(file_scan_config) = child_parquet
                         .data_source()
@@ -70,8 +70,9 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                         return Ok(Transformed::no(plan));
                     };
                     let mut builder = parquet_source.clone();
-                    let existing = parquet_source
-                        .predicate()
+                    let existing_filter = parquet_source.filter();
+                    let existing = existing_filter
+                        .as_ref()
                         .map(split_conjunction)
                         .unwrap_or_default();
                     let both = conjunction(
@@ -264,11 +265,12 @@ mod tests {
         let plan = Arc::new(
             FilterExec::try_new(
                 predicate_tag(&schema),
-                Arc::new(UnionExec::new(
+                UnionExec::try_new(
                     (0..2)
                         .map(|_| Arc::new(PlaceholderRowExec::new(Arc::clone(&schema))) as _)
                         .collect(),
-                )),
+                )
+                .unwrap(),
             )
             .unwrap(),
         );
@@ -298,14 +300,16 @@ mod tests {
         let plan = Arc::new(
             FilterExec::try_new(
                 predicate_tag(&schema),
-                Arc::new(UnionExec::new(vec![
-                    Arc::new(UnionExec::new(
+                UnionExec::try_new(vec![
+                    UnionExec::try_new(
                         (0..2)
                             .map(|_| Arc::new(PlaceholderRowExec::new(Arc::clone(&schema))) as _)
                             .collect(),
-                    )),
+                    )
+                    .unwrap(),
                     Arc::new(PlaceholderRowExec::new(Arc::clone(&schema))),
-                ])),
+                ])
+                .unwrap(),
             )
             .unwrap(),
         );

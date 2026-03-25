@@ -1371,14 +1371,14 @@ mod test {
             rewrite(i64_field() / i64_lit()),
             @r"
             field: ok: CASE WHEN CAST(Int64(1) AS Float64) = Float64(0) AND CAST(integer_field AS Float64) IS NOT NULL THEN Float64(0) ELSE CAST(integer_field AS Float64) / CAST(Int64(1) AS Float64) END
-        condition: ok: CASE WHEN Boolean(false) THEN Float64(0) ELSE CAST(integer_field AS Float64) END
+        condition: ok: CAST(integer_field AS Float64)
         ",
         );
         assert_snapshot!(
             rewrite(i64_field() / u64_lit()),
             @r"
             field: err: Error during planning: cannot use / with an integer field and unsigned literal
-        condition: ok: CASE WHEN Boolean(false) THEN UInt64(0) ELSE nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64)) END
+        condition: ok: nvl(TRY_CAST(integer_field AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- integer_field) AS UInt64))
         ",
         );
         assert_snapshot!(
@@ -1431,14 +1431,14 @@ mod test {
             rewrite(u64_field() / i64_lit()),
             @r"
             field: ok: CASE WHEN nvl(TRY_CAST(Int64(1) AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- Int64(1)) AS UInt64)) = UInt64(0) AND unsigned_field IS NOT NULL THEN UInt64(0) ELSE unsigned_field / nvl(TRY_CAST(Int64(1) AS UInt64), UInt64(18446744073709551615) - TRY_CAST((- Int64(1)) AS UInt64)) END
-        condition: ok: CASE WHEN Boolean(false) THEN UInt64(0) ELSE unsigned_field END
+        condition: ok: unsigned_field
         ",
         );
         assert_snapshot!(
             rewrite(u64_field() / u64_lit()),
             @r"
             field: ok: CASE WHEN UInt64(1) = UInt64(0) AND unsigned_field IS NOT NULL THEN UInt64(0) ELSE unsigned_field / UInt64(1) END
-        condition: ok: CASE WHEN Boolean(false) THEN UInt64(0) ELSE unsigned_field END
+        condition: ok: unsigned_field
         ",
         );
         assert_snapshot!(

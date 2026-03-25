@@ -1,6 +1,3 @@
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 #[cfg(test)]
 use criterion as _;
 

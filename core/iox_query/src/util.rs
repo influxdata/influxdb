@@ -200,7 +200,7 @@ pub fn union_multiple_children(
     if children.len() == 1 {
         return Ok(children.pop().expect("unreachable"));
     }
-    Ok(Arc::new(UnionExec::new(children)))
+    UnionExec::try_new(children)
 }
 
 #[cfg(test)]
@@ -311,6 +311,28 @@ mod tests {
             calculate_field_interval(&session_state, Arc::clone(&schema), expr.clone(), "b")
                 .unwrap_err()
                 .to_string(),
+        );
+    }
+
+    #[test]
+    fn test_union_multiple_children_single_input() {
+        use arrow::datatypes::{DataType, Field, Schema};
+        use datafusion::physical_plan::{empty::EmptyExec, union::UnionExec};
+
+        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
+        let input: Arc<dyn ExecutionPlan> = Arc::new(EmptyExec::new(schema));
+        let result = union_multiple_children(vec![Arc::clone(&input)]).unwrap();
+
+        // Should NOT be wrapped in a UnionExec
+        assert!(
+            result.as_any().downcast_ref::<UnionExec>().is_none(),
+            "single input should not be wrapped in UnionExec"
+        );
+
+        // Should be the original EmptyExec
+        assert!(
+            result.as_any().downcast_ref::<EmptyExec>().is_some(),
+            "single input should return the input"
         );
     }
 }

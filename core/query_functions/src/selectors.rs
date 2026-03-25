@@ -97,10 +97,11 @@
 //! [selector functions]: https://docs.influxdata.com/influxdb/v1.8/query_language/functions/#selectors
 use std::any::Any;
 use std::fmt::Debug;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::logical_expr::AggregateUDFImpl;
+use datafusion::logical_expr::{Documentation, aggregate_doc_sections::DOC_SECTION_GENERAL};
 use datafusion::{
     error::Result as DataFusionResult,
     logical_expr::{
@@ -229,6 +230,122 @@ enum SelectorType {
     Max,
 }
 
+static SELECTOR_FIRST_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_GENERAL,
+        "Returns the value with the earliest timestamp.",
+        "selector_first(expression, timestamp)",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  selector_first(temp, time)['time'] AS time,
+  selector_first(temp, time)['value'] AS first_temp
+FROM weather
+GROUP BY location
+```"#,
+    )
+    .with_argument(
+        "expression",
+        "Expression to return the value of. Can be a constant, column, or function.",
+    )
+    .with_argument(
+        "timestamp",
+        "Timestamp expression. Must be a `TIMESTAMP` type.",
+    )
+    .with_related_udf("selector_last")
+    .with_related_udf("selector_min")
+    .with_related_udf("selector_max")
+    .build()
+});
+
+static SELECTOR_LAST_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_GENERAL,
+        "Returns the value with the latest timestamp.",
+        "selector_last(expression, timestamp)",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  selector_last(temp, time)['time'] AS time,
+  selector_last(temp, time)['value'] AS last_temp
+FROM weather
+GROUP BY location
+```"#,
+    )
+    .with_argument(
+        "expression",
+        "Expression to return the value of. Can be a constant, column, or function.",
+    )
+    .with_argument(
+        "timestamp",
+        "Timestamp expression. Must be a `TIMESTAMP` type.",
+    )
+    .with_related_udf("selector_first")
+    .with_related_udf("selector_min")
+    .with_related_udf("selector_max")
+    .build()
+});
+
+static SELECTOR_MIN_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_GENERAL,
+        "Returns the smallest value and its corresponding timestamp.",
+        "selector_min(expression, timestamp)",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  selector_min(temp_min, time)['time'] AS time,
+  selector_min(temp_min, time)['value'] AS min_temp
+FROM weather
+GROUP BY location
+```"#,
+    )
+    .with_argument(
+        "expression",
+        "Expression to return the minimum value of. Can be a constant, column, or function.",
+    )
+    .with_argument(
+        "timestamp",
+        "Timestamp expression. Must be a `TIMESTAMP` type.",
+    )
+    .with_related_udf("selector_max")
+    .with_related_udf("selector_first")
+    .with_related_udf("selector_last")
+    .build()
+});
+
+static SELECTOR_MAX_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_GENERAL,
+        "Returns the largest value and its corresponding timestamp.",
+        "selector_max(expression, timestamp)",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  selector_max(temp_max, time)['time'] AS time,
+  selector_max(temp_max, time)['value'] AS max_temp
+FROM weather
+GROUP BY location
+```"#,
+    )
+    .with_argument(
+        "expression",
+        "Expression to return the maximum value of. Can be a constant, column, or function.",
+    )
+    .with_argument(
+        "timestamp",
+        "Timestamp expression. Must be a `TIMESTAMP` type.",
+    )
+    .with_related_udf("selector_min")
+    .with_related_udf("selector_first")
+    .with_related_udf("selector_last")
+    .build()
+});
+
 /// DataFusion user defined Aggregate Function (UDAF) for Selector functions
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct SelectorUDAFImpl {
@@ -321,6 +438,15 @@ impl AggregateUDFImpl for SelectorUDAFImpl {
             .collect::<Vec<_>>();
 
         Ok(fields)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        Some(match self.selector_type {
+            SelectorType::First => &SELECTOR_FIRST_DOCUMENTATION,
+            SelectorType::Last => &SELECTOR_LAST_DOCUMENTATION,
+            SelectorType::Min => &SELECTOR_MIN_DOCUMENTATION,
+            SelectorType::Max => &SELECTOR_MAX_DOCUMENTATION,
+        })
     }
 }
 

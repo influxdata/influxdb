@@ -18,19 +18,20 @@ hyper-util = { workspace = true, features = ["client-legacy", "server-graceful"]
 iox_http_util = { path = "../iox_http_util" }
 tracing = { workspace = true }
 reqwest = { workspace = true }
-snafu = "0.8"
-tokio = { version = "1.49", default-features = false, features = [
+snafu = "0.9"
+tokio = { version = "1.50", default-features = false, features = [
     "macros",
     "rt",
 ] }
 tokio-util = "0.7"
 url = "2.5"
-workspace-hack = { path = "../workspace-hack" }
+
 metric = { path = "../metric" }
 
 [dev-dependencies]
-criterion = "0.8.1"
+criterion = "0.8.2"
 data_types = { path = "../data_types" }
+test_helpers = { path = "../test_helpers" }
 
 [[bench]]
 name = "list_encode"

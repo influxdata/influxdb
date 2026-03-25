@@ -19,7 +19,7 @@ thiserror = "2.0"
 authz = { path = "../authz", features = ["http"] }
 data_types = { path = "../data_types" }
 iox_http_util = { path = "../iox_http_util" }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 # crates.io dependencies in alphabetical order

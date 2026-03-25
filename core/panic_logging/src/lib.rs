@@ -1,9 +1,6 @@
 //! Custom panic hook that sends the panic information to a tracing
 //! span
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use std::{
     collections::HashMap,
     fmt,

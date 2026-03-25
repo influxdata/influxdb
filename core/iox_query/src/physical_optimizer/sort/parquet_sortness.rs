@@ -605,7 +605,7 @@ mod tests {
         let plan_parquet = DataSourceExec::from_data_source(file_scan_config);
         let plan_batches = Arc::new(RecordBatchesExec::new(vec![], Arc::clone(&schema), None));
 
-        let plan = Arc::new(UnionExec::new(vec![plan_batches, plan_parquet]));
+        let plan = UnionExec::try_new(vec![plan_batches, plan_parquet]).unwrap();
         let plan = Arc::new(DeduplicateExec::new(
             plan,
             ordering(["col2", "col1"], &schema),

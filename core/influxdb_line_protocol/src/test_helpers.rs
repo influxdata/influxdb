@@ -167,54 +167,65 @@ pub fn arbitrary_nonempty_range_within(high_bound: usize) -> impl Strategy<Value
     })
 }
 
-pub fn arbitrary_friendly_string() -> impl Strategy<Value = String> {
-    prop_oneof![
-        "attribute",
-        "value",
-        "quality",
-        "price",
-        "rating",
-        "range",
-        "size",
-        "length",
-        "width",
-        "speed",
-        "GHz",
-        "temperature",
-        "duration",
-        "longitude",
-        "latitude",
-        "sturdiness",
-        "weakness",
-        "element",
-        "variant",
-        "brightness",
-        "lifetime",
-        "battery",
-        "round",
-        "big",
-        "scary",
-        "tiny",
-        "foolish",
-        "spicy",
-        "adjective",
-        "exuberant",
-        "happy",
-        "tired",
-        "lazy",
-        "whatever",
-        "morose",
-        "evil",
-        "scheming",
-        "delicious",
-        "bad",
-        "meh",
-        "mid"
-    ]
+pub fn arbitrary_friendly_string(include_time: bool) -> impl Strategy<Value = String> {
+    macro_rules! gen_strings {
+        ($extra_field:expr) => {
+            prop_oneof![
+                "attribute",
+                "value",
+                "quality",
+                "price",
+                "rating",
+                "range",
+                "size",
+                "length",
+                "width",
+                "speed",
+                "GHz",
+                "temperature",
+                "duration",
+                "longitude",
+                "latitude",
+                "sturdiness",
+                "weakness",
+                "element",
+                "variant",
+                "brightness",
+                "lifetime",
+                "battery",
+                "round",
+                "big",
+                "scary",
+                "tiny",
+                "foolish",
+                "spicy",
+                "adjective",
+                "exuberant",
+                "happy",
+                "tired",
+                "lazy",
+                "whatever",
+                "morose",
+                "evil",
+                "scheming",
+                "delicious",
+                "bad",
+                "meh",
+                "mid",
+                $extra_field
+            ]
+        };
+    }
+
+    if include_time {
+        gen_strings!("time")
+    } else {
+        gen_strings!("whatever")
+    }
 }
 
-fn arbitrary_escaped_str() -> impl Strategy<Value = EscapedStr<'static>> {
-    arbitrary_friendly_string().prop_map(EscapedStr::CopiedValue)
+fn arbitrary_escaped_str(include_time: bool) -> impl Strategy<Value = EscapedStr<'static>> {
+    arbitrary_friendly_string(include_time).prop_map(EscapedStr::CopiedValue)
 }
 
 /// Create a strategy for parsed lines, using the given input parameters. Used from inside
@@ -229,6 +240,9 @@ fn parsed_lines_with_input(
     tag_count: usize,
     // The types of the fields. The length of this vec should be `col_names.len() - tag_count`
     field_types: Vec<InfluxFieldType>,
+    // Add 'time' to the set of field and tag names that this may generate. These lines will cause
+    // errors or warnings of sorts, so only enables this option if you do want it.
+    include_time_field: bool,
 ) -> impl Strategy<Value = Vec<ParsedLine<'static>>> {
     let mut strats = Vec::with_capacity(guaranteed_valid_field_idxs.len());
     for guaranteed_field in guaranteed_valid_field_idxs {
@@ -237,7 +251,11 @@ fn parsed_lines_with_input(
         let tags = column_names
             .by_ref()
             .take(tag_count)
-            .map(|name| option::of(arbitrary_escaped_str().prop_map(move |v| (name.clone(), v))))
+            .map(|name| {
+                option::of(
+                    arbitrary_escaped_str(include_time_field).prop_map(move |v| (name.clone(), v)),
+                )
+            })
             .collect::<Vec<_>>();
 
         let fields = column_names
@@ -257,7 +275,7 @@ fn parsed_lines_with_input(
                     InfluxFieldType::Boolean => any::<bool>()
                         .prop_map(move |b| (name.clone(), FieldValue::Boolean(b)))
                         .boxed(),
-                    InfluxFieldType::String => arbitrary_escaped_str()
+                    InfluxFieldType::String => arbitrary_escaped_str(include_time_field)
                         .prop_map(move |s| (name.clone(), FieldValue::String(s)))
                         .boxed(),
                 };
@@ -296,7 +314,9 @@ fn parsed_lines_with_input(
 /// Generate parsed lines that all belong to the same table/measurement and follow the general
 /// rules of types and 'no duplicated fields of different types' and 'each line must have at
 /// least one value' and such
-pub fn arbitrary_parsed_lines_same_table() -> impl Strategy<Value = Vec<ParsedLine<'static>>> {
+pub fn arbitrary_parsed_lines_same_table(
+    include_time: bool,
+) -> impl Strategy<Value = Vec<ParsedLine<'static>>> {
     (
         // Need to do at least 24 for the top bound so that we have a chance to get the full 3
         // bytes of the null mask
@@ -304,9 +324,12 @@ pub fn arbitrary_parsed_lines_same_table() -> impl Strategy<Value = Vec<ParsedLi
         0usize..3,
         1usize..8,
     )
-        .prop_flat_map(|(row_count, tag_count, field_count)| {
+        .prop_flat_map(move |(row_count, tag_count, field_count)| {
             (
-                proptest::collection::hash_set(arbitrary_escaped_str(), tag_count + field_count),
+                proptest::collection::hash_set(
+                    arbitrary_escaped_str(include_time),
+                    tag_count + field_count,
+                ),
                 proptest::collection::vec(arbitrary_field_type(), field_count),
                 proptest::collection::vec(0..field_count, row_count),
             )
@@ -317,6 +340,7 @@ pub fn arbitrary_parsed_lines_same_table() -> impl Strategy<Value = Vec<ParsedLi
                             col_names,
                             tag_count,
                             field_types,
+                            include_time,
                         )
                     },
                 )

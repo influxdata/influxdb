@@ -8,7 +8,8 @@ use std::{
 use arrow::{datatypes::Schema, error::ArrowError};
 use arrow_array::RecordBatch;
 use dashmap::DashMap;
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
+use observability_deps::tracing::trace;
 
 const MAX_CAPACITY: usize = 10_000;
 
@@ -61,6 +62,7 @@ impl SysEventStore {
             time: self.time_provider.now().timestamp_nanos(),
             data: val,
         };
+        trace!(sys_event = ?wrapped, "sys event added to store");
         let mut buf = self
             .events
             .entry(TypeId::of::<RingBuffer<Event<E>>>())
@@ -167,6 +169,12 @@ pub struct Event<D> {
 impl<D> Event<D> {
     pub fn new(time: i64, data: D) -> Self {
         Self { time, data }
+    }
+
+    pub fn format_event_time(&self) -> String {
+        Time::from_timestamp_nanos(self.time)
+            .date_time()
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
     }
 }
 

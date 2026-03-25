@@ -2,10 +2,8 @@
 
 #![warn(missing_docs)]
 
-// Workaround for "unused crate" lint false positives.
 #[cfg(test)]
 use criterion as _;
-use workspace_hack as _;
 
 use hashbrown::{HashMap, HashSet, hash_map::Entry};
 use influxdb_line_protocol::{FieldValue, ParsedLine, parse_lines};

@@ -1295,6 +1295,11 @@ impl CacheStore {
             })
             .is_some()
     }
+
+    pub fn drop_all_trigger_caches_for_db(&mut self, database: &str) {
+        self.namespaces
+            .retain(|id, _| !matches!(id, CacheId::Trigger { database: db, .. } if db == database));
+    }
 }
 
 // Python class for Cache

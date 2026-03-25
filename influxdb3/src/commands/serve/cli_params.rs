@@ -47,6 +47,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "wal-max-write-buffer-size",
     "wal-replay-fail-on-error",
     "wal-replay-concurrency-limit",
+    "snapshot-concurrency-limit",
     "snapshotted-wal-files-to-keep",
     "checkpoint-interval",
     // Cache parameters

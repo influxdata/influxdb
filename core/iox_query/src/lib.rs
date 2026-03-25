@@ -28,9 +28,6 @@ use std::{
 use trace::{ctx::SpanContext, span::Span};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 pub mod analyzer;
 pub mod chunk_statistics;
 pub mod config;

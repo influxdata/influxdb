@@ -90,6 +90,9 @@ message LogEntry {
 
   // If the query was cancelled.
   bool cancelled = 17;
+
+  // Number of rows produced by the query.
+  uint64 num_rows = 26;
 }
 
 message IngesterMetrics {

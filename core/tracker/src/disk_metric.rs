@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use metric::{Attributes, U64Gauge};
+use metric::{Attributes, U64Counter, U64Gauge};
 use sysinfo::Disks;
 use tokio::sync::watch;
 
@@ -17,14 +17,23 @@ const UPDATE_INTERVAL: Duration = Duration::from_secs(13);
 pub struct DiskSpaceSnapshot {
     available_disk_space: u64,
     total_disk_space: u64,
+    read_bytes: u64,
+    written_bytes: u64,
 }
 
 impl DiskSpaceSnapshot {
     /// Create a new disk space snapshot.
-    pub fn new(available_disk_space: u64, total_disk_space: u64) -> Self {
+    pub fn new(
+        available_disk_space: u64,
+        total_disk_space: u64,
+        read_bytes: u64,
+        written_bytes: u64,
+    ) -> Self {
         Self {
             available_disk_space,
             total_disk_space,
+            read_bytes,
+            written_bytes,
         }
     }
 
@@ -43,6 +52,16 @@ impl DiskSpaceSnapshot {
     pub fn disk_usage_ratio(&self) -> f64 {
         debug_assert!(self.available_disk_space <= self.total_disk_space);
         1.0 - (self.available_disk_space as f64 / self.total_disk_space as f64)
+    }
+
+    /// Number of read bytes since last snapshot.
+    pub fn read_bytes(&self) -> u64 {
+        self.read_bytes
+    }
+
+    /// Number of written bytes since last snapshot.
+    pub fn written_bytes(&self) -> u64 {
+        self.written_bytes
     }
 }
 
@@ -98,9 +117,13 @@ impl DiskSpaceReader {
         // Refresh the stats for this disk only.
         disk.refresh();
 
+        let usage = disk.usage();
+
         DiskSpaceSnapshot {
             available_disk_space: disk.available_space(),
             total_disk_space: disk.total_space(),
+            read_bytes: usage.read_bytes,
+            written_bytes: usage.written_bytes,
         }
     }
 }
@@ -111,6 +134,8 @@ impl DiskSpaceReader {
 pub struct DiskSpaceMetrics {
     available_disk_space: U64Gauge,
     total_disk_space: U64Gauge,
+    disk_usage_read: U64Counter,
+    disk_usage_write: U64Counter,
 
     /// The disk space reader for getting current statistics.
     reader: DiskSpaceReader,
@@ -142,7 +167,18 @@ impl DiskSpaceMetrics {
                 "disk_capacity_total",
                 "The disk capacity at the labelled mount point.",
             )
-            .recorder(attributes);
+            .recorder(attributes.clone());
+
+        let disk_usage =
+            registry.register_metric::<U64Counter>("disk_usage", "Disk I/O counter, in bytes.");
+
+        let mut attributes_read = attributes.clone();
+        attributes_read.insert("direction", "read");
+        let disk_usage_read = disk_usage.recorder(attributes_read);
+
+        let mut attributes_write = attributes.clone();
+        attributes_write.insert("direction", "write");
+        let disk_usage_write = disk_usage.recorder(attributes_write);
 
         let mut reader = DiskSpaceReader::new(directory)?;
         let initial_snapshot = reader.read();
@@ -153,6 +189,8 @@ impl DiskSpaceMetrics {
             Self {
                 available_disk_space,
                 total_disk_space,
+                disk_usage_read,
+                disk_usage_write,
                 reader,
                 snapshot_tx,
             },
@@ -170,6 +208,8 @@ impl DiskSpaceMetrics {
 
             self.available_disk_space.set(snapshot.available_disk_space);
             self.total_disk_space.set(snapshot.total_disk_space);
+            self.disk_usage_read.inc(snapshot.read_bytes);
+            self.disk_usage_write.inc(snapshot.written_bytes);
 
             // Produce and send a [`DiskSpaceSnapshot`] for any listeners
             // that might exist.
@@ -255,6 +295,8 @@ mod tests {
         let snapshot = DiskSpaceSnapshot {
             available_disk_space: 2000,
             total_disk_space: 10000,
+            read_bytes: 0,
+            written_bytes: 0,
         };
         assert_eq!(snapshot.disk_usage_ratio(), 0.8);
 
@@ -262,6 +304,8 @@ mod tests {
         let snapshot = DiskSpaceSnapshot {
             available_disk_space: 2000,
             total_disk_space: 20000,
+            read_bytes: 0,
+            written_bytes: 0,
         };
         assert_eq!(snapshot.disk_usage_ratio(), 0.9);
 
@@ -269,6 +313,8 @@ mod tests {
         let snapshot = DiskSpaceSnapshot {
             available_disk_space: 42,
             total_disk_space: 42,
+            read_bytes: 0,
+            written_bytes: 0,
         };
         assert_eq!(snapshot.disk_usage_ratio(), 0.0);
     }

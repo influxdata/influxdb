@@ -6,7 +6,7 @@ use std::{
 };
 
 use arrow::record_batch::RecordBatch;
-use arrow_flight::{FlightClient, decode::FlightRecordBatchStream};
+use arrow_flight::decode::FlightRecordBatchStream;
 use futures::TryStreamExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use influxdb3_client::Precision;
@@ -651,19 +651,14 @@ impl TestServer {
         client
     }
 
-    /// Get a raw [`FlightClient`] for performing Flight actions directly
-    pub async fn flight_client(&self) -> FlightClient {
-        let cert = tonic::transport::Certificate::from_pem(
-            std::fs::read("../testing-certs/rootCA.pem").unwrap(),
-        );
-        let channel = tonic::transport::Channel::from_shared(self.client_addr())
-            .expect("create tonic channel")
-            .tls_config(ClientTlsConfig::new().ca_certificate(cert))
-            .unwrap()
-            .connect()
+    /// Get an [`influxdb_iox_client::flight::Client`] for InfluxQL queries
+    pub async fn flight_client(&self) -> influxdb_iox_client::flight::Client {
+        let connection = influxdb_iox_client::connection::Builder::new()
+            .ca_certificate_pem(std::fs::read("../testing-certs/rootCA.pem").unwrap())
+            .build(&self.client_addr())
             .await
-            .expect("connect to gRPC client");
-        FlightClient::new(channel)
+            .expect("connect to flight client");
+        influxdb_iox_client::flight::Client::new(connection)
     }
 
     pub fn http_client(&self) -> &reqwest::Client {

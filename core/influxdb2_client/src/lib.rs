@@ -54,7 +54,6 @@
 //! }
 //! ```
 
-// Workaround for "unused crate" lint false positives.
 #[cfg(test)]
 use parking_lot as _;
 use smallvec as _;

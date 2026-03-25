@@ -57,13 +57,6 @@ impl HasSize for str {
     }
 }
 
-impl HasSize for data_types::ObjectStoreId {
-    fn size(&self) -> usize {
-        // no dynamic allocation
-        0
-    }
-}
-
 impl HasSize for object_store::path::Path {
     fn size(&self) -> usize {
         self.as_ref().len()

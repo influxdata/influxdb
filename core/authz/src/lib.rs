@@ -5,9 +5,6 @@
 
 #![warn(missing_docs)]
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use base64::{Engine, prelude::BASE64_STANDARD};
 use generated_types::influxdata::iox::authz::v1::{self as proto};
 

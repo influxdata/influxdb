@@ -99,15 +99,13 @@ use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
         metadata::{
-            FileMetaData as ParquetFileMetaData, KeyValue, ParquetMetaData,
-            RowGroupMetaData as ParquetRowGroupMetaData,
+            FileMetaData as ParquetFileMetaData, KeyValue, ParquetMetaData, ParquetMetaDataReader,
+            ParquetMetaDataWriter, RowGroupMetaData as ParquetRowGroupMetaData,
         },
         reader::FileReader,
         serialized_reader::SerializedFileReader,
         statistics::Statistics as ParquetStatistics,
     },
-    schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
-    thrift::TSerializable,
 };
 use prost::Message;
 use schema::{
@@ -117,7 +115,6 @@ use schema::{
 use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use std::{convert::TryInto, fmt::Debug, mem, sync::Arc};
 use thiserror::Error;
-use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 use tracing::{debug, trace};
 use uuid::Uuid;
 
@@ -137,27 +134,6 @@ pub const METADATA_KEY: &str = "IOX:metadata";
 pub enum Error {
     #[snafu(display("Cannot read parquet metadata from bytes: {}", source))]
     ParquetMetaDataRead {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Cannot read thrift message: {}", source))]
-    ThriftReadFailure { source: thrift::Error },
-
-    #[snafu(display("Cannot write thrift message: {}", source))]
-    ThriftWriteFailure { source: thrift::Error },
-
-    #[snafu(display("Cannot convert parquet schema to thrift: {}", source))]
-    ParquetSchemaToThrift {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Cannot convert thrift to parquet schema: {}", source))]
-    ParquetSchemaFromThrift {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Cannot convert thrift to parquet row group: {}", source))]
-    ParquetRowGroupFromThrift {
         source: parquet::errors::ParquetError,
     },
 
@@ -316,7 +292,7 @@ impl TryFrom<&IoxMetadata> for KeyValue {
     type Error = prost::EncodeError;
 
     fn try_from(iox_metadata: &IoxMetadata) -> Result<Self, Self::Error> {
-        Ok(KeyValue {
+        Ok(Self {
             key: METADATA_KEY.to_string(),
             value: (Some(iox_metadata.to_base64()?)),
         })
@@ -673,36 +649,36 @@ impl IoxParquetMetaData {
     /// [Apache Thrift]: https://thrift.apache.org/
     /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
     /// [Zstandard]: http://facebook.github.io/zstd/
+    ///
+    /// **Implementation Note**: Direct thrift APIs (`to_thrift`, `from_thrift`) were removed from the
+    /// public API in parquet 57.0.0. As a workaround we use `ParquetMetaDataWriter` to write the
+    /// full footer, then parse out just the thrift bytes.
     fn parquet_md_to_thrift(parquet_md: ParquetMetaData) -> Result<Vec<u8>> {
-        // step 1: assemble a thrift-compatible struct
-        use parquet::schema::types::to_thrift as schema_to_thrift;
+        // Footer format: [ColumnIndex thrift...][OffsetIndex thrift...][FileMetaData thrift][4-byte metadata length][4-byte "PAR1"]
+        let mut footer_bytes = Vec::new();
+        ParquetMetaDataWriter::new(&mut footer_bytes, &parquet_md)
+            .finish()
+            .context(ParquetMetaDataReadSnafu)?;
 
-        let file_metadata = parquet_md.file_metadata();
-        let thrift_schema =
-            schema_to_thrift(file_metadata.schema()).context(ParquetSchemaToThriftSnafu {})?;
-        let thrift_row_groups: Vec<_> = parquet_md
-            .row_groups()
-            .iter()
-            .map(|rg| rg.to_thrift())
-            .collect();
+        let footer_len = footer_bytes.len();
+        debug_assert!(footer_len >= 8);
 
-        let thrift_file_metadata = parquet::format::FileMetaData {
-            version: file_metadata.version(),
-            schema: thrift_schema,
+        let magic_bytes_index = footer_len - 4;
+        debug_assert_eq!(&footer_bytes[magic_bytes_index..], b"PAR1");
 
-            // TODO: column order thrift wrapper (https://github.com/influxdata/influxdb_iox/issues/1408)
-            // NOTE: currently the column order is `None` for all written files, see https://github.com/apache/arrow-rs/blob/4dfbca6e5791be400d2fd3ae863655445327650e/parquet/src/file/writer.rs#L193
-            column_orders: None,
-            num_rows: file_metadata.num_rows(),
-            row_groups: thrift_row_groups,
-            key_value_metadata: file_metadata.key_value_metadata().cloned(),
-            created_by: file_metadata.created_by().map(|s| s.to_string()),
-            encryption_algorithm: None,
-            footer_signing_key_metadata: None,
-        };
+        let metadata_len_index = footer_len - 8;
+        let metadata_len = u32::from_le_bytes(
+            footer_bytes[metadata_len_index..magic_bytes_index]
+                .try_into()
+                .unwrap(),
+        ) as usize;
 
-        // step 2: serialize the thrift struct into bytes
-        Self::try_from(thrift_file_metadata).map(|opt| opt.data)
+        debug_assert!(metadata_len <= metadata_len_index);
+        let metadata_index = metadata_len_index - metadata_len;
+        let metadata_bytes = &footer_bytes[metadata_index..metadata_len_index];
+
+        // Compress with zstd (level 0 is zstd default)
+        zstd::encode_all(metadata_bytes, 0).context(ZstdEncodeFailureSnafu)
     }
 
     /// Decode [Apache Parquet] metadata from [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
@@ -714,38 +690,9 @@ impl IoxParquetMetaData {
         // step 1: decompress
         let data = zstd::decode_all(&self.data[..]).context(ZstdDecodeFailureSnafu)?;
 
-        // step 2: load thrift data from byte stream
-        let thrift_file_metadata = {
-            let mut protocol = TCompactInputProtocol::new(&data[..]);
-            parquet::format::FileMetaData::read_from_in_protocol(&mut protocol)
-                .context(ThriftReadFailureSnafu {})?
-        };
+        // step 2: decode using the native parquet API
+        let md = ParquetMetaDataReader::decode_metadata(&data).context(ParquetMetaDataReadSnafu)?;
 
-        // step 3: convert thrift to in-mem structs
-        use parquet::schema::types::from_thrift as schema_from_thrift;
-
-        let schema = schema_from_thrift(&thrift_file_metadata.schema)
-            .context(ParquetSchemaFromThriftSnafu {})?;
-        let schema_descr = Arc::new(ParquetSchemaDescriptor::new(schema));
-        let mut row_groups = Vec::with_capacity(thrift_file_metadata.row_groups.len());
-        for rg in thrift_file_metadata.row_groups {
-            row_groups.push(
-                ParquetRowGroupMetaData::from_thrift(Arc::clone(&schema_descr), rg)
-                    .context(ParquetRowGroupFromThriftSnafu {})?,
-            );
-        }
-        // TODO: parse column order, or ignore it: https://github.com/influxdata/influxdb_iox/issues/1408
-        let column_orders = None;
-
-        let file_metadata = ParquetFileMetaData::new(
-            thrift_file_metadata.version,
-            thrift_file_metadata.num_rows,
-            thrift_file_metadata.created_by,
-            thrift_file_metadata.key_value_metadata,
-            schema_descr,
-            column_orders,
-        );
-        let md = ParquetMetaData::new(file_metadata, row_groups);
         Ok(DecodedIoxParquetMetaData { md })
     }
 
@@ -756,23 +703,12 @@ impl IoxParquetMetaData {
     }
 }
 
-impl TryFrom<parquet::format::FileMetaData> for IoxParquetMetaData {
+impl TryFrom<ParquetMetaData> for IoxParquetMetaData {
     type Error = Error;
 
-    fn try_from(v: parquet::format::FileMetaData) -> Result<Self, Self::Error> {
-        let mut buffer = Vec::new();
-        {
-            let mut protocol = TCompactOutputProtocol::new(&mut buffer);
-            v.write_to_out_protocol(&mut protocol)
-                .context(ThriftWriteFailureSnafu {})?;
-            protocol.flush().context(ThriftWriteFailureSnafu {})?;
-        }
-
-        // step 3: compress data
-        // Note: level 0 is the zstd-provided default
-        let buffer = zstd::encode_all(&buffer[..], 0).context(ZstdEncodeFailureSnafu)?;
-
-        Ok(Self::from_thrift_bytes(buffer))
+    fn try_from(parquet_md: ParquetMetaData) -> Result<Self, Self::Error> {
+        let data = Self::parquet_md_to_thrift(parquet_md)?;
+        Ok(Self::from_thrift_bytes(data))
     }
 }
 
@@ -1192,7 +1128,7 @@ mod tests {
                 .expect("should serialize");
 
         // Verify if the parquet file meta data has values
-        assert!(!file_meta.row_groups.is_empty());
+        assert!(!file_meta.row_groups().is_empty());
 
         // Read the metadata from the file bytes.
         //

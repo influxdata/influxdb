@@ -11,11 +11,11 @@ workspace = true
 [dependencies]
 datafusion-udf-wasm-host = { workspace = true }
 datafusion-udf-wasm-query = { workspace = true }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [build-dependencies]
 sha2 = "0.10.8"
-ureq = "3.1.4"
+ureq = "3.2.0"
 
 [dev-dependencies]
-tokio = { version = "1.49", features = ["macros"] }
+tokio = { version = "1.50", features = ["macros"] }

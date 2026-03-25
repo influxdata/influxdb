@@ -17,6 +17,11 @@ pub fn is_scalar_math_function(name: &str) -> bool {
     FUNCTIONS.contains(name)
 }
 
+/// Returns true if this is the date_part function.
+pub fn is_date_part_function(name: &str) -> bool {
+    name == "date_part"
+}
+
 /// Returns `true` if `name` is an aggregate or aggregate function
 /// supported by InfluxQL.
 pub fn is_aggregate_function(name: &str) -> bool {

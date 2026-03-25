@@ -10,6 +10,6 @@ workspace = true
 
 [dependencies] # In alphabetical order
 parking_lot = "0.12"
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies] # In alphabetical order

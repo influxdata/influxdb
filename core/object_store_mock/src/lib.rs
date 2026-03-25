@@ -18,9 +18,6 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 pub mod interceptor;
 
 /// [`GetOptions`] doesn't impl PartialEq or Clone.

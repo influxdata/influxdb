@@ -15,13 +15,14 @@ prost = { workspace = true }
 prost-types = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 tonic = { workspace = true, features = ["gzip", "tls-ring", "tls-native-roots", "zstd"] }
+tonic-prost = { workspace = true }
 tracing = { workspace = true }
 uuid = { version = "1" }
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies]
 bytes = "1.11"
 
 [build-dependencies] # In alphabetical order
-tonic-build = { workspace = true }
 pbjson-build = { workspace = true }
+tonic-prost-build = { workspace = true }

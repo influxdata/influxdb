@@ -17,6 +17,10 @@ ignore = [
     # there are multiple replacements at this time but there isn't
     # yet a clear choice
     "RUSTSEC-2025-0141",
+    # rustls-webpki 0.102.8 CRL distribution point matching bug; low impact
+    # (requires CA compromise). Stuck on 0.102.x via wasmtime's rustls 0.22.x
+    # dep in datafusion-udf-wasm. Upstream also ignores this advisory.
+    "RUSTSEC-2026-0049",
 ]
 git-fetch-with-cli = true
 

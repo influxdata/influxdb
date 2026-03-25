@@ -13,8 +13,6 @@ use datafusion::execution::memory_pool::{MemoryPool, UnboundedMemoryPool};
 use datafusion::logical_expr::{Distinct, Extension, LogicalPlan, UserDefinedLogicalNode};
 use std::cmp::Ordering;
 use std::collections::HashSet;
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
 
 pub mod config;
 pub mod sender;

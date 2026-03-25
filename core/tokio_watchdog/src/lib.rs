@@ -4,9 +4,6 @@
 
 use tracing::{debug, warn};
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use std::{
     borrow::Cow,
     time::{Duration, Instant},

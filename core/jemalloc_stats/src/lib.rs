@@ -5,8 +5,6 @@ use std::{sync::OnceLock, time::Duration};
 use tikv_jemalloc_ctl::{epoch as epoch_ctl, stats};
 use tokio::{sync::watch, task::JoinHandle};
 
-use workspace_hack as _;
-
 mod monitor;
 
 pub use monitor::{AllocationMonitor, AllocationMonitorError};

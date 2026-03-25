@@ -1,7 +1,6 @@
 #![no_main]
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
+
 
 use hashbrown::HashMap;
 use libfuzzer_sys::fuzz_target;
@@ -33,7 +32,7 @@ fuzz_target!(|data: &[u8]| {
 
                 let data = mutable_batch.column("time").unwrap().data();
                 assert!(
-                    matches!(data, ColumnData::I64(_, _)),
+                    matches!(data, ColumnData::I64(_)),
                     "expected the time column to be I64, instead got `{data:?}`.\ninput: `{body}`"
                 );
 

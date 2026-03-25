@@ -2,9 +2,6 @@
 
 #![warn(missing_docs)]
 
-// Workaround for "unused crate" lint false positives.
-use workspace_hack as _;
-
 use rand::prelude::*;
 use rand::rng;
 use snafu::Snafu;

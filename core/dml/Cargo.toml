@@ -1,0 +1,19 @@
+[package]
+name = "dml"
+description = "DML types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arrow_util = { path = "../arrow_util" }
+data_types = { path = "../data_types" }
+hashbrown = { workspace = true }
+mutable_batch = { path = "../mutable_batch" }
+schema = { path = "../schema" }
+trace = { path = "../trace" }
+

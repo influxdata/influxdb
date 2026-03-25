@@ -22,7 +22,7 @@ bytes = "1.11"
 log = "0.4.29"
 nom = { version = "8", default-features = false, features = ["std"] }
 smallvec = { workspace = true }
-snafu = "0.8"
+snafu = "0.9"
 proptest = { version = "1", optional = true }
 schema = { path = "../schema", optional = true }
 

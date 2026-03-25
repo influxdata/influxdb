@@ -1,4 +1,3 @@
-use crate::NUMERICS;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{Field, FieldRef};
 use datafusion::common::{Result, ScalarValue};
@@ -6,6 +5,7 @@ use datafusion::logical_expr::function::{PartitionEvaluatorArgs, WindowUDFFieldA
 use datafusion::logical_expr::{
     PartitionEvaluator, Signature, TypeSignature, Volatility, WindowUDFImpl,
 };
+use query_functions::NUMERICS;
 use std::any::Any;
 use std::sync::Arc;
 

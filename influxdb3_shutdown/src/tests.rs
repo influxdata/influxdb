@@ -147,3 +147,58 @@ async fn test_abortable_background_task_runner_runs_forever_should_abort() {
     assert_ne!(current_2, 1_000_000_000);
     assert_eq!(current_1, current_2);
 }
+
+#[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 4))]
+async fn test_abortable_background_task_runner_with_waits_in_loop() {
+    let timer = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let worker_timer = Arc::clone(&timer);
+    let control_timer = Arc::clone(&timer);
+    let cancel_timer = Arc::clone(&timer);
+    let atomic_counter = Arc::new(AtomicU64::new(0));
+    let cloned = Arc::clone(&atomic_counter);
+
+    let token = CancellationToken::new();
+    let token_clone = token.clone();
+
+    tokio::spawn(async move {
+        // wait for a millisecond and cancel
+        info!("sleeping inside cancel loop");
+        cancel_timer.sleep(Duration::from_millis(1)).await;
+        info!("sending cancel signal");
+        token_clone.cancel();
+    });
+
+    tokio::spawn(async move {
+        loop {
+            info!("incrementing time");
+            control_timer.inc(Duration::from_millis(10));
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    });
+
+    let fut = async move {
+        loop {
+            worker_timer.sleep(Duration::from_millis(50)).await;
+            let current = atomic_counter.fetch_add(1, Ordering::SeqCst);
+            if current > 1_000_000_000 {
+                break;
+            }
+        }
+    };
+
+    let runner = AbortableTaskRunner::new(
+        fut,
+        Arc::clone(&timer) as _,
+        Duration::from_millis(1),
+        token,
+    );
+
+    info!("running worker loop");
+    let res = runner.run().await.unwrap_err();
+    error!(?res, "error after abort");
+    assert!(matches!(res, AbortableTaskRunnerError::Aborted));
+    let current_count = cloned.load(Ordering::SeqCst);
+    // because we slept for 50ms task will be aborted before incrementing the counter so
+    // this should always be 0
+    assert_eq!(current_count, 0);
+}

@@ -301,7 +301,7 @@ impl ParquetStorage {
         // currently smallish on average.
         let (data, parquet_file_meta) =
             serialize::to_parquet_bytes(batches, meta, Arc::clone(&runtime.memory_pool)).await?;
-        let num_rows = parquet_file_meta.num_rows;
+        let num_rows = parquet_file_meta.file_metadata().num_rows();
 
         // Read the IOx-specific parquet metadata from the file metadata
         let parquet_meta =
@@ -389,7 +389,7 @@ impl ParquetStorage {
             warn!(error=%e, ?meta, "failed to parallel-upload parquet file to object storage");
             e
         })?;
-        let num_rows = parquet_file_meta.num_rows;
+        let num_rows = parquet_file_meta.file_metadata().num_rows();
 
         // Read the IOx-specific parquet metadata from the file metadata
         let parquet_meta =

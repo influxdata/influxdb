@@ -27,7 +27,10 @@ use parquet::{
     arrow::ARROW_SCHEMA_META_KEY,
     basic::Compression,
     errors::ParquetError,
-    file::{metadata::KeyValue, properties::WriterProperties},
+    file::{
+        metadata::{KeyValue, ParquetMetaData},
+        properties::WriterProperties,
+    },
 };
 use thiserror::Error;
 use tracing::{debug, trace, warn};
@@ -122,7 +125,7 @@ impl From<DataFusionError> for CodecError {
 /// [`METADATA_KEY`], with a base64-wrapped, protobuf serialized
 /// [`proto::IoxMetadata`] structure.
 ///
-/// Returns the serialized [`FileMetaData`] for the encoded parquet file, from
+/// Returns the serialized [`ParquetMetaData`] for the encoded parquet file, from
 /// which an [`IoxParquetMetaData`] can be derived.
 ///
 /// # Errors
@@ -136,7 +139,6 @@ impl From<DataFusionError> for CodecError {
 ///
 /// [`proto::IoxMetadata`]: generated_types::influxdata::iox::ingester::v1
 /// [`METADATA_KEY`]: crate::metadata::METADATA_KEY
-/// [`FileMetaData`]: parquet::format::FileMetaData
 /// [`IoxParquetMetaData`]: crate::metadata::IoxParquetMetaData
 /// [`RecordBatch`]: arrow::record_batch::RecordBatch
 pub async fn to_parquet<W>(
@@ -144,7 +146,7 @@ pub async fn to_parquet<W>(
     meta: Vec<KeyValue>,
     pool: Arc<dyn MemoryPool>,
     sink: W,
-) -> Result<parquet::format::FileMetaData, CodecError>
+) -> Result<ParquetMetaData, CodecError>
 where
     W: Write + Send,
 {
@@ -171,7 +173,8 @@ where
     }
 
     let writer_meta = writer.close()?;
-    if writer_meta.num_rows == 0 {
+    let num_rows = writer_meta.file_metadata().num_rows();
+    if num_rows == 0 {
         // throw warning if all input batches are empty
         warn!("parquet serialization encoded 0 rows");
         return Err(CodecError::NoRows);
@@ -179,10 +182,7 @@ where
 
     debug!(
         num_batches,
-        num_rows = writer_meta.num_rows,
-        write_batch_size,
-        max_row_group_size,
-        "Created parquet file"
+        num_rows, write_batch_size, max_row_group_size, "Created parquet file"
     );
 
     Ok(writer_meta)
@@ -194,7 +194,7 @@ pub async fn to_parquet_bytes(
     batches: SendableRecordBatchStream,
     meta: &IoxMetadata,
     pool: Arc<dyn MemoryPool>,
-) -> Result<(Vec<u8>, parquet::format::FileMetaData), CodecError> {
+) -> Result<(Vec<u8>, ParquetMetaData), CodecError> {
     let mut bytes = vec![];
 
     debug!(
@@ -257,7 +257,7 @@ pub async fn to_parquet_upload(
     upload_input: ParquetUploadInput,
     runtime: Arc<RuntimeEnv>,
     parallel_writer_options: ParallelParquetWriterOptions,
-) -> Result<parquet::format::FileMetaData, CodecError> {
+) -> Result<ParquetMetaData, CodecError> {
     let table_path = ListingTableUrl::parse(format!("file:///{}", upload_input.path()))?;
     let object_store_url = upload_input.object_store_url();
 
@@ -490,12 +490,14 @@ mod tests {
             "should have same writer_version"
         );
         assert_eq!(
-            a.key_value_metadata()
-                .cloned()
-                .map(|mut kv_vec| kv_vec.sort()),
-            b.key_value_metadata()
-                .cloned()
-                .map(|mut kv_vec| kv_vec.sort()),
+            a.key_value_metadata().cloned().map(|mut kv_vec| {
+                kv_vec.sort_by(|a, b| a.key.cmp(&b.key));
+                kv_vec
+            }),
+            b.key_value_metadata().cloned().map(|mut kv_vec| {
+                kv_vec.sort_by(|a, b| a.key.cmp(&b.key));
+                kv_vec
+            }),
             "should have same key_value_metadata"
         );
         assert_eq!(

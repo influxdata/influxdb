@@ -93,8 +93,8 @@ fn optimize_plan(plan: Arc<dyn ExecutionPlan>) -> Result<Transformed<Arc<dyn Exe
                 Ok(Arc::new(exec) as _)
             })
             .collect::<Result<Vec<_>>>()?;
-        let new_union = UnionExec::new(new_inputs);
-        return Ok(Transformed::yes(Arc::new(new_union)));
+        let new_union = UnionExec::try_new(new_inputs)?;
+        return Ok(Transformed::yes(new_union));
     } else if let Some(child_parquet) = child_any.downcast_ref::<DataSourceExec>() {
         let Some(file_scan_config) = child_parquet
             .data_source()
@@ -103,7 +103,13 @@ fn optimize_plan(plan: Arc<dyn ExecutionPlan>) -> Result<Transformed<Arc<dyn Exe
         else {
             return Ok(Transformed::no(plan));
         };
-        let projection = match file_scan_config.projection.as_ref() {
+        // Get existing projection indices from the config
+        let existing_projection = file_scan_config
+            .projection_exprs
+            .as_ref()
+            .map(|p| p.ordered_column_indices());
+
+        let projection = match existing_projection.as_ref() {
             Some(projection) => column_indices
                 .into_iter()
                 .map(|idx| {
@@ -137,8 +143,8 @@ fn optimize_plan(plan: Arc<dyn ExecutionPlan>) -> Result<Transformed<Arc<dyn Exe
             },
         );
 
-        let mut file_scan_config_builder =
-            FileScanConfigBuilder::from(file_scan_config.clone()).with_projection(Some(projection));
+        let mut file_scan_config_builder = FileScanConfigBuilder::from(file_scan_config.clone())
+            .with_projection_indices(Some(projection));
         if let Some(output_ordering) = output_ordering {
             file_scan_config_builder =
                 file_scan_config_builder.with_output_ordering(output_ordering);
@@ -649,10 +655,11 @@ mod tests {
         let plan = Arc::new(
             ProjectionExec::try_new(
                 vec![(expr_col("tag1", &schema), String::from("tag1"))],
-                Arc::new(UnionExec::new(vec![
+                UnionExec::try_new(vec![
                     Arc::new(TestExec::new(Arc::clone(&schema))),
                     Arc::new(TestExec::new(schema)),
-                ])),
+                ])
+                .unwrap(),
             )
             .unwrap(),
         );
@@ -682,13 +689,15 @@ mod tests {
         let plan = Arc::new(
             ProjectionExec::try_new(
                 vec![(expr_col("tag1", &schema), String::from("tag1"))],
-                Arc::new(UnionExec::new(vec![
-                    Arc::new(UnionExec::new(vec![
+                UnionExec::try_new(vec![
+                    UnionExec::try_new(vec![
                         Arc::new(TestExec::new(Arc::clone(&schema))),
                         Arc::new(TestExec::new(Arc::clone(&schema))),
-                    ])),
+                    ])
+                    .unwrap(),
                     Arc::new(TestExec::new(schema)),
-                ])),
+                ])
+                .unwrap(),
             )
             .unwrap(),
         );
@@ -735,7 +744,7 @@ mod tests {
                     .with_predicate(expr_string_cmp("tag1", &schema)),
             ),
         )
-        .with_projection(Some(projection))
+        .with_projection_indices(Some(projection))
         .with_output_ordering(vec![
             LexOrdering::new(vec![
                 PhysicalSortExpr {

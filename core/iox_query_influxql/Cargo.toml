@@ -27,7 +27,7 @@ regex = "1"
 schema = { path = "../schema" }
 serde_json = "1.0.149"
 thiserror = "2.0"
-workspace-hack = { path = "../workspace-hack" }
+
 
 [dev-dependencies] # In alphabetical order
 chrono = { version = "0.4", default-features = false }

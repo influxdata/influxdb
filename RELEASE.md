@@ -80,7 +80,7 @@
   curl -LO https://dl.influxdata.com/influxdb/releases/influxdb3-core-3.5.0_linux_amd64.tar.gz
   ```
 
-- When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_VERSION`.
+- When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_OSS_VERSION`.
 
 - Once the above is complete, the official Docker image repository needs to be updated. See
   [Official Docker Image Repository](#official-docker-image-repository) for the steps required to

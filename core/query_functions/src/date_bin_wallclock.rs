@@ -10,8 +10,8 @@ use datafusion::common::{Result, exec_err, internal_err, not_impl_err};
 use datafusion::error::DataFusionError;
 use datafusion::functions::datetime::date_bin;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TIMEZONE_WILDCARD,
-    TypeSignature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature,
+    TIMEZONE_WILDCARD, TypeSignature, Volatility, scalar_doc_sections::DOC_SECTION_DATETIME,
 };
 use datafusion::scalar::ScalarValue;
 use std::str::FromStr;
@@ -27,6 +27,42 @@ pub(crate) static DATE_BIN_WALLCLOCK_UDF: LazyLock<Arc<ScalarUDF>> =
 pub fn date_bin_wallclock() -> Arc<ScalarUDF> {
     Arc::clone(&*DATE_BIN_WALLCLOCK_UDF)
 }
+
+static DATE_BIN_WALLCLOCK_DOCUMENTATION: LazyLock<Documentation> = LazyLock::new(|| {
+    Documentation::builder(
+        DOC_SECTION_DATETIME,
+        "Calculates time intervals using the timezone of a specified time value, \
+operating on wallclock time rather than UTC. Returns the start of the interval \
+nearest to the specified timestamp. For the UTC timezone this function behaves \
+identically to `date_bin`.",
+        "date_bin_wallclock(interval, expression[, origin_timestamp])",
+    )
+    .with_sql_example(
+        r#"```sql
+SELECT
+  date_bin_wallclock(INTERVAL '12 hours', tz(time, 'America/Los_Angeles')) AS time,
+  room,
+  avg(temp) AS avg_temp
+FROM home
+WHERE time >= '2022-01-01T08:00:00Z' AND time < '2022-01-01T20:00:00Z'
+GROUP BY 1, room
+```"#,
+    )
+    .with_argument(
+        "interval",
+        "Bin interval. Supports nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, and weeks. Does not support months or years.",
+    )
+    .with_argument(
+        "expression",
+        "Time expression to bin. The timezone comes from the data type of this argument and is used for wallclock calculations.",
+    )
+    .with_argument(
+        "origin_timestamp",
+        "Optional. A wallclock timestamp without timezone to offset bin boundaries. Defaults to `1970-01-01T00:00:00`.",
+    )
+    .with_related_udf("date_bin_wallclock_gapfill")
+    .build()
+});
 
 /// Inplementation of the date_bin_wallclock scalar function.
 /// This function is similar to date_bin, but the bins are defined
@@ -147,12 +183,16 @@ impl ScalarUDFImpl for DateBinWallclockUDF {
         Ok(args[1].clone())
     }
 
+    fn documentation(&self) -> Option<&Documentation> {
+        Some(&DATE_BIN_WALLCLOCK_DOCUMENTATION)
+    }
+
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let ScalarFunctionArgs {
             args,
             arg_fields,
             number_rows,
-            return_field,
+            mut return_field,
             config_options,
         } = args;
 
@@ -289,6 +329,12 @@ impl ScalarUDFImpl for DateBinWallclockUDF {
             }
         };
         let wallclocks_field = Arc::new(Field::new("wallclocks", wallclocks.data_type(), false));
+
+        // date_bin expects a return_field that matches its output type. Since we're passing
+        // timezone-less timestamps, date_bin will return a timezone-less result. We add the
+        // timezone back before returning (see below).
+        Arc::make_mut(&mut return_field)
+            .set_data_type(DataType::Timestamp(TimeUnit::Nanosecond, None));
 
         let result = match origin {
             Some((origin, origin_field)) => self.date_bin.invoke_with_args(ScalarFunctionArgs {

@@ -10,9 +10,10 @@ use datafusion::logical_expr::{
     Signature, TIMEZONE_WILDCARD, TypeSignature, Volatility, WindowUDFImpl,
     function::WindowUDFFieldArgs,
 };
+use query_functions::NUMERICS;
 
 use crate::delta_time;
-use crate::{NUMERICS, error};
+use crate::error;
 
 /// Takes an error message string and a list of ScalarValue variables, and constructs a format! call
 /// that includes the data types of the variables at the end of the message.

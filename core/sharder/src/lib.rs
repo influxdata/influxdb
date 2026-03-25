@@ -4,12 +4,10 @@
 
 #![warn(missing_docs)]
 
-// Workaround for "unused crate" lint false positives.
 #[cfg(test)]
 use criterion as _;
 #[cfg(test)]
 use rand as _;
-use workspace_hack as _;
 
 mod r#trait;
 pub use r#trait::*;
