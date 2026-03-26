@@ -115,9 +115,7 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 
 		// gziphandler rejects gzip.NoCompression (0); handle it directly
 		// by wrapping the response in a gzip writer with no compression.
-		// We intentionally bypass Accept-Encoding negotiation here because
-		// the restore process expects a valid gzip stream regardless of the
-		// compression level chosen.
+		// We still write a gzip file here since restore expects that.
 		if level == gzip.NoCompression {
 			w.Header().Set("Content-Encoding", "gzip")
 			gz, err := gzip.NewWriterLevel(w, gzip.NoCompression)
