@@ -917,8 +917,8 @@ fn test_newest_wal_file_num() {
     );
 }
 
-#[test]
-fn test_new_without_replay_advances_past_disk_files() {
+#[tokio::test]
+async fn test_new_without_replay_advances_past_disk_files() {
     // When all_wal_file_paths contains files beyond last_wal_sequence_number,
     // the initial wal_file_sequence_number should be set past the newest file
     // on disk. This prevents AlreadyExists errors when corrupt files are
@@ -958,13 +958,12 @@ fn test_new_without_replay_advances_past_disk_files() {
 
     // The sequence number should be 1788 (past the newest file on disk),
     // not 1784 (last_wal_sequence_number + 1)
-    let seq = futures::executor::block_on(async {
-        wal.flush_buffer
-            .lock()
-            .await
-            .wal_buffer
-            .wal_file_sequence_number
-    });
+    let seq = wal
+        .flush_buffer
+        .lock()
+        .await
+        .wal_buffer
+        .wal_file_sequence_number;
     assert_eq!(seq, WalFileSequenceNumber::new(1788));
 }
 
