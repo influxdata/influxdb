@@ -149,18 +149,6 @@ type gzipResponseWriter struct {
 	http.ResponseWriter
 }
 
-func (w gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.gz.Write(b)
-}
-
-// Flush flushes the gzip writer's buffer and then the underlying ResponseWriter if it supports flushing.
-func (w gzipResponseWriter) Flush() {
-	_ = w.gz.Flush()
-	if f, ok := w.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
-}
-
 // requireOperPermissions returns an "unauthorized" response for requests that do not have OperPermissions.
 // This is needed for the handleBackupMetadata handler, which sets a header prior to
 // accessing any methods on the BackupService which would also return an "authorized" response.
