@@ -1,6 +1,7 @@
 package http
 
 import (
+	"compress/gzip"
 	"context"
 	"io"
 	"mime"
@@ -125,6 +126,109 @@ func TestRequireOperPermissions(t *testing.T) {
 
 			require.Equal(t, tt.wantStatus, rs.StatusCode)
 			require.Equal(t, tt.wantContentType, rs.Header.Get("Content-Type"))
+		})
+	}
+}
+
+func TestBackupMetaServiceCompressionLevel(t *testing.T) {
+	tests := []struct {
+		name       string
+		level      string
+		wantStatus int
+	}{
+		{
+			name:       "default compression when omitted",
+			level:      "",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "explicit default compression",
+			level:      "default",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "full compression",
+			level:      "full",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "speedy compression",
+			level:      "speedy",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "no compression",
+			level:      "none",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "invalid compression level",
+			level:      "bogus",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrlr := gomock.NewController(t)
+			backupSvc := mock.NewMockBackupService(ctrlr)
+			sqlBackupSvc := mock.NewMockSqlBackupRestoreService(ctrlr)
+			bucketManifestWriter := mock.NewMockBucketManifestWriter(ctrlr)
+
+			b := &BackupBackend{
+				Logger:                  zaptest.NewLogger(t),
+				HTTPErrorHandler:        kithttp.NewErrorHandler(zaptest.NewLogger(t)),
+				BackupService:           backupSvc,
+				SqlBackupRestoreService: sqlBackupSvc,
+				BucketManifestWriter:    bucketManifestWriter,
+			}
+			h := NewBackupHandler(b)
+
+			url := "/api/v2/backup/metadata"
+			if tt.level != "" {
+				url += "?gzip_compression_level=" + tt.level
+			}
+			r, err := http.NewRequest(http.MethodGet, url, nil)
+			require.NoError(t, err)
+			r.Header.Set("Accept-Encoding", "gzip")
+
+			ctx := influxdbcontext.SetAuthorizer(r.Context(), mock.NewMockAuthorizer(false, influxdb.OperPermissions()))
+			r = r.WithContext(ctx)
+
+			if tt.wantStatus == http.StatusOK {
+				backupSvc.EXPECT().RLockKVStore()
+				backupSvc.EXPECT().UnlockKVStore()
+				backupSvc.EXPECT().
+					BackupKVStore(gomock.Any(), gomock.Any()).
+					Return(nil)
+
+				sqlBackupSvc.EXPECT().RLockSqlStore()
+				sqlBackupSvc.EXPECT().RUnlockSqlStore()
+				sqlBackupSvc.EXPECT().
+					BackupSqlStore(gomock.Any(), gomock.Any()).
+					Return(nil)
+
+				bucketManifestWriter.EXPECT().
+					WriteManifest(gomock.Any(), gomock.Any()).
+					Return(nil)
+			}
+
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, r)
+			rs := rr.Result()
+
+			require.Equal(t, tt.wantStatus, rs.StatusCode)
+
+			// The "none" level bypasses gziphandler and sets Content-Encoding directly,
+			// so we can verify it produces valid gzip output even with small responses.
+			if tt.level == "none" {
+				require.Equal(t, "gzip", rs.Header.Get("Content-Encoding"))
+				gr, err := gzip.NewReader(rs.Body)
+				require.NoError(t, err)
+				defer gr.Close()
+				_, err = io.ReadAll(gr)
+				require.NoError(t, err)
+			}
 		})
 	}
 }
