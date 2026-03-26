@@ -2287,19 +2287,21 @@ func makePlannedCompactionGroup(groups []CompactionGroup, pointsPerBlock int) []
 	return planned
 }
 
-func (e *Engine) planCompactionsLevel(level int) []PlannedCompactionGroup {
-
-	groups, _ := e.CompactionPlan.PlanLevel(level)
+func (e *Engine) planCompactionsLevel(generations TsmGenerations, level int) []PlannedCompactionGroup {
+	groups, _ := e.CompactionPlan.PlanLevel(generations, level)
 	return makePlannedCompactionGroup(groups, tsdb.DefaultMaxPointsPerBlock)
 }
 
 func (e *Engine) planCompactionsInner() ([]PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup, []PlannedCompactionGroup) {
+	generations := e.CompactionPlan.FindGenerations()
+
 	// Find our compaction plans
-	level1Groups := e.planCompactionsLevel(1)
-	level2Groups := e.planCompactionsLevel(2)
-	level3Groups := e.planCompactionsLevel(3)
-	l4Groups, _ := e.CompactionPlan.Plan(e.LastModified())
-	l5Groups, _, l5GenCount := e.CompactionPlan.PlanOptimize(e.LastModified())
+	level1Groups := e.planCompactionsLevel(generations, 1)
+	level2Groups := e.planCompactionsLevel(generations, 2)
+	level3Groups := e.planCompactionsLevel(generations, 3)
+	lastModified := e.LastModified()
+	l4Groups, _ := e.CompactionPlan.Plan(generations, lastModified)
+	l5Groups, _, l5GenCount := e.CompactionPlan.PlanOptimize(generations, lastModified)
 
 	// Some groups in level 4 may contain already optimized files. In these cases, it is
 	// desireable to maintain optimization for the entire group to avoid "going backwards" on the
