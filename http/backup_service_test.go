@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"bytes"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -151,75 +152,105 @@ func TestBackupCompressionLevel(t *testing.T) {
 		{"invalid compression level", "bogus", http.StatusBadRequest},
 	}
 
+	// gziphandler.DefaultMinSize is 1400 bytes; responses smaller than that
+	// are not compressed regardless of level. Test both sides of that threshold
+	// to show that "none" is the only level that unconditionally skips gzip.
+	sizes := []struct {
+		name        string
+		payloadSize int
+	}{
+		{"small payload", 100},
+		{"large payload", 1500},
+	}
+
 	for _, route := range routes {
 		t.Run(route.name, func(t *testing.T) {
-			for _, tt := range levels {
-				t.Run(tt.name, func(t *testing.T) {
-					ctrlr := gomock.NewController(t)
-					backupSvc := mock.NewMockBackupService(ctrlr)
-					sqlBackupSvc := mock.NewMockSqlBackupRestoreService(ctrlr)
-					bucketManifestWriter := mock.NewMockBucketManifestWriter(ctrlr)
+			for _, sz := range sizes {
+				t.Run(sz.name, func(t *testing.T) {
+					payload := bytes.Repeat([]byte("x"), sz.payloadSize)
 
-					b := &BackupBackend{
-						Logger:                  zaptest.NewLogger(t),
-						HTTPErrorHandler:        kithttp.NewErrorHandler(zaptest.NewLogger(t)),
-						BackupService:           backupSvc,
-						SqlBackupRestoreService: sqlBackupSvc,
-						BucketManifestWriter:    bucketManifestWriter,
-					}
-					h := NewBackupHandler(b)
+					for _, tt := range levels {
+						t.Run(tt.name, func(t *testing.T) {
+							ctrlr := gomock.NewController(t)
+							backupSvc := mock.NewMockBackupService(ctrlr)
+							sqlBackupSvc := mock.NewMockSqlBackupRestoreService(ctrlr)
+							bucketManifestWriter := mock.NewMockBucketManifestWriter(ctrlr)
 
-					r, err := http.NewRequest(http.MethodGet, route.path, nil)
-					require.NoError(t, err)
-					r.Header.Set("Accept-Encoding", "gzip")
-					if tt.level != "" {
-						r.Header.Set("Gzip-Compression-Level", tt.level)
-					}
+							b := &BackupBackend{
+								Logger:                  zaptest.NewLogger(t),
+								HTTPErrorHandler:        kithttp.NewErrorHandler(zaptest.NewLogger(t)),
+								BackupService:           backupSvc,
+								SqlBackupRestoreService: sqlBackupSvc,
+								BucketManifestWriter:    bucketManifestWriter,
+							}
+							h := NewBackupHandler(b)
 
-					ctx := influxdbcontext.SetAuthorizer(r.Context(), mock.NewMockAuthorizer(false, influxdb.OperPermissions()))
-					r = r.WithContext(ctx)
+							r, err := http.NewRequest(http.MethodGet, route.path, nil)
+							require.NoError(t, err)
+							r.Header.Set("Accept-Encoding", "gzip")
+							if tt.level != "" {
+								r.Header.Set("Gzip-Compression-Level", tt.level)
+							}
 
-					if tt.wantStatus == http.StatusOK {
-						switch route.name {
-						case "metadata":
-							backupSvc.EXPECT().RLockKVStore()
-							backupSvc.EXPECT().UnlockKVStore()
-							backupSvc.EXPECT().
-								BackupKVStore(gomock.Any(), gomock.Any()).
-								Return(nil)
+							ctx := influxdbcontext.SetAuthorizer(r.Context(), mock.NewMockAuthorizer(false, influxdb.OperPermissions()))
+							r = r.WithContext(ctx)
 
-							sqlBackupSvc.EXPECT().RLockSqlStore()
-							sqlBackupSvc.EXPECT().RUnlockSqlStore()
-							sqlBackupSvc.EXPECT().
-								BackupSqlStore(gomock.Any(), gomock.Any()).
-								Return(nil)
+							if tt.wantStatus == http.StatusOK {
+								switch route.name {
+								case "metadata":
+									backupSvc.EXPECT().RLockKVStore()
+									backupSvc.EXPECT().UnlockKVStore()
+									backupSvc.EXPECT().
+										BackupKVStore(gomock.Any(), gomock.Any()).
+										DoAndReturn(func(_ context.Context, w io.Writer) error {
+											_, err := w.Write(payload)
+											return err
+										})
 
-							bucketManifestWriter.EXPECT().
-								WriteManifest(gomock.Any(), gomock.Any()).
-								Return(nil)
-						case "shard":
-							backupSvc.EXPECT().
-								BackupShard(gomock.Any(), gomock.Any(), uint64(100), gomock.Any()).
-								DoAndReturn(func(_ context.Context, w io.Writer, _ uint64, _ interface{}) error {
-									_, err := w.Write([]byte("shard-backup-data"))
-									return err
-								})
-						}
-					}
+									sqlBackupSvc.EXPECT().RLockSqlStore()
+									sqlBackupSvc.EXPECT().RUnlockSqlStore()
+									sqlBackupSvc.EXPECT().
+										BackupSqlStore(gomock.Any(), gomock.Any()).
+										DoAndReturn(func(_ context.Context, w io.Writer) error {
+											_, err := w.Write(payload)
+											return err
+										})
 
-					rr := httptest.NewRecorder()
-					h.ServeHTTP(rr, r)
-					rs := rr.Result()
+									bucketManifestWriter.EXPECT().
+										WriteManifest(gomock.Any(), gomock.Any()).
+										DoAndReturn(func(_ context.Context, w io.Writer) error {
+											_, err := w.Write(payload)
+											return err
+										})
+								case "shard":
+									backupSvc.EXPECT().
+										BackupShard(gomock.Any(), gomock.Any(), uint64(100), gomock.Any()).
+										DoAndReturn(func(_ context.Context, w io.Writer, _ uint64, _ interface{}) error {
+											_, err := w.Write(payload)
+											return err
+										})
+								}
+							}
 
-					require.Equal(t, tt.wantStatus, rs.StatusCode)
+							rr := httptest.NewRecorder()
+							h.ServeHTTP(rr, r)
+							rs := rr.Result()
 
-					if tt.wantStatus == http.StatusOK {
-						if tt.level == "none" {
-							// "none" skips gzip entirely; verify no Content-Encoding is set.
-							require.Empty(t, rs.Header.Get("Content-Encoding"))
-						} else {
-							require.Equal(t, "gzip", rs.Header.Get("Content-Encoding"))
-						}
+							require.Equal(t, tt.wantStatus, rs.StatusCode)
+
+							if tt.wantStatus == http.StatusOK {
+								if tt.level == "none" {
+									// "none" skips gzip entirely; verify no Content-Encoding is set.
+									require.Empty(t, rs.Header.Get("Content-Encoding"))
+								} else if sz.payloadSize > 1400 {
+									// Payload exceeds gziphandler.DefaultMinSize, so it should be compressed.
+									require.Equal(t, "gzip", rs.Header.Get("Content-Encoding"))
+								} else {
+									// Payload is below the minimum size threshold; gziphandler does not compress.
+									require.Empty(t, rs.Header.Get("Content-Encoding"))
+								}
+							}
+						})
 					}
 				})
 			}
