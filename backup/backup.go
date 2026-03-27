@@ -32,7 +32,7 @@ func NewCompressionLevelFromString(s string) (CompressionLevel, error) {
 	case "none":
 		return NoCompression, nil
 	default:
-		return -1, fmt.Errorf("unknown compression level: %q, required: [default, full, speedy, none]", s)
+		return -1, fmt.Errorf("unknown compression level: %q, valid values: [default, full, speedy, none]", s)
 	}
 }
 

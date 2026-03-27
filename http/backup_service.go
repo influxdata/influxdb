@@ -82,20 +82,6 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 // The compression level is determined by the "Gzip-Compression-Level" request header.
 // Valid values are: default, full, speedy, none. If not specified, "default" is used.
 func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
-	// Pre-build handlers for each named compression level so we avoid
-	// allocating a new handler on every request.
-	levelHandlers := make(map[int]func(http.Handler) http.Handler)
-	for _, cl := range []backup.CompressionLevel{backup.DefaultCompression, backup.FullCompression, backup.SpeedyCompression} {
-		gl := cl.GzipLevel()
-		handler, err := gziphandler.NewGzipLevelHandler(gl)
-		if err != nil {
-			// Should never happen for valid gzip levels; log and fall through at request time.
-			h.Logger.Error("failed to create gzip handler", zap.Int("level", gl), zap.Error(err))
-			continue
-		}
-		levelHandlers[gl] = handler
-	}
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		levelStr := r.Header.Get("Gzip-Compression-Level")
 		if levelStr == "" {
@@ -111,20 +97,19 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 			return
 		}
 
-		level := cl.GzipLevel()
-
 		// No compression: skip gzip entirely. The restore side handles
 		// both compressed and uncompressed data.
+		level := cl.GzipLevel()
 		if level == gzip.NoCompression {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		handler, ok := levelHandlers[level]
-		if !ok {
+		handler, err := gziphandler.NewGzipLevelHandler(level)
+		if err != nil {
 			h.HandleHTTPError(r.Context(), &errors.Error{
 				Code: errors.EInternal,
-				Msg:  fmt.Sprintf("no gzip handler for level %d", level),
+				Msg:  fmt.Sprintf("failed to create gzip handler for level %d: %v", level, err),
 			}, w)
 			return
 		}

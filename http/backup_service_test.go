@@ -213,9 +213,13 @@ func TestBackupCompressionLevel(t *testing.T) {
 
 					require.Equal(t, tt.wantStatus, rs.StatusCode)
 
-					// "none" skips gzip entirely; verify no Content-Encoding is set.
-					if tt.level == "none" {
-						require.Empty(t, rs.Header.Get("Content-Encoding"))
+					if tt.wantStatus == http.StatusOK {
+						if tt.level == "none" {
+							// "none" skips gzip entirely; verify no Content-Encoding is set.
+							require.Empty(t, rs.Header.Get("Content-Encoding"))
+						} else {
+							require.Equal(t, "gzip", rs.Header.Get("Content-Encoding"))
+						}
 					}
 				})
 			}
