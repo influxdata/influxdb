@@ -1039,6 +1039,72 @@ async fn deleted_tables_dont_count() {
 }
 
 #[test_log::test(tokio::test)]
+async fn deleted_database_tables_dont_count() {
+    const NUM_TABLES_LIMIT: usize = 5;
+
+    let catalog = Catalog::new_in_memory_with_limits(
+        "test",
+        CatalogLimits {
+            num_tables: NUM_TABLES_LIMIT,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    // Create a database with tables up to the limit
+    let mut txn = catalog.begin("db-to-delete").unwrap();
+    for i in 0..NUM_TABLES_LIMIT {
+        let table_name = format!("table-{i}");
+        txn.table_or_create(&table_name).unwrap();
+        txn.column_or_create(
+            &table_name,
+            "field",
+            InfluxColumnType::Field(InfluxFieldType::String),
+        )
+        .unwrap();
+        txn.column_or_create(&table_name, "time", InfluxColumnType::Timestamp)
+            .unwrap();
+    }
+    catalog.commit(txn).await.unwrap();
+
+    assert_eq!(NUM_TABLES_LIMIT, catalog.inner.read().table_count());
+
+    // should not be able to create a table in another database:
+    catalog
+        .create_table(
+            "other-db",
+            "new-table",
+            &["tag"],
+            &[("field", FieldDataType::String)],
+        )
+        .await
+        .expect_err("should not be able to exceed table limit");
+
+    // soft-delete the entire database
+    catalog
+        .soft_delete_database("db-to-delete", HardDeletionTime::Now)
+        .await
+        .unwrap();
+
+    // table count should drop to 0 immediately
+    assert_eq!(0, catalog.inner.read().table_count());
+
+    // should now be able to create tables in another database
+    catalog
+        .create_table(
+            "other-db",
+            "new-table",
+            &["tag"],
+            &[("field", FieldDataType::String)],
+        )
+        .await
+        .expect("should be able to create table after database deletion freed slots");
+
+    assert_eq!(1, catalog.inner.read().table_count());
+}
+
+#[test_log::test(tokio::test)]
 async fn retention_period_cutoff_map() {
     use iox_time::MockProvider;
     let now = Time::from_timestamp(60 * 60 * 24, 0).unwrap();

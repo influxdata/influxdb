@@ -304,7 +304,7 @@ class TestReadConfigTOML(unittest.TestCase):
         config_path = self._write_toml_config(
             'object-store = "file"\n'
             'http-bind = "0.0.0.0:8086"\n'
-            'log-filter = "info"\n'
+            'virtual-env-location = "/path/to/venv"\n'
         )
         env_vars = self.launcher.read_config_toml(config_path, "core")
         self.assertEqual(
@@ -312,7 +312,7 @@ class TestReadConfigTOML(unittest.TestCase):
             {
                 "INFLUXDB3_OBJECT_STORE": "file",
                 "INFLUXDB3_HTTP_BIND_ADDR": "0.0.0.0:8086",
-                "LOG_FILTER": "info",
+                "VIRTUAL_ENV": "/path/to/venv",
             },
         )
 

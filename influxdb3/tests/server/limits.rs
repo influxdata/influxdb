@@ -45,7 +45,7 @@ async fn limits() -> Result<(), Error> {
 
     let Err(Error::ApiError { code, .. }) = server
         .write_lp_to_db(
-            "six",
+            "two",
             "cpu2000,host=s1,region=us-east usage=0.9 2998574938\n",
             Precision::Second,
         )
@@ -54,6 +54,19 @@ async fn limits() -> Result<(), Error> {
         panic!("Did not error when adding 2001st table");
     };
     assert_eq!(code, StatusCode::UNPROCESSABLE_ENTITY);
+
+    server.delete_database("one").with_yes().run().unwrap();
+
+    let Ok(_) = server
+        .write_lp_to_db(
+            "two",
+            "cpu2000,host=s1,region=us-east usage=0.9 2998574938\n",
+            Precision::Second,
+        )
+        .await
+    else {
+        panic!("Write of new table did not succeed after deleting db with most tables");
+    };
 
     // Test that we can't add a row 500 columns long
     let mut lp_500 = String::from("cpu,host=foo,region=bar usage=2");
@@ -67,11 +80,11 @@ async fn limits() -> Result<(), Error> {
     lp_501.push_str(",column501=1 2998574938\n");
 
     server
-        .write_lp_to_db("one", &lp_500, Precision::Second)
+        .write_lp_to_db("two", &lp_500, Precision::Second)
         .await?;
 
     let Err(Error::ApiError { code, .. }) = server
-        .write_lp_to_db("one", &lp_501, Precision::Second)
+        .write_lp_to_db("two", &lp_501, Precision::Second)
         .await
     else {
         panic!("Did not error when adding 501st column");

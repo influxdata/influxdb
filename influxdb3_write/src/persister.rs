@@ -562,7 +562,7 @@ impl Persister {
             .collect();
 
         // Sort by month (oldest first) for consistent ordering
-        result.sort_by(|a, b| a.0.cmp(&b.0));
+        result.sort_by_key(|a| a.0);
 
         if let Some(min_seq) = min_sequence {
             let min_seq_u64 = min_seq.as_u64();

@@ -79,7 +79,7 @@ impl Cursor {
                     .collect::<Result<Vec<Option<Self>>>>()?;
                 let new_arrays = cursors
                     .into_iter()
-                    .zip(arrays.into_iter())
+                    .zip(arrays)
                     .map(|(cursor, a)| {
                         if let Some(mut c) = cursor {
                             c.build_aggr_fill_val(

@@ -1660,7 +1660,17 @@ impl DatabaseCatalogTransaction {
             return Err(CatalogError::AlreadyExists);
         }
         if self.current_table_count >= self.table_limit {
-            return Err(CatalogError::TooManyTables(self.table_limit));
+            info!(
+                db_name = %self.database_schema.name,
+                table_name,
+                current_table_count = self.current_table_count,
+                table_limit = self.table_limit,
+                "create_table - too many tables, returning error"
+            );
+            return Err(CatalogError::TooManyTables {
+                current: self.current_table_count,
+                limit: self.table_limit,
+            });
         }
         if let Some(c) = columns.as_ref() {
             if c.tags.len() > NUM_TAG_COLUMNS_LIMIT {
