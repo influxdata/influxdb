@@ -54,8 +54,10 @@ pub enum CatalogError {
     #[error("Update to schema would exceed number of tag columns per table limit of {0} columns")]
     TooManyTagColumns(usize),
 
-    #[error("Update to schema would exceed number of tables limit of {0} tables")]
-    TooManyTables(usize),
+    #[error(
+        "Update to schema would exceed number of tables limit: attempted to create table but already have {current} table(s) (limit: {limit})"
+    )]
+    TooManyTables { current: usize, limit: usize },
 
     #[error("Adding a new database would exceed limit of {0} databases")]
     TooManyDbs(usize),

@@ -1,3 +1,7 @@
+include = [
+    { path = "config.local.toml", optional = true },
+]
+
 # Local development overrides for Linux with lld
 # These flags are commented out by target-env in CI builds
 

@@ -520,11 +520,7 @@ mod python_plugin {
             time_provider: Arc<dyn TimeProvider>,
         ) -> Result<(), PluginError> {
             let mut futures = FuturesUnordered::new();
-            loop {
-                let Some(next_run_instant) = runner.next_run_time() else {
-                    break;
-                };
-
+            while let Some(next_run_instant) = runner.next_run_time() {
                 tokio::select! {
                     _ = time_provider.sleep_until(next_run_instant) => {
                         let Some(schema) = self.manager.catalog.db_schema(self.db_name.as_str()) else {

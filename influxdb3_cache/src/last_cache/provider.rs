@@ -348,8 +348,8 @@ impl LastCacheProvider {
     pub(crate) fn size(&self) -> usize {
         self.cache_map
             .read()
-            .iter()
-            .flat_map(|(_, db)| db.iter().flat_map(|(_, table)| table.iter()))
+            .values()
+            .flat_map(|db| db.values().flat_map(|table| table.iter()))
             .count()
     }
 }

@@ -562,7 +562,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "aws-credentials-file"),
                     long = gen_name!($prefix, "aws-credentials-file"),
-                    env = gen_name!($prefix, "AWS_CREDENTIALS_FILE"),
+                    env = gen_env!($prefix, "AWS_CREDENTIALS_FILE"),
                     action
                 )]
                 pub aws_credentials_file: Option<String>,
@@ -633,12 +633,17 @@ macro_rules! object_store_config_inner {
                 )]
                 pub azure_allow_http: bool,
 
-                /// When using a network-based object store, limit the number of connection to this value.
+                /// When using a network-based object store, limit the number of concurrent
+                /// object store operations to this value.
+                ///
+                /// This is a semaphore shared by all subsystems. Setting this too
+                /// low can cause performance degradation due to contention between
+                /// unrelated operations.
                 #[clap(
                     id = gen_name!($prefix, "object-store-connection-limit"),
                     long = gen_name!($prefix, "object-store-connection-limit"),
-                    env = gen_env!($prefix, "OBJECT_STORE_CONNECTION_LIMIT"),
-                    default_value = "16",
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_CONNECTION_LIMIT"),
+                    default_value = "64",
                     action
                 )]
                 pub object_store_connection_limit: NonZeroUsize,
@@ -649,7 +654,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-http2-only"),
                     long = gen_name!($prefix, "object-store-http2-only"),
-                    env = gen_env!($prefix, "OBJECT_STORE_HTTP2_ONLY"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_HTTP2_ONLY"),
                     action
                 )]
                 pub http2_only: bool,
@@ -664,7 +669,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-http2-max-frame-size"),
                     long = gen_name!($prefix, "object-store-http2-max-frame-size"),
-                    env = gen_env!($prefix, "OBJECT_STORE_HTTP2_MAX_FRAME_SIZE"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_HTTP2_MAX_FRAME_SIZE"),
                     action
                 )]
                 pub http2_max_frame_size: Option<u32>,
@@ -673,7 +678,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-request-timeout"),
                     long = gen_name!($prefix, "object-store-request-timeout"),
-                    env = gen_env!($prefix, "OBJECT_STORE_REQUEST_TIMEOUT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_REQUEST_TIMEOUT"),
                     value_parser = humantime::parse_duration,
                     default_value = "30s",
                     action
@@ -686,7 +691,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-max-retries"),
                     long = gen_name!($prefix, "object-store-max-retries"),
-                    env = gen_env!($prefix, "OBJECT_STORE_MAX_RETRIES"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_MAX_RETRIES"),
                     action
                 )]
                 pub max_retries: Option<usize>,
@@ -705,7 +710,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-retry-timeout"),
                     long = gen_name!($prefix, "object-store-retry-timeout"),
-                    env = gen_env!($prefix, "OBJECT_STORE_RETRY_TIMEOUT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_RETRY_TIMEOUT"),
                     value_parser = humantime::parse_duration,
                     action
                 )]
@@ -716,7 +721,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-cache-endpoint"),
                     long = gen_name!($prefix, "object-store-cache-endpoint"),
-                    env = gen_env!($prefix, "OBJECT_STORE_CACHE_ENDPOINT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT"),
                     action
                 )]
                 pub cache_endpoint: Option<Endpoint>,
@@ -726,7 +731,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-tls-allow-insecure"),
                     long = gen_name!($prefix, "object-store-tls-allow-insecure"),
-                    env = gen_env!($prefix, "OBJECT_STORE_TLS_ALLOW_INSECURE"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE"),
                     action
                 )]
                 pub tls_allow_insecure: bool,
@@ -736,7 +741,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-tls-ca"),
                     long = gen_name!($prefix, "object-store-tls-ca"),
-                    env = gen_env!($prefix, "OBJECT_STORE_TLS_CA"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_TLS_CA"),
                     action
                 )]
                 pub tls_ca_path: Option<PathBuf>,
@@ -774,7 +779,7 @@ macro_rules! object_store_config_inner {
                         database_directory,
                         google_service_account: Default::default(),
                         object_store,
-                        object_store_connection_limit: NonZeroUsize::new(16).unwrap(),
+                        object_store_connection_limit: NonZeroUsize::new(64).unwrap(),
                         request_timeout: Duration::from_secs(30),
                         http2_only: Default::default(),
                         http2_max_frame_size: Default::default(),
