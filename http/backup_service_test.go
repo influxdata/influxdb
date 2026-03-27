@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
@@ -152,15 +153,18 @@ func TestBackupCompressionLevel(t *testing.T) {
 		{"invalid compression level", "bogus", http.StatusBadRequest},
 	}
 
-	// gziphandler.DefaultMinSize is 1400 bytes; responses smaller than that
+	const SmallPayload = gziphandler.DefaultMinSize - 100
+	const LargePayload = gziphandler.DefaultMinSize + 100
+
+	// Use gziphandler.DefaultMinSize; responses smaller than that
 	// are not compressed regardless of level. Test both sides of that threshold
 	// to show that "none" is the only level that unconditionally skips gzip.
 	sizes := []struct {
 		name        string
 		payloadSize int
 	}{
-		{"small payload", 100},
-		{"large payload", 1500},
+		{"small payload", SmallPayload},
+		{"large payload", LargePayload},
 	}
 
 	for _, route := range routes {
