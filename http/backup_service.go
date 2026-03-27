@@ -149,6 +149,10 @@ type gzipResponseWriter struct {
 	http.ResponseWriter
 }
 
+func (w gzipResponseWriter) Write(p []byte) (int, error) {
+	return w.gz.Write(p)
+}
+
 // requireOperPermissions returns an "unauthorized" response for requests that do not have OperPermissions.
 // This is needed for the handleBackupMetadata handler, which sets a header prior to
 // accessing any methods on the BackupService which would also return an "authorized" response.
