@@ -633,7 +633,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	ts.BucketService = storage.NewBucketService(m.log, ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
-	bucketManifestWriter := backup.NewBucketManifestWriter(ts.BucketService, ts.OrganizationService, metaClient)
+	bucketManifestWriter := backup.NewBucketManifestWriter(ts, metaClient)
 	bucketManifestWriter.WithLogger(m.log.With(zap.String("service", "bucket-manifest-writer")))
 
 	onboardingLogger := m.log.With(zap.String("handler", "onboard"))

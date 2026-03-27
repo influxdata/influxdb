@@ -1,66 +1,25 @@
 package backup
 
 import (
-	"compress/gzip"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"go.uber.org/zap"
 )
 
-type CompressionLevel int
-
-const (
-	DefaultCompression CompressionLevel = iota
-	FullCompression
-	SpeedyCompression
-	NoCompression
-)
-
-func NewCompressionLevelFromString(s string) (CompressionLevel, error) {
-	switch s {
-	case "default":
-		return DefaultCompression, nil
-	case "full":
-		return FullCompression, nil
-	case "speedy":
-		return SpeedyCompression, nil
-	case "none":
-		return NoCompression, nil
-	default:
-		return -1, fmt.Errorf("unknown compression level: %q, valid values: [default, full, speedy, none]", s)
-	}
-}
-
-// GzipLevel returns the compress/gzip constant corresponding to this CompressionLevel.
-func (cl CompressionLevel) GzipLevel() int {
-	switch cl {
-	case FullCompression:
-		return gzip.BestCompression
-	case SpeedyCompression:
-		return gzip.BestSpeed
-	case NoCompression:
-		return gzip.NoCompression
-	default:
-		return gzip.DefaultCompression
-	}
-}
-
 type BucketManifestWriter struct {
-	bs     influxdb.BucketService
-	os     influxdb.OrganizationService
+	ts     *tenant.Service
 	mc     *meta.Client
 	logger *zap.Logger
 }
 
-func NewBucketManifestWriter(bs influxdb.BucketService, os influxdb.OrganizationService, mc *meta.Client) BucketManifestWriter {
+func NewBucketManifestWriter(ts *tenant.Service, mc *meta.Client) BucketManifestWriter {
 	return BucketManifestWriter{
-		bs:     bs,
-		os:     os,
+		ts:     ts,
 		mc:     mc,
 		logger: zap.NewNop(),
 	}
@@ -74,7 +33,7 @@ func (b *BucketManifestWriter) WithLogger(logger *zap.Logger) {
 // It is intended to be used to write to an HTTP response after appropriate measures have been taken
 // to ensure that the request is authorized.
 func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) error {
-	bkts, _, err := b.bs.FindBuckets(ctx, influxdb.BucketFilter{})
+	bkts, _, err := b.ts.FindBuckets(ctx, influxdb.BucketFilter{})
 	if err != nil {
 		return err
 	}
@@ -82,7 +41,7 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 	l := make([]influxdb.BucketMetadataManifest, 0, len(bkts))
 
 	for _, bkt := range bkts {
-		org, err := b.os.FindOrganizationByID(ctx, bkt.OrgID)
+		org, err := b.ts.OrganizationService.FindOrganizationByID(ctx, bkt.OrgID)
 		if err != nil {
 			return err
 		}

@@ -13,11 +13,48 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
-	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
 )
+
+type CompressionLevel int
+
+const (
+	DefaultCompression CompressionLevel = iota
+	FullCompression
+	SpeedyCompression
+	NoCompression
+)
+
+func NewCompressionLevelFromString(s string) (CompressionLevel, error) {
+	switch s {
+	case "default":
+		return DefaultCompression, nil
+	case "full":
+		return FullCompression, nil
+	case "speedy":
+		return SpeedyCompression, nil
+	case "none":
+		return NoCompression, nil
+	default:
+		return -1, fmt.Errorf("unknown compression level: %q, valid values: [default, full, speedy, none]", s)
+	}
+}
+
+// GzipLevel returns the compress/gzip constant corresponding to this CompressionLevel.
+func (cl CompressionLevel) GzipLevel() int {
+	switch cl {
+	case FullCompression:
+		return gzip.BestCompression
+	case SpeedyCompression:
+		return gzip.BestSpeed
+	case NoCompression:
+		return gzip.NoCompression
+	default:
+		return gzip.DefaultCompression
+	}
+}
 
 // BackupBackend is all services and associated parameters required to construct the BackupHandler.
 type BackupBackend struct {
@@ -88,7 +125,7 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 			levelStr = "default"
 		}
 
-		cl, err := backup.NewCompressionLevelFromString(levelStr)
+		cl, err := NewCompressionLevelFromString(levelStr)
 		if err != nil {
 			h.HandleHTTPError(r.Context(), &errors.Error{
 				Code: errors.EInvalid,
