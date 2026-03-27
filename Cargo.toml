@@ -17,6 +17,7 @@ members = [
     "influxdb3_query_executor",
     "influxdb3_server",
     "influxdb3_shutdown",
+    "influxdb3_startup",
     "influxdb3_system_tables",
     "influxdb3_telemetry",
     "influxdb3_test_helpers",
@@ -123,7 +124,7 @@ exclude = [
 #
 # For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
 # stripping the `-oss`.
-version = "3.10.0-nightly"
+version = "3.10.0-oss-nightly"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
