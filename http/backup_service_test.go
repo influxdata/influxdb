@@ -229,7 +229,7 @@ func TestBackupCompressionLevel(t *testing.T) {
 								case "shard":
 									backupSvc.EXPECT().
 										BackupShard(gomock.Any(), gomock.Any(), uint64(100), gomock.Any()).
-										DoAndReturn(func(_ context.Context, w io.Writer, _ uint64, _ interface{}) error {
+										DoAndReturn(func(_ context.Context, w io.Writer, _ uint64, _ any) error {
 											_, err := w.Write(payload)
 											return err
 										})
@@ -246,7 +246,7 @@ func TestBackupCompressionLevel(t *testing.T) {
 								if tt.level == "none" {
 									// "none" skips gzip entirely; verify no Content-Encoding is set.
 									require.Empty(t, rs.Header.Get("Content-Encoding"))
-								} else if sz.payloadSize > 1400 {
+								} else if sz.payloadSize > LargePayload {
 									// Payload exceeds gziphandler.DefaultMinSize, so it should be compressed.
 									require.Equal(t, "gzip", rs.Header.Get("Content-Encoding"))
 								} else {
