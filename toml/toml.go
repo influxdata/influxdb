@@ -51,10 +51,17 @@ func (d Duration) MarshalText() (text []byte, err error) {
 // and "g" or "G" for gibibytes. If a size suffix isn't specified then bytes are assumed.
 type Size uint64
 
+var (
+	ErrSizeEmpty     = errors.New("size was empty")
+	ErrSizeBadSuffix = errors.New("unknown size suffix")
+	ErrSizeParse     = errors.New("invalid size")
+	ErrSizeOverflow  = fmt.Errorf("size would overflow the max size (%d) of a uint", uint64(math.MaxUint64))
+)
+
 // UnmarshalText parses a byte size from text.
 func (s *Size) UnmarshalText(text []byte) error {
 	if len(text) == 0 {
-		return fmt.Errorf("size was empty")
+		return ErrSizeEmpty
 	}
 
 	// The multiplier defaults to 1 in case the size has
@@ -75,7 +82,7 @@ func (s *Size) UnmarshalText(text []byte) error {
 		case 'g', 'G':
 			mult = 1 << 30 // GiB
 		default:
-			return fmt.Errorf("unknown size suffix: %c (expected k, m, or g)", suffix)
+			return fmt.Errorf("%w: %c (expected k, m, or g)", ErrSizeBadSuffix, suffix)
 		}
 		sizeText = sizeText[:len(sizeText)-1]
 	}
@@ -83,11 +90,11 @@ func (s *Size) UnmarshalText(text []byte) error {
 	// Parse numeric portion of value.
 	size, err := strconv.ParseUint(string(sizeText), 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid size: %s", string(text))
+		return fmt.Errorf("%w: %w", ErrSizeParse, err)
 	}
 
 	if math.MaxUint64/mult < size {
-		return fmt.Errorf("size would overflow the max size (%d) of a uint: %s", uint64(math.MaxUint64), string(text))
+		return fmt.Errorf("%w: %s", ErrSizeOverflow, string(text))
 	}
 
 	size *= mult
@@ -124,19 +131,38 @@ func (m FileMode) MarshalText() (text []byte, err error) {
 
 type Group int
 
+func (g *Group) unmarshalGroupName(groupName string) error {
+	var gid int
+
+	group, err := user.LookupGroup(groupName)
+	if err != nil {
+		// Is groupName really a numeric group?
+		if _, err := strconv.Atoi(groupName); err != nil {
+			// No, not a number.
+			return user.UnknownGroupError(groupName)
+		}
+		group, err = user.LookupGroupId(groupName)
+		if err != nil {
+			return err
+		}
+	}
+
+	gid, err = strconv.Atoi(group.Gid)
+	if err != nil {
+		return err
+	}
+
+	*g = Group(gid)
+	return nil
+}
+
+func (g *Group) UnmarshalText(text []byte) error {
+	return g.unmarshalGroupName(string(text))
+}
+
 func (g *Group) UnmarshalTOML(data interface{}) error {
 	if grpName, ok := data.(string); ok {
-		group, err := user.LookupGroup(grpName)
-		if err != nil {
-			return err
-		}
-
-		gid, err := strconv.Atoi(group.Gid)
-		if err != nil {
-			return err
-		}
-		*g = Group(gid)
-		return nil
+		return g.unmarshalGroupName(grpName)
 	} else if gid, ok := data.(int64); ok {
 		*g = Group(gid)
 		return nil
@@ -153,12 +179,16 @@ func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{
 
 func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) error {
 	element := spec
+
+	getenvTrimmed := func(key string) string { return strings.TrimSpace(getenv(key)) }
+	hasEnvValue := func(key string) bool { return len(getenvTrimmed(key)) > 0 }
+	value := getenvTrimmed(prefix)
+
 	// If spec is a named type and is addressable,
 	// check the address to see if it implements encoding.TextUnmarshaler.
 	if spec.Kind() != reflect.Pointer && spec.Type().Name() != "" && spec.CanAddr() {
 		v := spec.Addr()
 		if u, ok := v.Interface().(encoding.TextUnmarshaler); ok {
-			value := getenv(prefix)
 			// Skip any fields we don't have a value to set
 			if len(value) == 0 {
 				return nil
@@ -171,8 +201,6 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		element = spec.Elem()
 	}
 
-	value := getenv(prefix)
-
 	switch element.Kind() {
 	case reflect.String:
 		if len(value) == 0 {
@@ -180,50 +208,87 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		}
 		element.SetString(value)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if len(value) == 0 {
+			return nil
+		}
 		intValue, err := strconv.ParseInt(value, 0, element.Type().Bits())
 		if err != nil {
 			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetInt(intValue)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if len(value) == 0 {
+			return nil
+		}
 		intValue, err := strconv.ParseUint(value, 0, element.Type().Bits())
 		if err != nil {
 			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetUint(intValue)
 	case reflect.Bool:
+		if len(value) == 0 {
+			return nil
+		}
 		boolValue, err := strconv.ParseBool(value)
 		if err != nil {
 			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetBool(boolValue)
 	case reflect.Float32, reflect.Float64:
+		if len(value) == 0 {
+			return nil
+		}
 		floatValue, err := strconv.ParseFloat(value, element.Type().Bits())
 		if err != nil {
 			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetFloat(floatValue)
 	case reflect.Slice:
-		// If the type is s slice, apply to each using the index as a suffix, e.g. GRAPHITE_0, GRAPHITE_0_TEMPLATES_0 or GRAPHITE_0_TEMPLATES="item1,item2"
-		for j := 0; j < element.Len(); j++ {
-			f := element.Index(j)
-			if err := applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
-				return err
-			}
+		// Handle indexed slices (e.g. VALUE_0, VALUE_1, VALUE_2, etc.)
+		for idx, envOutOfBounds := 0, false; idx < element.Len() || !envOutOfBounds; idx++ {
+			// Are we still within the bounds of the starting slice?
+			indexedEnvName := fmt.Sprintf("%s_%d", prefix, idx)
+			if idx < element.Len() {
+				f := element.Index(idx)
 
-			if err := applyEnvOverrides(getenv, fmt.Sprintf("%s_%d", prefix, j), f, structKey); err != nil {
-				return err
+				// Apply the unindexed environment variable as a default value, if available.
+				if len(value) > 0 {
+					if err := applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
+						return err
+					}
+				}
+
+				// Apply the indexed environment variable as an override value.
+				if err := applyEnvOverrides(getenv, indexedEnvName, f, structKey); err != nil {
+					return err
+				}
+			} else {
+				// We have run past the end of starting slice, but are there more environment array indices?
+				if hasEnvValue(indexedEnvName) {
+					// Append a zero value and then set it. This way we aren't assuming element is a []string.
+					element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
+					f := element.Index(idx)
+					if err := applyEnvOverrides(getenv, indexedEnvName, f, structKey); err != nil {
+						return err
+					}
+				} else {
+					envOutOfBounds = true // We seem to have run past the end of the environment indices.
+				}
 			}
 		}
 
 		// If the type is s slice but have value not parsed as slice e.g. GRAPHITE_0_TEMPLATES="item1,item2"
 		if element.Len() == 0 && len(value) > 0 {
-			rules := strings.Split(value, ",")
-
-			for _, rule := range rules {
-				element.Set(reflect.Append(element, reflect.ValueOf(rule)))
+			for idx, val := range strings.Split(value, ",") {
+				// Append a zero value and then set it. This way we aren't assuming element is a []string.
+				element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
+				f := element.Index(idx)
+				if err := applyEnvOverrides(func(n string) string { return val }, prefix, f, structKey); err != nil {
+					return err
+				}
 			}
 		}
+
 	case reflect.Struct:
 		typeOfSpec := element.Type()
 		for i := 0; i < element.NumField(); i++ {
@@ -269,14 +334,11 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				continue
 			}
 
-			value := getenv(envKey)
-			// Skip any fields we don't have a value to set
-			if len(value) == 0 {
-				continue
-			}
-
-			if err := applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
-				return err
+			// Don't bother setting fields that don't have an environment override.
+			if hasEnvValue(envKey) {
+				if err := applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
+					return err
+				}
 			}
 		}
 	}
