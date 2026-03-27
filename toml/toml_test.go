@@ -8,6 +8,7 @@ import (
 	"os/user"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -284,6 +285,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 
 	envMap := map[string]string{
 		"X_STRING":          "a string",
+		"X_HYPHEN_STRING":   "a hyphenated string",
 		"X_DURATION":        "1m1s",
 		"X_INT":             "1",
 		"X_INTEMPTY":        " ",
@@ -304,6 +306,10 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_FLOAT64EMPTY":    " ",
 		"X_NESTED_STRING":   "a nested string",
 		"X_NESTED_INT":      "13",
+		"X_NESTEDPTR_STRING": "a nested pointer string",
+		"X_NESTEDPTR_INT":    "14",
+		"X_NILPTR_STRING":    "should be ignored",
+		"X_NILPTR_INT":       "99",
 		"X_ES":              "an embedded string",
 		"X__":               "-1", // This value should not be applied to the "ignored" field with toml tag -.
 		"X_STRINGS_1":       "c",
@@ -329,6 +335,26 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_DURATIONSLICE_0": "60s",
 		"X_DURATIONSLICE_1": "120s",
 		"X_DURATIONSLICE2":  "5m, 60m", // with space
+		// #5: slice of plain structs (not TextUnmarshaler)
+		"X_NESTEDSLICE_0_STRING": "first",
+		"X_NESTEDSLICE_0_INT":    "100",
+		"X_NESTEDSLICE_1_STRING": "second",
+		"X_NESTEDSLICE_1_INT":    "200",
+		"X_NESTEDSLICE_2_STRING": "third",
+		"X_NESTEDSLICE_2_INT":    "300",
+		"X_NESTEDSLICE_3_STRING": "fourth",
+		"X_NESTEDSLICE_3_INT":    "400",
+		// #1: partially-set struct in extended slice (only string, no int)
+		"X_NESTEDSLICE_4_STRING": "fifth",
+		// Slice of structs with embedded field, extended via embedded field's env var
+		"X_EMBEDSLICE_0_NAME": "first",
+		"X_EMBEDSLICE_0_ES":   "embedded0",
+		"X_EMBEDSLICE_1_ES":   "embedded1",
+		// #3: extend TextUnmarshaler slice beyond initial length
+		"X_SIZESLICE3_0": "64m",
+		"X_SIZESLICE3_1": "128m",
+		// #6: override existing []int elements by index
+		"X_INTSLICE3_1": "99",
 	}
 
 	env := func(s string) string {
@@ -342,8 +368,13 @@ func TestEnvOverride_Builtins(t *testing.T) {
 	type Embedded struct {
 		ES string `toml:"es"`
 	}
+	type nestedWithEmbed struct {
+		Name string `toml:"name"`
+		Embedded
+	}
 	type testConfig struct {
 		Str            string              `toml:"string"`
+		HyphenStr      string              `toml:"hyphen-string"`
 		Str2           string              `toml:"string2"`
 		Dur            itoml.Duration      `toml:"duration"`
 		Int            int                 `toml:"int"`
@@ -364,6 +395,8 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		Float64        float64             `toml:"float64"`
 		Float64Empty   float64             `toml:"float64empty"`
 		Nested         nested              `toml:"nested"`
+		NestedPtr      *nested             `toml:"nestedptr"`
+		NilPtr         *nested             `toml:"nilptr"`
 		UnmarshalSlice []stringUnmarshaler `toml:"strings"`
 		LogLevel       zapcore.Level       `toml:"loglevel"`
 		MaxSize        itoml.Size          `toml:"maxSize"`
@@ -376,8 +409,12 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		IntSlice2      []int               `toml:"intslice2"`
 		SizeSlice      []itoml.Size        `toml:"sizeslice"`
 		SizeSlice2     []itoml.Size        `toml:"sizeslice2"`
+		SizeSlice3     []itoml.Size        `toml:"sizeslice3"`
 		DurationSlice  []itoml.Duration    `toml:"durationslice"`
 		DurationSlice2 []itoml.Duration    `toml:"durationslice2"`
+		NestedSlice    []nested            `toml:"nestedslice"`
+		EmbedSlice     []nestedWithEmbed   `toml:"embedslice"`
+		IntSlice3      []int               `toml:"intslice3"`
 
 		Embedded
 
@@ -390,17 +427,25 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		BoolEmpty:    true,
 		Float64Empty: 9.0,
 		Str2:         "b string", // this should not be overwritten because the corresponding env is empty
+		NestedPtr:    &nested{},
 		UnmarshalSlice: []stringUnmarshaler{
 			{Text: "a"},
 			{Text: "b"},
 		},
 		StrSlice3: []string{"alice", "bob", "carol"},
+		NestedSlice: []nested{
+			{Str: "original0", Int: 0},
+			{Str: "original1", Int: 0},
+		},
+		SizeSlice3: []itoml.Size{32 * 1024 * 1024},
+		IntSlice3:  []int{10, 20, 30},
 	}
 
 	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &got))
 
 	exp := testConfig{
 		Str:          "a string",
+		HyphenStr:    "a hyphenated string",
 		Str2:         "b string",
 		Dur:          itoml.Duration(time.Minute + time.Second),
 		Int:          1,
@@ -424,6 +469,10 @@ func TestEnvOverride_Builtins(t *testing.T) {
 			Str: "a nested string",
 			Int: 13,
 		},
+		NestedPtr: &nested{
+			Str: "a nested pointer string",
+			Int: 14,
+		},
 		Embedded: Embedded{
 			ES: "an embedded string",
 		},
@@ -442,10 +491,117 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		IntSlice2:      []int{4, 5, 6},
 		SizeSlice:      []itoml.Size{128 * 1024 * 1024, 256 * 1024 * 1024},
 		SizeSlice2:     []itoml.Size{512 * 1024 * 1024, 1024 * 1024 * 1024},
+		SizeSlice3:     []itoml.Size{64 * 1024 * 1024, 128 * 1024 * 1024},
 		DurationSlice:  []itoml.Duration{itoml.Duration(60 * time.Second), itoml.Duration(120 * time.Second)},
 		DurationSlice2: []itoml.Duration{itoml.Duration(5 * time.Minute), itoml.Duration(60 * time.Minute)},
-		Ignored:        0,
+		NestedSlice: []nested{
+			{Str: "first", Int: 100},
+			{Str: "second", Int: 200},
+			{Str: "third", Int: 300},
+			{Str: "fourth", Int: 400},
+			{Str: "fifth"},
+		},
+		EmbedSlice: []nestedWithEmbed{
+			{Name: "first", Embedded: Embedded{ES: "embedded0"}},
+			{Embedded: Embedded{ES: "embedded1"}},
+		},
+		IntSlice3: []int{10, 99, 30},
+		Ignored:   0,
 	}
 
 	require.Equal(t, exp, got, "environmental override failed")
+}
+
+func TestEnvOverride_Errors(t *testing.T) {
+	type config struct {
+		Int      int            `toml:"int"`
+		Uint     uint           `toml:"uint"`
+		Float    float64        `toml:"float"`
+		Bool     bool           `toml:"bool"`
+		Duration itoml.Duration `toml:"duration"`
+		Size     itoml.Size     `toml:"size"`
+		Ints     []int          `toml:"ints"`
+	}
+
+	for idx, tc := range []struct {
+		envKey string
+		envVal string
+		errStr string
+	}{
+		{"X_INT", "not_an_int", "failed to apply X_INT to Int using type int and value 'not_an_int': strconv.ParseInt: parsing \"not_an_int\": invalid syntax"},
+		{"X_UINT", "not_a_uint", "failed to apply X_UINT to Uint using type uint and value 'not_a_uint': strconv.ParseUint: parsing \"not_a_uint\": invalid syntax"},
+		{"X_UINT", "-1", "failed to apply X_UINT to Uint using type uint and value '-1': strconv.ParseUint: parsing \"-1\": invalid syntax"},
+		{"X_FLOAT", "not_a_float", "failed to apply X_FLOAT to Float using type float64 and value 'not_a_float': strconv.ParseFloat: parsing \"not_a_float\": invalid syntax"},
+		{"X_BOOL", "not_a_bool", "failed to apply X_BOOL to Bool using type bool and value 'not_a_bool': strconv.ParseBool: parsing \"not_a_bool\": invalid syntax"},
+		{"X_DURATION", "not_a_duration", "failed to apply X_DURATION to Duration using TextUnmarshaler toml.Duration and value 'not_a_duration': time: invalid duration \"not_a_duration\""},
+		{"X_SIZE", "not_a_size", "failed to apply X_SIZE to Size using TextUnmarshaler toml.Size and value 'not_a_size': unknown size suffix: e (expected k, m, or g)"},
+		// Indexed slice element with invalid value
+		{"X_INTS_0", "bad", "failed to apply X_INTS_0 to Ints using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
+		// Unindexed (comma-separated) slice with invalid value
+		{"X_INTS", "1,bad,3", "failed to apply X_INTS to Ints using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
+	} {
+		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
+			var c config
+			env := func(s string) string {
+				if s == tc.envKey {
+					return tc.envVal
+				}
+				return ""
+			}
+			err := itoml.ApplyEnvOverrides(env, "X", &c)
+			require.EqualError(t, err, tc.errStr)
+		})
+	}
+}
+
+func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
+	type config struct {
+		Ints    []int    `toml:"ints"`
+		Strings []string `toml:"strings"`
+	}
+
+	t.Run("indexed overflow", func(t *testing.T) {
+		envMap := make(map[string]string)
+		for i := 0; i < itoml.MaxEnvSliceGrowth+1; i++ {
+			envMap[fmt.Sprintf("X_INTS_%d", i)] = fmt.Sprintf("%d", i)
+		}
+		env := func(s string) string { return envMap[s] }
+
+		var c config
+		err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.EqualError(t, err, fmt.Sprintf(
+			"env override X_INTS_%d would grow slice beyond maximum of %d appended elements",
+			itoml.MaxEnvSliceGrowth, itoml.MaxEnvSliceGrowth))
+	})
+
+	t.Run("comma-separated overflow", func(t *testing.T) {
+		parts := make([]string, itoml.MaxEnvSliceGrowth+1)
+		for i := range parts {
+			parts[i] = fmt.Sprintf("item%d", i)
+		}
+		env := func(s string) string {
+			if s == "X_STRINGS" {
+				return strings.Join(parts, ",")
+			}
+			return ""
+		}
+
+		var c config
+		err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.EqualError(t, err, fmt.Sprintf(
+			"env override X_STRINGS has %d comma-separated values, exceeding maximum of %d",
+			itoml.MaxEnvSliceGrowth+1, itoml.MaxEnvSliceGrowth))
+	})
+
+	t.Run("at limit is ok", func(t *testing.T) {
+		envMap := make(map[string]string)
+		for i := 0; i < itoml.MaxEnvSliceGrowth; i++ {
+			envMap[fmt.Sprintf("X_INTS_%d", i)] = fmt.Sprintf("%d", i)
+		}
+		env := func(s string) string { return envMap[s] }
+
+		var c config
+		require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+		require.Len(t, c.Ints, itoml.MaxEnvSliceGrowth)
+	})
 }

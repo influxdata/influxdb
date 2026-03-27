@@ -15,6 +15,10 @@ import (
 	"unicode"
 )
 
+// MaxEnvSliceGrowth limits how many elements can be appended to a slice via
+// environment variable overrides, preventing unbounded memory allocation.
+const MaxEnvSliceGrowth = 64
+
 // Duration is a TOML wrapper type for time.Duration.
 type Duration time.Duration
 
@@ -177,6 +181,41 @@ func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{
 	return applyEnvOverrides(getenv, prefix, reflect.ValueOf(val), "")
 }
 
+// hasEnvForType checks whether any environment variable is set for the given
+// prefix and type. For scalars and TextUnmarshaler types, it checks the prefix
+// directly. For structs, it recursively checks whether any field has an env
+// value set under the prefix.
+func hasEnvForType(getenvTrimmed func(string) string, prefix string, t reflect.Type) bool {
+	if len(getenvTrimmed(prefix)) > 0 {
+		return true
+	}
+	if t.Kind() == reflect.Struct {
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			configName := field.Tag.Get("toml")
+			if configName == "-" {
+				continue
+			}
+			if configName == "" && field.Anonymous {
+				// Embedded field without a toml tag — check using the same prefix.
+				if hasEnvForType(getenvTrimmed, prefix, field.Type) {
+					return true
+				}
+				continue
+			}
+			if configName == "" {
+				continue
+			}
+			configName = strings.ReplaceAll(configName, "-", "_")
+			fieldKey := strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
+			if hasEnvForType(getenvTrimmed, fieldKey, field.Type) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) error {
 	element := spec
 
@@ -193,11 +232,17 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 			if len(value) == 0 {
 				return nil
 			}
-			return u.UnmarshalText([]byte(value))
+			if err := u.UnmarshalText([]byte(value)); err != nil {
+				return fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
+			}
+			return nil
 		}
 	}
 	// If we have a pointer, dereference it
 	if spec.Kind() == reflect.Pointer {
+		if spec.IsNil() {
+			return nil
+		}
 		element = spec.Elem()
 	}
 
@@ -244,6 +289,8 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		}
 		element.SetFloat(floatValue)
 	case reflect.Slice:
+		startLen := element.Len()
+
 		// Handle indexed slices (e.g. VALUE_0, VALUE_1, VALUE_2, etc.)
 		for idx, envOutOfBounds := 0, false; idx < element.Len() || !envOutOfBounds; idx++ {
 			// Are we still within the bounds of the starting slice?
@@ -264,7 +311,10 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				}
 			} else {
 				// We have run past the end of starting slice, but are there more environment array indices?
-				if hasEnvValue(indexedEnvName) {
+				if hasEnvForType(getenvTrimmed, indexedEnvName, element.Type().Elem()) {
+					if idx-startLen >= MaxEnvSliceGrowth {
+						return fmt.Errorf("env override %s would grow slice beyond maximum of %d appended elements", indexedEnvName, MaxEnvSliceGrowth)
+					}
 					// Append a zero value and then set it. This way we aren't assuming element is a []string.
 					element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
 					f := element.Index(idx)
@@ -279,7 +329,12 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 
 		// If the type is s slice but have value not parsed as slice e.g. GRAPHITE_0_TEMPLATES="item1,item2"
 		if element.Len() == 0 && len(value) > 0 {
-			for idx, val := range strings.Split(value, ",") {
+			parts := strings.Split(value, ",")
+			if len(parts) > MaxEnvSliceGrowth {
+				return fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
+			}
+			for idx, val := range parts {
+				val := val
 				// Append a zero value and then set it. This way we aren't assuming element is a []string.
 				element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
 				f := element.Index(idx)
