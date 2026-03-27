@@ -1,7 +1,6 @@
 package http
 
 import (
-	"compress/gzip"
 	"context"
 	"io"
 	"mime"
@@ -130,104 +129,95 @@ func TestRequireOperPermissions(t *testing.T) {
 	}
 }
 
-func TestBackupMetaServiceCompressionLevel(t *testing.T) {
-	tests := []struct {
+func TestBackupCompressionLevel(t *testing.T) {
+	routes := []struct {
+		name string
+		path string
+	}{
+		{"metadata", "/api/v2/backup/metadata"},
+		{"shard", "/api/v2/backup/shards/100"},
+	}
+
+	levels := []struct {
 		name       string
 		level      string
 		wantStatus int
 	}{
-		{
-			name:       "default compression when omitted",
-			level:      "",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "explicit default compression",
-			level:      "default",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "full compression",
-			level:      "full",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "speedy compression",
-			level:      "speedy",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "no compression",
-			level:      "none",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "invalid compression level",
-			level:      "bogus",
-			wantStatus: http.StatusBadRequest,
-		},
+		{"default compression when omitted", "", http.StatusOK},
+		{"explicit default compression", "default", http.StatusOK},
+		{"full compression", "full", http.StatusOK},
+		{"speedy compression", "speedy", http.StatusOK},
+		{"no compression", "none", http.StatusOK},
+		{"invalid compression level", "bogus", http.StatusBadRequest},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrlr := gomock.NewController(t)
-			backupSvc := mock.NewMockBackupService(ctrlr)
-			sqlBackupSvc := mock.NewMockSqlBackupRestoreService(ctrlr)
-			bucketManifestWriter := mock.NewMockBucketManifestWriter(ctrlr)
+	for _, route := range routes {
+		t.Run(route.name, func(t *testing.T) {
+			for _, tt := range levels {
+				t.Run(tt.name, func(t *testing.T) {
+					ctrlr := gomock.NewController(t)
+					backupSvc := mock.NewMockBackupService(ctrlr)
+					sqlBackupSvc := mock.NewMockSqlBackupRestoreService(ctrlr)
+					bucketManifestWriter := mock.NewMockBucketManifestWriter(ctrlr)
 
-			b := &BackupBackend{
-				Logger:                  zaptest.NewLogger(t),
-				HTTPErrorHandler:        kithttp.NewErrorHandler(zaptest.NewLogger(t)),
-				BackupService:           backupSvc,
-				SqlBackupRestoreService: sqlBackupSvc,
-				BucketManifestWriter:    bucketManifestWriter,
-			}
-			h := NewBackupHandler(b)
+					b := &BackupBackend{
+						Logger:                  zaptest.NewLogger(t),
+						HTTPErrorHandler:        kithttp.NewErrorHandler(zaptest.NewLogger(t)),
+						BackupService:           backupSvc,
+						SqlBackupRestoreService: sqlBackupSvc,
+						BucketManifestWriter:    bucketManifestWriter,
+					}
+					h := NewBackupHandler(b)
 
-			url := "/api/v2/backup/metadata"
-			if tt.level != "" {
-				url += "?gzip_compression_level=" + tt.level
-			}
-			r, err := http.NewRequest(http.MethodGet, url, nil)
-			require.NoError(t, err)
-			r.Header.Set("Accept-Encoding", "gzip")
+					r, err := http.NewRequest(http.MethodGet, route.path, nil)
+					require.NoError(t, err)
+					r.Header.Set("Accept-Encoding", "gzip")
+					if tt.level != "" {
+						r.Header.Set("Gzip-Compression-Level", tt.level)
+					}
 
-			ctx := influxdbcontext.SetAuthorizer(r.Context(), mock.NewMockAuthorizer(false, influxdb.OperPermissions()))
-			r = r.WithContext(ctx)
+					ctx := influxdbcontext.SetAuthorizer(r.Context(), mock.NewMockAuthorizer(false, influxdb.OperPermissions()))
+					r = r.WithContext(ctx)
 
-			if tt.wantStatus == http.StatusOK {
-				backupSvc.EXPECT().RLockKVStore()
-				backupSvc.EXPECT().UnlockKVStore()
-				backupSvc.EXPECT().
-					BackupKVStore(gomock.Any(), gomock.Any()).
-					Return(nil)
+					if tt.wantStatus == http.StatusOK {
+						switch route.name {
+						case "metadata":
+							backupSvc.EXPECT().RLockKVStore()
+							backupSvc.EXPECT().UnlockKVStore()
+							backupSvc.EXPECT().
+								BackupKVStore(gomock.Any(), gomock.Any()).
+								Return(nil)
 
-				sqlBackupSvc.EXPECT().RLockSqlStore()
-				sqlBackupSvc.EXPECT().RUnlockSqlStore()
-				sqlBackupSvc.EXPECT().
-					BackupSqlStore(gomock.Any(), gomock.Any()).
-					Return(nil)
+							sqlBackupSvc.EXPECT().RLockSqlStore()
+							sqlBackupSvc.EXPECT().RUnlockSqlStore()
+							sqlBackupSvc.EXPECT().
+								BackupSqlStore(gomock.Any(), gomock.Any()).
+								Return(nil)
 
-				bucketManifestWriter.EXPECT().
-					WriteManifest(gomock.Any(), gomock.Any()).
-					Return(nil)
-			}
+							bucketManifestWriter.EXPECT().
+								WriteManifest(gomock.Any(), gomock.Any()).
+								Return(nil)
+						case "shard":
+							backupSvc.EXPECT().
+								BackupShard(gomock.Any(), gomock.Any(), uint64(100), gomock.Any()).
+								DoAndReturn(func(_ context.Context, w io.Writer, _ uint64, _ interface{}) error {
+									_, err := w.Write([]byte("shard-backup-data"))
+									return err
+								})
+						}
+					}
 
-			rr := httptest.NewRecorder()
-			h.ServeHTTP(rr, r)
-			rs := rr.Result()
+					rr := httptest.NewRecorder()
+					h.ServeHTTP(rr, r)
+					rs := rr.Result()
 
-			require.Equal(t, tt.wantStatus, rs.StatusCode)
+					require.Equal(t, tt.wantStatus, rs.StatusCode)
 
-			// The "none" level bypasses gziphandler and sets Content-Encoding directly,
-			// so we can verify it produces valid gzip output even with small responses.
-			if tt.level == "none" {
-				require.Equal(t, "gzip", rs.Header.Get("Content-Encoding"))
-				gr, err := gzip.NewReader(rs.Body)
-				require.NoError(t, err)
-				defer gr.Close()
-				_, err = io.ReadAll(gr)
-				require.NoError(t, err)
+					// "none" skips gzip entirely; verify no Content-Encoding is set.
+					if tt.level == "none" {
+						require.Empty(t, rs.Header.Get("Content-Encoding"))
+					}
+				})
 			}
 		})
 	}

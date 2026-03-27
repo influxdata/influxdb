@@ -79,7 +79,7 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 }
 
 // gzipHandlerWithLevel returns an http.Handler that wraps the given handler with gzip compression.
-// The compression level is determined by the "gzip_compression_level" query parameter.
+// The compression level is determined by the "Gzip-Compression-Level" request header.
 // Valid values are: default, full, speedy, none. If not specified, "default" is used.
 func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 	// Pre-build handlers for each named compression level so we avoid
@@ -97,7 +97,7 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		levelStr := r.URL.Query().Get("gzip_compression_level")
+		levelStr := r.Header.Get("Gzip-Compression-Level")
 		if levelStr == "" {
 			levelStr = "default"
 		}
@@ -113,21 +113,10 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 
 		level := cl.GzipLevel()
 
-		// gziphandler rejects gzip.NoCompression (0); handle it directly
-		// by wrapping the response in a gzip writer with no compression.
-		// We still write a gzip file here since restore expects that.
+		// No compression: skip gzip entirely. The restore side handles
+		// both compressed and uncompressed data.
 		if level == gzip.NoCompression {
-			w.Header().Set("Content-Encoding", "gzip")
-			gz, err := gzip.NewWriterLevel(w, gzip.NoCompression)
-			if err != nil {
-				h.HandleHTTPError(r.Context(), &errors.Error{
-					Code: errors.EInternal,
-					Msg:  fmt.Sprintf("failed to create gzip writer: %v", err),
-				}, w)
-				return
-			}
-			defer gz.Close()
-			next.ServeHTTP(gzipResponseWriter{gz: gz, ResponseWriter: w}, r)
+			next.ServeHTTP(w, r)
 			return
 		}
 
@@ -141,16 +130,6 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 		}
 		handler(next).ServeHTTP(w, r)
 	})
-}
-
-// gzipResponseWriter wraps an http.ResponseWriter to route Write calls through a gzip.Writer.
-type gzipResponseWriter struct {
-	gz *gzip.Writer
-	http.ResponseWriter
-}
-
-func (w gzipResponseWriter) Write(p []byte) (int, error) {
-	return w.gz.Write(p)
 }
 
 // requireOperPermissions returns an "unauthorized" response for requests that do not have OperPermissions.
