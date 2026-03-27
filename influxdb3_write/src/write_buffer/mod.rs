@@ -588,22 +588,19 @@ impl WriteBufferImpl {
             );
         }
 
-        let mut chunk_order = chunks.len() as i64;
         // Although this sends a cache request, it does not mean all these
         // files will be cached. This depends on parquet cache's capacity
         // and whether these files are recent enough
         cache_parquet_files(self.parquet_cache.clone(), &parquet_files);
 
-        for parquet_file in parquet_files {
+        for (chunk_order, parquet_file) in (chunks.len() as i64..).zip(parquet_files.iter()) {
             let parquet_chunk = parquet_chunk_from_file(
-                &parquet_file,
+                parquet_file,
                 &table_def.schema,
                 self.persister.object_store_url().clone(),
                 self.persister.object_store(),
                 chunk_order,
             );
-
-            chunk_order += 1;
 
             chunks.push(Arc::new(parquet_chunk));
         }

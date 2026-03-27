@@ -179,7 +179,7 @@ impl PersistedFiles {
             .filter(|file| filter.test_time_stamp_min_max(file.min_time, file.max_time))
             .collect::<Vec<_>>();
 
-        files.sort_by(|a, b| b.min_time.cmp(&a.min_time));
+        files.sort_by_key(|f| std::cmp::Reverse(f.min_time));
 
         files
     }
@@ -376,7 +376,7 @@ impl Inner {
         );
 
         // Sort checkpoints by year_month to process in chronological order
-        checkpoints.sort_by(|a, b| a.year_month.cmp(&b.year_month));
+        checkpoints.sort_by_key(|c| c.year_month);
 
         // Merge all checkpoints into one
         let merged_checkpoint = checkpoints.into_iter().reduce(|mut acc, checkpoint| {

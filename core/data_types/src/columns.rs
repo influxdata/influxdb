@@ -5,6 +5,7 @@ use arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
 use generated_types::influxdata::iox::{catalog, column_type::v1 as proto, gossip};
 use influxdb_line_protocol::FieldValue;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, builder::SchemaBuilder, sort::SortKey};
+use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -291,7 +292,7 @@ impl TryFrom<&gossip::v1::Column> for ColumnSchema {
 
 /// The column data type
 #[expect(missing_docs)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Serialize, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(i8)]
 pub enum ColumnType {
     I64 = 1,
