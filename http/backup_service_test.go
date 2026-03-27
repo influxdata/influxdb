@@ -1,8 +1,8 @@
 package http
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"io"
 	"mime"
 	"mime/multipart"
