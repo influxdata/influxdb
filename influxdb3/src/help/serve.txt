@@ -25,9 +25,13 @@ Examples
 {}
   --http-bind <ADDR>               Address for HTTP API requests [default: 0.0.0.0:8181]
                                     [env: INFLUXDB3_HTTP_BIND_ADDR=]
-  --log-filter <FILTER>            Logs: filter directive
+  --log-filter <FILTER>            Logs: filter directive.
+                                   When the filter starts with "debug" or "trace", noise-reduction
+                                   directives are automatically appended (e.g. reqwest=info,
+                                   datafusion=info, object_store=off). Use --disable-log-filter-noise-reduction
+                                   to suppress this.
                                     [default: info,iox_query::query_log=warn,influxdb3_query_executor::query_planner=warn]
-                                    [env: LOG_FILTER=]
+                                    [env: INFLUXDB3_LOG_FILTER=]
   --tls-key <KEY_FILE>             The path to the key file for TLS to be enabled
                                     [env: INFLUXDB3_TLS_KEY=]
   --tls-cert <CERT_FILE>           The path to the cert file for TLS to be enabled

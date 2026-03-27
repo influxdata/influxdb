@@ -932,8 +932,9 @@ impl InnerCatalog {
 
     pub fn table_count(&self) -> usize {
         self.databases
-            .resource_iter()
-            .map(|db| db.table_count())
+            .iter()
+            .filter(|(_, db)| !db.deleted)
+            .map(|(_, db)| db.table_count())
             .sum()
     }
 
@@ -1629,20 +1630,57 @@ impl UpdateDatabaseSchema for CreateTableLog {
     }
 }
 
+/// Mark a table as soft-deleted within a database schema.
+///
+/// Sets `deleted = true`, renames the table with a deletion timestamp suffix,
+/// and sets the `hard_delete_time`.
+fn soft_delete_table(
+    schema: &mut DatabaseSchema,
+    table_id: TableId,
+    deletion_time: Time,
+    hard_delete_time: Option<Time>,
+) {
+    let Some(mut table) = schema.tables.get_by_id(&table_id) else {
+        return;
+    };
+    let table_def = Arc::make_mut(&mut table);
+    if !table_def.deleted {
+        table_def.table_name =
+            make_new_name_using_deleted_time(&table_def.table_name, deletion_time);
+        table_def.deleted = true;
+    }
+    table_def.hard_delete_time = hard_delete_time;
+    if let Err(e) = schema.tables.update(table_id, table) {
+        warn!(%table_id, %e, "failed to update table during soft delete");
+    }
+}
+
 impl UpdateDatabaseSchema for SoftDeleteDatabaseLog {
     fn update_schema<'a>(
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         let owned = schema.to_mut();
+        let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
+        let hard_delete_time = self.hard_deletion_time.map(Time::from_timestamp_nanos);
         // If it isn't already deleted, then we must generate a "deleted" name for the schema,
         // based on the deletion_time
         if !owned.deleted {
-            let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
             owned.name = make_new_name_using_deleted_time(&self.database_name, deletion_time);
             owned.deleted = true;
         }
-        owned.hard_delete_time = self.hard_deletion_time.map(Time::from_timestamp_nanos);
+        owned.hard_delete_time = hard_delete_time;
+        // Cascade soft-delete to all tables in the database so they no longer count against
+        // the table limits.
+        let table_ids: Vec<_> = owned
+            .tables
+            .iter()
+            .filter(|(_, t)| !t.deleted)
+            .map(|(id, _)| *id)
+            .collect();
+        for table_id in table_ids {
+            soft_delete_table(owned, table_id, deletion_time, hard_delete_time);
+        }
         // Disable all triggers so they are marked as disabled in the catalog
         let trigger_ids: Vec<_> = owned
             .processing_engine_triggers
@@ -1672,24 +1710,10 @@ impl UpdateDatabaseSchema for SoftDeleteTableLog {
         if !schema.tables.contains_id(&self.table_id) {
             return Ok(schema);
         }
-        let mut_schema = schema.to_mut();
-        if let Some(mut deleted_table) = mut_schema.tables.get_by_id(&self.table_id) {
-            let new_table_def = Arc::make_mut(&mut deleted_table);
-            // If it isn't already deleted, then we must generate a "deleted" name for the schema,
-            // based on the deletion_time
-            if !new_table_def.deleted {
-                let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
-                let table_name = make_new_name_using_deleted_time(&self.table_name, deletion_time);
-                new_table_def.deleted = true;
-                new_table_def.table_name = table_name;
-            }
-            new_table_def.hard_delete_time =
-                self.hard_deletion_time.map(Time::from_timestamp_nanos);
-            mut_schema
-                .tables
-                .update(new_table_def.table_id, deleted_table)
-                .expect("the table should exist");
-        }
+        let owned = schema.to_mut();
+        let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
+        let hard_delete_time = self.hard_deletion_time.map(Time::from_timestamp_nanos);
+        soft_delete_table(owned, self.table_id, deletion_time, hard_delete_time);
         Ok(schema)
     }
 }

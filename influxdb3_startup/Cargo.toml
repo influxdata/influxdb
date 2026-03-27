@@ -1,0 +1,15 @@
+[package]
+name = "influxdb3_startup"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[package.metadata.influxdb3]
+build = "Core"
+
+[dependencies]
+chrono.workspace = true
+
+[lints]
+workspace = true

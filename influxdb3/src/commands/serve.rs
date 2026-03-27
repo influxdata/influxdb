@@ -195,6 +195,16 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) logging_config: LoggingConfig,
 
+    /// Disable automatic expansion of debug/trace log filters.
+    ///
+    /// When set, `--log-filter debug` (or `trace`) is passed through unchanged.
+    /// Without this flag, noise-reduction directives are automatically appended.
+    #[clap(
+        long = "disable-log-filter-noise-reduction",
+        env = "INFLUXDB3_DISABLE_LOG_FILTER_NOISE_REDUCTION"
+    )]
+    pub(crate) disable_log_filter_noise_reduction: bool,
+
     /// tracing options
     #[clap(flatten)]
     pub(crate) tracing_config: TracingConfig,
