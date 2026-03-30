@@ -554,6 +554,42 @@ func TestEnvOverride_Errors(t *testing.T) {
 	}
 }
 
+func TestEnvOverride_DefaultAppliedToNewSliceElements(t *testing.T) {
+	// When a default (unindexed) env var is set for a struct slice field,
+	// it should be applied to elements appended beyond the initial slice
+	// length, just as it is for existing elements.
+	type item struct {
+		Host string `toml:"host"`
+		Port int    `toml:"port"`
+	}
+	type config struct {
+		Items []item `toml:"items"`
+	}
+
+	env := func(s string) string {
+		switch s {
+		// Default host for all elements
+		case "X_ITEMS_HOST":
+			return "localhost"
+		// Element 0 gets just the default host (no indexed overrides)
+		// Element 1 is appended and gets an indexed port override
+		case "X_ITEMS_1_PORT":
+			return "9999"
+		default:
+			return ""
+		}
+	}
+
+	c := config{Items: []item{{Port: 80}}}
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	// Element 0 (existing): default host "localhost" applied
+	// Element 1 (appended): default host "localhost" should be applied, then port overridden to 9999
+	require.Equal(t, []item{
+		{Host: "localhost", Port: 80},
+		{Host: "localhost", Port: 9999},
+	}, c.Items)
+}
+
 func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 	type config struct {
 		Ints    []int    `toml:"ints"`

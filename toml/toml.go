@@ -178,45 +178,11 @@ func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	return applyEnvOverrides(getenv, prefix, reflect.ValueOf(val), "")
+	_, err := applyEnvOverrides(getenv, prefix, reflect.ValueOf(val), "")
+	return err
 }
 
-// hasEnvForType checks whether any environment variable is set for the given
-// prefix and type. For scalars and TextUnmarshaler types, it checks the prefix
-// directly. For structs, it recursively checks whether any field has an env
-// value set under the prefix.
-func hasEnvForType(getenvTrimmed func(string) string, prefix string, t reflect.Type) bool {
-	if len(getenvTrimmed(prefix)) > 0 {
-		return true
-	}
-	if t.Kind() == reflect.Struct {
-		for i := 0; i < t.NumField(); i++ {
-			field := t.Field(i)
-			configName := field.Tag.Get("toml")
-			if configName == "-" {
-				continue
-			}
-			if configName == "" && field.Anonymous {
-				// Embedded field without a toml tag — check using the same prefix.
-				if hasEnvForType(getenvTrimmed, prefix, field.Type) {
-					return true
-				}
-				continue
-			}
-			if configName == "" {
-				continue
-			}
-			configName = strings.ReplaceAll(configName, "-", "_")
-			fieldKey := strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
-			if hasEnvForType(getenvTrimmed, fieldKey, field.Type) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) error {
+func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) (bool, error) {
 	element := spec
 
 	getenvTrimmed := func(key string) string { return strings.TrimSpace(getenv(key)) }
@@ -230,18 +196,18 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		if u, ok := v.Interface().(encoding.TextUnmarshaler); ok {
 			// Skip any fields we don't have a value to set
 			if len(value) == 0 {
-				return nil
+				return false, nil
 			}
 			if err := u.UnmarshalText([]byte(value)); err != nil {
-				return fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
+				return false, fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 			}
-			return nil
+			return true, nil
 		}
 	}
 	// If we have a pointer, dereference it
 	if spec.Kind() == reflect.Pointer {
 		if spec.IsNil() {
-			return nil
+			return false, nil
 		}
 		element = spec.Elem()
 	}
@@ -249,47 +215,53 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 	switch element.Kind() {
 	case reflect.String:
 		if len(value) == 0 {
-			return nil
+			return false, nil
 		}
 		element.SetString(value)
+		return true, nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if len(value) == 0 {
-			return nil
+			return false, nil
 		}
 		intValue, err := strconv.ParseInt(value, 0, element.Type().Bits())
 		if err != nil {
-			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
+			return false, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetInt(intValue)
+		return true, nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if len(value) == 0 {
-			return nil
+			return false, nil
 		}
 		intValue, err := strconv.ParseUint(value, 0, element.Type().Bits())
 		if err != nil {
-			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
+			return false, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetUint(intValue)
+		return true, nil
 	case reflect.Bool:
 		if len(value) == 0 {
-			return nil
+			return false, nil
 		}
 		boolValue, err := strconv.ParseBool(value)
 		if err != nil {
-			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
+			return false, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetBool(boolValue)
+		return true, nil
 	case reflect.Float32, reflect.Float64:
 		if len(value) == 0 {
-			return nil
+			return false, nil
 		}
 		floatValue, err := strconv.ParseFloat(value, element.Type().Bits())
 		if err != nil {
-			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
+			return false, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %s", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetFloat(floatValue)
+		return true, nil
 	case reflect.Slice:
 		startLen := element.Len()
+		foundOverrides := false
 
 		// Handle indexed slices (e.g. VALUE_0, VALUE_1, VALUE_2, etc.)
 		for idx, envOutOfBounds := 0, false; idx < element.Len() || !envOutOfBounds; idx++ {
@@ -299,103 +271,124 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				f := element.Index(idx)
 
 				// Apply the unindexed environment variable as a default value, if available.
-				if hasEnvForType(getenvTrimmed, prefix, f.Type()) {
-					if err := applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
-						return err
-					}
+				// Finding a default environment value does not count when considering if we continue
+				// extending the slice, so we throw the found return value away.
+				if _, err := applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
+					return false, err
 				}
 
 				// Apply the indexed environment variable as an override value.
-				if err := applyEnvOverrides(getenv, indexedEnvName, f, structKey); err != nil {
-					return err
+				if found, err := applyEnvOverrides(getenv, indexedEnvName, f, structKey); err != nil {
+					return found, err
+				} else if found {
+					foundOverrides = true
 				}
 			} else {
 				// We have run past the end of starting slice, but are there more environment array indices?
-				if hasEnvForType(getenvTrimmed, indexedEnvName, element.Type().Elem()) {
+				// Create a zero-value value to unmarshal the environment override into.
+				f := reflect.New(element.Type().Elem()).Elem()
+				// Apply the unindexed environment variable as a default value, same as for existing elements.
+				// Only meaningful for struct/pointer elements where individual fields can be defaulted.
+				elemKind := element.Type().Elem().Kind()
+				if elemKind == reflect.Struct || elemKind == reflect.Pointer {
+					if _, err := applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
+						return false, err
+					}
+				}
+				if found, err := applyEnvOverrides(getenv, indexedEnvName, f, structKey); err != nil {
+					return found, err
+				} else if found {
+					foundOverrides = true
+					// We found environment variables to override into newValue. Check for growth bound before appending.
 					if idx-startLen >= MaxEnvSliceGrowth {
-						return fmt.Errorf("env override %s would grow slice beyond maximum of %d appended elements", indexedEnvName, MaxEnvSliceGrowth)
+						return false, fmt.Errorf("env override %s would grow slice beyond maximum of %d appended elements", indexedEnvName, MaxEnvSliceGrowth)
 					}
-					// Append a zero value and then set it. This way we aren't assuming element is a []string.
-					element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
-					f := element.Index(idx)
-					if err := applyEnvOverrides(getenv, indexedEnvName, f, structKey); err != nil {
-						return err
-					}
+
+					element.Set(reflect.Append(element, f))
 				} else {
-					envOutOfBounds = true // We seem to have run past the end of the environment indices.
+					// We seem to have run past the end of the environment indices.
+					envOutOfBounds = true
 				}
 			}
 		}
 
 		// If the type is s slice but have value not parsed as slice e.g. GRAPHITE_0_TEMPLATES="item1,item2"
 		if element.Len() == 0 && len(value) > 0 {
+			foundOverrides = true
 			parts := strings.Split(value, ",")
 			if len(parts) > MaxEnvSliceGrowth {
-				return fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
+				return false, fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
 			}
 			for idx, val := range parts {
-				val := val
 				// Append a zero value and then set it. This way we aren't assuming element is a []string.
 				element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
 				f := element.Index(idx)
-				if err := applyEnvOverrides(func(n string) string { return val }, prefix, f, structKey); err != nil {
-					return err
+				if _, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, structKey); err != nil {
+					return false, err
 				}
 			}
 		}
 
+		return foundOverrides, nil
+
 	case reflect.Struct:
+		foundOverrides := false
+
 		typeOfSpec := element.Type()
 		for i := 0; i < element.NumField(); i++ {
 			field := element.Field(i)
 
-			// Skip any fields that we cannot set
-			if !field.CanSet() && field.Kind() != reflect.Slice {
-				continue
-			}
-
-			structField := typeOfSpec.Field(i)
-			fieldName := structField.Name
-
-			configName := structField.Tag.Get("toml")
-			if configName == "-" {
-				// Skip fields with tag `toml:"-"`.
-				continue
-			}
-
-			if configName == "" && structField.Anonymous {
-				// Embedded field without a toml tag.
-				// Don't modify prefix.
-				if err := applyEnvOverrides(getenv, prefix, field, fieldName); err != nil {
-					return err
+			foundField, err := func() (bool, error) {
+				// Skip any fields that we cannot set
+				if !field.CanSet() && field.Kind() != reflect.Slice {
+					return false, nil
 				}
-				continue
-			}
 
-			// Replace hyphens with underscores to avoid issues with shells
-			configName = strings.Replace(configName, "-", "_", -1)
+				structField := typeOfSpec.Field(i)
+				fieldName := structField.Name
 
-			envKey := strings.ToUpper(configName)
-			if prefix != "" {
-				envKey = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
-			}
-
-			// If it's a sub-config, recursively apply
-			if field.Kind() == reflect.Struct || field.Kind() == reflect.Pointer ||
-				field.Kind() == reflect.Slice || field.Kind() == reflect.Array {
-				if err := applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
-					return err
+				configName := structField.Tag.Get("toml")
+				if configName == "-" {
+					// Skip fields with tag `toml:"-"`.
+					return false, nil
 				}
-				continue
-			}
 
-			// Don't bother setting fields that don't have an environment override.
-			if hasEnvValue(envKey) {
-				if err := applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
-					return err
+				if configName == "" && structField.Anonymous {
+					// Embedded field without a toml tag.
+					// Don't modify prefix.
+					return applyEnvOverrides(getenv, prefix, field, fieldName)
 				}
+
+				// Replace hyphens with underscores to avoid issues with shells
+				configName = strings.Replace(configName, "-", "_", -1)
+
+				envKey := strings.ToUpper(configName)
+				if prefix != "" {
+					envKey = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
+				}
+
+				// If it's a sub-config, recursively apply
+				if field.Kind() == reflect.Struct || field.Kind() == reflect.Pointer ||
+					field.Kind() == reflect.Slice || field.Kind() == reflect.Array {
+					return applyEnvOverrides(getenv, envKey, field, fieldName)
+				}
+
+				// Don't bother setting fields that don't have an environment override.
+				if !hasEnvValue(envKey) {
+					return false, nil
+				}
+				return applyEnvOverrides(getenv, envKey, field, fieldName)
+			}()
+			if err != nil {
+				return false, err
+			}
+			if foundField {
+				foundOverrides = true
 			}
 		}
+
+		return foundOverrides, nil
 	}
-	return nil
+
+	return false, nil
 }
