@@ -46,13 +46,11 @@ This branch (`main`) is for **InfluxDB 3 Core** (Rust). Other versions are maint
 
 ## Project Status
 
-InfluxDB 3 Core is GA as of April 15, 2025! We plan to have monthly point releases for the following six months, with patch releases as needed. We will move to a quarterly cadence after that for 3-4 releases, after which we'll reevaluate our release schedule.
+InfluxDB 3 Core has been [generally available since April 2025](https://www.influxdata.com/blog/influxdb-3-oss-ga/). See [`v3.*` releases](https://github.com/influxdata/influxdb/releases?q=v3) and [release notes](https://docs.influxdata.com/influxdb3/core/reference/release-notes/) for the latest version.
 
-Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) 
-or the public channels below to share your feedback, feature requests, and bug reports.
+Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) or the public channels below to share your feedback, feature requests, and bug reports.
 
-See the [InfluxDB 3 Core & Enterprise GA release announcement here](https://www.influxdata.com/blog/influxdb-3-oss-ga/) 
-or dig into the [InfluxDB 3 getting started guide here](https://docs.influxdata.com/influxdb3/core/get-started/).
+To get started, see the [InfluxDB 3 Core getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
 
 ## Learn InfluxDB
 [Documentation](https://docs.influxdata.com/) | [Community Forum](https://community.influxdata.com/) | [Community Slack](https://www.influxdata.com/slack/) | [Blog](https://www.influxdata.com/blog/) | [InfluxDB University](https://university.influxdata.com/) | [YouTube](https://www.youtube.com/@influxdata8893)
