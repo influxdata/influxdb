@@ -357,6 +357,11 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 					return applyEnvOverrides(getenv, prefix, field, fieldName)
 				}
 
+				// Fall back to field name if no toml tag, matching BurntSushi/toml behavior.
+				if configName == "" {
+					configName = fieldName
+				}
+
 				// Replace hyphens with underscores to avoid issues with shells
 				configName = strings.ReplaceAll(configName, "-", "_")
 
@@ -365,12 +370,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 					envKey = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
 				}
 
-				// If it's a sub-config, recursively apply
-				if field.Kind() == reflect.Struct || field.Kind() == reflect.Pointer ||
-					field.Kind() == reflect.Slice || field.Kind() == reflect.Array {
-					return applyEnvOverrides(getenv, envKey, field, fieldName)
-				}
-
+				// Apply recursively to field. Works for scalars, structs, slices, pointers, etc.
 				return applyEnvOverrides(getenv, envKey, field, fieldName)
 			}()
 			if err != nil {

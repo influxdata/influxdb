@@ -557,6 +557,25 @@ func TestEnvOverride_Errors(t *testing.T) {
 	}
 }
 
+func TestEnvOverride_FieldWithoutTomlTag(t *testing.T) {
+	// A field without a toml tag should be reachable by its field name,
+	// not by a trailing underscore in the env key.
+	type config struct {
+		Name string
+	}
+
+	env := func(s string) string {
+		if s == "X_NAME" {
+			return "alice"
+		}
+		return ""
+	}
+
+	var c config
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	require.Equal(t, "alice", c.Name)
+}
+
 func TestEnvOverride_DefaultAppliedToNewSliceElements(t *testing.T) {
 	// When a default (unindexed) env var is set for a struct slice field,
 	// it should be applied to elements appended beyond the initial slice
