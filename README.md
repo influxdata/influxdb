@@ -36,11 +36,11 @@ InfluxDB 3 Core’s feature highlights include:
 - Compatibility with InfluxDB 1.x query API (InfluxQL)
 - SQL query engine with support for FlightSQL and HTTP query API
 
-**Storage format:** Apache Parquet on object storage (S3, Azure, GCP) or local disk
-**Query languages:** SQL, InfluxQL, Flight SQL
-**Write format:** Line protocol
-**API:** HTTP on port 8181
-**Built with:** Rust, Apache Arrow, DataFusion
+**Storage format:** Apache Parquet on object storage (S3, Azure, GCP) or local disk\
+**Query languages:** SQL, InfluxQL, Flight SQL\
+**Write format:** Line protocol\
+**API:** HTTP on port 8181\
+**Built with:** Rust, Apache Arrow, DataFusion\
 **Compatible with:** InfluxDB 1.x and 2.x write APIs, InfluxDB 1.x query API (InfluxQL)
 
 ## Other InfluxDB Versions
