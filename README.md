@@ -44,3 +44,7 @@ This repository contains multiple InfluxDB versions on separate branches:
 | v3 Core | [`main`](https://github.com/influxdata/influxdb/tree/main) | SQL, InfluxQL | [docs.influxdata.com/influxdb3/core/](https://docs.influxdata.com/influxdb3/core/) |
 | **v2.x (this branch)** | [`main-2.x`](https://github.com/influxdata/influxdb/tree/main-2.x) | Flux, InfluxQL | [docs.influxdata.com/influxdb/v2/](https://docs.influxdata.com/influxdb/v2/) |
 | v1.x | [`master-1.x`](https://github.com/influxdata/influxdb/tree/master-1.x) | InfluxQL, Flux | [docs.influxdata.com/influxdb/v1/](https://docs.influxdata.com/influxdb/v1/) |
+
+## Support
+
+For community support, feedback channels, and documentation requests, see [Support and feedback](https://docs.influxdata.com/influxdb/v2/get-started/#support-and-feedback).
