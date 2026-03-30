@@ -9,6 +9,9 @@ InfluxDB is the leading open source time series database for metrics, events, an
 
 </div>
 
+> [!NOTE]
+> This branch documents an earlier version of InfluxDB OSS. [InfluxDB 3 Core](https://github.com/influxdata/influxdb/tree/main) is the latest stable version. InfluxDB 3 Core includes [compatibility APIs for v2 and v1 write workloads](https://docs.influxdata.com/influxdb3/core/reference/api/).
+
 ## InfluxDB Versions
 
 This repository contains multiple InfluxDB versions on separate branches:
