@@ -71,8 +71,12 @@ We have nightly and versioned Docker images, Debian packages, RPM packages, and 
 If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
 
+## Support
+
+For community support and feedback channels, see [Bug reports and feedback](https://docs.influxdata.com/influxdb3/core/#bug-reports-and-feedback).
+
 ## License
-The open source software we build is licensed under the permissive MIT or Apache 2 licenses at the user's choosing. We’ve long held the view that our open source code should be truly open and our commercial code should be separate and closed. 
+The open source software we build is licensed under the permissive MIT or Apache 2 licenses at the user’s choosing. We’ve long held the view that our open source code should be truly open and our commercial code should be separate and closed.
 
 
 ## Interested in joining the team building InfluxDB?
