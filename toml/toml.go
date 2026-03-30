@@ -185,8 +185,7 @@ func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{
 func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) (bool, error) {
 	element := spec
 
-	getenvTrimmed := func(key string) string { return strings.TrimSpace(getenv(key)) }
-	value := getenvTrimmed(prefix)
+	value := strings.TrimSpace(getenv(prefix))
 
 	// If spec is a named type and is addressable,
 	// check the address to see if it implements encoding.TextUnmarshaler.
