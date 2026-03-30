@@ -59,8 +59,6 @@ InfluxDB 3 Core has been [generally available since April 2025](https://www.infl
 
 Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) or the public channels below to share your feedback, feature requests, and bug reports.
 
-To get started, see the [InfluxDB 3 Core getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
-
 ## Installation
 Docker images, Debian packages, RPM packages, and tarballs are available on the [InfluxData downloads page](https://portal.influxdata.com/downloads/).
 
