@@ -4,8 +4,7 @@
     <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
     <img src="assets/influxdb-logo.png" alt="InfluxDB Logo" width="600">
   </picture>
- <p>
-InfluxDB is the leading open source time series database for metrics, events, and real-time analytics.</p>
+ <p>InfluxDB OSS v2 — open source time series platform powered by the TSM storage engine.</p>
 
 </div>
 
