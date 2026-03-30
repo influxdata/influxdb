@@ -33,10 +33,7 @@ If you are interested in building from source, see the [building from source](CO
 For a complete getting started guide, see the [InfluxDB v2 documentation](https://docs.influxdata.com/influxdb/v2/get-started/).
 
 
-To write and query data or use the API in any way, you'll need to first create a user, credentials, organization, and bucket. Everything in InfluxDB is organized under a concept of an organization, as the API is designed to be multi-tenant. Buckets represent where you store time series data — they are synonymous with what was previously in InfluxDB 1.x’s database and retention policy.
-
-
-The simplest way to get set up is to point your browser to http://localhost:8086 and go through the prompts.
+In InfluxDB v2, data and resources belong to an _organization_. You store time series data in _buckets_ (equivalent to a database and retention policy in InfluxDB 1.x). To get started, create a user, organization, and bucket — either through the UI at `http://localhost:8086` or with the `influx setup` CLI command.
 
 ## Flux
 Flux is an open source functional data scripting language designed for querying, analyzing, and acting on data. Flux is supported in InfluxDB 1.x and 2.x, but is not supported in v3. For users who are interested in transitioning to InfluxDB 3.0 and want to future-proof their code, we suggest using InfluxQL. 
