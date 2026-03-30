@@ -30,7 +30,7 @@ For Docker images, Debian packages, RPM packages, and tarballs, see the [InfluxD
 If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
 ## Get Started
-For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/latest/).
+For a complete getting started guide, see the [InfluxDB v2 documentation](https://docs.influxdata.com/influxdb/v2/get-started/).
 
 
 To write and query data or use the API in any way, you'll need to first create a user, credentials, organization, and bucket. Everything in InfluxDB is organized under a concept of an organization, as the API is designed to be multi-tenant. Buckets represent where you store time series data — they are synonymous with what was previously in InfluxDB 1.x’s database and retention policy.
