@@ -46,21 +46,44 @@ func (f *jsonFormatter) WriteResponse(ctx context.Context, w io.Writer, resp Res
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	var wErr error
 	var b []byte
-	if f.Pretty {
-		b, err = json.MarshalIndent(resp, "", "    ")
-	} else {
-		b, err = json.Marshal(resp)
-	}
+	b, err = f.marshal(resp)
 
 	if err != nil {
-		_, err = io.WriteString(w, err.Error())
-	} else {
-		_, err = w.Write(b)
+		nakedErr := unnestError(err)
+		// We're so deep in errors we are going to drop this one.
+		b, _ = f.marshal(Response{Results: []*Result{{Err: nakedErr}}})
 	}
+	if _, wErr = w.Write(b); wErr == nil {
+		_, wErr = w.Write([]byte("\n"))
+	}
+	return wErr
+}
 
-	w.Write([]byte("\n"))
-	return err
+func (f *jsonFormatter) marshal(resp Response) ([]byte, error) {
+	if f.Pretty {
+		return json.MarshalIndent(resp, "", "    ")
+	} else {
+		return json.Marshal(resp)
+	}
+}
+
+func unnestError(err error) error {
+	for {
+		switch e := err.(type) {
+		case interface{ Unwrap() error }:
+			err = e.Unwrap()
+		case interface{ Unwrap() []error }:
+			errs := e.Unwrap()
+			if len(errs) == 0 {
+				return err
+			}
+			err = errs[0]
+		default:
+			return err
+		}
+	}
 }
 
 type csvFormatter struct {
