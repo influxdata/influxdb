@@ -186,7 +186,6 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 	element := spec
 
 	getenvTrimmed := func(key string) string { return strings.TrimSpace(getenv(key)) }
-	hasEnvValue := func(key string) bool { return len(getenvTrimmed(key)) > 0 }
 	value := getenvTrimmed(prefix)
 
 	// If spec is a named type and is addressable,
@@ -373,10 +372,6 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 					return applyEnvOverrides(getenv, envKey, field, fieldName)
 				}
 
-				// Don't bother setting fields that don't have an environment override.
-				if !hasEnvValue(envKey) {
-					return false, nil
-				}
 				return applyEnvOverrides(getenv, envKey, field, fieldName)
 			}()
 			if err != nil {
