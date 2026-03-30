@@ -30,7 +30,7 @@ InfluxDB 3 Core’s feature highlights include:
 - Embedded Python VM for plugins and triggers
 - Parquet file persistence
 - Compatibility with InfluxDB 1.x and 2.x write APIs
-- Compatability with InfluxDB 1.x query API (InfluxQL)
+- Compatibility with InfluxDB 1.x query API (InfluxQL)
 - SQL query engine with support for FlightSQL and HTTP query API
 
 ## Project Status
