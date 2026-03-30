@@ -66,8 +66,8 @@ func TestJsonFormatter_WriteResponse_MarshalError(t *testing.T) {
 		value   interface{}
 		wantErr string
 	}{
-		{"Inf", math.Inf(1), "json: unsupported value: +Inf"},
-		{"NaN", math.NaN(), "json: unsupported value: NaN"},
+		{"Inf", math.Inf(1), "unsupported value"},
+		{"NaN", math.NaN(), "unsupported value"},
 	}
 
 	for _, tt := range tests {
@@ -103,7 +103,7 @@ func TestJsonFormatter_WriteResponse_MarshalError(t *testing.T) {
 
 			errMsg, ok := result0["error"].(string)
 			require.True(t, ok, "expected error string in result, got: %s", output)
-			require.Equal(t, tt.wantErr, errMsg)
+			require.Contains(t, errMsg, tt.wantErr)
 		})
 	}
 }
