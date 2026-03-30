@@ -62,7 +62,7 @@ Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) or the public channe
 To get started, see the [InfluxDB 3 Core getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
 
 ## Installation
-We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available on the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the InfluxDB command line interface (CLI) client as a separate binary available at the same location.
+Docker images, Debian packages, RPM packages, and tarballs are available on the [InfluxData downloads page](https://portal.influxdata.com/downloads/).
 
 - For InfluxDB 3 Core, see the [getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
 - For InfluxDB 3 Enterprise, see the [getting started guide](https://docs.influxdata.com/influxdb3/enterprise/get-started/).
