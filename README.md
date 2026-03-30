@@ -37,8 +37,3 @@ In InfluxDB v2, data and resources belong to an _organization_. You store time s
 
 ## Flux
 [Flux](https://github.com/influxdata/flux) is an open source functional data scripting language designed for querying, analyzing, and acting on data. Flux is supported in InfluxDB 1.x and 2.x, but is not supported in InfluxDB 3. If you plan to migrate to InfluxDB 3 in the future, we recommend using [InfluxQL](https://docs.influxdata.com/influxdb/v2/query-data/influxql/) instead of Flux with InfluxDB v2.
-
-## Additional Resources
-- [InfluxDB Tips and Tutorials](https://www.influxdata.com/blog/category/tech/influxdb/)
-- [InfluxDB Essentials Course](https://university.influxdata.com/courses/influxdb-essentials-tutorial/)
-- [Exploring InfluxDB Cloud Course](https://university.influxdata.com/courses/exploring-influxdb-cloud-tutorial/)
