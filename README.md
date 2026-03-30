@@ -37,6 +37,13 @@ InfluxDB 3 Core’s feature highlights include:
 - Compatibility with InfluxDB 1.x query API (InfluxQL)
 - SQL query engine with support for FlightSQL and HTTP query API
 
+## Other InfluxDB Versions
+
+This branch (`main`) is for **InfluxDB 3 Core** (Rust). Other versions are maintained on separate branches in this repository:
+
+- **InfluxDB 2.x** (Go) — [`main-2.x`](https://github.com/influxdata/influxdb/tree/main-2.x) · [v2 documentation](https://docs.influxdata.com/influxdb/v2/)
+- **InfluxDB 1.x** (Go) — [`master-1.x`](https://github.com/influxdata/influxdb/tree/master-1.x) · [v1 documentation](https://docs.influxdata.com/influxdb/v1/)
+
 ## Project Status
 
 InfluxDB 3 Core is GA as of April 15, 2025! We plan to have monthly point releases for the following six months, with patch releases as needed. We will move to a quarterly cadence after that for 3-4 releases, after which we'll reevaluate our release schedule.
