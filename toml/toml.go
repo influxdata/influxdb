@@ -299,7 +299,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				f := element.Index(idx)
 
 				// Apply the unindexed environment variable as a default value, if available.
-				if len(value) > 0 {
+				if hasEnvForType(getenvTrimmed, prefix, f.Type()) {
 					if err := applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
 						return err
 					}
