@@ -8,7 +8,7 @@
   </picture>
  <p>Open source time series database for real-time events, analytics, and monitoring — powered by Apache Arrow, DataFusion, and Parquet.</p>
 
-  [![GitHub Release](https://img.shields.io/github/v/release/influxdata/influxdb?filter=v3.*&label=latest%20release)](https://github.com/influxdata/influxdb/releases)
+  [![GitHub Release](https://img.shields.io/github/v/release/influxdata/influxdb?filter=v3.*&label=latest%20release)](https://github.com/influxdata/influxdb/tags?q=v3)
   [![License: MIT/Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
   [![Discord](https://img.shields.io/badge/Discord-join_chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/vZe2w2Ds8B)
 </div>
