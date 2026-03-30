@@ -64,10 +64,10 @@ To get started, see the [InfluxDB 3 Core getting started guide](https://docs.inf
 ## Installation
 We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available on the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the InfluxDB command line interface (CLI) client as a separate binary available at the same location.
 
-- For v1 installation, use the [main 1.x branch](https://github.com/influxdata/influxdb/tree/master-1.x) or [install InfluxDB OSS directly](https://docs.influxdata.com/influxdb/v1/introduction/install/#installing-influxdb-oss).
-- For v2 installation, use the [main 2.x branch](https://github.com/influxdata/influxdb/tree/main-2.x).
-- For InfluxDB 3 Core see the [InfluxDB 3 Core getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
-- For InfluxDB 3 Enterprise see the [InfluxDB 3 Enterprise getting started guide](https://docs.influxdata.com/influxdb3/enterprise/get-started/).
+- For InfluxDB 3 Core, see the [getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
+- For InfluxDB 3 Enterprise, see the [getting started guide](https://docs.influxdata.com/influxdb3/enterprise/get-started/).
+- For v2.x, see the [`main-2.x` branch](https://github.com/influxdata/influxdb/tree/main-2.x).
+- For v1.x, see the [`master-1.x` branch](https://github.com/influxdata/influxdb/tree/master-1.x).
 
 If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
