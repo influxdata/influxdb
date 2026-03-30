@@ -138,20 +138,20 @@ type Group int
 func (g *Group) unmarshalGroupName(groupName string) error {
 	var gid int
 
-	group, err := user.LookupGroup(groupName)
-	if err != nil {
+	group, lookupErr := user.LookupGroup(groupName)
+	if lookupErr != nil {
 		// Is groupName really a numeric group?
 		if _, err := strconv.Atoi(groupName); err != nil {
 			// No, not a number.
-			return user.UnknownGroupError(groupName)
+			return lookupErr
 		}
-		group, err = user.LookupGroupId(groupName)
-		if err != nil {
-			return err
+		group, lookupErr = user.LookupGroupId(groupName)
+		if lookupErr != nil {
+			return lookupErr
 		}
 	}
 
-	gid, err = strconv.Atoi(group.Gid)
+	gid, err := strconv.Atoi(group.Gid)
 	if err != nil {
 		return err
 	}
