@@ -1,10 +1,12 @@
+# InfluxDB 3 Core
+
 <div align="center">
  <picture>
     <source media="(prefers-color-scheme: light)" srcset="assets/influxdb-logo.png">
     <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
-    <img src="assets/influxdb-logo.png" alt="InfluxDB Logo" width="600">
+    <img src="assets/influxdb-logo.png" alt="InfluxDB 3 Core" width="600">
   </picture>
- <p>
+ <p>Open source time series database for real-time events, analytics, and monitoring — powered by Apache Arrow, DataFusion, and Parquet.</p>
 </div>
 
 InfluxDB Core is a database built to collect, process, transform, and store event and time series data. It is ideal for use cases that require real-time ingest and fast query response times to build user interfaces, monitoring, and automation solutions.
