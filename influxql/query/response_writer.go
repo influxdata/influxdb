@@ -52,8 +52,12 @@ func (f *jsonFormatter) WriteResponse(ctx context.Context, w io.Writer, resp Res
 
 	if err != nil {
 		nakedErr := unnestError(err)
+		errResult := &Result{Err: nakedErr}
+		if len(resp.Results) >= 1 && resp.Results[0] != nil {
+			errResult.StatementID = resp.Results[0].StatementID
+		}
 		// We're so deep in errors we are going to drop this one.
-		b, _ = f.marshal(Response{Results: []*Result{{Err: nakedErr}}})
+		b, _ = f.marshal(Response{Results: []*Result{errResult}})
 	}
 	if _, wErr = w.Write(b); wErr == nil {
 		_, wErr = w.Write([]byte("\n"))
