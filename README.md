@@ -56,7 +56,7 @@ This repository contains multiple InfluxDB versions on separate branches:
 
 ## Project Status
 
-InfluxDB 3 Core has been [generally available since April 2025](https://www.influxdata.com/blog/influxdb-3-oss-ga/). See [`v3.*` releases](https://github.com/influxdata/influxdb/releases?q=v3) and [release notes](https://docs.influxdata.com/influxdb3/core/release-notes/) for the latest version.
+InfluxDB 3 Core has been [generally available since April 2025](https://www.influxdata.com/blog/influxdb-3-oss-ga/). See [`v3.*` tags](https://github.com/influxdata/influxdb/tags) and [release notes](https://docs.influxdata.com/influxdb3/core/release-notes/) for the latest version.
 
 Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) or the public channels below to share your feedback, feature requests, and bug reports.
 
