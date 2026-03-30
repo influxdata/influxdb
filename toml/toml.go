@@ -358,7 +358,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				}
 
 				// Replace hyphens with underscores to avoid issues with shells
-				configName = strings.Replace(configName, "-", "_", -1)
+				configName = strings.ReplaceAll(configName, "-", "_")
 
 				envKey := strings.ToUpper(configName)
 				if prefix != "" {

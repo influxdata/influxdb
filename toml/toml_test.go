@@ -284,57 +284,57 @@ func TestEnvOverride_Builtins(t *testing.T) {
 	}
 
 	envMap := map[string]string{
-		"X_STRING":          "a string",
-		"X_HYPHEN_STRING":   "a hyphenated string",
-		"X_DURATION":        "1m1s",
-		"X_INT":             "1",
-		"X_INTEMPTY":        " ",
-		"X_INT8":            "2",
-		"X_INT16":           "3",
-		"X_INT32":           "4",
-		"X_INT64":           "5",
-		"X_UINT":            "6",
-		"X_UINTEMPTY":       " ",
-		"X_UINT8":           " 7 ", // spaces
-		"X_UINT16":          "8",
-		"X_UINT32":          "9",
-		"X_UINT64":          "10",
-		"X_BOOL":            "true",
-		"X_BOOLEMPTY":       " ",
-		"X_FLOAT32":         "11.5",
-		"X_FLOAT64":         "12.5",
-		"X_FLOAT64EMPTY":    " ",
-		"X_NESTED_STRING":   "a nested string",
-		"X_NESTED_INT":      "13",
+		"X_STRING":           "a string",
+		"X_HYPHEN_STRING":    "a hyphenated string",
+		"X_DURATION":         "1m1s",
+		"X_INT":              "1",
+		"X_INTEMPTY":         " ",
+		"X_INT8":             "2",
+		"X_INT16":            "3",
+		"X_INT32":            "4",
+		"X_INT64":            "5",
+		"X_UINT":             "6",
+		"X_UINTEMPTY":        " ",
+		"X_UINT8":            " 7 ", // spaces
+		"X_UINT16":           "8",
+		"X_UINT32":           "9",
+		"X_UINT64":           "10",
+		"X_BOOL":             "true",
+		"X_BOOLEMPTY":        " ",
+		"X_FLOAT32":          "11.5",
+		"X_FLOAT64":          "12.5",
+		"X_FLOAT64EMPTY":     " ",
+		"X_NESTED_STRING":    "a nested string",
+		"X_NESTED_INT":       "13",
 		"X_NESTEDPTR_STRING": "a nested pointer string",
 		"X_NESTEDPTR_INT":    "14",
 		"X_NILPTR_STRING":    "should be ignored",
 		"X_NILPTR_INT":       "99",
-		"X_ES":              "an embedded string",
-		"X__":               "-1", // This value should not be applied to the "ignored" field with toml tag -.
-		"X_STRINGS_1":       "c",
-		"X_LOGLEVEL":        "warn",
-		"X_MAXSIZE":         "128M",
-		"X_GROUP":           groupOverride,
-		"X_GROUPNUMERIC":    fmt.Sprintf("%d", groupID),
-		"X_STRSLICE_0":      "alice",
-		"X_STRSLICE_1":      "bob",
-		"X_STRSLICE_2":      "carol",
-		"X_STRSLICE2":       "eve,mallory",
-		"X_STRSLICE3":       "eve",     // default value
-		"X_STRSLICE3_1":     "mallory", // override for element 1
-		"X_STRSLICE3_3":     "trudy",   // appended
-		"X_STRSLICE3_5":     "oscar",   // ignored because it's out of bounds because there is no element 4
-		"X_INTSLICE_0":      "1",
-		"X_INTSLICE_1":      "2",
-		"X_INTSLICE_2":      "3",
-		"X_INTSLICE2":       "4,5, 6",
-		"X_SIZESLICE_0":     "128m",
-		"X_SIZESLICE_1":     "256m",
-		"X_SIZESLICE2":      "512m, 1g", // with space
-		"X_DURATIONSLICE_0": "60s",
-		"X_DURATIONSLICE_1": "120s",
-		"X_DURATIONSLICE2":  "5m, 60m", // with space
+		"X_ES":               "an embedded string",
+		"X__":                "-1", // This value should not be applied to the "ignored" field with toml tag -.
+		"X_STRINGS_1":        "c",
+		"X_LOGLEVEL":         "warn",
+		"X_MAXSIZE":          "128M",
+		"X_GROUP":            groupOverride,
+		"X_GROUPNUMERIC":     fmt.Sprintf("%d", groupID),
+		"X_STRSLICE_0":       "alice",
+		"X_STRSLICE_1":       "bob",
+		"X_STRSLICE_2":       "carol",
+		"X_STRSLICE2":        "eve,mallory",
+		"X_STRSLICE3":        "eve",     // default value
+		"X_STRSLICE3_1":      "mallory", // override for element 1
+		"X_STRSLICE3_3":      "trudy",   // appended
+		"X_STRSLICE3_5":      "oscar",   // ignored because it's out of bounds because there is no element 4
+		"X_INTSLICE_0":       "1",
+		"X_INTSLICE_1":       "2",
+		"X_INTSLICE_2":       "3",
+		"X_INTSLICE2":        "4,5, 6",
+		"X_SIZESLICE_0":      "128m",
+		"X_SIZESLICE_1":      "256m",
+		"X_SIZESLICE2":       "512m, 1g", // with space
+		"X_DURATIONSLICE_0":  "60s",
+		"X_DURATIONSLICE_1":  "120s",
+		"X_DURATIONSLICE2":   "5m, 60m", // with space
 		// #5: slice of plain structs (not TextUnmarshaler)
 		"X_NESTEDSLICE_0_STRING": "first",
 		"X_NESTEDSLICE_0_INT":    "100",
@@ -354,7 +354,8 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_SIZESLICE3_0": "64m",
 		"X_SIZESLICE3_1": "128m",
 		// #6: override existing []int elements by index
-		"X_INTSLICE3_1": "99",
+		"X_INTSLICE3_1":       "99",
+		"X_MULTI_HYPHEN_NAME": "bobby",
 	}
 
 	env := func(s string) string {
@@ -373,48 +374,49 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		Embedded
 	}
 	type testConfig struct {
-		Str            string              `toml:"string"`
-		HyphenStr      string              `toml:"hyphen-string"`
-		Str2           string              `toml:"string2"`
-		Dur            itoml.Duration      `toml:"duration"`
-		Int            int                 `toml:"int"`
-		IntEmpty       int                 `toml:"intempty"`
-		Int8           int8                `toml:"int8"`
-		Int16          int16               `toml:"int16"`
-		Int32          int32               `toml:"int32"`
-		Int64          int64               `toml:"int64"`
-		Uint           uint                `toml:"uint"`
-		UintEmpty      uint                `toml:"uintempty"`
-		Uint8          uint8               `toml:"uint8"`
-		Uint16         uint16              `toml:"uint16"`
-		Uint32         uint32              `toml:"uint32"`
-		Uint64         uint64              `toml:"uint64"`
-		Bool           bool                `toml:"bool"`
-		BoolEmpty      bool                `toml:"boolempty"`
-		Float32        float32             `toml:"float32"`
-		Float64        float64             `toml:"float64"`
-		Float64Empty   float64             `toml:"float64empty"`
-		Nested         nested              `toml:"nested"`
-		NestedPtr      *nested             `toml:"nestedptr"`
-		NilPtr         *nested             `toml:"nilptr"`
-		UnmarshalSlice []stringUnmarshaler `toml:"strings"`
-		LogLevel       zapcore.Level       `toml:"loglevel"`
-		MaxSize        itoml.Size          `toml:"maxSize"`
-		Group          itoml.Group         `toml:"group"`
-		GroupNumeric   itoml.Group         `toml:"groupnumeric"`
-		StrSlice       []string            `toml:"strslice"`
-		StrSlice2      []string            `toml:"strslice2"`
-		StrSlice3      []string            `toml:"strslice3"`
-		IntSlice       []int               `toml:"intslice"`
-		IntSlice2      []int               `toml:"intslice2"`
-		SizeSlice      []itoml.Size        `toml:"sizeslice"`
-		SizeSlice2     []itoml.Size        `toml:"sizeslice2"`
-		SizeSlice3     []itoml.Size        `toml:"sizeslice3"`
-		DurationSlice  []itoml.Duration    `toml:"durationslice"`
-		DurationSlice2 []itoml.Duration    `toml:"durationslice2"`
-		NestedSlice    []nested            `toml:"nestedslice"`
-		EmbedSlice     []nestedWithEmbed   `toml:"embedslice"`
-		IntSlice3      []int               `toml:"intslice3"`
+		Str             string              `toml:"string"`
+		HyphenStr       string              `toml:"hyphen-string"`
+		Str2            string              `toml:"string2"`
+		Dur             itoml.Duration      `toml:"duration"`
+		Int             int                 `toml:"int"`
+		IntEmpty        int                 `toml:"intempty"`
+		Int8            int8                `toml:"int8"`
+		Int16           int16               `toml:"int16"`
+		Int32           int32               `toml:"int32"`
+		Int64           int64               `toml:"int64"`
+		Uint            uint                `toml:"uint"`
+		UintEmpty       uint                `toml:"uintempty"`
+		Uint8           uint8               `toml:"uint8"`
+		Uint16          uint16              `toml:"uint16"`
+		Uint32          uint32              `toml:"uint32"`
+		Uint64          uint64              `toml:"uint64"`
+		Bool            bool                `toml:"bool"`
+		BoolEmpty       bool                `toml:"boolempty"`
+		Float32         float32             `toml:"float32"`
+		Float64         float64             `toml:"float64"`
+		Float64Empty    float64             `toml:"float64empty"`
+		Nested          nested              `toml:"nested"`
+		NestedPtr       *nested             `toml:"nestedptr"`
+		NilPtr          *nested             `toml:"nilptr"`
+		UnmarshalSlice  []stringUnmarshaler `toml:"strings"`
+		LogLevel        zapcore.Level       `toml:"loglevel"`
+		MaxSize         itoml.Size          `toml:"maxSize"`
+		Group           itoml.Group         `toml:"group"`
+		GroupNumeric    itoml.Group         `toml:"groupnumeric"`
+		StrSlice        []string            `toml:"strslice"`
+		StrSlice2       []string            `toml:"strslice2"`
+		StrSlice3       []string            `toml:"strslice3"`
+		IntSlice        []int               `toml:"intslice"`
+		IntSlice2       []int               `toml:"intslice2"`
+		SizeSlice       []itoml.Size        `toml:"sizeslice"`
+		SizeSlice2      []itoml.Size        `toml:"sizeslice2"`
+		SizeSlice3      []itoml.Size        `toml:"sizeslice3"`
+		DurationSlice   []itoml.Duration    `toml:"durationslice"`
+		DurationSlice2  []itoml.Duration    `toml:"durationslice2"`
+		NestedSlice     []nested            `toml:"nestedslice"`
+		EmbedSlice      []nestedWithEmbed   `toml:"embedslice"`
+		IntSlice3       []int               `toml:"intslice3"`
+		MultiHyphenName string              `toml:"multi-hyphen-name"`
 
 		Embedded
 
@@ -505,8 +507,9 @@ func TestEnvOverride_Builtins(t *testing.T) {
 			{Name: "first", Embedded: Embedded{ES: "embedded0"}},
 			{Embedded: Embedded{ES: "embedded1"}},
 		},
-		IntSlice3: []int{10, 99, 30},
-		Ignored:   0,
+		IntSlice3:       []int{10, 99, 30},
+		MultiHyphenName: "bobby",
+		Ignored:         0,
 	}
 
 	require.Equal(t, exp, got, "environmental override failed")
