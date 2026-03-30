@@ -37,12 +37,22 @@ InfluxDB 3 Core’s feature highlights include:
 - Compatibility with InfluxDB 1.x query API (InfluxQL)
 - SQL query engine with support for FlightSQL and HTTP query API
 
+**Storage format:** Apache Parquet on object storage (S3, Azure, GCP) or local disk
+**Query languages:** SQL, InfluxQL, Flight SQL
+**Write format:** Line protocol
+**API:** HTTP on port 8181
+**Built with:** Rust, Apache Arrow, DataFusion
+**Compatible with:** InfluxDB 1.x and 2.x write APIs, InfluxDB 1.x query API (InfluxQL)
+
 ## Other InfluxDB Versions
 
-This branch (`main`) is for **InfluxDB 3 Core** (Rust). Other versions are maintained on separate branches in this repository:
+This repository contains multiple InfluxDB versions on separate branches:
 
-- **InfluxDB 2.x** (Go) — [`main-2.x`](https://github.com/influxdata/influxdb/tree/main-2.x) · [v2 documentation](https://docs.influxdata.com/influxdb/v2/)
-- **InfluxDB 1.x** (Go) — [`master-1.x`](https://github.com/influxdata/influxdb/tree/master-1.x) · [v1 documentation](https://docs.influxdata.com/influxdb/v1/)
+| Version | Branch | Query Languages | Documentation |
+|---------|--------|-----------------|---------------|
+| **v3 Core (this branch)** | [`main`](https://github.com/influxdata/influxdb/tree/main) | SQL, InfluxQL | [docs.influxdata.com/influxdb3/core/](https://docs.influxdata.com/influxdb3/core/) |
+| v2.x | [`main-2.x`](https://github.com/influxdata/influxdb/tree/main-2.x) | Flux, InfluxQL | [docs.influxdata.com/influxdb/v2/](https://docs.influxdata.com/influxdb/v2/) |
+| v1.x | [`master-1.x`](https://github.com/influxdata/influxdb/tree/master-1.x) | InfluxQL, Flux | [docs.influxdata.com/influxdb/v1/](https://docs.influxdata.com/influxdb/v1/) |
 
 ## Project Status
 
