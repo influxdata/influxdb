@@ -11,7 +11,7 @@ InfluxDB is the leading open source time series database for metrics, events, an
 
 ## InfluxDB Versions
 
-This branch (`master-1.x`) is **InfluxDB v1.x** — actively maintained.
+This repository contains multiple InfluxDB versions on separate branches:
 
 | Version | Branch | Query Languages | Documentation |
 |---------|--------|----------------|---------------|
@@ -79,7 +79,6 @@ curl -G "http://localhost:8086/query?pretty=true" --data-urlencode "db=mydb" \
 
 ## Documentation
 
-* Read more about the [design goals and motivations of the project](https://docs.influxdata.com/influxdb/v1/).
 * Follow the [getting started guide](https://docs.influxdata.com/influxdb/v1/introduction/get-started/) to learn the basics in just a few minutes.
 * Learn more about [InfluxDB's key concepts](https://docs.influxdata.com/influxdb/v1/concepts/key_concepts/).
 
@@ -93,4 +92,4 @@ See [LICENSE](./LICENSE) and [DEPENDENCIES](./DEPENDENCIES).
 
 ## Support
 
-For bug reports, feature requests, and feedback, see the [InfluxDB v1 documentation](https://docs.influxdata.com/influxdb/v1/#bug-reports-and-feedback).
+For community support, feedback channels, and documentation requests, see the [InfluxDB v1 documentation](https://docs.influxdata.com/influxdb/v1/#bug-reports-and-feedback).
