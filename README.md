@@ -36,10 +36,7 @@ For a complete getting started guide, see the [InfluxDB v2 documentation](https:
 In InfluxDB v2, data and resources belong to an _organization_. You store time series data in _buckets_ (equivalent to a database and retention policy in InfluxDB 1.x). To get started, create a user, organization, and bucket — either through the UI at `http://localhost:8086` or with the `influx setup` CLI command.
 
 ## Flux
-Flux is an open source functional data scripting language designed for querying, analyzing, and acting on data. Flux is supported in InfluxDB 1.x and 2.x, but is not supported in v3. For users who are interested in transitioning to InfluxDB 3.0 and want to future-proof their code, we suggest using InfluxQL. 
-
-
-The source for Flux is [available on GitHub](https://github.com/influxdata/flux). 
+[Flux](https://github.com/influxdata/flux) is an open source functional data scripting language designed for querying, analyzing, and acting on data. Flux is supported in InfluxDB 1.x and 2.x, but is not supported in InfluxDB 3. If you plan to migrate to InfluxDB 3 in the future, we recommend using [InfluxQL](https://docs.influxdata.com/influxdb/v2/query-data/influxql/) instead of Flux with InfluxDB v2.
 
 ## Additional Resources
 - [InfluxDB Tips and Tutorials](https://www.influxdata.com/blog/category/tech/influxdb/)
