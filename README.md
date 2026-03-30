@@ -20,9 +20,6 @@
 **License:** [MIT](LICENSE)\
 **Documentation:** [docs.influxdata.com/influxdb/v2/](https://docs.influxdata.com/influxdb/v2/)
 
-## Learn InfluxDB
-[Documentation](https://docs.influxdata.com/) | [Community Forum](https://community.influxdata.com/) | [Community Slack](https://www.influxdata.com/slack/) | [Blog](https://www.influxdata.com/blog/) | [InfluxDB University](https://university.influxdata.com/) | [YouTube](https://www.youtube.com/@influxdata8893)
-
 ## Install
 
 For Docker images, Debian packages, RPM packages, and tarballs, see the [InfluxData downloads page](https://portal.influxdata.com/downloads/). The `influx` command line interface (CLI) client is available as a separate binary at the same location.
