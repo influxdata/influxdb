@@ -187,11 +187,18 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 
 	value := strings.TrimSpace(getenv(prefix))
 
-	// If spec is a named type and is addressable,
+	// If we have a pointer, dereference it
+	if spec.Kind() == reflect.Pointer {
+		if spec.IsNil() {
+			return false, nil
+		}
+		element = spec.Elem()
+	}
+
+	// If element is a named type and is addressable,
 	// check the address to see if it implements encoding.TextUnmarshaler.
-	if spec.Kind() != reflect.Pointer && spec.Type().Name() != "" && spec.CanAddr() {
-		v := spec.Addr()
-		if u, ok := v.Interface().(encoding.TextUnmarshaler); ok {
+	if element.Type().Name() != "" && element.CanAddr() {
+		if u, ok := element.Addr().Interface().(encoding.TextUnmarshaler); ok {
 			// Skip any fields we don't have a value to set
 			if len(value) == 0 {
 				return false, nil
@@ -201,13 +208,6 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 			}
 			return true, nil
 		}
-	}
-	// If we have a pointer, dereference it
-	if spec.Kind() == reflect.Pointer {
-		if spec.IsNil() {
-			return false, nil
-		}
-		element = spec.Elem()
 	}
 
 	switch element.Kind() {

@@ -612,6 +612,101 @@ func TestEnvOverride_DefaultAppliedToNewSliceElements(t *testing.T) {
 	}, c.Items)
 }
 
+func TestEnvOverride_PointerToTextUnmarshaler(t *testing.T) {
+	// A pointer-to-TextUnmarshaler field should be overridable when non-nil.
+	type config struct {
+		Dur *itoml.Duration `toml:"dur"`
+	}
+
+	env := func(s string) string {
+		if s == "X_DUR" {
+			return "5m"
+		}
+		return ""
+	}
+
+	dur := itoml.Duration(0)
+	c := config{Dur: &dur}
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	require.Equal(t, itoml.Duration(5*time.Minute), *c.Dur)
+}
+
+func TestEnvOverride_CommaSeparatedTextUnmarshaler(t *testing.T) {
+	// Comma-separated values should work for TextUnmarshaler slice types
+	// when starting from an empty slice.
+	type config struct {
+		Durations []itoml.Duration `toml:"durations"`
+		Sizes     []itoml.Size     `toml:"sizes"`
+	}
+
+	env := func(s string) string {
+		switch s {
+		case "X_DURATIONS":
+			return "1m,2m,3m"
+		case "X_SIZES":
+			return "128m, 256m"
+		default:
+			return ""
+		}
+	}
+
+	var c config
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	require.Equal(t, []itoml.Duration{
+		itoml.Duration(1 * time.Minute),
+		itoml.Duration(2 * time.Minute),
+		itoml.Duration(3 * time.Minute),
+	}, c.Durations)
+	require.Equal(t, []itoml.Size{128 * 1024 * 1024, 256 * 1024 * 1024}, c.Sizes)
+}
+
+func TestEnvOverride_IndexedOverridesTakePrecedenceOverCommaSeparated(t *testing.T) {
+	// When both indexed env vars (X_VALS_0) and a comma-separated env var (X_VALS)
+	// exist, indexed overrides take precedence and the comma-separated fallback
+	// is not used (because the slice is no longer empty after indexed processing).
+	type config struct {
+		Vals []string `toml:"vals"`
+	}
+
+	env := func(s string) string {
+		switch s {
+		case "X_VALS":
+			return "a,b,c"
+		case "X_VALS_0":
+			return "override"
+		default:
+			return ""
+		}
+	}
+
+	var c config
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	// Indexed env var X_VALS_0 grows the slice to length 1.
+	// The comma-separated fallback is skipped because element.Len() != 0.
+	// X_VALS acts as a default applied to element 0 first, then X_VALS_0 overwrites it.
+	require.Equal(t, []string{"override"}, c.Vals)
+}
+
+func TestEnvOverride_SparseIndexedSlice(t *testing.T) {
+	// Sparse indexed env vars (e.g. only X_VALS_2 with no _0 or _1) are not
+	// reachable: the growth loop starts at index 0 and stops at the first
+	// missing index.
+	type config struct {
+		Vals []string `toml:"vals"`
+	}
+
+	env := func(s string) string {
+		if s == "X_VALS_2" {
+			return "unreachable"
+		}
+		return ""
+	}
+
+	var c config
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	require.Empty(t, c.Vals)
+}
+
 func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 	type config struct {
 		Ints    []int    `toml:"ints"`
