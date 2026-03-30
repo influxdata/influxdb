@@ -56,6 +56,21 @@ func (cl CompressionLevel) GzipLevel() int {
 	}
 }
 
+// String returns the string representation of the CompressionLevel,
+// suitable for use in the "Gzip-Compression-Level" HTTP header.
+func (cl CompressionLevel) String() string {
+	switch cl {
+	case FullCompression:
+		return "full"
+	case SpeedyCompression:
+		return "speedy"
+	case NoCompression:
+		return "none"
+	default:
+		return "default"
+	}
+}
+
 // BackupBackend is all services and associated parameters required to construct the BackupHandler.
 type BackupBackend struct {
 	Logger *zap.Logger

@@ -146,10 +146,10 @@ func TestBackupCompressionLevel(t *testing.T) {
 		wantStatus int
 	}{
 		{"default compression when omitted", "", http.StatusOK},
-		{"explicit default compression", "default", http.StatusOK},
-		{"full compression", "full", http.StatusOK},
-		{"speedy compression", "speedy", http.StatusOK},
-		{"no compression", "none", http.StatusOK},
+		{"explicit default compression", DefaultCompression.String(), http.StatusOK},
+		{"full compression", FullCompression.String(), http.StatusOK},
+		{"speedy compression", SpeedyCompression.String(), http.StatusOK},
+		{"no compression", NoCompression.String(), http.StatusOK},
 		{"invalid compression level", "bogus", http.StatusBadRequest},
 	}
 
@@ -243,10 +243,14 @@ func TestBackupCompressionLevel(t *testing.T) {
 							require.Equal(t, tt.wantStatus, rs.StatusCode)
 
 							if tt.wantStatus == http.StatusOK {
-								if tt.level == "none" {
+								if tt.level == NoCompression.String() {
 									// "none" skips gzip entirely; verify no Content-Encoding is set.
 									require.Empty(t, rs.Header.Get("Content-Encoding"))
-								} else if sz.payloadSize > LargePayload {
+								} else if route.name == "metadata" {
+									// Metadata writes 3 multipart parts each containing the payload,
+									// so the total response always exceeds gziphandler.DefaultMinSize.
+									require.Equal(t, "gzip", rs.Header.Get("Content-Encoding"))
+								} else if sz.payloadSize >= LargePayload {
 									// Payload exceeds gziphandler.DefaultMinSize, so it should be compressed.
 									require.Equal(t, "gzip", rs.Header.Get("Content-Encoding"))
 								} else {
