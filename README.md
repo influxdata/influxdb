@@ -25,7 +25,7 @@
 
 ## Install
 
-We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the `influx` command line interface (CLI) client as a separate binary available at the same location.
+For Docker images, Debian packages, RPM packages, and tarballs, see the [InfluxData downloads page](https://portal.influxdata.com/downloads/). The `influx` command line interface (CLI) client is available as a separate binary at the same location.
 
 If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
