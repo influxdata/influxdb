@@ -146,10 +146,10 @@ func TestBackupCompressionLevel(t *testing.T) {
 		wantStatus int
 	}{
 		{"default compression when omitted", "", http.StatusOK},
-		{"explicit default compression", DefaultCompression.String(), http.StatusOK},
-		{"full compression", FullCompression.String(), http.StatusOK},
-		{"speedy compression", SpeedyCompression.String(), http.StatusOK},
-		{"no compression", NoCompression.String(), http.StatusOK},
+		{"explicit default compression", "default", http.StatusOK},
+		{"full compression", "full", http.StatusOK},
+		{"speedy compression", "speedy", http.StatusOK},
+		{"no compression", "none", http.StatusOK},
 		{"invalid compression level", "bogus", http.StatusBadRequest},
 	}
 
@@ -193,7 +193,7 @@ func TestBackupCompressionLevel(t *testing.T) {
 							require.NoError(t, err)
 							r.Header.Set("Accept-Encoding", "gzip")
 							if tt.level != "" {
-								r.Header.Set("Gzip-Compression-Level", tt.level)
+								r.Header.Set(headerGzipCompressionLevel, tt.level)
 							}
 
 							ctx := influxdbcontext.SetAuthorizer(r.Context(), mock.NewMockAuthorizer(false, influxdb.OperPermissions()))
@@ -243,7 +243,7 @@ func TestBackupCompressionLevel(t *testing.T) {
 							require.Equal(t, tt.wantStatus, rs.StatusCode)
 
 							if tt.wantStatus == http.StatusOK {
-								if tt.level == NoCompression.String() {
+								if tt.level == "none" {
 									// "none" skips gzip entirely; verify no Content-Encoding is set.
 									require.Empty(t, rs.Header.Get("Content-Encoding"))
 								} else if route.name == "metadata" {

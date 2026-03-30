@@ -18,56 +18,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type CompressionLevel int
-
-const (
-	DefaultCompression CompressionLevel = iota
-	FullCompression
-	SpeedyCompression
-	NoCompression
-)
-
-func NewCompressionLevelFromString(s string) (CompressionLevel, error) {
+// gzipLevelFromString maps a user-facing compression name to a compress/gzip constant.
+func gzipLevelFromString(s string) (int, error) {
 	switch s {
-	case "default":
-		return DefaultCompression, nil
+	case "default", "":
+		return gzip.DefaultCompression, nil
 	case "full":
-		return FullCompression, nil
+		return gzip.BestCompression, nil
 	case "speedy":
-		return SpeedyCompression, nil
+		return gzip.BestSpeed, nil
 	case "none":
-		return NoCompression, nil
+		return gzip.NoCompression, nil
 	default:
 		return -1, fmt.Errorf("unknown compression level: %q, valid values: [default, full, speedy, none]", s)
-	}
-}
-
-// GzipLevel returns the compress/gzip constant corresponding to this CompressionLevel.
-func (cl CompressionLevel) GzipLevel() int {
-	switch cl {
-	case FullCompression:
-		return gzip.BestCompression
-	case SpeedyCompression:
-		return gzip.BestSpeed
-	case NoCompression:
-		return gzip.NoCompression
-	default:
-		return gzip.DefaultCompression
-	}
-}
-
-// String returns the string representation of the CompressionLevel,
-// suitable for use in the "Gzip-Compression-Level" HTTP header.
-func (cl CompressionLevel) String() string {
-	switch cl {
-	case FullCompression:
-		return "full"
-	case SpeedyCompression:
-		return "speedy"
-	case NoCompression:
-		return "none"
-	default:
-		return "default"
 	}
 }
 
@@ -105,6 +68,8 @@ type BackupHandler struct {
 }
 
 const (
+	headerGzipCompressionLevel = "Gzip-Compression-Level"
+
 	prefixBackup       = "/api/v2/backup"
 	backupKVStorePath  = prefixBackup + "/kv"
 	backupShardPath    = prefixBackup + "/shards/:shardID"
@@ -131,16 +96,11 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 }
 
 // gzipHandlerWithLevel returns an http.Handler that wraps the given handler with gzip compression.
-// The compression level is determined by the "Gzip-Compression-Level" request header.
+// The compression level is determined by the headerGzipCompressionLevel request header.
 // Valid values are: default, full, speedy, none. If not specified, "default" is used.
 func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		levelStr := r.Header.Get("Gzip-Compression-Level")
-		if levelStr == "" {
-			levelStr = "default"
-		}
-
-		cl, err := NewCompressionLevelFromString(levelStr)
+		level, err := gzipLevelFromString(r.Header.Get(headerGzipCompressionLevel))
 		if err != nil {
 			h.HandleHTTPError(r.Context(), &errors.Error{
 				Code: errors.EInvalid,
@@ -151,7 +111,6 @@ func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
 
 		// No compression: skip gzip entirely. The restore side handles
 		// both compressed and uncompressed data.
-		level := cl.GzipLevel()
 		if level == gzip.NoCompression {
 			next.ServeHTTP(w, r)
 			return
