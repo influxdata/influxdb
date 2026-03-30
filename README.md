@@ -11,6 +11,15 @@
 > [!NOTE]
 > This branch documents an earlier version of InfluxDB OSS. [InfluxDB 3 Core](https://github.com/influxdata/influxdb/tree/main) is the latest stable version. InfluxDB 3 Core includes [compatibility APIs for v2 and v1 write workloads](https://docs.influxdata.com/influxdb3/core/reference/api/).
 
+**Version:** 2.x\
+**Branch:** `main-2.x`\
+**Storage engine:** TSM (Time-Structured Merge)\
+**Query languages:** Flux, InfluxQL\
+**API:** [v2 REST API](https://docs.influxdata.com/influxdb/v2/reference/api/) (write, query, manage)\
+**Compatible with:** InfluxDB 1.x write API and query (InfluxQL) API\
+**License:** [MIT](LICENSE)\
+**Documentation:** [docs.influxdata.com/influxdb/v2/](https://docs.influxdata.com/influxdb/v2/)
+
 ## Learn InfluxDB
 [Documentation](https://docs.influxdata.com/) | [Community Forum](https://community.influxdata.com/) | [Community Slack](https://www.influxdata.com/slack/) | [Blog](https://www.influxdata.com/blog/) | [InfluxDB University](https://university.influxdata.com/) | [YouTube](https://www.youtube.com/@influxdata8893)
 
