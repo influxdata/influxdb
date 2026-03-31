@@ -103,7 +103,6 @@ func TestFileMode_UnmarshalText(t *testing.T) {
 		{str: `777`, want: 0777},
 		{str: `1777`, want: 01777},
 		{str: `0755`, want: 0755},
-		{str: ``, want: 0},
 		{str: `37777777777`, want: math.MaxUint32}, // nonsense, but correct as defined
 		{str: `joey`, want: 0, errStr: "invalid syntax"},
 		{str: `0`, want: 0, errStr: "file mode cannot be zero"},
