@@ -55,28 +55,33 @@ func (d Duration) MarshalText() (text []byte, err error) {
 // and "g" or "G" for gibibytes. If a size suffix isn't specified then bytes are assumed.
 type Size uint64
 
+// SSize is like Size but uses a signed int64, allowing negative values.
+type SSize int64
+
 var (
 	ErrSizeEmpty     = errors.New("size was empty")
 	ErrSizeBadSuffix = errors.New("unknown size suffix")
 	ErrSizeParse     = errors.New("invalid size")
-	ErrSizeOverflow  = fmt.Errorf("size would overflow the max size (%d) of a uint", uint64(math.MaxUint64))
+	ErrSizeOverflow  = fmt.Errorf("size would overflow the max size (%d) of a uint64", uint64(math.MaxUint64))
+	ErrSSizeOverflow = fmt.Errorf("size would overflow the max size (%d) of an int64", int64(math.MaxInt64))
 )
 
-// UnmarshalText parses a byte size from text.
-func (s *Size) UnmarshalText(text []byte) error {
+// sizeConstraint is the type constraint for size types.
+type sizeConstraint interface {
+	~uint64 | ~int64
+}
+
+// parseSizeSuffix extracts the multiplier and numeric text from a size string.
+// It returns the numeric portion of the text and the multiplier.
+func parseSizeSuffix(text []byte) (numText []byte, mult uint64, err error) {
 	if len(text) == 0 {
-		return ErrSizeEmpty
+		return nil, 0, ErrSizeEmpty
 	}
 
-	// The multiplier defaults to 1 in case the size has
-	// no suffix (and is then just raw bytes)
-	mult := uint64(1)
+	mult = 1
+	numText = text
 
-	// Preserve the original text for error messages
-	sizeText := text
-
-	// Parse unit of measure
-	suffix := text[len(sizeText)-1]
+	suffix := text[len(text)-1]
 	if !unicode.IsDigit(rune(suffix)) {
 		switch suffix {
 		case 'k', 'K':
@@ -86,25 +91,117 @@ func (s *Size) UnmarshalText(text []byte) error {
 		case 'g', 'G':
 			mult = 1 << 30 // GiB
 		default:
-			return fmt.Errorf("%w: %c (expected k, m, or g)", ErrSizeBadSuffix, suffix)
+			return nil, 0, fmt.Errorf("%w: %c (expected k, m, or g)", ErrSizeBadSuffix, suffix)
 		}
-		sizeText = sizeText[:len(sizeText)-1]
+		numText = text[:len(text)-1]
 	}
 
-	// Parse numeric portion of value.
-	size, err := strconv.ParseUint(string(sizeText), 10, 64)
+	return numText, mult, nil
+}
+
+// unmarshalSize parses a byte size from text into a size type.
+// Unsigned types reject negative values; signed types accept them.
+func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
+	// Detect and strip leading negative sign.
+	negative := len(text) > 0 && text[0] == '-'
+	if negative {
+		text = text[1:]
+	}
+
+	numText, mult, err := parseSizeSuffix(text)
+	if err != nil {
+		return err
+	}
+
+	// Determine bit width and overflow limit based on signedness.
+	// For unsigned types, T(0)-1 wraps to a large positive value.
+	var bitSize int
+	var maxVal uint64
+	var overflowErr error
+	if T(0)-1 > 0 {
+		if negative {
+			return fmt.Errorf("%w: negative value not allowed", ErrSizeParse)
+		}
+		bitSize = 64
+		maxVal = math.MaxUint64
+		overflowErr = ErrSizeOverflow
+	} else {
+		bitSize = 63
+		maxVal = math.MaxInt64
+		overflowErr = ErrSSizeOverflow
+	}
+
+	size, err := strconv.ParseUint(string(numText), 10, bitSize)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrSizeParse, err)
 	}
 
-	if math.MaxUint64/mult < size {
-		return fmt.Errorf("%w: %s", ErrSizeOverflow, string(text))
+	if maxVal/mult < size {
+		return fmt.Errorf("%w: %s", overflowErr, string(text))
 	}
 
-	size *= mult
+	result := T(size * mult)
+	if negative {
+		result = -result
+	}
 
-	*s = Size(size)
+	*dst = result
 	return nil
+}
+
+// marshalSize formats a size value with the largest whole-unit suffix.
+func marshalSize[T sizeConstraint](size T) ([]byte, error) {
+	negative := size < 0
+	var abs uint64
+	if negative {
+		abs = uint64(-size)
+	} else {
+		abs = uint64(size)
+	}
+
+	var suffix byte
+	switch {
+	case abs >= 1<<30 && abs%(1<<30) == 0:
+		abs /= 1 << 30
+		suffix = 'g'
+	case abs >= 1<<20 && abs%(1<<20) == 0:
+		abs /= 1 << 20
+		suffix = 'm'
+	case abs >= 1<<10 && abs%(1<<10) == 0:
+		abs /= 1 << 10
+		suffix = 'k'
+	}
+
+	var s string
+	if negative {
+		s = fmt.Sprintf("-%d", abs)
+	} else {
+		s = strconv.FormatUint(abs, 10)
+	}
+	if suffix != 0 {
+		s += string(suffix)
+	}
+	return []byte(s), nil
+}
+
+// UnmarshalText parses a byte size from text.
+func (s *Size) UnmarshalText(text []byte) error {
+	return unmarshalSize(s, text)
+}
+
+// MarshalText converts a Size to a string for encoding toml.
+func (s Size) MarshalText() ([]byte, error) {
+	return marshalSize(s)
+}
+
+// UnmarshalText parses a byte size from text, allowing negative values.
+func (s *SSize) UnmarshalText(text []byte) error {
+	return unmarshalSize(s, text)
+}
+
+// MarshalText converts an SSize to a string for encoding toml.
+func (s SSize) MarshalText() ([]byte, error) {
+	return marshalSize(s)
 }
 
 type FileMode uint32

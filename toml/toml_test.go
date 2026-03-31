@@ -20,54 +20,312 @@ import (
 )
 
 func TestSize_UnmarshalText(t *testing.T) {
-	var s itoml.Size
-	for _, test := range []struct {
+	for _, tc := range []struct {
 		str  string
-		want uint64
+		want itoml.Size
 	}{
+		// Raw bytes
+		{"0", 0},
 		{"1", 1},
 		{"10", 10},
 		{"100", 100},
+		// Kibibytes (lower and upper)
 		{"1k", 1 << 10},
 		{"10k", 10 << 10},
 		{"100k", 100 << 10},
 		{"1K", 1 << 10},
 		{"10K", 10 << 10},
 		{"100K", 100 << 10},
+		// Mebibytes (lower and upper)
 		{"1m", 1 << 20},
 		{"10m", 10 << 20},
 		{"100m", 100 << 20},
 		{"1M", 1 << 20},
 		{"10M", 10 << 20},
 		{"100M", 100 << 20},
+		// Gibibytes (lower and upper)
 		{"1g", 1 << 30},
 		{"1G", 1 << 30},
-		{fmt.Sprint(uint64(math.MaxUint64) - 1), math.MaxUint64 - 1},
+		{"10g", 10 << 30},
+		// Extreme values
+		{fmt.Sprint(uint64(math.MaxUint64)), itoml.Size(math.MaxUint64)},
+		{fmt.Sprint(uint64(math.MaxUint64) - 1), itoml.Size(math.MaxUint64 - 1)},
+		// Max values that fit with multipliers
+		{fmt.Sprintf("%dk", uint64(math.MaxUint64>>10)), itoml.Size(uint64(math.MaxUint64>>10) << 10)},
+		{fmt.Sprintf("%dm", uint64(math.MaxUint64>>20)), itoml.Size(uint64(math.MaxUint64>>20) << 20)},
+		{fmt.Sprintf("%dg", uint64(math.MaxUint64>>30)), itoml.Size(uint64(math.MaxUint64>>30) << 30)},
 	} {
-		require.NoError(t, s.UnmarshalText([]byte(test.str)))
-		require.Equal(t, itoml.Size(test.want), s)
+		t.Run(tc.str, func(t *testing.T) {
+			var s itoml.Size
+			require.NoError(t, s.UnmarshalText([]byte(tc.str)))
+			require.Equal(t, tc.want, s)
+		})
 	}
 
-	for idx, tc := range []struct {
+	for _, tc := range []struct {
+		name        string
 		str         string
 		err         error
 		errContains string
 	}{
-		{fmt.Sprintf("%dk", uint64(math.MaxUint64-1)), itoml.ErrSizeOverflow, fmt.Sprintf("%dk", uint64(math.MaxUint64-1))},
-		{"10000000000000000000g", itoml.ErrSizeOverflow, "10000000000000000000g"},
-		{"abcdef", itoml.ErrSizeBadSuffix, ": f (expected k, m, or g)"},
-		{"1KB", itoml.ErrSizeBadSuffix, ": B (expected k, m, or g)"},
-		{"√m", itoml.ErrSizeParse, "invalid size: strconv.ParseUint: parsing \"√\": invalid syntax"},
-		{"a1", itoml.ErrSizeParse, "invalid size: strconv.ParseUint: parsing \"a1\": invalid syntax"},
-		{"", itoml.ErrSizeEmpty, ""},
+		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxUint64-1)), itoml.ErrSizeOverflow, ""},
+		{"overflow_g", "10000000000000000000g", itoml.ErrSizeOverflow, ""},
+		{"bad_suffix_f", "abcdef", itoml.ErrSizeBadSuffix, ": f (expected k, m, or g)"},
+		{"bad_suffix_B", "1KB", itoml.ErrSizeBadSuffix, ": B (expected k, m, or g)"},
+		{"bad_suffix_t", "1t", itoml.ErrSizeBadSuffix, ": t (expected k, m, or g)"},
+		{"non_numeric", "√m", itoml.ErrSizeParse, ""},
+		{"alpha_numeric", "a1", itoml.ErrSizeParse, ""},
+		{"empty", "", itoml.ErrSizeEmpty, ""},
+		{"negative", "-1", itoml.ErrSizeParse, "negative value not allowed"},
+		{"negative_suffix", "-1m", itoml.ErrSizeParse, "negative value not allowed"},
+		// Value too large for uint64
+		{"parse_overflow", "99999999999999999999", itoml.ErrSizeParse, ""},
 	} {
-		t.Run(fmt.Sprintf("Err_%d", idx), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			var s itoml.Size
 			err := s.UnmarshalText([]byte(tc.str))
 			require.ErrorIs(t, err, tc.err)
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
 			}
+			require.Zero(t, s, "Size should remain zero after failed unmarshal")
+		})
+	}
+}
+
+func TestSize_MarshalText(t *testing.T) {
+	for _, tc := range []struct {
+		size itoml.Size
+		want string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{512, "512"},
+		{1023, "1023"},
+		// Exact KiB
+		{1 << 10, "1k"},
+		{10 << 10, "10k"},
+		{512 << 10, "512k"},
+		// Exact MiB
+		{1 << 20, "1m"},
+		{10 << 20, "10m"},
+		{256 << 20, "256m"},
+		// Exact GiB
+		{1 << 30, "1g"},
+		{10 << 30, "10g"},
+		// >= 1g, not %g, but %m → suffix m
+		{1<<30 + 1<<20, "1025m"},
+		// >= 1g, not %g, not %m, but %k → suffix k
+		{1<<30 + 1<<10, "1048577k"},
+		// >= 1g, not %g, not %m, not %k → raw bytes
+		{1<<30 + 1, "1073741825"},
+		// >= 1m, not %m, but %k → suffix k
+		{1<<20 + 1<<10, "1025k"},
+		// >= 1m, not %m, not %k → raw bytes
+		{1<<20 + 1, "1048577"},
+		// >= 1k, not %k → raw bytes
+		{1<<10 + 1, "1025"},
+		// Large values not divisible by any suffix → raw bytes
+		{1<<40 + 1, "1099511627777"},
+		// Large values not divisible by g but divisible by m → suffix m
+		{1<<40 + 1<<20, "1048577m"},
+		// Large values not divisible by g or m but divisible by k → suffix k
+		{1<<40 + 1<<10, "1073741825k"},
+		// Max uint64 (odd, not divisible by any suffix)
+		{itoml.Size(math.MaxUint64), fmt.Sprint(uint64(math.MaxUint64))},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			b, err := tc.size.MarshalText()
+			require.NoError(t, err)
+			require.Equal(t, tc.want, string(b))
+		})
+	}
+}
+
+func TestSize_RoundTrip(t *testing.T) {
+	for _, size := range []itoml.Size{
+		0, 1, 1023,
+		1 << 10, 100 << 10,
+		1 << 20, 100 << 20,
+		1 << 30, 100 << 30,
+	} {
+		t.Run(fmt.Sprint(uint64(size)), func(t *testing.T) {
+			b, err := size.MarshalText()
+			require.NoError(t, err)
+			var got itoml.Size
+			require.NoError(t, got.UnmarshalText(b))
+			require.Equal(t, size, got)
+		})
+	}
+}
+
+func TestSSize_UnmarshalText(t *testing.T) {
+	for _, tc := range []struct {
+		str  string
+		want itoml.SSize
+	}{
+		// Zero
+		{"0", 0},
+		// Positive raw bytes
+		{"1", 1},
+		{"100", 100},
+		// Negative raw bytes
+		{"-1", -1},
+		{"-100", -100},
+		// Positive with suffixes (lower and upper)
+		{"1k", itoml.SSize(1 << 10)},
+		{"1K", itoml.SSize(1 << 10)},
+		{"10k", itoml.SSize(10 << 10)},
+		{"1m", itoml.SSize(1 << 20)},
+		{"1M", itoml.SSize(1 << 20)},
+		{"10m", itoml.SSize(10 << 20)},
+		{"1g", itoml.SSize(1 << 30)},
+		{"1G", itoml.SSize(1 << 30)},
+		{"10g", itoml.SSize(10 << 30)},
+		// Negative with suffixes (lower and upper)
+		{"-1k", itoml.SSize(-1 << 10)},
+		{"-1K", itoml.SSize(-1 << 10)},
+		{"-10k", itoml.SSize(-10 << 10)},
+		{"-1m", itoml.SSize(-1 << 20)},
+		{"-1M", itoml.SSize(-1 << 20)},
+		{"-10m", itoml.SSize(-10 << 20)},
+		{"-1g", itoml.SSize(-1 << 30)},
+		{"-1G", itoml.SSize(-1 << 30)},
+		{"-10g", itoml.SSize(-10 << 30)},
+		// Extreme positive
+		{fmt.Sprint(int64(math.MaxInt64)), itoml.SSize(math.MaxInt64)},
+		{fmt.Sprintf("%dk", int64(math.MaxInt64>>10)), itoml.SSize(int64(math.MaxInt64>>10) << 10)},
+		{fmt.Sprintf("%dm", int64(math.MaxInt64>>20)), itoml.SSize(int64(math.MaxInt64>>20) << 20)},
+		{fmt.Sprintf("%dg", int64(math.MaxInt64>>30)), itoml.SSize(int64(math.MaxInt64>>30) << 30)},
+		// Extreme negative
+		{fmt.Sprintf("-%d", int64(math.MaxInt64)), itoml.SSize(-math.MaxInt64)},
+		{fmt.Sprintf("-%dk", int64(math.MaxInt64>>10)), itoml.SSize(-int64(math.MaxInt64>>10) << 10)},
+		{fmt.Sprintf("-%dm", int64(math.MaxInt64>>20)), itoml.SSize(-int64(math.MaxInt64>>20) << 20)},
+		{fmt.Sprintf("-%dg", int64(math.MaxInt64>>30)), itoml.SSize(-int64(math.MaxInt64>>30) << 30)},
+	} {
+		t.Run(tc.str, func(t *testing.T) {
+			var s itoml.SSize
+			require.NoError(t, s.UnmarshalText([]byte(tc.str)))
+			require.Equal(t, tc.want, s)
+		})
+	}
+
+	for _, tc := range []struct {
+		name        string
+		str         string
+		err         error
+		errContains string
+	}{
+		{"empty", "", itoml.ErrSizeEmpty, ""},
+		{"negative_empty", "-", itoml.ErrSizeEmpty, ""},
+		{"bad_suffix", "1t", itoml.ErrSizeBadSuffix, ": t (expected k, m, or g)"},
+		{"negative_bad_suffix", "-1t", itoml.ErrSizeBadSuffix, ": t (expected k, m, or g)"},
+		{"non_numeric", "abc", itoml.ErrSizeBadSuffix, ""},
+		{"negative_non_numeric", "-abc", itoml.ErrSizeBadSuffix, ""},
+		{"alpha_numeric", "a1", itoml.ErrSizeParse, ""},
+		{"negative_alpha_numeric", "-a1", itoml.ErrSizeParse, ""},
+		// Overflow: value too large for int64
+		{"overflow_raw", fmt.Sprint(uint64(math.MaxInt64) + 1), itoml.ErrSizeParse, ""},
+		// Overflow: fits in uint64 but not int64 after multiply
+		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow, ""},
+		{"overflow_m", fmt.Sprintf("%dm", uint64(math.MaxInt64>>20)+1), itoml.ErrSSizeOverflow, ""},
+		{"overflow_g", fmt.Sprintf("%dg", uint64(math.MaxInt64>>30)+1), itoml.ErrSSizeOverflow, ""},
+		// Negative overflow
+		{"negative_overflow_raw", fmt.Sprintf("-%d", uint64(math.MaxInt64)+1), itoml.ErrSizeParse, ""},
+		{"negative_overflow_k", fmt.Sprintf("-%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var s itoml.SSize
+			err := s.UnmarshalText([]byte(tc.str))
+			require.ErrorIs(t, err, tc.err)
+			if tc.errContains != "" {
+				require.ErrorContains(t, err, tc.errContains)
+			}
+			require.Zero(t, s, "SSize should remain zero after failed unmarshal")
+		})
+	}
+}
+
+func TestSSize_MarshalText(t *testing.T) {
+	for _, tc := range []struct {
+		size itoml.SSize
+		want string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{-1, "-1"},
+		{512, "512"},
+		{-512, "-512"},
+		{1023, "1023"},
+		{-1023, "-1023"},
+		// Exact KiB
+		{1 << 10, "1k"},
+		{-(1 << 10), "-1k"},
+		{10 << 10, "10k"},
+		{-(10 << 10), "-10k"},
+		// Exact MiB
+		{1 << 20, "1m"},
+		{-(1 << 20), "-1m"},
+		{256 << 20, "256m"},
+		{-(256 << 20), "-256m"},
+		// Exact GiB
+		{1 << 30, "1g"},
+		{-(1 << 30), "-1g"},
+		{10 << 30, "10g"},
+		{-(10 << 30), "-10g"},
+		// >= 1g, not %g, but %m → suffix m
+		{1<<30 + 1<<20, "1025m"},
+		{-(1<<30 + 1<<20), "-1025m"},
+		// >= 1g, not %g, not %m, but %k → suffix k
+		{1<<30 + 1<<10, "1048577k"},
+		{-(1<<30 + 1<<10), "-1048577k"},
+		// >= 1g, not %g, not %m, not %k → raw bytes
+		{1<<30 + 1, "1073741825"},
+		{-(1<<30 + 1), "-1073741825"},
+		// >= 1m, not %m, but %k → suffix k
+		{1<<20 + 1<<10, "1025k"},
+		{-(1<<20 + 1<<10), "-1025k"},
+		// >= 1m, not %m, not %k → raw bytes
+		{1<<20 + 1, "1048577"},
+		{-(1<<20 + 1), "-1048577"},
+		// >= 1k, not %k → raw bytes
+		{1<<10 + 1, "1025"},
+		{-(1<<10 + 1), "-1025"},
+		// Large values not divisible by any suffix → raw bytes
+		{1<<40 + 1, "1099511627777"},
+		{-(1<<40 + 1), "-1099511627777"},
+		// Large, not %g but %m → suffix m
+		{1<<40 + 1<<20, "1048577m"},
+		{-(1<<40 + 1<<20), "-1048577m"},
+		// Large, not %g, not %m, but %k → suffix k
+		{1<<40 + 1<<10, "1073741825k"},
+		{-(1<<40 + 1<<10), "-1073741825k"},
+		// Extreme values
+		{itoml.SSize(math.MaxInt64), fmt.Sprint(int64(math.MaxInt64))},
+		{itoml.SSize(-math.MaxInt64), fmt.Sprint(int64(-math.MaxInt64))},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			b, err := tc.size.MarshalText()
+			require.NoError(t, err)
+			require.Equal(t, tc.want, string(b))
+		})
+	}
+}
+
+func TestSSize_RoundTrip(t *testing.T) {
+	for _, size := range []itoml.SSize{
+		0, 1, -1, 1023, -1023,
+		1 << 10, -(1 << 10), 100 << 10, -(100 << 10),
+		1 << 20, -(1 << 20), 100 << 20, -(100 << 20),
+		1 << 30, -(1 << 30), 100 << 30, -(100 << 30),
+		itoml.SSize(math.MaxInt64), itoml.SSize(-math.MaxInt64),
+	} {
+		t.Run(fmt.Sprint(int64(size)), func(t *testing.T) {
+			b, err := size.MarshalText()
+			require.NoError(t, err)
+			var got itoml.SSize
+			require.NoError(t, got.UnmarshalText(b))
+			require.Equal(t, size, got)
 		})
 	}
 }
@@ -378,6 +636,16 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		// #6: override existing []int elements by index
 		"X_INTSLICE3_1":       "99",
 		"X_MULTI_HYPHEN_NAME": "bobby",
+		// SSize: single value, negative
+		"X_SSIZE": "-128m",
+		// SSize: indexed slice with negative values
+		"X_SSIZESLICE_0": "-64m",
+		"X_SSIZESLICE_1": "256m",
+		// SSize: comma-separated slice with negative values
+		"X_SSIZESLICE2": "-1g, 512m, -256k",
+		// SSize: extend beyond initial length
+		"X_SSIZESLICE3_0": "-32m",
+		"X_SSIZESLICE3_1": "64m",
 	}
 
 	env := func(s string) string {
@@ -439,6 +707,10 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		NestedSlice     []nested            `toml:"nestedslice"`
 		EmbedSlice      []nestedWithEmbed   `toml:"embedslice"`
 		IntSlice3       []int               `toml:"intslice3"`
+		SSize           itoml.SSize         `toml:"ssize"`
+		SSizeSlice      []itoml.SSize       `toml:"ssizeslice"`
+		SSizeSlice2     []itoml.SSize       `toml:"ssizeslice2"`
+		SSizeSlice3     []itoml.SSize       `toml:"ssizeslice3"`
 		MultiHyphenName string              `toml:"multi-hyphen-name"`
 
 		Embedded
@@ -462,8 +734,9 @@ func TestEnvOverride_Builtins(t *testing.T) {
 			{Str: "original0", Int: 0},
 			{Str: "original1", Int: 0},
 		},
-		SizeSlice3: []itoml.Size{32 * 1024 * 1024},
-		IntSlice3:  []int{10, 20, 30},
+		SizeSlice3:  []itoml.Size{32 * 1024 * 1024},
+		SSizeSlice3: []itoml.SSize{16 * 1024 * 1024},
+		IntSlice3:   []int{10, 20, 30},
 	}
 
 	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &got))
@@ -531,6 +804,10 @@ func TestEnvOverride_Builtins(t *testing.T) {
 			{Embedded: Embedded{ES: "embedded1"}},
 		},
 		IntSlice3:       []int{10, 99, 30},
+		SSize:           itoml.SSize(-128 * 1024 * 1024),
+		SSizeSlice:      []itoml.SSize{-64 * 1024 * 1024, 256 * 1024 * 1024},
+		SSizeSlice2:     []itoml.SSize{-1024 * 1024 * 1024, 512 * 1024 * 1024, -256 * 1024},
+		SSizeSlice3:     []itoml.SSize{-32 * 1024 * 1024, 64 * 1024 * 1024},
 		MultiHyphenName: "bobby",
 		Ignored:         0,
 	}
@@ -546,6 +823,7 @@ func TestEnvOverride_Errors(t *testing.T) {
 		Bool     bool           `toml:"bool"`
 		Duration itoml.Duration `toml:"duration"`
 		Size     itoml.Size     `toml:"size"`
+		SSize    itoml.SSize    `toml:"ssize"`
 		Ints     []int          `toml:"ints"`
 	}
 
@@ -561,6 +839,7 @@ func TestEnvOverride_Errors(t *testing.T) {
 		{"X_BOOL", "not_a_bool", "failed to apply X_BOOL to Bool using type bool and value 'not_a_bool': strconv.ParseBool: parsing \"not_a_bool\": invalid syntax"},
 		{"X_DURATION", "not_a_duration", "failed to apply X_DURATION to Duration using TextUnmarshaler toml.Duration and value 'not_a_duration': time: invalid duration \"not_a_duration\""},
 		{"X_SIZE", "not_a_size", "failed to apply X_SIZE to Size using TextUnmarshaler toml.Size and value 'not_a_size': unknown size suffix: e (expected k, m, or g)"},
+		{"X_SSIZE", "not_a_size", "failed to apply X_SSIZE to SSize using TextUnmarshaler toml.SSize and value 'not_a_size': unknown size suffix: e (expected k, m, or g)"},
 		// Indexed slice element with invalid value
 		{"X_INTS_0", "bad", "failed to apply X_INTS_0 to Ints using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
 		// Unindexed (comma-separated) slice with invalid value
@@ -652,6 +931,25 @@ func TestEnvOverride_PointerToTextUnmarshaler(t *testing.T) {
 	c := config{Dur: &dur}
 	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
 	require.Equal(t, itoml.Duration(5*time.Minute), *c.Dur)
+}
+
+func TestEnvOverride_PointerToSSize(t *testing.T) {
+	// A pointer-to-SSize field should be overridable with negative values.
+	type config struct {
+		Limit *itoml.SSize `toml:"limit"`
+	}
+
+	env := func(s string) string {
+		if s == "X_LIMIT" {
+			return "-512m"
+		}
+		return ""
+	}
+
+	limit := itoml.SSize(0)
+	c := config{Limit: &limit}
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	require.Equal(t, itoml.SSize(-512*1024*1024), *c.Limit)
 }
 
 func TestEnvOverride_CommaSeparatedTextUnmarshaler(t *testing.T) {
