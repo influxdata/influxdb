@@ -146,7 +146,7 @@ func TestGroup_UnmarshalTOML(t *testing.T) {
 		if errors.Is(err, unkGID) {
 			t.Skipf("skipping because LookupGroupId failed for %q: %s", u.Gid, err)
 		}
-		require.NoError(t, err, "LookupGroupId failed with error other than uer.UnknownGroupIdErr")
+		require.NoError(t, err, "LookupGroupId failed with error other than user.UnknownGroupIdErr")
 		var group itoml.Group
 		require.NoError(t, group.UnmarshalTOML(gr.Name))
 		require.Equal(t, itoml.Group(gid), group)
