@@ -158,12 +158,26 @@ func TestGroup_UnmarshalTOML(t *testing.T) {
 		require.Equal(t, itoml.Group(gid), group)
 	})
 
+	t.Run("by numeric GID string", func(t *testing.T) {
+		var group itoml.Group
+		require.NoError(t, group.UnmarshalTOML(fmt.Sprintf("%d", gid)))
+		require.Equal(t, itoml.Group(gid), group)
+	})
+
 	t.Run("by invalid group name", func(t *testing.T) {
 		var group itoml.Group
 		fakeGroup := "ThereIsNoWaySomebodyMadeThisARealGroupName_LLC"
 		expErr := user.UnknownGroupError(fakeGroup)
 		require.ErrorIs(t, group.UnmarshalTOML(fakeGroup), expErr)
 		require.Zero(t, group, "group should remain zero after failed unmarshal")
+	})
+
+	t.Run("empty string fails", func(t *testing.T) {
+		var group itoml.Group
+		emptyGroup := ""
+		expErr := user.UnknownGroupError(emptyGroup)
+		require.ErrorIs(t, group.UnmarshalTOML(emptyGroup), expErr)
+		require.Zero(t, group)
 	})
 }
 
@@ -268,6 +282,10 @@ func currentUserGroup() (int, string, error) {
 }
 
 func TestEnvOverride_Builtins(t *testing.T) {
+	// If we run on a platform that doesn't support groups or not in a way resembling
+	// Unix groups, then we will use an empty groupOverride and the expected groupID will
+	// be 0. This will pass the test. There is also a test case (groupempty) that explicitly
+	// tests this on all platforms to be sure it will work on other platforms.
 	groupID, groupName, err := currentUserGroup()
 	var groupOverride string
 	if err == nil {
@@ -316,6 +334,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_MAXSIZE":          "128M",
 		"X_GROUP":            groupOverride,
 		"X_GROUPNUMERIC":     fmt.Sprintf("%d", groupID),
+		"X_GROUPEMPTY":       "",
 		"X_STRSLICE_0":       "alice",
 		"X_STRSLICE_1":       "bob",
 		"X_STRSLICE_2":       "carol",
@@ -402,6 +421,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		MaxSize         itoml.Size          `toml:"maxSize"`
 		Group           itoml.Group         `toml:"group"`
 		GroupNumeric    itoml.Group         `toml:"groupnumeric"`
+		GroupEmpty      itoml.Group         `toml:"groupempty"`
 		StrSlice        []string            `toml:"strslice"`
 		StrSlice2       []string            `toml:"strslice2"`
 		StrSlice3       []string            `toml:"strslice3"`
