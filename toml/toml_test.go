@@ -63,31 +63,33 @@ func TestSize_UnmarshalText(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name        string
-		str         string
-		err         error
-		errContains string
+		name   string
+		str    string
+		err    error
+		errStr string
 	}{
-		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxUint64-1)), itoml.ErrSizeOverflow, ""},
-		{"overflow_g", "10000000000000000000g", itoml.ErrSizeOverflow, ""},
-		{"bad_suffix_f", "abcdef", itoml.ErrSizeBadSuffix, ": f (expected k, m, or g)"},
-		{"bad_suffix_B", "1KB", itoml.ErrSizeBadSuffix, ": B (expected k, m, or g)"},
-		{"bad_suffix_t", "1t", itoml.ErrSizeBadSuffix, ": t (expected k, m, or g)"},
-		{"non_numeric", "√m", itoml.ErrSizeParse, ""},
-		{"alpha_numeric", "a1", itoml.ErrSizeParse, ""},
-		{"empty", "", itoml.ErrSizeEmpty, ""},
-		{"negative", "-1", itoml.ErrSizeParse, "negative value not allowed"},
-		{"negative_suffix", "-1m", itoml.ErrSizeParse, "negative value not allowed"},
-		// Value too large for uint64
-		{"parse_overflow", "99999999999999999999", itoml.ErrSizeParse, ""},
+		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxUint64-1)), itoml.ErrSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of a uint64: %dk", uint64(math.MaxUint64), uint64(math.MaxUint64-1))},
+		{"overflow_g", "10000000000000000000g", itoml.ErrSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of a uint64: 10000000000000000000g", uint64(math.MaxUint64))},
+		{"bad_suffix_f", "abcdef", itoml.ErrSizeBadSuffix, "unknown size suffix: f (expected k, m, or g)"},
+		{"bad_suffix_B", "1KB", itoml.ErrSizeBadSuffix, "unknown size suffix: B (expected k, m, or g)"},
+		{"bad_suffix_t", "1t", itoml.ErrSizeBadSuffix, "unknown size suffix: t (expected k, m, or g)"},
+		{"non_numeric", "√m", itoml.ErrSizeParse,
+			`invalid size: error parsing "√m": strconv.ParseUint: parsing "√": invalid syntax`},
+		{"alpha_numeric", "a1", itoml.ErrSizeParse,
+			`invalid size: error parsing "a1": strconv.ParseUint: parsing "a1": invalid syntax`},
+		{"empty", "", itoml.ErrSizeEmpty, "size was empty"},
+		{"negative", "-1", itoml.ErrSizeParse, "invalid size: negative value not allowed"},
+		{"negative_suffix", "-1m", itoml.ErrSizeParse, "invalid size: negative value not allowed"},
+		{"parse_overflow", "99999999999999999999", itoml.ErrSizeParse,
+			`invalid size: error parsing "99999999999999999999": strconv.ParseUint: parsing "99999999999999999999": value out of range`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var s itoml.Size
 			err := s.UnmarshalText([]byte(tc.str))
 			require.ErrorIs(t, err, tc.err)
-			if tc.errContains != "" {
-				require.ErrorContains(t, err, tc.errContains)
-			}
+			require.EqualError(t, err, tc.errStr)
 			require.Zero(t, s, "Size should remain zero after failed unmarshal")
 		})
 	}
@@ -211,36 +213,44 @@ func TestSSize_UnmarshalText(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name        string
-		str         string
-		err         error
-		errContains string
+		name   string
+		str    string
+		err    error
+		errStr string
 	}{
-		{"empty", "", itoml.ErrSizeEmpty, ""},
-		{"negative_empty", "-", itoml.ErrSizeEmpty, ""},
-		{"bad_suffix", "1t", itoml.ErrSizeBadSuffix, ": t (expected k, m, or g)"},
-		{"negative_bad_suffix", "-1t", itoml.ErrSizeBadSuffix, ": t (expected k, m, or g)"},
-		{"non_numeric", "abc", itoml.ErrSizeBadSuffix, ""},
-		{"negative_non_numeric", "-abc", itoml.ErrSizeBadSuffix, ""},
-		{"alpha_numeric", "a1", itoml.ErrSizeParse, ""},
-		{"negative_alpha_numeric", "-a1", itoml.ErrSizeParse, ""},
+		{"empty", "", itoml.ErrSizeEmpty, "size was empty"},
+		{"negative_empty", "-", itoml.ErrSizeEmpty, "size was empty"},
+		{"bad_suffix", "1t", itoml.ErrSizeBadSuffix, "unknown size suffix: t (expected k, m, or g)"},
+		{"negative_bad_suffix", "-1t", itoml.ErrSizeBadSuffix, "unknown size suffix: t (expected k, m, or g)"},
+		{"non_numeric", "abc", itoml.ErrSizeBadSuffix, "unknown size suffix: c (expected k, m, or g)"},
+		{"negative_non_numeric", "-abc", itoml.ErrSizeBadSuffix, "unknown size suffix: c (expected k, m, or g)"},
+		{"alpha_numeric", "a1", itoml.ErrSizeParse,
+			`invalid size: error parsing "a1": strconv.ParseUint: parsing "a1": invalid syntax`},
+		{"negative_alpha_numeric", "-a1", itoml.ErrSizeParse,
+			`invalid size: error parsing "a1": strconv.ParseUint: parsing "a1": invalid syntax`},
 		// Overflow: value too large for int64
-		{"overflow_raw", fmt.Sprint(uint64(math.MaxInt64) + 1), itoml.ErrSizeParse, ""},
+		{"overflow_raw", fmt.Sprint(uint64(math.MaxInt64) + 1), itoml.ErrSizeParse,
+			fmt.Sprintf(`invalid size: error parsing "%d": strconv.ParseUint: parsing "%d": value out of range`,
+				uint64(math.MaxInt64)+1, uint64(math.MaxInt64)+1)},
 		// Overflow: fits in uint64 but not int64 after multiply
-		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow, ""},
-		{"overflow_m", fmt.Sprintf("%dm", uint64(math.MaxInt64>>20)+1), itoml.ErrSSizeOverflow, ""},
-		{"overflow_g", fmt.Sprintf("%dg", uint64(math.MaxInt64>>30)+1), itoml.ErrSSizeOverflow, ""},
+		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+1)},
+		{"overflow_m", fmt.Sprintf("%dm", uint64(math.MaxInt64>>20)+1), itoml.ErrSSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dm", int64(math.MaxInt64), uint64(math.MaxInt64>>20)+1)},
+		{"overflow_g", fmt.Sprintf("%dg", uint64(math.MaxInt64>>30)+1), itoml.ErrSSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dg", int64(math.MaxInt64), uint64(math.MaxInt64>>30)+1)},
 		// Negative overflow
-		{"negative_overflow_raw", fmt.Sprintf("-%d", uint64(math.MaxInt64)+1), itoml.ErrSizeParse, ""},
-		{"negative_overflow_k", fmt.Sprintf("-%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow, ""},
+		{"negative_overflow_raw", fmt.Sprintf("-%d", uint64(math.MaxInt64)+1), itoml.ErrSizeParse,
+			fmt.Sprintf(`invalid size: error parsing "%d": strconv.ParseUint: parsing "%d": value out of range`,
+				uint64(math.MaxInt64)+1, uint64(math.MaxInt64)+1)},
+		{"negative_overflow_k", fmt.Sprintf("-%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+1)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var s itoml.SSize
 			err := s.UnmarshalText([]byte(tc.str))
 			require.ErrorIs(t, err, tc.err)
-			if tc.errContains != "" {
-				require.ErrorContains(t, err, tc.errContains)
-			}
+			require.EqualError(t, err, tc.errStr)
 			require.Zero(t, s, "SSize should remain zero after failed unmarshal")
 		})
 	}
@@ -362,7 +372,7 @@ func TestFileMode_UnmarshalText(t *testing.T) {
 		{str: `1777`, want: 01777},
 		{str: `0755`, want: 0755},
 		{str: `37777777777`, want: math.MaxUint32}, // nonsense, but correct as defined
-		{str: `joey`, want: 0, errStr: "invalid syntax"},
+		{str: `joey`, want: 0, errStr: `strconv.ParseUint: parsing "joey": invalid syntax`},
 		{str: `0`, want: 0, errStr: "file mode cannot be zero"},
 		{str: `0000`, want: 0, errStr: "file mode cannot be zero"},
 	} {
@@ -373,8 +383,7 @@ func TestFileMode_UnmarshalText(t *testing.T) {
 				require.NoError(t, err, "unexpected error during unmarshaling")
 				require.Equal(t, itoml.FileMode(tc.want), mode)
 			} else {
-				require.Errorf(t, err, "unmarshaling %q should have generated an error", tc.str)
-				require.ErrorContains(t, err, tc.errStr)
+				require.EqualError(t, err, tc.errStr)
 				require.Zero(t, mode, "mode should remain zero after failed unmarshaling")
 			}
 		})
@@ -485,10 +494,10 @@ func TestDuration_Decode(t *testing.T) {
 		{"2562047h47m16.854775807s", math.MaxInt64, ""},
 		{"-60ns", -60, ""},
 		{"-2562047h47m16.854775808s", math.MinInt64, ""},
-		{"60", 0, "missing unit in duration"},
-		{"bob", 0, `invalid duration "bob"`},
-		{"1d", 0, `unknown unit "d" in duration "1d"`},
-		{" ", 0, `invalid duration " "`},
+		{"60", 0, `time: missing unit in duration "60"`},
+		{"bob", 0, `time: invalid duration "bob"`},
+		{"1d", 0, `time: unknown unit "d" in duration "1d"`},
+		{" ", 0, `time: invalid duration " "`},
 	}
 	for idx, tc := range tcs {
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
@@ -498,8 +507,7 @@ func TestDuration_Decode(t *testing.T) {
 				require.NoErrorf(t, err, "unexpected error unmarshaling %q", tc.s)
 				require.Equalf(t, itoml.Duration(tc.exp), d, "unexpected result unmarshaling %q", tc.s)
 			} else {
-				require.Errorf(t, err, "unmarshaling %q should have failed", tc.s)
-				require.ErrorContains(t, err, tc.errStr, "incorrect error during unmarshaling")
+				require.EqualError(t, err, tc.errStr)
 				require.Equalf(t, itoml.Duration(0), d, "d should not be changed on failed unmarshaling of %q", tc.s)
 			}
 		})

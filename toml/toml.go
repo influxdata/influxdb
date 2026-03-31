@@ -133,7 +133,7 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 
 	size, err := strconv.ParseUint(string(numText), 10, bitSize)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrSizeParse, err)
+		return fmt.Errorf("%w: error parsing %q: %w", ErrSizeParse, string(text), err)
 	}
 
 	if maxVal/mult < size {
