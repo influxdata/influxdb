@@ -50,7 +50,7 @@ readonly PBS_TOP_DIR="/tmp/workspace"
 # - https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst
 # - https://edu.chainguard.dev/chainguard/chainguard-images/about/images-compiled-programs/glibc-vs-musl/#python-builds
 # - https://pythonspeed.com/articles/alpine-docker-python/
-readonly TARGETS="${TARGETS:-aarch64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu x86_64-pc-windows-msvc}"
+readonly TARGETS="aarch64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu x86_64-pc-windows-msvc"
 
 fetch() {
     target="$1"

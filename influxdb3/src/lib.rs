@@ -17,7 +17,7 @@ use influxdb3_clap_blocks::tokio::{TokioDatafusionConfig, TokioIoConfig};
 use influxdb3_server::VERSION_STRING;
 use influxdb3_startup::env_compat::{self, ENV_ALIASES};
 use influxdb3_telemetry::ServeInvocationMethod;
-use observability_deps::tracing::{self, warn};
+use observability_deps::tracing::warn;
 use owo_colors::OwoColorize;
 use std::collections::HashMap;
 
@@ -320,10 +320,7 @@ fn serve_main(
                 }
             }
         }
-        let _tracing_guard = handle_init_logs(init_logs_and_tracing(
-            &serve_config.logging_config,
-            serve_config.disable_log_filter_noise_reduction,
-        ));
+        let _tracing_guard = handle_init_logs(init_logs_and_tracing(&serve_config.logging_config));
 
         commands::serve::command(serve_config, user_params).await
     }) {
@@ -662,58 +659,14 @@ unsafe fn set_signal_handler(signal: libc::c_int, handler: unsafe extern "C" fn(
     }
 }
 
-static LOG_FILTER_NOISE_REDUCTION: &[&str] = &[
-    "influxdb3_server::http=info",
-    "reqwest=info",
-    "object_store_metrics=info",
-    "hyper_util=info",
-    "hyper::proto::h1=info",
-    "h2=info",
-    "datafusion_optimizer=info",
-    "influxdb3_wal=info",
-    "iox_query=info",
-    "datafusion=info",
-];
-
-fn expand_log_filter(filter: &str, disable: bool) -> String {
-    if disable {
-        return filter.to_string();
-    }
-    let trimmed = filter.trim();
-    if trimmed.starts_with("debug") || trimmed.starts_with("trace") {
-        format!("{},{}", trimmed, LOG_FILTER_NOISE_REDUCTION.join(","))
-    } else {
-        filter.to_string()
-    }
-}
-
-fn apply_noise_reduction(config: &mut trogging::cli::LoggingConfig, disable: bool) {
-    if let Some(ref filter) = config.log_filter.clone() {
-        config.log_filter = Some(expand_log_filter(filter, disable));
-    }
-    if config.log_verbose_count >= 2 {
-        let base = if config.log_verbose_count == 2 {
-            "debug"
-        } else {
-            "trace"
-        };
-        config.log_filter = Some(expand_log_filter(base, disable));
-        config.log_verbose_count = 0;
-    }
-}
-
 fn init_logs_and_tracing(
     config: &trogging::cli::LoggingConfig,
-    disable_expansion: bool,
 ) -> Result<TroggingGuard, trogging::Error> {
-    let mut config = config.clone();
-    apply_noise_reduction(&mut config, disable_expansion);
-
     let log_layer = trogging::Builder::new()
         .with_default_log_filter(
             "info,iox_query::query_log=warn,influxdb3_query_executor::query_planner=warn",
         )
-        .with_logging_config(&config)
+        .with_logging_config(config)
         .build()?;
 
     let layers = log_layer;
@@ -730,15 +683,8 @@ fn init_logs_and_tracing(
     };
 
     let subscriber = Registry::default().with(layers);
-    let guard = trogging::install_global(subscriber)?;
-    if let Some(ref f) = config.log_filter {
-        tracing::debug!(log_filter = %f, "log_filter_active");
-    }
-    Ok(guard)
+    trogging::install_global(subscriber)
 }
-
-#[cfg(test)]
-mod lib_tests;
 
 /// Extract user-provided parameters from ArgMatches using clap's ids()
 /// Returns a simple map of CLI argument name -> string value for all user-provided arguments
