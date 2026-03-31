@@ -286,14 +286,18 @@ func TestEnvOverride_Builtins(t *testing.T) {
 	// Unix groups, then we will use an empty groupOverride and the expected groupID will
 	// be 0. This will pass the test. There is also a test case (groupempty) that explicitly
 	// tests this on all platforms to be sure it will work on other platforms.
+	// On platforms without a concept of group numbers (e.g. Windows), we leave groupnumeric
+	// as empty string, which we leave groupNumeric unchanged as 0 and pass the test.
 	groupID, groupName, err := currentUserGroup()
 	var groupOverride string
+	var groupNumeric string
 	if err == nil {
+		groupNumeric = fmt.Sprintf("%d", groupID)
 		if groupName != "" {
 			groupOverride = groupName
 		} else {
 			t.Logf("could not get current user's group name, using GID instead")
-			groupOverride = fmt.Sprintf("%d", groupID)
+			groupOverride = groupNumeric
 		}
 	} else {
 		t.Logf("could not get current user's group: %s", err)
@@ -333,7 +337,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_LOGLEVEL":         "warn",
 		"X_MAXSIZE":          "128M",
 		"X_GROUP":            groupOverride,
-		"X_GROUPNUMERIC":     fmt.Sprintf("%d", groupID),
+		"X_GROUPNUMERIC":     groupNumeric,
 		"X_GROUPEMPTY":       "",
 		"X_STRSLICE_0":       "alice",
 		"X_STRSLICE_1":       "bob",
