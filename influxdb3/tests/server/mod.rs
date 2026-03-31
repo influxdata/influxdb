@@ -65,9 +65,6 @@ pub trait ConfigProvider: Send + Sync + 'static {
     /// Get if logs should be captured
     fn capture_logs(&self) -> bool;
 
-    /// Get extra environment variables to set on the spawned process
-    fn env_vars(&self) -> Vec<(String, String)>;
-
     /// Get if recovery endpoint should be enabled
     fn recovery_endpoint_enabled(&self) -> bool;
 
@@ -102,9 +99,6 @@ pub struct TestConfig {
     gen1_lookback_duration: Option<String>,
     snapshotted_wal_files_to_keep: Option<String>,
     capture_logs: bool,
-    log_filter: Option<String>,
-    disable_log_filter_noise_reduction: bool,
-    process_env_vars: Vec<(String, String)>,
     enable_recovery_endpoint: bool,
     admin_token_file: Option<String>,
     permission_tokens_file: Option<String>,
@@ -205,24 +199,6 @@ impl TestConfig {
     /// Enable capturing of stdout/stderr logs for this [`TestServer`]
     pub fn with_capture_logs(mut self) -> Self {
         self.capture_logs = true;
-        self
-    }
-
-    /// Set the log filter for this [`TestServer`]
-    pub fn with_log_filter(mut self, filter: impl Into<String>) -> Self {
-        self.log_filter = Some(filter.into());
-        self
-    }
-
-    /// Disable log filter noise reduction for this [`TestServer`]
-    pub fn with_disable_log_filter_noise_reduction(mut self) -> Self {
-        self.disable_log_filter_noise_reduction = true;
-        self
-    }
-
-    /// Set an environment variable on the spawned server process
-    pub fn with_env_var(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.process_env_vars.push((key.into(), value.into()));
         self
     }
 
@@ -351,13 +327,6 @@ impl ConfigProvider for TestConfig {
             ])
         }
 
-        if let Some(filter) = &self.log_filter {
-            args.extend(["--log-filter".to_string(), filter.clone()]);
-        }
-        if self.disable_log_filter_noise_reduction {
-            args.push("--disable-log-filter-noise-reduction".to_string());
-        }
-
         args
     }
 
@@ -383,10 +352,6 @@ impl ConfigProvider for TestConfig {
 
     fn capture_logs(&self) -> bool {
         self.capture_logs
-    }
-
-    fn env_vars(&self) -> Vec<(String, String)> {
-        self.process_env_vars.clone()
     }
 
     fn recovery_endpoint_enabled(&self) -> bool {
@@ -562,10 +527,6 @@ impl TestServer {
         } else {
             (None, None)
         };
-
-        for (k, v) in config.env_vars() {
-            command.env(k, v);
-        }
 
         let mut server_process = command.spawn().expect("spawn the influxdb3 server process");
 

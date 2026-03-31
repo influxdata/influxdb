@@ -71,7 +71,6 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "gen1-lookback-duration",
     // Logging and tracing parameters
     "log-filter",
-    "disable-log-filter-noise-reduction",
     "log-destination",
     "log-format",
     "query-log-size",

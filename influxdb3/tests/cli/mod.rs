@@ -1,7 +1,6 @@
 mod admin_token;
 mod api;
 mod db_retention;
-mod log_filter;
 mod offline_tokens;
 mod system_tables;
 mod tls_no_verify;

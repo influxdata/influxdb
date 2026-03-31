@@ -45,6 +45,13 @@ impl U64Gauge {
         }
     }
 
+    /// Atomically updates this gauge to `max(current, val)`.
+    ///
+    /// Returns the previous value.
+    pub fn fetch_max(&self, val: u64) -> u64 {
+        self.state.fetch_max(val, Ordering::Relaxed)
+    }
+
     /// Fetches the value of this U64Gauge
     pub fn fetch(&self) -> u64 {
         self.state.load(Ordering::Relaxed)

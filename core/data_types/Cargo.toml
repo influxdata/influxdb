@@ -35,7 +35,7 @@ sqlx = { workspace = true, features = [
 ] }
 thiserror = "2.0.18"
 uuid = { version = "1", features = ["v4"] }
-serde = { workspace = true, features = ["derive"] }
+
 
 [dev-dependencies] # In alphabetical order
 assert_matches = "1"

@@ -8,7 +8,9 @@ license.workspace = true
 [dependencies]
 # core crate dependencies
 iox_query = { path = "../core/iox_query" }
+object_store_limit = { path = "../object_store_limit" }
 observability_deps = { path = "../core/observability_deps" }
+tracker = { path = "../core/tracker" }
 iox_time = { path = "../core/iox_time" }
 metric = { path = "../core/metric" }
 trace_exporters = { path = "../core/trace_exporters" }
