@@ -272,12 +272,61 @@ func (g *Group) UnmarshalTOML(data interface{}) error {
 	return errors.New("group must be a name (string) or id (int)")
 }
 
-func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{}) error {
+// ApplyEnvOverrides applies environment variable overrides to the given configuration value.
+// It returns the list of all environment variable names that were applied and any error encountered.
+func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{}) ([]string, error) {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	_, _, err := applyEnvOverrides(getenv, prefix, reflect.ValueOf(val), "")
-	return err
+	result, err := applyEnvOverrides(getenv, prefix, reflect.ValueOf(val), "")
+	return result.AllVars, err
+}
+
+// envOverrideResult holds the result of applying environment overrides recursively.
+type envOverrideResult struct {
+	// Applied indicates whether any non-default override was applied by this or any recursive call.
+	Applied bool
+	// AllVars contains the names of all environment variables that were applied, including defaults.
+	// Sorted and deduplicated.
+	AllVars []string
+	// IndexedVars contains only the indexed (non-default) environment variable names applied.
+	// This excludes unindexed slice defaults and is used for slice growth error messages.
+	// Sorted and deduplicated.
+	IndexedVars []string
+}
+
+// insertVar inserts a variable name into a sorted slice if not already present.
+func (r *envOverrideResult) insertVar(dest *[]string, name string) {
+	i, found := slices.BinarySearch(*dest, name)
+	if !found {
+		*dest = slices.Insert(*dest, i, name)
+	}
+}
+
+// mergeAllVars adds the AllVars from other into this result, without affecting Applied or IndexedVars.
+// Used for default (unindexed) slice element overrides where Applied and IndexedVars are intentionally ignored.
+func (r *envOverrideResult) mergeAllVars(other envOverrideResult) {
+	for _, v := range other.AllVars {
+		r.insertVar(&r.AllVars, v)
+	}
+}
+
+// merge incorporates another result into this one, maintaining sorted, deduplicated variable name lists.
+func (r *envOverrideResult) merge(other envOverrideResult) {
+	if other.Applied {
+		r.Applied = true
+	}
+	for _, v := range other.AllVars {
+		r.insertVar(&r.AllVars, v)
+	}
+	for _, v := range other.IndexedVars {
+		r.insertVar(&r.IndexedVars, v)
+	}
+}
+
+// appliedEnvVar creates a result for a single leaf environment variable that was successfully applied.
+func appliedEnvVar(name string) envOverrideResult {
+	return envOverrideResult{Applied: true, AllVars: []string{name}, IndexedVars: []string{name}}
 }
 
 // joinStructKey builds a dotted path for structKey as we recurse into nested structs and slices.
@@ -293,17 +342,18 @@ func indexStructKey(parent string, idx int) string {
 	return fmt.Sprintf("%s[%d]", parent, idx)
 }
 
-// applyEnvOverrides applies environment overrides recursively. The return values indicate if a non-default override was applied
-// by this or any recursive calls, the names of non-default environment variables recursively applied, and if an error occurred.
-func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) (bool, []string, error) {
+// applyEnvOverrides applies environment overrides recursively.
+func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) (envOverrideResult, error) {
 	element := spec
 
 	value := strings.TrimSpace(getenv(prefix))
 
+	var noResult envOverrideResult
+
 	// If we have a pointer, dereference it
 	if spec.Kind() == reflect.Pointer {
 		if spec.IsNil() {
-			return false, nil, nil
+			return noResult, nil
 		}
 		element = spec.Elem()
 	}
@@ -314,66 +364,65 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		if u, ok := element.Addr().Interface().(encoding.TextUnmarshaler); ok {
 			// Skip any fields we don't have a value to set
 			if len(value) == 0 {
-				return false, nil, nil
+				return noResult, nil
 			}
 			if err := u.UnmarshalText([]byte(value)); err != nil {
-				return false, nil, fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+				return noResult, fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
 			}
-			return true, []string{prefix}, nil
+			return appliedEnvVar(prefix), nil
 		}
 	}
 
 	switch element.Kind() {
 	case reflect.String:
 		if len(value) == 0 {
-			return false, nil, nil
+			return noResult, nil
 		}
 		element.SetString(value)
-		return true, []string{prefix}, nil
+		return appliedEnvVar(prefix), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if len(value) == 0 {
-			return false, nil, nil
+			return noResult, nil
 		}
 		intValue, err := strconv.ParseInt(value, 0, element.Type().Bits())
 		if err != nil {
-			return false, nil, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetInt(intValue)
-		return true, []string{prefix}, nil
+		return appliedEnvVar(prefix), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if len(value) == 0 {
-			return false, nil, nil
+			return noResult, nil
 		}
 		intValue, err := strconv.ParseUint(value, 0, element.Type().Bits())
 		if err != nil {
-			return false, nil, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetUint(intValue)
-		return true, []string{prefix}, nil
+		return appliedEnvVar(prefix), nil
 	case reflect.Bool:
 		if len(value) == 0 {
-			return false, nil, nil
+			return noResult, nil
 		}
 		boolValue, err := strconv.ParseBool(value)
 		if err != nil {
-			return false, nil, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetBool(boolValue)
-		return true, []string{prefix}, nil
+		return appliedEnvVar(prefix), nil
 	case reflect.Float32, reflect.Float64:
 		if len(value) == 0 {
-			return false, nil, nil
+			return noResult, nil
 		}
 		floatValue, err := strconv.ParseFloat(value, element.Type().Bits())
 		if err != nil {
-			return false, nil, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetFloat(floatValue)
-		return true, []string{prefix}, nil
+		return appliedEnvVar(prefix), nil
 	case reflect.Slice:
 		startLen := element.Len()
-		foundOverrides := false
-		var foundEnvVars []string
+		var result envOverrideResult
 
 		// Handle indexed slices (e.g. VALUE_0, VALUE_1, VALUE_2, etc.)
 		for idx, envOutOfBounds := 0, false; idx < element.Len() || !envOutOfBounds; idx++ {
@@ -385,16 +434,17 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				// Apply the unindexed environment variable as a default value, if available.
 				// Finding a default environment value does not count when considering if we continue
 				// extending the slice, so we throw the found return value away.
-				if _, _, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
-					return false, nil, err
+				if defaultResult, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
+					return noResult, err
+				} else {
+					result.mergeAllVars(defaultResult)
 				}
 
 				// Apply the indexed environment variable as an override value.
-				if found, envVars, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
-					return false, nil, err
-				} else if found {
-					foundOverrides = true
-					foundEnvVars = append(foundEnvVars, envVars...)
+				if indexedResult, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
+					return noResult, err
+				} else {
+					result.merge(indexedResult)
 				}
 			} else {
 				// We have run past the end of starting slice, but are there more environment array indices?
@@ -404,23 +454,24 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				// Only meaningful for struct/pointer elements where individual fields can be defaulted.
 				elemKind := element.Type().Elem().Kind()
 				if elemKind == reflect.Struct || elemKind == reflect.Pointer {
-					if _, _, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
-						return false, nil, err
+					if defaultResult, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
+						return noResult, err
+					} else {
+						result.mergeAllVars(defaultResult)
 					}
 				}
-				if found, envVars, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
-					return false, nil, err
-				} else if found {
-					foundOverrides = true
-					foundEnvVars = append(foundEnvVars, envVars...)
+				if indexedResult, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
+					return noResult, err
+				} else if indexedResult.Applied {
+					result.merge(indexedResult)
 					// We found environment variables to override into newValue. Check for growth bound before appending.
 					if idx-startLen >= MaxEnvSliceGrowth {
 						overridesStr := "overrides"
-						if len(envVars) == 1 {
+						if len(indexedResult.IndexedVars) == 1 {
 							overridesStr = "override"
 						}
-						return false, nil, fmt.Errorf(
-							"env %s %s would grow slice beyond maximum of %d appended elements", overridesStr, strings.Join(envVars, ","), MaxEnvSliceGrowth)
+						return noResult, fmt.Errorf(
+							"env %s %s would grow slice beyond maximum of %d appended elements", overridesStr, strings.Join(indexedResult.IndexedVars, ","), MaxEnvSliceGrowth)
 					}
 
 					element.Set(reflect.Append(element, f))
@@ -433,40 +484,41 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 
 		// If the type is s slice but have value not parsed as slice e.g. GRAPHITE_0_TEMPLATES="item1,item2"
 		if element.Len() == 0 && len(value) > 0 {
-			foundOverrides = true
-			foundEnvVars = append(foundEnvVars, prefix)
+			result.Applied = true
+			result.insertVar(&result.AllVars, prefix)
+			result.insertVar(&result.IndexedVars, prefix)
 			parts := strings.Split(value, ",")
 			if len(parts) > MaxEnvSliceGrowth {
-				return false, nil, fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
+				return noResult, fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
 			}
 			for idx, val := range parts {
 				// Append a zero value and then set it. This way we aren't assuming element is a []string.
 				element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
 				f := element.Index(idx)
-				if found, envVars, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, indexStructKey(structKey, idx)); err != nil {
-					return false, nil, err
-				} else if found {
-					foundOverrides = true
-					envVars = slices.DeleteFunc(envVars, func(s string) bool { return s == prefix })
-					foundEnvVars = append(foundEnvVars, envVars...)
+				// The custom getenv returns val for any key, so the recursive call will
+				// report prefix as applied. Since we already recorded prefix above, merge
+				// deduplicates it automatically — no manual DeleteFunc needed.
+				if csvResult, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, indexStructKey(structKey, idx)); err != nil {
+					return noResult, err
+				} else {
+					result.merge(csvResult)
 				}
 			}
 		}
 
-		return foundOverrides, foundEnvVars, nil
+		return result, nil
 
 	case reflect.Struct:
-		foundOverrides := false
-		var foundEnvVars []string
+		var result envOverrideResult
 
 		typeOfSpec := element.Type()
 		for i := 0; i < element.NumField(); i++ {
 			field := element.Field(i)
 
-			found, envVars, err := func() (bool, []string, error) {
+			fieldResult, err := func() (envOverrideResult, error) {
 				// Skip any fields that we cannot set
 				if !field.CanSet() && field.Kind() != reflect.Slice {
-					return false, nil, nil
+					return noResult, nil
 				}
 
 				structField := typeOfSpec.Field(i)
@@ -475,7 +527,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				configName := structField.Tag.Get("toml")
 				if configName == "-" {
 					// Skip fields with tag `toml:"-"`.
-					return false, nil, nil
+					return noResult, nil
 				}
 
 				if configName == "" && structField.Anonymous {
@@ -501,15 +553,13 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				return applyEnvOverrides(getenv, envKey, field, joinStructKey(structKey, fieldName))
 			}()
 			if err != nil {
-				return false, nil, err
-			} else if found {
-				foundOverrides = true
-				foundEnvVars = append(foundEnvVars, envVars...)
+				return noResult, err
 			}
+			result.merge(fieldResult)
 		}
 
-		return foundOverrides, foundEnvVars, nil
+		return result, nil
 	}
 
-	return false, nil, nil
+	return noResult, nil
 }

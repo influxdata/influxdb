@@ -200,7 +200,8 @@ func (c *Config) Validate() error {
 
 // ApplyEnvOverrides apply the environment configuration on top of the config.
 func (c *Config) ApplyEnvOverrides(getenv func(string) string) error {
-	return itoml.ApplyEnvOverrides(getenv, "INFLUXDB", c)
+	_, err := itoml.ApplyEnvOverrides(getenv, "INFLUXDB", c)
+	return err
 }
 
 // Diagnostics returns a diagnostics representation of Config.

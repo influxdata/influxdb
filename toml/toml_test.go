@@ -7,6 +7,7 @@ import (
 	"math"
 	"os/user"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -747,7 +748,9 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		IntSlice3:   []int{10, 20, 30},
 	}
 
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &got))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &got)
+	require.NoError(t, err)
+	// appliedVars assertion is deferred until after we verify the config is correct.
 
 	exp := testConfig{
 		Str:          "a string",
@@ -821,6 +824,44 @@ func TestEnvOverride_Builtins(t *testing.T) {
 	}
 
 	require.Equal(t, exp, got, "environmental override failed")
+	require.Equal(t, []string{
+		"X_BOOL",
+		"X_DURATION",
+		"X_DURATIONSLICE2",
+		"X_DURATIONSLICE_0", "X_DURATIONSLICE_1",
+		"X_EMBEDSLICE_0_ES", "X_EMBEDSLICE_0_NAME",
+		"X_EMBEDSLICE_1_ES",
+		"X_ES",
+		"X_FLOAT32", "X_FLOAT64",
+		"X_GROUP", "X_GROUPNUMERIC",
+		"X_HYPHEN_STRING",
+		"X_INT", "X_INT16", "X_INT32", "X_INT64", "X_INT8",
+		"X_INTSLICE2",
+		"X_INTSLICE3_1",
+		"X_INTSLICE_0", "X_INTSLICE_1", "X_INTSLICE_2",
+		"X_LOGLEVEL",
+		"X_MAXSIZE",
+		"X_MULTI_HYPHEN_NAME",
+		"X_NESTEDPTR_INT", "X_NESTEDPTR_STRING",
+		"X_NESTEDSLICE_0_INT", "X_NESTEDSLICE_0_STRING",
+		"X_NESTEDSLICE_1_INT", "X_NESTEDSLICE_1_STRING",
+		"X_NESTEDSLICE_2_INT", "X_NESTEDSLICE_2_STRING",
+		"X_NESTEDSLICE_3_INT", "X_NESTEDSLICE_3_STRING",
+		"X_NESTEDSLICE_4_STRING",
+		"X_NESTED_INT", "X_NESTED_STRING",
+		"X_SIZESLICE2",
+		"X_SIZESLICE3_0", "X_SIZESLICE3_1",
+		"X_SIZESLICE_0", "X_SIZESLICE_1",
+		"X_SSIZE",
+		"X_SSIZESLICE2",
+		"X_SSIZESLICE3_0", "X_SSIZESLICE3_1",
+		"X_SSIZESLICE_0", "X_SSIZESLICE_1",
+		"X_STRING", "X_STRINGS_1",
+		"X_STRSLICE2", "X_STRSLICE3",
+		"X_STRSLICE3_1", "X_STRSLICE3_3",
+		"X_STRSLICE_0", "X_STRSLICE_1", "X_STRSLICE_2",
+		"X_UINT", "X_UINT16", "X_UINT32", "X_UINT64", "X_UINT8",
+	}, appliedVars)
 }
 
 func TestEnvOverride_Errors(t *testing.T) {
@@ -861,8 +902,9 @@ func TestEnvOverride_Errors(t *testing.T) {
 				}
 				return ""
 			}
-			err := itoml.ApplyEnvOverrides(env, "X", &c)
+			appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
 			require.EqualError(t, err, tc.errStr)
+			require.Empty(t, appliedVars)
 		})
 	}
 }
@@ -882,8 +924,11 @@ func TestEnvOverride_FieldWithoutTomlTag(t *testing.T) {
 	}
 
 	var c config
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	t.Logf("appliedVars: %v", appliedVars)
 	require.Equal(t, "alice", c.Name)
+	require.Equal(t, []string{"X_NAME"}, appliedVars)
 }
 
 func TestEnvOverride_DefaultAppliedToNewSliceElements(t *testing.T) {
@@ -913,13 +958,18 @@ func TestEnvOverride_DefaultAppliedToNewSliceElements(t *testing.T) {
 	}
 
 	c := config{Items: []item{{Port: 80}}}
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
 	// Element 0 (existing): default host "localhost" applied
 	// Element 1 (appended): default host "localhost" should be applied, then port overridden to 9999
 	require.Equal(t, []item{
 		{Host: "localhost", Port: 80},
 		{Host: "localhost", Port: 9999},
 	}, c.Items)
+	require.Equal(t, []string{
+		"X_ITEMS_1_PORT",
+		"X_ITEMS_HOST",
+	}, appliedVars)
 }
 
 func TestEnvOverride_PointerToTextUnmarshaler(t *testing.T) {
@@ -937,8 +987,10 @@ func TestEnvOverride_PointerToTextUnmarshaler(t *testing.T) {
 
 	dur := itoml.Duration(0)
 	c := config{Dur: &dur}
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
 	require.Equal(t, itoml.Duration(5*time.Minute), *c.Dur)
+	require.Equal(t, []string{"X_DUR"}, appliedVars)
 }
 
 func TestEnvOverride_PointerToSSize(t *testing.T) {
@@ -956,8 +1008,10 @@ func TestEnvOverride_PointerToSSize(t *testing.T) {
 
 	limit := itoml.SSize(0)
 	c := config{Limit: &limit}
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
 	require.Equal(t, itoml.SSize(-512*1024*1024), *c.Limit)
+	require.Equal(t, []string{"X_LIMIT"}, appliedVars)
 }
 
 func TestEnvOverride_CommaSeparatedTextUnmarshaler(t *testing.T) {
@@ -980,13 +1034,15 @@ func TestEnvOverride_CommaSeparatedTextUnmarshaler(t *testing.T) {
 	}
 
 	var c config
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
 	require.Equal(t, []itoml.Duration{
 		itoml.Duration(1 * time.Minute),
 		itoml.Duration(2 * time.Minute),
 		itoml.Duration(3 * time.Minute),
 	}, c.Durations)
 	require.Equal(t, []itoml.Size{128 * 1024 * 1024, 256 * 1024 * 1024}, c.Sizes)
+	require.Equal(t, []string{"X_DURATIONS", "X_SIZES"}, appliedVars)
 }
 
 func TestEnvOverride_IndexedOverridesTakePrecedenceOverCommaSeparated(t *testing.T) {
@@ -1009,11 +1065,13 @@ func TestEnvOverride_IndexedOverridesTakePrecedenceOverCommaSeparated(t *testing
 	}
 
 	var c config
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
 	// Indexed env var X_VALS_0 grows the slice to length 1.
 	// The comma-separated fallback is skipped because element.Len() != 0.
 	// X_VALS acts as a default applied to element 0 first, then X_VALS_0 overwrites it.
 	require.Equal(t, []string{"override"}, c.Vals)
+	require.Equal(t, []string{"X_VALS_0"}, appliedVars)
 }
 
 // Grow a
@@ -1038,7 +1096,8 @@ func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
 	}
 
 	var c config
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
 	require.Equal(t,
 		config{
 			Sub: []configSub{
@@ -1046,6 +1105,9 @@ func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
 			},
 		},
 		c)
+	// X_SUB_B appears twice: applied as struct default for element 0 (growth)
+	// and element 1 (growth, before discovering no indexed vars).
+	require.Equal(t, []string{"X_SUB_0_A", "X_SUB_B"}, appliedVars)
 }
 
 func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T) {
@@ -1069,7 +1131,8 @@ func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T
 	}
 
 	var c config
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
 	require.Equal(t,
 		config{
 			Sub: []configSub{
@@ -1077,6 +1140,7 @@ func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T
 			},
 		},
 		c)
+	require.Equal(t, []string{"X_SUB_0_A", "X_SUB_B"}, appliedVars)
 }
 
 func TestEnvOverride_SparseIndexedSlice(t *testing.T) {
@@ -1095,8 +1159,10 @@ func TestEnvOverride_SparseIndexedSlice(t *testing.T) {
 	}
 
 	var c config
-	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
 	require.Empty(t, c.Vals)
+	require.Empty(t, appliedVars)
 }
 
 func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
@@ -1123,10 +1189,11 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		env := func(s string) string { return envMap[s] }
 
 		var c config
-		err := itoml.ApplyEnvOverrides(env, "X", &c)
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
 		require.EqualError(t, err, fmt.Sprintf(
 			"env override X_INTS_%d would grow slice beyond maximum of %d appended elements",
 			itoml.MaxEnvSliceGrowth, itoml.MaxEnvSliceGrowth))
+		require.Empty(t, appliedVars)
 	})
 
 	t.Run("comma-separated overflow", func(t *testing.T) {
@@ -1142,10 +1209,11 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		}
 
 		var c config
-		err := itoml.ApplyEnvOverrides(env, "X", &c)
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
 		require.EqualError(t, err, fmt.Sprintf(
 			"env override X_STRINGS has %d comma-separated values, exceeding maximum of %d",
 			itoml.MaxEnvSliceGrowth+1, itoml.MaxEnvSliceGrowth))
+		require.Empty(t, appliedVars)
 	})
 
 	t.Run("at limit is ok", func(t *testing.T) {
@@ -1156,8 +1224,15 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		env := func(s string) string { return envMap[s] }
 
 		var c config
-		require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.NoError(t, err)
 		require.Len(t, c.Ints, itoml.MaxEnvSliceGrowth)
+		var expectedVars []string
+		for i := 0; i < itoml.MaxEnvSliceGrowth; i++ {
+			expectedVars = append(expectedVars, fmt.Sprintf("X_INTS_%d", i))
+		}
+		slices.Sort(expectedVars)
+		require.Equal(t, expectedVars, appliedVars)
 	})
 
 	t.Run("overflow in single slice struct member", func(t *testing.T) {
@@ -1168,9 +1243,11 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		env := func(s string) string { return envMap[s] }
 
 		var c config
-		require.EqualError(t, itoml.ApplyEnvOverrides(env, "X", &c), fmt.Sprintf(
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.EqualError(t, err, fmt.Sprintf(
 			"env override X_SUB_%d_STR would grow slice beyond maximum of %d appended elements",
 			itoml.MaxEnvSliceGrowth, itoml.MaxEnvSliceGrowth))
+		require.Empty(t, appliedVars)
 	})
 
 	t.Run("overflow in multiple slice struct members", func(t *testing.T) {
@@ -1186,22 +1263,24 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		env := func(s string) string { return envMap[s] }
 
 		var c config
-		// Order of varSuffixes should match order in configSub.
+		// Suffixes sorted alphabetically to match sorted IndexedVars in the error message.
 		envVarSuffixes := []string{
-			"STR",
-			"INT",
-			"UINT",
-			"SIZE",
 			"BOOL",
 			"FLOAT",
+			"INT",
+			"SIZE",
+			"STR",
+			"UINT",
 		}
 		var envVars []string
 		for _, suffix := range envVarSuffixes {
 			envVars = append(envVars, fmt.Sprintf("X_SUB_%d_%s", itoml.MaxEnvSliceGrowth, suffix))
 		}
-		require.EqualError(t, itoml.ApplyEnvOverrides(env, "X", &c), fmt.Sprintf(
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.EqualError(t, err, fmt.Sprintf(
 			"env overrides %s would grow slice beyond maximum of %d appended elements",
 			strings.Join(envVars, ","), itoml.MaxEnvSliceGrowth))
+		require.Empty(t, appliedVars)
 	})
 
 	t.Run("overflow in multiple slice struct members with default", func(t *testing.T) {
@@ -1220,21 +1299,23 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		env := func(s string) string { return envMap[s] }
 
 		var c config
-		// Order of varSuffixes should match order in configSub, minus bool.
+		// Suffixes sorted alphabetically (minus bool, which is a default), to match sorted IndexedVars.
 		envVarSuffixes := []string{
-			"STR",
-			"INT",
-			"UINT",
-			"SIZE",
 			"FLOAT",
+			"INT",
+			"SIZE",
+			"STR",
+			"UINT",
 		}
 		var envVars []string
 		for _, suffix := range envVarSuffixes {
 			envVars = append(envVars, fmt.Sprintf("X_SUB_%d_%s", itoml.MaxEnvSliceGrowth, suffix))
 		}
-		require.EqualError(t, itoml.ApplyEnvOverrides(env, "X", &c), fmt.Sprintf(
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.EqualError(t, err, fmt.Sprintf(
 			"env overrides %s would grow slice beyond maximum of %d appended elements",
 			strings.Join(envVars, ","), itoml.MaxEnvSliceGrowth))
+		require.Empty(t, appliedVars)
 	})
 
 }
