@@ -1016,6 +1016,69 @@ func TestEnvOverride_IndexedOverridesTakePrecedenceOverCommaSeparated(t *testing
 	require.Equal(t, []string{"override"}, c.Vals)
 }
 
+// Grow a
+func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
+	type configSub struct {
+		A string `toml:"a"`
+		B string `toml:"b"`
+	}
+
+	type config struct {
+		Sub []configSub `toml:"sub"`
+	}
+
+	env := func(s string) string {
+		switch s {
+		case "X_SUB_0_A":
+			return "override [0].a"
+		case "X_SUB_B":
+			return "default b"
+		}
+		return ""
+	}
+
+	var c config
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	require.Equal(t,
+		config{
+			Sub: []configSub{
+				configSub{A: "override [0].a", B: "default b"},
+			},
+		},
+		c)
+}
+
+func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T) {
+	type configSub struct {
+		B string `toml:"b"`
+		A string `toml:"a"`
+	}
+
+	type config struct {
+		Sub []configSub `toml:"sub"`
+	}
+
+	env := func(s string) string {
+		switch s {
+		case "X_SUB_0_A":
+			return "override [0].a"
+		case "X_SUB_B":
+			return "default b"
+		}
+		return ""
+	}
+
+	var c config
+	require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
+	require.Equal(t,
+		config{
+			Sub: []configSub{
+				configSub{A: "override [0].a", B: "default b"},
+			},
+		},
+		c)
+}
+
 func TestEnvOverride_SparseIndexedSlice(t *testing.T) {
 	// Sparse indexed env vars (e.g. only X_VALS_2 with no _0 or _1) are not
 	// reachable: the growth loop starts at index 0 and stops at the first
@@ -1037,9 +1100,19 @@ func TestEnvOverride_SparseIndexedSlice(t *testing.T) {
 }
 
 func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
+	type subConfig struct {
+		Str   string     `toml:"str"`
+		Int   int        `toml:"int"`
+		Uint  uint       `toml:"uint"`
+		Size  itoml.Size `toml:"size"`
+		Bool  bool       `toml:"bool"`
+		Float float64    `toml:"float"`
+	}
+
 	type config struct {
-		Ints    []int    `toml:"ints"`
-		Strings []string `toml:"strings"`
+		Ints    []int       `toml:"ints"`
+		Strings []string    `toml:"strings"`
+		Sub     []subConfig `toml:"sub"`
 	}
 
 	t.Run("indexed overflow", func(t *testing.T) {
@@ -1086,4 +1159,82 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		require.NoError(t, itoml.ApplyEnvOverrides(env, "X", &c))
 		require.Len(t, c.Ints, itoml.MaxEnvSliceGrowth)
 	})
+
+	t.Run("overflow in single slice struct member", func(t *testing.T) {
+		envMap := make(map[string]string)
+		for i := 0; i < itoml.MaxEnvSliceGrowth+1; i++ {
+			envMap[fmt.Sprintf("X_SUB_%d_STR", i)] = fmt.Sprintf("%d", i)
+		}
+		env := func(s string) string { return envMap[s] }
+
+		var c config
+		require.EqualError(t, itoml.ApplyEnvOverrides(env, "X", &c), fmt.Sprintf(
+			"env override X_SUB_%d_STR would grow slice beyond maximum of %d appended elements",
+			itoml.MaxEnvSliceGrowth, itoml.MaxEnvSliceGrowth))
+	})
+
+	t.Run("overflow in multiple slice struct members", func(t *testing.T) {
+		envMap := make(map[string]string)
+		for i := 0; i < itoml.MaxEnvSliceGrowth+1; i++ {
+			envMap[fmt.Sprintf("X_SUB_%d_STR", i)] = fmt.Sprintf("%d", i)
+			envMap[fmt.Sprintf("X_SUB_%d_INT", i)] = fmt.Sprintf("%d", i)
+			envMap[fmt.Sprintf("X_SUB_%d_UINT", i)] = fmt.Sprintf("%d", i)
+			envMap[fmt.Sprintf("X_SUB_%d_SIZE", i)] = fmt.Sprintf("%d", i)
+			envMap[fmt.Sprintf("X_SUB_%d_BOOL", i)] = "true"
+			envMap[fmt.Sprintf("X_SUB_%d_FLOAT", i)] = fmt.Sprintf("%d.0", i)
+		}
+		env := func(s string) string { return envMap[s] }
+
+		var c config
+		// Order of varSuffixes should match order in configSub.
+		envVarSuffixes := []string{
+			"STR",
+			"INT",
+			"UINT",
+			"SIZE",
+			"BOOL",
+			"FLOAT",
+		}
+		var envVars []string
+		for _, suffix := range envVarSuffixes {
+			envVars = append(envVars, fmt.Sprintf("X_SUB_%d_%s", itoml.MaxEnvSliceGrowth, suffix))
+		}
+		require.EqualError(t, itoml.ApplyEnvOverrides(env, "X", &c), fmt.Sprintf(
+			"env overrides %s would grow slice beyond maximum of %d appended elements",
+			strings.Join(envVars, ","), itoml.MaxEnvSliceGrowth))
+	})
+
+	t.Run("overflow in multiple slice struct members with default", func(t *testing.T) {
+		// The default variable (X_SUB_BOOL) will not be included in the grow overflow error
+		// message because it is not one of the environment variables that would force growth
+		// of []sub.
+		envMap := make(map[string]string)
+		for i := 0; i < itoml.MaxEnvSliceGrowth+1; i++ {
+			envMap[fmt.Sprintf("X_SUB_%d_STR", i)] = fmt.Sprintf("%d", i)
+			envMap[fmt.Sprintf("X_SUB_%d_INT", i)] = fmt.Sprintf("%d", i)
+			envMap[fmt.Sprintf("X_SUB_%d_UINT", i)] = fmt.Sprintf("%d", i)
+			envMap[fmt.Sprintf("X_SUB_%d_SIZE", i)] = fmt.Sprintf("%d", i)
+			envMap[fmt.Sprintf("X_SUB_%d_FLOAT", i)] = fmt.Sprintf("%d.0", i)
+		}
+		envMap["X_SUB_BOOL"] = "true"
+		env := func(s string) string { return envMap[s] }
+
+		var c config
+		// Order of varSuffixes should match order in configSub, minus bool.
+		envVarSuffixes := []string{
+			"STR",
+			"INT",
+			"UINT",
+			"SIZE",
+			"FLOAT",
+		}
+		var envVars []string
+		for _, suffix := range envVarSuffixes {
+			envVars = append(envVars, fmt.Sprintf("X_SUB_%d_%s", itoml.MaxEnvSliceGrowth, suffix))
+		}
+		require.EqualError(t, itoml.ApplyEnvOverrides(env, "X", &c), fmt.Sprintf(
+			"env overrides %s would grow slice beyond maximum of %d appended elements",
+			strings.Join(envVars, ","), itoml.MaxEnvSliceGrowth))
+	})
+
 }
