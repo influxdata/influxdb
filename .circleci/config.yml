@@ -7,7 +7,7 @@ orbs:
 parameters:
   cross-container-tag:
     type: string
-    default: go1.24.13-latest
+    default: go1.25.8-latest
 
   workflow:
     type: string
@@ -350,9 +350,7 @@ jobs:
       - run:
           name: staticcheck
           command: |
-            # we want stable versions like @2025.1.1 or @2026.1, but we need
-            # this commit to address a staticcheck failure
-            go install honnef.co/go/tools/cmd/staticcheck@8273271481d0419ff572b946dd3dc3c8044e4cb9
+            go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
             staticcheck ./...
           when: always
 
