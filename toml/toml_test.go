@@ -234,7 +234,7 @@ func TestSSize_UnmarshalText(t *testing.T) {
 		{"alpha_numeric", "a1", itoml.ErrSizeParse,
 			`invalid size: error parsing "a1": strconv.ParseUint: parsing "a1": invalid syntax`},
 		{"negative_alpha_numeric", "-a1", itoml.ErrSizeParse,
-			`invalid size: error parsing "a1": strconv.ParseUint: parsing "a1": invalid syntax`},
+			`invalid size: error parsing "-a1": strconv.ParseUint: parsing "a1": invalid syntax`},
 		// Overflow: positive value exceeds MaxInt64
 		{"overflow_raw", fmt.Sprint(uint64(math.MaxInt64) + 1), itoml.ErrSSizeOverflow,
 			fmt.Sprintf("size would overflow the max size (%d) of an int64: %d", int64(math.MaxInt64), uint64(math.MaxInt64)+1)},
@@ -247,13 +247,13 @@ func TestSSize_UnmarshalText(t *testing.T) {
 			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dg", int64(math.MaxInt64), uint64(math.MaxInt64>>30)+1)},
 		// Negative overflow: exceeds abs(MinInt64)
 		{"negative_overflow_raw", fmt.Sprintf("-%d", uint64(math.MaxInt64)+2), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %d", int64(math.MaxInt64), uint64(math.MaxInt64)+2)},
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: -%d", int64(math.MaxInt64), uint64(math.MaxInt64)+2)},
 		{"negative_overflow_k", fmt.Sprintf("-%dk", uint64(math.MaxInt64>>10)+2), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+2)},
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: -%dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+2)},
 		{"negative_overflow_m", fmt.Sprintf("-%dm", uint64(math.MaxInt64>>20)+2), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dm", int64(math.MaxInt64), uint64(math.MaxInt64>>20)+2)},
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: -%dm", int64(math.MaxInt64), uint64(math.MaxInt64>>20)+2)},
 		{"negative_overflow_g", fmt.Sprintf("-%dg", uint64(math.MaxInt64>>30)+2), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dg", int64(math.MaxInt64), uint64(math.MaxInt64>>30)+2)},
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: -%dg", int64(math.MaxInt64), uint64(math.MaxInt64>>30)+2)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var s itoml.SSize

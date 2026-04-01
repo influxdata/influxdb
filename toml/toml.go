@@ -103,6 +103,9 @@ func parseSizeSuffix(text []byte) (numText []byte, mult uint64, err error) {
 // unmarshalSize parses a byte size from text into a size type.
 // Unsigned types reject negative values; signed types accept them.
 func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
+	// Preserve original text for error messages before stripping the sign.
+	originalText := text
+
 	// Detect and strip leading negative sign.
 	negative := len(text) > 0 && text[0] == '-'
 	if negative {
@@ -139,11 +142,11 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 
 	size, err := strconv.ParseUint(string(numText), 10, bitSize)
 	if err != nil {
-		return fmt.Errorf("%w: error parsing %q: %w", ErrSizeParse, string(text), err)
+		return fmt.Errorf("%w: error parsing %q: %w", ErrSizeParse, string(originalText), err)
 	}
 
 	if maxVal/mult < size {
-		return fmt.Errorf("%w: %s", overflowErr, string(text))
+		return fmt.Errorf("%w: %s", overflowErr, string(originalText))
 	}
 
 	result := T(size * mult)
