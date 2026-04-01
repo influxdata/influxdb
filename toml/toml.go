@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -433,6 +434,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 					return false, nil, err
 				} else if found {
 					foundOverrides = true
+					envVars = slices.DeleteFunc(envVars, func(s string) bool { return s == prefix })
 					foundEnvVars = append(foundEnvVars, envVars...)
 				}
 			}
