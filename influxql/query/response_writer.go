@@ -74,7 +74,7 @@ func (f *jsonFormatter) marshal(resp Response) ([]byte, error) {
 }
 
 func unnestError(err error) error {
-	for {
+	for err != nil {
 		switch e := err.(type) {
 		case interface{ Unwrap() error }:
 			err = e.Unwrap()
@@ -88,6 +88,7 @@ func unnestError(err error) error {
 			return err
 		}
 	}
+	return nil
 }
 
 type csvFormatter struct {

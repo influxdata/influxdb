@@ -61,6 +61,7 @@ func TestJsonFormatter_WriteResponse_Success(t *testing.T) {
 }
 
 func TestJsonFormatter_WriteResponse_MarshalError(t *testing.T) {
+	const statementID = 12
 	tests := []struct {
 		name    string
 		value   interface{}
@@ -74,7 +75,7 @@ func TestJsonFormatter_WriteResponse_MarshalError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resp := Response{
 				Results: []*Result{{
-					StatementID: 0,
+					StatementID: statementID,
 					Series: models.Rows{
 						&models.Row{
 							Name:    "cpu",
@@ -104,6 +105,10 @@ func TestJsonFormatter_WriteResponse_MarshalError(t *testing.T) {
 			errMsg, ok := result0["error"].(string)
 			require.True(t, ok, "expected error string in result, got: %s", output)
 			require.Contains(t, errMsg, tt.wantErr)
+
+			sid, ok := result0["statement_id"].(float64)
+			require.True(t, ok, "expected statement_id in error result, got: %s", output)
+			assert.Equal(t, float64(statementID), sid, "statement_id should match original")
 		})
 	}
 }
