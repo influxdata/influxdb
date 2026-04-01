@@ -849,9 +849,9 @@ func TestEnvOverride_Errors(t *testing.T) {
 		{"X_SIZE", "not_a_size", "failed to apply X_SIZE to Size using TextUnmarshaler toml.Size and value 'not_a_size': unknown size suffix: e (expected k, m, or g)"},
 		{"X_SSIZE", "not_a_size", "failed to apply X_SSIZE to SSize using TextUnmarshaler toml.SSize and value 'not_a_size': unknown size suffix: e (expected k, m, or g)"},
 		// Indexed slice element with invalid value
-		{"X_INTS_0", "bad", "failed to apply X_INTS_0 to Ints using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
+		{"X_INTS_0", "bad", "failed to apply X_INTS_0 to Ints[0] using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
 		// Unindexed (comma-separated) slice with invalid value
-		{"X_INTS", "1,bad,3", "failed to apply X_INTS to Ints using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
+		{"X_INTS", "1,bad,3", "failed to apply X_INTS to Ints[1] using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
 	} {
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			var c config

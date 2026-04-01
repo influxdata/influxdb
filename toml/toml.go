@@ -280,6 +280,19 @@ func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{
 	return err
 }
 
+// joinStructKey builds a dotted path for structKey as we recurse into nested structs and slices.
+func joinStructKey(parent, child string) string {
+	if parent == "" {
+		return child
+	}
+	return parent + "." + child
+}
+
+// indexStructKey appends a slice index to a structKey path (e.g. "Foo" -> "Foo[0]").
+func indexStructKey(parent string, idx int) string {
+	return fmt.Sprintf("%s[%d]", parent, idx)
+}
+
 // applyEnvOverrides applies environment overrides recursively. The return values indicate if a non-default override was applied
 // by this or any recursive calls, the names of non-default environment variables recursively applied, and if an error occurred.
 func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) (bool, []string, error) {
@@ -372,12 +385,12 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				// Apply the unindexed environment variable as a default value, if available.
 				// Finding a default environment value does not count when considering if we continue
 				// extending the slice, so we throw the found return value away.
-				if _, _, err := applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
+				if _, _, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
 					return false, nil, err
 				}
 
 				// Apply the indexed environment variable as an override value.
-				if found, envVars, err := applyEnvOverrides(getenv, indexedEnvName, f, structKey); err != nil {
+				if found, envVars, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
 					return false, nil, err
 				} else if found {
 					foundOverrides = true
@@ -391,11 +404,11 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				// Only meaningful for struct/pointer elements where individual fields can be defaulted.
 				elemKind := element.Type().Elem().Kind()
 				if elemKind == reflect.Struct || elemKind == reflect.Pointer {
-					if _, _, err := applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
+					if _, _, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
 						return false, nil, err
 					}
 				}
-				if found, envVars, err := applyEnvOverrides(getenv, indexedEnvName, f, structKey); err != nil {
+				if found, envVars, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
 					return false, nil, err
 				} else if found {
 					foundOverrides = true
@@ -430,7 +443,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				// Append a zero value and then set it. This way we aren't assuming element is a []string.
 				element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
 				f := element.Index(idx)
-				if found, envVars, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, structKey); err != nil {
+				if found, envVars, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, indexStructKey(structKey, idx)); err != nil {
 					return false, nil, err
 				} else if found {
 					foundOverrides = true
@@ -468,7 +481,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				if configName == "" && structField.Anonymous {
 					// Embedded field without a toml tag.
 					// Don't modify prefix.
-					return applyEnvOverrides(getenv, prefix, field, fieldName)
+					return applyEnvOverrides(getenv, prefix, field, joinStructKey(structKey, fieldName))
 				}
 
 				// Fall back to field name if no toml tag, matching BurntSushi/toml behavior.
@@ -485,7 +498,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				}
 
 				// Apply recursively to field. Works for scalars, structs, slices, pointers, etc.
-				return applyEnvOverrides(getenv, envKey, field, fieldName)
+				return applyEnvOverrides(getenv, envKey, field, joinStructKey(structKey, fieldName))
 			}()
 			if err != nil {
 				return false, nil, err
