@@ -465,16 +465,18 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				// Apply the unindexed environment variable as a default value, same as for existing elements.
 				// Only meaningful for struct/pointer elements where individual fields can be defaulted.
 				elemKind := element.Type().Elem().Kind()
+				var defaultResult envOverrideResult
 				if elemKind == reflect.Struct || elemKind == reflect.Pointer {
-					if defaultResult, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
+					var err error
+					if defaultResult, err = applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
 						return noResult, err
-					} else {
-						result.mergeAllVars(defaultResult)
 					}
 				}
 				if indexedResult, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
 					return noResult, err
 				} else if indexedResult.Applied {
+					// Only record default vars when the element is actually appended.
+					result.mergeAllVars(defaultResult)
 					result.merge(indexedResult)
 					// We found environment variables to override into newValue. Check for growth bound before appending.
 					if idx-startLen >= MaxEnvSliceGrowth {

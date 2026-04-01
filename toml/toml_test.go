@@ -1160,6 +1160,34 @@ func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T
 	require.Equal(t, []string{"X_SUB_0_A", "X_SUB_B"}, appliedVars)
 }
 
+func TestEnvOverride_FalseGrowFromDefault(t *testing.T) {
+	// Verify correct when result when there is a false slice grow
+	// from a default enviroment variable, but no realy one from an
+	// indexed environemtn variable.
+	type configSub struct {
+		A string `toml:"a"`
+		B string `toml:"b"`
+	}
+
+	type config struct {
+		Sub []configSub `toml:"sub"`
+	}
+
+	env := func(s string) string {
+		switch s {
+		case "X_SUB_B":
+			return "default b"
+		}
+		return ""
+	}
+
+	var c config
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	require.Equal(t, config{}, c)
+	require.Empty(t, appliedVars)
+}
+
 func TestEnvOverride_SparseIndexedSlice(t *testing.T) {
 	// Sparse indexed env vars (e.g. only X_VALS_2 with no _0 or _1) are not
 	// reachable: the growth loop starts at index 0 and stops at the first
