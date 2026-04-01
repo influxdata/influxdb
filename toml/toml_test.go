@@ -205,6 +205,9 @@ func TestSSize_UnmarshalText(t *testing.T) {
 		{fmt.Sprintf("-%dk", int64(math.MaxInt64>>10)), itoml.SSize(-int64(math.MaxInt64>>10) << 10)},
 		{fmt.Sprintf("-%dm", int64(math.MaxInt64>>20)), itoml.SSize(-int64(math.MaxInt64>>20) << 20)},
 		{fmt.Sprintf("-%dg", int64(math.MaxInt64>>30)), itoml.SSize(-int64(math.MaxInt64>>30) << 30)},
+		// MinInt64: abs(MinInt64) = MaxInt64+1, valid for negative signed values
+		{fmt.Sprint(int64(math.MinInt64)), itoml.SSize(math.MinInt64)},
+		{fmt.Sprintf("-%dk", uint64(math.MaxInt64>>10)+1), itoml.SSize(math.MinInt64)},
 	} {
 		t.Run(tc.str, func(t *testing.T) {
 			var s itoml.SSize
@@ -229,10 +232,9 @@ func TestSSize_UnmarshalText(t *testing.T) {
 			`invalid size: error parsing "a1": strconv.ParseUint: parsing "a1": invalid syntax`},
 		{"negative_alpha_numeric", "-a1", itoml.ErrSizeParse,
 			`invalid size: error parsing "a1": strconv.ParseUint: parsing "a1": invalid syntax`},
-		// Overflow: value too large for int64
-		{"overflow_raw", fmt.Sprint(uint64(math.MaxInt64) + 1), itoml.ErrSizeParse,
-			fmt.Sprintf(`invalid size: error parsing "%d": strconv.ParseUint: parsing "%d": value out of range`,
-				uint64(math.MaxInt64)+1, uint64(math.MaxInt64)+1)},
+		// Overflow: positive value exceeds MaxInt64
+		{"overflow_raw", fmt.Sprint(uint64(math.MaxInt64) + 1), itoml.ErrSSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: %d", int64(math.MaxInt64), uint64(math.MaxInt64)+1)},
 		// Overflow: fits in uint64 but not int64 after multiply
 		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow,
 			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+1)},
@@ -240,12 +242,11 @@ func TestSSize_UnmarshalText(t *testing.T) {
 			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dm", int64(math.MaxInt64), uint64(math.MaxInt64>>20)+1)},
 		{"overflow_g", fmt.Sprintf("%dg", uint64(math.MaxInt64>>30)+1), itoml.ErrSSizeOverflow,
 			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dg", int64(math.MaxInt64), uint64(math.MaxInt64>>30)+1)},
-		// Negative overflow
-		{"negative_overflow_raw", fmt.Sprintf("-%d", uint64(math.MaxInt64)+1), itoml.ErrSizeParse,
-			fmt.Sprintf(`invalid size: error parsing "%d": strconv.ParseUint: parsing "%d": value out of range`,
-				uint64(math.MaxInt64)+1, uint64(math.MaxInt64)+1)},
-		{"negative_overflow_k", fmt.Sprintf("-%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+1)},
+		// Negative overflow: exceeds abs(MinInt64)
+		{"negative_overflow_raw", fmt.Sprintf("-%d", uint64(math.MaxInt64)+2), itoml.ErrSSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: %d", int64(math.MaxInt64), uint64(math.MaxInt64)+2)},
+		{"negative_overflow_k", fmt.Sprintf("-%dk", uint64(math.MaxInt64>>10)+2), itoml.ErrSSizeOverflow,
+			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+2)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var s itoml.SSize
@@ -314,6 +315,7 @@ func TestSSize_MarshalText(t *testing.T) {
 		// Extreme values
 		{itoml.SSize(math.MaxInt64), fmt.Sprint(int64(math.MaxInt64))},
 		{itoml.SSize(-math.MaxInt64), fmt.Sprint(int64(-math.MaxInt64))},
+		{itoml.SSize(math.MinInt64), "-8589934592g"},
 	} {
 		t.Run(tc.want, func(t *testing.T) {
 			b, err := tc.size.MarshalText()
@@ -330,6 +332,7 @@ func TestSSize_RoundTrip(t *testing.T) {
 		1 << 20, -(1 << 20), 100 << 20, -(100 << 20),
 		1 << 30, -(1 << 30), 100 << 30, -(100 << 30),
 		itoml.SSize(math.MaxInt64), itoml.SSize(-math.MaxInt64),
+		itoml.SSize(math.MinInt64),
 	} {
 		t.Run(fmt.Sprint(int64(size)), func(t *testing.T) {
 			b, err := size.MarshalText()
@@ -1074,7 +1077,6 @@ func TestEnvOverride_IndexedOverridesTakePrecedenceOverCommaSeparated(t *testing
 	require.Equal(t, []string{"X_VALS_0"}, appliedVars)
 }
 
-// Grow a
 func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
 	type configSub struct {
 		A string `toml:"a"`

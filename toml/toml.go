@@ -127,8 +127,13 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 		maxVal = math.MaxUint64
 		overflowErr = ErrSizeOverflow
 	} else {
-		bitSize = 63
-		maxVal = math.MaxInt64
+		// Use 64-bit parsing so the numeric part can represent abs(MinInt64) = MaxInt64+1.
+		bitSize = 64
+		if negative {
+			maxVal = uint64(math.MaxInt64) + 1 // abs(MinInt64)
+		} else {
+			maxVal = uint64(math.MaxInt64)
+		}
 		overflowErr = ErrSSizeOverflow
 	}
 
@@ -155,7 +160,8 @@ func marshalSize[T sizeConstraint](size T) ([]byte, error) {
 	negative := size < 0
 	var abs uint64
 	if negative {
-		abs = uint64(-size)
+		// Compute absolute value in the unsigned domain to avoid signed overflow on MinInt64.
+		abs = ^uint64(size) + 1
 	} else {
 		abs = uint64(size)
 	}
