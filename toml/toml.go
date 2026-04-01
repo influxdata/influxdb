@@ -46,7 +46,7 @@ func (d *Duration) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// MarshalText converts a duration to a string for decoding toml
+// MarshalText converts a duration to a string for encoding toml
 func (d Duration) MarshalText() (text []byte, err error) {
 	return []byte(d.String()), nil
 }
