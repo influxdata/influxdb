@@ -95,6 +95,9 @@ func parseSizeSuffix(text []byte) (numText []byte, mult uint64, err error) {
 			return nil, 0, fmt.Errorf("%w: %c (expected k, m, or g)", ErrSizeBadSuffix, suffix)
 		}
 		numText = text[:len(text)-1]
+		if len(numText) == 0 {
+			return nil, 0, fmt.Errorf("%w: missing numeric value before suffix %c", ErrSizeParse, suffix)
+		}
 	}
 
 	return numText, mult, nil
