@@ -24,6 +24,7 @@ members = [
     "influxdb3_types",
     "influxdb3_wal",
     "influxdb3_write",
+    "object_store_limit",
     "object_store_utils",
     "core/arrow_util",
     "core/authz",
@@ -124,7 +125,7 @@ exclude = [
 #
 # For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
 # stripping the `-oss`.
-version = "3.10.0-nightly"
+version = "3.10.0-oss-nightly"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"

@@ -239,11 +239,18 @@ static REGEX_METRICS: LazyLock<Regex> =
 static REGEX_TIMING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[0-9]+(\.[0-9]+)?.s").expect("timing regex"));
 
-/// Matches things like `FilterExec: .*` and `DataSourceExec: .*`
+/// Matches things like `FilterExec: .*`, `DataSourceExec: .*`, `Filter: .*`,
+/// and `TableScan: .*`
 ///
-/// Should be used in combination w/ [`REGEX_TIME_OP`].
+/// Should be used in combination w/ [`REGEX_TIME_OP`] and [`REGEX_TIMESTAMP_NANOSECOND`].
 static REGEX_FILTER: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new("(?P<prefix>(FilterExec)|(DataSourceExec): )(?P<expr>.*)").expect("filter regex")
+    Regex::new("(?P<prefix>(FilterExec)|(DataSourceExec)|(Filter)|(TableScan): )(?P<expr>.*)")
+        .expect("filter regex")
+});
+
+/// Matches things like `TimestampNanosecond(1773673285696531000, None)` in logical plan output
+static REGEX_TIMESTAMP_NANOSECOND: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"TimestampNanosecond\(\s*(?P<value>-?[0-9]+)").expect("timestamp nanosecond regex")
 });
 
 /// Matches things like `time@3 < -9223372036854775808` and `time_min@2 > 1641031200399937022`
@@ -263,12 +270,13 @@ pub fn strip_table_lines(s: Cow<'_, str>) -> String {
 }
 
 fn normalize_time_ops(s: &str) -> String {
-    REGEX_TIME_OP
-        .replace_all(s, |c: &Captures<'_>| {
-            let prefix = c.name("prefix").expect("always captures").as_str();
-            let suffix = c.name("suffix").map_or("", |m| m.as_str());
-            format!("{prefix}<REDACTED>{suffix}")
-        })
+    let s = REGEX_TIME_OP.replace_all(s, |c: &Captures<'_>| {
+        let prefix = c.name("prefix").expect("always captures").as_str();
+        let suffix = c.name("suffix").map_or("", |m| m.as_str());
+        format!("{prefix}<REDACTED>{suffix}")
+    });
+    REGEX_TIMESTAMP_NANOSECOND
+        .replace_all(&s, "TimestampNanosecond(<REDACTED>")
         .to_string()
 }
 
@@ -463,11 +471,15 @@ impl Normalizer {
         //
         // Converts:
         // FilterExec: time@2 < -9223372036854775808 OR time@2 > 1640995204240217000
-        // DataSourceExec: limit=None, partitions={...}, predicate=time@2 > 1640995204240217000, pruning_predicate=time@2 > 1640995204240217000, output_ordering=[...], projection=[...]
+        // DataSourceExec: limit=None, partitions={...}, predicate=time@2 > 1640995204240217000, ...
+        // Filter: m0.time >= TimestampNanosecond(1773673285696531000, None)
+        // TableScan: m0 projection=[tag0, time], partial_filters=[m0.time >= TimestampNanosecond(1773673285696531000, None)]
         //
         // to
         // FilterExec: time@2 < <REDACTED> OR time@2 > <REDACTED>
-        // DataSourceExec: limit=None, partitions={...}, predicate=time@2 > <REDACTED>, pruning_predicate=time@2 > <REDACTED>, output_ordering=[...], projection=[...]
+        // DataSourceExec: limit=None, partitions={...}, predicate=time@2 > <REDACTED>, ...
+        // Filter: m0.time >= TimestampNanosecond(<REDACTED>, None)
+        // TableScan: m0 projection=[tag0, time], partial_filters=[m0.time >= TimestampNanosecond(<REDACTED>, None)]
         if *normalized_filters {
             current_results = current_results
                 .into_iter()

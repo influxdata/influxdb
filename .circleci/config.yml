@@ -423,7 +423,7 @@ jobs:
             - run:
                 name: Check extra features (like prod image)
                 command: |
-                  target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
+                  target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,large-strings"
       - when:
           condition:
             equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
@@ -431,7 +431,7 @@ jobs:
             - run:
                 name: Check extra features (like prod image)
                 command: |
-                  target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
+                  target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,large-strings"
 
   # Compile cargo "release" profile binaries for influxdb3 edge releases
   build-release:
@@ -693,7 +693,7 @@ jobs:
           command: |
             .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,large-strings" \
               "<< parameters.image_name >>:latest-<< parameters.platform >>" \
               "$PBS_DATE" \
               "$PBS_VERSION" \
