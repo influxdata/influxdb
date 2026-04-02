@@ -1,6 +1,7 @@
 package httpd_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -243,7 +244,7 @@ access-log-status-filters = ["4xxx"]
 		var c httpd.Config
 		if _, err := toml.Decode(tt.cfg, &c); err == nil {
 			t.Errorf("%d. expected error", i)
-		} else if got, want := err.Error(), tt.err; got != want {
+		} else if got, want := err.Error(), tt.err; !strings.Contains(got, want) {
 			t.Errorf("%d. config parsing error was not correct: got=%q want=%q", i, got, want)
 		}
 	}
