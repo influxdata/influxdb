@@ -107,7 +107,7 @@ fn valid_s3_config() {
         let object_store = config.make_object_store().unwrap();
         assert_eq!(
             &object_store.to_string(),
-            "LimitStore(64, AmazonS3(mybucket))"
+            "LimitObjectStore(64, AmazonS3(mybucket))"
         )
     }
 }
@@ -253,7 +253,7 @@ fn valid_google_config() {
         let object_store = config.make_object_store().unwrap();
         assert_eq!(
             &object_store.to_string(),
-            "LimitStore(64, GoogleCloudStorage(mybucket))"
+            "LimitObjectStore(64, GoogleCloudStorage(mybucket))"
         )
     }
 }
@@ -294,7 +294,7 @@ fn valid_azure_config() {
     let object_store = config.make_object_store().unwrap();
     assert_eq!(
         &object_store.to_string(),
-        "LimitStore(64, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })"
+        "LimitObjectStore(64, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })"
     )
 }
 

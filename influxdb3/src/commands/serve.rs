@@ -801,7 +801,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     // setup base object store:
     let object_store: Arc<dyn ObjectStore> = config
         .object_store_config
-        .make_object_store()
+        .make_object_store_with_metrics(&metrics)
         .map_err(Error::ObjectStoreParsing)?;
 
     // setup metrics'd object store:

@@ -34,6 +34,10 @@ pub struct AsyncSemaphoreMetrics {
     holders_cancelled_while_pending: U64Counter,
     acquire_duration: DurationHistogram,
     first_poll_wait_duration: DurationHistogram,
+    permits_acquired_hwm: U64Gauge,
+    permits_pending_hwm: U64Gauge,
+    holders_acquired_hwm: U64Gauge,
+    holders_pending_hwm: U64Gauge,
 }
 
 impl AsyncSemaphoreMetrics {
@@ -92,6 +96,30 @@ impl AsyncSemaphoreMetrics {
                 "iox_async_semaphore_acquire_duration",
                 "Duration it takes to acquire a semaphore",
             )
+            .recorder(attributes.clone());
+        let permits_acquired_hwm = registry
+            .register_metric::<U64Gauge>(
+                "iox_async_semaphore_permits_acquired_hwm",
+                "High water mark of concurrently acquired permits. May undercount to avoid synchronization overhead",
+            )
+            .recorder(attributes.clone());
+        let permits_pending_hwm = registry
+            .register_metric::<U64Gauge>(
+                "iox_async_semaphore_permits_pending_hwm",
+                "High water mark of concurrently pending permits. May undercount to avoid synchronization overhead",
+            )
+            .recorder(attributes.clone());
+        let holders_acquired_hwm = registry
+            .register_metric::<U64Gauge>(
+                "iox_async_semaphore_holders_acquired_hwm",
+                "High water mark of concurrently acquired holders. May undercount to avoid synchronization overhead",
+            )
+            .recorder(attributes.clone());
+        let holders_pending_hwm = registry
+            .register_metric::<U64Gauge>(
+                "iox_async_semaphore_holders_pending_hwm",
+                "High water mark of concurrently pending holders. May undercount to avoid synchronization overhead",
+            )
             .recorder(attributes);
 
         Self {
@@ -104,6 +132,10 @@ impl AsyncSemaphoreMetrics {
             holders_cancelled_while_pending,
             first_poll_wait_duration,
             acquire_duration,
+            permits_acquired_hwm,
+            permits_pending_hwm,
+            holders_acquired_hwm,
+            holders_pending_hwm,
         }
     }
 
@@ -119,6 +151,10 @@ impl AsyncSemaphoreMetrics {
             holders_cancelled_while_pending: Default::default(),
             first_poll_wait_duration: DurationHistogram::create(&Default::default()),
             acquire_duration: DurationHistogram::create(&Default::default()),
+            permits_acquired_hwm: Default::default(),
+            permits_pending_hwm: Default::default(),
+            holders_acquired_hwm: Default::default(),
+            holders_pending_hwm: Default::default(),
         }
     }
 
@@ -299,7 +335,13 @@ impl InstrumentedAsyncSemaphore {
             })?;
 
         self.metrics.permits_acquired.inc(n as u64);
+        self.metrics
+            .permits_acquired_hwm
+            .fetch_max(self.metrics.permits_acquired.fetch());
         self.metrics.holders_acquired.inc(1);
+        self.metrics
+            .holders_acquired_hwm
+            .fetch_max(self.metrics.holders_acquired.fetch());
 
         let acquire_duration = t_start.elapsed();
         self.metrics.acquire_duration.record(acquire_duration);
@@ -421,7 +463,13 @@ impl Future for InstrumentedAsyncSemaphoreAcquire<'_> {
             Poll::Ready(res) => match res {
                 Ok(permit) => {
                     this.metrics.permits_acquired.inc(*this.n as u64);
+                    this.metrics
+                        .permits_acquired_hwm
+                        .fetch_max(this.metrics.permits_acquired.fetch());
                     this.metrics.holders_acquired.inc(1);
+                    this.metrics
+                        .holders_acquired_hwm
+                        .fetch_max(this.metrics.holders_acquired.fetch());
 
                     let acquire_duration = this.t_start.elapsed();
                     this.metrics.acquire_duration.record(acquire_duration);
@@ -475,7 +523,13 @@ impl Future for InstrumentedAsyncSemaphoreAcquire<'_> {
                 // report "pending" metrics once
                 if is_first_poll {
                     this.metrics.permits_pending.inc(*this.n as u64);
+                    this.metrics
+                        .permits_pending_hwm
+                        .fetch_max(this.metrics.permits_pending.fetch());
                     this.metrics.holders_pending.inc(1);
+                    this.metrics
+                        .holders_pending_hwm
+                        .fetch_max(this.metrics.holders_pending.fetch());
                 }
 
                 Poll::Pending
@@ -983,6 +1037,70 @@ mod tests {
 
     /// Check that a given object implements [`Sync`].
     fn assert_sync<T: Sync>(_: &T) {}
+
+    #[tokio::test]
+    async fn test_high_water_marks() {
+        let metrics = Arc::new(AsyncSemaphoreMetrics::new_unregistered());
+        let semaphore = Arc::new(metrics.new_semaphore(10));
+
+        assert_eq!(metrics.permits_acquired_hwm.fetch(), 0);
+        assert_eq!(metrics.holders_acquired_hwm.fetch(), 0);
+
+        // Acquire 3 permits across 2 holders
+        let p1 = semaphore.acquire(None).await.unwrap();
+        let p2 = semaphore.acquire_many(2, None).await.unwrap();
+
+        assert_eq!(metrics.permits_acquired_hwm.fetch(), 3);
+        assert_eq!(metrics.holders_acquired_hwm.fetch(), 2);
+
+        // Release all permits — HWMs must not decrease
+        drop(p1);
+        drop(p2);
+
+        assert_eq!(metrics.permits_acquired.fetch(), 0);
+        assert_eq!(metrics.holders_acquired.fetch(), 0);
+        assert_eq!(metrics.permits_acquired_hwm.fetch(), 3);
+        assert_eq!(metrics.holders_acquired_hwm.fetch(), 2);
+
+        // Acquire fewer permits — HWMs stay at previous peak
+        let _p3 = semaphore.acquire(None).await.unwrap();
+        assert_eq!(metrics.permits_acquired_hwm.fetch(), 3);
+        assert_eq!(metrics.holders_acquired_hwm.fetch(), 2);
+
+        // Acquire more permits — HWMs increase
+        let _p4 = semaphore.acquire_many(4, None).await.unwrap();
+        assert_eq!(metrics.permits_acquired_hwm.fetch(), 5);
+        assert_eq!(metrics.holders_acquired_hwm.fetch(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_pending_high_water_marks() {
+        let metrics = Arc::new(AsyncSemaphoreMetrics::new_unregistered());
+        let semaphore = Arc::new(metrics.new_semaphore(1));
+
+        assert_eq!(metrics.permits_pending_hwm.fetch(), 0);
+        assert_eq!(metrics.holders_pending_hwm.fetch(), 0);
+
+        // Exhaust the single permit
+        let _p1 = semaphore.acquire(None).await.unwrap();
+
+        // Create a pending acquire
+        {
+            let fut = semaphore.acquire_many(3, None);
+            pin!(fut);
+            assert_fut_pending(&mut fut).await;
+
+            assert_eq!(metrics.permits_pending_hwm.fetch(), 3);
+            assert_eq!(metrics.holders_pending_hwm.fetch(), 1);
+
+            // fut dropped here — pending metrics reset but HWMs persist
+        }
+
+        assert_eq!(metrics.permits_pending.fetch(), 0);
+        assert_eq!(metrics.holders_pending.fetch(), 0);
+        assert_eq!(metrics.permits_pending_hwm.fetch(), 3);
+        assert_eq!(metrics.holders_pending_hwm.fetch(), 1);
+    }
 
     /// Assert that given future is pending.
     ///
