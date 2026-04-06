@@ -53,20 +53,32 @@ type Config struct {
 	TLS                 *tls.Config   `toml:"-"`
 }
 
+// Compile-time check that *Config implements toml.Defaulter so it can be used
+// as a slice element type with ApplyEnvOverrides.
+var _ toml.Defaulter = (*Config)(nil)
+
+// ApplyDefaults populates the Config with default values. It is called by
+// NewConfig and by toml.ApplyEnvOverrides on slice elements appended via
+// indexed environment variables. ApplyDefaults assumes the receiver is a
+// freshly constructed (zero-valued) Config and sets fields unconditionally.
+func (c *Config) ApplyDefaults() {
+	c.BindAddress = DefaultBindAddress
+	c.Database = DefaultDatabase
+	c.RetentionPolicy = DefaultRetentionPolicy
+	c.ConsistencyLevel = DefaultConsistencyLevel
+	c.TLSEnabled = false
+	c.Certificate = DefaultCertificate // TLSCertLoader will default PrivateKey if PrivateKey remains empty.
+	c.BatchSize = DefaultBatchSize
+	c.BatchPending = DefaultBatchPending
+	c.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+	c.LogPointErrors = true
+}
+
 // NewConfig returns a new config for the service.
 func NewConfig() Config {
-	return Config{
-		BindAddress:      DefaultBindAddress,
-		Database:         DefaultDatabase,
-		RetentionPolicy:  DefaultRetentionPolicy,
-		ConsistencyLevel: DefaultConsistencyLevel,
-		TLSEnabled:       false,
-		Certificate:      DefaultCertificate, // TLSCertLoader will default PrivateKey if PrivateKey remains empty.
-		BatchSize:        DefaultBatchSize,
-		BatchPending:     DefaultBatchPending,
-		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
-		LogPointErrors:   true,
-	}
+	var c Config
+	c.ApplyDefaults()
+	return c
 }
 
 // WithDefaults takes the given config and returns a new config with any required

@@ -69,21 +69,33 @@ type Config struct {
 	ParseMultiValuePlugin string        `toml:"parse-multivalue-plugin"`
 }
 
+// Compile-time check that *Config implements toml.Defaulter so it can be used
+// as a slice element type with ApplyEnvOverrides.
+var _ toml.Defaulter = (*Config)(nil)
+
+// ApplyDefaults populates the Config with default values. It is called by
+// NewConfig and by toml.ApplyEnvOverrides on slice elements appended via
+// indexed environment variables. ApplyDefaults assumes the receiver is a
+// freshly constructed (zero-valued) Config and sets fields unconditionally.
+func (c *Config) ApplyDefaults() {
+	c.BindAddress = DefaultBindAddress
+	c.Database = DefaultDatabase
+	c.RetentionPolicy = DefaultRetentionPolicy
+	c.ReadBuffer = DefaultReadBuffer
+	c.BatchSize = DefaultBatchSize
+	c.BatchPending = DefaultBatchPending
+	c.BatchDuration = DefaultBatchDuration
+	c.TypesDB = DefaultTypesDB
+	c.SecurityLevel = DefaultSecurityLevel
+	c.AuthFile = DefaultAuthFile
+	c.ParseMultiValuePlugin = DefaultParseMultiValuePlugin
+}
+
 // NewConfig returns a new instance of Config with defaults.
 func NewConfig() Config {
-	return Config{
-		BindAddress:           DefaultBindAddress,
-		Database:              DefaultDatabase,
-		RetentionPolicy:       DefaultRetentionPolicy,
-		ReadBuffer:            DefaultReadBuffer,
-		BatchSize:             DefaultBatchSize,
-		BatchPending:          DefaultBatchPending,
-		BatchDuration:         DefaultBatchDuration,
-		TypesDB:               DefaultTypesDB,
-		SecurityLevel:         DefaultSecurityLevel,
-		AuthFile:              DefaultAuthFile,
-		ParseMultiValuePlugin: DefaultParseMultiValuePlugin,
-	}
+	var c Config
+	c.ApplyDefaults()
+	return c
 }
 
 // WithDefaults takes the given config and returns a new config with any required

@@ -284,6 +284,114 @@ func (g *Group) UnmarshalTOML(data interface{}) error {
 	return errors.New("group must be a name (string) or id (int)")
 }
 
+// Defaulter is implemented by config types that can populate themselves with
+// default values. Slice element types reachable from a configuration root passed
+// to ApplyEnvOverrides must implement Defaulter so that elements appended via
+// indexed environment variables are seeded with defaults before overrides are
+// applied. This avoids producing partially-configured elements with zero values
+// for unset fields. NewConfig-style constructors should delegate to ApplyDefaults
+// so the same defaults are produced regardless of construction path.
+type Defaulter interface {
+	ApplyDefaults()
+}
+
+// VerifyDefaulters walks the type tree of cfg and reports an error if any slice
+// element type that would be appended via indexed env var overrides does not
+// implement Defaulter. cfg may be a value or a pointer; the type tree is walked
+// from its (dereferenced) type.
+//
+// Element types that implement encoding.TextUnmarshaler are exempt: they are
+// treated as leaves by ApplyEnvOverrides and have no fields to default.
+// Primitive element types (string, int, etc.) are also exempt for the same
+// reason. Fields tagged `toml:"-"` and unexported fields are skipped because
+// ApplyEnvOverrides skips them too.
+//
+// VerifyDefaulters is intended to be called from a test in the package that
+// owns the config root, as a CI safety net for the convention that slice
+// element types must implement ApplyDefaults.
+func VerifyDefaulters(cfg interface{}) error {
+	defaulterType := reflect.TypeOf((*Defaulter)(nil)).Elem()
+	textUnmarshalerType := reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
+
+	// requiresDefaulter reports whether a slice element type must implement
+	// Defaulter. Only struct (or pointer-to-struct) element types that don't
+	// implement TextUnmarshaler need it.
+	requiresDefaulter := func(elemType reflect.Type) bool {
+		target := elemType
+		if target.Kind() == reflect.Pointer {
+			target = target.Elem()
+		}
+		if target.Kind() != reflect.Struct {
+			return false
+		}
+		if reflect.PointerTo(target).Implements(textUnmarshalerType) {
+			return false
+		}
+		return true
+	}
+
+	var violations []string
+	seen := make(map[reflect.Type]bool)
+	var walk func(t reflect.Type, path string)
+	walk = func(t reflect.Type, path string) {
+		if seen[t] {
+			return
+		}
+		seen[t] = true
+
+		switch t.Kind() {
+		case reflect.Pointer:
+			walk(t.Elem(), path)
+		case reflect.Slice:
+			elem := t.Elem()
+			if requiresDefaulter(elem) {
+				// For value-element slices ([]T), Defaulter is implemented by *T.
+				// For pointer-element slices ([]*T), Defaulter is implemented by *T directly.
+				ptrType := reflect.PointerTo(elem)
+				if elem.Kind() == reflect.Pointer {
+					ptrType = elem
+				}
+				if !ptrType.Implements(defaulterType) {
+					violations = append(violations, fmt.Sprintf(
+						"%s: slice element type %s must implement toml.Defaulter (add ApplyDefaults() method on *%s)",
+						path, elem, elem))
+				}
+			}
+			walk(elem, path+"[]")
+		case reflect.Struct:
+			for i := 0; i < t.NumField(); i++ {
+				f := t.Field(i)
+				if !f.IsExported() {
+					continue
+				}
+				if f.Tag.Get("toml") == "-" {
+					continue
+				}
+				walk(f.Type, path+"."+f.Name)
+			}
+		}
+	}
+
+	rootType := reflect.TypeOf(cfg)
+	if rootType == nil {
+		return errors.New("VerifyDefaulters: cfg is nil")
+	}
+	rootName := rootType.String()
+	if rootType.Kind() == reflect.Pointer {
+		rootType = rootType.Elem()
+		if rootType != nil {
+			rootName = rootType.String()
+		}
+	}
+	walk(rootType, rootName)
+
+	if len(violations) > 0 {
+		return fmt.Errorf("toml.VerifyDefaulters found %d violation(s):\n  %s",
+			len(violations), strings.Join(violations, "\n  "))
+	}
+	return nil
+}
+
 // ApplyEnvOverrides applies environment variable overrides to the given configuration value.
 // It returns the list of all environment variable names that were applied and any error encountered.
 func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{}) ([]string, error) {
@@ -462,6 +570,28 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				// We have run past the end of starting slice, but are there more environment array indices?
 				// Create a zero-value value to unmarshal the environment override into.
 				f := reflect.New(element.Type().Elem()).Elem()
+				// For pointer slice elements, allocate the underlying value so we can call
+				// methods on it (e.g., ApplyDefaults) and apply env overrides to its fields.
+				if f.Kind() == reflect.Pointer && f.IsNil() {
+					f.Set(reflect.New(f.Type().Elem()))
+				}
+				// If the element type implements Defaulter, seed the new element with its
+				// type-level defaults before applying any env vars. Built-in defaults are the
+				// weakest layer; unindexed env defaults override them, indexed env vars override
+				// those. ApplyDefaults is called on every probe iteration; the cost is negligible
+				// and the alternative (deferring until we know the element will be appended)
+				// would require re-running the unindexed default application after ApplyDefaults.
+				// For pointer slice elements (f is already a pointer), check the value directly;
+				// otherwise check the address.
+				var defaulter Defaulter
+				if f.Kind() == reflect.Pointer {
+					defaulter, _ = f.Interface().(Defaulter)
+				} else if f.CanAddr() {
+					defaulter, _ = f.Addr().Interface().(Defaulter)
+				}
+				if defaulter != nil {
+					defaulter.ApplyDefaults()
+				}
 				// Apply the unindexed environment variable as a default value, same as for existing elements.
 				// Only meaningful for struct/pointer elements where individual fields can be defaulted.
 				elemKind := element.Type().Elem().Kind()

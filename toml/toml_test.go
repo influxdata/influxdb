@@ -566,6 +566,93 @@ func currentUserGroup() (int, string, error) {
 	return groupID, group.Name, nil
 }
 
+// defaulterSub is used to verify that ApplyEnvOverrides calls ApplyDefaults on
+// freshly grown slice elements.
+type defaulterSub struct {
+	A string `toml:"a"`
+	B string `toml:"b"`
+	C string `toml:"c"`
+}
+
+func (d *defaulterSub) ApplyDefaults() {
+	d.A = "default-a"
+	d.B = "default-b"
+	d.C = "default-c"
+}
+
+// Compile-time check that defaulterSub implements itoml.Defaulter.
+var _ itoml.Defaulter = (*defaulterSub)(nil)
+
+// nonDefaulterSub is intentionally missing an ApplyDefaults method, used to
+// verify that VerifyDefaulters reports violations.
+type nonDefaulterSub struct {
+	X string `toml:"x"`
+}
+
+func TestVerifyDefaulters_AllImplemented(t *testing.T) {
+	type config struct {
+		Subs []defaulterSub  `toml:"subs"`
+		Ptrs []*defaulterSub `toml:"ptrs"`
+		// Primitive slices and TextUnmarshaler slices are exempt.
+		Strs  []string         `toml:"strs"`
+		Sizes []itoml.Size     `toml:"sizes"`
+		Durs  []itoml.Duration `toml:"durs"`
+	}
+	require.NoError(t, itoml.VerifyDefaulters(config{}))
+	require.NoError(t, itoml.VerifyDefaulters(&config{}))
+}
+
+func TestVerifyDefaulters_MissingDefaulter(t *testing.T) {
+	type config struct {
+		Bad []nonDefaulterSub `toml:"bad"`
+	}
+	err := itoml.VerifyDefaulters(config{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nonDefaulterSub must implement toml.Defaulter")
+}
+
+func TestVerifyDefaulters_MissingDefaulterInPointerSlice(t *testing.T) {
+	type config struct {
+		Bad []*nonDefaulterSub `toml:"bad"`
+	}
+	err := itoml.VerifyDefaulters(config{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nonDefaulterSub must implement toml.Defaulter")
+}
+
+func TestVerifyDefaulters_NestedSliceField(t *testing.T) {
+	// VerifyDefaulters should descend into struct fields to find nested slices.
+	type inner struct {
+		Bad []nonDefaulterSub `toml:"bad"`
+	}
+	type outer struct {
+		Inner inner `toml:"inner"`
+	}
+	err := itoml.VerifyDefaulters(outer{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "outer.Inner.Bad")
+}
+
+func TestVerifyDefaulters_SkipsTomlDashTag(t *testing.T) {
+	// Fields tagged toml:"-" are skipped by ApplyEnvOverrides, so they should
+	// also be skipped by VerifyDefaulters.
+	type config struct {
+		Bad []nonDefaulterSub `toml:"-"`
+	}
+	require.NoError(t, itoml.VerifyDefaulters(config{}))
+}
+
+func TestVerifyDefaulters_SkipsUnexportedFields(t *testing.T) {
+	type config struct {
+		bad []nonDefaulterSub
+	}
+	require.NoError(t, itoml.VerifyDefaulters(config{}))
+}
+
+func TestVerifyDefaulters_NilArgument(t *testing.T) {
+	require.Error(t, itoml.VerifyDefaulters(nil))
+}
+
 func TestEnvOverride_Builtins(t *testing.T) {
 	// If we run on a platform that doesn't support groups or not in a way resembling
 	// Unix groups, then we will use an empty groupOverride and the expected groupID will
@@ -1158,6 +1245,94 @@ func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T
 		},
 		c)
 	require.Equal(t, []string{"X_SUB_0_A", "X_SUB_B"}, appliedVars)
+}
+
+func TestEnvOverride_GrowAppliesBuiltinDefaults(t *testing.T) {
+	// When a slice element type implements Defaulter, grown elements should be
+	// seeded with ApplyDefaults() before env overrides are applied. Fields not set
+	// by env vars should retain their built-in defaults.
+	type config struct {
+		Sub []defaulterSub `toml:"sub"`
+	}
+
+	env := func(s string) string {
+		if s == "X_SUB_0_A" {
+			return "override-a"
+		}
+		return ""
+	}
+
+	var c config
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	// Element 0 grown: ApplyDefaults seeds A/B/C with defaults, then X_SUB_0_A overrides A.
+	require.Equal(t, []defaulterSub{
+		{A: "override-a", B: "default-b", C: "default-c"},
+	}, c.Sub)
+	require.Equal(t, []string{"X_SUB_0_A"}, appliedVars)
+}
+
+func TestEnvOverride_GrowIndexedOverridesBuiltinDefaults(t *testing.T) {
+	// All three precedence layers exercised: built-in defaults (weakest), unindexed
+	// env defaults (broadcast), indexed env vars (strongest).
+	type config struct {
+		Sub []defaulterSub `toml:"sub"`
+	}
+
+	env := func(s string) string {
+		switch s {
+		case "X_SUB_B": // unindexed broadcast — overrides built-in B
+			return "broadcast-b"
+		case "X_SUB_0_C": // indexed override — wins over both
+			return "indexed-c"
+		}
+		return ""
+	}
+
+	var c config
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	// A: from ApplyDefaults (no env). B: from broadcast (overrides built-in). C: from indexed.
+	require.Equal(t, []defaulterSub{
+		{A: "default-a", B: "broadcast-b", C: "indexed-c"},
+	}, c.Sub)
+	require.Equal(t, []string{"X_SUB_0_C", "X_SUB_B"}, appliedVars)
+}
+
+func TestEnvOverride_GrowApplyDefaultsNotCalledOnExisting(t *testing.T) {
+	// ApplyDefaults must not be called on elements that already exist in the slice.
+	// Doing so would overwrite values set by TOML parsing.
+	type config struct {
+		Sub []defaulterSub `toml:"sub"`
+	}
+
+	env := func(s string) string { return "" }
+
+	c := config{Sub: []defaulterSub{{A: "from-toml", B: "from-toml", C: "from-toml"}}}
+	_, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	// The existing element must be untouched.
+	require.Equal(t, []defaulterSub{{A: "from-toml", B: "from-toml", C: "from-toml"}}, c.Sub)
+}
+
+func TestEnvOverride_GrowApplyDefaultsForPointerSlice(t *testing.T) {
+	// Pointer slice elements ([]*T) should also get ApplyDefaults called when grown.
+	type config struct {
+		Sub []*defaulterSub `toml:"sub"`
+	}
+
+	env := func(s string) string {
+		if s == "X_SUB_0_A" {
+			return "override-a"
+		}
+		return ""
+	}
+
+	var c config
+	_, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	require.Len(t, c.Sub, 1)
+	require.Equal(t, &defaulterSub{A: "override-a", B: "default-b", C: "default-c"}, c.Sub[0])
 }
 
 func TestEnvOverride_FalseGrowFromDefault(t *testing.T) {

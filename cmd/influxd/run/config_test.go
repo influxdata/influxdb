@@ -10,6 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
 	influxtoml "github.com/influxdata/influxdb/toml"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
@@ -425,6 +426,15 @@ enabled = true
 	} else if !c.ContinuousQuery.Enabled {
 		t.Fatalf("unexpected continuous query enabled: %v", c.ContinuousQuery.Enabled)
 	}
+}
+
+// TestConfig_SliceElementsImplementDefaulter verifies that every slice element
+// type reachable from run.Config implements influxtoml.Defaulter, so that
+// elements appended via indexed environment variable overrides are seeded with
+// type-level defaults instead of zero values. The walking logic lives in the
+// toml package so external projects with their own Config types can use it.
+func TestConfig_SliceElementsImplementDefaulter(t *testing.T) {
+	require.NoError(t, influxtoml.VerifyDefaulters(run.Config{}))
 }
 
 // Ensure the configuration can be parsed when a Byte-Order-Mark is present.
