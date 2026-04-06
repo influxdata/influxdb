@@ -462,6 +462,23 @@ func indexStructKey(parent string, idx int) string {
 	return fmt.Sprintf("%s[%d]", parent, idx)
 }
 
+// isLeafType reports whether values of t can be set directly from a single env
+// var value (a primitive kind or a TextUnmarshaler implementation), as opposed
+// to types whose configuration is spread across multiple env vars (structs).
+func isLeafType(t reflect.Type) bool {
+	if reflect.PointerTo(t).Implements(reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()) {
+		return true
+	}
+	switch t.Kind() {
+	case reflect.String, reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return true
+	}
+	return false
+}
+
 // applyEnvOverrides applies environment overrides recursively.
 func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) (envOverrideResult, error) {
 	element := spec
@@ -470,10 +487,22 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 
 	var noResult envOverrideResult
 
-	// If we have a pointer, dereference it
+	// If we have a pointer, dereference it. For nil pointers to leaf types
+	// (scalars or TextUnmarshaler implementations), allocate the underlying
+	// value when there is a non-empty env var to apply. This allows fields like
+	// httpd.Config.UnixSocketGroup (*toml.Group) to be set purely via env vars
+	// without requiring NewConfig or the TOML file to pre-allocate the pointer.
+	//
+	// Nil pointers to struct types are still skipped because the struct's env
+	// vars target its fields (e.g., INFLUXDB_FOO_BAR), not the struct itself,
+	// so there's no way to detect whether to allocate without probing every
+	// possible field env var.
 	if spec.Kind() == reflect.Pointer {
 		if spec.IsNil() {
-			return noResult, nil
+			if len(value) == 0 || !spec.CanSet() || !isLeafType(spec.Type().Elem()) {
+				return noResult, nil
+			}
+			spec.Set(reflect.New(spec.Type().Elem()))
 		}
 		element = spec.Elem()
 	}

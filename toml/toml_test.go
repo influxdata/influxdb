@@ -1335,6 +1335,90 @@ func TestEnvOverride_GrowApplyDefaultsForPointerSlice(t *testing.T) {
 	require.Equal(t, &defaulterSub{A: "override-a", B: "default-b", C: "default-c"}, c.Sub[0])
 }
 
+func TestEnvOverride_AllocatesNilPointerToTextUnmarshaler(t *testing.T) {
+	// A nil *toml.Duration field should be auto-allocated when an env var is
+	// set for it. Without this, the field would be silently skipped because the
+	// pointer is nil.
+	type config struct {
+		Dur *itoml.Duration `toml:"dur"`
+	}
+
+	env := func(s string) string {
+		if s == "X_DUR" {
+			return "5m"
+		}
+		return ""
+	}
+
+	var c config // c.Dur is nil
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	require.NotNil(t, c.Dur)
+	require.Equal(t, itoml.Duration(5*time.Minute), *c.Dur)
+	require.Equal(t, []string{"X_DUR"}, appliedVars)
+}
+
+func TestEnvOverride_NilPointerToTextUnmarshalerSkippedWhenNoValue(t *testing.T) {
+	// Without an env var, a nil *toml.Duration field stays nil.
+	type config struct {
+		Dur *itoml.Duration `toml:"dur"`
+	}
+
+	env := func(s string) string { return "" }
+
+	var c config
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	require.Nil(t, c.Dur)
+	require.Empty(t, appliedVars)
+}
+
+func TestEnvOverride_AllocatesNilPointerToScalar(t *testing.T) {
+	// A nil pointer to a primitive scalar should also be auto-allocated.
+	type config struct {
+		Count *int `toml:"count"`
+	}
+
+	env := func(s string) string {
+		if s == "X_COUNT" {
+			return "42"
+		}
+		return ""
+	}
+
+	var c config
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	require.NotNil(t, c.Count)
+	require.Equal(t, 42, *c.Count)
+	require.Equal(t, []string{"X_COUNT"}, appliedVars)
+}
+
+func TestEnvOverride_NilPointerToStructSkipped(t *testing.T) {
+	// A nil pointer to a struct is NOT auto-allocated. Struct env vars target
+	// the struct's fields, not the struct itself, so there's no single value
+	// to trigger allocation. Users must initialize such pointers in NewConfig
+	// or via the TOML file.
+	type sub struct {
+		A string `toml:"a"`
+	}
+	type config struct {
+		Sub *sub `toml:"sub"`
+	}
+
+	env := func(s string) string {
+		if s == "X_SUB_A" {
+			return "value"
+		}
+		return ""
+	}
+
+	var c config
+	_, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+	require.Nil(t, c.Sub)
+}
+
 func TestEnvOverride_FalseGrowFromDefault(t *testing.T) {
 	// Verify correct when result when there is a false slice grow
 	// from a default enviroment variable, but no realy one from an
