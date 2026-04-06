@@ -622,10 +622,12 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 					defaulter.ApplyDefaults()
 				}
 				// Apply the unindexed environment variable as a default value, same as for existing elements.
-				// Only meaningful for struct/pointer elements where individual fields can be defaulted.
-				elemKind := element.Type().Elem().Kind()
+				// Skipped for leaf element types (scalars and TextUnmarshaler implementations) because
+				// the required indexed override would fully replace the value anyway, making the default
+				// pure wasted work. For non-leaf elements (structs whose individual fields can be defaulted),
+				// the unindexed default contributes fields that the indexed override doesn't touch.
 				var defaultResult envOverrideResult
-				if elemKind == reflect.Struct || elemKind == reflect.Pointer {
+				if !isLeafType(element.Type().Elem()) {
 					var err error
 					if defaultResult, err = applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
 						return noResult, err
