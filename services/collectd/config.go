@@ -98,42 +98,46 @@ func NewConfig() Config {
 	return c
 }
 
-// WithDefaults takes the given config and returns a new config with any required
-// default values set.
+// WithDefaults takes the given config and returns a new config with any
+// zero-valued fields filled in from ApplyDefaults. Existing non-zero values
+// are preserved. ApplyDefaults remains the single source of truth for what
+// the default values are.
 func (c *Config) WithDefaults() *Config {
 	d := *c
+	var defaults Config
+	defaults.ApplyDefaults()
 	if d.BindAddress == "" {
-		d.BindAddress = DefaultBindAddress
+		d.BindAddress = defaults.BindAddress
 	}
 	if d.Database == "" {
-		d.Database = DefaultDatabase
+		d.Database = defaults.Database
 	}
 	if d.RetentionPolicy == "" {
-		d.RetentionPolicy = DefaultRetentionPolicy
+		d.RetentionPolicy = defaults.RetentionPolicy
 	}
 	if d.BatchSize == 0 {
-		d.BatchSize = DefaultBatchSize
+		d.BatchSize = defaults.BatchSize
 	}
 	if d.BatchPending == 0 {
-		d.BatchPending = DefaultBatchPending
+		d.BatchPending = defaults.BatchPending
 	}
 	if d.BatchDuration == 0 {
-		d.BatchDuration = DefaultBatchDuration
+		d.BatchDuration = defaults.BatchDuration
 	}
 	if d.ReadBuffer == 0 {
-		d.ReadBuffer = DefaultReadBuffer
+		d.ReadBuffer = defaults.ReadBuffer
 	}
 	if d.TypesDB == "" {
-		d.TypesDB = DefaultTypesDB
+		d.TypesDB = defaults.TypesDB
 	}
 	if d.SecurityLevel == "" {
-		d.SecurityLevel = DefaultSecurityLevel
+		d.SecurityLevel = defaults.SecurityLevel
 	}
 	if d.AuthFile == "" {
-		d.AuthFile = DefaultAuthFile
+		d.AuthFile = defaults.AuthFile
 	}
 	if d.ParseMultiValuePlugin == "" {
-		d.ParseMultiValuePlugin = DefaultParseMultiValuePlugin
+		d.ParseMultiValuePlugin = defaults.ParseMultiValuePlugin
 	}
 
 	return &d

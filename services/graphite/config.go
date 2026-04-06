@@ -93,36 +93,40 @@ func NewConfig() Config {
 	return c
 }
 
-// WithDefaults takes the given config and returns a new config with any required
-// default values set.
+// WithDefaults takes the given config and returns a new config with any
+// zero-valued fields filled in from ApplyDefaults. Existing non-zero values
+// are preserved. ApplyDefaults remains the single source of truth for what
+// the default values are.
 func (c *Config) WithDefaults() *Config {
 	d := *c
+	var defaults Config
+	defaults.ApplyDefaults()
 	if d.BindAddress == "" {
-		d.BindAddress = DefaultBindAddress
+		d.BindAddress = defaults.BindAddress
 	}
 	if d.Database == "" {
-		d.Database = DefaultDatabase
+		d.Database = defaults.Database
 	}
 	if d.Protocol == "" {
-		d.Protocol = DefaultProtocol
+		d.Protocol = defaults.Protocol
 	}
 	if d.BatchSize == 0 {
-		d.BatchSize = DefaultBatchSize
+		d.BatchSize = defaults.BatchSize
 	}
 	if d.BatchPending == 0 {
-		d.BatchPending = DefaultBatchPending
+		d.BatchPending = defaults.BatchPending
 	}
 	if d.BatchTimeout == 0 {
-		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+		d.BatchTimeout = defaults.BatchTimeout
 	}
 	if d.ConsistencyLevel == "" {
-		d.ConsistencyLevel = DefaultConsistencyLevel
+		d.ConsistencyLevel = defaults.ConsistencyLevel
 	}
 	if d.Separator == "" {
-		d.Separator = DefaultSeparator
+		d.Separator = defaults.Separator
 	}
 	if d.UDPReadBuffer == 0 {
-		d.UDPReadBuffer = DefaultUDPReadBuffer
+		d.UDPReadBuffer = defaults.UDPReadBuffer
 	}
 	return &d
 }

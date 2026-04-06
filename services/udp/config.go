@@ -88,30 +88,34 @@ func NewConfig() Config {
 	return c
 }
 
-// WithDefaults takes the given config and returns a new config with any required
-// default values set.
+// WithDefaults takes the given config and returns a new config with any
+// zero-valued fields filled in from ApplyDefaults. Existing non-zero values
+// are preserved. ApplyDefaults remains the single source of truth for what
+// the default values are.
 func (c *Config) WithDefaults() *Config {
 	d := *c
+	var defaults Config
+	defaults.ApplyDefaults()
 	if d.Database == "" {
-		d.Database = DefaultDatabase
+		d.Database = defaults.Database
 	}
 	if d.BatchSize == 0 {
-		d.BatchSize = DefaultBatchSize
+		d.BatchSize = defaults.BatchSize
 	}
 	if d.BatchPending == 0 {
-		d.BatchPending = DefaultBatchPending
+		d.BatchPending = defaults.BatchPending
 	}
 	if d.BatchTimeout == 0 {
-		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+		d.BatchTimeout = defaults.BatchTimeout
 	}
 	if d.Precision == "" {
-		d.Precision = DefaultPrecision
+		d.Precision = defaults.Precision
 	}
 	if d.ReadBuffer == 0 {
-		d.ReadBuffer = DefaultReadBuffer
+		d.ReadBuffer = defaults.ReadBuffer
 	}
 	if d.Writers == 0 {
-		d.Writers = DefaultWriters
+		d.Writers = defaults.Writers
 	}
 	return &d
 }
