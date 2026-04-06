@@ -140,11 +140,6 @@ func (cmd *Command) Run(args ...string) error {
 		cmd.Logger = logger.New(cmd.Stderr)
 	}
 
-	// Now that the logger is configured, log diagnostics about which
-	// environment variable overrides were applied (and which were set but
-	// did not match any config field).
-	cmd.logEnvVarDiagnostics(cmd.Logger, appliedEnvVars)
-
 	// Attempt to run pprof on :6060 before startup if debug pprof enabled.
 	if config.HTTPD.DebugPprofEnabled {
 		runtime.SetBlockProfileRate(int(1 * time.Second))
@@ -177,6 +172,11 @@ func (cmd *Command) Run(args ...string) error {
 	} else {
 		logger.New(cmd.Stderr).Info("configured logger", zap.String("format", config.Logging.Format), zap.String("level", config.Logging.Level.String()))
 	}
+
+	// Now that the logger is fully configured, log diagnostics about which
+	// environment variable overrides were applied (and which were set but did
+	// not match any config field).
+	cmd.logEnvVarDiagnostics(cmd.Logger, appliedEnvVars)
 
 	// Write the PID file.
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
