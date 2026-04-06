@@ -284,6 +284,53 @@ func (g *Group) UnmarshalTOML(data interface{}) error {
 	return errors.New("group must be a name (string) or id (int)")
 }
 
+// UnmatchedEnvVars returns the names of environment variables in environ that
+// match the prefix namespace (start with prefix+"_") but are not present in
+// applied. The applied list is typically the result of ApplyEnvOverrides.
+//
+// This is useful for detecting typos in user-set environment variable names:
+// any var that the user set with the configured prefix but that didn't match
+// a config field will appear in the result. Callers can log the result at
+// startup to give operators feedback about config they thought they were
+// setting but weren't.
+//
+// environ should be in the format returned by os.Environ() — each entry is
+// "KEY=VALUE". Entries without an "=" are ignored. The returned slice is
+// sorted and deduplicated. If prefix is empty, UnmatchedEnvVars returns nil.
+func UnmatchedEnvVars(environ []string, prefix string, applied []string) []string {
+	if prefix == "" {
+		return nil
+	}
+	appliedSet := make(map[string]struct{}, len(applied))
+	for _, name := range applied {
+		appliedSet[name] = struct{}{}
+	}
+
+	keyPrefix := prefix + "_"
+	seen := make(map[string]struct{})
+	var unmatched []string
+	for _, entry := range environ {
+		eq := strings.IndexByte(entry, '=')
+		if eq < 0 {
+			continue
+		}
+		key := entry[:eq]
+		if !strings.HasPrefix(key, keyPrefix) {
+			continue
+		}
+		if _, ok := appliedSet[key]; ok {
+			continue
+		}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		unmatched = append(unmatched, key)
+	}
+	slices.Sort(unmatched)
+	return unmatched
+}
+
 // Defaulter is implemented by config types that can populate themselves with
 // default values. Slice element types reachable from a configuration root passed
 // to ApplyEnvOverrides must implement Defaulter so that elements appended via

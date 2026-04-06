@@ -589,6 +589,78 @@ type nonDefaulterSub struct {
 	X string `toml:"x"`
 }
 
+func TestUnmatchedEnvVars_Basic(t *testing.T) {
+	environ := []string{
+		"X_FOO=1",
+		"X_BAR=2",
+		"X_BAZ=3",
+		"OTHER=ignore",
+	}
+	applied := []string{"X_FOO", "X_BAZ"}
+	require.Equal(t, []string{"X_BAR"}, itoml.UnmatchedEnvVars(environ, "X", applied))
+}
+
+func TestUnmatchedEnvVars_AllApplied(t *testing.T) {
+	environ := []string{"X_FOO=1", "X_BAR=2"}
+	applied := []string{"X_BAR", "X_FOO"}
+	require.Empty(t, itoml.UnmatchedEnvVars(environ, "X", applied))
+}
+
+func TestUnmatchedEnvVars_NoneApplied(t *testing.T) {
+	environ := []string{"X_FOO=1", "X_BAR=2"}
+	require.Equal(t, []string{"X_BAR", "X_FOO"}, itoml.UnmatchedEnvVars(environ, "X", nil))
+}
+
+func TestUnmatchedEnvVars_IgnoresNonPrefixVars(t *testing.T) {
+	environ := []string{
+		"X_FOO=1",
+		"Y_FOO=2",
+		"PATH=/usr/bin",
+	}
+	require.Equal(t, []string{"X_FOO"}, itoml.UnmatchedEnvVars(environ, "X", nil))
+}
+
+func TestUnmatchedEnvVars_BarePrefixIgnored(t *testing.T) {
+	// A bare "INFLUXDB" without underscore is not in the namespace and is not
+	// reported. Users don't set the bare prefix in practice.
+	environ := []string{"X=1", "X_FOO=2"}
+	require.Equal(t, []string{"X_FOO"}, itoml.UnmatchedEnvVars(environ, "X", nil))
+}
+
+func TestUnmatchedEnvVars_PrefixWithUnderscoreInName(t *testing.T) {
+	// Vars sharing a prefix character but not the full prefix are not matched.
+	// E.g., for prefix "X", "XX_FOO" should NOT be considered in the namespace.
+	environ := []string{"X_FOO=1", "XX_FOO=2"}
+	require.Equal(t, []string{"X_FOO"}, itoml.UnmatchedEnvVars(environ, "X", nil))
+}
+
+func TestUnmatchedEnvVars_SortedOutput(t *testing.T) {
+	environ := []string{"X_C=1", "X_A=2", "X_B=3"}
+	require.Equal(t, []string{"X_A", "X_B", "X_C"}, itoml.UnmatchedEnvVars(environ, "X", nil))
+}
+
+func TestUnmatchedEnvVars_SkipsEntriesWithoutEquals(t *testing.T) {
+	environ := []string{"X_FOO=1", "X_BAR", "X_BAZ=3"}
+	require.Equal(t, []string{"X_BAZ", "X_FOO"}, itoml.UnmatchedEnvVars(environ, "X", nil))
+}
+
+func TestUnmatchedEnvVars_EmptyValue(t *testing.T) {
+	// An env var set to empty string is still in the namespace and should be
+	// reported as unmatched if not in the applied list. ApplyEnvOverrides treats
+	// empty values as "not set" and never reports them in applied, so this is
+	// the expected behavior.
+	environ := []string{"X_FOO="}
+	require.Equal(t, []string{"X_FOO"}, itoml.UnmatchedEnvVars(environ, "X", nil))
+}
+
+func TestUnmatchedEnvVars_EmptyPrefix(t *testing.T) {
+	require.Nil(t, itoml.UnmatchedEnvVars([]string{"X_FOO=1"}, "", nil))
+}
+
+func TestUnmatchedEnvVars_EmptyEnviron(t *testing.T) {
+	require.Empty(t, itoml.UnmatchedEnvVars(nil, "X", nil))
+}
+
 func TestVerifyDefaulters_AllImplemented(t *testing.T) {
 	type config struct {
 		Subs []defaulterSub  `toml:"subs"`
