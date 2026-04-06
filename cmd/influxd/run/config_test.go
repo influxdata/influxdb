@@ -193,7 +193,7 @@ min-version = "tls1.0"
 		return ""
 	}
 
-	if err := c.ApplyEnvOverrides(getenv); err != nil {
+	if _, err := c.ApplyEnvOverrides(getenv); err != nil {
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
 
