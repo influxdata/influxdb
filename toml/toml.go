@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // MaxEnvSliceGrowth limits how many elements can be appended to a slice via
@@ -82,8 +83,12 @@ func parseSizeSuffix(text []byte) (numText []byte, mult uint64, err error) {
 	mult = 1
 	numText = text
 
-	suffix := text[len(text)-1]
-	if !unicode.IsDigit(rune(suffix)) {
+	// Decode the trailing rune. The valid suffixes are all ASCII single-byte,
+	// but the input may end in a multi-byte rune (typically when the input is
+	// malformed); using DecodeLastRune ensures we report the actual character
+	// in the error message rather than a stray UTF-8 continuation byte.
+	suffix, suffixSize := utf8.DecodeLastRune(text)
+	if !unicode.IsDigit(suffix) {
 		switch suffix {
 		case 'k', 'K':
 			mult = 1 << 10 // KiB
@@ -94,7 +99,7 @@ func parseSizeSuffix(text []byte) (numText []byte, mult uint64, err error) {
 		default:
 			return nil, 0, fmt.Errorf("%w: %c (expected k, m, or g)", ErrSizeBadSuffix, suffix)
 		}
-		numText = text[:len(text)-1]
+		numText = text[:len(text)-suffixSize]
 		if len(numText) == 0 {
 			return nil, 0, fmt.Errorf("%w: missing numeric value before suffix %c", ErrSizeParse, suffix)
 		}
@@ -109,10 +114,14 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 	// Preserve original text for error messages before stripping the sign.
 	originalText := text
 
-	// Detect and strip leading negative sign.
-	negative := len(text) > 0 && text[0] == '-'
+	// Detect and strip leading negative sign. Decode the leading rune rather
+	// than indexing the first byte so the check is obviously rune-safe; the
+	// happy path here is ASCII either way, but explicit decoding spares future
+	// readers from reasoning about UTF-8 invariants.
+	leading, leadingSize := utf8.DecodeRune(text)
+	negative := leading == '-'
 	if negative {
-		text = text[1:]
+		text = text[leadingSize:]
 	}
 
 	numText, mult, err := parseSizeSuffix(text)

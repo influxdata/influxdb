@@ -78,6 +78,13 @@ func TestSize_UnmarshalText(t *testing.T) {
 		{"bad_suffix_t", "1t", itoml.ErrSizeBadSuffix, "unknown size suffix: t (expected k, m, or g)"},
 		{"non_numeric", "√m", itoml.ErrSizeParse,
 			`invalid size: error parsing "√m": strconv.ParseUint: parsing "√": invalid syntax`},
+		// Trailing multi-byte rune: parseSizeSuffix must decode the last rune
+		// rather than the last byte, so the error message shows the actual
+		// character instead of a UTF-8 continuation byte.
+		{"bad_suffix_multibyte", "1√", itoml.ErrSizeBadSuffix,
+			"unknown size suffix: √ (expected k, m, or g)"},
+		{"bad_suffix_multibyte_only", "√", itoml.ErrSizeBadSuffix,
+			"unknown size suffix: √ (expected k, m, or g)"},
 		{"alpha_numeric", "a1", itoml.ErrSizeParse,
 			`invalid size: error parsing "a1": strconv.ParseUint: parsing "a1": invalid syntax`},
 		{"empty", "", itoml.ErrSizeEmpty, "size was empty"},
