@@ -70,9 +70,9 @@ func TestSize_UnmarshalText(t *testing.T) {
 		errStr string
 	}{
 		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxUint64-1)), itoml.ErrSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of a uint64: %dk", uint64(math.MaxUint64), uint64(math.MaxUint64-1))},
+			fmt.Sprintf(`size would overflow the max size (%d) of a uint64: "%dk"`, uint64(math.MaxUint64), uint64(math.MaxUint64-1))},
 		{"overflow_g", "10000000000000000000g", itoml.ErrSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of a uint64: 10000000000000000000g", uint64(math.MaxUint64))},
+			fmt.Sprintf(`size would overflow the max size (%d) of a uint64: "10000000000000000000g"`, uint64(math.MaxUint64))},
 		{"bad_suffix_f", "abcdef", itoml.ErrSizeBadSuffix, "unknown size suffix: f (expected k, m, or g)"},
 		{"bad_suffix_B", "1KB", itoml.ErrSizeBadSuffix, "unknown size suffix: B (expected k, m, or g)"},
 		{"bad_suffix_t", "1t", itoml.ErrSizeBadSuffix, "unknown size suffix: t (expected k, m, or g)"},
@@ -252,23 +252,23 @@ func TestSSize_UnmarshalText(t *testing.T) {
 			`invalid size: error parsing "-a1": strconv.ParseUint: parsing "a1": invalid syntax`},
 		// Overflow: positive value exceeds MaxInt64
 		{"overflow_raw", fmt.Sprint(uint64(math.MaxInt64) + 1), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %d", int64(math.MaxInt64), uint64(math.MaxInt64)+1)},
+			fmt.Sprintf(`size would overflow the max size (%d) of an int64: "%d"`, int64(math.MaxInt64), uint64(math.MaxInt64)+1)},
 		// Overflow: fits in uint64 but not int64 after multiply
 		{"overflow_k", fmt.Sprintf("%dk", uint64(math.MaxInt64>>10)+1), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+1)},
+			fmt.Sprintf(`size would overflow the max size (%d) of an int64: "%dk"`, int64(math.MaxInt64), uint64(math.MaxInt64>>10)+1)},
 		{"overflow_m", fmt.Sprintf("%dm", uint64(math.MaxInt64>>20)+1), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dm", int64(math.MaxInt64), uint64(math.MaxInt64>>20)+1)},
+			fmt.Sprintf(`size would overflow the max size (%d) of an int64: "%dm"`, int64(math.MaxInt64), uint64(math.MaxInt64>>20)+1)},
 		{"overflow_g", fmt.Sprintf("%dg", uint64(math.MaxInt64>>30)+1), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: %dg", int64(math.MaxInt64), uint64(math.MaxInt64>>30)+1)},
+			fmt.Sprintf(`size would overflow the max size (%d) of an int64: "%dg"`, int64(math.MaxInt64), uint64(math.MaxInt64>>30)+1)},
 		// Negative overflow: exceeds abs(MinInt64)
 		{"negative_overflow_raw", fmt.Sprintf("-%d", uint64(math.MaxInt64)+2), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: -%d", int64(math.MaxInt64), uint64(math.MaxInt64)+2)},
+			fmt.Sprintf(`size would overflow the max size (%d) of an int64: "-%d"`, int64(math.MaxInt64), uint64(math.MaxInt64)+2)},
 		{"negative_overflow_k", fmt.Sprintf("-%dk", uint64(math.MaxInt64>>10)+2), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: -%dk", int64(math.MaxInt64), uint64(math.MaxInt64>>10)+2)},
+			fmt.Sprintf(`size would overflow the max size (%d) of an int64: "-%dk"`, int64(math.MaxInt64), uint64(math.MaxInt64>>10)+2)},
 		{"negative_overflow_m", fmt.Sprintf("-%dm", uint64(math.MaxInt64>>20)+2), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: -%dm", int64(math.MaxInt64), uint64(math.MaxInt64>>20)+2)},
+			fmt.Sprintf(`size would overflow the max size (%d) of an int64: "-%dm"`, int64(math.MaxInt64), uint64(math.MaxInt64>>20)+2)},
 		{"negative_overflow_g", fmt.Sprintf("-%dg", uint64(math.MaxInt64>>30)+2), itoml.ErrSSizeOverflow,
-			fmt.Sprintf("size would overflow the max size (%d) of an int64: -%dg", int64(math.MaxInt64), uint64(math.MaxInt64>>30)+2)},
+			fmt.Sprintf(`size would overflow the max size (%d) of an int64: "-%dg"`, int64(math.MaxInt64), uint64(math.MaxInt64>>30)+2)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var s itoml.SSize
@@ -1065,18 +1065,18 @@ func TestEnvOverride_Errors(t *testing.T) {
 		envVal string
 		errStr string
 	}{
-		{"X_INT", "not_an_int", "failed to apply X_INT to Int using type int and value 'not_an_int': strconv.ParseInt: parsing \"not_an_int\": invalid syntax"},
-		{"X_UINT", "not_a_uint", "failed to apply X_UINT to Uint using type uint and value 'not_a_uint': strconv.ParseUint: parsing \"not_a_uint\": invalid syntax"},
-		{"X_UINT", "-1", "failed to apply X_UINT to Uint using type uint and value '-1': strconv.ParseUint: parsing \"-1\": invalid syntax"},
-		{"X_FLOAT", "not_a_float", "failed to apply X_FLOAT to Float using type float64 and value 'not_a_float': strconv.ParseFloat: parsing \"not_a_float\": invalid syntax"},
-		{"X_BOOL", "not_a_bool", "failed to apply X_BOOL to Bool using type bool and value 'not_a_bool': strconv.ParseBool: parsing \"not_a_bool\": invalid syntax"},
-		{"X_DURATION", "not_a_duration", "failed to apply X_DURATION to Duration using TextUnmarshaler toml.Duration and value 'not_a_duration': time: invalid duration \"not_a_duration\""},
-		{"X_SIZE", "not_a_size", "failed to apply X_SIZE to Size using TextUnmarshaler toml.Size and value 'not_a_size': unknown size suffix: e (expected k, m, or g)"},
-		{"X_SSIZE", "not_a_size", "failed to apply X_SSIZE to SSize using TextUnmarshaler toml.SSize and value 'not_a_size': unknown size suffix: e (expected k, m, or g)"},
+		{"X_INT", "not_an_int", `failed to apply X_INT to Int using type int and value "not_an_int": strconv.ParseInt: parsing "not_an_int": invalid syntax`},
+		{"X_UINT", "not_a_uint", `failed to apply X_UINT to Uint using type uint and value "not_a_uint": strconv.ParseUint: parsing "not_a_uint": invalid syntax`},
+		{"X_UINT", "-1", `failed to apply X_UINT to Uint using type uint and value "-1": strconv.ParseUint: parsing "-1": invalid syntax`},
+		{"X_FLOAT", "not_a_float", `failed to apply X_FLOAT to Float using type float64 and value "not_a_float": strconv.ParseFloat: parsing "not_a_float": invalid syntax`},
+		{"X_BOOL", "not_a_bool", `failed to apply X_BOOL to Bool using type bool and value "not_a_bool": strconv.ParseBool: parsing "not_a_bool": invalid syntax`},
+		{"X_DURATION", "not_a_duration", `failed to apply X_DURATION to Duration using TextUnmarshaler toml.Duration and value "not_a_duration": time: invalid duration "not_a_duration"`},
+		{"X_SIZE", "not_a_size", `failed to apply X_SIZE to Size using TextUnmarshaler toml.Size and value "not_a_size": unknown size suffix: e (expected k, m, or g)`},
+		{"X_SSIZE", "not_a_size", `failed to apply X_SSIZE to SSize using TextUnmarshaler toml.SSize and value "not_a_size": unknown size suffix: e (expected k, m, or g)`},
 		// Indexed slice element with invalid value
-		{"X_INTS_0", "bad", "failed to apply X_INTS_0 to Ints[0] using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
+		{"X_INTS_0", "bad", `failed to apply X_INTS_0 to Ints[0] using type int and value "bad": strconv.ParseInt: parsing "bad": invalid syntax`},
 		// Unindexed (comma-separated) slice with invalid value
-		{"X_INTS", "1,bad,3", "failed to apply X_INTS to Ints[1] using type int and value 'bad': strconv.ParseInt: parsing \"bad\": invalid syntax"},
+		{"X_INTS", "1,bad,3", `failed to apply X_INTS to Ints[1] using type int and value "bad": strconv.ParseInt: parsing "bad": invalid syntax`},
 	} {
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			var c config

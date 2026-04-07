@@ -158,7 +158,7 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 	}
 
 	if maxVal/mult < size {
-		return fmt.Errorf("%w: %s", overflowErr, string(originalText))
+		return fmt.Errorf("%w: %q", overflowErr, string(originalText))
 	}
 
 	result := T(size * mult)
@@ -572,7 +572,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				return noResult, nil
 			}
 			if err := u.UnmarshalText([]byte(value)); err != nil {
-				return noResult, fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+				return noResult, fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
 			}
 			return appliedEnvVar(prefix), nil
 		}
@@ -598,7 +598,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		// This intentionally differs from TOML's stricter integer syntax.
 		intValue, err := strconv.ParseInt(value, 0, element.Type().Bits())
 		if err != nil {
-			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetInt(intValue)
 		return appliedEnvVar(prefix), nil
@@ -609,7 +609,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		// See the int case above for the supported numeric prefixes.
 		intValue, err := strconv.ParseUint(value, 0, element.Type().Bits())
 		if err != nil {
-			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetUint(intValue)
 		return appliedEnvVar(prefix), nil
@@ -619,7 +619,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		}
 		boolValue, err := strconv.ParseBool(value)
 		if err != nil {
-			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetBool(boolValue)
 		return appliedEnvVar(prefix), nil
@@ -629,7 +629,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		}
 		floatValue, err := strconv.ParseFloat(value, element.Type().Bits())
 		if err != nil {
-			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
+			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
 		}
 		element.SetFloat(floatValue)
 		return appliedEnvVar(prefix), nil
