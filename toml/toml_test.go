@@ -445,6 +445,20 @@ func TestGroup_UnmarshalTOML(t *testing.T) {
 		require.Equal(t, itoml.Group(gid), group)
 	})
 
+	t.Run("by group name with surrounding whitespace", func(t *testing.T) {
+		gr, err := user.LookupGroupId(u.Gid)
+		unkGID := user.UnknownGroupIdError(u.Gid)
+		if errors.Is(err, unkGID) {
+			t.Skipf("skipping because LookupGroupId failed for %q: %s", u.Gid, err)
+		}
+		require.NoError(t, err, "LookupGroupId failed with error other than user.UnknownGroupIdErr")
+		// Wrap the valid group name with leading/trailing whitespace to verify
+		// that unmarshalGroupName trims the input before lookup.
+		var group itoml.Group
+		require.NoError(t, group.UnmarshalTOML("  "+gr.Name+"\t"))
+		require.Equal(t, itoml.Group(gid), group)
+	})
+
 	t.Run("by numeric GID", func(t *testing.T) {
 		var group itoml.Group
 		require.NoError(t, group.UnmarshalTOML(int64(gid)))
@@ -454,6 +468,16 @@ func TestGroup_UnmarshalTOML(t *testing.T) {
 	t.Run("by numeric GID string", func(t *testing.T) {
 		var group itoml.Group
 		require.NoError(t, group.UnmarshalTOML(fmt.Sprintf("%d", gid)))
+		require.Equal(t, itoml.Group(gid), group)
+	})
+
+	t.Run("by numeric GID string with surrounding whitespace", func(t *testing.T) {
+		// Wrap the numeric GID with whitespace to verify that the numeric
+		// fallback path (LookupGroup fails -> Atoi -> LookupGroupId) also
+		// benefits from trimming. Neither Atoi nor LookupGroupId strip
+		// whitespace themselves.
+		var group itoml.Group
+		require.NoError(t, group.UnmarshalTOML(fmt.Sprintf("  %d\t", gid)))
 		require.Equal(t, itoml.Group(gid), group)
 	})
 
@@ -467,9 +491,13 @@ func TestGroup_UnmarshalTOML(t *testing.T) {
 
 	t.Run("empty string fails", func(t *testing.T) {
 		var group itoml.Group
-		emptyGroup := ""
-		expErr := user.UnknownGroupError(emptyGroup)
-		require.ErrorIs(t, group.UnmarshalTOML(emptyGroup), expErr)
+		require.EqualError(t, group.UnmarshalTOML(""), "group name is empty")
+		require.Zero(t, group)
+	})
+
+	t.Run("whitespace-only string fails", func(t *testing.T) {
+		var group itoml.Group
+		require.EqualError(t, group.UnmarshalTOML("   "), "group name is empty")
 		require.Zero(t, group)
 	})
 }

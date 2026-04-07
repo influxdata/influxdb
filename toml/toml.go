@@ -255,6 +255,12 @@ func (m FileMode) MarshalText() (text []byte, err error) {
 type Group int
 
 func (g *Group) unmarshalGroupName(groupName string) error {
+	// Trim whitespace; user.LookupGroup does not.
+	groupName = strings.TrimSpace(groupName)
+	if groupName == "" {
+		return errors.New("group name is empty")
+	}
+
 	var gid int
 
 	group, lookupErr := user.LookupGroup(groupName)
