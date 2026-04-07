@@ -136,7 +136,7 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 	var overflowErr error
 	if T(0)-1 > 0 {
 		if negative {
-			return fmt.Errorf("%w: negative value not allowed", ErrSizeParse)
+			return fmt.Errorf("%w: negative value not allowed: %q", ErrSizeParse, string(originalText))
 		}
 		bitSize = 64
 		maxVal = math.MaxUint64

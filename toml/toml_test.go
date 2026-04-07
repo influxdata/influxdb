@@ -91,8 +91,8 @@ func TestSize_UnmarshalText(t *testing.T) {
 		{"suffix_only_k", "k", itoml.ErrSizeParse, "invalid size: missing numeric value before suffix k"},
 		{"suffix_only_m", "M", itoml.ErrSizeParse, "invalid size: missing numeric value before suffix M"},
 		{"suffix_only_g", "g", itoml.ErrSizeParse, "invalid size: missing numeric value before suffix g"},
-		{"negative", "-1", itoml.ErrSizeParse, "invalid size: negative value not allowed"},
-		{"negative_suffix", "-1m", itoml.ErrSizeParse, "invalid size: negative value not allowed"},
+		{"negative", "-1", itoml.ErrSizeParse, `invalid size: negative value not allowed: "-1"`},
+		{"negative_suffix", "-1m", itoml.ErrSizeParse, `invalid size: negative value not allowed: "-1m"`},
 		{"parse_overflow", "99999999999999999999", itoml.ErrSizeParse,
 			`invalid size: error parsing "99999999999999999999": strconv.ParseUint: parsing "99999999999999999999": value out of range`},
 	} {
