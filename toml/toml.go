@@ -589,6 +589,13 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		if len(value) == 0 {
 			return noResult, nil
 		}
+		// Base 0 lets the user pick the radix via prefix:
+		//   0x / 0X  -> hex
+		//   0o / 0O  -> octal
+		//   bare 0   -> octal (C-style; e.g., "010" is 8)
+		//   0b / 0B  -> binary
+		//   otherwise -> decimal
+		// This intentionally differs from TOML's stricter integer syntax.
 		intValue, err := strconv.ParseInt(value, 0, element.Type().Bits())
 		if err != nil {
 			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)
@@ -599,6 +606,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		if len(value) == 0 {
 			return noResult, nil
 		}
+		// See the int case above for the supported numeric prefixes.
 		intValue, err := strconv.ParseUint(value, 0, element.Type().Bits())
 		if err != nil {
 			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value '%v': %w", prefix, structKey, element.Type().String(), value, err)

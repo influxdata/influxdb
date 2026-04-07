@@ -1093,6 +1093,92 @@ func TestEnvOverride_Errors(t *testing.T) {
 	}
 }
 
+// TestEnvOverride_NumericPrefixes verifies that integer and unsigned-integer
+// env var values support C-style numeric prefixes via strconv.ParseInt/ParseUint
+// with base 0:
+//
+//   - 0x / 0X for hex
+//   - 0o / 0O for octal
+//   - bare 0 prefix for octal (e.g., "010" is 8)
+//   - 0b / 0B for binary
+//   - otherwise decimal
+//
+// This is intentionally more permissive than TOML's integer syntax.
+func TestEnvOverride_NumericPrefixes(t *testing.T) {
+	type config struct {
+		Int  int  `toml:"int"`
+		Uint uint `toml:"uint"`
+	}
+
+	for _, tc := range []struct {
+		name      string
+		envValue  string
+		wantInt   int
+		wantUint  uint
+		signedTC  bool // if true, only test the signed Int field (negative values)
+	}{
+		// Decimal
+		{name: "decimal", envValue: "42", wantInt: 42, wantUint: 42},
+		{name: "decimal_zero", envValue: "0", wantInt: 0, wantUint: 0},
+
+		// Hex (lower and upper case prefix)
+		{name: "hex_lower", envValue: "0x10", wantInt: 16, wantUint: 16},
+		{name: "hex_upper", envValue: "0X10", wantInt: 16, wantUint: 16},
+		{name: "hex_mixed_digits", envValue: "0xDeadBeef", wantInt: 0xDEADBEEF, wantUint: 0xDEADBEEF},
+
+		// Octal with explicit 0o prefix
+		{name: "octal_o_lower", envValue: "0o10", wantInt: 8, wantUint: 8},
+		{name: "octal_o_upper", envValue: "0O10", wantInt: 8, wantUint: 8},
+
+		// Octal with bare leading zero (C-style)
+		{name: "octal_bare", envValue: "010", wantInt: 8, wantUint: 8},
+		{name: "octal_bare_755", envValue: "0755", wantInt: 0755, wantUint: 0755},
+
+		// Binary
+		{name: "binary_lower", envValue: "0b1010", wantInt: 10, wantUint: 10},
+		{name: "binary_upper", envValue: "0B1010", wantInt: 10, wantUint: 10},
+
+		// Negative values (signed only — uint rejects negatives)
+		{name: "negative_decimal", envValue: "-42", wantInt: -42, signedTC: true},
+		{name: "negative_hex", envValue: "-0x10", wantInt: -16, signedTC: true},
+		{name: "negative_octal_bare", envValue: "-010", wantInt: -8, signedTC: true},
+		{name: "negative_binary", envValue: "-0b1010", wantInt: -10, signedTC: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Test Int field.
+			t.Run("int", func(t *testing.T) {
+				env := func(s string) string {
+					if s == "X_INT" {
+						return tc.envValue
+					}
+					return ""
+				}
+				var c config
+				_, err := itoml.ApplyEnvOverrides(env, "X", &c)
+				require.NoError(t, err)
+				require.Equal(t, tc.wantInt, c.Int)
+			})
+
+			// Test Uint field, skipping cases that target signed-only behavior.
+			if tc.signedTC {
+				return
+			}
+			t.Run("uint", func(t *testing.T) {
+				env := func(s string) string {
+					if s == "X_UINT" {
+						return tc.envValue
+					}
+					return ""
+				}
+				var c config
+				_, err := itoml.ApplyEnvOverrides(env, "X", &c)
+				require.NoError(t, err)
+				require.Equal(t, tc.wantUint, c.Uint)
+			})
+		})
+	}
+}
+
 func TestEnvOverride_FieldWithoutTomlTag(t *testing.T) {
 	// A field without a toml tag should be reachable by its field name,
 	// not by a trailing underscore in the env key.
