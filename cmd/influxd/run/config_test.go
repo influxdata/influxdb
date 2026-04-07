@@ -109,7 +109,7 @@ ciphers = ["cipher"]
 func TestConfig_Parse_EnvOverride(t *testing.T) {
 	// Parse configuration.
 	var c run.Config
-	if _, err := toml.Decode(`
+	_, err := toml.Decode(`
 [meta]
 dir = "/tmp/meta"
 
@@ -158,9 +158,8 @@ enabled = true
 
 [tls]
 min-version = "tls1.0"
-`, &c); err != nil {
-		t.Fatal(err)
-	}
+`, &c)
+	require.NoError(t, err)
 
 	getenv := func(s string) string {
 		switch s {
@@ -181,6 +180,9 @@ min-version = "tls1.0"
 		case "INFLUXDB_DATA_CACHE_MAX_MEMORY_SIZE":
 			// uint64 type
 			return "1000"
+		case "INFLUXDB_DATA_MAX_INDEX_LOG_FILE_SIZE":
+			// toml.Size (TextUnmarshaler) with size suffix
+			return "128k"
 		case "INFLUXDB_LOGGING_LEVEL":
 			// logging type
 			return "warn"
@@ -193,53 +195,26 @@ min-version = "tls1.0"
 		return ""
 	}
 
-	if _, err := c.ApplyEnvOverrides(getenv); err != nil {
-		t.Fatalf("failed to apply env overrides: %v", err)
-	}
+	_, err = c.ApplyEnvOverrides(getenv)
+	require.NoError(t, err)
 
-	if c.UDPInputs[0].BindAddress != ":5555" {
-		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
-	}
+	require.Equal(t, ":5555", c.UDPInputs[0].BindAddress)
+	require.Equal(t, ":1234", c.UDPInputs[1].BindAddress)
 
-	if c.UDPInputs[1].BindAddress != ":1234" {
-		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[1].BindAddress)
-	}
+	require.Equal(t, []string{"override.* .template.0"}, c.GraphiteInputs[0].Templates)
+	require.Len(t, c.GraphiteInputs[1].Templates, 2)
+	require.Equal(t, "override.* .template.1.2", c.GraphiteInputs[1].Templates[1])
+	require.Equal(t, "udp", c.GraphiteInputs[1].Protocol)
 
-	if len(c.GraphiteInputs[0].Templates) != 1 || c.GraphiteInputs[0].Templates[0] != "override.* .template.0" {
-		t.Fatalf("unexpected graphite 0 templates: %+v", c.GraphiteInputs[0].Templates)
-	}
+	require.Equal(t, ":1020", c.CollectdInputs[1].BindAddress)
+	require.Equal(t, ":2020", c.OpenTSDBInputs[0].BindAddress)
 
-	if len(c.GraphiteInputs[1].Templates) != 2 || c.GraphiteInputs[1].Templates[1] != "override.* .template.1.2" {
-		t.Fatalf("unexpected graphite 1 templates: %+v", c.GraphiteInputs[1].Templates)
-	}
+	require.Equal(t, influxtoml.Size(1000), c.Data.CacheMaxMemorySize)
+	require.Equal(t, influxtoml.Size(128*1024), c.Data.MaxIndexLogFileSize)
 
-	if c.GraphiteInputs[1].Protocol != "udp" {
-		t.Fatalf("unexpected graphite protocol: %s", c.GraphiteInputs[1].Protocol)
-	}
-
-	if c.CollectdInputs[1].BindAddress != ":1020" {
-		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
-	}
-
-	if c.OpenTSDBInputs[0].BindAddress != ":2020" {
-		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
-	}
-
-	if c.Data.CacheMaxMemorySize != 1000 {
-		t.Fatalf("unexpected cache max memory size: %v", c.Data.CacheMaxMemorySize)
-	}
-
-	if c.Logging.Level.Level() != zapcore.WarnLevel {
-		t.Fatalf("unexpected logging level: %v", c.Logging.Level)
-	}
-
-	if c.Coordinator.QueryTimeout != influxtoml.Duration(time.Minute) {
-		t.Fatalf("unexpected query timeout: %v", c.Coordinator.QueryTimeout)
-	}
-
-	if c.TLS.MinVersion != "tls1.2" {
-		t.Fatalf("unexpected tls min version: %q", c.TLS.MinVersion)
-	}
+	require.Equal(t, zapcore.WarnLevel, c.Logging.Level.Level())
+	require.Equal(t, influxtoml.Duration(time.Minute), c.Coordinator.QueryTimeout)
+	require.Equal(t, "tls1.2", c.TLS.MinVersion)
 }
 
 func TestConfig_ValidateNoServiceConfigured(t *testing.T) {
