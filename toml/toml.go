@@ -675,13 +675,18 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 					f.Set(reflect.New(f.Type().Elem()))
 				}
 				// If the element type implements Defaulter, seed the new element with its
-				// type-level defaults before applying any env vars. Built-in defaults are the
-				// weakest layer; unindexed env defaults override them, indexed env vars override
-				// those. ApplyDefaults is called on every probe iteration; the cost is negligible
-				// and the alternative (deferring until we know the element will be appended)
-				// would require re-running the unindexed default application after ApplyDefaults.
-				// For pointer slice elements (f is already a pointer), check the value directly;
-				// otherwise check the address.
+				// type-level defaults before applying any env vars. Precedence is:
+				// ApplyDefaults < unindexed env defaults < indexed env vars.
+				//
+				// Both ApplyDefaults and the unindexed env default below mutate f eagerly
+				// on every iteration, including the final probe iteration whose f is then
+				// discarded. The cost is negligible and the alternative — deferring both
+				// until we know the element will be appended — would require running them
+				// in the same dependency order on a fresh f after the indexed check, with
+				// no real benefit.
+				//
+				// For pointer slice elements (f is already a pointer), check the value
+				// directly; otherwise check the address.
 				var defaulter Defaulter
 				if f.Kind() == reflect.Pointer {
 					defaulter, _ = f.Interface().(Defaulter)
