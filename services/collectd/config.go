@@ -62,7 +62,7 @@ type Config struct {
 	BatchSize             int           `toml:"batch-size"`
 	BatchPending          int           `toml:"batch-pending"`
 	BatchDuration         toml.Duration `toml:"batch-timeout"`
-	ReadBuffer            int           `toml:"read-buffer"`
+	ReadBuffer            toml.SSize    `toml:"read-buffer"`
 	TypesDB               string        `toml:"typesdb"`
 	SecurityLevel         string        `toml:"security-level"`
 	AuthFile              string        `toml:"auth-file"`

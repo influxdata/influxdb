@@ -174,10 +174,10 @@ func (s *Service) Open() error {
 	}
 
 	if s.Config.ReadBuffer != 0 {
-		err = conn.SetReadBuffer(s.Config.ReadBuffer)
+		rbs := int(s.Config.ReadBuffer)
+		err = conn.SetReadBuffer(rbs)
 		if err != nil {
-			return fmt.Errorf("unable to set UDP read buffer to %d: %s",
-				s.Config.ReadBuffer, err)
+			return fmt.Errorf("unable to set UDP read buffer to %d: %s", rbs, err)
 		}
 	}
 	s.conn = conn

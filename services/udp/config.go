@@ -55,7 +55,7 @@ type Config struct {
 	RetentionPolicy string        `toml:"retention-policy"`
 	BatchSize       int           `toml:"batch-size"`
 	BatchPending    int           `toml:"batch-pending"`
-	ReadBuffer      int           `toml:"read-buffer"`
+	ReadBuffer      toml.SSize    `toml:"read-buffer"`
 	BatchTimeout    toml.Duration `toml:"batch-timeout"`
 	Precision       string        `toml:"precision"`
 	Writers         int           `toml:"writers"`
