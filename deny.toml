@@ -21,6 +21,33 @@ ignore = [
     # (requires CA compromise). Stuck on 0.102.x via wasmtime's rustls 0.22.x
     # dep in datafusion-udf-wasm. Upstream also ignores this advisory.
     "RUSTSEC-2026-0049",
+
+    # wasmtime 41.0.4 advisories (transitive dep via datafusion-udf-wasm)
+    #
+    # Wasm UDFs are disabled by default (udfs_enabled = false in iox_query config).
+    # The Wasm component model code path is never entered unless explicitly enabled.
+    # Additionally, none of the advisories match our runtime configuration:
+    #
+    # Winch compiler backend required (we use Cranelift, the default):
+    "RUSTSEC-2026-0086", # GHSA-m9w2-8782-2946: host data leakage with 64-bit tables and Winch
+    "RUSTSEC-2026-0089", # GHSA-q49f-xg75-m9xw: host panic on table.fill with Winch
+    "RUSTSEC-2026-0094", # GHSA-f984-pcp8-v2p7: improperly masked table.grow return with Winch
+    "RUSTSEC-2026-0095", # GHSA-xx5w-cvp6-jv83: Winch sandbox-escaping memory access
+    #
+    # Non-default runtime config required (we use defaults: spectre on, on-demand allocator):
+    "RUSTSEC-2026-0087", # GHSA-qqfj-4vcm-26hv: f64x2.splat segfault (requires signals-based-traps disabled)
+    "RUSTSEC-2026-0088", # GHSA-6wgr-89rj-399p: pooling allocator data leakage (requires pooling allocator)
+    "RUSTSEC-2026-0096", # GHSA-jhxm-h53p-jm7w: aarch64 sandbox escape (requires spectre mitigations disabled)
+    #
+    # Component model features we don't use (no flags types, no cross-component string passing):
+    "RUSTSEC-2026-0085", # GHSA-m758-wjhj-p3jq: panic lifting flags component value (no flags in our WIT)
+    "RUSTSEC-2026-0092", # GHSA-jxhv-7h78-9775: panic on misaligned UTF-16 strings (cross-component only)
+    "RUSTSEC-2026-0093", # GHSA-hx6p-xpx3-jvvv: heap OOB read in UTF-16 transcoding (cross-component only)
+    #
+    # Guest realloc validation (single-component host-guest interaction; low risk given UDFs are disabled):
+    "RUSTSEC-2026-0091", # GHSA-394w-hwhg-8vgm: OOB write from unvalidated guest realloc
+    #
+    # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=42.0.2)
 ]
 git-fetch-with-cli = true
 
