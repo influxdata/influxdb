@@ -609,6 +609,44 @@ enum Either<L, R> {
     Right(R),
 }
 
+/// Classify DataFusion errors into HTTP status codes.
+///
+/// Keep this as the single mapping point so new DataFusion variants can be
+/// added in one place.
+fn datafusion_error_status_code(err: &DataFusionError) -> StatusCode {
+    match err {
+        DataFusionError::Plan(_)
+        | DataFusionError::NotImplemented(_)
+        | DataFusionError::SQL(_, _) => StatusCode::BAD_REQUEST,
+        DataFusionError::Context(_, source) | DataFusionError::Diagnostic(_, source) => {
+            datafusion_error_status_code(source.as_ref())
+        }
+        DataFusionError::Shared(source) => datafusion_error_status_code(source.as_ref()),
+        DataFusionError::Collection(errors) => {
+            if errors
+                .iter()
+                .all(|error| datafusion_error_status_code(error) == StatusCode::BAD_REQUEST)
+            {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        }
+        DataFusionError::ArrowError(_, _)
+        | DataFusionError::ParquetError(_)
+        | DataFusionError::ObjectStore(_)
+        | DataFusionError::IoError(_)
+        | DataFusionError::Internal(_)
+        | DataFusionError::Configuration(_)
+        | DataFusionError::SchemaError(_, _)
+        | DataFusionError::Execution(_)
+        | DataFusionError::ExecutionJoin(_)
+        | DataFusionError::ResourcesExhausted(_)
+        | DataFusionError::External(_)
+        | DataFusionError::Substrait(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
 impl IntoResponse for CatalogError {
     fn into_response(self) -> Response {
         let resp_or_code: Either<Response, StatusCode> = match self {
@@ -673,6 +711,12 @@ impl IntoResponse for Error {
             Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => {
                 ResponseBuilder::new()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
+                    .body(bytes_to_response_body(err.to_string()))
+                    .unwrap()
+            }
+            Self::Query(QueryExecutorError::QueryPlanning(err)) | Self::Datafusion(err) => {
+                ResponseBuilder::new()
+                    .status(datafusion_error_status_code(&err))
                     .body(bytes_to_response_body(err.to_string()))
                     .unwrap()
             }
@@ -862,6 +906,13 @@ impl IntoResponse for Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
+            Self::InfluxqlRewrite(_)
+            | Self::InfluxqlSingleStatement
+            | Self::InfluxqlNoDatabase
+            | Self::InfluxqlDatabaseMismatch { .. } => ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
             Self::Authentication(_) => ResponseBuilder::new()
                 .status(StatusCode::UNAUTHORIZED)
                 .body(bytes_to_response_body("".to_string()))
@@ -882,7 +933,35 @@ impl IntoResponse for Error {
                 .status(StatusCode::NOT_FOUND)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            _ => ResponseBuilder::new()
+            Self::NoHandler
+            | Self::NonUtf8Body(_)
+            | Self::NonUtf8ContentEncodingHeader(_)
+            | Self::NonUtf8ContentTypeHeader(_)
+            | Self::ClientHangup(_)
+            | Self::RequestSizeExceeded(_)
+            | Self::InvalidGzip(_)
+            | Self::InvalidMimeType(_)
+            | Self::InvalidNamespaceName(_)
+            | Self::ParseLineProtocol(_)
+            | Self::RequestLimit
+            | Self::Unauthenticated
+            | Self::Forbidden
+            | Self::ServingHttp(_)
+            | Self::NonUtf8MimeType(_)
+            | Self::Arrow(_)
+            | Self::Hyper(_)
+            | Self::WriteBuffer(_)
+            | Self::Persister(_)
+            | Self::ToStr(_)
+            | Self::Influxdb3Write(_)
+            | Self::Io(_)
+            | Self::Query(_)
+            | Self::ObjectStore(_)
+            | Self::PythonPluginsNotEnabled
+            | Self::Plugin(_)
+            | Self::ProcessingEngine(_)
+            | Self::Influxdb3TypesHttp(_)
+            | Self::LegacyWriteParse(_) => ResponseBuilder::new()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
