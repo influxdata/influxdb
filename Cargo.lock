@@ -444,7 +444,7 @@ dependencies = [
 
 [[package]]
 name = "arrow_util"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "ahash 0.8.12",
  "arrow",
@@ -541,7 +541,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "authz"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -655,7 +655,7 @@ dependencies = [
 
 [[package]]
 name = "backoff"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "rand 0.9.2",
  "snafu 0.9.0",
@@ -1069,7 +1069,7 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "catalog_cache"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "bytes",
  "criterion 0.8.2",
@@ -1207,7 +1207,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client_util"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "http 1.4.0",
  "iox_http_util",
@@ -1785,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "data_types"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -2518,7 +2518,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion_util"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -2602,7 +2602,7 @@ dependencies = [
 
 [[package]]
 name = "dml"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow_util",
  "data_types",
@@ -2714,7 +2714,7 @@ dependencies = [
 
 [[package]]
 name = "error_reporting"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "datafusion",
  "snafu 0.9.0",
@@ -2744,7 +2744,7 @@ dependencies = [
 
 [[package]]
 name = "executor"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "futures",
  "metric",
@@ -2825,7 +2825,7 @@ dependencies = [
 
 [[package]]
 name = "flightsql"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -3032,7 +3032,7 @@ dependencies = [
 
 [[package]]
 name = "futures_test_utils"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "clap",
  "futures",
@@ -3043,7 +3043,7 @@ dependencies = [
 
 [[package]]
 name = "generated_types"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "bytes",
  "pbjson",
@@ -3692,7 +3692,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb2_client"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "bytes",
  "futures",
@@ -3711,7 +3711,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3801,7 +3801,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_authz"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "authz",
@@ -3818,7 +3818,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_cache"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3853,7 +3853,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_catalog"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3905,7 +3905,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_clap_blocks"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3942,7 +3942,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_client"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "bytes",
  "hashbrown 0.14.5",
@@ -3962,7 +3962,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_commands"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -3981,7 +3981,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_id"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "indexmap 2.13.0",
  "serde",
@@ -3991,7 +3991,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_internal_api"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4012,7 +4012,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_load_generator"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -4041,7 +4041,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_process"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "iox_time",
  "uuid",
@@ -4049,7 +4049,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_processing_engine"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4093,7 +4093,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_py_api"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -4121,7 +4121,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_query_executor"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4171,7 +4171,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_server"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4254,7 +4254,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_shutdown"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "futures",
  "futures-util",
@@ -4269,14 +4269,14 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_startup"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "chrono",
 ]
 
 [[package]]
 name = "influxdb3_sys_events"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4295,7 +4295,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_system_tables"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4327,7 +4327,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_telemetry"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "futures",
  "futures-util",
@@ -4348,7 +4348,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_test_helpers"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4361,7 +4361,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_types"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4381,7 +4381,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_wal"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "bitcode",
@@ -4409,7 +4409,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_write"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4478,7 +4478,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb_influxql_parser"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "assert_matches",
  "chrono",
@@ -4495,7 +4495,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb_iox_client"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -4524,7 +4524,7 @@ dependencies = [
 
 [[package]]
 name = "ingester_query_grpc"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "base64 0.22.1",
  "data_types",
@@ -4581,7 +4581,7 @@ checksum = "06432fb54d3be7964ecd3649233cddf80db2832f47fec34c01f65b3d9d774983"
 
 [[package]]
 name = "iox_http"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -4601,7 +4601,7 @@ dependencies = [
 
 [[package]]
 name = "iox_http_util"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "futures",
  "http 1.4.0",
@@ -4612,7 +4612,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -4661,7 +4661,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -4688,7 +4688,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql_rewrite"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "influxdb_influxql_parser",
  "thiserror 2.0.18",
@@ -4696,7 +4696,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_params"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -4710,7 +4710,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_udf"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "datafusion-udf-wasm-host",
  "datafusion-udf-wasm-query",
@@ -4721,7 +4721,7 @@ dependencies = [
 
 [[package]]
 name = "iox_system_tables"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "async-trait",
@@ -4731,7 +4731,7 @@ dependencies = [
 
 [[package]]
 name = "iox_time"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -4740,7 +4740,7 @@ dependencies = [
 
 [[package]]
 name = "iox_v1_query_api"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4854,7 +4854,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jemalloc_stats"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "snafu 0.9.0",
  "tikv-jemalloc-ctl",
@@ -4999,7 +4999,7 @@ dependencies = [
 
 [[package]]
 name = "linear_buffer"
-version = "3.9.0"
+version = "3.9.1"
 
 [[package]]
 name = "linux-raw-sys"
@@ -5043,7 +5043,7 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "logfmt"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "humantime",
  "parking_lot",
@@ -5151,14 +5151,14 @@ dependencies = [
 
 [[package]]
 name = "metric"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "parking_lot",
 ]
 
 [[package]]
 name = "metric_exporters"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "metric",
  "mockito",
@@ -5283,7 +5283,7 @@ checksum = "9252111cf132ba0929b6f8e030cac2a24b507f3a4d6db6fb2896f27b354c714b"
 
 [[package]]
 name = "mutable_batch"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -5301,7 +5301,7 @@ dependencies = [
 
 [[package]]
 name = "mutable_batch_lp"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow_util",
  "assert_matches",
@@ -5317,7 +5317,7 @@ dependencies = [
 
 [[package]]
 name = "mutable_batch_pb"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow_util",
  "criterion 0.8.2",
@@ -5555,7 +5555,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_limit"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5567,7 +5567,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_mem_cache"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "bincode",
@@ -5594,7 +5594,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_metrics"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "bloom2",
@@ -5619,7 +5619,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_mock"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5633,7 +5633,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_size_hinting"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "chrono",
  "http 1.4.0",
@@ -5643,7 +5643,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_utils"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "backon",
@@ -5656,7 +5656,7 @@ dependencies = [
 
 [[package]]
 name = "observability_deps"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "tracing",
 ]
@@ -5721,7 +5721,7 @@ dependencies = [
 
 [[package]]
 name = "panic_logging"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "metric",
  "test_helpers",
@@ -5796,7 +5796,7 @@ dependencies = [
 
 [[package]]
 name = "parquet_file"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -5825,7 +5825,7 @@ dependencies = [
 
 [[package]]
 name = "partition"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -6122,7 +6122,7 @@ dependencies = [
 
 [[package]]
 name = "predicate"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "async-trait",
@@ -6468,7 +6468,7 @@ dependencies = [
 
 [[package]]
 name = "query_functions"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "chrono",
@@ -7151,7 +7151,7 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "base64 0.22.1",
@@ -7334,7 +7334,7 @@ dependencies = [
 
 [[package]]
 name = "service_common"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -7348,7 +7348,7 @@ dependencies = [
 
 [[package]]
 name = "service_grpc_flight"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -7415,7 +7415,7 @@ dependencies = [
 
 [[package]]
 name = "sharder"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "criterion 0.8.2",
  "data_types",
@@ -7937,7 +7937,7 @@ dependencies = [
 
 [[package]]
 name = "table_batch"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "arrow_util",
  "bitvec",
@@ -8023,7 +8023,7 @@ dependencies = [
 
 [[package]]
 name = "test_helpers"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "dotenvy",
@@ -8042,7 +8042,7 @@ dependencies = [
 
 [[package]]
 name = "test_helpers_authz"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "futures",
  "generated_types",
@@ -8315,7 +8315,7 @@ dependencies = [
 
 [[package]]
 name = "tokio_metrics_bridge"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "metric",
  "parking_lot",
@@ -8324,7 +8324,7 @@ dependencies = [
 
 [[package]]
 name = "tokio_watchdog"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "metric",
  "test_helpers",
@@ -8547,7 +8547,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tower_trailer"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "futures",
  "http 1.4.0",
@@ -8559,7 +8559,7 @@ dependencies = [
 
 [[package]]
 name = "trace"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -8569,7 +8569,7 @@ dependencies = [
 
 [[package]]
 name = "trace_exporters"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -8586,7 +8586,7 @@ dependencies = [
 
 [[package]]
 name = "trace_http"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "bytes",
  "futures",
@@ -8681,7 +8681,7 @@ dependencies = [
 
 [[package]]
 name = "tracker"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "futures",
  "hashbrown 0.14.5",
@@ -8701,7 +8701,7 @@ dependencies = [
 
 [[package]]
 name = "trogging"
-version = "3.9.0"
+version = "3.9.1"
 dependencies = [
  "clap",
  "logfmt",
