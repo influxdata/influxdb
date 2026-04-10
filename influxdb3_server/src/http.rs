@@ -484,7 +484,7 @@ impl V2WriteApiError {
                 | CatalogError::ReservedColumn(_)
                 | CatalogError::TooManyColumns(_)
                 | CatalogError::TooManyTagColumns(_)
-                | CatalogError::TooManyTables(_)
+                | CatalogError::TooManyTables { .. }
                 | CatalogError::TooManyDbs(_)
                 | CatalogError::TooManyFields { .. }
                 | CatalogError::FieldTypeMismatch { .. }
@@ -622,7 +622,7 @@ impl IntoResponse for CatalogError {
             | Self::InvalidColumnType { .. }
             | Self::NodeAlreadyStopped { .. } => Either::Right(StatusCode::BAD_REQUEST),
             Self::TooManyColumns(_)
-            | Self::TooManyTables(_)
+            | Self::TooManyTables { .. }
             | Self::TooManyDbs(_)
             | Self::TooManyTagColumns(_)
             | Self::TooManyFields { .. } => {

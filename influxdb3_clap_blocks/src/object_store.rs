@@ -562,7 +562,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "aws-credentials-file"),
                     long = gen_name!($prefix, "aws-credentials-file"),
-                    env = gen_name!($prefix, "AWS_CREDENTIALS_FILE"),
+                    env = gen_env!($prefix, "AWS_CREDENTIALS_FILE"),
                     action
                 )]
                 pub aws_credentials_file: Option<String>,
@@ -633,12 +633,17 @@ macro_rules! object_store_config_inner {
                 )]
                 pub azure_allow_http: bool,
 
-                /// When using a network-based object store, limit the number of connection to this value.
+                /// When using a network-based object store, limit the number of concurrent
+                /// object store operations to this value.
+                ///
+                /// This is a semaphore shared by all subsystems. Setting this too
+                /// low can cause performance degradation due to contention between
+                /// unrelated operations.
                 #[clap(
                     id = gen_name!($prefix, "object-store-connection-limit"),
                     long = gen_name!($prefix, "object-store-connection-limit"),
-                    env = gen_env!($prefix, "OBJECT_STORE_CONNECTION_LIMIT"),
-                    default_value = "16",
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_CONNECTION_LIMIT"),
+                    default_value = "64",
                     action
                 )]
                 pub object_store_connection_limit: NonZeroUsize,
@@ -649,7 +654,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-http2-only"),
                     long = gen_name!($prefix, "object-store-http2-only"),
-                    env = gen_env!($prefix, "OBJECT_STORE_HTTP2_ONLY"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_HTTP2_ONLY"),
                     action
                 )]
                 pub http2_only: bool,
@@ -664,7 +669,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-http2-max-frame-size"),
                     long = gen_name!($prefix, "object-store-http2-max-frame-size"),
-                    env = gen_env!($prefix, "OBJECT_STORE_HTTP2_MAX_FRAME_SIZE"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_HTTP2_MAX_FRAME_SIZE"),
                     action
                 )]
                 pub http2_max_frame_size: Option<u32>,
@@ -673,7 +678,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-request-timeout"),
                     long = gen_name!($prefix, "object-store-request-timeout"),
-                    env = gen_env!($prefix, "OBJECT_STORE_REQUEST_TIMEOUT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_REQUEST_TIMEOUT"),
                     value_parser = humantime::parse_duration,
                     default_value = "30s",
                     action
@@ -686,7 +691,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-max-retries"),
                     long = gen_name!($prefix, "object-store-max-retries"),
-                    env = gen_env!($prefix, "OBJECT_STORE_MAX_RETRIES"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_MAX_RETRIES"),
                     action
                 )]
                 pub max_retries: Option<usize>,
@@ -705,7 +710,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-retry-timeout"),
                     long = gen_name!($prefix, "object-store-retry-timeout"),
-                    env = gen_env!($prefix, "OBJECT_STORE_RETRY_TIMEOUT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_RETRY_TIMEOUT"),
                     value_parser = humantime::parse_duration,
                     action
                 )]
@@ -716,7 +721,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-cache-endpoint"),
                     long = gen_name!($prefix, "object-store-cache-endpoint"),
-                    env = gen_env!($prefix, "OBJECT_STORE_CACHE_ENDPOINT"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT"),
                     action
                 )]
                 pub cache_endpoint: Option<Endpoint>,
@@ -726,7 +731,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-tls-allow-insecure"),
                     long = gen_name!($prefix, "object-store-tls-allow-insecure"),
-                    env = gen_env!($prefix, "OBJECT_STORE_TLS_ALLOW_INSECURE"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE"),
                     action
                 )]
                 pub tls_allow_insecure: bool,
@@ -736,7 +741,7 @@ macro_rules! object_store_config_inner {
                 #[clap(
                     id = gen_name!($prefix, "object-store-tls-ca"),
                     long = gen_name!($prefix, "object-store-tls-ca"),
-                    env = gen_env!($prefix, "OBJECT_STORE_TLS_CA"),
+                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_TLS_CA"),
                     action
                 )]
                 pub tls_ca_path: Option<PathBuf>,
@@ -774,7 +779,7 @@ macro_rules! object_store_config_inner {
                         database_directory,
                         google_service_account: Default::default(),
                         object_store,
-                        object_store_connection_limit: NonZeroUsize::new(16).unwrap(),
+                        object_store_connection_limit: NonZeroUsize::new(64).unwrap(),
                         request_timeout: Duration::from_secs(30),
                         http2_only: Default::default(),
                         http2_max_frame_size: Default::default(),
@@ -825,9 +830,11 @@ macro_rules! object_store_config_inner {
                 }
 
                 #[cfg(feature = "gcp")]
-                fn new_gcs(&self) -> Result<Arc<DynObjectStore>, ParseError> {
+                fn new_gcs(
+                    &self,
+                    semaphore_metrics: &Arc<tracker::AsyncSemaphoreMetrics>,
+                ) -> Result<object_store_limit::LimitObjectStore, ParseError> {
                     use object_store::gcp::GoogleCloudStorageBuilder;
-                    use object_store::limit::LimitStore;
 
                     info!(bucket=?self.bucket, object_store_type="GCS", "Object Store");
 
@@ -840,21 +847,26 @@ macro_rules! object_store_config_inner {
                         builder = builder.with_service_account_path(account);
                     }
 
-                    Ok(Arc::new(LimitStore::new(
-                        builder.build().context(InvalidGCSConfigSnafu)?,
+                    Ok(object_store_limit::LimitObjectStore::new(
+                        Arc::new(builder.build().context(InvalidGCSConfigSnafu)?),
                         self.object_store_connection_limit.get(),
-                    )))
+                        semaphore_metrics,
+                    ))
                 }
 
                 #[cfg(not(feature = "gcp"))]
-                fn new_gcs(&self) -> Result<Arc<DynObjectStore>, ParseError> {
+                fn new_gcs(
+                    &self,
+                    _semaphore_metrics: &Arc<tracker::AsyncSemaphoreMetrics>,
+                ) -> Result<object_store_limit::LimitObjectStore, ParseError> {
                     panic!("GCS support not enabled, recompile with the gcp feature enabled")
                 }
 
                 #[cfg(feature = "aws")]
-                fn new_s3(&self) -> Result<Arc<DynObjectStore>, ParseError> {
-                    use object_store::limit::LimitStore;
-
+                fn new_s3(
+                    &self,
+                    semaphore_metrics: &Arc<tracker::AsyncSemaphoreMetrics>,
+                ) -> Result<object_store_limit::LimitObjectStore, ParseError> {
                     info!(
                         bucket=?self.bucket,
                         endpoint=?self.aws_endpoint,
@@ -862,10 +874,11 @@ macro_rules! object_store_config_inner {
                         "Object Store"
                     );
 
-                    Ok(Arc::new(LimitStore::new(
-                        self.build_s3()?,
+                    Ok(object_store_limit::LimitObjectStore::new(
+                        Arc::new(self.build_s3()?),
                         self.object_store_connection_limit.get(),
-                    )))
+                        semaphore_metrics,
+                    ))
                 }
 
                 #[cfg(any(feature = "aws", feature = "azure", feature = "gcp"))]
@@ -952,14 +965,19 @@ macro_rules! object_store_config_inner {
                 }
 
                 #[cfg(not(feature = "aws"))]
-                fn new_s3(&self) -> Result<Arc<DynObjectStore>, ParseError> {
+                fn new_s3(
+                    &self,
+                    _semaphore_metrics: &Arc<tracker::AsyncSemaphoreMetrics>,
+                ) -> Result<object_store_limit::LimitObjectStore, ParseError> {
                     panic!("S3 support not enabled, recompile with the aws feature enabled")
                 }
 
                 #[cfg(feature = "azure")]
-                fn new_azure(&self) -> Result<Arc<DynObjectStore>, ParseError> {
+                fn new_azure(
+                    &self,
+                    semaphore_metrics: &Arc<tracker::AsyncSemaphoreMetrics>,
+                ) -> Result<object_store_limit::LimitObjectStore, ParseError> {
                     use object_store::azure::MicrosoftAzureBuilder;
-                    use object_store::limit::LimitStore;
 
                     info!(bucket=?self.bucket, account=?self.azure_storage_account,
                           endpoint=?self.azure_endpoint, object_store_type="Azure", "Object Store");
@@ -982,14 +1000,18 @@ macro_rules! object_store_config_inner {
                         builder = builder.with_endpoint(endpoint.to_string());
                     }
 
-                    Ok(Arc::new(LimitStore::new(
-                        builder.build().context(InvalidAzureConfigSnafu)?,
+                    Ok(object_store_limit::LimitObjectStore::new(
+                        Arc::new(builder.build().context(InvalidAzureConfigSnafu)?),
                         self.object_store_connection_limit.get(),
-                    )))
+                        semaphore_metrics,
+                    ))
                 }
 
                 #[cfg(not(feature = "azure"))]
-                fn new_azure(&self) -> Result<Arc<DynObjectStore>, ParseError> {
+                fn new_azure(
+                    &self,
+                    _semaphore_metrics: &Arc<tracker::AsyncSemaphoreMetrics>,
+                ) -> Result<object_store_limit::LimitObjectStore, ParseError> {
                     panic!("Azure blob storage support not enabled, recompile with the azure feature enabled")
                 }
 
@@ -1037,7 +1059,32 @@ macro_rules! object_store_config_inner {
                 }
 
                 /// Create config-dependant object store.
+                ///
+                /// Semaphore metrics are not registered with any metric registry.
+                /// Use [`Self::make_object_store_with_metrics`] to register them.
                 pub fn make_object_store(&self) -> Result<Arc<DynObjectStore>, ParseError> {
+                    let metrics = Arc::new(tracker::AsyncSemaphoreMetrics::new_unregistered());
+                    self.make_object_store_inner(&metrics)
+                }
+
+                /// Create the object store with semaphore metrics registered in the
+                /// provided [`metric::Registry`] under the `"object_store_limit"`
+                /// semaphore attribute.
+                pub fn make_object_store_with_metrics(
+                    &self,
+                    registry: &metric::Registry,
+                ) -> Result<Arc<DynObjectStore>, ParseError> {
+                    let metrics = Arc::new(tracker::AsyncSemaphoreMetrics::new(
+                        registry,
+                        &[("semaphore", "object_store_limit")],
+                    ));
+                    self.make_object_store_inner(&metrics)
+                }
+
+                fn make_object_store_inner(
+                    &self,
+                    semaphore_metrics: &Arc<tracker::AsyncSemaphoreMetrics>,
+                ) -> Result<Arc<DynObjectStore>, ParseError> {
                     if let Some(data_dir) = &self.database_directory {
                         if !matches!(&self.object_store, ObjectStoreType::File) {
                             warn!(?data_dir, object_store_type=?self.object_store,
@@ -1045,7 +1092,7 @@ macro_rules! object_store_config_inner {
                         }
                     }
 
-                    let object_store: Arc<DynObjectStore> = match &self.object_store {
+                    let store: Arc<DynObjectStore> = match &self.object_store {
                         ObjectStoreType::Memory => {
                             info!(object_store_type = "Memory", "Object Store");
                             Arc::new(InMemory::new())
@@ -1070,14 +1117,19 @@ macro_rules! object_store_config_inner {
                             info!(?config, object_store_type = "Memory", "Object Store");
                             Arc::new(ThrottledStore::new(InMemory::new(), config))
                         }
-
-                        ObjectStoreType::Google => self.new_gcs()?,
-                        ObjectStoreType::S3 => self.new_s3()?,
-                        ObjectStoreType::Azure => self.new_azure()?,
+                        ObjectStoreType::Google => {
+                            Arc::new(self.new_gcs(semaphore_metrics)?)
+                        }
+                        ObjectStoreType::S3 => {
+                            Arc::new(self.new_s3(semaphore_metrics)?)
+                        }
+                        ObjectStoreType::Azure => {
+                            Arc::new(self.new_azure(semaphore_metrics)?)
+                        }
                         ObjectStoreType::File => self.new_local_file_system()?,
                     };
 
-                    Ok(object_store)
+                    Ok(store)
                 }
 
                 fn new_local_file_system(&self) -> Result<Arc<LocalFileSystemWithSortedListOp>, ParseError> {

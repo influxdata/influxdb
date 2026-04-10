@@ -782,7 +782,10 @@ impl DatabaseCatalogTransaction {
             Some(def) => Ok(def),
             None => {
                 if self.current_table_count >= self.table_limit {
-                    return Err(CatalogError::TooManyTables(self.table_limit));
+                    return Err(CatalogError::TooManyTables {
+                        current: self.current_table_count,
+                        limit: self.table_limit,
+                    });
                 }
                 let database_id = self.database_schema.id;
                 let database_name = Arc::clone(&self.database_schema.name);
@@ -873,7 +876,10 @@ impl DatabaseCatalogTransaction {
             return Err(CatalogError::AlreadyExists);
         }
         if self.current_table_count >= self.table_limit {
-            return Err(CatalogError::TooManyTables(self.table_limit));
+            return Err(CatalogError::TooManyTables {
+                current: self.current_table_count,
+                limit: self.table_limit,
+            });
         }
         if tags.len() > NUM_TAG_COLUMNS_LIMIT {
             return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));

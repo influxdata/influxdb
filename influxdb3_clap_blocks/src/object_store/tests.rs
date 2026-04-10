@@ -107,7 +107,7 @@ fn valid_s3_config() {
         let object_store = config.make_object_store().unwrap();
         assert_eq!(
             &object_store.to_string(),
-            "LimitStore(16, AmazonS3(mybucket))"
+            "LimitObjectStore(64, AmazonS3(mybucket))"
         )
     }
 }
@@ -253,7 +253,7 @@ fn valid_google_config() {
         let object_store = config.make_object_store().unwrap();
         assert_eq!(
             &object_store.to_string(),
-            "LimitStore(16, GoogleCloudStorage(mybucket))"
+            "LimitObjectStore(64, GoogleCloudStorage(mybucket))"
         )
     }
 }
@@ -294,7 +294,7 @@ fn valid_azure_config() {
     let object_store = config.make_object_store().unwrap();
     assert_eq!(
         &object_store.to_string(),
-        "LimitStore(16, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })"
+        "LimitObjectStore(64, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })"
     )
 }
 
@@ -959,23 +959,23 @@ fn test_tls_environment_variables() {
     unsafe {
         // Test environment variable for allow-insecure
         // Boolean flags need explicit true/false values when set via environment variable
-        env::set_var("OBJECT_STORE_TLS_ALLOW_INSECURE", "true");
+        env::set_var("INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE", "true");
         let config = ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
         assert!(config.tls_allow_insecure);
-        env::remove_var("OBJECT_STORE_TLS_ALLOW_INSECURE");
+        env::remove_var("INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE");
 
         // Test that the flag is false when env var is not set
         let config = ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
         assert!(!config.tls_allow_insecure);
 
         // Test environment variable for CA path
-        env::set_var("OBJECT_STORE_TLS_CA", "/env/ca.pem");
+        env::set_var("INFLUXDB3_OBJECT_STORE_TLS_CA", "/env/ca.pem");
         let config = ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
         assert_eq!(config.tls_ca_path, Some(PathBuf::from("/env/ca.pem")));
-        env::remove_var("OBJECT_STORE_TLS_CA");
+        env::remove_var("INFLUXDB3_OBJECT_STORE_TLS_CA");
 
         // Test CLI args override environment variables
-        env::set_var("OBJECT_STORE_TLS_CA", "/env/ca.pem");
+        env::set_var("INFLUXDB3_OBJECT_STORE_TLS_CA", "/env/ca.pem");
         let config = ObjectStoreConfig::try_parse_from([
             "server",
             "--object-store",
@@ -985,6 +985,6 @@ fn test_tls_environment_variables() {
         ])
         .unwrap();
         assert_eq!(config.tls_ca_path, Some(PathBuf::from("/cli/ca.pem")));
-        env::remove_var("OBJECT_STORE_TLS_CA");
+        env::remove_var("INFLUXDB3_OBJECT_STORE_TLS_CA");
     }
 }
