@@ -1,13 +1,18 @@
+# InfluxDB 3 Core
+
 <div align="center">
  <picture>
     <source media="(prefers-color-scheme: light)" srcset="assets/influxdb-logo.png">
     <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
-    <img src="assets/influxdb-logo.png" alt="InfluxDB Logo" width="600">
+    <img src="assets/influxdb-logo.png" alt="InfluxDB 3 Core" width="600">
   </picture>
- <p>
+ <p>Open source time series database for real-time events, analytics, and monitoring--powered by Apache Arrow, DataFusion, and Parquet.</p>
+
+  [![License: MIT/Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
+  [![Discord](https://img.shields.io/badge/Discord-join_chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/vZe2w2Ds8B)
 </div>
 
-InfluxDB Core is a database built to collect, process, transform, and store event and time series data. It is ideal for use cases that require real-time ingest and fast query response times to build user interfaces, monitoring, and automation solutions.
+InfluxDB 3 Core is a database built to collect, process, transform, and store event and time series data. It is ideal for use cases that require real-time ingest and fast query response times to build user interfaces, monitoring, and automation solutions.
 
 Common use cases include:
 
@@ -28,40 +33,49 @@ InfluxDB 3 Core’s feature highlights include:
 - Embedded Python VM for plugins and triggers
 - Parquet file persistence
 - Compatibility with InfluxDB 1.x and 2.x write APIs
-- Compatability with InfluxDB 1.x query API (InfluxQL)
+- Compatibility with InfluxDB 1.x query API (InfluxQL)
 - SQL query engine with support for FlightSQL and HTTP query API
+
+**Storage format:** Apache Parquet on object storage (S3, Azure, GCP) or local disk\
+**Query languages:** SQL, InfluxQL, Flight SQL\
+**Write format:** Line protocol\
+**API:** HTTP on port 8181\
+**Built with:** Rust, Apache Arrow, DataFusion\
+**Compatible with:** InfluxDB 1.x and 2.x write APIs, InfluxDB 1.x query API (InfluxQL)
+
+## Other InfluxDB Versions
+
+This repository contains multiple InfluxDB versions on separate branches:
+
+| Version | Branch | Query Languages | Documentation |
+|---------|--------|-----------------|---------------|
+| **v3 Core (this branch)** | [`main`](https://github.com/influxdata/influxdb/tree/main) | SQL, InfluxQL | [docs.influxdata.com/influxdb3/core/](https://docs.influxdata.com/influxdb3/core/) |
+| v2.x | [`main-2.x`](https://github.com/influxdata/influxdb/tree/main-2.x) | Flux, InfluxQL | [docs.influxdata.com/influxdb/v2/](https://docs.influxdata.com/influxdb/v2/) |
+| v1.x | [`master-1.x`](https://github.com/influxdata/influxdb/tree/master-1.x) | InfluxQL, Flux | [docs.influxdata.com/influxdb/v1/](https://docs.influxdata.com/influxdb/v1/) |
 
 ## Project Status
 
-InfluxDB 3 Core is GA as of April 15, 2025! We plan to have monthly point releases for the following six months, with patch releases as needed. We will move to a quarterly cadence after that for 3-4 releases, after which we'll reevaluate our release schedule.
+InfluxDB 3 Core has been [generally available since April 2025](https://www.influxdata.com/blog/influxdb-3-oss-ga/). See [`v3.*` tags](https://github.com/influxdata/influxdb/tags) and [release notes](https://docs.influxdata.com/influxdb3/core/release-notes/) for the latest version.
 
-Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) 
-or the public channels below to share your feedback, feature requests, and bug reports.
-
-See the [InfluxDB 3 Core & Enterprise GA release announcement here](https://www.influxdata.com/blog/influxdb-3-oss-ga/) 
-or dig into the [InfluxDB 3 getting started guide here](https://docs.influxdata.com/influxdb3/core/get-started/).
-
-## Learn InfluxDB
-[Documentation](https://docs.influxdata.com/) | [Community Forum](https://community.influxdata.com/) | [Community Slack](https://www.influxdata.com/slack/) | [Blog](https://www.influxdata.com/blog/) | [InfluxDB University](https://university.influxdata.com/) | [YouTube](https://www.youtube.com/@influxdata8893)
-
-Try **InfluxDB Cloud** for free and get started fast with no local setup required. Click [here](https://cloud2.influxdata.com/signup) to start building your application on InfluxDB Cloud.
-
+Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) or the public channels below to share your feedback, feature requests, and bug reports.
 
 ## Installation
-We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available on the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the InfluxDB command line interface (CLI) client as a separate binary available at the same location.
+Docker images, Debian packages, RPM packages, and tarballs are available on the [InfluxData downloads page](https://portal.influxdata.com/downloads/).
 
-- For v1 installation, use the [main 1.x branch](https://github.com/influxdata/influxdb/tree/master-1.x) or [install InfluxDB OSS directly](https://docs.influxdata.com/influxdb/v1/introduction/install/#installing-influxdb-oss).
-- For v2 installation, use the [main 2.x branch](https://github.com/influxdata/influxdb/tree/main-2.x).
-- For InfluxDB 3 Core see the [InfluxDB 3 Core getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
-- For InfluxDB 3 Enterprise see the [InfluxDB 3 Enterprise getting started guide](https://docs.influxdata.com/influxdb3/enterprise/get-started/).
+- For InfluxDB 3 Core, see the [getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
+- For InfluxDB 3 Enterprise, see the [getting started guide](https://docs.influxdata.com/influxdb3/enterprise/get-started/).
+- For v2.x, see the [`main-2.x` branch](https://github.com/influxdata/influxdb/tree/main-2.x).
+- For v1.x, see the [`master-1.x` branch](https://github.com/influxdata/influxdb/tree/master-1.x).
 
 If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
-To begin using InfluxDB, visit our [Getting Started with InfluxDB](https://docs.influxdata.com/influxdb/v1/introduction/get-started/) documentation.
 
+## Support
+
+For community support and feedback channels, see [Bug reports and feedback](https://docs.influxdata.com/influxdb3/core/#bug-reports-and-feedback).
 
 ## License
-The open source software we build is licensed under the permissive MIT or Apache 2 licenses at the user's choosing. We’ve long held the view that our open source code should be truly open and our commercial code should be separate and closed. 
+The open source software we build is licensed under the permissive MIT or Apache 2 licenses at the user’s choosing. We’ve long held the view that our open source code should be truly open and our commercial code should be separate and closed.
 
 
 ## Interested in joining the team building InfluxDB?
