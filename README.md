@@ -6,7 +6,7 @@
     <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
     <img src="assets/influxdb-logo.png" alt="InfluxDB 3 Core" width="600">
   </picture>
- <p>Open source time series database for real-time events, analytics, and monitoring — powered by Apache Arrow, DataFusion, and Parquet.</p>
+ <p>Open source time series database for real-time events, analytics, and monitoring--powered by Apache Arrow, DataFusion, and Parquet.</p>
 
   [![License: MIT/Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
   [![Discord](https://img.shields.io/badge/Discord-join_chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/vZe2w2Ds8B)
