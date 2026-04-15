@@ -462,7 +462,7 @@ func VerifyDefaulters(cfg interface{}) error {
 				if !ptrType.Implements(defaulterType) {
 					violations = append(violations, fmt.Sprintf(
 						"%s: slice element type %s must implement toml.Defaulter (add ApplyDefaults() method on *%s)",
-						path, elem, elem))
+						path, elem, ptrType))
 				}
 			}
 			walk(elem, path+"[]")
