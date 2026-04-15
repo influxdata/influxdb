@@ -122,7 +122,7 @@ func (cmd *Command) logEnvVarDiagnostics(log *zap.Logger, appliedEnvVars []strin
 	log.Info("applied env var overrides",
 		zap.String("prefix", EnvVarPrefix),
 		zap.Strings("vars", appliedEnvVars))
-	log.Info("unmatched env vars in namespace; may be misspelled, unsupported by env var overrides, or removed in this version",
+	log.Warn("unmatched env vars in namespace; may be misspelled, unsupported by env var overrides, or removed in this version",
 		zap.String("prefix", EnvVarPrefix),
 		zap.Strings("vars", unmatched))
 }
