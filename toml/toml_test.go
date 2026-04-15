@@ -1247,11 +1247,11 @@ func TestEnvOverride_NumericPrefixes(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name      string
-		envValue  string
-		wantInt   int
-		wantUint  uint
-		signedTC  bool // if true, only test the signed Int field (negative values)
+		name     string
+		envValue string
+		wantInt  int
+		wantUint uint
+		signedTC bool // if true, only test the signed Int field (negative values)
 	}{
 		// Decimal
 		{name: "decimal", envValue: "42", wantInt: 42, wantUint: 42},
@@ -1721,9 +1721,9 @@ func TestEnvOverride_NilPointerToStructSkipped(t *testing.T) {
 }
 
 func TestEnvOverride_FalseGrowFromDefault(t *testing.T) {
-	// Verify correct when result when there is a false slice grow
-	// from a default enviroment variable, but no realy one from an
-	// indexed environemtn variable.
+	// Verify correct when result when there is a false slice growth
+	// from a default enviroment variable, but not one from an
+	// indexed environment variable.
 	type configSub struct {
 		A string `toml:"a"`
 		B string `toml:"b"`
