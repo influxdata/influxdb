@@ -52,6 +52,11 @@ type Command struct {
 
 	// How to get environment variables. Normally set to os.Getenv, except for tests.
 	Getenv func(string) string
+
+	// How to list the full process environment. Normally set to os.Environ,
+	// except for tests. Used by logEnvVarDiagnostics to detect env vars in the
+	// configured namespace that were set but did not match any config field.
+	Environ func() []string
 }
 
 // NewCommand return a new instance of Command.
@@ -115,10 +120,15 @@ func (cmd *Command) LoadConfig(args ...string) (options Options, config *Config,
 //
 // Both lists are emitted unconditionally (even when empty) so operators can
 // confirm the diagnostic ran. The unmatched list is computed against
-// os.Environ() so it reflects the real process environment regardless of
-// what cmd.Getenv may have been overridden to during testing.
+// cmd.Environ (falling back to os.Environ when unset) to mirror the
+// cmd.Getenv hook used when applying overrides, so tests that inject a mock
+// environment see consistent behavior for both lists.
 func (cmd *Command) logEnvVarDiagnostics(log *zap.Logger, appliedEnvVars []string) {
-	unmatched := itoml.UnmatchedEnvVars(os.Environ(), EnvVarPrefix, appliedEnvVars)
+	environ := cmd.Environ
+	if environ == nil {
+		environ = os.Environ
+	}
+	unmatched := itoml.UnmatchedEnvVars(environ(), EnvVarPrefix, appliedEnvVars)
 	log.Info("applied env var overrides",
 		zap.String("prefix", EnvVarPrefix),
 		zap.Strings("vars", appliedEnvVars))
