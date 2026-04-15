@@ -371,11 +371,10 @@ func UnmatchedEnvVars(environ []string, prefix string, applied []string) []strin
 	seen := make(map[string]struct{})
 	var unmatched []string
 	for _, entry := range environ {
-		eq := strings.IndexByte(entry, '=')
-		if eq < 0 {
+		key, _, ok := strings.Cut(entry, "=")
+		if !ok {
 			continue
 		}
-		key := entry[:eq]
 		if !strings.HasPrefix(key, keyPrefix) {
 			continue
 		}
