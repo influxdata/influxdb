@@ -727,9 +727,20 @@ func (d *defaulterSub) ApplyDefaults() {
 var _ itoml.Defaulter = (*defaulterSub)(nil)
 
 // nonDefaulterSub is intentionally missing an ApplyDefaults method, used to
-// verify that VerifyDefaulters reports violations.
+// verify that VerifyConfigType reports missing-Defaulter violations.
 type nonDefaulterSub struct {
 	X string `toml:"x"`
+}
+
+// cyclicRoot and cyclicNode form a self-referential type graph used to verify
+// that VerifyConfigType detects cycles. Such a type could not be loaded from
+// TOML, but we want the test-time check to catch it first.
+type cyclicRoot struct {
+	Node cyclicNode `toml:"node"`
+}
+
+type cyclicNode struct {
+	Next *cyclicNode `toml:"next"`
 }
 
 func TestUnmatchedEnvVars_Basic(t *testing.T) {
@@ -804,7 +815,7 @@ func TestUnmatchedEnvVars_EmptyEnviron(t *testing.T) {
 	require.Empty(t, itoml.UnmatchedEnvVars(nil, "X", nil))
 }
 
-func TestVerifyDefaulters_AllImplemented(t *testing.T) {
+func TestVerifyConfigType_AllImplemented(t *testing.T) {
 	type config struct {
 		Subs []defaulterSub  `toml:"subs"`
 		Ptrs []*defaulterSub `toml:"ptrs"`
@@ -813,59 +824,78 @@ func TestVerifyDefaulters_AllImplemented(t *testing.T) {
 		Sizes []itoml.Size     `toml:"sizes"`
 		Durs  []itoml.Duration `toml:"durs"`
 	}
-	require.NoError(t, itoml.VerifyDefaulters(config{}))
-	require.NoError(t, itoml.VerifyDefaulters(&config{}))
+	require.NoError(t, itoml.VerifyConfigType(config{}))
+	require.NoError(t, itoml.VerifyConfigType(&config{}))
 }
 
-func TestVerifyDefaulters_MissingDefaulter(t *testing.T) {
+func TestVerifyConfigType_MissingDefaulter(t *testing.T) {
 	type config struct {
 		Bad []nonDefaulterSub `toml:"bad"`
 	}
-	err := itoml.VerifyDefaulters(config{})
+	err := itoml.VerifyConfigType(config{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nonDefaulterSub must implement toml.Defaulter")
 }
 
-func TestVerifyDefaulters_MissingDefaulterInPointerSlice(t *testing.T) {
+func TestVerifyConfigType_MissingDefaulterInPointerSlice(t *testing.T) {
 	type config struct {
 		Bad []*nonDefaulterSub `toml:"bad"`
 	}
-	err := itoml.VerifyDefaulters(config{})
+	err := itoml.VerifyConfigType(config{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nonDefaulterSub must implement toml.Defaulter")
 }
 
-func TestVerifyDefaulters_NestedSliceField(t *testing.T) {
-	// VerifyDefaulters should descend into struct fields to find nested slices.
+func TestVerifyConfigType_NestedSliceField(t *testing.T) {
+	// VerifyConfigType should descend into struct fields to find nested slices.
 	type inner struct {
 		Bad []nonDefaulterSub `toml:"bad"`
 	}
 	type outer struct {
 		Inner inner `toml:"inner"`
 	}
-	err := itoml.VerifyDefaulters(outer{})
+	err := itoml.VerifyConfigType(outer{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "outer.Inner.Bad")
 }
 
-func TestVerifyDefaulters_SkipsTomlDashTag(t *testing.T) {
+func TestVerifyConfigType_SkipsTomlDashTag(t *testing.T) {
 	// Fields tagged toml:"-" are skipped by ApplyEnvOverrides, so they should
-	// also be skipped by VerifyDefaulters.
+	// also be skipped by VerifyConfigType.
 	type config struct {
 		Bad []nonDefaulterSub `toml:"-"`
 	}
-	require.NoError(t, itoml.VerifyDefaulters(config{}))
+	require.NoError(t, itoml.VerifyConfigType(config{}))
 }
 
-func TestVerifyDefaulters_SkipsUnexportedFields(t *testing.T) {
+func TestVerifyConfigType_SkipsUnexportedFields(t *testing.T) {
 	type config struct {
 		bad []nonDefaulterSub
 	}
-	require.NoError(t, itoml.VerifyDefaulters(config{}))
+	require.NoError(t, itoml.VerifyConfigType(config{}))
 }
 
-func TestVerifyDefaulters_NilArgument(t *testing.T) {
-	require.Error(t, itoml.VerifyDefaulters(nil))
+func TestVerifyConfigType_NilArgument(t *testing.T) {
+	require.Error(t, itoml.VerifyConfigType(nil))
+}
+
+func TestVerifyConfigType_DetectsCycle(t *testing.T) {
+	err := itoml.VerifyConfigType(cyclicRoot{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "forms a cycle")
+}
+
+func TestVerifyConfigType_SharedTypeNotReported(t *testing.T) {
+	// Two sibling fields referencing the same struct type are walked twice
+	// but don't form a cycle, so no violation should be reported.
+	type sub struct {
+		X string `toml:"x"`
+	}
+	type config struct {
+		A sub `toml:"a"`
+		B sub `toml:"b"`
+	}
+	require.NoError(t, itoml.VerifyConfigType(config{}))
 }
 
 func TestEnvOverride_Builtins(t *testing.T) {

@@ -403,13 +403,10 @@ enabled = true
 	}
 }
 
-// TestConfig_SliceElementsImplementDefaulter verifies that every slice element
-// type reachable from run.Config implements influxtoml.Defaulter, so that
-// elements appended via indexed environment variable overrides are seeded with
-// type-level defaults instead of zero values. The walking logic lives in the
-// toml package so external projects with their own Config types can use it.
-func TestConfig_SliceElementsImplementDefaulter(t *testing.T) {
-	require.NoError(t, influxtoml.VerifyDefaulters(run.Config{}))
+// TestConfig_VerifyConfigType verifies that run.Config satisfies the
+// conventions required for a config root as expressed by VerifyConfigType.
+func TestConfig_VerifyConfigType(t *testing.T) {
+	require.NoError(t, influxtoml.VerifyConfigType(run.Config{}))
 }
 
 // Ensure the configuration can be parsed when a Byte-Order-Mark is present.

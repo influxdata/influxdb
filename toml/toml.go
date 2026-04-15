@@ -402,86 +402,110 @@ type Defaulter interface {
 	ApplyDefaults()
 }
 
-// VerifyDefaulters walks the type tree of cfg and reports an error if any slice
-// element type that would be appended via indexed env var overrides does not
-// implement Defaulter. cfg may be a value or a pointer; the type tree is walked
-// from its (dereferenced) type.
-//
-// Element types that implement encoding.TextUnmarshaler are exempt: they are
-// treated as leaves by ApplyEnvOverrides and have no fields to default.
-// Primitive element types (string, int, etc.) are also exempt for the same
-// reason. Fields tagged `toml:"-"` and unexported fields are skipped because
-// ApplyEnvOverrides skips them too.
-//
-// VerifyDefaulters is intended to be called from a test in the package that
-// owns the config root, as a CI safety net for the convention that slice
-// element types must implement ApplyDefaults.
-func VerifyDefaulters(cfg interface{}) error {
-	defaulterType := reflect.TypeOf((*Defaulter)(nil)).Elem()
-	textUnmarshalerType := reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
+// Interface types used by the reflect-based traversals below. Computing these
+// once at package scope keeps VerifyConfigType and isLeafType free of repeated
+// reflect.TypeOf calls.
+var (
+	defaulterType       = reflect.TypeOf((*Defaulter)(nil)).Elem()
+	textUnmarshalerType = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
+)
 
-	// requiresDefaulter reports whether a slice element type must implement
-	// Defaulter. Only struct (or pointer-to-struct) element types that don't
-	// implement TextUnmarshaler need it.
-	requiresDefaulter := func(elemType reflect.Type) bool {
-		target := elemType
-		if target.Kind() == reflect.Pointer {
-			target = target.Elem()
-		}
-		if target.Kind() != reflect.Struct {
-			return false
-		}
-		if reflect.PointerTo(target).Implements(textUnmarshalerType) {
-			return false
-		}
-		return true
+// requiresDefaulter reports whether a slice element type must implement
+// Defaulter. Only struct (or pointer-to-struct) element types that don't
+// implement TextUnmarshaler need it.
+func requiresDefaulter(elemType reflect.Type) bool {
+	target := elemType
+	if target.Kind() == reflect.Pointer {
+		target = target.Elem()
 	}
+	if target.Kind() != reflect.Struct {
+		return false
+	}
+	if reflect.PointerTo(target).Implements(textUnmarshalerType) {
+		return false
+	}
+	return true
+}
 
-	var violations []string
-	seen := make(map[reflect.Type]bool)
-	var walk func(t reflect.Type, path string)
-	walk = func(t reflect.Type, path string) {
-		if seen[t] {
-			return
-		}
-		seen[t] = true
+// walkForConfigType is the recursive worker used by VerifyConfigType. It
+// walks the type tree rooted at t and returns a list of messages describing
+// anything that would prevent the type from serving as a config:
+//   - slice element types that must implement Defaulter but don't
+//   - cycles in the type graph (recursive types cannot be represented in TOML)
+//
+// stack tracks types currently on the recursion path so a revisit is only
+// flagged when it actually forms a cycle; a type that appears as two sibling
+// fields of a struct is walked twice without being reported, because the
+// first walk's deferred delete runs before the second begins.
+func walkForConfigType(t reflect.Type, path string, stack map[reflect.Type]bool) []string {
+	if stack[t] {
+		return []string{fmt.Sprintf(
+			"%s: type %s forms a cycle (recursive types cannot be represented in TOML)",
+			path, t)}
+	}
+	stack[t] = true
+	// Simply deleting the type when returning up the struct key is OK since cycles are an error.
+	defer delete(stack, t)
 
-		switch t.Kind() {
-		case reflect.Pointer:
-			walk(t.Elem(), path)
-		case reflect.Slice:
-			elem := t.Elem()
-			if requiresDefaulter(elem) {
-				// For value-element slices ([]T), Defaulter is implemented by *T.
-				// For pointer-element slices ([]*T), Defaulter is implemented by *T directly.
-				ptrType := reflect.PointerTo(elem)
-				if elem.Kind() == reflect.Pointer {
-					ptrType = elem
-				}
-				if !ptrType.Implements(defaulterType) {
-					violations = append(violations, fmt.Sprintf(
-						"%s: slice element type %s must implement toml.Defaulter (add ApplyDefaults() method on *%s)",
-						path, elem, ptrType))
-				}
+	switch t.Kind() {
+	case reflect.Pointer:
+		return walkForConfigType(t.Elem(), path, stack)
+	case reflect.Slice:
+		var violations []string
+		elem := t.Elem()
+		if requiresDefaulter(elem) {
+			// For value-element slices ([]T), Defaulter is implemented by *T.
+			// For pointer-element slices ([]*T), Defaulter is implemented by *T directly.
+			ptrType := reflect.PointerTo(elem)
+			if elem.Kind() == reflect.Pointer {
+				ptrType = elem
 			}
-			walk(elem, path+"[]")
-		case reflect.Struct:
-			for i := 0; i < t.NumField(); i++ {
-				f := t.Field(i)
-				if !f.IsExported() {
-					continue
-				}
-				if f.Tag.Get("toml") == "-" {
-					continue
-				}
-				walk(f.Type, path+"."+f.Name)
+			if !ptrType.Implements(defaulterType) {
+				violations = append(violations, fmt.Sprintf(
+					"%s: slice element type %s must implement toml.Defaulter (add ApplyDefaults() method on *%s)",
+					path, elem, ptrType))
 			}
 		}
+		return append(violations, walkForConfigType(elem, path+"[]", stack)...)
+	case reflect.Struct:
+		var violations []string
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			if f.Tag.Get("toml") == "-" {
+				continue
+			}
+			violations = append(violations, walkForConfigType(f.Type, path+"."+f.Name, stack)...)
+		}
+		return violations
 	}
+	return nil
+}
 
+// VerifyConfigType walks the type tree of cfg and reports an error if the
+// type cannot serve as a valid configuration root. It currently checks:
+//   - slice element types that would be appended via indexed env var
+//     overrides must implement Defaulter
+//   - the type graph must not contain cycles, which cannot be expressed in
+//     TOML or via the environment variable override scheme in this package
+//
+// cfg may be a value or a pointer; the type tree is walked from its
+// (dereferenced) type. Element types that implement encoding.TextUnmarshaler
+// are exempt from the Defaulter check: they are treated as leaves by
+// ApplyEnvOverrides and have no fields to default. Primitive element types
+// (string, int, etc.) are also exempt for the same reason. Fields tagged
+// `toml:"-"` and unexported fields are skipped because ApplyEnvOverrides
+// skips them too.
+//
+// VerifyConfigType is intended to be called from a test in the package that
+// owns the config root, as a CI safety net for the conventions that a config
+// type must satisfy.
+func VerifyConfigType(cfg interface{}) error {
 	rootType := reflect.TypeOf(cfg)
 	if rootType == nil {
-		return errors.New("VerifyDefaulters: cfg is nil")
+		return errors.New("VerifyConfigType: cfg is nil")
 	}
 	rootName := rootType.String()
 	if rootType.Kind() == reflect.Pointer {
@@ -490,10 +514,10 @@ func VerifyDefaulters(cfg interface{}) error {
 			rootName = rootType.String()
 		}
 	}
-	walk(rootType, rootName)
 
+	violations := walkForConfigType(rootType, rootName, make(map[reflect.Type]bool))
 	if len(violations) > 0 {
-		return fmt.Errorf("toml.VerifyDefaulters found %d violation(s):\n  %s",
+		return fmt.Errorf("toml.VerifyConfigType found %d violation(s):\n  %s",
 			len(violations), strings.Join(violations, "\n  "))
 	}
 	return nil
@@ -573,7 +597,7 @@ func indexStructKey(parent string, idx int) string {
 // var value (a primitive kind or a TextUnmarshaler implementation), as opposed
 // to types whose configuration is spread across multiple env vars (structs).
 func isLeafType(t reflect.Type) bool {
-	if reflect.PointerTo(t).Implements(reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()) {
+	if reflect.PointerTo(t).Implements(textUnmarshalerType) {
 		return true
 	}
 	switch t.Kind() {
