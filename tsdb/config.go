@@ -281,6 +281,24 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("tar-stream-buffer-size cannot be %d, value must be greater than zero and non-negative", c.TarStreamBufferSize)
 	}
 
+	// Verify sizes consumed as int/int64 on callers fit their target types.
+	// These are uint64 on disk but are passed to rate limiters (int) and the
+	// tsi1 log file writer (int64); an oversized config value would otherwise
+	// silently wrap to a negative number and disable rate limiting or corrupt
+	// log file accounting.
+	if _, err := c.CompactThroughput.ToInt(); err != nil {
+		return fmt.Errorf("compact-throughput: %w", err)
+	}
+	if _, err := c.CompactThroughputBurst.ToInt(); err != nil {
+		return fmt.Errorf("compact-throughput-burst: %w", err)
+	}
+	if _, err := c.AggressivePointsPerBlock.ToInt(); err != nil {
+		return fmt.Errorf("aggressive-points-per-block: %w", err)
+	}
+	if _, err := c.MaxIndexLogFileSize.ToInt64(); err != nil {
+		return fmt.Errorf("max-index-log-file-size: %w", err)
+	}
+
 	return nil
 }
 

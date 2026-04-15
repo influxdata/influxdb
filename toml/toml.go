@@ -61,11 +61,12 @@ type Size uint64
 type SSize int64
 
 var (
-	ErrSizeEmpty     = errors.New("size was empty")
-	ErrSizeBadSuffix = errors.New("unknown size suffix")
-	ErrSizeParse     = errors.New("invalid size")
-	ErrSizeOverflow  = fmt.Errorf("size would overflow the max size (%d) of a uint64", uint64(math.MaxUint64))
-	ErrSSizeOverflow = fmt.Errorf("size would overflow the max size (%d) of an int64", int64(math.MaxInt64))
+	ErrSizeEmpty      = errors.New("size was empty")
+	ErrSizeBadSuffix  = errors.New("unknown size suffix")
+	ErrSizeParse      = errors.New("invalid size")
+	ErrSizeOverflow   = fmt.Errorf("size would overflow the max size (%d) of a uint64", uint64(math.MaxUint64))
+	ErrSSizeOverflow  = fmt.Errorf("size would overflow the max size (%d) of an int64", int64(math.MaxInt64))
+	ErrSizeOutOfRange = errors.New("size value out of range for target type")
 )
 
 // sizeConstraint is the type constraint for size types.
@@ -216,6 +217,29 @@ func (s Size) MarshalText() ([]byte, error) {
 	return marshalSize(s)
 }
 
+// ToInt returns the value as an int, or an error wrapping ErrSizeOutOfRange
+// if it does not fit. Size is uint64 so it may exceed the representable range
+// of int on any platform (and routinely does on 32-bit platforms). Callers
+// passing a Size to APIs that take int should go through ToInt rather than a
+// bare cast.
+func (s Size) ToInt() (int, error) {
+	if uint64(s) > math.MaxInt {
+		return 0, fmt.Errorf("%w: size value %d exceeds maximum int value %d", ErrSizeOutOfRange, uint64(s), math.MaxInt)
+	}
+	return int(s), nil
+}
+
+// ToInt64 returns the value as an int64, or an error wrapping
+// ErrSizeOutOfRange if it does not fit. Size is uint64 so values above
+// math.MaxInt64 silently wrap to negative when cast directly. ToInt64 rejects
+// those instead.
+func (s Size) ToInt64() (int64, error) {
+	if uint64(s) > math.MaxInt64 {
+		return 0, fmt.Errorf("%w: size value %d exceeds maximum int64 value %d", ErrSizeOutOfRange, uint64(s), int64(math.MaxInt64))
+	}
+	return int64(s), nil
+}
+
 // UnmarshalText parses a byte size from text, allowing negative values.
 func (s *SSize) UnmarshalText(text []byte) error {
 	return unmarshalSize(s, text)
@@ -224,6 +248,28 @@ func (s *SSize) UnmarshalText(text []byte) error {
 // MarshalText converts an SSize to a string for encoding toml.
 func (s SSize) MarshalText() ([]byte, error) {
 	return marshalSize(s)
+}
+
+// ToInt returns the value as an int, or an error wrapping ErrSizeOutOfRange
+// if it does not fit. SSize is int64 so on 32-bit platforms values outside
+// the int32 range cannot be represented as int. Callers passing an SSize to
+// APIs that take int should go through ToInt rather than a bare cast.
+func (s SSize) ToInt() (int, error) {
+	if int64(s) > math.MaxInt || int64(s) < math.MinInt {
+		return 0, fmt.Errorf("%w: ssize value %d is outside int range [%d, %d]", ErrSizeOutOfRange, int64(s), math.MinInt, math.MaxInt)
+	}
+	return int(s), nil
+}
+
+// ToUint64 returns the value as a uint64, or an error wrapping
+// ErrSizeOutOfRange if it is negative. SSize is int64 so negative values
+// silently wrap to large positive uint64 values when cast directly. ToUint64
+// rejects those instead.
+func (s SSize) ToUint64() (uint64, error) {
+	if int64(s) < 0 {
+		return 0, fmt.Errorf("%w: ssize value %d cannot be converted to uint64: negative", ErrSizeOutOfRange, int64(s))
+	}
+	return uint64(s), nil
 }
 
 type FileMode uint32

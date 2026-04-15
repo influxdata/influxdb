@@ -41,6 +41,9 @@ func init() {
 	}
 
 	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
+		// tsdb.Config.Validate calls MaxIndexLogFileSize.ToInt64 to reject
+		// values that would wrap when cast to int64; this factory callback
+		// has no error return, so we rely on that check having run first.
 		idx := NewIndex(sfile, db,
 			WithPath(path),
 			WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)),

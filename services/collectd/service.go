@@ -163,21 +163,24 @@ func (s *Service) Open() error {
 	// Resolve our address.
 	addr, err := net.ResolveUDPAddr("udp", s.Config.BindAddress)
 	if err != nil {
-		return fmt.Errorf("unable to resolve UDP address: %s", err)
+		return fmt.Errorf("unable to resolve UDP address: %w", err)
 	}
 	s.addr = addr
 
 	// Start listening
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return fmt.Errorf("unable to listen on UDP: %s", err)
+		return fmt.Errorf("unable to listen on UDP: %w", err)
 	}
 
 	if s.Config.ReadBuffer != 0 {
-		rbs := int(s.Config.ReadBuffer)
-		err = conn.SetReadBuffer(rbs)
+		rbs, err := s.Config.ReadBuffer.ToInt()
 		if err != nil {
-			return fmt.Errorf("unable to set UDP read buffer to %d: %s", rbs, err)
+			// err already contains context.
+			return fmt.Errorf("unable to set UDP read buffer: %w", err)
+		}
+		if err = conn.SetReadBuffer(rbs); err != nil {
+			return fmt.Errorf("unable to set UDP read buffer to %d: %w", rbs, err)
 		}
 	}
 	s.conn = conn

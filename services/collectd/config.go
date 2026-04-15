@@ -2,6 +2,7 @@ package collectd
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -155,6 +156,10 @@ func (c *Config) Validate() error {
 	case "split", "join":
 	default:
 		return errors.New(`Invalid value for parse-multivalue-plugin. Valid options are "split" and "join"`)
+	}
+
+	if _, err := c.ReadBuffer.ToInt(); err != nil {
+		return fmt.Errorf("read-buffer: %w", err)
 	}
 
 	return nil

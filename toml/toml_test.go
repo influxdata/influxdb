@@ -366,6 +366,114 @@ func TestSSize_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestSize_ToInt(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   itoml.Size
+		want int
+		ok   bool
+	}{
+		{"zero", 0, 0, true},
+		{"small", 1024, 1024, true},
+		{"maxInt", itoml.Size(math.MaxInt), math.MaxInt, true},
+		{"maxInt_plus_one", itoml.Size(math.MaxInt) + 1, 0, false},
+		{"maxUint64", itoml.Size(math.MaxUint64), 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.in.ToInt()
+			if !tc.ok {
+				require.Error(t, err)
+				require.ErrorIs(t, err, itoml.ErrSizeOutOfRange)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestSize_ToInt64(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   itoml.Size
+		want int64
+		ok   bool
+	}{
+		{"zero", 0, 0, true},
+		{"small", 1024, 1024, true},
+		{"maxInt64", itoml.Size(math.MaxInt64), math.MaxInt64, true},
+		{"maxInt64_plus_one", itoml.Size(math.MaxInt64) + 1, 0, false},
+		{"maxUint64", itoml.Size(math.MaxUint64), 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.in.ToInt64()
+			if !tc.ok {
+				require.Error(t, err)
+				require.ErrorIs(t, err, itoml.ErrSizeOutOfRange)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestSSize_ToInt(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   itoml.SSize
+		want int
+		ok   bool
+	}{
+		{"zero", 0, 0, true},
+		{"small_positive", 1024, 1024, true},
+		{"small_negative", -1024, -1024, true},
+		{"maxInt", itoml.SSize(math.MaxInt), math.MaxInt, true},
+		{"minInt", itoml.SSize(math.MinInt), math.MinInt, true},
+		// These cases only trigger on 32-bit platforms where int == int32.
+		// On 64-bit (int == int64) they fit, so skip the failure assertion.
+		{"above_int_range_32bit_only", itoml.SSize(math.MaxInt32) + 1, math.MaxInt32 + 1, runtime.GOARCH != "386" && runtime.GOARCH != "arm"},
+		{"below_int_range_32bit_only", itoml.SSize(math.MinInt32) - 1, math.MinInt32 - 1, runtime.GOARCH != "386" && runtime.GOARCH != "arm"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.in.ToInt()
+			if !tc.ok {
+				require.Error(t, err)
+				require.ErrorIs(t, err, itoml.ErrSizeOutOfRange)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestSSize_ToUint64(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   itoml.SSize
+		want uint64
+		ok   bool
+	}{
+		{"zero", 0, 0, true},
+		{"small_positive", 1024, 1024, true},
+		{"maxInt64", itoml.SSize(math.MaxInt64), math.MaxInt64, true},
+		{"negative_one", -1, 0, false},
+		{"minInt64", itoml.SSize(math.MinInt64), 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.in.ToUint64()
+			if !tc.ok {
+				require.Error(t, err)
+				require.ErrorIs(t, err, itoml.ErrSizeOutOfRange)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestFileMode_MarshalText(t *testing.T) {
 	for idx, tc := range []struct {
 		mode int

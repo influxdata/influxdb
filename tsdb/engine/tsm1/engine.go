@@ -253,6 +253,9 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	c.RateLimit = opt.CompactionThroughputLimiter
 
 	var planner CompactionPlanner = NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration))
+	// tsdb.Config.Validate calls AggressivePointsPerBlock.ToInt to reject
+	// values that would wrap when cast to int; NewEngine has no error return,
+	// so we rely on that check having run before we get here.
 	planner.SetAggressiveCompactionPointsPerBlock(int(opt.Config.AggressivePointsPerBlock))
 
 	if opt.CompactionPlannerCreator != nil {
@@ -289,6 +292,8 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		Scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
 		seriesIDSets:                  opt.SeriesIDSets,
 
+		// tsdb.Config.Validate rejects TarStreamBufferSize values <= 0, so the
+		// SSize-to-uint64 cast here cannot wrap to a huge positive value.
 		TarStreamBufferSize: uint64(opt.Config.TarStreamBufferSize),
 	}
 
