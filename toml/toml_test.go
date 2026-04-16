@@ -1573,6 +1573,42 @@ func TestEnvOverride_LeafTypeUnindexedErasesExisting(t *testing.T) {
 	}
 }
 
+// TestEnvOverride_UnexportedSliceField is a regression test: the struct-field
+// walker let unexported slice fields through, so the slice code paths that
+// call reflect.Value.Set (Append for indexed growth, MakeSlice for unindexed
+// CSV) would panic on a non-settable value.
+func TestEnvOverride_UnexportedSliceField(t *testing.T) {
+	type cfg struct {
+		vals []string
+	}
+
+	for _, tc := range []struct {
+		name    string
+		envName string
+	}{
+		{"unindexed CSV triggers MakeSlice", "X_VALS"},
+		{"indexed append triggers Append", "X_VALS_0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := func(s string) string {
+				if s == tc.envName {
+					return "a,b,c"
+				}
+				return ""
+			}
+			var c cfg
+			var appliedVars []string
+			var err error
+			require.NotPanics(t, func() {
+				appliedVars, err = itoml.ApplyEnvOverrides(env, "X", &c)
+			})
+			require.NoError(t, err)
+			require.Empty(t, appliedVars, "unexported field should not be reported as applied")
+			require.Nil(t, c.vals, "unexported field must not be modified")
+		})
+	}
+}
+
 func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
 	type config struct {
 		Sub []defaulterSub `toml:"sub"`

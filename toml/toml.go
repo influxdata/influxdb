@@ -853,8 +853,8 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 			field := element.Field(i)
 
 			fieldResult, err := func() (envOverrideResult, error) {
-				// Skip any fields that we cannot set
-				if !field.CanSet() && field.Kind() != reflect.Slice {
+				// Skip any fields that we cannot set to prevent panics on unexported slices.
+				if !field.CanSet() {
 					return noResult, nil
 				}
 
