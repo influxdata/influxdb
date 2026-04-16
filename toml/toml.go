@@ -834,10 +834,11 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				// The custom getenv returns val for any key, so the recursive call will
 				// report prefix as applied. Since we already recorded prefix above, merge
 				// deduplicates it automatically — no manual DeleteFunc needed.
-				if csvResult, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, indexStructKey(structKey, idx)); err != nil {
+				// Since we know this is a leaf type and not a struct, no other environment variables other
+				// than prefix can be pulled in, and prefix is already in AllVars. Skipping a merge here prevents
+				// polluting the indexed var list while still maintaining overall correctness.
+				if _, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, indexStructKey(structKey, idx)); err != nil {
 					return noResult, err
-				} else {
-					sliceResult.merge(csvResult)
 				}
 			}
 		}
