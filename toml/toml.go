@@ -19,6 +19,9 @@ import (
 
 // MaxEnvSliceGrowth limits how many elements can be appended to a slice via
 // environment variable overrides, preventing unbounded memory allocation.
+// This is to prevent unbounded growth by environment variables, a
+// potential security issue, as well as unintentionally unbounded growth due
+// to errors in management scripts.
 const MaxEnvSliceGrowth = 64
 
 // Duration is a TOML wrapper type for time.Duration.
