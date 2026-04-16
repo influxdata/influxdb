@@ -771,6 +771,11 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				}
 				if defaulter != nil {
 					defaulter.ApplyDefaults()
+				} else if requiresDefaulter(f.Type()) {
+					// We should never hit this error in production because unit tests with
+					// VerifyConfigType should prevent this from becoming an issue.
+					return noResult, fmt.Errorf("%s: slice element type %s does not implement toml.Defaulter",
+						structKey, f.Type())
 				}
 				// Apply the unindexed environment variable as a default value, same as for existing elements.
 				// Skipped for leaf element types (scalars and TextUnmarshaler implementations) because

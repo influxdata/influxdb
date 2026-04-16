@@ -898,6 +898,23 @@ func TestVerifyConfigType_SharedTypeNotReported(t *testing.T) {
 	require.NoError(t, itoml.VerifyConfigType(config{}))
 }
 
+type nestedConfig struct {
+	Str string `toml:"string"`
+	Int int    `toml:"int"`
+}
+
+func (nc *nestedConfig) ApplyDefaults() {}
+
+type EmbeddedConfig struct {
+	ES string `toml:"es"`
+}
+type nestedWithEmbedConfig struct {
+	Name string `toml:"name"`
+	EmbeddedConfig
+}
+
+func (c *nestedWithEmbedConfig) ApplyDefaults() {}
+
 func TestEnvOverride_Builtins(t *testing.T) {
 	// If we run on a platform that doesn't support groups or not in a way resembling
 	// Unix groups, then we will use an empty groupOverride and the expected groupID will
@@ -1011,68 +1028,57 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		return envMap[s]
 	}
 
-	type nested struct {
-		Str string `toml:"string"`
-		Int int    `toml:"int"`
-	}
-	type Embedded struct {
-		ES string `toml:"es"`
-	}
-	type nestedWithEmbed struct {
-		Name string `toml:"name"`
-		Embedded
-	}
 	type testConfig struct {
-		Str             string              `toml:"string"`
-		HyphenStr       string              `toml:"hyphen-string"`
-		Str2            string              `toml:"string2"`
-		Dur             itoml.Duration      `toml:"duration"`
-		Int             int                 `toml:"int"`
-		IntEmpty        int                 `toml:"intempty"`
-		Int8            int8                `toml:"int8"`
-		Int16           int16               `toml:"int16"`
-		Int32           int32               `toml:"int32"`
-		Int64           int64               `toml:"int64"`
-		Uint            uint                `toml:"uint"`
-		UintEmpty       uint                `toml:"uintempty"`
-		Uint8           uint8               `toml:"uint8"`
-		Uint16          uint16              `toml:"uint16"`
-		Uint32          uint32              `toml:"uint32"`
-		Uint64          uint64              `toml:"uint64"`
-		Bool            bool                `toml:"bool"`
-		BoolEmpty       bool                `toml:"boolempty"`
-		Float32         float32             `toml:"float32"`
-		Float64         float64             `toml:"float64"`
-		Float64Empty    float64             `toml:"float64empty"`
-		Nested          nested              `toml:"nested"`
-		NestedPtr       *nested             `toml:"nestedptr"`
-		NilPtr          *nested             `toml:"nilptr"`
-		UnmarshalSlice  []stringUnmarshaler `toml:"strings"`
-		LogLevel        zapcore.Level       `toml:"loglevel"`
-		MaxSize         itoml.Size          `toml:"maxSize"`
-		Group           itoml.Group         `toml:"group"`
-		GroupNumeric    itoml.Group         `toml:"groupnumeric"`
-		GroupEmpty      itoml.Group         `toml:"groupempty"`
-		StrSlice        []string            `toml:"strslice"`
-		StrSlice2       []string            `toml:"strslice2"`
-		StrSlice3       []string            `toml:"strslice3"`
-		IntSlice        []int               `toml:"intslice"`
-		IntSlice2       []int               `toml:"intslice2"`
-		SizeSlice       []itoml.Size        `toml:"sizeslice"`
-		SizeSlice2      []itoml.Size        `toml:"sizeslice2"`
-		SizeSlice3      []itoml.Size        `toml:"sizeslice3"`
-		DurationSlice   []itoml.Duration    `toml:"durationslice"`
-		DurationSlice2  []itoml.Duration    `toml:"durationslice2"`
-		NestedSlice     []nested            `toml:"nestedslice"`
-		EmbedSlice      []nestedWithEmbed   `toml:"embedslice"`
-		IntSlice3       []int               `toml:"intslice3"`
-		SSize           itoml.SSize         `toml:"ssize"`
-		SSizeSlice      []itoml.SSize       `toml:"ssizeslice"`
-		SSizeSlice2     []itoml.SSize       `toml:"ssizeslice2"`
-		SSizeSlice3     []itoml.SSize       `toml:"ssizeslice3"`
-		MultiHyphenName string              `toml:"multi-hyphen-name"`
+		Str             string                  `toml:"string"`
+		HyphenStr       string                  `toml:"hyphen-string"`
+		Str2            string                  `toml:"string2"`
+		Dur             itoml.Duration          `toml:"duration"`
+		Int             int                     `toml:"int"`
+		IntEmpty        int                     `toml:"intempty"`
+		Int8            int8                    `toml:"int8"`
+		Int16           int16                   `toml:"int16"`
+		Int32           int32                   `toml:"int32"`
+		Int64           int64                   `toml:"int64"`
+		Uint            uint                    `toml:"uint"`
+		UintEmpty       uint                    `toml:"uintempty"`
+		Uint8           uint8                   `toml:"uint8"`
+		Uint16          uint16                  `toml:"uint16"`
+		Uint32          uint32                  `toml:"uint32"`
+		Uint64          uint64                  `toml:"uint64"`
+		Bool            bool                    `toml:"bool"`
+		BoolEmpty       bool                    `toml:"boolempty"`
+		Float32         float32                 `toml:"float32"`
+		Float64         float64                 `toml:"float64"`
+		Float64Empty    float64                 `toml:"float64empty"`
+		Nested          nestedConfig            `toml:"nested"`
+		NestedPtr       *nestedConfig           `toml:"nestedptr"`
+		NilPtr          *nestedConfig           `toml:"nilptr"`
+		UnmarshalSlice  []stringUnmarshaler     `toml:"strings"`
+		LogLevel        zapcore.Level           `toml:"loglevel"`
+		MaxSize         itoml.Size              `toml:"maxSize"`
+		Group           itoml.Group             `toml:"group"`
+		GroupNumeric    itoml.Group             `toml:"groupnumeric"`
+		GroupEmpty      itoml.Group             `toml:"groupempty"`
+		StrSlice        []string                `toml:"strslice"`
+		StrSlice2       []string                `toml:"strslice2"`
+		StrSlice3       []string                `toml:"strslice3"`
+		IntSlice        []int                   `toml:"intslice"`
+		IntSlice2       []int                   `toml:"intslice2"`
+		SizeSlice       []itoml.Size            `toml:"sizeslice"`
+		SizeSlice2      []itoml.Size            `toml:"sizeslice2"`
+		SizeSlice3      []itoml.Size            `toml:"sizeslice3"`
+		DurationSlice   []itoml.Duration        `toml:"durationslice"`
+		DurationSlice2  []itoml.Duration        `toml:"durationslice2"`
+		NestedSlice     []nestedConfig          `toml:"nestedslice"`
+		EmbedSlice      []nestedWithEmbedConfig `toml:"embedslice"`
+		IntSlice3       []int                   `toml:"intslice3"`
+		SSize           itoml.SSize             `toml:"ssize"`
+		SSizeSlice      []itoml.SSize           `toml:"ssizeslice"`
+		SSizeSlice2     []itoml.SSize           `toml:"ssizeslice2"`
+		SSizeSlice3     []itoml.SSize           `toml:"ssizeslice3"`
+		MultiHyphenName string                  `toml:"multi-hyphen-name"`
 
-		Embedded
+		EmbeddedConfig
 
 		Ignored int `toml:"-"`
 	}
@@ -1083,13 +1089,13 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		BoolEmpty:    true,
 		Float64Empty: 9.0,
 		Str2:         "b string", // this should not be overwritten because the corresponding env is empty
-		NestedPtr:    &nested{},
+		NestedPtr:    &nestedConfig{},
 		UnmarshalSlice: []stringUnmarshaler{
 			{Text: "a"},
 			{Text: "b"},
 		},
 		StrSlice3: []string{"alice", "bob", "carol"},
-		NestedSlice: []nested{
+		NestedSlice: []nestedConfig{
 			{Str: "original0", Int: 0},
 			{Str: "original1", Int: 0},
 		},
@@ -1124,15 +1130,15 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		Float32:      11.5,
 		Float64:      12.5,
 		Float64Empty: 9.0,
-		Nested: nested{
+		Nested: nestedConfig{
 			Str: "a nested string",
 			Int: 13,
 		},
-		NestedPtr: &nested{
+		NestedPtr: &nestedConfig{
 			Str: "a nested pointer string",
 			Int: 14,
 		},
-		Embedded: Embedded{
+		EmbeddedConfig: EmbeddedConfig{
 			ES: "an embedded string",
 		},
 		UnmarshalSlice: []stringUnmarshaler{
@@ -1153,16 +1159,16 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		SizeSlice3:     []itoml.Size{64 * 1024 * 1024, 128 * 1024 * 1024},
 		DurationSlice:  []itoml.Duration{itoml.Duration(60 * time.Second), itoml.Duration(120 * time.Second)},
 		DurationSlice2: []itoml.Duration{itoml.Duration(5 * time.Minute), itoml.Duration(60 * time.Minute)},
-		NestedSlice: []nested{
+		NestedSlice: []nestedConfig{
 			{Str: "first", Int: 100},
 			{Str: "second", Int: 200},
 			{Str: "third", Int: 300},
 			{Str: "fourth", Int: 400},
 			{Str: "fifth"},
 		},
-		EmbedSlice: []nestedWithEmbed{
-			{Name: "first", Embedded: Embedded{ES: "embedded0"}},
-			{Embedded: Embedded{ES: "embedded1"}},
+		EmbedSlice: []nestedWithEmbedConfig{
+			{Name: "first", EmbeddedConfig: EmbeddedConfig{ES: "embedded0"}},
+			{EmbeddedConfig: EmbeddedConfig{ES: "embedded1"}},
 		},
 		IntSlice3:       []int{10, 99, 30},
 		SSize:           itoml.SSize(-128 * 1024 * 1024),
@@ -1215,15 +1221,19 @@ func TestEnvOverride_Builtins(t *testing.T) {
 }
 
 func TestEnvOverride_Errors(t *testing.T) {
+	type noDefaulter struct {
+		Val int `toml:"val"`
+	}
 	type config struct {
-		Int      int            `toml:"int"`
-		Uint     uint           `toml:"uint"`
-		Float    float64        `toml:"float"`
-		Bool     bool           `toml:"bool"`
-		Duration itoml.Duration `toml:"duration"`
-		Size     itoml.Size     `toml:"size"`
-		SSize    itoml.SSize    `toml:"ssize"`
-		Ints     []int          `toml:"ints"`
+		Int          int            `toml:"int"`
+		Uint         uint           `toml:"uint"`
+		Float        float64        `toml:"float"`
+		Bool         bool           `toml:"bool"`
+		Duration     itoml.Duration `toml:"duration"`
+		Size         itoml.Size     `toml:"size"`
+		SSize        itoml.SSize    `toml:"ssize"`
+		Ints         []int          `toml:"ints"`
+		NoDefaulters []noDefaulter  `toml:"nodefaulter"`
 	}
 
 	for idx, tc := range []struct {
@@ -1243,6 +1253,7 @@ func TestEnvOverride_Errors(t *testing.T) {
 		{"X_INTS_0", "bad", `failed to apply X_INTS_0 to Ints[0] using type int and value "bad": strconv.ParseInt: parsing "bad": invalid syntax`},
 		// Unindexed (comma-separated) slice with invalid value
 		{"X_INTS", "1,bad,3", `failed to apply X_INTS to Ints[1] using type int and value "bad": strconv.ParseInt: parsing "bad": invalid syntax`},
+		{"X_NODEFAULTER_0_VAL", "1", "NoDefaulters: slice element type toml_test.noDefaulter does not implement toml.Defaulter"},
 	} {
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			var c config
@@ -1257,6 +1268,23 @@ func TestEnvOverride_Errors(t *testing.T) {
 			require.Empty(t, appliedVars)
 		})
 	}
+
+	t.Run("nodefaultptr", func(t *testing.T) {
+		type config2 struct {
+			NoDefaulterPtrs []noDefaulter `toml:"nodefaulterptr"`
+		}
+		var c config2
+		env := func(s string) string {
+			if s == "X_NODEFAULTPTR_0_VAL" {
+				return "1"
+			}
+			return ""
+		}
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.EqualError(t, err, "NoDefaulterPtrs: slice element type toml_test.noDefaulter does not implement toml.Defaulter")
+		require.Empty(t, appliedVars)
+	})
+
 }
 
 // TestEnvOverride_NumericPrefixes verifies that integer and unsigned-integer
@@ -1367,16 +1395,21 @@ func TestEnvOverride_FieldWithoutTomlTag(t *testing.T) {
 	require.Equal(t, []string{"X_NAME"}, appliedVars)
 }
 
+type hostConfig struct {
+	Host string `toml:"host"`
+	Port int    `toml:"port"`
+}
+
+func (hc *hostConfig) ApplyDefaults() {
+	hc.Host = "127.0.0.1"
+}
+
 func TestEnvOverride_DefaultAppliedToNewSliceElements(t *testing.T) {
 	// When a default (unindexed) env var is set for a struct slice field,
 	// it should be applied to elements appended beyond the initial slice
 	// length, just as it is for existing elements.
-	type item struct {
-		Host string `toml:"host"`
-		Port int    `toml:"port"`
-	}
 	type config struct {
-		Items []item `toml:"items"`
+		Items []hostConfig `toml:"items"`
 	}
 
 	env := func(s string) string {
@@ -1393,12 +1426,12 @@ func TestEnvOverride_DefaultAppliedToNewSliceElements(t *testing.T) {
 		}
 	}
 
-	c := config{Items: []item{{Port: 80}}}
+	c := config{Items: []hostConfig{{Port: 80}}}
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
 	require.NoError(t, err)
 	// Element 0 (existing): default host "localhost" applied
 	// Element 1 (appended): default host "localhost" should be applied, then port overridden to 9999
-	require.Equal(t, []item{
+	require.Equal(t, []hostConfig{
 		{Host: "localhost", Port: 80},
 		{Host: "localhost", Port: 9999},
 	}, c.Items)
@@ -1511,13 +1544,8 @@ func TestEnvOverride_IndexedOverridesTakePrecedenceOverCommaSeparated(t *testing
 }
 
 func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
-	type configSub struct {
-		A string `toml:"a"`
-		B string `toml:"b"`
-	}
-
 	type config struct {
-		Sub []configSub `toml:"sub"`
+		Sub []defaulterSub `toml:"sub"`
 	}
 
 	env := func(s string) string {
@@ -1535,8 +1563,8 @@ func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		config{
-			Sub: []configSub{
-				configSub{A: "override [0].a", B: "default b"},
+			Sub: []defaulterSub{
+				defaulterSub{A: "override [0].a", B: "default b", C: "default-c"},
 			},
 		},
 		c)
@@ -1545,14 +1573,16 @@ func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
 	require.Equal(t, []string{"X_SUB_0_A", "X_SUB_B"}, appliedVars)
 }
 
-func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T) {
-	type configSub struct {
-		B string `toml:"b"`
-		A string `toml:"a"`
-	}
+type reverseConfigSub struct {
+	B string `toml:"b"`
+	A string `toml:"a"`
+}
 
+func (c *reverseConfigSub) ApplyDefaults() {}
+
+func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T) {
 	type config struct {
-		Sub []configSub `toml:"sub"`
+		Sub []reverseConfigSub `toml:"sub"`
 	}
 
 	env := func(s string) string {
@@ -1570,8 +1600,8 @@ func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T
 	require.NoError(t, err)
 	require.Equal(t,
 		config{
-			Sub: []configSub{
-				configSub{A: "override [0].a", B: "default b"},
+			Sub: []reverseConfigSub{
+				reverseConfigSub{A: "override [0].a", B: "default b"},
 			},
 		},
 		c)
@@ -1754,13 +1784,8 @@ func TestEnvOverride_FalseGrowFromDefault(t *testing.T) {
 	// Verify correct when result when there is a false slice growth
 	// from a default enviroment variable, but not one from an
 	// indexed environment variable.
-	type configSub struct {
-		A string `toml:"a"`
-		B string `toml:"b"`
-	}
-
 	type config struct {
-		Sub []configSub `toml:"sub"`
+		Sub []defaulterSub `toml:"sub"`
 	}
 
 	env := func(s string) string {
@@ -1800,20 +1825,24 @@ func TestEnvOverride_SparseIndexedSlice(t *testing.T) {
 	require.Empty(t, appliedVars)
 }
 
+type subLeafConfig struct {
+	Str   string     `toml:"str"`
+	Int   int        `toml:"int"`
+	Uint  uint       `toml:"uint"`
+	Size  itoml.Size `toml:"size"`
+	Bool  bool       `toml:"bool"`
+	Float float64    `toml:"float"`
+}
+
+func (sc *subLeafConfig) ApplyDefaults() {
+}
+
 func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
-	type subConfig struct {
-		Str   string     `toml:"str"`
-		Int   int        `toml:"int"`
-		Uint  uint       `toml:"uint"`
-		Size  itoml.Size `toml:"size"`
-		Bool  bool       `toml:"bool"`
-		Float float64    `toml:"float"`
-	}
 
 	type config struct {
-		Ints    []int       `toml:"ints"`
-		Strings []string    `toml:"strings"`
-		Sub     []subConfig `toml:"sub"`
+		Ints    []int           `toml:"ints"`
+		Strings []string        `toml:"strings"`
+		Sub     []subLeafConfig `toml:"sub"`
 	}
 
 	t.Run("indexed overflow", func(t *testing.T) {
