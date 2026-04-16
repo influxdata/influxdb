@@ -790,7 +790,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 							overridesStr = "override"
 						}
 						return noResult, fmt.Errorf(
-							"env %s %s would append more than of %d elements", overridesStr, strings.Join(indexedResult.IndexedVars, ","), MaxEnvSliceGrowth)
+							"env %s %s would append more than %d elements", overridesStr, strings.Join(indexedResult.IndexedVars, ","), MaxEnvSliceGrowth)
 					}
 
 					element.Set(reflect.Append(element, f))

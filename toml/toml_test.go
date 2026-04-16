@@ -1826,7 +1826,7 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		var c config
 		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
 		require.EqualError(t, err, fmt.Sprintf(
-			"env override X_INTS_%d would grow slice beyond maximum of %d appended elements",
+			"env override X_INTS_%d would append more than %d elements",
 			itoml.MaxEnvSliceGrowth, itoml.MaxEnvSliceGrowth))
 		require.Empty(t, appliedVars)
 	})
@@ -1880,7 +1880,7 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		var c config
 		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
 		require.EqualError(t, err, fmt.Sprintf(
-			"env override X_SUB_%d_STR would grow slice beyond maximum of %d appended elements",
+			"env override X_SUB_%d_STR would append more than %d elements",
 			itoml.MaxEnvSliceGrowth, itoml.MaxEnvSliceGrowth))
 		require.Empty(t, appliedVars)
 	})
@@ -1913,7 +1913,7 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		}
 		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
 		require.EqualError(t, err, fmt.Sprintf(
-			"env overrides %s would grow slice beyond maximum of %d appended elements",
+			"env overrides %s would append more than %d elements",
 			strings.Join(envVars, ","), itoml.MaxEnvSliceGrowth))
 		require.Empty(t, appliedVars)
 	})
@@ -1948,7 +1948,7 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		}
 		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
 		require.EqualError(t, err, fmt.Sprintf(
-			"env overrides %s would grow slice beyond maximum of %d appended elements",
+			"env overrides %s would append more than %d elements",
 			strings.Join(envVars, ","), itoml.MaxEnvSliceGrowth))
 		require.Empty(t, appliedVars)
 	})
