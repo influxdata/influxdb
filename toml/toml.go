@@ -129,6 +129,10 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 	if err != nil {
 		return err
 	}
+	// Check that mult is not zero to prevent division by zero later. This should never happen.
+	if mult == 0 {
+		return fmt.Errorf("%w: parsing size suffix of %q got multiplier of 0", ErrSizeParse, string(originalText))
+	}
 
 	// Determine bit width and overflow limit based on signedness.
 	// For unsigned types, T(0)-1 wraps to a large positive value.
