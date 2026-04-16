@@ -823,7 +823,6 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 			}
 			sliceResult.Applied = true
 			sliceResult.insertVar(&sliceResult.AllVars, prefix)
-			sliceResult.insertVar(&sliceResult.IndexedVars, prefix)
 			parts := strings.Split(value, ",")
 			if len(parts) > MaxEnvSliceGrowth {
 				return noResult, fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
