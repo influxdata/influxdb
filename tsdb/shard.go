@@ -221,6 +221,9 @@ func (s *Shard) setEnabledNoLock(enabled bool) {
 func (s *Shard) SetNewReadersBlocked(blocked bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s._engine == nil {
+		return ErrEngineClosed
+	}
 	return s._engine.SetNewReadersBlocked(blocked)
 }
 
