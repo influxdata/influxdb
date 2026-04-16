@@ -717,7 +717,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		return appliedEnvVar(prefix), nil
 	case reflect.Slice:
 		startLen := element.Len()
-		var result envOverrideResult
+		var sliceResult envOverrideResult
 
 		// Handle indexed slices (e.g. VALUE_0, VALUE_1, VALUE_2, etc.)
 		for idx, envOutOfBounds := 0, false; idx < element.Len() || !envOutOfBounds; idx++ {
@@ -732,14 +732,14 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				if defaultResult, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
 					return noResult, err
 				} else {
-					result.mergeAllVars(defaultResult)
+					sliceResult.mergeAllVars(defaultResult)
 				}
 
 				// Apply the indexed environment variable as an override value.
 				if indexedResult, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
 					return noResult, err
 				} else {
-					result.merge(indexedResult)
+					sliceResult.merge(indexedResult)
 				}
 			} else {
 				// We have run past the end of starting slice, but are there more environment array indices?
@@ -793,8 +793,8 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 					return noResult, err
 				} else if indexedResult.Applied {
 					// Only record default vars when the element is actually appended.
-					result.mergeAllVars(defaultResult)
-					result.merge(indexedResult)
+					sliceResult.mergeAllVars(defaultResult)
+					sliceResult.merge(indexedResult)
 					// We found environment variables to override into newValue. Check for growth bound before appending.
 					if idx-startLen >= MaxEnvSliceGrowth {
 						overridesStr := "overrides"
@@ -813,18 +813,24 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 			}
 		}
 
-		// If the type is s slice but have value not parsed as slice e.g. GRAPHITE_0_TEMPLATES="item1,item2"
-		if element.Len() == 0 && len(value) > 0 {
-			result.Applied = true
-			result.insertVar(&result.AllVars, prefix)
-			result.insertVar(&result.IndexedVars, prefix)
+		// Slices of leaf types also support setting using a comma-delimited list in the unindexed env var.
+		// You can't mix unindexed and indexed leaf type overrides, because that leads to surprising
+		// and highly unintuitive results.
+		if isLeafType(element.Type().Elem()) && len(value) > 0 {
+			if sliceResult.Applied {
+				return noResult, fmt.Errorf("unindexed env override %s would conflict with indexed overrides (%s). Use either indexed or unindexed only for this config",
+					prefix, strings.Join(sliceResult.IndexedVars, ","))
+			}
+			sliceResult.Applied = true
+			sliceResult.insertVar(&sliceResult.AllVars, prefix)
+			sliceResult.insertVar(&sliceResult.IndexedVars, prefix)
 			parts := strings.Split(value, ",")
 			if len(parts) > MaxEnvSliceGrowth {
 				return noResult, fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
 			}
+			// Clear existing elements before applying the comma-delimited list. Create slice with zero values.
+			element.Set(reflect.MakeSlice(element.Type(), len(parts), len(parts)))
 			for idx, val := range parts {
-				// Append a zero value and then set it. This way we aren't assuming element is a []string.
-				element.Set(reflect.Append(element, reflect.Zero(element.Type().Elem())))
 				f := element.Index(idx)
 				// The custom getenv returns val for any key, so the recursive call will
 				// report prefix as applied. Since we already recorded prefix above, merge
@@ -832,12 +838,12 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				if csvResult, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, indexStructKey(structKey, idx)); err != nil {
 					return noResult, err
 				} else {
-					result.merge(csvResult)
+					sliceResult.merge(csvResult)
 				}
 			}
 		}
 
-		return result, nil
+		return sliceResult, nil
 
 	case reflect.Struct:
 		var result envOverrideResult

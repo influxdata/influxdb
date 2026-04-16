@@ -977,7 +977,6 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_STRSLICE_1":       "bob",
 		"X_STRSLICE_2":       "carol",
 		"X_STRSLICE2":        "eve,mallory",
-		"X_STRSLICE3":        "eve",     // default value
 		"X_STRSLICE3_1":      "mallory", // override for element 1
 		"X_STRSLICE3_3":      "trudy",   // appended
 		"X_STRSLICE3_5":      "oscar",   // ignored because it's out of bounds because there is no element 4
@@ -1151,7 +1150,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		GroupNumeric:   itoml.Group(groupID),
 		StrSlice:       []string{"alice", "bob", "carol"},
 		StrSlice2:      []string{"eve", "mallory"},
-		StrSlice3:      []string{"eve", "mallory", "eve", "trudy"},
+		StrSlice3:      []string{"alice", "mallory", "carol", "trudy"},
 		IntSlice:       []int{1, 2, 3},
 		IntSlice2:      []int{4, 5, 6},
 		SizeSlice:      []itoml.Size{128 * 1024 * 1024, 256 * 1024 * 1024},
@@ -1213,7 +1212,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_SSIZESLICE3_0", "X_SSIZESLICE3_1",
 		"X_SSIZESLICE_0", "X_SSIZESLICE_1",
 		"X_STRING", "X_STRINGS_1",
-		"X_STRSLICE2", "X_STRSLICE3",
+		"X_STRSLICE2",
 		"X_STRSLICE3_1", "X_STRSLICE3_3",
 		"X_STRSLICE_0", "X_STRSLICE_1", "X_STRSLICE_2",
 		"X_UINT", "X_UINT16", "X_UINT32", "X_UINT64", "X_UINT8",
@@ -1514,10 +1513,9 @@ func TestEnvOverride_CommaSeparatedTextUnmarshaler(t *testing.T) {
 	require.Equal(t, []string{"X_DURATIONS", "X_SIZES"}, appliedVars)
 }
 
-func TestEnvOverride_IndexedOverridesTakePrecedenceOverCommaSeparated(t *testing.T) {
-	// When both indexed env vars (X_VALS_0) and a comma-separated env var (X_VALS)
-	// exist, indexed overrides take precedence and the comma-separated fallback
-	// is not used (because the slice is no longer empty after indexed processing).
+func TestEnvOverride_LeafTypesCannotMixIndexedAndUnindexed(t *testing.T) {
+	// For leaf type slices, it is an error to have both indexed and unindexed
+	// environment variables.
 	type config struct {
 		Vals []string `toml:"vals"`
 	}
@@ -1535,12 +1533,44 @@ func TestEnvOverride_IndexedOverridesTakePrecedenceOverCommaSeparated(t *testing
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
-	require.NoError(t, err)
-	// Indexed env var X_VALS_0 grows the slice to length 1.
-	// The comma-separated fallback is skipped because element.Len() != 0.
-	// X_VALS acts as a default applied to element 0 first, then X_VALS_0 overwrites it.
-	require.Equal(t, []string{"override"}, c.Vals)
-	require.Equal(t, []string{"X_VALS_0"}, appliedVars)
+	require.EqualError(t, err, "unindexed env override X_VALS would conflict with indexed overrides (X_VALS_0). Use either indexed or unindexed only for this config")
+	require.Empty(t, appliedVars)
+}
+
+func TestEnvOverride_LeafTypeUnindexedErasesExisting(t *testing.T) {
+	// For leaf type slices, unindexed environment variables will
+	// completely overwrite existing values instead of appending.
+	type config struct {
+		Vals []string `toml:"vals"`
+	}
+
+	env := func(s string) string {
+		switch s {
+		case "X_VALS":
+			return "a,b,c"
+		default:
+			return ""
+		}
+	}
+
+	for _, tc := range []struct {
+		name string
+		c    config
+	}{
+		{"no slice", config{}},
+		{"empty slice", config{Vals: []string{}}},
+		{"nil slice", config{Vals: nil}},
+		{"slice grows", config{Vals: []string{"alice", "bob"}}},
+		{"slice shrinks", config{Vals: []string{"alice", "bob", "carol", "dave"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := tc.c
+			appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+			require.NoError(t, err)
+			require.Equal(t, config{Vals: []string{"a", "b", "c"}}, c)
+			require.Equal(t, []string{"X_VALS"}, appliedVars)
+		})
+	}
 }
 
 func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
