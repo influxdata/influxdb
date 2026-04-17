@@ -1821,6 +1821,133 @@ func TestEnvOverride_AllocatesNilPointerToScalar(t *testing.T) {
 	require.Equal(t, []string{"X_COUNT"}, appliedVars)
 }
 
+func TestEnvOverride_AllocatesPointerWhenGrowingScalarSlice(t *testing.T) {
+	// Entries should be allocated when growing a slice of pointers to scalars.
+	type config struct {
+		Names  []*string `toml:"names"`
+		Counts []*int    `toml:"counts"`
+	}
+
+	// We'll use indexed env vars to grow names, and unindexed csv to grow counts
+	// to check both code paths.
+	env := func(s string) string {
+		switch s {
+		case "X_NAMES_0":
+			return "Alice"
+		case "X_NAMES_1":
+			return "Bob"
+		case "X_NAMES_2":
+			return "Carol"
+		case "X_COUNTS":
+			return "100,200,300"
+		}
+		return ""
+	}
+
+	var c config
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+
+	alice := "Alice"
+	bob := "Bob"
+	carol := "Carol"
+	n100 := 100
+	n200 := 200
+	n300 := 300
+	require.EqualValues(t, &config{
+		Names:  []*string{&alice, &bob, &carol},
+		Counts: []*int{&n100, &n200, &n300},
+	}, &c)
+
+	require.ElementsMatch(t, []string{
+		"X_NAMES_0", "X_NAMES_1", "X_NAMES_2",
+		"X_COUNTS",
+	}, appliedVars)
+}
+
+func TestEnvOverride_AllocatesPointerWhenGrowingTextUnmarshalerSlice(t *testing.T) {
+	// Entries should be allocated when growing a slice of pointers to TextUnmarshalers.
+	type config struct {
+		Durations []*itoml.Duration `toml:"durations"`
+		Sizes     []*itoml.Size     `toml:"sizes"`
+	}
+
+	// We'll use indexed env vars to grow durations, and unindexed csv to grow sizes
+	// to check both code paths.
+	env := func(s string) string {
+		switch s {
+		case "X_DURATIONS_0":
+			return "30s"
+		case "X_DURATIONS_1":
+			return "30m"
+		case "X_DURATIONS_2":
+			return "4h"
+		case "X_SIZES":
+			return "128,1k,1m"
+		}
+		return ""
+	}
+
+	var c config
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+
+	dur30s := itoml.Duration(30 * time.Second)
+	dur30m := itoml.Duration(30 * time.Minute)
+	dur4h := itoml.Duration(4 * time.Hour)
+	size128 := itoml.Size(128)
+	size1k := itoml.Size(1024)
+	size1m := itoml.Size(1024 * 1024)
+	require.EqualValues(t, &config{
+		Durations: []*itoml.Duration{&dur30s, &dur30m, &dur4h},
+		Sizes:     []*itoml.Size{&size128, &size1k, &size1m},
+	}, &c)
+
+	require.ElementsMatch(t, []string{
+		"X_DURATIONS_0", "X_DURATIONS_1", "X_DURATIONS_2",
+		"X_SIZES",
+	}, appliedVars)
+}
+
+func TestEnvOverride_AllocatesPointerWhenGrowingStructSlice(t *testing.T) {
+	// Entries should be allocated when growing a slice of pointers to structs.
+	type config struct {
+		Subs []*defaulterSub `toml:"sub"`
+	}
+
+	// Structs only support indexed env var overrides.
+	// to check both code paths.
+	env := func(s string) string {
+		switch s {
+		case "X_SUB_0_A":
+			return "my a"
+		case "X_SUB_1_B":
+			return "my b"
+		case "X_SUB_2_C":
+			return "my c"
+		case "X_SUB_C":
+			return "new default c"
+		}
+		return ""
+	}
+
+	var c config
+	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+	require.NoError(t, err)
+
+	require.Equal(t, &config{
+		Subs: []*defaulterSub{
+			&defaulterSub{A: "my a", B: "default-b", C: "new default c"},
+			&defaulterSub{A: "default-a", B: "my b", C: "new default c"},
+			&defaulterSub{A: "default-a", B: "default-b", C: "my c"},
+		},
+	}, &c)
+	require.ElementsMatch(t, []string{
+		"X_SUB_0_A", "X_SUB_1_B", "X_SUB_2_C",
+		"X_SUB_C",
+	}, appliedVars)
+}
+
 func TestEnvOverride_NilPointerToStructSkipped(t *testing.T) {
 	// A nil pointer to a struct is NOT auto-allocated. Struct env vars target
 	// the struct's fields, not the struct itself, so there's no single value

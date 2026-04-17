@@ -604,6 +604,9 @@ func indexStructKey(parent string, idx int) string {
 // var value (a primitive kind or a TextUnmarshaler implementation), as opposed
 // to types whose configuration is spread across multiple env vars (structs).
 func isLeafType(t reflect.Type) bool {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
 	if reflect.PointerTo(t).Implements(textUnmarshalerType) {
 		return true
 	}
