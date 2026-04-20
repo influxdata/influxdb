@@ -115,7 +115,7 @@ async fn test_delete_table() {
             object_deleter: Some(Arc::new(object_deleter)),
             delete_grace_period: Duration::from_millis(0),
         },
-        shutdown_manager.register(),
+        shutdown_manager.register("test"),
     );
 
     // First check that the object deleter was not called before the hard delete time
@@ -221,7 +221,7 @@ async fn test_delete_database() {
             object_deleter: Some(Arc::new(object_deleter)),
             delete_grace_period: Duration::from_millis(0),
         },
-        shutdown_manager.register(),
+        shutdown_manager.register("test"),
     );
 
     // First check that the object deleter was not called before the hard delete time

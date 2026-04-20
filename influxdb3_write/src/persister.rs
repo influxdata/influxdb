@@ -36,6 +36,7 @@ use influxdb3_wal::SnapshotSequenceNumber;
 use iox_time::TimeProvider;
 use object_store::ObjectStore;
 use object_store::path::Path as ObjPath;
+use object_store_utils::AdaptivePutExt;
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use parking_lot::RwLock;
 use parquet::arrow::ArrowWriter;
@@ -890,13 +891,16 @@ impl Persister {
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
     ) -> Result<(u64, ParquetMetaData, ParquetFileDataToCache)> {
-        // so we have serialized parquet file bytes
         let parquet = self.serialize_to_parquet(record_batch).await?;
         let bytes_written = parquet.bytes.len() as u64;
+
+        // Sizes vary wildly: tens to hundreds of MB under clustered
+        // workloads, 1-row "pebble" files under late-arriving workloads.
+        //
+        // bytes.clone() is cheap -- it bumps the underlying Bytes refcount.
         let put_result = self
             .object_store
-            // this bytes.clone() is cheap - uses underlying Bytes::clone
-            .put(path.as_ref(), parquet.bytes.clone().into())
+            .put_adaptive(path.as_ref(), parquet.bytes.clone())
             .await?;
 
         let to_cache = ParquetFileDataToCache::new(

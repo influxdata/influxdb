@@ -254,6 +254,8 @@ mod tests {
             .unwrap();
         let plan = dedup_plan(schema, vec![chunk]);
         let opt = DedupNullColumns;
+        // V2 and V3 schema duplicate rules order columns differently.
+        #[cfg(feature = "v3")]
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -265,6 +267,19 @@ mod tests {
             - " DeduplicateExec: [tag1@1 ASC,tag2@0 ASC,time@3 ASC]"
             - "   DataSourceExec: file_groups={1 group: [[1.parquet]]}, projection=[tag2, tag1, tag3, time], file_type=parquet"
         "###
+        );
+        #[cfg(not(feature = "v3"))]
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new(plan, opt),
+            @r#"
+        input:
+          - " DeduplicateExec: [tag2@0 ASC,tag1@1 ASC,tag3@2 ASC,time@3 ASC]"
+          - "   DataSourceExec: file_groups={1 group: [[1.parquet]]}, projection=[tag2, tag1, tag3, time], file_type=parquet"
+        output:
+          Ok:
+            - " DeduplicateExec: [tag2@0 ASC,tag1@1 ASC,time@3 ASC]"
+            - "   DataSourceExec: file_groups={1 group: [[1.parquet]]}, projection=[tag2, tag1, tag3, time], file_type=parquet"
+        "#
         );
     }
 }

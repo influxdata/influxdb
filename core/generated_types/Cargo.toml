@@ -19,7 +19,6 @@ tonic-prost = { workspace = true }
 tracing = { workspace = true }
 uuid = { version = "1" }
 
-
 [dev-dependencies]
 bytes = "1.11"
 

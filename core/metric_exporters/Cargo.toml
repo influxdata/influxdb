@@ -14,7 +14,6 @@ metric = { path = "../metric" }
 prometheus = { version = "0.14", default-features = false }
 reqwest.workspace = true
 
-
 [dev-dependencies] # In alphabetical order
 mockito = { version = "1.7", default-features = false }
 test_helpers = { path = "../test_helpers" }

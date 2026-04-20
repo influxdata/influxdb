@@ -26,7 +26,6 @@ regex = "1.12.3"
 snafu = "0.9"
 uuid = "1"
 
-
 [dev-dependencies]
 datafusion = { workspace = true }
 proptest = { workspace = true }

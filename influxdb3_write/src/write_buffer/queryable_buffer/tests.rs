@@ -5,6 +5,7 @@ use crate::write_buffer::validator::WriteValidator;
 use datafusion_util::config::register_iox_object_store;
 use executor::{DedicatedExecutor, register_current_runtime_for_io};
 use influxdb3_catalog::resource::CatalogResource;
+use influxdb3_types::DatabaseName;
 use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::exec::{ExecutorConfig, PerQueryMemoryPoolConfig};
 use iox_time::{MockProvider, Time, TimeProvider};
@@ -80,7 +81,7 @@ async fn snapshot_works_with_not_all_columns_in_buffer() {
     };
     let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
 
-    let db = data_types::NamespaceName::new("testdb").unwrap();
+    let db = DatabaseName::new("testdb").unwrap();
 
     // create the initial write with two tags
     let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog)).unwrap();

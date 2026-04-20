@@ -61,10 +61,17 @@ message LogEntry {
   reserved 8;
   reserved 'query_completed_duration';
 
-  // Duration it took to acquire a semaphore permit, relative to `issue_time`.
+  // Duration it took to acquire an execution semaphore permit, relative to `issue_time`.
   google.protobuf.Duration permit_duration = 10;
 
-  // Duration it took to plan the query, relative to `issue_time` + `permit_duration`.
+  // Duration it took to logically plan the query, relative to `issue_time`.
+  google.protobuf.Duration logical_plan_duration = 27;
+
+  // Duration it took to physically plan the query, relative to `issue_time` +
+  // `logical_plan_duration`.
+  google.protobuf.Duration physical_plan_duration = 28;
+
+  // Duration it took to logically and physically plan the query, relative to `issue_time`.
   google.protobuf.Duration plan_duration = 11;
 
   // Duration it took to execute the query, relative to `issue_time` +
@@ -131,6 +138,7 @@ message GetLogResponse {
 enum Phase {
   PHASE_UNSPECIFIED = 0;
   PHASE_RECEIVED = 1;
+  PHASE_LOGICALLY_PLANNED = 7;
   PHASE_PLANNED = 2;
   PHASE_PERMIT = 3;
   PHASE_CANCEL = 4;

@@ -1,0 +1,23 @@
+# Configuration file for protobuf linting.
+# See https://buf.build/docs/configuration/v2/buf-yaml
+version: v2
+modules:
+  - path: protos
+    lint:
+      use:
+        - STANDARD
+      except:
+        - ENUM_FIRST_VALUE_ZERO
+        - FIELD_NOT_REQUIRED
+        - IMPORT_USED
+        - PACKAGE_NO_IMPORT_CYCLE
+        - PROTOVALIDATE
+        - SYNTAX_SPECIFIED
+      ignore:
+        - protos/google
+        - protos/grpc
+        - protos/influxdata/platform
+    breaking:
+      use:
+        - WIRE
+        - WIRE_JSON

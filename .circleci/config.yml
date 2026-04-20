@@ -271,8 +271,10 @@ jobs:
           command: cargo install cargo-deny --locked
       - run:
           name: cargo-deny Checks
-          command: cargo deny check -s
-
+          # `--warn unsound` downgrades RustSec `informational = "unsound"`
+          # advisories to warnings, they flag API soundness concerns, not
+          # exploitable vulnerabilities, so we don't want them to fail CI.
+          command: cargo deny check -s --warn unsound
   doc:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -483,8 +485,22 @@ jobs:
                 # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,@executable_path/python/lib'
                 name: adjust LC_RPATH path for darwin
                 command: |
+                  export PBS_LIBPYTHON=$(grep '^lib_name=' /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt | cut -d = -f 2)
+                  test -n "$PBS_LIBPYTHON" || { echo "ERROR: empty $PBS_LIBPYTHON"; exit 1; }
                   echo "Running: /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -add_rpath '@executable_path/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
                   /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -add_rpath '@executable_path/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                  echo "Verifying python shared library dependency via otool -L (expecting @rpath/libpython…dylib)"
+                  /osxcross/bin/aarch64-apple-darwin22.2-otool -L "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3" | grep -q "@rpath/lib${PBS_LIBPYTHON}.dylib" || {
+                    echo "ERROR: expected @rpath/lib${PBS_LIBPYTHON}.dylib not found in otool output"
+                    /osxcross/bin/aarch64-apple-darwin22.2-otool -L "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                    exit 1
+                  }
+                  echo "Verifying LC_RPATH for python shared library dependency via otool -l (expecting @executable_path/python/lib"
+                  /osxcross/bin/aarch64-apple-darwin22.2-otool -l "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3" | grep -q "path @executable_path/python/lib" || {
+                    echo "ERROR: expected @executable_path/python/lib not found in otool output"
+                    /osxcross/bin/aarch64-apple-darwin22.2-otool -l "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                    exit 1
+                  }
                   # re-sign after install_name_tool since osxcross won't do it
                   echo "Running: /usr/local/bin/rcodesign sign '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
                   /usr/local/bin/rcodesign sign "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"

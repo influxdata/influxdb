@@ -5,7 +5,7 @@ use arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
 use generated_types::influxdata::iox::{catalog, column_type::v1 as proto, gossip};
 use influxdb_line_protocol::FieldValue;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, builder::SchemaBuilder, sort::SortKey};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use snafu::Snafu;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -292,15 +292,22 @@ impl TryFrom<&gossip::v1::Column> for ColumnSchema {
 
 /// The column data type
 #[expect(missing_docs)]
-#[derive(Debug, Copy, Serialize, Deserialize, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash, Deserialize)]
 #[repr(i8)]
 pub enum ColumnType {
+    #[serde(alias = "i64", alias = "int")]
     I64 = 1,
+    #[serde(alias = "u64", alias = "uint")]
     U64 = 2,
+    #[serde(alias = "f64", alias = "float")]
     F64 = 3,
+    #[serde(alias = "bool", alias = "boolean")]
     Bool = 4,
+    #[serde(alias = "string", alias = "str")]
     String = 5,
+    #[serde(alias = "time")]
     Time = 6,
+    #[serde(alias = "tag")]
     Tag = 7,
 }
 
@@ -1182,4 +1189,35 @@ mod tests {
     );
 
     test_is_monotonic_update!(mismatch, a = [42, 24, 1], b = [24, 42, 1], want = false);
+
+    #[derive(Deserialize)]
+    struct TestValue {
+        inner: ColumnType,
+    }
+
+    fn deserialized_column(col_type_name: &str) -> ColumnType {
+        serde_json::from_value::<TestValue>(serde_json::json!({"inner": col_type_name}))
+            .unwrap()
+            .inner
+    }
+
+    #[test]
+    fn column_type_serde() {
+        assert_eq!(deserialized_column("tag"), ColumnType::Tag);
+        assert_eq!(deserialized_column("Tag"), ColumnType::Tag);
+        assert_eq!(deserialized_column("i64"), ColumnType::I64);
+        assert_eq!(deserialized_column("I64"), ColumnType::I64);
+        assert_eq!(deserialized_column("u64"), ColumnType::U64);
+        assert_eq!(deserialized_column("U64"), ColumnType::U64);
+        assert_eq!(deserialized_column("f64"), ColumnType::F64);
+        assert_eq!(deserialized_column("F64"), ColumnType::F64);
+        assert_eq!(deserialized_column("float"), ColumnType::F64);
+        assert_eq!(deserialized_column("bool"), ColumnType::Bool);
+        assert_eq!(deserialized_column("Bool"), ColumnType::Bool);
+        assert_eq!(deserialized_column("boolean"), ColumnType::Bool);
+        assert_eq!(deserialized_column("time"), ColumnType::Time);
+        assert_eq!(deserialized_column("Time"), ColumnType::Time);
+        assert_eq!(deserialized_column("tag"), ColumnType::Tag);
+        assert_eq!(deserialized_column("Tag"), ColumnType::Tag);
+    }
 }

@@ -16,6 +16,9 @@ pub mod coalesce_struct;
 /// Wallclock based date binning
 pub mod date_bin_wallclock;
 
+/// Derivative window function.
+pub mod derivative;
+
 /// Difference window function.
 pub mod difference;
 

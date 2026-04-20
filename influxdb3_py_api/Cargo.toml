@@ -18,6 +18,7 @@ influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_sys_events = { path = "../influxdb3_sys_events" }
+influxdb3_types = { path = "../influxdb3_types" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
 # crates.io deps

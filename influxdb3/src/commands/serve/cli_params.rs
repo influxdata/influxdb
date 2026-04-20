@@ -40,6 +40,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "exec-mem-pool-bytes",
     "num-datafusion-threads",
     "query-file-limit",
+    "max-concurrent-queries",
     "force-snapshot-mem-threshold",
     // WAL parameters
     "wal-flush-interval",

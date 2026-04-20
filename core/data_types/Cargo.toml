@@ -14,7 +14,7 @@ arrow = { workspace = true }
 arrow-buffer = { workspace = true }
 bytes = "1.11"
 chrono = { version = "0.4", default-features = false }
-croaring = "2.5.2"
+croaring = "2.6.0"
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 iox_time = { path = "../iox_time" }
 generated_types = { path = "../generated_types" }
@@ -26,7 +26,7 @@ prost = { workspace = true }
 schema = { path = "../schema" }
 serde_json = "1.0"
 siphasher = "1.0"
-sha2 = { version = "0.10", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 snafu = "0.9"
 sqlx = { workspace = true, features = [
     "runtime-tokio-rustls",
@@ -35,7 +35,7 @@ sqlx = { workspace = true, features = [
 ] }
 thiserror = "2.0.18"
 uuid = { version = "1", features = ["v4"] }
-serde = { workspace = true, features = ["derive"] }
+serde = "1.0.228"
 
 [dev-dependencies] # In alphabetical order
 assert_matches = "1"

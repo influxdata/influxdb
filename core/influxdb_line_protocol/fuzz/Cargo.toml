@@ -16,7 +16,6 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 influxdb-line-protocol = { path = ".." }
 
-
 [[bin]]
 name = "parsing_errors"
 path = "fuzz_targets/parsing_errors.rs"
