@@ -1,7 +1,6 @@
 use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use arrow_array::RecordBatch;
-use data_types::NamespaceName;
 use datafusion::assert_batches_sorted_eq;
 use futures::TryStreamExt;
 use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
@@ -11,6 +10,7 @@ use influxdb3_query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
 use influxdb3_shutdown::ShutdownManager;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
+use influxdb3_types::DatabaseName;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     Precision, WriteBuffer,
@@ -262,7 +262,7 @@ impl TestService {
             metric_registry: Arc::clone(&metrics),
             snapshotted_wal_files_to_keep: 100,
             query_file_limit: None,
-            shutdown: ShutdownManager::new_testing().register(),
+            shutdown: ShutdownManager::new_testing().register("test"),
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
             wal_replay_concurrency_limit: 1,
             parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -288,7 +288,7 @@ impl TestService {
             sys_events_store: Arc::clone(&sys_events_store),
             started_with_auth: false,
             time_provider: Arc::clone(&time_provider) as _,
-            processing_engine: None,
+            max_concurrent_queries: cli_types::QUERY_CONCURRENCY_LIMIT_MAX,
         }));
 
         Self {
@@ -325,7 +325,7 @@ impl TestService {
         for w in writes {
             self.write_buffer
                 .write_lp(
-                    NamespaceName::new(db).unwrap(),
+                    DatabaseName::new(db).unwrap(),
                     w.lp.as_ref(),
                     Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                     false,

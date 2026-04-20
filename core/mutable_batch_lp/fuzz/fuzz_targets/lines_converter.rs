@@ -1,7 +1,6 @@
 #![no_main]
 
 
-
 use hashbrown::HashMap;
 use libfuzzer_sys::fuzz_target;
 use mutable_batch::{MutableBatch, WritePayload, column::ColumnData};

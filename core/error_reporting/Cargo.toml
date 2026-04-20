@@ -10,7 +10,6 @@ workspace = true
 
 [dependencies] # In alphabetical order
 
-
 [dev-dependencies]
 datafusion = { workspace = true }
 snafu = "0.9"

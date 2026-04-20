@@ -43,8 +43,8 @@ impl Planner {
         let planner = SqlQueryPlanner::new();
         let query = query.as_ref();
         let ctx = self.ctx.child_ctx("rest_api_query_planner_sql");
-
-        planner.query(query, params, &ctx).await
+        let logical_plan = planner.logical_plan(query, params, &ctx).await?;
+        ctx.create_physical_plan(&logical_plan).await
     }
 
     /// Plan an InfluxQL query and return a DataFusion physical plan

@@ -5,7 +5,8 @@ use arrow_flight::FlightData;
 use bytes::Bytes;
 pub(crate) use datafusion::error::{DataFusionError as Error, Result};
 use datafusion::{
-    arrow::datatypes::SchemaRef, error::DataFusionError, physical_plan::ExecutionPlan,
+    arrow::datatypes::SchemaRef, error::DataFusionError, logical_expr::LogicalPlan,
+    physical_plan::ExecutionPlan,
 };
 use flightsql::{BaseTableType, FlightSQLCommand, FlightSQLPlanner};
 use futures::stream::Peekable;
@@ -39,46 +40,86 @@ impl Planner {
         }
     }
 
-    /// Plan a SQL query against the data in a namespace, and return a
-    /// DataFusion physical execution plan.
-    pub(crate) async fn sql(
+    /// Logically plan a SQL query against the data in a namespace, and return a
+    /// DataFusion logical plan.
+    pub(crate) async fn sql_logical_plan(
         &self,
         query: impl AsRef<str> + Send,
         params: StatementParams,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
+    ) -> Result<LogicalPlan> {
         let planner = SqlQueryPlanner::new();
         let query = query.as_ref();
-        let ctx = self.ctx.child_ctx("planner_sql");
-
-        planner.query(query, params, &ctx).await
+        let ctx = self.ctx.child_ctx("planner_sql_logical_plan");
+        planner.logical_plan(query, params, &ctx).await
     }
 
-    /// Plan an InfluxQL query against the data in `database`, and return a
+    /// Physically plan a SQL query against the data in a namespace, and return a
     /// DataFusion physical execution plan.
-    pub(crate) async fn influxql(
+    pub(crate) async fn sql_physical_plan(
+        &self,
+        logical_plan: LogicalPlan,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let planner = SqlQueryPlanner::new();
+        let ctx = self.ctx.child_ctx("planner_sql_physical_plan");
+
+        planner.physical_plan(logical_plan, &ctx).await
+    }
+
+    /// Logically plan an InfluxQL query against the data in `database`, and return a
+    /// DataFusion logical plan.
+    pub(crate) async fn influxql_logical_plan(
         &self,
         query: impl AsRef<str> + Send,
         params: impl Into<StatementParams> + Send,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
+    ) -> Result<LogicalPlan> {
         let query = query.as_ref();
-        let ctx = self.ctx.child_ctx("planner_influxql");
+        let ctx = self.ctx.child_ctx("planner_influxql_logical_plan");
 
-        InfluxQLQueryPlanner::query(query, params, &ctx).await
+        InfluxQLQueryPlanner::logical_plan(query, params, &ctx).await
     }
 
-    /// Creates a plan for a `DoGet` FlightSQL message, as described on
-    /// [`FlightSQLPlanner::do_get`], on a separate threadpool
-    pub(crate) async fn flight_sql_do_get(
+    /// Physically plan an InfluxQL query against the data in `database`, and return a
+    /// DataFusion physical execution plan.
+    pub(crate) async fn influxql_physical_plan(
+        &self,
+        logical_plan: LogicalPlan,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let ctx = self.ctx.child_ctx("planner_influxql_physical_plan");
+
+        InfluxQLQueryPlanner::physical_plan(logical_plan, &ctx).await
+    }
+
+    /// Creates a logical plan for a `DoGet` FlightSQL message, as described on
+    /// [`FlightSQLPlanner::do_get_logical_plan`], on a separate threadpool
+    pub(crate) async fn flight_sql_do_get_logical_plan(
         &self,
         namespace_name: impl AsRef<str> + Send,
         namespace: Arc<dyn QueryNamespace>,
         cmd: FlightSQLCommand,
         base_table_type: BaseTableType,
+    ) -> Result<LogicalPlan> {
+        let namespace_name = namespace_name.as_ref();
+        let ctx = self.ctx.child_ctx("planner_flight_sql_do_get_logical_plan");
+
+        FlightSQLPlanner::do_get_logical_plan(namespace_name, namespace, cmd, &ctx, base_table_type)
+            .await
+            .map_err(DataFusionError::from)
+    }
+
+    /// Creates a physical plan for a `DoGet` FlightSQL message, as described on
+    /// [`FlightSQLPlanner::do_get_physical_plan`], on a separate threadpool
+    pub(crate) async fn flight_sql_do_get_physical_plan(
+        &self,
+        namespace_name: impl AsRef<str> + Send,
+        cmd: FlightSQLCommand,
+        logical_plan: LogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let namespace_name = namespace_name.as_ref();
-        let ctx = self.ctx.child_ctx("planner_flight_sql_do_get");
+        let ctx = self
+            .ctx
+            .child_ctx("planner_flight_sql_do_get_physical_plan");
 
-        FlightSQLPlanner::do_get(namespace_name, namespace, cmd, &ctx, base_table_type)
+        FlightSQLPlanner::do_get_physical_plan(namespace_name, cmd, &ctx, &logical_plan)
             .await
             .map_err(DataFusionError::from)
     }

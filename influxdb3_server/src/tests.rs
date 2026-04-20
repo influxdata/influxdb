@@ -1358,7 +1358,7 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
             snapshotted_wal_files_to_keep: 100,
             query_file_limit: None,
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-            shutdown: shutdown_manager.register(),
+            shutdown: shutdown_manager.register("test"),
             wal_replay_concurrency_limit: 1,
             parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
         },
@@ -1394,7 +1394,7 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
         sys_events_store: Arc::clone(&sys_events_store),
         started_with_auth: false,
         time_provider: Arc::clone(&time_provider) as _,
-        processing_engine: None,
+        max_concurrent_queries: cli_types::QUERY_CONCURRENCY_LIMIT_MAX,
     }));
 
     // bind to port 0 will assign a random available port:

@@ -16,4 +16,3 @@ hashbrown = { workspace = true }
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }
 trace = { path = "../trace" }
-

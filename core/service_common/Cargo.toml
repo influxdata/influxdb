@@ -15,6 +15,5 @@ datafusion = { workspace = true }
 executor = { path = "../executor" }
 object_store.workspace = true
 object_store_mem_cache = { path = "../object_store_mem_cache" }
-tokio = "1.50"
+tokio = "1.52"
 tonic = { workspace = true, features = ["tls-ring"] }
-

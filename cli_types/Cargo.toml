@@ -1,0 +1,12 @@
+[package]
+name = "cli_types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

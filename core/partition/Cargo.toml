@@ -20,8 +20,7 @@ percent-encoding = "2.3.2"
 schema = { path = "../schema" }
 table_batch = { path = "../table_batch" }
 thiserror = "2.0.18"
-unicode-segmentation = "1.12.0"
-
+unicode-segmentation = "1.13.2"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

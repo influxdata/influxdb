@@ -33,7 +33,10 @@ use generated_types::{
 use iox_query::{
     QueryDatabase,
     exec::IOxSessionContext,
-    query_log::{PermitAndToken, QueryCompletedToken, QueryLogEntry, StatePermit, StatePlanned},
+    query_log::{
+        PermitAndToken, QueryCompletedToken, QueryLogEntry, StateExecutionPermit,
+        StatePhysicallyPlanned,
+    },
 };
 use iox_query::{exec::QueryConfig, query_log::QueryLogEntryState};
 use prost::Message;
@@ -80,10 +83,22 @@ const IOX_FLIGHT_PARQUET_FILE_LIMIT_HEADER: &str = "x-influxdata-parquet-file-li
 /// optionally sent as part of the GetFlightInfo request
 const IOX_FLIGHT_QUERY_LANGUAGE: &str = "x-influxdata-query-language";
 
-/// Trailer that describes the duration (in seconds) for which a query was queued due to concurrency limits.
+/// Trailer that describes the duration (in seconds) for which a query was queued due to execution
+/// concurrency limits.
 const IOX_FLIGHT_QUEUE_DURATION_RESPONSE_TRAILER: &str = "x-influxdata-queue-duration-seconds";
 
-/// Trailer that describes the duration (in seconds) of the planning phase of a query.
+/// Trailer that describes the duration (in seconds) of the logical planning phase of
+/// a query.
+const IOX_FLIGHT_LOGICAL_PLANNING_DURATION_RESPONSE_TRAILER: &str =
+    "x-influxdata-logical-planning-duration-seconds";
+
+/// Trailer that describes the duration (in seconds) of the physical planning phase of
+/// a query.
+const IOX_FLIGHT_PHYSICAL_PLANNING_DURATION_RESPONSE_TRAILER: &str =
+    "x-influxdata-physical-planning-duration-seconds";
+
+/// Trailer that describes the duration (in seconds) of the logical and physical planning phase of
+/// a query.
 const IOX_FLIGHT_PLANNING_DURATION_RESPONSE_TRAILER: &str =
     "x-influxdata-planning-duration-seconds";
 
@@ -126,12 +141,9 @@ const IOX_FLIGHT_INGESTER_RESPONSE_BYTES_RESPONSE_TRAILER: &str =
 /// In which interval should the `DoGet` stream send empty messages as keep alive markers?
 const DO_GET_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 
-// ── Flight query observer (for enterprise SLL integration) ────────────
-#[cfg(feature = "flight-query-observer")]
+// Flight query observer (for enterprise SLL integration)
 mod observer;
-#[cfg(feature = "flight-query-observer")]
 use observer::ObservedStream;
-#[cfg(feature = "flight-query-observer")]
 pub use observer::{FlightQueryInfo, FlightQueryObservation, FlightQueryObserver, GrpcCode};
 
 #[derive(Debug, Snafu)]
@@ -188,6 +200,13 @@ pub enum Error {
 
     #[snafu(display("Failed to encode schema: {}", source))]
     EncodeSchema { source: ArrowError },
+
+    #[snafu(display("Error while logically planning query: {}", source))]
+    LogicalPlanning {
+        namespace_name: String,
+        query: String,
+        source: planner::Error,
+    },
 
     #[snafu(display("Error while planning query: {}", source))]
     Planning {
@@ -254,6 +273,7 @@ impl From<Error> for Status {
             | Error::NoFlightSQLDatabase
             | Error::InvalidArgument { .. }
             | Error::InvalidDatabaseHeader { .. }
+            | Error::LogicalPlanning { .. }
             | Error::Planning { .. }
             | Error::Deserialization { .. }
             | Error::InternalCreatingTicket { .. }
@@ -295,6 +315,7 @@ impl Error {
             | Self::InvalidDatabaseHeader { .. }
             | Self::InvalidDatabaseName { .. } => Code::InvalidArgument,
             Self::Database { source }
+            | Self::LogicalPlanning { source, .. }
             | Self::Planning { source, .. }
             | Self::Query { source, .. } => datafusion_error_to_tonic_code(&source),
             Self::UnsupportedMessageType { .. } => Code::Unimplemented,
@@ -358,6 +379,7 @@ impl Error {
             | Self::AuthzVerification { .. } => "<unknown>",
             Self::DatabaseNotFound { namespace_name } => namespace_name,
             Self::Query { namespace_name, .. } => namespace_name,
+            Self::LogicalPlanning { namespace_name, .. } => namespace_name,
             Self::Planning { namespace_name, .. } => namespace_name,
         }
     }
@@ -386,6 +408,7 @@ impl Error {
             | Self::AuthzVerification { .. }
             | Self::DatabaseNotFound { .. } => "NONE",
             Self::Query { query, .. } => query,
+            Self::LogicalPlanning { query, .. } => query,
             Self::Planning { query, .. } => query,
         }
     }
@@ -637,19 +660,9 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + 'sta
 pub struct FlightService {
     server: Arc<dyn QueryDatabase>,
     authz: Option<Arc<dyn Authorizer>>,
-    #[cfg(feature = "flight-query-observer")]
     observer: Option<Arc<dyn FlightQueryObserver>>,
 }
 
-#[cfg(not(feature = "flight-query-observer"))]
-pub fn make_server(
-    server: Arc<dyn QueryDatabase>,
-    authz: Option<Arc<dyn Authorizer>>,
-) -> FlightServer<impl Flight> {
-    FlightServer::new(FlightService { server, authz })
-}
-
-#[cfg(feature = "flight-query-observer")]
 pub fn make_server(
     server: Arc<dyn QueryDatabase>,
     authz: Option<Arc<dyn Authorizer>>,
@@ -657,7 +670,6 @@ pub fn make_server(
     make_server_with_observer(server, authz, None)
 }
 
-#[cfg(feature = "flight-query-observer")]
 pub fn make_server_with_observer(
     server: Arc<dyn QueryDatabase>,
     authz: Option<Arc<dyn Authorizer>>,
@@ -675,7 +687,6 @@ impl FlightService {
         Self {
             server,
             authz,
-            #[cfg(feature = "flight-query-observer")]
             observer: None,
         }
     }
@@ -734,23 +745,67 @@ impl FlightService {
         );
 
         let ctx = db.new_query_context(span_ctx, query_config);
-        let planner = Planner::new(&ctx);
+        let planner = Arc::new(Planner::new(&ctx));
         let query = Arc::new(query);
 
         let q = Arc::clone(&query);
         let ns = Arc::clone(&namespace);
 
         // Run planner on a separate threadpool, rather than the IO pool that is servicing this request
+        let logical_plan_q = Arc::clone(&q);
+        let logical_plan_ns = Arc::clone(&ns);
+        let logical_planner = Arc::clone(&planner);
+        let logical_plan_res = ctx
+            .run(async move {
+                match logical_plan_q.as_ref() {
+                    RunQuery::FlightSQL(msg) => {
+                        logical_planner
+                            .flight_sql_do_get_logical_plan(
+                                &logical_plan_ns,
+                                db,
+                                msg.clone(),
+                                base_table_type,
+                            )
+                            .await
+                    }
+                    RunQuery::Sql(sql_query) => {
+                        logical_planner.sql_logical_plan(sql_query, params).await
+                    }
+                    RunQuery::InfluxQL(sql_query) => {
+                        logical_planner
+                            .influxql_logical_plan(sql_query, params)
+                            .await
+                    }
+                }
+            })
+            .await
+            .with_context(|_| LogicalPlanningSnafu {
+                namespace_name,
+                query: query.to_string(),
+            });
+
+        let (logical_plan, query_completed_token) = match logical_plan_res {
+            Ok(logical_plan) => {
+                let query_completed_token =
+                    query_completed_token.logically_planned(&ctx, &logical_plan);
+                (logical_plan, query_completed_token)
+            }
+            Err(e) => {
+                query_completed_token.fail();
+                return Err(e.into());
+            }
+        };
+
         let physical_plan_res = ctx
             .run(async move {
                 match q.as_ref() {
                     RunQuery::FlightSQL(msg) => {
                         planner
-                            .flight_sql_do_get(&ns, db, msg.clone(), base_table_type)
+                            .flight_sql_do_get_physical_plan(&ns, msg.clone(), logical_plan)
                             .await
                     }
-                    RunQuery::Sql(sql_query) => planner.sql(sql_query, params).await,
-                    RunQuery::InfluxQL(sql_query) => planner.influxql(sql_query, params).await,
+                    RunQuery::Sql(_) => planner.sql_physical_plan(logical_plan).await,
+                    RunQuery::InfluxQL(_) => planner.influxql_physical_plan(logical_plan).await,
                 }
             })
             .await
@@ -762,7 +817,7 @@ impl FlightService {
         let (physical_plan, query_completed_token) = match physical_plan_res {
             Ok(physical_plan) => {
                 let query_completed_token =
-                    query_completed_token.planned(&ctx, Arc::clone(&physical_plan));
+                    query_completed_token.physically_planned(&ctx, Arc::clone(&physical_plan));
                 (physical_plan, query_completed_token)
             }
             Err(e) => {
@@ -881,7 +936,6 @@ impl Flight for FlightService {
         let jaeger_trace = external_span_ctx.format_jaeger();
 
         // Notify observer (enterprise SLL) that a query is starting.
-        #[cfg(feature = "flight-query-observer")]
         let observation = self.observer.as_ref().map(|obs| {
             obs.on_query_start(FlightQueryInfo {
                 database: database.clone(),
@@ -933,7 +987,6 @@ impl Flight for FlightService {
             trailers.add_callback(move |trailers| md_captured.write_trailers(trailers));
         }
 
-        #[cfg(feature = "flight-query-observer")]
         {
             match (response, observation) {
                 (Ok(stream), Some(obs)) => Ok(Response::new(Box::pin(ObservedStream::new(
@@ -946,10 +999,6 @@ impl Flight for FlightService {
                 }
                 (Err(status), None) => Err(status),
             }
-        }
-        #[cfg(not(feature = "flight-query-observer"))]
-        {
-            response.map(|stream| Response::new(Box::pin(stream) as _))
         }
     }
 
@@ -1393,7 +1442,7 @@ impl GetStream {
         physical_plan: Arc<dyn ExecutionPlan>,
         namespace_name: String,
         query: &RunQuery,
-        query_completed_token: QueryCompletedToken<StatePlanned>,
+        query_completed_token: QueryCompletedToken<StatePhysicallyPlanned>,
         grpc_timeout: Option<GrpcTimeoutDuration>,
     ) -> Result<Self, Status> {
         let app_metadata = proto::AppMetadata {};
@@ -1409,15 +1458,19 @@ impl GetStream {
             })?
             .map_err(|e| FlightError::ExternalError(Box::new(e)));
 
-        // acquire token (after planning)
-        let permit_state: Arc<Mutex<Option<PermitAndToken>>> = Default::default();
-        let permit_state_captured = Arc::clone(&permit_state);
-        let permit_span = ctx.child_span("query_rate_limit_semaphore");
+        // acquire execution token (after planning)
+        let execution_permit_state: Arc<Mutex<Option<PermitAndToken>>> = Default::default();
+        let execution_permit_state_captured = Arc::clone(&execution_permit_state);
+        let execution_permit_span = ctx.child_span("query_execution_rate_limit_semaphore");
         let query_results = futures::stream::once(async move {
-            let permit = server.acquire_semaphore(permit_span).await;
-            let query_completed_token = query_completed_token.permit();
-            *permit_state_captured.lock().expect("not poisoned") = Some(PermitAndToken {
-                permit,
+            let execution_permit = server
+                .acquire_execution_semaphore(execution_permit_span)
+                .await;
+            let query_completed_token = query_completed_token.execution_permit();
+            *execution_permit_state_captured
+                .lock()
+                .expect("not poisoned") = Some(PermitAndToken {
+                permit: execution_permit,
                 query_completed_token,
             });
             query_results
@@ -1441,14 +1494,14 @@ impl GetStream {
 
         Ok(Self {
             inner,
-            permit_state,
+            permit_state: execution_permit_state,
             done: false,
             ctx: Some(ctx),
         })
     }
 
     #[must_use]
-    fn finish_stream(&mut self) -> Option<QueryCompletedToken<StatePermit>> {
+    fn finish_stream(&mut self) -> Option<QueryCompletedToken<StateExecutionPermit>> {
         self.ctx.take();
 
         self.permit_state
@@ -1537,6 +1590,8 @@ impl QueryResponseMetadata {
             partitions,
             parquet_files,
             permit_duration,
+            logical_plan_duration,
+            physical_plan_duration,
             plan_duration,
             execute_duration,
             end2end_duration: _,
@@ -1555,6 +1610,16 @@ impl QueryResponseMetadata {
             md,
             IOX_FLIGHT_QUEUE_DURATION_RESPONSE_TRAILER,
             *permit_duration,
+        );
+        Self::write_trailer_duration(
+            md,
+            IOX_FLIGHT_LOGICAL_PLANNING_DURATION_RESPONSE_TRAILER,
+            *logical_plan_duration,
+        );
+        Self::write_trailer_duration(
+            md,
+            IOX_FLIGHT_PHYSICAL_PLANNING_DURATION_RESPONSE_TRAILER,
+            *physical_plan_duration,
         );
         Self::write_trailer_duration(
             md,
@@ -1647,7 +1712,6 @@ mod tests {
         let service = FlightService {
             server: Arc::clone(&test_storage) as _,
             authz: Option::<Arc<dyn Authorizer>>::None,
-            #[cfg(feature = "flight-query-observer")]
             observer: None,
         };
         let ticket = Ticket {
@@ -1832,7 +1896,6 @@ mod tests {
         let svc = FlightService {
             server: Arc::clone(&test_storage) as _,
             authz: Some(Arc::new(MockAuthorizer {})),
-            #[cfg(feature = "flight-query-observer")]
             observer: None,
         };
 
@@ -1915,7 +1978,6 @@ mod tests {
         let svc = FlightService {
             server: Arc::clone(&test_storage) as _,
             authz: Some(Arc::new(MockAuthorizer {})),
-            #[cfg(feature = "flight-query-observer")]
             observer: None,
         };
 

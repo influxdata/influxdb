@@ -2114,8 +2114,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     params: WindowFunctionParams {
                         args: vec![
                             args[0].clone(),
-                            lit(derivative_unit(ctx, &args)?),
                             "time".as_expr(),
+                            lit(derivative_unit(ctx, &args)?),
                         ],
                         partition_by,
                         order_by,
@@ -2137,8 +2137,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     params: WindowFunctionParams {
                         args: vec![
                             args[0].clone(),
-                            lit(derivative_unit(ctx, &args)?),
                             "time".as_expr(),
+                            lit(derivative_unit(ctx, &args)?),
                         ],
                         partition_by,
                         order_by,

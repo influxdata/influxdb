@@ -19,7 +19,7 @@ use iox_http_util::{
 use iox_query::{
     QueryDatabase,
     exec::IOxSessionContext,
-    query_log::{PermitAndToken, QueryCompletedToken, StatePlanned},
+    query_log::{PermitAndToken, QueryCompletedToken, StatePhysicallyPlanned},
 };
 use iox_query_influxql::{
     frontend::planner::InfluxQLQueryPlanner, show_databases::InfluxQlShowDatabases,
@@ -57,7 +57,7 @@ use crate::{
 struct QueryPlan {
     physical_plan: Arc<dyn ExecutionPlan>,
     schema: Arc<Schema>,
-    query_completed_token: QueryCompletedToken<StatePlanned>,
+    query_completed_token: QueryCompletedToken<StatePhysicallyPlanned>,
     context: IOxSessionContext,
 }
 
@@ -381,31 +381,44 @@ impl V1HttpHandler {
             authz_id,
         );
 
-        // Log after we acquire the permit and are about to start execution
+        // Log after we are about to start logically planning
         info!(
             %namespace_name,
             %query,
             trace=external_span_ctx.format_jaeger().as_str(),
             variant=QueryVariant::InfluxQl.str(),
             request_protocol="v1_http_query",
-            "InfluxQL request planning",
+            "InfluxQL request logical planning",
         );
 
         let context = db.new_query_context(span_ctx, None);
 
-        let planner_ctx = context.child_ctx("v1 query planner");
+        let planner_ctx = context.child_ctx("v1 query logical planner");
         // Run planner on a separate threadpool, rather than the IO pool that is servicing this request
+        let logical_plan_res = context
+            .run(async move {
+                InfluxQLQueryPlanner::logical_plan(query.as_ref(), params, &planner_ctx).await
+            })
+            .await;
+        let logical_plan = match logical_plan_res {
+            Ok(logical_plan) => logical_plan,
+            Err(e) => Err(Error::from(e))?,
+        };
+        let query_completed_token =
+            query_completed_token.logically_planned(&context, &logical_plan);
+
+        let planner_ctx = context.child_ctx("v1 query physical planner");
         let physical_plan_res =
             context
                 .run(async move {
-                    InfluxQLQueryPlanner::query(query.as_ref(), params, &planner_ctx).await
+                    InfluxQLQueryPlanner::physical_plan(logical_plan, &planner_ctx).await
                 })
                 .await;
 
         let (physical_plan, query_completed_token) = match physical_plan_res {
             Ok(physical_plan) => {
                 let query_completed_token =
-                    query_completed_token.planned(&context, Arc::clone(&physical_plan));
+                    query_completed_token.physically_planned(&context, Arc::clone(&physical_plan));
                 (physical_plan, query_completed_token)
             }
             Err(e) => {
@@ -515,11 +528,13 @@ fn get_executing_statement_from_plan(
     } = query_plan;
 
     let fut = async move {
-        let permit_span = context.child_span("query_rate_limit_semaphore");
-        let permit = database.acquire_semaphore(permit_span).await;
+        let execution_permit_span = context.child_span("query_execution_rate_limit_semaphore");
+        let execution_permit = database
+            .acquire_execution_semaphore(execution_permit_span)
+            .await;
         let query_completed_token: iox_query::query_log::QueryCompletedToken<
-            iox_query::query_log::StatePermit,
-        > = query_completed_token.permit();
+            iox_query::query_log::StateExecutionPermit,
+        > = query_completed_token.execution_permit();
 
         context
             .execute_stream(physical_plan)
@@ -528,7 +543,7 @@ fn get_executing_statement_from_plan(
                 Statement::new(
                     Arc::clone(&schema),
                     Some(PermitAndToken {
-                        permit,
+                        permit: execution_permit,
                         query_completed_token,
                     }),
                     stream,

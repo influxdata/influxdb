@@ -31,7 +31,7 @@ datafusion-udf-wasm-query = { workspace = true }
 executor = { path = "../executor" }
 futures = "0.3"
 hashbrown = { workspace = true }
-indexmap = { version = "2.13", features = ["std"] }
+indexmap = { version = "2.14", features = ["std"] }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 itertools = "0.13.0"
 iox_query_params = { path = "../iox_query_params" }
@@ -48,15 +48,14 @@ parquet_file = { path = "../parquet_file" }
 query_functions = { path = "../query_functions" }
 schema = { path = "../schema" }
 snafu = "0.9"
-tokio = { version = "1.50", features = ["macros", "parking_lot"] }
+tokio = { version = "1.52", features = ["macros", "parking_lot"] }
 tokio-stream = "0.1"
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 
-
 [features]
-external-query-id = []
+v3 = ["schema/v3"]
 
 [dev-dependencies] # In alphabetical order
 criterion = { version = "0.8", default-features = false, features = ["rayon"] }

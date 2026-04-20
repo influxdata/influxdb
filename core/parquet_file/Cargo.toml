@@ -27,7 +27,7 @@ prost = { workspace = true }
 schema = { path = "../schema" }
 snafu = "0.9"
 thiserror = "2.0.18"
-tokio = { version = "1.50", features = [
+tokio = { version = "1.52", features = [
     "macros",
     "parking_lot",
     "rt",
@@ -37,7 +37,11 @@ tokio = { version = "1.50", features = [
 uuid = { version = "1", features = ["v4"] }
 zstd = { version = "0.13", default-features = false }
 
+[features]
+v3 = ["schema/v3"]
 
 [dev-dependencies] # In alphabetical order
+chrono = "0.4"
 rand = "0.9.2"
+tempfile = "3"
 test_helpers = { path = "../test_helpers" }
