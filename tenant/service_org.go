@@ -213,13 +213,18 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 		return err
 	}
 
-	tasks, _, err := s.svc.FindTasks(ctx, taskmodel.TaskFilter{OrganizationID: &id})
-	if err != nil {
-		return err
-	}
-	for _, t := range tasks {
-		if err := s.svc.DeleteTask(ctx, t.ID); err != nil && err != taskmodel.ErrTaskNotFound {
+	for {
+		tasks, _, err := s.svc.FindTasks(ctx, taskmodel.TaskFilter{OrganizationID: &id})
+		if err != nil {
 			return err
+		}
+		if len(tasks) == 0 {
+			break
+		}
+		for _, t := range tasks {
+			if err := s.svc.DeleteTask(ctx, t.ID); err != nil && err != taskmodel.ErrTaskNotFound {
+				return err
+			}
 		}
 	}
 
