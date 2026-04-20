@@ -7,6 +7,7 @@ import (
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 type OrgSvc struct {
@@ -210,6 +211,16 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	tasks, _, err := s.svc.FindTasks(ctx, taskmodel.TaskFilter{OrganizationID: &id})
+	if err != nil {
+		return err
+	}
+	for _, t := range tasks {
+		if err := s.svc.DeleteTask(ctx, t.ID); err != nil && err != taskmodel.ErrTaskNotFound {
+			return err
+		}
 	}
 
 	return s.removeResourceRelations(ctx, id)

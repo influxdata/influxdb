@@ -277,6 +277,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 
 	m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), m.kvStore, ts, serviceConfig)
+	ts.Apply(tenant.WithTaskService(m.kvService))
 
 	var (
 		opLogSvc                                              = tenant.NewOpLogService(m.kvStore, m.kvService)
