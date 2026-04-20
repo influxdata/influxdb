@@ -24,6 +24,7 @@ members = [
     "influxdb3_types",
     "influxdb3_wal",
     "influxdb3_write",
+    "cli_types",
     "object_store_limit",
     "object_store_utils",
     "core/arrow_util",
@@ -211,7 +212,7 @@ regex = "1.11.1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
 rstest = "0.26"
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-webpki = { version = "0.103", default-features = false, features = ["ring", "std"] }
+rustls-webpki = { version = "0.103.12", default-features = false, features = ["ring", "std"] }
 secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }
 # serde_json is set to 1.0.127 to prevent a conflict with core, if that gets updated upstream, this

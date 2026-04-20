@@ -87,6 +87,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 # Local crates
+cli_types = { path = "../cli_types" }
 influxdb3_query_executor = { path = "../influxdb3_query_executor" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_sys_events = { path = "../influxdb3_sys_events" }

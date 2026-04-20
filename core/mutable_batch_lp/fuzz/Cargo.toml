@@ -19,7 +19,6 @@ mutable_batch_lp = { path = ".." }
 mutable_batch = { path = "../../mutable_batch" }
 partition = { path = "../../partition" }
 
-
 [[bin]]
 name = "lines_converter"
 path = "fuzz_targets/lines_converter.rs"

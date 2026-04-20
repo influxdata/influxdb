@@ -22,4 +22,3 @@ futures = "0.3"
 snafu = "0.9"
 prost = { workspace = true }
 tracing = { workspace = true }
-

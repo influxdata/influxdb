@@ -1,11 +1,11 @@
-use http::{HeaderMap, HeaderValue, header::ACCEPT};
+use http::{HeaderMap, HeaderValue, StatusCode, header::ACCEPT};
 use http::{Request, Uri};
 
 use super::{
     MAXIMUM_DATABASE_NAME_LENGTH, extract_client_ip, extract_db_from_query_param,
     truncate_for_logging,
 };
-use crate::http::AuthenticationError;
+use crate::http::{AuthenticationError, Error};
 
 use super::QueryFormat;
 use super::ValidateDbNameError;
@@ -13,10 +13,12 @@ use super::record_batch_stream_to_body;
 use super::token_part_as_bytes;
 use super::validate_db_name;
 use arrow_array::{Int32Array, RecordBatch, record_batch};
+use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use iox_http_util::read_body_bytes_for_tests;
 use pretty_assertions::assert_eq;
+use serde_json::Value;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str;
 use std::sync::Arc;
@@ -539,4 +541,64 @@ fn test_truncate_for_logging_utf8() {
 
     // max_len = 1 falls in the middle of first character, should return empty string
     assert_eq!(truncate_for_logging(s, 1), "");
+}
+
+#[tokio::test]
+async fn test_datafusion_plan_error_maps_to_bad_request() {
+    let err = Error::Query(super::QueryExecutorError::QueryPlanning(
+        DataFusionError::Plan("bad plan".into()),
+    ));
+    let response = super::IntoResponse::into_response(err);
+
+    assert!(response.status().is_client_error());
+
+    let body = read_body_bytes_for_tests(response.into_body()).await;
+    assert_eq!(
+        str::from_utf8(body.as_ref()).unwrap(),
+        "Error during planning: bad plan"
+    );
+}
+
+#[tokio::test]
+async fn test_influxql_rewrite_error_maps_to_client_error() {
+    let rewrite_err = super::rewrite::parse_statements("show tags")
+        .expect_err("invalid InfluxQL should fail to parse");
+    let err = Error::InfluxqlRewrite(rewrite_err);
+    let response = super::IntoResponse::into_response(err);
+
+    assert!(response.status().is_client_error());
+
+    let body = read_body_bytes_for_tests(response.into_body()).await;
+    assert_eq!(
+        str::from_utf8(body.as_ref()).unwrap(),
+        "error in InfluxQL statement: parsing error: invalid SHOW statement, \
+        expected DATABASES, FIELD KEYS, MEASUREMENTS, TAG KEYS, TAG VALUES, or \
+        RETENTION POLICIES following SHOW at pos 5"
+    );
+}
+
+#[tokio::test]
+async fn test_v2_write_api_error_unauthenticated_maps_to_401() {
+    let err = super::V2WriteApiError(Error::Unauthenticated);
+    let response = super::IntoResponse::into_response(err);
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let body = read_body_bytes_for_tests(response.into_body()).await;
+    let json: Value = serde_json::from_slice(&body).expect("response body should be valid JSON");
+    assert_eq!(json["code"], "unauthorized");
+}
+
+#[tokio::test]
+async fn test_v2_write_api_error_resource_auth_unauthorized_maps_to_403() {
+    let err = super::V2WriteApiError(Error::ResourceAuthorization(
+        influxdb3_authz::ResourceAuthorizationError::Unauthorized,
+    ));
+    let response = super::IntoResponse::into_response(err);
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body = read_body_bytes_for_tests(response.into_body()).await;
+    let json: Value = serde_json::from_slice(&body).expect("response body should be valid JSON");
+    assert_eq!(json["code"], "forbidden");
 }

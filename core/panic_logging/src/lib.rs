@@ -273,24 +273,35 @@ mod tests {
 
         let logs = capture.to_string();
         let log_lines: Vec<_> = logs.split('\n').collect();
+        // The relative path of this crate is different across repos, so
+        // assert using the local name
+        let panic_file = format!("panic_file = \"{}\";", file!());
 
         // The ends of the lines have line numbers, so only assert on the beginning of the lines to
         // avoid having to update this test every time there's any edit to this file.
         assert_contains!(
             log_lines[0],
-            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_message = \"it's bananas\"; panic_file = \"core/panic_logging/src/lib.rs\";"
+            format!(
+                "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_message = \"it's bananas\"; {panic_file}"
+            )
         );
         assert_contains!(
             log_lines[1],
-            "level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_message = \"offset\"; panic_file = \"core/panic_logging/src/lib.rs\";"
+            format!(
+                "level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_message = \"offset\"; {panic_file}"
+            )
         );
         assert_contains!(
             log_lines[2],
-            "level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_message = \"offset overflow\"; panic_file = \"core/panic_logging/src/lib.rs\";"
+            format!(
+                "level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_message = \"offset overflow\"; {panic_file}"
+            )
         );
         assert_contains!(
             log_lines[3],
-            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_file = \"core/panic_logging/src/lib.rs\";"
+            format!(
+                "level = ERROR; message = Thread panic; panic_type = \"unknown\"; {panic_file}"
+            )
         );
     }
 }

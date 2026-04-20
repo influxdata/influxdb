@@ -16,7 +16,7 @@ pub mod write_buffer;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use data_types::{NamespaceName, TimestampMinMax};
+use data_types::TimestampMinMax;
 use datafusion::{
     catalog::Session,
     common::{Column, DFSchema},
@@ -30,6 +30,7 @@ use datafusion::{
 use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
+use influxdb3_types::DatabaseName;
 pub use influxdb3_types::write::Precision;
 use influxdb3_wal::{SnapshotSequenceNumber, Wal, WalFileSequenceNumber};
 use iox_query::QueryChunk;
@@ -69,7 +70,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     /// and returns the result with any lines that had errors and summary statistics.
     async fn write_lp(
         &self,
-        database: NamespaceName<'static>,
+        database: DatabaseName,
         lp: &str,
         ingest_time: Time,
         accept_partial: bool,
@@ -162,7 +163,7 @@ impl Serialize for WriteLineError {
 /// memory. This is the summary information for the write along with any errors that were encountered.
 #[derive(Debug)]
 pub struct BufferedWriteRequest {
-    pub db_name: NamespaceName<'static>,
+    pub db_name: DatabaseName,
     pub invalid_lines: Vec<WriteLineError>,
     pub line_count: usize,
     pub field_count: usize,
@@ -807,9 +808,9 @@ pub mod test_helpers {
     use crate::WriteBuffer;
     use crate::write_buffer::validator::WriteValidator;
     use arrow::array::RecordBatch;
-    use data_types::NamespaceName;
     use datafusion::prelude::Expr;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+    use influxdb3_types::DatabaseName;
     use influxdb3_wal::{Gen1Duration, WriteBatch};
     use iox_query::exec::IOxSessionContext;
     use iox_time::Time;
@@ -884,7 +885,7 @@ pub mod test_helpers {
     }
 
     pub async fn do_write(wb: &dyn WriteBuffer, db: &str, lp: &str, time: Time) {
-        let db_name = NamespaceName::new(db.to_owned()).expect("valid namespace name for database");
+        let db_name = DatabaseName::new(db.to_owned()).expect("valid database name");
         wb.write_lp(
             db_name,
             lp,

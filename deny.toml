@@ -21,6 +21,14 @@ ignore = [
     # (requires CA compromise). Stuck on 0.102.x via wasmtime's rustls 0.22.x
     # dep in datafusion-udf-wasm. Upstream also ignores this advisory.
     "RUSTSEC-2026-0049",
+    # rustls-webpki 0.102.8 wildcard name-constraint bug; stuck on 0.102.x via
+    # wasmtime's rustls 0.22.x dep in datafusion-udf-wasm. Upstream fix pulls in
+    # newer DataFusion/wasmtime and is not yet compatible with this repo.
+    "RUSTSEC-2026-0099",
+    # rustls-webpki 0.102.8 URI name-constraint bug; same transitive 0.102.x path
+    # via datafusion-udf-wasm/wasmtime/rustls 0.22.x, with the same current
+    # incompatibility on the available upstream fix path.
+    "RUSTSEC-2026-0098",
 
     # wasmtime 41.0.4 advisories (transitive dep via datafusion-udf-wasm)
     #

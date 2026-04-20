@@ -2,7 +2,10 @@ use super::*;
 use clap::Parser;
 use iox_time::{MockProvider, Time};
 use object_store::ObjectStore;
-use std::{str::FromStr, sync::Mutex};
+use std::{
+    str::FromStr,
+    sync::{Mutex, OnceLock},
+};
 use tempfile::TempDir;
 
 /// The current object store store configurations.
@@ -10,6 +13,11 @@ enum StoreConfigs {
     Base(ObjectStoreConfig),
     Source(SourceObjectStoreConfig),
     Sink(SinkObjectStoreConfig),
+}
+
+fn tls_env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
 }
 
 impl StoreConfigs {
@@ -837,6 +845,8 @@ async fn validate_reauthing_object_store() {
 
 #[test]
 fn test_tls_cli_arguments() {
+    let _guard = tls_env_lock().lock().unwrap();
+
     // Test parsing TLS allow insecure flag
     let config = ObjectStoreConfig::try_parse_from([
         "server",
@@ -955,6 +965,8 @@ fn test_tls_configuration_with_different_stores() {
 #[test]
 fn test_tls_environment_variables() {
     use std::env;
+
+    let _guard = tls_env_lock().lock().unwrap();
 
     unsafe {
         // Test environment variable for allow-insecure

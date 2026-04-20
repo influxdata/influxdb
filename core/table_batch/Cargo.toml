@@ -12,7 +12,6 @@ influxdb-line-protocol = { path = "../influxdb_line_protocol/" }
 schema = { path = "../schema" }
 bitvec = { version = "1", default-features = false }
 
-
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol/", features = [ "test_helpers" ] }
