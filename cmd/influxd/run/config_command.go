@@ -44,7 +44,7 @@ func (cmd *PrintConfigCommand) Run(args ...string) error {
 
 	// Apply any environment variables on top of the parsed config
 	if _, err := config.ApplyEnvOverrides(os.Getenv); err != nil {
-		return fmt.Errorf("apply env config: %v", err)
+		return fmt.Errorf("apply env config: %w", err)
 	}
 
 	// Validate the configuration.
