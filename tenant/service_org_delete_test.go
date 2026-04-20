@@ -102,15 +102,16 @@ func TestDeleteOrganization_PurgesTasksV1(t *testing.T) {
 		orgPrefix, err := org.ID.Encode()
 		require.NoError(t, err)
 		c, err := idxBkt.ForwardCursor(orgPrefix, kv.WithCursorPrefix(orgPrefix))
-		if err != nil {
-			return err
-		}
+		require.NoError(t, err)
 		defer c.Close()
+		var remaining [][]byte
 		for k, _ := c.Next(); k != nil; k, _ = c.Next() {
 			if bytes.HasPrefix(k, orgPrefix) {
-				t.Errorf("taskIndexsv1 still has entry for deleted org: %x", k)
+				remaining = append(remaining, append([]byte(nil), k...))
 			}
 		}
-		return c.Err()
+		require.NoError(t, c.Err())
+		require.Emptyf(t, remaining, "taskIndexsv1 still has entries for deleted org: %x", remaining)
+		return nil
 	}))
 }
