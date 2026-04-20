@@ -35,7 +35,7 @@ prost = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.149"
 snafu = "0.9"
-tokio = { version = "1.50", features = [
+tokio = { version = "1.52", features = [
     "macros",
     "net",
     "parking_lot",
@@ -45,15 +45,9 @@ tokio = { version = "1.50", features = [
     "time",
 ] }
 
-
-[features]
-flight-query-observer = []
-
 [dev-dependencies]
 assert_matches = "1"
 async-trait = "0.1"
-executor = { path = "../executor" }
-iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 test_helpers = { path = "../test_helpers" }
 

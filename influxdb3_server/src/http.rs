@@ -9,7 +9,6 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64_STANDARD;
 use bytes::{Bytes, BytesMut};
 use chrono::DateTime;
-use data_types::NamespaceName;
 use datafusion::error::DataFusionError;
 use datafusion::execution::RecordBatchStream;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
@@ -43,6 +42,7 @@ use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION, ProcessUuid
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::manager::ProcessingEngineError;
 use influxdb3_types::http::*;
+use influxdb3_types::{DatabaseName, DatabaseNameError};
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
@@ -140,11 +140,7 @@ impl IntoResponse for RoutingError {
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = bytes_to_response_body(serialized);
-                let status = match e {
-                    WriteParseError::NotImplemented => StatusCode::NOT_FOUND,
-                    WriteParseError::SingleTenantError(e) => StatusCode::from(&e),
-                    WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
-                };
+                let status = StatusCode::from(&e);
                 ResponseBuilder::new().status(status).body(body).unwrap()
             }
             Self::Authentication(e) => e.into_response(),
@@ -232,9 +228,9 @@ pub enum Error {
     #[error("invalid mime type ({0})")]
     InvalidMimeType(String),
 
-    /// NamespaceName validation error.
-    #[error("error validating namespace name: {0}")]
-    InvalidNamespaceName(#[from] data_types::NamespaceNameError),
+    /// DatabaseName validation error.
+    #[error("error validating database name: {0}")]
+    InvalidDatabaseName(#[from] DatabaseNameError),
 
     /// Failure to decode the provided line protocol.
     #[error("failed to parse line protocol: {0}")]
@@ -445,6 +441,7 @@ impl IntoResponse for ResourceAuthorizationError {
 /// `code` can be one of:
 /// * `invalid`
 /// * `unauthorized`
+/// * `forbidden`
 /// * `not found`
 /// * `request too large`
 /// * `internal error`
@@ -466,10 +463,9 @@ impl V2WriteApiError {
             | Error::InvalidContentType { .. }
             | Error::InvalidGzip(_)
             | Error::InvalidMimeType(_)
-            | Error::InvalidNamespaceName(_)
+            | Error::InvalidDatabaseName(_)
             | Error::ParseLineProtocol(_)
             | Error::RequestLimit
-            | Error::Forbidden
             | Error::UnsupportedMethod
             | Error::NonUtf8MimeType(_)
             | Error::SerdeUrlDecoding(_)
@@ -496,9 +492,8 @@ impl V2WriteApiError {
                 _ => V2WriteErrorCode::InternalError,
             },
             Error::Unauthenticated => V2WriteErrorCode::Unauthorized,
-            Error::ResourceAuthorization(ResourceAuthorizationError::Unauthorized) => {
-                V2WriteErrorCode::Unauthorized
-            }
+            Error::ResourceAuthorization(ResourceAuthorizationError::Unauthorized)
+            | Error::Forbidden => V2WriteErrorCode::Forbidden,
             Error::RequestSizeExceeded(_) => V2WriteErrorCode::RequestTooLarge,
             _ => V2WriteErrorCode::InternalError,
         }
@@ -509,6 +504,7 @@ impl V2WriteApiError {
 enum V2WriteErrorCode {
     Invalid,
     Unauthorized,
+    Forbidden,
     NotFound,
     RequestTooLarge,
     InternalError,
@@ -519,6 +515,7 @@ impl V2WriteErrorCode {
         match self {
             Self::Invalid => "invalid",
             Self::Unauthorized => "unauthorized",
+            Self::Forbidden => "forbidden",
             Self::NotFound => "not found",
             Self::RequestTooLarge => "request too large",
             Self::InternalError => "internal error",
@@ -529,6 +526,7 @@ impl V2WriteErrorCode {
         match self {
             Self::Invalid => StatusCode::BAD_REQUEST,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::RequestTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
@@ -609,6 +607,43 @@ enum Either<L, R> {
     Right(R),
 }
 
+/// Classify DataFusion errors into HTTP status codes.
+///
+/// Keep this as the single mapping point so new DataFusion variants can be
+/// added in one place.
+fn datafusion_error_status_code(err: &DataFusionError) -> StatusCode {
+    match err {
+        DataFusionError::Plan(_) | DataFusionError::SQL(_, _) => StatusCode::BAD_REQUEST,
+        DataFusionError::NotImplemented(_) => StatusCode::METHOD_NOT_ALLOWED,
+        DataFusionError::Context(_, source) | DataFusionError::Diagnostic(_, source) => {
+            datafusion_error_status_code(source.as_ref())
+        }
+        DataFusionError::Shared(source) => datafusion_error_status_code(source.as_ref()),
+        DataFusionError::Collection(errors) => {
+            if errors
+                .iter()
+                .all(|error| datafusion_error_status_code(error) == StatusCode::BAD_REQUEST)
+            {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        }
+        DataFusionError::ArrowError(_, _)
+        | DataFusionError::ParquetError(_)
+        | DataFusionError::ObjectStore(_)
+        | DataFusionError::IoError(_)
+        | DataFusionError::Internal(_)
+        | DataFusionError::Configuration(_)
+        | DataFusionError::SchemaError(_, _)
+        | DataFusionError::Execution(_)
+        | DataFusionError::ExecutionJoin(_)
+        | DataFusionError::ResourcesExhausted(_)
+        | DataFusionError::External(_)
+        | DataFusionError::Substrait(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
 impl IntoResponse for CatalogError {
     fn into_response(self) -> Response {
         let resp_or_code: Either<Response, StatusCode> = match self {
@@ -673,6 +708,12 @@ impl IntoResponse for Error {
             Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => {
                 ResponseBuilder::new()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
+                    .body(bytes_to_response_body(err.to_string()))
+                    .unwrap()
+            }
+            Self::Query(QueryExecutorError::QueryPlanning(err)) | Self::Datafusion(err) => {
+                ResponseBuilder::new()
+                    .status(datafusion_error_status_code(&err))
                     .body(bytes_to_response_body(err.to_string()))
                     .unwrap()
             }
@@ -862,11 +903,18 @@ impl IntoResponse for Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            Self::Authentication(_) => ResponseBuilder::new()
+            Self::InfluxqlRewrite(_)
+            | Self::InfluxqlSingleStatement
+            | Self::InfluxqlNoDatabase
+            | Self::InfluxqlDatabaseMismatch { .. } => ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
+            Self::Authentication(_) | Self::Unauthenticated => ResponseBuilder::new()
                 .status(StatusCode::UNAUTHORIZED)
                 .body(bytes_to_response_body("".to_string()))
                 .unwrap(),
-            Self::ResourceAuthorization(_) => ResponseBuilder::new()
+            Self::ResourceAuthorization(_) | Self::Forbidden => ResponseBuilder::new()
                 .status(StatusCode::FORBIDDEN)
                 .body(bytes_to_response_body("".to_string()))
                 .unwrap(),
@@ -878,11 +926,51 @@ impl IntoResponse for Error {
                 .status(StatusCode::METHOD_NOT_ALLOWED)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            Self::MissingDb(_) | Self::MissingTable(_) => ResponseBuilder::new()
+            Self::MissingDb(_) | Self::MissingTable(_) | Self::NoHandler => ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
-            _ => ResponseBuilder::new()
+            Self::NonUtf8Body(_)
+            | Self::NonUtf8ContentEncodingHeader(_)
+            | Self::NonUtf8ContentTypeHeader(_)
+            | Self::InvalidGzip(_)
+            | Self::InvalidMimeType(_)
+            | Self::InvalidDatabaseName(_)
+            | Self::ParseLineProtocol(_)
+            | Self::NonUtf8MimeType(_) => ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
+            Self::RequestSizeExceeded(_) => ResponseBuilder::new()
+                .status(StatusCode::PAYLOAD_TOO_LARGE)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
+            Self::RequestLimit => ResponseBuilder::new()
+                .status(StatusCode::TOO_MANY_REQUESTS)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
+            Self::Influxdb3TypesHttp(err) => ResponseBuilder::new()
+                .status(StatusCode::from(&err))
+                .body(bytes_to_response_body(err.to_string()))
+                .unwrap(),
+            Self::LegacyWriteParse(err) => ResponseBuilder::new()
+                .status(StatusCode::from(&err))
+                .body(bytes_to_response_body(err.to_string()))
+                .unwrap(),
+            Self::ClientHangup(_)
+            | Self::ServingHttp(_)
+            | Self::Arrow(_)
+            | Self::Hyper(_)
+            | Self::WriteBuffer(_)
+            | Self::Persister(_)
+            | Self::ToStr(_)
+            | Self::Influxdb3Write(_)
+            | Self::Io(_)
+            | Self::Query(_)
+            | Self::ObjectStore(_)
+            | Self::PythonPluginsNotEnabled
+            | Self::Plugin(_)
+            | Self::ProcessingEngine(_) => ResponseBuilder::new()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
@@ -940,8 +1028,8 @@ impl HttpApi {
 
     async fn write_lp_inner(&self, params: WriteParams, req: Request) -> Result<Response> {
         validate_db_name(&params.db)?;
-        // NamespaceName contains additional validation; do it early
-        let database = NamespaceName::new(params.db)?;
+        // DatabaseName contains additional validation; do it early
+        let database = DatabaseName::new(params.db)?;
         let body = self.read_body(req).await?;
         let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
 
@@ -2143,8 +2231,8 @@ fn validate_db_name(name: &str) -> Result<(), ValidateDbNameError> {
 
 // v1 supports 255 chars for the database name and 255 chars for the
 // retention policy name; we support those combined with a forward slash so
-// 255*2+1, but iox name spaces are limited to a max of 64
-const MAXIMUM_DATABASE_NAME_LENGTH: usize = 64;
+// 255*2+1.
+const MAXIMUM_DATABASE_NAME_LENGTH: usize = 511;
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 pub enum ValidateDbNameError {

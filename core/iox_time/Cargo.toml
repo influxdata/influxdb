@@ -12,7 +12,6 @@ workspace = true
 [dependencies]
 chrono = { version = "0.4.44", default-features = false, features = ["clock", "std"] }
 parking_lot = "0.12"
-tokio = { version = "1.50", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-
+tokio = { version = "1.52", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 
 [dev-dependencies]

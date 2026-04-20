@@ -243,6 +243,11 @@ static REGEX_TIMING: LazyLock<Regex> =
 /// and `TableScan: .*`
 ///
 /// Should be used in combination w/ [`REGEX_TIME_OP`] and [`REGEX_TIMESTAMP_NANOSECOND`].
+///
+/// Example matches:
+/// * `FilterExec: time @compactor/src/components/df_planner/planner_v1.rs >= 123456789, projection=[tag0 @compactor/tests/steady_state/vary_l0_file_overlap.rs]`
+/// * `Filter: m0.time >= TimestampNanosecond(1775484002505303000, None)`
+/// * `TableScan: m0 projection=[tag0, time], partial_filters=[m0.time >= TimestampNanosecond(1775484002505303000, None)]`
 static REGEX_FILTER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new("(?P<prefix>(FilterExec)|(DataSourceExec)|(Filter)|(TableScan): )(?P<expr>.*)")
         .expect("filter regex")
@@ -603,3 +608,38 @@ impl PartialEq<Self> for Formatter {
 }
 
 impl Eq for Formatter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalizer_filters() {
+        let mut normalizer = Normalizer::new();
+        normalizer.normalized_filters = true;
+
+        let cases = vec![
+            (
+                "FilterExec: time@3 >= 123456789",
+                "FilterExec: time@3 >= <REDACTED>",
+            ),
+            (
+                "Filter: m0.time >= TimestampNanosecond(1775484002505303000, None)",
+                "Filter: m0.time >= TimestampNanosecond(<REDACTED>, None)",
+            ),
+            (
+                "TableScan: m0 projection=[tag0, time], partial_filters=[m0.time >= TimestampNanosecond(1775484002505303000, None)]",
+                "TableScan: m0 projection=[tag0, time], partial_filters=[m0.time >= TimestampNanosecond(<REDACTED>, None)]",
+            ),
+            (
+                "FilterExec: time @compactor/src/components/df_planner/planner_v1.rs >= 123456789",
+                "FilterExec: time @compactor/src/components/df_planner/planner_v1.rs >= 123456789", // Current behavior: no redact
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let result = normalizer.normalize_text(vec![input.to_string()]);
+            assert_eq!(result[0], expected, "Input: {}", input);
+        }
+    }
+}

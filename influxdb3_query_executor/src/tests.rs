@@ -1,7 +1,6 @@
 use super::CreateQueryExecutorArgs;
 use crate::QueryExecutorImpl;
 use arrow::array::RecordBatch;
-use data_types::NamespaceName;
 use datafusion::assert_batches_sorted_eq;
 use futures::TryStreamExt;
 use influxdb3_cache::{
@@ -13,6 +12,7 @@ use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_shutdown::ShutdownManager;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
+use influxdb3_types::DatabaseName;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     Bufferer, WriteBuffer,
@@ -123,7 +123,7 @@ pub(crate) async fn setup(
         snapshotted_wal_files_to_keep: 1,
         query_file_limit,
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
@@ -161,7 +161,7 @@ pub(crate) async fn setup(
         sys_events_store: Arc::clone(&sys_events_store),
         started_with_auth,
         time_provider: Arc::clone(&time_provider) as _,
-        processing_engine: None,
+        max_concurrent_queries: cli_types::QUERY_CONCURRENCY_LIMIT_MAX,
     });
 
     (
@@ -183,7 +183,7 @@ async fn system_parquet_files_success() {
         let time = i * 10;
         let _ = write_buffer
             .write_lp(
-                NamespaceName::new(db_name).unwrap(),
+                DatabaseName::new(db_name).unwrap(),
                 "\
             cpu,host=a,region=us-east usage=250\n\
             mem,host=a,region=us-east usage=150000\n\
@@ -295,7 +295,7 @@ async fn query_file_limits_default() {
         let time = i * 10;
         let _ = write_buffer
             .write_lp(
-                NamespaceName::new(db_name).unwrap(),
+                DatabaseName::new(db_name).unwrap(),
                 "\
             cpu,host=a,region=us-east usage=250\n\
             mem,host=a,region=us-east usage=150000\n\
@@ -361,7 +361,7 @@ async fn query_file_limits_default() {
     let time = 12990;
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new(db_name).unwrap(),
+            DatabaseName::new(db_name).unwrap(),
             "\
             cpu,host=a,region=us-east usage=250\n\
             mem,host=a,region=us-east usage=150000\n\
@@ -411,7 +411,7 @@ async fn query_file_limits_configured() {
         let time = i * 10;
         let _ = write_buffer
             .write_lp(
-                NamespaceName::new(db_name).unwrap(),
+                DatabaseName::new(db_name).unwrap(),
                 "\
             cpu,host=a,region=us-east usage=250\n\
             mem,host=a,region=us-east usage=150000\n\
@@ -477,7 +477,7 @@ async fn query_file_limits_configured() {
     let time = 120;
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new(db_name).unwrap(),
+            DatabaseName::new(db_name).unwrap(),
             "\
             cpu,host=a,region=us-east usage=250\n\
             mem,host=a,region=us-east usage=150000\n\
@@ -521,7 +521,7 @@ async fn test_token_permissions_sys_table_query_wrong_db_name() {
     let (write_buffer, query_exec, _, _) = setup(None, true).await;
     write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "\
         cpu,host=a,region=us-east usage=250\n\
         mem,host=a,region=us-east usage=150000\n\

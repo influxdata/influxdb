@@ -20,7 +20,7 @@ async fn test_shutdown_order() {
 
     static CLEAN: AtomicBool = AtomicBool::new(false);
 
-    let token = shutdown_manager.register();
+    let token = shutdown_manager.register("test_component");
     tokio::spawn(async move {
         loop {
             futures::select! {
@@ -201,4 +201,38 @@ async fn test_abortable_background_task_runner_with_waits_in_loop() {
     // because we slept for 50ms task will be aborted before incrementing the counter so
     // this should always be 0
     assert_eq!(current_count, 0);
+}
+
+#[tokio::test]
+async fn test_named_shutdown_tracking() {
+    let frontend_token = CancellationToken::new();
+    let shutdown_manager = ShutdownManager::new(frontend_token.clone());
+
+    let token_a = shutdown_manager.register("component_a");
+    let token_b = shutdown_manager.register("component_b");
+
+    assert_eq!(shutdown_manager.pending_components().len(), 2);
+    assert!(
+        shutdown_manager
+            .pending_components()
+            .contains(&"component_a")
+    );
+    assert!(
+        shutdown_manager
+            .pending_components()
+            .contains(&"component_b")
+    );
+
+    // Complete one component
+    token_a.complete();
+    assert_eq!(shutdown_manager.pending_components().len(), 1);
+    assert!(
+        shutdown_manager
+            .pending_components()
+            .contains(&"component_b")
+    );
+
+    // Drop the other (should also remove from pending)
+    drop(token_b);
+    assert!(shutdown_manager.pending_components().is_empty());
 }

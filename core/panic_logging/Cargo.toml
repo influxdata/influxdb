@@ -12,6 +12,5 @@ workspace = true
 metric = { path = "../metric" }
 tracing = { workspace = true }
 
-
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }

@@ -2,6 +2,7 @@
 
 use crate::commands::create::token::AdminTokenFile;
 use anyhow::{Context, bail};
+use cli_types::{MaxConcurrentQueries, QUERY_CONCURRENCY_LIMIT_MAX};
 use futures::{FutureExt, future::FusedFuture, pin_mut};
 use influxdb3_authz::TokenAuthenticator;
 use influxdb3_cache::{
@@ -381,6 +382,20 @@ pub struct Config {
     )]
     pub query_log_size: usize,
 
+    /// Maximum number of concurrent queries that can execute simultaneously.
+    ///
+    /// When this limit is reached, new queries will wait until a running query completes.
+    /// Setting a lower value provides backpressure during load spikes at the cost of
+    /// queuing new queries. Defaults to (`usize::MAX >> 3`, ~2^60 on 64-bit platforms)
+    /// — effectively unlimited.
+    #[clap(
+        long = "max-concurrent-queries",
+        env = "INFLUXDB3_MAX_CONCURRENT_QUERIES",
+        default_value_t = MaxConcurrentQueries(QUERY_CONCURRENCY_LIMIT_MAX),
+        action
+    )]
+    pub max_concurrent_queries: MaxConcurrentQueries,
+
     #[clap(flatten)]
     pub node_id: NodeId,
 
@@ -742,6 +757,8 @@ impl FromStr for ParquetCachePrunePercent {
 pub async fn command(config: Config, user_params: HashMap<String, String>) -> Result<()> {
     let node_id = config.get_node_id()?;
 
+    let max_concurrent_queries = config.max_concurrent_queries.0;
+
     // Check that both a cert file and key file are present if TLS is being set up
     match (&config.cert_file, &config.key_file) {
         (Some(_), None) | (None, Some(_)) => {
@@ -932,14 +949,14 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Arc::clone(&object_store),
         Arc::clone(&time_provider),
         Arc::clone(&metrics),
-        shutdown_manager.register(),
+        shutdown_manager.register("catalog"),
         Arc::clone(&process_uuid_getter),
     )
     .await
     .map_err(Error::InitializeCatalog)?;
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
 
-    let retention_handler_token = shutdown_manager.register();
+    let retention_handler_token = shutdown_manager.register("retention_handler");
     let _table_index_cache = initialize_table_index_cache(
         node_id.clone(),
         config.retention_check_interval.into(),
@@ -1051,7 +1068,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
         query_file_limit: config.query_file_limit,
         n_snapshots_to_load_on_start,
-        shutdown: shutdown_manager.register(),
+        shutdown: shutdown_manager.register("write_buffer"),
         wal_replay_concurrency_limit: config.wal_replay_concurrency_limit,
         parquet_snapshot_concurrency_limit: config.parquet_snapshot_concurrency_limit,
     })
@@ -1069,7 +1086,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
             object_deleter,
             delete_grace_period: *config.delete_grace_period,
         },
-        shutdown_manager.register(),
+        shutdown_manager.register("delete_manager"),
     );
 
     info!("setting up background mem check for query buffer");
@@ -1121,7 +1138,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         // convert to positive here so that we can avoid double negatives downstream
         started_with_auth: !config.without_auth,
         time_provider: Arc::clone(&time_provider) as _,
-        processing_engine: None,
+        max_concurrent_queries,
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)

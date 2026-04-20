@@ -20,7 +20,9 @@ use tracker::{
 // for benchmarks and tests
 pub use s3_fifo::{S3Config, S3Fifo, s3_fifo_entry_overhead_size};
 
-use crate::cache_system::{AsyncDrop, DynError, InUse, s3_fifo_cache::s3_fifo::S3FifoStats};
+use crate::cache_system::{
+    AsyncDrop, DynError, InUse, loader::PleaseDontCancelMe, s3_fifo_cache::s3_fifo::S3FifoStats,
+};
 
 use super::{
     Cache, CacheFn, CacheRequestResult, HasSize,
@@ -193,10 +195,11 @@ where
         let hook_captured = Arc::clone(&self.hook);
         let cache_captured = Arc::downgrade(&self.cache);
         let semaphore_captured = Arc::clone(&self.inflight_semaphore);
-        let fut = move || async move {
+        let fut = move |please_dont_cancel_me: PleaseDontCancelMe| async move {
             // Acquire insertion permit if size_hint is provided
             let insertion_permit =
                 try_acquire_permit(size_hint as u32, &semaphore_captured).await?;
+            please_dont_cancel_me.signal_meaningful_progress();
 
             // now we inform the hook of insertion
             let generation = gen_counter_captured.fetch_add(1, Ordering::SeqCst);
@@ -306,6 +309,11 @@ where
     /// returned count of evicted items will be lower).
     pub fn evict_keys(&self, keys: impl Iterator<Item = K>) -> usize {
         self.cache.remove_keys(keys)
+    }
+
+    /// Check if given key is currently loading.
+    pub fn currently_loading(&self, key: &K) -> bool {
+        self.loader.currently_loading(key)
     }
 }
 

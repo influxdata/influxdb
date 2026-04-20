@@ -14,7 +14,6 @@ use arrow_array::{
 use arrow_schema::DataType;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use data_types::NamespaceName;
 use futures::TryStreamExt;
 use hashbrown::{HashMap, HashSet};
 use humantime::format_duration;
@@ -22,6 +21,7 @@ use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_sys_events::SysEventStore;
+use influxdb3_types::DatabaseName;
 use influxdb3_write::{Bufferer, Precision};
 use iox_query_params::StatementParams;
 use iox_time::{Time, TimeProvider};
@@ -305,13 +305,13 @@ impl PyPluginCallApi {
 
         py.detach(|| {
             tokio::task::block_in_place(|| {
-                let namespace = NamespaceName::new(db_name.clone())
+                let database_name = DatabaseName::new(db_name.clone())
                     .map_err(|e| format!("invalid database name: {e}"))?;
                 let ingest_time = Time::from_timestamp_nanos(ingest_time_nanos);
 
                 tokio::runtime::Handle::current()
                     .block_on(write_buffer.write_lp(
-                        namespace,
+                        database_name,
                         &line_str,
                         ingest_time,
                         false,
@@ -346,6 +346,7 @@ impl PyPluginCallApi {
         let batches = py.detach(|| {
             tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async {
+                    let _permit = query_executor.acquire_execution_semaphore(None).await;
                     let res = query_executor
                         .query_sql(db_schema_name.as_ref(), &query, params, None, None)
                         .await

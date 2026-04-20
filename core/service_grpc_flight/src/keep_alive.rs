@@ -144,6 +144,9 @@ use tokio::time::{Interval, MissedTickBehavior};
 use tracing::{info, warn};
 
 #[pin_project::pin_project(project = MaybeSleepProj)]
+// tokio::time::Sleep exceeds the large_enum_variant threshold on macOS but not
+// Linux due to platform-dependent type sizes in tokio's timer internals.
+#[allow(clippy::allow_attributes)]
 #[allow(clippy::large_enum_variant)]
 enum MaybeSleep {
     Sleep(#[pin] tokio::time::Sleep),

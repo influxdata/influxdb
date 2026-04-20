@@ -4,9 +4,12 @@ use crate::exec::IOxSessionContext;
 use crate::memory_pool::Monitor;
 use crate::physical_optimizer::ParquetFileMetrics;
 use data_types::NamespaceId;
-use datafusion::physical_plan::{
-    ExecutionPlan,
-    metrics::{MetricValue, MetricsSet},
+use datafusion::{
+    logical_expr::LogicalPlan,
+    physical_plan::{
+        ExecutionPlan,
+        metrics::{MetricValue, MetricsSet},
+    },
 };
 use influxdb_iox_client::batched_write::MaybeBatchedWriteClient as WriteClient;
 use influxdb_line_protocol::LineProtocolBuilder;
@@ -35,16 +38,16 @@ use uuid::Uuid;
 /// Phase of a query entry.
 ///
 /// ```text
-///         +---------------------------------+---> fail
-///         |                                 |
-///         |                                 |
-/// ---> received ---> planned ---> permit ---+
-///         |             |           |       |
-///         |             |           |       |
-///         |             |           |       +---> success
-///         |             |           |
-///         |             |           |
-///         +-------------+-----------+-----------> cancel
+///         +-----------------------------------------------------------+---> fail
+///         |                                                           |
+///         |          logically     physically                         |
+/// ---> received ---> planned  ---> planned   ---> execution permit ---+
+///         |             |             |                   |           |
+///         |             |             |                   |           |
+///         |             |             |                   |           +---> success
+///         |             |             |                   |
+///         |             |             |                   |
+///         +-------------+-------------+-------------------+-----------> cancel
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum QueryPhase {
@@ -56,32 +59,47 @@ pub enum QueryPhase {
     /// - The query has been received (and potentially authenticated) by the server.
     ///
     /// # To Do
-    /// - The query is not planned.
-    /// - The concurrency-limiting semaphore has NOT yet issued a permit.
+    /// - The query's logical planning has not been done.
+    /// - The query's physical planning has not been done.
+    /// - The concurrency-limiting execution semaphore has NOT yet issued a permit.
     /// - The query has not been executed.
     Received,
 
-    /// Query was planned and is waiting for a semaphore permit.
+    /// Query's logical plan is done.
     ///
     /// # Done
     /// - The query has been received (and potentially authenticated) by the server.
-    /// - The query was planned.
+    /// - The query's logical planning has been done.
     ///
     /// # To Do
-    /// - The concurrency-limiting semaphore has NOT yet issued a permit.
+    /// - The query's physical planning has not been done.
+    /// - The concurrency-limiting execution semaphore has NOT yet issued a permit.
     /// - The query has not been executed.
-    Planned,
+    LogicallyPlanned,
+
+    /// Query was physically planned and is waiting for a semaphore permit.
+    ///
+    /// # Done
+    /// - The query has been received (and potentially authenticated) by the server.
+    /// - The query's logical planning has been done.
+    /// - The query's physical planning has been done.
+    ///
+    /// # To Do
+    /// - The concurrency-limiting execution semaphore has NOT yet issued a permit.
+    /// - The query has not been executed.
+    PhysicallyPlanned,
 
     /// Query has the permit to be executed and is likely being executed.
     ///
     /// # Done
     /// - The query has been received (and potentially authenticated) by the server.
-    /// - The query was planned.
-    /// - The concurrency-limiting semaphore has issued a permit.
+    /// - The query's logical planning has been done.
+    /// - The query's physical planning has been done.
+    /// - The concurrency-limiting execution semaphore has issued a permit.
     ///
     /// # To Do
     /// - The query has not been executed.
-    Permit,
+    ExecutionPermit,
 
     /// Query was cancelled (likely by the user or a downstream component).
     ///
@@ -93,7 +111,7 @@ pub enum QueryPhase {
     /// This is a terminal state.
     Success,
 
-    /// Query failed due to an error, e.g. during planning or during execution.
+    /// Query failed due to an error.
     ///
     /// This is a terminal state.
     Fail,
@@ -104,8 +122,9 @@ impl QueryPhase {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Received => "received",
-            Self::Planned => "planned",
-            Self::Permit => "permit",
+            Self::LogicallyPlanned => "logically_planned",
+            Self::PhysicallyPlanned => "physically_planned",
+            Self::ExecutionPermit => "execution_permit",
             Self::Cancel => "cancel",
             Self::Success => "success",
             Self::Fail => "fail",
@@ -184,10 +203,16 @@ pub struct QueryLogEntryState {
     /// Number of parquet files processed by the query.
     pub parquet_files: Option<u64>,
 
-    /// Duration it took to acquire a semaphore permit.
+    /// Duration it took to acquire an execution semaphore permit.
     pub permit_duration: Option<Duration>,
 
-    /// Duration it took to plan the query.
+    /// Duration it took to logically plan the query.
+    pub logical_plan_duration: Option<Duration>,
+
+    /// Duration it took to physically plan the query.
+    pub physical_plan_duration: Option<Duration>,
+
+    /// Duration it took to logically and physically plan the query.
     pub plan_duration: Option<Duration>,
 
     /// Duration it took to execute the query.
@@ -272,6 +297,22 @@ impl QueryLogEntryState {
             Some(permit_duration) => {
                 lp.field("permit_duration_ns", permit_duration.as_nanos() as u64)
             }
+            None => lp,
+        };
+
+        lp = match &self.logical_plan_duration {
+            Some(logical_plan_duration) => lp.field(
+                "logical_plan_duration_ns",
+                logical_plan_duration.as_nanos() as u64,
+            ),
+            None => lp,
+        };
+
+        lp = match &self.physical_plan_duration {
+            Some(physical_plan_duration) => lp.field(
+                "physical_plan_duration_ns",
+                physical_plan_duration.as_nanos() as u64,
+            ),
             None => lp,
         };
 
@@ -509,6 +550,8 @@ impl QueryLogEntry {
             partitions,
             parquet_files,
             permit_duration,
+            logical_plan_duration,
+            physical_plan_duration,
             plan_duration,
             execute_duration,
             end2end_duration,
@@ -533,38 +576,86 @@ impl QueryLogEntry {
             } = ingester_metrics
         );
 
-        info!(
-            when=phase.name(),
-            id=%id,
-            namespace_id=namespace_id.get(),
-            namespace_name=namespace_name.as_ref(),
-            query_type=query_type,
-            query_text=%query_text,
-            query_params=%query_params,
-            auth_id,
-            trace_id=trace_id.map(|id| format!("{:x}", id.get())),
-            issue_time=%issue_time,
-            partitions,
-            num_rows,
-            parquet_files,
-            deduplicated_partitions,
-            deduplicated_parquet_files,
-            plan_duration_secs=plan_duration.map(|d| d.as_secs_f64()),
-            permit_duration_secs=permit_duration.map(|d| d.as_secs_f64()),
-            execute_duration_secs=execute_duration.map(|d| d.as_secs_f64()),
-            end2end_duration_secs=end2end_duration.map(|d| d.as_secs_f64()),
-            compute_duration_secs=compute_duration.map(|d| d.as_secs_f64()),
-            max_memory=max_memory,
-            ingester_metrics.latency_to_plan_secs=latency_to_plan.map(|d| d.as_secs_f64()),
-            ingester_metrics.latency_to_full_data_secs=latency_to_full_data.map(|d| d.as_secs_f64()),
-            ingester_metrics.response_rows=response_rows,
-            ingester_metrics.partition_count=partition_count,
-            ingester_metrics.response_size=response_size,
-            success=success,
-            running=running,
-            cancelled=(*phase == QueryPhase::Cancel),
-            "query",
-        )
+        // Emit query text exactly once at the start of lifecycle logging.
+        // Later phase logs can be correlated by `id`, so repeating query text is unnecessary.
+        // This also prevents log pollution from long-text queries.
+        //
+        // Using two `info!` calls instead of using inline conditional check
+        // `query_type=(*phase == QueryPhase::Received).then(|| ...)` because
+        // it includes query_text=None, which isn't true and just adds extra
+        // noise to the logs.
+        if *phase == QueryPhase::Received {
+            info!(
+                when=phase.name(),
+                id=%id,
+                namespace_id=namespace_id.get(),
+                namespace_name=namespace_name.as_ref(),
+                query_type=query_type,
+                query_text=%query_text,
+                query_params=%query_params,
+                auth_id,
+                trace_id=trace_id.map(|id| format!("{:x}", id.get())),
+                issue_time=%issue_time,
+                partitions,
+                num_rows,
+                parquet_files,
+                deduplicated_partitions,
+                deduplicated_parquet_files,
+                logical_plan_duration_secs=logical_plan_duration.map(|d| d.as_secs_f64()),
+                physical_plan_duration_secs=physical_plan_duration.map(|d| d.as_secs_f64()),
+                plan_duration_secs=plan_duration.map(|d| d.as_secs_f64()),
+                permit_duration_secs=permit_duration.map(|d| d.as_secs_f64()),
+                execute_duration_secs=execute_duration.map(|d| d.as_secs_f64()),
+                end2end_duration_secs=end2end_duration.map(|d| d.as_secs_f64()),
+                compute_duration_secs=compute_duration.map(|d| d.as_secs_f64()),
+                max_memory=max_memory,
+                ingester_metrics.latency_to_plan_secs=latency_to_plan.map(|d| d.as_secs_f64()),
+                ingester_metrics.latency_to_full_data_secs=latency_to_full_data.map(|d| d.as_secs_f64()),
+                ingester_metrics.response_rows=response_rows,
+                ingester_metrics.partition_count=partition_count,
+                ingester_metrics.response_size=response_size,
+                success=success,
+                running=running,
+                cancelled=(*phase == QueryPhase::Cancel),
+                "query",
+            )
+        } else {
+            info!(
+                when=phase.name(),
+                id=%id,
+                namespace_id=namespace_id.get(),
+                namespace_name=namespace_name.as_ref(),
+                query_type=query_type,
+                // Reduce repeated log payload for non-received phases by omitting query text.
+                // query_text=%query_text,
+                query_params=%query_params,
+                auth_id,
+                trace_id=trace_id.map(|id| format!("{:x}", id.get())),
+                issue_time=%issue_time,
+                partitions,
+                num_rows,
+                parquet_files,
+                deduplicated_partitions,
+                deduplicated_parquet_files,
+                logical_plan_duration_secs=logical_plan_duration.map(|d| d.as_secs_f64()),
+                physical_plan_duration_secs=physical_plan_duration.map(|d| d.as_secs_f64()),
+                plan_duration_secs=plan_duration.map(|d| d.as_secs_f64()),
+                permit_duration_secs=permit_duration.map(|d| d.as_secs_f64()),
+                execute_duration_secs=execute_duration.map(|d| d.as_secs_f64()),
+                end2end_duration_secs=end2end_duration.map(|d| d.as_secs_f64()),
+                compute_duration_secs=compute_duration.map(|d| d.as_secs_f64()),
+                max_memory=max_memory,
+                ingester_metrics.latency_to_plan_secs=latency_to_plan.map(|d| d.as_secs_f64()),
+                ingester_metrics.latency_to_full_data_secs=latency_to_full_data.map(|d| d.as_secs_f64()),
+                ingester_metrics.response_rows=response_rows,
+                ingester_metrics.partition_count=partition_count,
+                ingester_metrics.response_size=response_size,
+                success=success,
+                running=running,
+                cancelled=(*phase == QueryPhase::Cancel),
+                "query",
+            )
+        }
     }
 
     /// Emit entry to metrics.
@@ -588,6 +679,8 @@ impl QueryLogEntry {
             partitions,
             parquet_files,
             permit_duration,
+            logical_plan_duration,
+            physical_plan_duration,
             plan_duration,
             execute_duration,
             end2end_duration,
@@ -611,6 +704,8 @@ impl QueryLogEntry {
         record_metric_if_now_set!(partitions, prev_state, metrics);
         record_metric_if_now_set!(parquet_files, prev_state, metrics);
         record_metric_if_now_set!(permit_duration, prev_state, metrics);
+        record_metric_if_now_set!(logical_plan_duration, prev_state, metrics);
+        record_metric_if_now_set!(physical_plan_duration, prev_state, metrics);
         record_metric_if_now_set!(plan_duration, prev_state, metrics);
         record_metric_if_now_set!(execute_duration, prev_state, metrics);
         record_metric_if_now_set!(end2end_duration, prev_state, metrics);
@@ -718,7 +813,6 @@ impl QueryLog {
     ///
     /// This is used by the enterprise query executor to pass through
     /// a query ID from an external source (e.g., a flight ticket).
-    #[cfg(feature = "external-query-id")]
     #[expect(clippy::too_many_arguments)]
     pub fn push_with_query_id(
         &self,
@@ -792,6 +886,8 @@ impl QueryLog {
                 partitions: Default::default(),
                 parquet_files: Default::default(),
                 permit_duration: Default::default(),
+                logical_plan_duration: Default::default(),
+                physical_plan_duration: Default::default(),
                 plan_duration: Default::default(),
                 execute_duration: Default::default(),
                 end2end_duration: Default::default(),
@@ -874,9 +970,26 @@ impl State for StateReceived {
     }
 }
 
-/// State of [`QueryCompletedToken`], equivalent to [`QueryPhase::Planned`].
+/// State of [`QueryCompletedToken`], equivalent to [`QueryPhase::LogicallyPlanned`].
 #[derive(Debug)]
-pub struct StatePlanned {
+pub struct StateLogicallyPlanned {
+    /// Memory usage monitor.
+    memory_monitor: Arc<Monitor>,
+}
+
+impl State for StateLogicallyPlanned {
+    fn plan(&self) -> Option<&Arc<dyn ExecutionPlan>> {
+        None
+    }
+
+    fn memory_monitor(&self) -> Option<&Arc<Monitor>> {
+        Some(&self.memory_monitor)
+    }
+}
+
+/// State of [`QueryCompletedToken`], equivalent to [`QueryPhase::PhysicallyPlanned`].
+#[derive(Debug)]
+pub struct StatePhysicallyPlanned {
     /// Physical execution plan.
     plan: Arc<dyn ExecutionPlan>,
 
@@ -884,7 +997,7 @@ pub struct StatePlanned {
     memory_monitor: Arc<Monitor>,
 }
 
-impl State for StatePlanned {
+impl State for StatePhysicallyPlanned {
     fn plan(&self) -> Option<&Arc<dyn ExecutionPlan>> {
         Some(&self.plan)
     }
@@ -894,9 +1007,9 @@ impl State for StatePlanned {
     }
 }
 
-/// State of [`QueryCompletedToken`], equivalent to [`QueryPhase::Permit`].
+/// State of [`QueryCompletedToken`], equivalent to [`QueryPhase::ExecutionPermit`].
 #[derive(Debug)]
-pub struct StatePermit {
+pub struct StateExecutionPermit {
     /// Physical execution plan.
     plan: Arc<dyn ExecutionPlan>,
 
@@ -904,7 +1017,7 @@ pub struct StatePermit {
     memory_monitor: Arc<Monitor>,
 }
 
-impl State for StatePermit {
+impl State for StateExecutionPermit {
     fn plan(&self) -> Option<&Arc<dyn ExecutionPlan>> {
         Some(&self.plan)
     }
@@ -1005,16 +1118,57 @@ where
 }
 
 impl QueryCompletedToken<StateReceived> {
-    /// Record that this query got planned.
-    pub fn planned(
+    /// Record that this query got logically planned.
+    pub fn logically_planned(
         mut self,
         ctx: &IOxSessionContext,
-        plan: Arc<dyn ExecutionPlan>,
-    ) -> QueryCompletedToken<StatePlanned> {
+        // Prove you've done the planning by providing a reference to the logical plan, but
+        // the actual plan isn't needed by the state machine
+        _logical_plan: &LogicalPlan,
+    ) -> QueryCompletedToken<StateLogicallyPlanned> {
         let entry = self.entry.take().expect("valid state");
         let mut state = entry.state().as_ref().clone();
         self.set_time(&mut state);
-        state.phase = QueryPhase::Planned;
+        state.phase = QueryPhase::LogicallyPlanned;
+        entry.set_and_emit(state, &self.metrics, self.query_log_write_client.clone());
+        QueryCompletedToken {
+            entry: Some(entry),
+            time_provider: Arc::clone(&self.time_provider),
+            metrics: Arc::clone(&self.metrics),
+            state: StateLogicallyPlanned {
+                memory_monitor: Arc::clone(ctx.memory_monitor()),
+            },
+            query_log_write_client: self.query_log_write_client.clone(),
+        }
+    }
+
+    /// Record that this query failed during planning.
+    pub fn fail(mut self) {
+        let entry = self.entry.take().expect("valid state");
+        let mut state = entry.state().as_ref().clone();
+        self.set_time(&mut state);
+        state.phase = QueryPhase::Fail;
+        self.done(entry, state);
+    }
+
+    fn set_time(&self, state: &mut QueryLogEntryState) {
+        let now = self.time_provider.now();
+        let origin = state.issue_time;
+        set_relative(origin, now, &mut state.logical_plan_duration);
+    }
+}
+
+impl QueryCompletedToken<StateLogicallyPlanned> {
+    /// Record that this query got physically planned.
+    pub fn physically_planned(
+        mut self,
+        ctx: &IOxSessionContext,
+        plan: Arc<dyn ExecutionPlan>,
+    ) -> QueryCompletedToken<StatePhysicallyPlanned> {
+        let entry = self.entry.take().expect("valid state");
+        let mut state = entry.state().as_ref().clone();
+        self.set_time(&mut state);
+        state.phase = QueryPhase::PhysicallyPlanned;
         let ParquetFileMetrics {
             partitions,
             parquet_files,
@@ -1035,7 +1189,7 @@ impl QueryCompletedToken<StateReceived> {
             entry: Some(entry),
             time_provider: Arc::clone(&self.time_provider),
             metrics: Arc::clone(&self.metrics),
-            state: StatePlanned {
+            state: StatePhysicallyPlanned {
                 plan,
                 memory_monitor: Arc::clone(ctx.memory_monitor()),
             },
@@ -1054,14 +1208,18 @@ impl QueryCompletedToken<StateReceived> {
 
     fn set_time(&self, state: &mut QueryLogEntryState) {
         let now = self.time_provider.now();
+        let origin = state.issue_time + state.logical_plan_duration.unwrap_or(Duration::ZERO);
+        set_relative(origin, now, &mut state.physical_plan_duration);
+
+        // Set `plan_duration` to be the total of logical + physical planning
         let origin = state.issue_time;
         set_relative(origin, now, &mut state.plan_duration);
     }
 }
 
-impl QueryCompletedToken<StatePlanned> {
-    /// Record that this query got a semaphore permit.
-    pub fn permit(mut self) -> QueryCompletedToken<StatePermit> {
+impl QueryCompletedToken<StatePhysicallyPlanned> {
+    /// Record that this query got an execution semaphore permit.
+    pub fn execution_permit(mut self) -> QueryCompletedToken<StateExecutionPermit> {
         let entry = self.entry.take().expect("valid state");
         let mut state = entry.state().as_ref().clone();
 
@@ -1070,14 +1228,14 @@ impl QueryCompletedToken<StatePlanned> {
             let origin = state.issue_time + plan_duration;
             set_relative(origin, now, &mut state.permit_duration);
         }
-        state.phase = QueryPhase::Permit;
+        state.phase = QueryPhase::ExecutionPermit;
         entry.set_and_emit(state, &self.metrics, self.query_log_write_client.clone());
 
         QueryCompletedToken {
             entry: Some(entry),
             time_provider: Arc::clone(&self.time_provider),
             metrics: Arc::clone(&self.metrics),
-            state: StatePermit {
+            state: StateExecutionPermit {
                 plan: Arc::clone(&self.state.plan),
                 memory_monitor: Arc::clone(&self.state.memory_monitor),
             },
@@ -1086,7 +1244,7 @@ impl QueryCompletedToken<StatePlanned> {
     }
 }
 
-impl QueryCompletedToken<StatePermit> {
+impl QueryCompletedToken<StateExecutionPermit> {
     /// Record that this query completed successfully
     pub fn success(mut self) {
         let entry = self.entry.take().expect("valid state");
@@ -1303,7 +1461,7 @@ fn collect_num_rows(plan: &dyn ExecutionPlan) -> Option<u64> {
 #[derive(Debug)]
 pub struct PermitAndToken {
     pub permit: InstrumentedAsyncOwnedSemaphorePermit,
-    pub query_completed_token: QueryCompletedToken<StatePermit>,
+    pub query_completed_token: QueryCompletedToken<StateExecutionPermit>,
 }
 
 /// A metric keyed by [`QueryPhase`].
@@ -1313,6 +1471,7 @@ where
     T: MetricObserver<Recorder = T>,
 {
     received: T,
+    logically_planned: T,
     planned: T,
     permit: T,
     cancel: T,
@@ -1327,6 +1486,7 @@ where
     fn new(metric: Metric<T>) -> Self {
         Self {
             received: metric.recorder(&[("phase", "received")]),
+            logically_planned: metric.recorder(&[("phase", "logically_planned")]),
             planned: metric.recorder(&[("phase", "planned")]),
             permit: metric.recorder(&[("phase", "permit")]),
             cancel: metric.recorder(&[("phase", "cancel")]),
@@ -1338,8 +1498,9 @@ where
     fn get(&self, phase: QueryPhase) -> &T {
         match phase {
             QueryPhase::Received => &self.received,
-            QueryPhase::Planned => &self.planned,
-            QueryPhase::Permit => &self.permit,
+            QueryPhase::LogicallyPlanned => &self.logically_planned,
+            QueryPhase::PhysicallyPlanned => &self.planned,
+            QueryPhase::ExecutionPermit => &self.permit,
             QueryPhase::Cancel => &self.cancel,
             QueryPhase::Success => &self.success,
             QueryPhase::Fail => &self.fail,
@@ -1355,6 +1516,8 @@ struct Metrics {
     parquet_files: U64Histogram,
     num_rows: U64Histogram,
     permit_duration: DurationHistogram,
+    logical_plan_duration: DurationHistogram,
+    physical_plan_duration: DurationHistogram,
     plan_duration: DurationHistogram,
     execute_duration: DurationHistogram,
     end2end_duration: DurationHistogram,
@@ -1393,13 +1556,25 @@ impl Metrics {
             permit_duration: registry
                 .register_metric::<DurationHistogram>(
                     "influxdb_iox_query_log_permit_duration",
-                    "Duration it took to acquire a semaphore permit",
+                    "Duration it took to acquire an execution semaphore permit",
+                )
+                .recorder([]),
+            logical_plan_duration: registry
+                .register_metric::<DurationHistogram>(
+                    "influxdb_iox_query_log_logical_plan_duration",
+                    "Duration it took to logically plan the query",
+                )
+                .recorder([]),
+            physical_plan_duration: registry
+                .register_metric::<DurationHistogram>(
+                    "influxdb_iox_query_log_physical_plan_duration",
+                    "Duration it took to physically plan the query",
                 )
                 .recorder([]),
             plan_duration: registry
                 .register_metric::<DurationHistogram>(
                     "influxdb_iox_query_log_plan_duration",
-                    "Duration it took to plan the query",
+                    "Duration it took to logically and physically plan the query",
                 )
                 .recorder([]),
             execute_duration: registry
@@ -1610,10 +1785,12 @@ mod test_super {
         // Advance through phases to populate optional fields
         time_provider.inc(Duration::from_millis(1));
         let ctx = IOxSessionContext::with_testing();
-        let token = token.planned(&ctx, plan());
+        let token = token.logically_planned(&ctx, &logical_plan());
+        time_provider.inc(Duration::from_millis(3));
+        let token = token.physically_planned(&ctx, plan());
 
         time_provider.inc(Duration::from_millis(2));
-        let token = token.permit();
+        let token = token.execution_permit();
 
         time_provider.inc(Duration::from_millis(5));
         token.success();
@@ -1626,7 +1803,7 @@ mod test_super {
         let lp = lp_builder.build();
         insta::assert_snapshot!(
             format_line_protocol(&lp),
-            @r#"query_log_test,id=00000000-0000-0000-0000-000000000001,namespace_id=1,namespace_name=ns,query_type=sql,phase=success running="false",success="true",query_text="SELECT 1",query_params="Params { }",query_issue_time_ns=100000000i,partition_count=0u,parquet_file_count=0u,permit_duration_ns=2000000u,plan_duration_ns=1000000u,execute_duration_ns=5000000u,end_to_end_duration_ns=8000000u,compute_duration_ns=1337000000u,max_memory_bytes=0i,ingester_latency_to_plan_ns=0u,ingester_latency_to_full_data_ns=0u,ingester_response_row_count=0u,ingester_response_size_bytes=0u,ingester_partition_count=0u 1000000000000000000"#);
+            @r#"query_log_test,id=00000000-0000-0000-0000-000000000001,namespace_id=1,namespace_name=ns,query_type=sql,phase=success running="false",success="true",query_text="SELECT 1",query_params="Params { }",query_issue_time_ns=100000000i,partition_count=0u,parquet_file_count=0u,permit_duration_ns=2000000u,logical_plan_duration_ns=1000000u,physical_plan_duration_ns=3000000u,plan_duration_ns=4000000u,execute_duration_ns=5000000u,end_to_end_duration_ns=11000000u,compute_duration_ns=1337000000u,max_memory_bytes=0i,ingester_latency_to_plan_ns=0u,ingester_latency_to_full_data_ns=0u,ingester_response_row_count=0u,ingester_response_size_bytes=0u,ingester_partition_count=0u 1000000000000000000"#);
     }
 
     #[test]
@@ -1668,6 +1845,33 @@ mod test_super {
             format_line_protocol(&lp),
             @r#"query_log_test,id=00000000-0000-0000-0000-000000000001,namespace_id=1,namespace_name=ns,query_type=sql,phase=received,auth_id=user123,trace_id=42 running="true",success="false",query_text="SELECT 1",query_params="Params { }",query_issue_time_ns=100000000i 1000000000000000000"#
         );
+    }
+
+    #[test]
+    fn test_push_with_query_id() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_millis(100).unwrap()));
+        let metric_registry = metric::Registry::default();
+        let log = QueryLog::new_with_id_gen(
+            10,
+            time_provider,
+            &metric_registry,
+            Box::new(|| Uuid::from_u128(1)),
+            None,
+        );
+
+        let query_id = Uuid::from_u128(42);
+        let token = log.push_with_query_id(
+            query_id,
+            NamespaceId::new(1),
+            Arc::from("ns"),
+            "sql",
+            Box::new("SELECT 1"),
+            params! {},
+            None,
+            None,
+        );
+
+        assert_eq!(token.entry().state().id, query_id);
     }
 
     #[test]
@@ -1841,6 +2045,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 0
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -1898,7 +2120,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 0
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 0
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -1920,6 +2142,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 1
@@ -1928,11 +2151,30 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 0
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
@@ -1954,16 +2196,20 @@ mod test_super {
 
         time_provider.inc(Duration::from_millis(1));
         let ctx = IOxSessionContext::with_testing();
-        let token = token.planned(&ctx, plan());
+        let token = token.logically_planned(&ctx, &logical_plan());
+        time_provider.inc(Duration::from_millis(2));
+        let token = token.physically_planned(&ctx, plan());
 
         let expected = QueryLogEntryState {
             partitions: Some(0),
             parquet_files: Some(0),
             deduplicated_partitions: Some(0),
             deduplicated_parquet_files: Some(0),
-            plan_duration: Some(Duration::from_millis(1)),
+            logical_plan_duration: Some(Duration::from_millis(1)),
+            physical_plan_duration: Some(Duration::from_millis(2)),
+            plan_duration: Some(Duration::from_millis(3)),
             num_rows: None,
-            phase: QueryPhase::Planned,
+            phase: QueryPhase::PhysicallyPlanned,
             ..expected
         };
         assert_eq!(entry.state().as_ref(), &expected,);
@@ -2124,6 +2370,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -2181,7 +2445,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -2203,6 +2467,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 1
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -2211,14 +2476,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -2231,16 +2515,16 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
         time_provider.inc(Duration::from_millis(10));
-        let token = token.permit();
+        let token = token.execution_permit();
 
         let expected = QueryLogEntryState {
             permit_duration: Some(Duration::from_millis(10)),
-            phase: QueryPhase::Permit,
+            phase: QueryPhase::ExecutionPermit,
             ..expected
         };
         assert_eq!(entry.state().as_ref(), &expected,);
@@ -2401,6 +2685,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -2458,7 +2760,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -2480,6 +2782,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 1
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -2488,14 +2791,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 1
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -2508,7 +2830,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -2517,7 +2839,7 @@ mod test_super {
 
         let expected = QueryLogEntryState {
             execute_duration: Some(Duration::from_millis(100)),
-            end2end_duration: Some(Duration::from_millis(111)),
+            end2end_duration: Some(Duration::from_millis(113)),
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
             num_rows: Some(10),
@@ -2587,7 +2909,7 @@ mod test_super {
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_end2end_duration_seconds_sum 0.111
+        influxdb_iox_query_log_end2end_duration_seconds_sum 0.113
         influxdb_iox_query_log_end2end_duration_seconds_count 1
         # HELP influxdb_iox_query_log_execute_duration_seconds Duration it took to execute the query
         # TYPE influxdb_iox_query_log_execute_duration_seconds histogram
@@ -2685,6 +3007,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 1
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 1
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 1
@@ -2742,7 +3082,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -2764,6 +3104,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -2772,14 +3113,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 1
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 1
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -2792,7 +3152,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -2800,9 +3160,10 @@ mod test_super {
             format_logs(capture),
             @r#"
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
+        level = INFO; message = query; when = "logically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; logical_plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "physically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "execution_permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.113; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
         "#);
     }
 
@@ -2988,6 +3349,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 0
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -3045,7 +3424,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 0
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 0
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -3067,6 +3446,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 1
@@ -3075,11 +3455,30 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 0
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
@@ -3101,15 +3500,19 @@ mod test_super {
 
         time_provider.inc(Duration::from_millis(1));
         let ctx = IOxSessionContext::with_testing();
-        let token = token.planned(&ctx, plan());
+        let token = token.logically_planned(&ctx, &logical_plan());
+        time_provider.inc(Duration::from_millis(2));
+        let token = token.physically_planned(&ctx, plan());
 
         let expected = QueryLogEntryState {
             partitions: Some(0),
             parquet_files: Some(0),
             deduplicated_partitions: Some(0),
             deduplicated_parquet_files: Some(0),
-            plan_duration: Some(Duration::from_millis(1)),
-            phase: QueryPhase::Planned,
+            logical_plan_duration: Some(Duration::from_millis(1)),
+            physical_plan_duration: Some(Duration::from_millis(2)),
+            plan_duration: Some(Duration::from_millis(3)),
+            phase: QueryPhase::PhysicallyPlanned,
             ingester_metrics: None,
             ..expected
         };
@@ -3271,6 +3674,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -3328,7 +3749,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -3350,6 +3771,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 1
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -3358,14 +3780,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -3378,16 +3819,16 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
         time_provider.inc(Duration::from_millis(10));
-        let token = token.permit();
+        let token = token.execution_permit();
 
         let expected = QueryLogEntryState {
             permit_duration: Some(Duration::from_millis(10)),
-            phase: QueryPhase::Permit,
+            phase: QueryPhase::ExecutionPermit,
             ..expected
         };
         assert_eq!(entry.state().as_ref(), &expected,);
@@ -3548,6 +3989,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -3605,7 +4064,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -3627,6 +4086,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 1
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -3635,14 +4095,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 1
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -3655,7 +4134,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -3664,7 +4143,7 @@ mod test_super {
 
         let expected = QueryLogEntryState {
             execute_duration: Some(Duration::from_millis(100)),
-            end2end_duration: Some(Duration::from_millis(111)),
+            end2end_duration: Some(Duration::from_millis(113)),
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
             num_rows: Some(10),
@@ -3734,7 +4213,7 @@ mod test_super {
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_end2end_duration_seconds_sum 0.111
+        influxdb_iox_query_log_end2end_duration_seconds_sum 0.113
         influxdb_iox_query_log_end2end_duration_seconds_count 1
         # HELP influxdb_iox_query_log_execute_duration_seconds Duration it took to execute the query
         # TYPE influxdb_iox_query_log_execute_duration_seconds histogram
@@ -3832,6 +4311,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 1
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 1
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 1
@@ -3889,7 +4386,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -3911,6 +4408,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -3919,14 +4417,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 1
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 1
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -3939,7 +4456,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -3947,9 +4464,10 @@ mod test_super {
             format_logs(capture),
             @r#"
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT $a;; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
+        level = INFO; message = query; when = "logically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; logical_plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "physically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "execution_permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { "a" => TRUE, }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.113; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
         "#);
     }
 
@@ -4133,6 +4651,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 0
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -4190,7 +4726,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 0
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 0
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -4212,6 +4748,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 1
@@ -4220,11 +4757,30 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 0
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
@@ -4246,15 +4802,19 @@ mod test_super {
 
         time_provider.inc(Duration::from_millis(1));
         let ctx = IOxSessionContext::with_testing();
-        let token = token.planned(&ctx, plan());
+        let token = token.logically_planned(&ctx, &logical_plan());
+        time_provider.inc(Duration::from_millis(2));
+        let token = token.physically_planned(&ctx, plan());
 
         let expected = QueryLogEntryState {
             partitions: Some(0),
             parquet_files: Some(0),
             deduplicated_partitions: Some(0),
             deduplicated_parquet_files: Some(0),
-            plan_duration: Some(Duration::from_millis(1)),
-            phase: QueryPhase::Planned,
+            logical_plan_duration: Some(Duration::from_millis(1)),
+            physical_plan_duration: Some(Duration::from_millis(2)),
+            plan_duration: Some(Duration::from_millis(3)),
+            phase: QueryPhase::PhysicallyPlanned,
             ..expected
         };
         assert_eq!(entry.state().as_ref(), &expected,);
@@ -4415,6 +4975,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -4472,7 +5050,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -4494,6 +5072,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 1
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -4502,14 +5081,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -4522,16 +5120,16 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
         time_provider.inc(Duration::from_millis(10));
-        let token = token.permit();
+        let token = token.execution_permit();
 
         let expected = QueryLogEntryState {
             permit_duration: Some(Duration::from_millis(10)),
-            phase: QueryPhase::Permit,
+            phase: QueryPhase::ExecutionPermit,
             ..expected
         };
         assert_eq!(entry.state().as_ref(), &expected,);
@@ -4692,6 +5290,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -4749,7 +5365,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -4771,6 +5387,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 1
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -4779,14 +5396,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 1
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -4799,7 +5435,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -4808,7 +5444,7 @@ mod test_super {
 
         let expected = QueryLogEntryState {
             execute_duration: Some(Duration::from_millis(100)),
-            end2end_duration: Some(Duration::from_millis(111)),
+            end2end_duration: Some(Duration::from_millis(113)),
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
             num_rows: Some(10),
@@ -4878,7 +5514,7 @@ mod test_super {
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_end2end_duration_seconds_sum 0.111
+        influxdb_iox_query_log_end2end_duration_seconds_sum 0.113
         influxdb_iox_query_log_end2end_duration_seconds_count 1
         # HELP influxdb_iox_query_log_execute_duration_seconds Duration it took to execute the query
         # TYPE influxdb_iox_query_log_execute_duration_seconds histogram
@@ -4976,6 +5612,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 1
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 1
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 1
@@ -5033,7 +5687,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -5055,6 +5709,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -5063,14 +5718,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 1
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 1
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -5083,7 +5757,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -5091,14 +5765,15 @@ mod test_super {
             format_logs(capture),
             @r#"
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
+        level = INFO; message = query; when = "logically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; logical_plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "physically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "execution_permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "success"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; auth_id = "auth-token"; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.113; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = true; running = false; cancelled = false;
         "#);
     }
 
     #[test]
-    fn test_token_planning_fail() {
+    fn test_token_logical_planning_fail() {
         let capture = TracingCapture::new();
 
         let Test {
@@ -5113,7 +5788,7 @@ mod test_super {
         token.fail();
 
         let expected = QueryLogEntryState {
-            plan_duration: Some(Duration::from_millis(1)),
+            logical_plan_duration: Some(Duration::from_millis(1)),
             end2end_duration: Some(Duration::from_millis(1)),
             running: false,
             phase: QueryPhase::Fail,
@@ -5277,6 +5952,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -5334,7 +6027,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 0
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 0
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -5356,6 +6049,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 1
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -5364,35 +6058,54 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 1
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 0
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.05"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.1"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.25"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.5"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="1"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="2.5"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
-        influxdb_iox_query_log_plan_duration_seconds_count 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_plan_duration_seconds_count 0
         "##);
 
         insta::assert_snapshot!(
             format_logs(capture),
             @r#"
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "fail"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; plan_duration_secs = 0.001; end2end_duration_secs = 0.001; success = false; running = false; cancelled = false;
+        level = INFO; message = query; when = "fail"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; logical_plan_duration_secs = 0.001; end2end_duration_secs = 0.001; success = false; running = false; cancelled = false;
         "#);
     }
 
@@ -5410,9 +6123,11 @@ mod test_super {
 
         time_provider.inc(Duration::from_millis(1));
         let ctx = IOxSessionContext::with_testing();
-        let token = token.planned(&ctx, plan());
+        let token = token.logically_planned(&ctx, &logical_plan());
+        time_provider.inc(Duration::from_millis(2));
+        let token = token.physically_planned(&ctx, plan());
         time_provider.inc(Duration::from_millis(10));
-        let token = token.permit();
+        let token = token.execution_permit();
         time_provider.inc(Duration::from_millis(100));
         token.fail();
 
@@ -5421,10 +6136,12 @@ mod test_super {
             parquet_files: Some(0),
             deduplicated_partitions: Some(0),
             deduplicated_parquet_files: Some(0),
-            plan_duration: Some(Duration::from_millis(1)),
+            logical_plan_duration: Some(Duration::from_millis(1)),
+            physical_plan_duration: Some(Duration::from_millis(2)),
+            plan_duration: Some(Duration::from_millis(3)),
             permit_duration: Some(Duration::from_millis(10)),
             execute_duration: Some(Duration::from_millis(100)),
-            end2end_duration: Some(Duration::from_millis(111)),
+            end2end_duration: Some(Duration::from_millis(113)),
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
             num_rows: Some(10),
@@ -5493,7 +6210,7 @@ mod test_super {
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_end2end_duration_seconds_sum 0.111
+        influxdb_iox_query_log_end2end_duration_seconds_sum 0.113
         influxdb_iox_query_log_end2end_duration_seconds_count 1
         # HELP influxdb_iox_query_log_execute_duration_seconds Duration it took to execute the query
         # TYPE influxdb_iox_query_log_execute_duration_seconds histogram
@@ -5591,6 +6308,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 1
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 1
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 1
@@ -5648,7 +6383,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -5670,6 +6405,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 0
         influxdb_iox_query_log_phase_current{phase="fail"} 1
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -5678,14 +6414,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 0
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 1
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 1
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -5698,7 +6453,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -5706,9 +6461,10 @@ mod test_super {
             format_logs(capture),
             @r#"
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "fail"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = false; running = false; cancelled = false;
+        level = INFO; message = query; when = "logically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; logical_plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "physically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "execution_permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "fail"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; execute_duration_secs = 0.1; end2end_duration_secs = 0.113; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = false; running = false; cancelled = false;
         "#);
     }
 
@@ -5891,6 +6647,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 0
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -5948,7 +6722,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 0
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 0
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -5970,6 +6744,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 1
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -5978,11 +6753,30 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 1
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 0
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 0
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
@@ -6006,7 +6800,7 @@ mod test_super {
             format_logs(capture),
             @r#"
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "cancel"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; end2end_duration_secs = 0.001; success = false; running = false; cancelled = true;
+        level = INFO; message = query; when = "cancel"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; end2end_duration_secs = 0.001; success = false; running = false; cancelled = true;
         "#);
     }
 
@@ -6024,7 +6818,9 @@ mod test_super {
 
         time_provider.inc(Duration::from_millis(1));
         let ctx = IOxSessionContext::with_testing();
-        let token = token.planned(&ctx, plan());
+        let token = token.logically_planned(&ctx, &logical_plan());
+        time_provider.inc(Duration::from_millis(2));
+        let token = token.physically_planned(&ctx, plan());
         time_provider.inc(Duration::from_millis(10));
         drop(token);
 
@@ -6033,8 +6829,10 @@ mod test_super {
             parquet_files: Some(0),
             deduplicated_partitions: Some(0),
             deduplicated_parquet_files: Some(0),
-            plan_duration: Some(Duration::from_millis(1)),
-            end2end_duration: Some(Duration::from_millis(11)),
+            logical_plan_duration: Some(Duration::from_millis(1)),
+            physical_plan_duration: Some(Duration::from_millis(2)),
+            plan_duration: Some(Duration::from_millis(3)),
+            end2end_duration: Some(Duration::from_millis(13)),
             running: false,
             phase: QueryPhase::Cancel,
             ..start_state
@@ -6099,7 +6897,7 @@ mod test_super {
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_end2end_duration_seconds_sum 0.011
+        influxdb_iox_query_log_end2end_duration_seconds_sum 0.013
         influxdb_iox_query_log_end2end_duration_seconds_count 1
         # HELP influxdb_iox_query_log_execute_duration_seconds Duration it took to execute the query
         # TYPE influxdb_iox_query_log_execute_duration_seconds histogram
@@ -6197,6 +6995,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 0
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 0
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 0
@@ -6254,7 +7070,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -6276,6 +7092,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 1
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -6284,14 +7101,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 1
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 0
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -6304,7 +7140,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -6312,8 +7148,9 @@ mod test_super {
             format_logs(capture),
             @r#"
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "cancel"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; end2end_duration_secs = 0.011; success = false; running = false; cancelled = true;
+        level = INFO; message = query; when = "logically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; logical_plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "physically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "cancel"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; end2end_duration_secs = 0.013; success = false; running = false; cancelled = true;
         "#);
     }
 
@@ -6331,9 +7168,11 @@ mod test_super {
 
         time_provider.inc(Duration::from_millis(1));
         let ctx = IOxSessionContext::with_testing();
-        let token = token.planned(&ctx, plan());
+        let token = token.logically_planned(&ctx, &logical_plan());
+        time_provider.inc(Duration::from_millis(2));
+        let token = token.physically_planned(&ctx, plan());
         time_provider.inc(Duration::from_millis(10));
-        let token = token.permit();
+        let token = token.execution_permit();
         time_provider.inc(Duration::from_millis(100));
         drop(token);
 
@@ -6342,9 +7181,11 @@ mod test_super {
             parquet_files: Some(0),
             deduplicated_partitions: Some(0),
             deduplicated_parquet_files: Some(0),
-            plan_duration: Some(Duration::from_millis(1)),
+            logical_plan_duration: Some(Duration::from_millis(1)),
+            physical_plan_duration: Some(Duration::from_millis(2)),
+            plan_duration: Some(Duration::from_millis(3)),
             permit_duration: Some(Duration::from_millis(10)),
-            end2end_duration: Some(Duration::from_millis(111)),
+            end2end_duration: Some(Duration::from_millis(113)),
             // partial stats collected
             compute_duration: Some(Duration::from_millis(1_337)),
             max_memory: Some(0),
@@ -6414,7 +7255,7 @@ mod test_super {
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_end2end_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_end2end_duration_seconds_sum 0.111
+        influxdb_iox_query_log_end2end_duration_seconds_sum 0.113
         influxdb_iox_query_log_end2end_duration_seconds_count 1
         # HELP influxdb_iox_query_log_execute_duration_seconds Duration it took to execute the query
         # TYPE influxdb_iox_query_log_execute_duration_seconds histogram
@@ -6512,6 +7353,24 @@ mod test_super {
         influxdb_iox_query_log_ingester_response_size_bucket{le="inf"} 1
         influxdb_iox_query_log_ingester_response_size_sum 0
         influxdb_iox_query_log_ingester_response_size_count 1
+        # HELP influxdb_iox_query_log_logical_plan_duration_seconds Duration it took to logically plan the query
+        # TYPE influxdb_iox_query_log_logical_plan_duration_seconds histogram
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.001"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_logical_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_logical_plan_duration_seconds_count 1
         # HELP influxdb_iox_query_log_max_memory Peak memory allocated for processing the query
         # TYPE influxdb_iox_query_log_max_memory histogram
         influxdb_iox_query_log_max_memory_bucket{le="0"} 1
@@ -6569,7 +7428,7 @@ mod test_super {
         influxdb_iox_query_log_partitions_bucket{le="inf"} 1
         influxdb_iox_query_log_partitions_sum 0
         influxdb_iox_query_log_partitions_count 1
-        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire a semaphore permit
+        # HELP influxdb_iox_query_log_permit_duration_seconds Duration it took to acquire an execution semaphore permit
         # TYPE influxdb_iox_query_log_permit_duration_seconds histogram
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.001"} 0
         influxdb_iox_query_log_permit_duration_seconds_bucket{le="0.0025"} 0
@@ -6591,6 +7450,7 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_current gauge
         influxdb_iox_query_log_phase_current{phase="cancel"} 1
         influxdb_iox_query_log_phase_current{phase="fail"} 0
+        influxdb_iox_query_log_phase_current{phase="logically_planned"} 0
         influxdb_iox_query_log_phase_current{phase="permit"} 0
         influxdb_iox_query_log_phase_current{phase="planned"} 0
         influxdb_iox_query_log_phase_current{phase="received"} 0
@@ -6599,14 +7459,33 @@ mod test_super {
         # TYPE influxdb_iox_query_log_phase_entered_total counter
         influxdb_iox_query_log_phase_entered_total{phase="cancel"} 1
         influxdb_iox_query_log_phase_entered_total{phase="fail"} 0
+        influxdb_iox_query_log_phase_entered_total{phase="logically_planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="permit"} 1
         influxdb_iox_query_log_phase_entered_total{phase="planned"} 1
         influxdb_iox_query_log_phase_entered_total{phase="received"} 1
         influxdb_iox_query_log_phase_entered_total{phase="success"} 0
-        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to plan the query
+        # HELP influxdb_iox_query_log_physical_plan_duration_seconds Duration it took to physically plan the query
+        # TYPE influxdb_iox_query_log_physical_plan_duration_seconds histogram
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.005"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.01"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.025"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.05"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.25"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="0.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="1"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="2.5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="5"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="10"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_bucket{le="inf"} 1
+        influxdb_iox_query_log_physical_plan_duration_seconds_sum 0.002
+        influxdb_iox_query_log_physical_plan_duration_seconds_count 1
+        # HELP influxdb_iox_query_log_plan_duration_seconds Duration it took to logically and physically plan the query
         # TYPE influxdb_iox_query_log_plan_duration_seconds histogram
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 1
-        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 1
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.001"} 0
+        influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.0025"} 0
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.005"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.01"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="0.025"} 1
@@ -6619,7 +7498,7 @@ mod test_super {
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="5"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="10"} 1
         influxdb_iox_query_log_plan_duration_seconds_bucket{le="inf"} 1
-        influxdb_iox_query_log_plan_duration_seconds_sum 0.001
+        influxdb_iox_query_log_plan_duration_seconds_sum 0.003
         influxdb_iox_query_log_plan_duration_seconds_count 1
         "##);
 
@@ -6627,9 +7506,10 @@ mod test_super {
             format_logs(capture),
             @r#"
         level = INFO; message = query; when = "received"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
-        level = INFO; message = query; when = "cancel"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_text = SELECT 1; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; plan_duration_secs = 0.001; permit_duration_secs = 0.01; end2end_duration_secs = 0.111; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = false; running = false; cancelled = true;
+        level = INFO; message = query; when = "logically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; logical_plan_duration_secs = 0.001; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "physically_planned"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "execution_permit"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; success = false; running = true; cancelled = false;
+        level = INFO; message = query; when = "cancel"; id = 00000000-0000-0000-0000-000000000001; namespace_id = 1; namespace_name = "ns"; query_type = "sql"; query_params = Params { }; issue_time = 1970-01-01T00:00:00.100+00:00; partitions = 0; num_rows = 10; parquet_files = 0; deduplicated_partitions = 0; deduplicated_parquet_files = 0; logical_plan_duration_secs = 0.001; physical_plan_duration_secs = 0.002; plan_duration_secs = 0.003; permit_duration_secs = 0.01; end2end_duration_secs = 0.113; compute_duration_secs = 1.337; max_memory = 0; ingester_metrics.latency_to_plan_secs = 0.0; ingester_metrics.latency_to_full_data_secs = 0.0; ingester_metrics.response_rows = 0; ingester_metrics.partition_count = 0; ingester_metrics.response_size = 0; success = false; running = false; cancelled = true;
         "#);
     }
 
@@ -6689,6 +7569,8 @@ mod test_super {
                 partitions: None,
                 parquet_files: None,
                 permit_duration: None,
+                logical_plan_duration: None,
+                physical_plan_duration: None,
                 plan_duration: None,
                 execute_duration: None,
                 end2end_duration: None,
@@ -6725,6 +7607,10 @@ mod test_super {
                 None,
             )
         }
+    }
+
+    fn logical_plan() -> LogicalPlan {
+        LogicalPlan::default()
     }
 
     fn plan() -> Arc<dyn ExecutionPlan> {

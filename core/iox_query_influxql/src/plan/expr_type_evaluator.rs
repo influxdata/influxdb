@@ -143,8 +143,10 @@ impl<'a> TypeEvaluator<'a> {
                             if let Some(field) = field_by_name(&select.fields, expr.name.as_str()) {
                                 match (data_type, influx_type_to_var_ref_data_type(field.data_type))
                                 {
-                                    (Some(existing), Some(res)) if res < existing => {
-                                        data_type = Some(res)
+                                    (Some(existing), Some(res)) => {
+                                        if res < existing {
+                                            data_type = Some(res)
+                                        }
                                     }
                                     (None, Some(res)) => data_type = Some(res),
                                     _ => {}
