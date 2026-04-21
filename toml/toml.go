@@ -2,6 +2,7 @@
 package toml // import "github.com/influxdata/influxdb/toml"
 
 import (
+	"bytes"
 	"encoding"
 	"errors"
 	"fmt"
@@ -67,8 +68,7 @@ var (
 	ErrSizeEmpty      = errors.New("size was empty")
 	ErrSizeBadSuffix  = errors.New("unknown size suffix")
 	ErrSizeParse      = errors.New("invalid size")
-	ErrSizeOverflow   = fmt.Errorf("size would overflow the max size (%d) of a uint64", uint64(math.MaxUint64))
-	ErrSSizeOverflow  = fmt.Errorf("size would overflow the max size (%d) of an int64", int64(math.MaxInt64))
+	ErrSizeOverflow   = fmt.Errorf("size overflow")
 	ErrSizeOutOfRange = errors.New("size value out of range for target type")
 )
 
@@ -114,18 +114,16 @@ func parseSizeSuffix(text []byte) (numText []byte, mult uint64, err error) {
 
 // unmarshalSize parses a byte size from text into a size type.
 // Unsigned types reject negative values; signed types accept them.
-func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
-	// Preserve original text for error messages before stripping the sign.
-	originalText := text
-
-	// Detect and strip leading negative sign. Decode the leading rune rather
-	// than indexing the first byte so the check is obviously rune-safe; the
-	// happy path here is ASCII either way, but explicit decoding spares future
-	// readers from reasoning about UTF-8 invariants.
-	leading, leadingSize := utf8.DecodeRune(text)
-	negative := leading == '-'
-	if negative {
-		text = text[leadingSize:]
+// BT is necessary so that strconv.ParseInt and strconv.ParseUint can be
+// passed directly without requiring wrappers.
+func unmarshalSize[T sizeConstraint, BT sizeConstraint](dst *T, text []byte, parse func(string, int, int) (BT, error), max uint64) error {
+	// If text contains no ASCII digits (the accept set for strconv.ParseInt /
+	// strconv.ParseUint in base 10), the error messages from the rest of the
+	// function can be confusing. Matching strconv's accept set here ensures
+	// this pre-check never lets through an input that strconv will then
+	// reject with a less helpful "invalid syntax" error.
+	if bytes.IndexFunc(text, func(r rune) bool { return r >= '0' && r <= '9' }) < 0 {
+		return fmt.Errorf("%w: no numeric value in %q", ErrSizeParse, text)
 	}
 
 	numText, mult, err := parseSizeSuffix(text)
@@ -134,44 +132,26 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 	}
 	// Check that mult is not zero to prevent division by zero later. This should never happen.
 	if mult == 0 {
-		return fmt.Errorf("%w: parsing size suffix of %q got multiplier of 0", ErrSizeParse, string(originalText))
+		return fmt.Errorf("%w: parsing size suffix of %q got multiplier of 0", ErrSizeParse, text)
 	}
 
-	// Determine bit width and overflow limit based on signedness.
-	// For unsigned types, T(0)-1 wraps to a large positive value.
-	var bitSize int
-	var maxVal uint64
-	var overflowErr error
-	if T(0)-1 > 0 {
-		if negative {
-			return fmt.Errorf("%w: negative value not allowed: %q", ErrSizeParse, string(originalText))
-		}
-		bitSize = 64
-		maxVal = math.MaxUint64
-		overflowErr = ErrSizeOverflow
-	} else {
-		// Use 64-bit parsing so the numeric part can represent abs(MinInt64) = MaxInt64+1.
-		bitSize = 64
-		if negative {
-			maxVal = uint64(math.MaxInt64) + 1 // abs(MinInt64)
-		} else {
-			maxVal = uint64(math.MaxInt64)
-		}
-		overflowErr = ErrSSizeOverflow
-	}
-
-	size, err := strconv.ParseUint(string(numText), 10, bitSize)
+	typ := reflect.TypeOf(*dst)
+	baseSize, err := parse(string(numText), 10, typ.Bits())
 	if err != nil {
-		return fmt.Errorf("%w: error parsing %q: %w", ErrSizeParse, string(originalText), err)
+		// strconv reports an out-of-range value with strconv.ErrRange. That is
+		// semantically an overflow, so re-wrap it as ErrSizeOverflow to unify
+		// with the post-multiply overflow check below.
+		if errors.Is(err, strconv.ErrRange) {
+			return fmt.Errorf("%w: would overflow the max size (%d) of type %s: %q", ErrSizeOverflow, max, typ.Kind(), text)
+		}
+		return fmt.Errorf("%w: error parsing %q: %w", ErrSizeParse, text, err)
 	}
+	size := T(baseSize)
 
-	if maxVal/mult < size {
-		return fmt.Errorf("%w: %q", overflowErr, string(originalText))
-	}
-
-	result := T(size * mult)
-	if negative {
-		result = -result
+	// Calculate size with suffix, check for potential overflow.
+	result := size * T(mult)
+	if result/T(mult) != size {
+		return fmt.Errorf("%w: would overflow the max size (%d) of type %s: %q", ErrSizeOverflow, max, typ.Kind(), text)
 	}
 
 	*dst = result
@@ -179,49 +159,45 @@ func unmarshalSize[T sizeConstraint](dst *T, text []byte) error {
 }
 
 // marshalSize formats a size value with the largest whole-unit suffix.
-func marshalSize[T sizeConstraint](size T) ([]byte, error) {
-	negative := size < 0
-	var abs uint64
-	if negative {
-		// Compute absolute value in the unsigned domain to avoid signed overflow on MinInt64.
-		abs = ^uint64(size) + 1
-	} else {
-		abs = uint64(size)
-	}
-
-	var suffix byte
+// BT is necessary so that strconv.AppendInt / strconv.AppendUint can be passed
+// without needing a wrapper.
+func marshalSize[T sizeConstraint, BT sizeConstraint](size T, format func([]byte, BT, int) []byte) []byte {
+	// Pick the largest whole-unit suffix. The checks work correctly on signed
+	// values without an abs conversion: size/threshold is non-zero iff
+	// |size| >= threshold, and size%threshold == 0 holds regardless of sign.
+	// That keeps MinInt64 safe — we never evaluate -MinInt64, which would
+	// overflow int64.
+	quotient := size
+	var suffix rune
 	switch {
-	case abs >= 1<<30 && abs%(1<<30) == 0:
-		abs /= 1 << 30
+	case size/(1<<30) != 0 && size%(1<<30) == 0:
+		quotient = size / (1 << 30)
 		suffix = 'g'
-	case abs >= 1<<20 && abs%(1<<20) == 0:
-		abs /= 1 << 20
+	case size/(1<<20) != 0 && size%(1<<20) == 0:
+		quotient = size / (1 << 20)
 		suffix = 'm'
-	case abs >= 1<<10 && abs%(1<<10) == 0:
-		abs /= 1 << 10
+	case size/(1<<10) != 0 && size%(1<<10) == 0:
+		quotient = size / (1 << 10)
 		suffix = 'k'
 	}
 
-	var s string
-	if negative {
-		s = fmt.Sprintf("-%d", abs)
-	} else {
-		s = strconv.FormatUint(abs, 10)
-	}
+	// Delegate sign handling to the caller's format function: strconv.AppendInt
+	// writes a leading '-' for negative values, strconv.AppendUint never does.
+	out := format(nil, BT(quotient), 10)
 	if suffix != 0 {
-		s += string(suffix)
+		out = utf8.AppendRune(out, suffix)
 	}
-	return []byte(s), nil
+	return out
 }
 
 // UnmarshalText parses a byte size from text.
 func (s *Size) UnmarshalText(text []byte) error {
-	return unmarshalSize(s, text)
+	return unmarshalSize(s, text, strconv.ParseUint, math.MaxUint64)
 }
 
 // MarshalText converts a Size to a string for encoding toml.
 func (s Size) MarshalText() ([]byte, error) {
-	return marshalSize(s)
+	return marshalSize(s, strconv.AppendUint), nil
 }
 
 // ToInt returns the value as an int, or an error wrapping ErrSizeOutOfRange
@@ -249,12 +225,12 @@ func (s Size) ToInt64() (int64, error) {
 
 // UnmarshalText parses a byte size from text, allowing negative values.
 func (s *SSize) UnmarshalText(text []byte) error {
-	return unmarshalSize(s, text)
+	return unmarshalSize(s, text, strconv.ParseInt, math.MaxInt64)
 }
 
 // MarshalText converts an SSize to a string for encoding toml.
 func (s SSize) MarshalText() ([]byte, error) {
-	return marshalSize(s)
+	return marshalSize(s, strconv.AppendInt), nil
 }
 
 // ToInt returns the value as an int, or an error wrapping ErrSizeOutOfRange
