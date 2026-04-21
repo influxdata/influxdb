@@ -200,12 +200,12 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	}
 	bs, _, err := s.svc.FindBuckets(ctx, filter)
 	if err != nil {
-		return fmt.Errorf("error finding buckets for organization: %s, error: %w", id, err)
+		return fmt.Errorf("error finding buckets for organization id: %s, error: %w", id.String(), err)
 	}
 	for _, b := range bs {
 		if err := s.svc.DeleteBucket(internalCtx(ctx), b.ID); err != nil {
 			if err != ErrBucketNotFound {
-				return fmt.Errorf("error deleteing buckets for organization: %s, error: %w", id, err)
+				return fmt.Errorf("error deleteing buckets for organization id: %s, error: %w", id.String(), err)
 			}
 		}
 	}
@@ -214,7 +214,7 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 		return s.store.DeleteOrg(ctx, tx, id)
 	})
 	if err != nil {
-		return fmt.Errorf("error deleting organization: %s, error: %w", id, err)
+		return fmt.Errorf("error deleting organization id: %s, error: %w", id.String(), err)
 	}
 
 	if s.svc.TaskService != nil {
@@ -228,12 +228,12 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 			}
 			for _, t := range tasks {
 				if err := s.svc.DeleteTask(ctx, t.ID); err != nil && !errors.Is(err, taskmodel.ErrTaskNotFound) {
-					return fmt.Errorf("failed to delete tasks for organization: %s, error: %w", id, err)
+					return fmt.Errorf("failed to delete tasks for organization id: %s, error: %w", id.String(), err)
 				}
 			}
 		}
 	} else {
-		return fmt.Errorf("%w: organization: %s", ErrTaskServiceNil, id)
+		return fmt.Errorf("%w: organization id: %s", ErrTaskServiceNil, id.String())
 	}
 
 	return s.removeResourceRelations(ctx, id)
