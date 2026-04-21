@@ -3,6 +3,7 @@ package testing
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -750,7 +751,17 @@ func DeleteOrganization(init func(OrganizationFields, *testing.T) (influxdb.Orga
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteOrganization(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
+			expectedErr := tt.wants.err
+			if isInMem {
+				if e, ok := expectedErr.(*errors.Error); ok {
+					expectedErr = &errors.Error{
+						Code: e.Code,
+						Op:   e.Op,
+						Msg:  fmt.Sprintf("error deleting organization id: %s: %s", tt.args.ID.String(), e.Msg),
+					}
+				}
+			}
+			diffPlatformErrors(tt.name, err, expectedErr, false, false, t)
 
 			filter := influxdb.OrganizationFilter{}
 			organizations, _, err := s.FindOrganizations(ctx, filter)

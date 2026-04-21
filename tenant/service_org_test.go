@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
@@ -44,7 +45,9 @@ func initOrganizationService(s kv.Store, f influxdbtesting.OrganizationFields, t
 		t.Fatalf("failed to populate organizations: %s", err)
 	}
 
-	return tenant.NewService(storage), "tenant/", func() {
+	svc := tenant.NewService(storage)
+	svc.Apply(tenant.WithTaskService(mock.NewTaskService()))
+	return svc, "tenant/", func() {
 		// go direct to storage for test data
 		if err := s.Update(context.Background(), func(tx kv.Tx) error {
 			for _, o := range f.Organizations {

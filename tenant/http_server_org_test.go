@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -38,7 +39,9 @@ func initHttpOrgService(f itesting.OrganizationFields, t *testing.T) (influxdb.O
 		t.Fatalf("failed to populate organizations: %s", err)
 	}
 
-	handler := tenant.NewHTTPOrgHandler(zaptest.NewLogger(t), tenant.NewService(storage), nil, nil)
+	svc := tenant.NewService(storage)
+	svc.Apply(tenant.WithTaskService(mock.NewTaskService()))
+	handler := tenant.NewHTTPOrgHandler(zaptest.NewLogger(t), svc, nil, nil)
 	r := chi.NewRouter()
 	r.Mount(handler.Prefix(), handler)
 	server := httptest.NewServer(r)

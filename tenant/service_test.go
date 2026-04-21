@@ -887,6 +887,7 @@ func initBoltTenantService(t *testing.T, f tenantFields) (*tenant.Service, func(
 	}
 
 	svc := tenant.NewService(store)
+	svc.Apply(tenant.WithTaskService(mock.NewTaskService()))
 
 	for _, u := range f.Users {
 		if err := svc.CreateUser(context.Background(), u); err != nil {
