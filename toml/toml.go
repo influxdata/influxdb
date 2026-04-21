@@ -65,10 +65,9 @@ type Size uint64
 type SSize int64
 
 var (
-	ErrSizeEmpty      = errors.New("size was empty")
 	ErrSizeBadSuffix  = errors.New("unknown size suffix")
 	ErrSizeParse      = errors.New("invalid size")
-	ErrSizeOverflow   = fmt.Errorf("size overflow")
+	ErrSizeOverflow   = errors.New("size overflow")
 	ErrSizeOutOfRange = errors.New("size value out of range for target type")
 )
 
@@ -81,7 +80,7 @@ type sizeConstraint interface {
 // It returns the numeric portion of the text and the multiplier.
 func parseSizeSuffix(text []byte) (numText []byte, mult uint64, err error) {
 	if len(text) == 0 {
-		return nil, 0, ErrSizeEmpty
+		return nil, 1, nil
 	}
 
 	mult = 1
@@ -255,6 +254,12 @@ func (s SSize) ToUint64() (uint64, error) {
 	return uint64(s), nil
 }
 
+// FileMode is a TOML wrapper around os.FileMode. Values are parsed as octal
+// (matching chmod convention), so "755" means 0o755.
+//
+// An empty value is treated as "unset" and leaves the receiver at its zero
+// value. An explicit "0" (or any other zero octal literal) is rejected — an
+// explicit zero mode is almost always a configuration mistake.
 type FileMode uint32
 
 func (m *FileMode) UnmarshalText(text []byte) error {
@@ -289,8 +294,6 @@ func (g *Group) unmarshalGroupName(groupName string) error {
 	if groupName == "" {
 		return errors.New("group name is empty")
 	}
-
-	var gid int
 
 	group, lookupErr := user.LookupGroup(groupName)
 	if lookupErr != nil {
