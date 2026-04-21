@@ -42,6 +42,7 @@ func TestDeleteOrganization_PurgesTasksV1(t *testing.T) {
 		{"zero tasks", 0},
 		{"five tasks", 5},
 		{"multi-page", taskmodel.TaskDefaultPageSize + 50},
+		{"larger multi-page", 2*(taskmodel.TaskDefaultPageSize) + 1},
 	}
 
 	for _, tc := range cases {
@@ -61,6 +62,20 @@ func TestDeleteOrganization_PurgesTasksV1(t *testing.T) {
 			assertTaskBucketsClean(ctx, t, store, org.ID, ids)
 		})
 	}
+}
+
+func TestDeleteOrganization_ErrorWhenTaskServiceNil(t *testing.T) {
+	ctx := context.Background()
+	store, closeStore := itesting.NewTestBoltStore(t)
+	t.Cleanup(closeStore)
+
+	ts := tenant.NewService(tenant.NewStore(store))
+
+	org := &influxdb.Organization{Name: t.Name() + "-org"}
+	require.NoError(t, ts.CreateOrganization(ctx, org))
+
+	err := ts.DeleteOrganization(ctx, org.ID)
+	require.ErrorIs(t, err, tenant.ErrTaskServiceNil)
 }
 
 func seedOrgWithAuth(ctx context.Context, t *testing.T, ts *tenant.Service, authSvc influxdb.AuthorizationService) (*influxdb.Organization, *influxdb.User, context.Context) {

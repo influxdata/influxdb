@@ -2,6 +2,8 @@ package tenant
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
@@ -9,6 +11,8 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
+
+var ErrTaskServiceNil = errors.New("TaskService is nil")
 
 type OrgSvc struct {
 	store *Store
@@ -196,12 +200,12 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	}
 	bs, _, err := s.svc.FindBuckets(ctx, filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("error finding buckets for organization: %s, error: %w", id, err)
 	}
 	for _, b := range bs {
 		if err := s.svc.DeleteBucket(internalCtx(ctx), b.ID); err != nil {
 			if err != ErrBucketNotFound {
-				return err
+				return fmt.Errorf("error deleteing buckets for organization: %s, error: %w", id, err)
 			}
 		}
 	}
@@ -210,7 +214,7 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 		return s.store.DeleteOrg(ctx, tx, id)
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("error deleting organization: %s, error: %w", id, err)
 	}
 
 	if s.svc.TaskService != nil {
@@ -223,11 +227,13 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 				break
 			}
 			for _, t := range tasks {
-				if err := s.svc.DeleteTask(ctx, t.ID); err != nil && err != taskmodel.ErrTaskNotFound {
-					return err
+				if err := s.svc.DeleteTask(ctx, t.ID); err != nil && !errors.Is(err, taskmodel.ErrTaskNotFound) {
+					return fmt.Errorf("failed to delete tasks for organization: %s, error: %w", id, err)
 				}
 			}
 		}
+	} else {
+		return fmt.Errorf("%w: organization: %s", ErrTaskServiceNil, id)
 	}
 
 	return s.removeResourceRelations(ctx, id)
