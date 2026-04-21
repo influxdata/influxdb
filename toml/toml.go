@@ -530,9 +530,12 @@ func VerifyConfigType(cfg interface{}) error {
 	return nil
 }
 
+// GetenvFunc is a function that matches os.Getenv.
+type GetenvFunc func(string) string
+
 // ApplyEnvOverrides applies environment variable overrides to the given configuration value.
 // It returns the list of all environment variable names that were applied and any error encountered.
-func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{}) ([]string, error) {
+func ApplyEnvOverrides(getenv GetenvFunc, prefix string, val interface{}) ([]string, error) {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
@@ -620,13 +623,272 @@ func isLeafType(t reflect.Type) bool {
 	return false
 }
 
+// getEnvValue returns the value of the environment variable envName using getenv.
+// If the value is not set or only contains whitespace, then an empty string is returned.
+func getEnvValue(getenv GetenvFunc, envName string) string {
+	return strings.TrimSpace(getenv(envName))
+}
+
+// applyEnvOverridesField applies environment overrides to a struct field. After performing
+// some checks, a call to applyEnvOverrides is made to apply the value recursively.
+func applyEnvOverridesField(getenv GetenvFunc, prefix string, structField reflect.StructField, field reflect.Value, structKey string) (envOverrideResult, error) {
+	// Skip any fields that we cannot set to prevent panics on unexported slices.
+	if !field.CanSet() {
+		return envOverrideResult{}, nil
+	}
+
+	fieldName := structField.Name
+
+	configName := structField.Tag.Get("toml")
+	if configName == "-" {
+		// Skip fields with tag `toml:"-"`.
+		return envOverrideResult{}, nil
+	}
+
+	if configName == "" && structField.Anonymous {
+		// Embedded field without a toml tag.
+		// Don't modify prefix.
+		return applyEnvOverrides(getenv, prefix, field, joinStructKey(structKey, fieldName))
+	}
+
+	// Fall back to field name if no toml tag, matching BurntSushi/toml behavior.
+	if configName == "" {
+		configName = fieldName
+	}
+
+	// Replace hyphens with underscores to avoid issues with shells
+	configName = strings.ReplaceAll(configName, "-", "_")
+
+	envKey := strings.ToUpper(configName)
+	if prefix != "" {
+		envKey = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
+	}
+
+	// Apply recursively to field. Works for scalars, structs, slices, pointers, etc.
+	return applyEnvOverrides(getenv, envKey, field, joinStructKey(structKey, fieldName))
+}
+
+// applyEnvOverridesStruct applies environment overrides to all fields in a struct.
+// Each field is set by recursively calling applyEnvOverrides.
+func applyEnvOverridesStruct(getenv GetenvFunc, prefix string, element reflect.Value, structKey string) (envOverrideResult, error) {
+	var result envOverrideResult
+
+	typeOfSpec := element.Type()
+	for i := 0; i < element.NumField(); i++ {
+		field := element.Field(i)
+		structField := typeOfSpec.Field(i)
+		fieldResult, err := applyEnvOverridesField(getenv, prefix, structField, field, structKey)
+		if err != nil {
+			return envOverrideResult{}, err
+		}
+		result.merge(fieldResult)
+	}
+
+	return result, nil
+}
+
+// applyEnvOverridesSlice applies environment overrides to a slice. Each element of the slice
+// is set by recursively calling applyEnvOverrides.
+func applyEnvOverridesSlice(getenv GetenvFunc, prefix string, element reflect.Value, structKey string) (envOverrideResult, error) {
+	startLen := element.Len()
+	var sliceResult envOverrideResult
+
+	// Handle indexed slices (e.g. VALUE_0, VALUE_1, VALUE_2, etc.)
+	for idx, envOutOfBounds := 0, false; idx < element.Len() || !envOutOfBounds; idx++ {
+		// Are we still within the bounds of the starting slice?
+		indexedEnvName := fmt.Sprintf("%s_%d", prefix, idx)
+		if idx < element.Len() {
+			f := element.Index(idx)
+
+			// Apply the unindexed environment variable as a default value, if available.
+			// Finding a default environment value does not count when considering if we continue
+			// extending the slice, so we throw the found return value away.
+			defaultResult, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx))
+			if err != nil {
+				return envOverrideResult{}, err
+			}
+			sliceResult.mergeAllVars(defaultResult)
+
+			// Apply the indexed environment variable as an override value.
+			indexedResult, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx))
+			if err != nil {
+				return envOverrideResult{}, err
+			}
+			sliceResult.merge(indexedResult)
+		} else {
+			// We have run past the end of starting slice, but are there more environment array indices?
+			// Create a zero-value value to unmarshal the environment override into.
+			f := reflect.New(element.Type().Elem()).Elem()
+			// For pointer slice elements, allocate the underlying value so we can call
+			// methods on it (e.g., ApplyDefaults) and apply env overrides to its fields.
+			if f.Kind() == reflect.Pointer && f.IsNil() {
+				f.Set(reflect.New(f.Type().Elem()))
+			}
+			// If the element type implements Defaulter, seed the new element with its
+			// type-level defaults before applying any env vars. Precedence is:
+			// ApplyDefaults < unindexed env defaults < indexed env vars.
+			//
+			// Both ApplyDefaults and the unindexed env default below mutate f eagerly
+			// on every iteration, including the final probe iteration whose f is then
+			// discarded. The cost is negligible and the alternative — deferring both
+			// until we know the element will be appended — would require running them
+			// in the same dependency order on a fresh f after the indexed check, with
+			// no real benefit.
+			//
+			// For pointer slice elements (f is already a pointer), check the value
+			// directly; otherwise check the address.
+			var defaulter Defaulter
+			if f.Kind() == reflect.Pointer {
+				defaulter, _ = f.Interface().(Defaulter)
+			} else if f.CanAddr() {
+				defaulter, _ = f.Addr().Interface().(Defaulter)
+			}
+			if defaulter != nil {
+				defaulter.ApplyDefaults()
+			} else if requiresDefaulter(f.Type()) {
+				// We should never hit this error in production because unit tests with
+				// VerifyConfigType should prevent this from becoming an issue.
+				return envOverrideResult{}, fmt.Errorf("%s: slice element type %s does not implement toml.Defaulter",
+					structKey, f.Type())
+			}
+			// Apply the unindexed environment variable as a default value, same as for existing elements.
+			// Skipped for leaf element types (scalars and TextUnmarshaler implementations) because
+			// the required indexed override would fully replace the value anyway, making the default
+			// pure wasted work. For non-leaf elements (structs whose individual fields can be defaulted),
+			// the unindexed default contributes fields that the indexed override doesn't touch.
+			var defaultResult envOverrideResult
+			if !isLeafType(element.Type().Elem()) {
+				var err error
+				if defaultResult, err = applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
+					return envOverrideResult{}, err
+				}
+			}
+			if indexedResult, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
+				return envOverrideResult{}, err
+			} else if indexedResult.Applied {
+				// Only record default vars when the element is actually appended.
+				sliceResult.mergeAllVars(defaultResult)
+				sliceResult.merge(indexedResult)
+				// We found environment variables to override into newValue. Check for growth bound before appending.
+				if idx-startLen >= MaxEnvSliceGrowth {
+					overridesStr := "overrides"
+					if len(indexedResult.IndexedVars) == 1 {
+						overridesStr = "override"
+					}
+					return envOverrideResult{}, fmt.Errorf(
+						"env %s %s would append more than %d elements", overridesStr, strings.Join(indexedResult.IndexedVars, ","), MaxEnvSliceGrowth)
+				}
+
+				element.Set(reflect.Append(element, f))
+			} else {
+				// We seem to have run past the end of the environment indices.
+				envOutOfBounds = true
+			}
+		}
+	}
+
+	// Slices of leaf types also support setting using a comma-delimited list in the unindexed env var.
+	// You can't mix unindexed and indexed leaf type overrides, because that leads to surprising
+	// and highly unintuitive results.
+	value := getEnvValue(getenv, prefix)
+	if isLeafType(element.Type().Elem()) && len(value) > 0 {
+		if sliceResult.Applied {
+			return envOverrideResult{}, fmt.Errorf("unindexed env override %s would conflict with indexed overrides (%s). Use either indexed or unindexed only for this config",
+				prefix, strings.Join(sliceResult.IndexedVars, ","))
+		}
+		sliceResult.Applied = true
+		sliceResult.insertVar(&sliceResult.AllVars, prefix)
+		parts := strings.Split(value, ",")
+		if len(parts) > MaxEnvSliceGrowth {
+			return envOverrideResult{}, fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
+		}
+		// Clear existing elements before applying the comma-delimited list. Create slice with zero values.
+		element.Set(reflect.MakeSlice(element.Type(), len(parts), len(parts)))
+		for idx, val := range parts {
+			f := element.Index(idx)
+			// The custom getenv returns val for any key, so the recursive call will
+			// report prefix as applied. Since we already recorded prefix above, merge
+			// deduplicates it automatically — no manual DeleteFunc needed.
+			// Since we know this is a leaf type and not a struct, no other environment variables other
+			// than prefix can be pulled in, and prefix is already in AllVars. Skipping a merge here prevents
+			// polluting the indexed var list while still maintaining overall correctness.
+			if _, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, indexStructKey(structKey, idx)); err != nil {
+				return envOverrideResult{}, err
+			}
+		}
+	}
+
+	return sliceResult, nil
+}
+
+// applyEnvOverridePrimitive applies a primitive env value to element by delegating
+// parse-and-set to a type-specific apply function. Returns an applied result on
+// success, a zero result on empty input, or a wrapped error on parse failure.
+func applyEnvOverridePrimitive(value string, prefix string, element reflect.Value, structKey string, apply func(string, reflect.Value) error) (envOverrideResult, error) {
+	if len(value) == 0 {
+		return envOverrideResult{}, nil
+	}
+	if err := apply(value, element); err != nil {
+		return envOverrideResult{}, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
+	}
+	return appliedEnvVar(prefix), nil
+}
+
+func applyInt(v string, e reflect.Value) error {
+	// Supported number radix prefix formats:
+	// - 0x / 0X -> hex
+	// - 0o / 0O -> octal
+	// - 0 -> octal (not supported  by TOML)
+	// - 0b / 0B -> binary
+	// NOTE: This will convert strings beginning with "0" as octal. TOML
+	// does not support that conversion, but we have historically supported
+	// and it is not worth the trouble to make it invalid.
+	n, err := strconv.ParseInt(v, 0, e.Type().Bits())
+	if err != nil {
+		return err
+	}
+	e.SetInt(n)
+	return nil
+}
+
+func applyUint(v string, e reflect.Value) error {
+	// See applyInt for more information on supported radix prefixes.
+	n, err := strconv.ParseUint(v, 0, e.Type().Bits())
+	if err != nil {
+		return err
+	}
+	e.SetUint(n)
+	return nil
+}
+
+func applyFloat(v string, e reflect.Value) error {
+	f, err := strconv.ParseFloat(v, e.Type().Bits())
+	if err != nil {
+		return err
+	}
+	e.SetFloat(f)
+	return nil
+}
+
+func applyBool(v string, e reflect.Value) error {
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return err
+	}
+	e.SetBool(b)
+	return nil
+}
+
+func applyString(v string, e reflect.Value) error {
+	e.SetString(v)
+	return nil
+}
+
 // applyEnvOverrides applies environment overrides recursively.
-func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) (envOverrideResult, error) {
+func applyEnvOverrides(getenv GetenvFunc, prefix string, spec reflect.Value, structKey string) (envOverrideResult, error) {
 	element := spec
 
-	value := strings.TrimSpace(getenv(prefix))
-
-	var noResult envOverrideResult
+	value := getEnvValue(getenv, prefix)
 
 	// If we have a pointer, dereference it. For nil pointers to leaf types
 	// (scalars or TextUnmarshaler implementations), allocate the underlying
@@ -641,7 +903,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 	if spec.Kind() == reflect.Pointer {
 		if spec.IsNil() {
 			if len(value) == 0 || !spec.CanSet() || !isLeafType(spec.Type().Elem()) {
-				return noResult, nil
+				return envOverrideResult{}, nil
 			}
 			spec.Set(reflect.New(spec.Type().Elem()))
 		}
@@ -654,10 +916,10 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		if u, ok := element.Addr().Interface().(encoding.TextUnmarshaler); ok {
 			// Skip any fields we don't have a value to set
 			if len(value) == 0 {
-				return noResult, nil
+				return envOverrideResult{}, nil
 			}
 			if err := u.UnmarshalText([]byte(value)); err != nil {
-				return noResult, fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
+				return envOverrideResult{}, fmt.Errorf("failed to apply %v to %v using TextUnmarshaler %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
 			}
 			return appliedEnvVar(prefix), nil
 		}
@@ -665,241 +927,26 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 
 	switch element.Kind() {
 	case reflect.String:
-		if len(value) == 0 {
-			return noResult, nil
-		}
-		element.SetString(value)
-		return appliedEnvVar(prefix), nil
+		return applyEnvOverridePrimitive(value, prefix, element, structKey, applyString)
+
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if len(value) == 0 {
-			return noResult, nil
-		}
-		// Base 0 lets the user pick the radix via prefix:
-		//   0x / 0X  -> hex
-		//   0o / 0O  -> octal
-		//   bare 0   -> octal (C-style; e.g., "010" is 8)
-		//   0b / 0B  -> binary
-		//   otherwise -> decimal
-		// This intentionally differs from TOML's stricter integer syntax.
-		intValue, err := strconv.ParseInt(value, 0, element.Type().Bits())
-		if err != nil {
-			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
-		}
-		element.SetInt(intValue)
-		return appliedEnvVar(prefix), nil
+		return applyEnvOverridePrimitive(value, prefix, element, structKey, applyInt)
+
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if len(value) == 0 {
-			return noResult, nil
-		}
-		// See the int case above for the supported numeric prefixes.
-		intValue, err := strconv.ParseUint(value, 0, element.Type().Bits())
-		if err != nil {
-			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
-		}
-		element.SetUint(intValue)
-		return appliedEnvVar(prefix), nil
+		return applyEnvOverridePrimitive(value, prefix, element, structKey, applyUint)
+
 	case reflect.Bool:
-		if len(value) == 0 {
-			return noResult, nil
-		}
-		boolValue, err := strconv.ParseBool(value)
-		if err != nil {
-			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
-		}
-		element.SetBool(boolValue)
-		return appliedEnvVar(prefix), nil
+		return applyEnvOverridePrimitive(value, prefix, element, structKey, applyBool)
+
 	case reflect.Float32, reflect.Float64:
-		if len(value) == 0 {
-			return noResult, nil
-		}
-		floatValue, err := strconv.ParseFloat(value, element.Type().Bits())
-		if err != nil {
-			return noResult, fmt.Errorf("failed to apply %v to %v using type %v and value %q: %w", prefix, structKey, element.Type().String(), value, err)
-		}
-		element.SetFloat(floatValue)
-		return appliedEnvVar(prefix), nil
+		return applyEnvOverridePrimitive(value, prefix, element, structKey, applyFloat)
+
 	case reflect.Slice:
-		startLen := element.Len()
-		var sliceResult envOverrideResult
-
-		// Handle indexed slices (e.g. VALUE_0, VALUE_1, VALUE_2, etc.)
-		for idx, envOutOfBounds := 0, false; idx < element.Len() || !envOutOfBounds; idx++ {
-			// Are we still within the bounds of the starting slice?
-			indexedEnvName := fmt.Sprintf("%s_%d", prefix, idx)
-			if idx < element.Len() {
-				f := element.Index(idx)
-
-				// Apply the unindexed environment variable as a default value, if available.
-				// Finding a default environment value does not count when considering if we continue
-				// extending the slice, so we throw the found return value away.
-				if defaultResult, err := applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
-					return noResult, err
-				} else {
-					sliceResult.mergeAllVars(defaultResult)
-				}
-
-				// Apply the indexed environment variable as an override value.
-				if indexedResult, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
-					return noResult, err
-				} else {
-					sliceResult.merge(indexedResult)
-				}
-			} else {
-				// We have run past the end of starting slice, but are there more environment array indices?
-				// Create a zero-value value to unmarshal the environment override into.
-				f := reflect.New(element.Type().Elem()).Elem()
-				// For pointer slice elements, allocate the underlying value so we can call
-				// methods on it (e.g., ApplyDefaults) and apply env overrides to its fields.
-				if f.Kind() == reflect.Pointer && f.IsNil() {
-					f.Set(reflect.New(f.Type().Elem()))
-				}
-				// If the element type implements Defaulter, seed the new element with its
-				// type-level defaults before applying any env vars. Precedence is:
-				// ApplyDefaults < unindexed env defaults < indexed env vars.
-				//
-				// Both ApplyDefaults and the unindexed env default below mutate f eagerly
-				// on every iteration, including the final probe iteration whose f is then
-				// discarded. The cost is negligible and the alternative — deferring both
-				// until we know the element will be appended — would require running them
-				// in the same dependency order on a fresh f after the indexed check, with
-				// no real benefit.
-				//
-				// For pointer slice elements (f is already a pointer), check the value
-				// directly; otherwise check the address.
-				var defaulter Defaulter
-				if f.Kind() == reflect.Pointer {
-					defaulter, _ = f.Interface().(Defaulter)
-				} else if f.CanAddr() {
-					defaulter, _ = f.Addr().Interface().(Defaulter)
-				}
-				if defaulter != nil {
-					defaulter.ApplyDefaults()
-				} else if requiresDefaulter(f.Type()) {
-					// We should never hit this error in production because unit tests with
-					// VerifyConfigType should prevent this from becoming an issue.
-					return noResult, fmt.Errorf("%s: slice element type %s does not implement toml.Defaulter",
-						structKey, f.Type())
-				}
-				// Apply the unindexed environment variable as a default value, same as for existing elements.
-				// Skipped for leaf element types (scalars and TextUnmarshaler implementations) because
-				// the required indexed override would fully replace the value anyway, making the default
-				// pure wasted work. For non-leaf elements (structs whose individual fields can be defaulted),
-				// the unindexed default contributes fields that the indexed override doesn't touch.
-				var defaultResult envOverrideResult
-				if !isLeafType(element.Type().Elem()) {
-					var err error
-					if defaultResult, err = applyEnvOverrides(getenv, prefix, f, indexStructKey(structKey, idx)); err != nil {
-						return noResult, err
-					}
-				}
-				if indexedResult, err := applyEnvOverrides(getenv, indexedEnvName, f, indexStructKey(structKey, idx)); err != nil {
-					return noResult, err
-				} else if indexedResult.Applied {
-					// Only record default vars when the element is actually appended.
-					sliceResult.mergeAllVars(defaultResult)
-					sliceResult.merge(indexedResult)
-					// We found environment variables to override into newValue. Check for growth bound before appending.
-					if idx-startLen >= MaxEnvSliceGrowth {
-						overridesStr := "overrides"
-						if len(indexedResult.IndexedVars) == 1 {
-							overridesStr = "override"
-						}
-						return noResult, fmt.Errorf(
-							"env %s %s would append more than %d elements", overridesStr, strings.Join(indexedResult.IndexedVars, ","), MaxEnvSliceGrowth)
-					}
-
-					element.Set(reflect.Append(element, f))
-				} else {
-					// We seem to have run past the end of the environment indices.
-					envOutOfBounds = true
-				}
-			}
-		}
-
-		// Slices of leaf types also support setting using a comma-delimited list in the unindexed env var.
-		// You can't mix unindexed and indexed leaf type overrides, because that leads to surprising
-		// and highly unintuitive results.
-		if isLeafType(element.Type().Elem()) && len(value) > 0 {
-			if sliceResult.Applied {
-				return noResult, fmt.Errorf("unindexed env override %s would conflict with indexed overrides (%s). Use either indexed or unindexed only for this config",
-					prefix, strings.Join(sliceResult.IndexedVars, ","))
-			}
-			sliceResult.Applied = true
-			sliceResult.insertVar(&sliceResult.AllVars, prefix)
-			parts := strings.Split(value, ",")
-			if len(parts) > MaxEnvSliceGrowth {
-				return noResult, fmt.Errorf("env override %s has %d comma-separated values, exceeding maximum of %d", prefix, len(parts), MaxEnvSliceGrowth)
-			}
-			// Clear existing elements before applying the comma-delimited list. Create slice with zero values.
-			element.Set(reflect.MakeSlice(element.Type(), len(parts), len(parts)))
-			for idx, val := range parts {
-				f := element.Index(idx)
-				// The custom getenv returns val for any key, so the recursive call will
-				// report prefix as applied. Since we already recorded prefix above, merge
-				// deduplicates it automatically — no manual DeleteFunc needed.
-				// Since we know this is a leaf type and not a struct, no other environment variables other
-				// than prefix can be pulled in, and prefix is already in AllVars. Skipping a merge here prevents
-				// polluting the indexed var list while still maintaining overall correctness.
-				if _, err := applyEnvOverrides(func(n string) string { return val }, prefix, f, indexStructKey(structKey, idx)); err != nil {
-					return noResult, err
-				}
-			}
-		}
-
-		return sliceResult, nil
+		return applyEnvOverridesSlice(getenv, prefix, element, structKey)
 
 	case reflect.Struct:
-		var result envOverrideResult
-
-		typeOfSpec := element.Type()
-		for i := 0; i < element.NumField(); i++ {
-			field := element.Field(i)
-
-			fieldResult, err := func() (envOverrideResult, error) {
-				// Skip any fields that we cannot set to prevent panics on unexported slices.
-				if !field.CanSet() {
-					return noResult, nil
-				}
-
-				structField := typeOfSpec.Field(i)
-				fieldName := structField.Name
-
-				configName := structField.Tag.Get("toml")
-				if configName == "-" {
-					// Skip fields with tag `toml:"-"`.
-					return noResult, nil
-				}
-
-				if configName == "" && structField.Anonymous {
-					// Embedded field without a toml tag.
-					// Don't modify prefix.
-					return applyEnvOverrides(getenv, prefix, field, joinStructKey(structKey, fieldName))
-				}
-
-				// Fall back to field name if no toml tag, matching BurntSushi/toml behavior.
-				if configName == "" {
-					configName = fieldName
-				}
-
-				// Replace hyphens with underscores to avoid issues with shells
-				configName = strings.ReplaceAll(configName, "-", "_")
-
-				envKey := strings.ToUpper(configName)
-				if prefix != "" {
-					envKey = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
-				}
-
-				// Apply recursively to field. Works for scalars, structs, slices, pointers, etc.
-				return applyEnvOverrides(getenv, envKey, field, joinStructKey(structKey, fieldName))
-			}()
-			if err != nil {
-				return noResult, err
-			}
-			result.merge(fieldResult)
-		}
-
-		return result, nil
+		return applyEnvOverridesStruct(getenv, prefix, element, structKey)
 	}
 
-	return noResult, nil
+	return envOverrideResult{}, nil
 }
