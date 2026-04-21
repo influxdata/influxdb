@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/secret"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -35,6 +36,7 @@ type Service struct {
 	influxdb.UserResourceMappingService
 	influxdb.OrganizationService
 	influxdb.BucketService
+	taskmodel.TaskService
 }
 
 func (s *Service) RLock() {
@@ -60,6 +62,18 @@ func NewService(st *Store, UserSvcOptFns ...func(svc *UserSvc)) *Service {
 
 func (s *Service) SetUserOptions(opts ...func(*UserSvc)) {
 	s.userSvc.SetOptions(opts...)
+}
+
+type ServiceOption func(*Service)
+
+func WithTaskService(ts taskmodel.TaskService) ServiceOption {
+	return func(s *Service) { s.TaskService = ts }
+}
+
+func (s *Service) Apply(opts ...ServiceOption) {
+	for _, opt := range opts {
+		opt(s)
+	}
 }
 
 // creates a new Service with logging and metrics middleware wrappers.
