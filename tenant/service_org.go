@@ -205,7 +205,7 @@ func (s *OrgSvc) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	for _, b := range bs {
 		if err := s.svc.DeleteBucket(internalCtx(ctx), b.ID); err != nil {
 			if err != ErrBucketNotFound {
-				return fmt.Errorf("error deleteing buckets for organization id: %s: %w", id.String(), err)
+				return fmt.Errorf("error deleting buckets for organization id: %s: %w", id.String(), err)
 			}
 		}
 	}
