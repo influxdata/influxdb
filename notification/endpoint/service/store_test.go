@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	endpointsTesting "github.com/influxdata/influxdb/v2/notification/endpoint/service/testing"
 	"github.com/influxdata/influxdb/v2/secret"
@@ -54,6 +55,7 @@ func initNotificationEndpointService(s kv.SchemaStore, f endpointsTesting.Notifi
 	}
 
 	tenantSvc := tenant.NewService(tenantStore)
+	tenantSvc.Apply(tenant.WithTaskService(mock.NewTaskService()))
 
 	secretStore, err := secret.NewStore(s)
 	require.NoError(t, err)

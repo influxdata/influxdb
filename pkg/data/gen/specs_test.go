@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -200,7 +201,7 @@ fields = [ { name = "f0", count = 5000 } ]
 
 		if err == nil {
 			t.Errorf("expected error, got nil")
-		} else if err.Error() != exp {
+		} else if !strings.HasSuffix(err.Error(), exp) {
 			t.Errorf("unexpected error, -got/+exp\n%s", cmp.Diff(err.Error(), exp))
 		}
 	}

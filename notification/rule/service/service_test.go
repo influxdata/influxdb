@@ -58,6 +58,8 @@ func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.
 		kvsvc.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 
+	tenantSvc.Apply(tenant.WithTaskService(kvsvc))
+
 	secretStore, err := secret.NewStore(s)
 	require.NoError(t, err)
 	secretSvc := secret.NewService(secretStore)

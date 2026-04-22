@@ -4,38 +4,47 @@
     <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
     <img src="assets/influxdb-logo.png" alt="InfluxDB Logo" width="600">
   </picture>
- <p>
-InfluxDB is the leading open source time series database for metrics, events, and real-time analytics.</p>
+ <p>InfluxDB OSS v2 — open source time series platform powered by the TSM storage engine.</p>
 
 </div>
 
-## Learn InfluxDB
-[Documentation](https://docs.influxdata.com/) | [Community Forum](https://community.influxdata.com/) | [Community Slack](https://www.influxdata.com/slack/) | [Blog](https://www.influxdata.com/blog/) | [InfluxDB University](https://university.influxdata.com/) | [YouTube](https://www.youtube.com/@influxdata8893)
+> [!NOTE]
+> This branch documents an earlier version of InfluxDB OSS. [InfluxDB 3 Core](https://github.com/influxdata/influxdb/tree/main) is the latest stable version. InfluxDB 3 Core includes [compatibility APIs for v2 and v1 write workloads](https://docs.influxdata.com/influxdb3/core/reference/api/).
 
-Try **InfluxDB Cloud** for free and get started fast with no local setup required. Click [here](https://cloud2.influxdata.com/signup) to start building your application on InfluxDB Cloud.
+**Version:** 2.x\
+**Branch:** `main-2.x`\
+**Storage engine:** TSM (Time-Structured Merge)\
+**Query languages:** Flux, InfluxQL\
+**API:** [v2 REST API](https://docs.influxdata.com/influxdb/v2/reference/api/) (write, query, manage)\
+**Compatible with:** InfluxDB 1.x write API and query (InfluxQL) API\
+**License:** [MIT](LICENSE)\
+**Documentation:** [docs.influxdata.com/influxdb/v2/](https://docs.influxdata.com/influxdb/v2/)
 
 ## Install
 
-We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the `influx` command line interface (CLI) client as a separate binary available at the same location.
+For Docker images, Debian packages, RPM packages, and tarballs, see the [InfluxData downloads page](https://portal.influxdata.com/downloads/). The `influx` command line interface (CLI) client is available as a separate binary at the same location.
 
 If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
 ## Get Started
-For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/latest/).
+For a complete getting started guide, see the [InfluxDB v2 documentation](https://docs.influxdata.com/influxdb/v2/get-started/).
 
 
-To write and query data or use the API in any way, you'll need to first create a user, credentials, organization, and bucket. Everything in InfluxDB is organized under a concept of an organization, as the API is designed to be multi-tenant. Buckets represent where you store time series data — they are synonymous with what was previously in InfluxDB 1.x’s database and retention policy.
-
-
-The simplest way to get set up is to point your browser to http://localhost:8086 and go through the prompts.
+In InfluxDB v2, data and resources belong to an _organization_. You store time series data in _buckets_ (equivalent to a database and retention policy in InfluxDB 1.x). To get started, create a user, organization, and bucket — either through the UI at `http://localhost:8086` or with the `influx setup` CLI command.
 
 ## Flux
-Flux is an open source functional data scripting language designed for querying, analyzing, and acting on data. Flux is supported in InfluxDB 1.x and 2.x, but is not supported in v3. For users who are interested in transitioning to InfluxDB 3.0 and want to future-proof their code, we suggest using InfluxQL. 
+[Flux](https://github.com/influxdata/flux) is an open source functional data scripting language designed for querying, analyzing, and acting on data. Flux is supported in InfluxDB 1.x and 2.x, but is not supported in InfluxDB 3. If you plan to migrate to InfluxDB 3 in the future, we recommend using [InfluxQL](https://docs.influxdata.com/influxdb/v2/query-data/influxql/) instead of Flux with InfluxDB v2.
 
+## Other InfluxDB Versions
 
-The source for Flux is [available on GitHub](https://github.com/influxdata/flux). 
+This repository contains multiple InfluxDB versions on separate branches:
 
-## Additional Resources
-- [InfluxDB Tips and Tutorials](https://www.influxdata.com/blog/category/tech/influxdb/)
-- [InfluxDB Essentials Course](https://university.influxdata.com/courses/influxdb-essentials-tutorial/)
-- [Exploring InfluxDB Cloud Course](https://university.influxdata.com/courses/exploring-influxdb-cloud-tutorial/)
+| Version | Branch | Query Languages | Documentation |
+|---------|--------|-----------------|---------------|
+| v3 Core | [`main`](https://github.com/influxdata/influxdb/tree/main) | SQL, InfluxQL | [docs.influxdata.com/influxdb3/core/](https://docs.influxdata.com/influxdb3/core/) |
+| **v2.x (this branch)** | [`main-2.x`](https://github.com/influxdata/influxdb/tree/main-2.x) | Flux, InfluxQL | [docs.influxdata.com/influxdb/v2/](https://docs.influxdata.com/influxdb/v2/) |
+| v1.x | [`master-1.x`](https://github.com/influxdata/influxdb/tree/master-1.x) | InfluxQL, Flux | [docs.influxdata.com/influxdb/v1/](https://docs.influxdata.com/influxdb/v1/) |
+
+## Support
+
+For community support, feedback channels, and documentation requests, see [Support and feedback](https://docs.influxdata.com/influxdb/v2/get-started/#support-and-feedback).
