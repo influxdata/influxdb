@@ -892,3 +892,143 @@ impl WalFileNotifier for TestNotifier {
         self
     }
 }
+
+#[test]
+fn test_newest_wal_file_num() {
+    // Empty list returns None
+    assert_eq!(newest_wal_file_num(&[]), None);
+
+    // Single file
+    let paths = vec![Path::from("my_host/wal/00000000005.wal")];
+    assert_eq!(
+        newest_wal_file_num(&paths),
+        Some(WalFileSequenceNumber::new(5))
+    );
+
+    // Multiple sorted files - should return the last (highest)
+    let paths = vec![
+        Path::from("my_host/wal/00000000010.wal"),
+        Path::from("my_host/wal/00000000020.wal"),
+        Path::from("my_host/wal/00000000030.wal"),
+    ];
+    assert_eq!(
+        newest_wal_file_num(&paths),
+        Some(WalFileSequenceNumber::new(30))
+    );
+}
+
+#[tokio::test]
+async fn test_new_without_replay_advances_past_disk_files() {
+    // When all_wal_file_paths contains files beyond last_wal_sequence_number,
+    // the initial wal_file_sequence_number should be set past the newest file
+    // on disk. This prevents AlreadyExists errors when corrupt files are
+    // skipped during replay (issue #26970).
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    let wal_config = WalConfig {
+        max_write_buffer_size: 100,
+        flush_interval: Duration::from_secs(1),
+        snapshot_size: 2,
+        gen1_duration: Gen1Duration::new_1m(),
+        ..Default::default()
+    };
+
+    // Simulate: snapshot says last WAL was 1783, but disk has corrupt files 1784-1787
+    let all_wal_file_paths = vec![
+        Path::from("my_host/wal/00000001784.wal"),
+        Path::from("my_host/wal/00000001785.wal"),
+        Path::from("my_host/wal/00000001786.wal"),
+        Path::from("my_host/wal/00000001787.wal"),
+    ];
+
+    let wal = WalObjectStore::new_without_replay(
+        time_provider,
+        object_store,
+        "my_host",
+        notifier,
+        wal_config,
+        Some(WalFileSequenceNumber::new(1783)),
+        None,
+        &all_wal_file_paths,
+        10,
+        CancellationToken::new(),
+    );
+
+    // The sequence number should be 1788 (past the newest file on disk),
+    // not 1784 (last_wal_sequence_number + 1)
+    let seq = wal
+        .flush_buffer
+        .lock()
+        .await
+        .wal_buffer
+        .wal_file_sequence_number;
+    assert_eq!(seq, WalFileSequenceNumber::new(1788));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_replay_advances_sequence_number_past_corrupt_files() {
+    // When corrupt WAL files are skipped during replay, the sequence number
+    // must be advanced past them so the next flush does not collide (issue #26970).
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+    let wal_config = WalConfig {
+        max_write_buffer_size: 100,
+        flush_interval: Duration::from_secs(1),
+        snapshot_size: 2,
+        gen1_duration: Gen1Duration::new_1m(),
+        ..Default::default()
+    };
+
+    // Write empty (corrupt) WAL files to the object store
+    for i in 5..=8 {
+        let path = wal_path("my_host", WalFileSequenceNumber::new(i));
+        object_store
+            .put(&path, PutPayload::from_static(b""))
+            .await
+            .unwrap();
+    }
+
+    let all_wal_file_paths = vec![
+        Path::from("my_host/wal/00000000005.wal"),
+        Path::from("my_host/wal/00000000006.wal"),
+        Path::from("my_host/wal/00000000007.wal"),
+        Path::from("my_host/wal/00000000008.wal"),
+    ];
+
+    // Start with last_wal_sequence_number = 4
+    let wal = WalObjectStore::new_without_replay(
+        time_provider,
+        object_store,
+        "my_host",
+        notifier,
+        wal_config,
+        Some(WalFileSequenceNumber::new(4)),
+        None,
+        &all_wal_file_paths,
+        10,
+        CancellationToken::new(),
+    );
+
+    // new_without_replay should already set it to 9 based on disk files,
+    // but verify replay also handles it correctly
+    wal.replay(
+        Some(WalFileSequenceNumber::new(4)),
+        &all_wal_file_paths,
+        4,
+        false,
+    )
+    .await
+    .unwrap();
+
+    let seq = wal
+        .flush_buffer
+        .lock()
+        .await
+        .wal_buffer
+        .wal_file_sequence_number;
+    assert_eq!(seq, WalFileSequenceNumber::new(9));
+}
