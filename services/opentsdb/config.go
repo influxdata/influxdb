@@ -53,49 +53,65 @@ type Config struct {
 	TLS                 *tls.Config   `toml:"-"`
 }
 
-// NewConfig returns a new config for the service.
-func NewConfig() Config {
-	return Config{
-		BindAddress:      DefaultBindAddress,
-		Database:         DefaultDatabase,
-		RetentionPolicy:  DefaultRetentionPolicy,
-		ConsistencyLevel: DefaultConsistencyLevel,
-		TLSEnabled:       false,
-		Certificate:      DefaultCertificate, // TLSCertLoader will default PrivateKey if PrivateKey remains empty.
-		BatchSize:        DefaultBatchSize,
-		BatchPending:     DefaultBatchPending,
-		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
-		LogPointErrors:   true,
-	}
+// Compile-time check that *Config implements toml.Defaulter so it can be used
+// as a slice element type with ApplyEnvOverrides.
+var _ toml.Defaulter = (*Config)(nil)
+
+// ApplyDefaults populates the Config with default values. It is called by
+// NewConfig and by toml.ApplyEnvOverrides on slice elements appended via
+// indexed environment variables. ApplyDefaults assumes the receiver is a
+// freshly constructed (zero-valued) Config and sets fields unconditionally.
+func (c *Config) ApplyDefaults() {
+	c.BindAddress = DefaultBindAddress
+	c.Database = DefaultDatabase
+	c.RetentionPolicy = DefaultRetentionPolicy
+	c.ConsistencyLevel = DefaultConsistencyLevel
+	c.TLSEnabled = false
+	c.Certificate = DefaultCertificate // TLSCertLoader will default PrivateKey if PrivateKey remains empty.
+	c.BatchSize = DefaultBatchSize
+	c.BatchPending = DefaultBatchPending
+	c.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+	c.LogPointErrors = true
 }
 
-// WithDefaults takes the given config and returns a new config with any required
-// default values set.
+// NewConfig returns a new config for the service.
+func NewConfig() Config {
+	var c Config
+	c.ApplyDefaults()
+	return c
+}
+
+// WithDefaults takes the given config and returns a new config with any
+// zero-valued fields filled in from ApplyDefaults. Existing non-zero values
+// are preserved. ApplyDefaults remains the single source of truth for what
+// the default values are.
 func (c *Config) WithDefaults() *Config {
 	d := *c
+	var defaults Config
+	defaults.ApplyDefaults()
 	if d.BindAddress == "" {
-		d.BindAddress = DefaultBindAddress
+		d.BindAddress = defaults.BindAddress
 	}
 	if d.Database == "" {
-		d.Database = DefaultDatabase
+		d.Database = defaults.Database
 	}
 	if d.RetentionPolicy == "" {
-		d.RetentionPolicy = DefaultRetentionPolicy
+		d.RetentionPolicy = defaults.RetentionPolicy
 	}
 	if d.ConsistencyLevel == "" {
-		d.ConsistencyLevel = DefaultConsistencyLevel
+		d.ConsistencyLevel = defaults.ConsistencyLevel
 	}
 	if d.Certificate == "" {
-		d.Certificate = DefaultCertificate
+		d.Certificate = defaults.Certificate
 	}
 	if d.BatchSize == 0 {
-		d.BatchSize = DefaultBatchSize
+		d.BatchSize = defaults.BatchSize
 	}
 	if d.BatchPending == 0 {
-		d.BatchPending = DefaultBatchPending
+		d.BatchPending = defaults.BatchPending
 	}
 	if d.BatchTimeout == 0 {
-		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+		d.BatchTimeout = defaults.BatchTimeout
 	}
 
 	return &d

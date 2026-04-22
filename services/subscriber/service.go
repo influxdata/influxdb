@@ -370,7 +370,7 @@ func (s *Service) updateSubs() {
 	if createdNew || len(toClose) > 0 {
 		memoryLimit := int64(0)
 		if s.conf.TotalBufferBytes != 0 {
-			memoryLimit = int64(s.conf.TotalBufferBytes / len(s.subs))
+			memoryLimit = int64(s.conf.TotalBufferBytes) / int64(len(s.subs))
 			if memoryLimit == 0 {
 				memoryLimit = 1
 			}

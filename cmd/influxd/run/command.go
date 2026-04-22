@@ -16,6 +16,7 @@ import (
 
 	fluxinit "github.com/influxdata/influxdb/flux/init"
 	"github.com/influxdata/influxdb/logger"
+	itoml "github.com/influxdata/influxdb/toml"
 	"go.uber.org/zap"
 )
 
@@ -51,6 +52,11 @@ type Command struct {
 
 	// How to get environment variables. Normally set to os.Getenv, except for tests.
 	Getenv func(string) string
+
+	// How to list the full process environment. Normally set to os.Environ,
+	// except for tests. Used by logEnvVarDiagnostics to detect env vars in the
+	// configured namespace that were set but did not match any config field.
+	Environ func() []string
 }
 
 // NewCommand return a new instance of Command.
@@ -65,23 +71,31 @@ func NewCommand() *Command {
 	}
 }
 
-func (cmd *Command) LoadConfig(args ...string) (Options, *Config, error) {
-	fail := func(err error) (Options, *Config, error) { return Options{}, nil, err }
+// LoadConfig parses the command line flags, loads the config file, applies
+// environment variable overrides, and validates the result. The returned
+// appliedEnvVars slice lists the environment variable names that were applied
+// during override processing; it is intended to be passed to logEnvVarDiagnostics
+// once a logger has been configured.
+func (cmd *Command) LoadConfig(args ...string) (options Options, config *Config, appliedEnvVars []string, err error) {
+	fail := func(err error) (Options, *Config, []string, error) {
+		return Options{}, nil, nil, err
+	}
 
 	// Parse the command line flags.
-	options, err := cmd.ParseFlags(args...)
+	options, err = cmd.ParseFlags(args...)
 	if err != nil {
 		return fail(fmt.Errorf("error parsing command line: %w", err))
 	}
 
 	configPath := options.GetConfigPath()
-	config, err := cmd.ParseConfig(configPath)
+	config, err = cmd.ParseConfig(configPath)
 	if err != nil {
 		return fail(fmt.Errorf("error parsing config file (%q): %s", configPath, err))
 	}
 
-	// Apply any environment variables on top of the parsed config
-	if err := config.ApplyEnvOverrides(cmd.Getenv); err != nil {
+	// Apply any environment variables on top of the parsed config.
+	appliedEnvVars, err = config.ApplyEnvOverrides(cmd.Getenv)
+	if err != nil {
 		return fail(fmt.Errorf("error applying env config: %v", err))
 	}
 
@@ -90,12 +104,46 @@ func (cmd *Command) LoadConfig(args ...string) (Options, *Config, error) {
 		return fail(fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err))
 	}
 
-	return options, config, nil
+	return options, config, appliedEnvVars, nil
+}
+
+// logEnvVarDiagnostics emits two informational log messages describing how
+// environment variable overrides interacted with the loaded configuration:
+//
+//   - "applied env var overrides" lists the env vars that successfully overrode
+//     a config field.
+//   - "unmatched env vars in namespace" lists env vars in the EnvVarPrefix
+//     namespace that were set but did not match any config field — typically
+//     the result of typos, fields that have been removed in this version, or
+//     fields whose types are not supported by env var overrides (such as map
+//     fields).
+//
+// Both lists are emitted unconditionally (even when empty) so operators can
+// confirm the diagnostic ran. The unmatched list is computed against
+// cmd.Environ (falling back to os.Environ when unset) to mirror the
+// cmd.Getenv hook used when applying overrides, so tests that inject a mock
+// environment see consistent behavior for both lists.
+func (cmd *Command) logEnvVarDiagnostics(log *zap.Logger, appliedEnvVars []string) {
+	environ := cmd.Environ
+	if environ == nil {
+		environ = os.Environ
+	}
+	unmatched := itoml.UnmatchedEnvVars(environ(), EnvVarPrefix, appliedEnvVars)
+	log.Info("applied env var overrides",
+		zap.String("prefix", EnvVarPrefix),
+		zap.Strings("vars", appliedEnvVars))
+	if len(unmatched) == 0 {
+		log.Info("no unmatched env vars in namespace")
+	} else {
+		log.Warn("unmatched env vars in namespace; may be misspelled, unsupported by env var overrides, or removed in this version",
+			zap.String("prefix", EnvVarPrefix),
+			zap.Strings("vars", unmatched))
+	}
 }
 
 // Run parses the config from args and runs the server.
 func (cmd *Command) Run(args ...string) error {
-	options, config, err := cmd.LoadConfig(args...)
+	options, config, appliedEnvVars, err := cmd.LoadConfig(args...)
 	if err != nil {
 		return err
 	}
@@ -138,6 +186,11 @@ func (cmd *Command) Run(args ...string) error {
 	} else {
 		logger.New(cmd.Stderr).Info("configured logger", zap.String("format", config.Logging.Format), zap.String("level", config.Logging.Level.String()))
 	}
+
+	// Now that the logger is fully configured, log diagnostics about which
+	// environment variable overrides were applied (and which were set but did
+	// not match any config field).
+	cmd.logEnvVarDiagnostics(cmd.Logger, appliedEnvVars)
 
 	// Write the PID file.
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
@@ -196,11 +249,16 @@ func (cmd *Command) ReloadConfig(args ...string) {
 	log, logEnd := logger.NewOperation(cmd.Logger, "Reloading select configuration settings", "config_reload")
 	defer logEnd()
 
-	_, reloadedConfig, err := cmd.LoadConfig(args...)
+	_, reloadedConfig, appliedEnvVars, err := cmd.LoadConfig(args...)
 	if err != nil {
 		log.Error("error reloading config", zap.Error(err))
 		return
 	}
+
+	// Log env var diagnostics before ApplyReloadedConfig so operators can
+	// see which env vars were applied even if the apply step fails. This is
+	// useful for diagnosing apply failures caused by env var overrides.
+	cmd.logEnvVarDiagnostics(log, appliedEnvVars)
 
 	if err := cmd.Server.ApplyReloadedConfig(reloadedConfig, log); err != nil {
 		log.Error("error applying reloaded config; some config values may have been applied", zap.Error(err))

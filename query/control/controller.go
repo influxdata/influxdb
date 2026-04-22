@@ -37,6 +37,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/tracing"
 	influxlogger "github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/toml"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -78,14 +79,14 @@ type Config struct {
 
 	// InitialMemoryBytesQuotaPerQuery is the initial number of bytes allocated for a query
 	// when it is started. If this is unset, then the MemoryBytesQuotaPerQuery will be used.
-	InitialMemoryBytesQuotaPerQuery int64 `toml:"query-initial-memory-bytes"`
+	InitialMemoryBytesQuotaPerQuery toml.SSize `toml:"query-initial-memory-bytes"`
 
 	// MemoryBytesQuotaPerQuery is the maximum number of bytes (in table memory) a query is allowed to use at
 	// any given time.
 	//
 	// A query may not be able to use its entire quota of memory if requesting more memory would conflict
 	// with the maximum amount of memory that the controller can request.
-	MemoryBytesQuotaPerQuery int64 `toml:"query-max-memory-bytes"`
+	MemoryBytesQuotaPerQuery toml.SSize `toml:"query-max-memory-bytes"`
 
 	// MaxMemoryBytes is the maximum amount of memory the controller is allowed to
 	// allocated to queries.
@@ -93,7 +94,7 @@ type Config struct {
 	// If this is unset, then this number is ConcurrencyQuota * MemoryBytesQuotaPerQuery.
 	// This number must be greater than or equal to the ConcurrencyQuota * InitialMemoryBytesQuotaPerQuery.
 	// This number may be less than the ConcurrencyQuota * MemoryBytesQuotaPerQuery.
-	MaxMemoryBytes int64 `toml:"total-max-memory-bytes"`
+	MaxMemoryBytes toml.SSize `toml:"total-max-memory-bytes"`
 
 	// QueueSize is the number of queries that are allowed to be awaiting execution before new queries are rejected.
 	//
@@ -158,7 +159,7 @@ func (c *Config) validate(isComplete bool) error {
 		return errors.New("MaxMemoryBytes must be positive")
 	}
 	if c.MaxMemoryBytes != 0 {
-		if minMemory := int64(c.ConcurrencyQuota) * c.InitialMemoryBytesQuotaPerQuery; c.MaxMemoryBytes < minMemory {
+		if minMemory := int64(c.ConcurrencyQuota) * int64(c.InitialMemoryBytesQuotaPerQuery); int64(c.MaxMemoryBytes) < minMemory {
 			return fmt.Errorf("MaxMemoryBytes must be greater than or equal to the ConcurrencyQuota * InitialMemoryBytesQuotaPerQuery: %d < %d (%d * %d)", c.MaxMemoryBytes, minMemory, c.ConcurrencyQuota, c.InitialMemoryBytesQuotaPerQuery)
 		}
 	}
@@ -183,17 +184,17 @@ func New(config Config, logger *zap.Logger, deps []flux.Dependency) (*Controller
 	}
 	logger.Info("Starting query controller",
 		zap.Int32("concurrency_quota", c.ConcurrencyQuota),
-		zap.Int64("initial_memory_bytes_quota_per_query", c.InitialMemoryBytesQuotaPerQuery),
-		zap.Int64("memory_bytes_quota_per_query", c.MemoryBytesQuotaPerQuery),
-		zap.Int64("max_memory_bytes", c.MaxMemoryBytes),
+		zap.Int64("initial_memory_bytes_quota_per_query", int64(c.InitialMemoryBytesQuotaPerQuery)),
+		zap.Int64("memory_bytes_quota_per_query", int64(c.MemoryBytesQuotaPerQuery)),
+		zap.Int64("max_memory_bytes", int64(c.MaxMemoryBytes)),
 		zap.Int32("queue_size", c.QueueSize))
 
 	mm := &memoryManager{
-		initialBytesQuotaPerQuery: c.InitialMemoryBytesQuotaPerQuery,
-		memoryBytesQuotaPerQuery:  c.MemoryBytesQuotaPerQuery,
+		initialBytesQuotaPerQuery: int64(c.InitialMemoryBytesQuotaPerQuery),
+		memoryBytesQuotaPerQuery:  int64(c.MemoryBytesQuotaPerQuery),
 	}
 	if c.MaxMemoryBytes > 0 {
-		mm.unusedMemoryBytes = c.MaxMemoryBytes - (int64(c.ConcurrencyQuota) * c.InitialMemoryBytesQuotaPerQuery)
+		mm.unusedMemoryBytes = int64(c.MaxMemoryBytes) - (int64(c.ConcurrencyQuota) * int64(c.InitialMemoryBytesQuotaPerQuery))
 	} else {
 		mm.unlimited = true
 	}
@@ -569,7 +570,7 @@ func (c *Controller) GetUnusedMemoryBytes() int64 {
 }
 
 func (c *Controller) GetUsedMemoryBytes() int64 {
-	return c.config.MaxMemoryBytes - c.GetUnusedMemoryBytes()
+	return int64(c.config.MaxMemoryBytes) - c.GetUnusedMemoryBytes()
 }
 
 // Query represents a single request.

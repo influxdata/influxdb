@@ -35,6 +35,11 @@ import (
 const (
 	// DefaultBindAddress is the default address for various RPC services.
 	DefaultBindAddress = "127.0.0.1:8088"
+
+	// EnvVarPrefix is the prefix used for environment variables that override
+	// configuration values. For example, INFLUXDB_DATA_DIR overrides the
+	// data.dir TOML setting.
+	EnvVarPrefix = "INFLUXDB"
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -199,8 +204,10 @@ func (c *Config) Validate() error {
 }
 
 // ApplyEnvOverrides apply the environment configuration on top of the config.
-func (c *Config) ApplyEnvOverrides(getenv func(string) string) error {
-	return itoml.ApplyEnvOverrides(getenv, "INFLUXDB", c)
+// Returns the names of environment variables that were applied (sorted and
+// deduplicated) along with any error encountered.
+func (c *Config) ApplyEnvOverrides(getenv func(string) string) ([]string, error) {
+	return itoml.ApplyEnvOverrides(getenv, EnvVarPrefix, c)
 }
 
 // Diagnostics returns a diagnostics representation of Config.

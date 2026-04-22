@@ -87,7 +87,7 @@ const (
 
 	// DefaultTarStreamBufferSize is the default window size to use during tar file streaming.
 	// This impacts backups and should only be modified if backups are having performance issues.
-	DefaultTarStreamBufferSize = uint64(1024 * 1024) // 1MB
+	DefaultTarStreamBufferSize = toml.SSize(1024 * 1024) // 1MB
 )
 
 var SingleGenerationReasonText string = SingleGenerationReason()
@@ -194,7 +194,7 @@ type Config struct {
 	// TarStreamBufferSize is the size of tar buffer window size in bytes while running tar
 	// streaming operations such as renaming and copying tar files during backups.
 	// The default value is 1MB. This should only change if backups are having performance issues.
-	TarStreamBufferSize uint64 `toml:"tar-stream-buffer-size"`
+	TarStreamBufferSize toml.SSize `toml:"tar-stream-buffer-size"`
 }
 
 // NewConfig returns the default configuration for tsdb.
@@ -277,8 +277,26 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("unrecognized index %s", c.Index)
 	}
 
-	if c.TarStreamBufferSize <= 0 {
+	if int64(c.TarStreamBufferSize) <= 0 {
 		return fmt.Errorf("tar-stream-buffer-size cannot be %d, value must be greater than zero and non-negative", c.TarStreamBufferSize)
+	}
+
+	// Verify sizes consumed as int/int64 on callers fit their target types.
+	// These are uint64 on disk but are passed to rate limiters (int) and the
+	// tsi1 log file writer (int64); an oversized config value would otherwise
+	// silently wrap to a negative number and disable rate limiting or corrupt
+	// log file accounting.
+	if _, err := c.CompactThroughput.ToInt(); err != nil {
+		return fmt.Errorf("compact-throughput: %w", err)
+	}
+	if _, err := c.CompactThroughputBurst.ToInt(); err != nil {
+		return fmt.Errorf("compact-throughput-burst: %w", err)
+	}
+	if _, err := c.AggressivePointsPerBlock.ToInt(); err != nil {
+		return fmt.Errorf("aggressive-points-per-block: %w", err)
+	}
+	if _, err := c.MaxIndexLogFileSize.ToInt64(); err != nil {
+		return fmt.Errorf("max-index-log-file-size: %w", err)
 	}
 
 	return nil
