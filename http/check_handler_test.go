@@ -18,12 +18,12 @@ import (
 // decodeHealth parses the JSON body emitted by writeHealth. Local struct
 // (not healthBody) so the test is checking the wire format.
 type testHealthBody struct {
-	Name    string            `json:"name"`
-	Status  string            `json:"status"`
-	Message string            `json:"message"`
-	Checks  []check.Response  `json:"checks"`
-	Version string            `json:"version"`
-	Commit  string            `json:"commit"`
+	Name    string           `json:"name"`
+	Status  string           `json:"status"`
+	Message string           `json:"message"`
+	Checks  []check.Response `json:"checks"`
+	Version string           `json:"version"`
+	Commit  string           `json:"commit"`
 }
 
 type testReadyBody struct {
