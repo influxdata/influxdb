@@ -16,6 +16,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
 	itoml "github.com/influxdata/influxdb/toml"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 )
@@ -2172,4 +2173,26 @@ func TestEnvOverride_SliceGrowthLimit(t *testing.T) {
 		require.Empty(t, appliedVars)
 	})
 
+}
+
+// TestPflagValue exercises Duration, Size, and SSize as pflag.Value
+// implementations end-to-end: register as flags, parse argv, confirm the
+// parsed value. The Set/Type/String methods themselves are trivial delegations
+// (UnmarshalText, a constant, marshalSize) already covered by their own
+// tests; this is the integration smoke test.
+func TestPflagValue(t *testing.T) {
+	var d itoml.Duration
+	var s itoml.Size
+	var ss itoml.SSize
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	fs.Var(&d, "timeout", "")
+	fs.Var(&s, "cache", "")
+	fs.Var(&ss, "buffer", "")
+	require.NoError(t, fs.Parse([]string{"--timeout", "2m", "--cache", "512m", "--buffer", "-1m"}))
+	require.Equal(t, itoml.Duration(2*time.Minute), d)
+	require.Equal(t, itoml.Size(512<<20), s)
+	require.Equal(t, itoml.SSize(-1<<20), ss)
+	require.Equal(t, "Duration", d.Type())
+	require.Equal(t, "Size", s.Type())
+	require.Equal(t, "SSize", ss.Type())
 }

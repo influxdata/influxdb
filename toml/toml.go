@@ -16,6 +16,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/spf13/pflag"
 )
 
 // MaxEnvSliceGrowth limits how many elements can be appended to a slice via
@@ -28,9 +30,24 @@ const MaxEnvSliceGrowth = 64
 // Duration is a TOML wrapper type for time.Duration.
 type Duration time.Duration
 
+// Compile-time check that *Duration implements pflag.Value so it can be
+// registered directly as a command-line flag.
+var _ pflag.Value = (*Duration)(nil)
+
 // String returns the string representation of the duration.
 func (d Duration) String() string {
 	return time.Duration(d).String()
+}
+
+// Set parses s into the receiver. It satisfies pflag.Value so Duration can
+// be used as a command-line flag via pflag.Var.
+func (d *Duration) Set(s string) error {
+	return d.UnmarshalText([]byte(s))
+}
+
+// Type returns the name of the flag type for pflag's help output.
+func (d Duration) Type() string {
+	return "Duration"
 }
 
 // UnmarshalText parses a TOML value into a duration value.
@@ -189,6 +206,10 @@ func marshalSize[T sizeConstraint, BT sizeConstraint](size T, format func([]byte
 	return out
 }
 
+// Compile-time check that *Size implements pflag.Value so it can be
+// registered directly as a command-line flag.
+var _ pflag.Value = (*Size)(nil)
+
 // UnmarshalText parses a byte size from text.
 func (s *Size) UnmarshalText(text []byte) error {
 	return unmarshalSize(s, text, strconv.ParseUint, math.MaxUint64)
@@ -197,6 +218,23 @@ func (s *Size) UnmarshalText(text []byte) error {
 // MarshalText converts a Size to a string for encoding toml.
 func (s Size) MarshalText() ([]byte, error) {
 	return marshalSize(s, strconv.AppendUint), nil
+}
+
+// String returns the size formatted with the largest whole-unit suffix (e.g.
+// "1g", "512m"). The format round-trips through Set/UnmarshalText.
+func (s Size) String() string {
+	return string(marshalSize(s, strconv.AppendUint))
+}
+
+// Set parses s into the receiver. It satisfies pflag.Value so Size can be
+// used as a command-line flag via pflag.Var.
+func (s *Size) Set(str string) error {
+	return s.UnmarshalText([]byte(str))
+}
+
+// Type returns the name of the flag type for pflag's help output.
+func (s Size) Type() string {
+	return "Size"
 }
 
 // ToInt returns the value as an int, or an error wrapping ErrSizeOutOfRange
@@ -222,6 +260,10 @@ func (s Size) ToInt64() (int64, error) {
 	return int64(s), nil
 }
 
+// Compile-time check that *SSize implements pflag.Value so it can be
+// registered directly as a command-line flag.
+var _ pflag.Value = (*SSize)(nil)
+
 // UnmarshalText parses a byte size from text, allowing negative values.
 func (s *SSize) UnmarshalText(text []byte) error {
 	return unmarshalSize(s, text, strconv.ParseInt, math.MaxInt64)
@@ -230,6 +272,23 @@ func (s *SSize) UnmarshalText(text []byte) error {
 // MarshalText converts an SSize to a string for encoding toml.
 func (s SSize) MarshalText() ([]byte, error) {
 	return marshalSize(s, strconv.AppendInt), nil
+}
+
+// String returns the size formatted with the largest whole-unit suffix (e.g.
+// "1g", "-512m"). The format round-trips through Set/UnmarshalText.
+func (s SSize) String() string {
+	return string(marshalSize(s, strconv.AppendInt))
+}
+
+// Set parses s into the receiver. It satisfies pflag.Value so SSize can be
+// used as a command-line flag via pflag.Var.
+func (s *SSize) Set(str string) error {
+	return s.UnmarshalText([]byte(str))
+}
+
+// Type returns the name of the flag type for pflag's help output.
+func (s SSize) Type() string {
+	return "SSize"
 }
 
 // ToInt returns the value as an int, or an error wrapping ErrSizeOutOfRange
