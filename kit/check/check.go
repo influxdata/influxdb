@@ -26,6 +26,7 @@ const (
 
 // Check wraps a map of service names to status checkers.
 type Check struct {
+	mu             sync.RWMutex
 	healthChecks   []Checker
 	readyChecks    []Checker
 	healthOverride override
@@ -50,6 +51,8 @@ func NewCheck() *Check {
 // AddHealthCheck adds the check to the list of ready checks.
 // If c is a NamedChecker, the name will be added.
 func (c *Check) AddHealthCheck(check Checker) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if nc, ok := check.(NamedChecker); ok {
 		c.healthChecks = append(c.healthChecks, Named(nc.CheckName(), nc))
 	} else {
@@ -60,6 +63,8 @@ func (c *Check) AddHealthCheck(check Checker) {
 // AddReadyCheck adds the check to the list of ready checks.
 // If c is a NamedChecker, the name will be added.
 func (c *Check) AddReadyCheck(check Checker) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if nc, ok := check.(NamedChecker); ok {
 		c.readyChecks = append(c.readyChecks, Named(nc.CheckName(), nc))
 	} else {
@@ -69,6 +74,8 @@ func (c *Check) AddReadyCheck(check Checker) {
 
 // CheckHealth evaluates c's set of health checks and returns a populated Response.
 func (c *Check) CheckHealth(ctx context.Context) Response {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	response := Response{
 		Name:   "Health",
 		Status: StatusPass,
@@ -97,6 +104,8 @@ func (c *Check) CheckHealth(ctx context.Context) Response {
 
 // CheckReady evaluates c's set of ready checks and returns a populated Response.
 func (c *Check) CheckReady(ctx context.Context) Response {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	response := Response{
 		Name:   "Ready",
 		Status: StatusPass,
@@ -121,6 +130,38 @@ func (c *Check) CheckReady(ctx context.Context) Response {
 	}
 	sort.Sort(response.Checks)
 	return response
+}
+
+// ForceHealth enables a manual override on the health status. If pass is true
+// the health status is forced to StatusPass; otherwise it is forced to
+// StatusFail. Clear the override with ClearHealthOverride.
+func (c *Check) ForceHealth(pass bool) {
+	if pass {
+		c.healthOverride.enable(StatusPass)
+	} else {
+		c.healthOverride.enable(StatusFail)
+	}
+}
+
+// ClearHealthOverride disables any active health-status override.
+func (c *Check) ClearHealthOverride() {
+	c.healthOverride.disable()
+}
+
+// ForceReady enables a manual override on the ready status. If pass is true
+// the ready status is forced to StatusPass; otherwise it is forced to
+// StatusFail. Clear the override with ClearReadyOverride.
+func (c *Check) ForceReady(pass bool) {
+	if pass {
+		c.readyOverride.enable(StatusPass)
+	} else {
+		c.readyOverride.enable(StatusFail)
+	}
+}
+
+// ClearReadyOverride disables any active ready-status override.
+func (c *Check) ClearReadyOverride() {
+	c.readyOverride.disable()
 }
 
 // SetPassthrough allows you to set a handler to use if the request is not a ready or health check.

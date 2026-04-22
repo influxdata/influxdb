@@ -36,6 +36,7 @@ import (
 	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/resource"
+	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/kit/metric"
@@ -151,6 +152,12 @@ type Launcher struct {
 	reg *prom.Registry
 
 	apibackend *http.APIBackend
+
+	checkHandler    *http.HealthReadyHandler
+	metastoresReady *check.ReadyGate
+	engineReady     *check.ReadyGate
+	tasksReady      *check.ReadyGate
+	schedulerReady  *check.ReadyGate
 }
 
 type stoppingScheduler interface {
@@ -259,6 +266,25 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		return fmt.Errorf("error writing PIDFile %q: %w", opts.PIDFile, err)
 	}
 
+	// Bring up /health and /ready early so k8s probes have a responsive
+	// endpoint while slower subsystems (meta stores, storage engine, tasks,
+	// scheduler) finish initializing. Non-check requests return 503
+	// "starting" until SetHandler is called at the end of construction.
+	m.checkHandler = http.NewHealthReadyHandler()
+	m.metastoresReady = check.NewReadyGate("metastores")
+	m.engineReady = check.NewReadyGate("engine")
+	m.tasksReady = check.NewReadyGate("tasks")
+	m.schedulerReady = check.NewReadyGate("scheduler")
+	m.checkHandler.AddReadyCheck(m.metastoresReady)
+	m.checkHandler.AddReadyCheck(m.engineReady)
+	m.checkHandler.AddReadyCheck(m.tasksReady)
+	m.checkHandler.AddReadyCheck(m.schedulerReady)
+
+	httpLogger := m.log.With(zap.String("service", "http"))
+	if err := m.runHTTP(opts, m.checkHandler, httpLogger); err != nil {
+		return err
+	}
+
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(collectors.NewGoCollector())
 
@@ -267,6 +293,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	if err != nil {
 		return err
 	}
+	m.metastoresReady.Ready()
 	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	tenantStore := tenant.NewStore(m.kvStore)
@@ -361,6 +388,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Error("Failed to open engine", zap.Error(err))
 		return err
 	}
+	m.engineReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
 		label: "engine",
 		closer: func(context.Context) error {
@@ -455,6 +483,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
+	m.checkHandler.AddHealthCheck(check.Named("query", storageQueryService))
 	var taskSvc taskmodel.TaskService
 	{
 		// create the task stack
@@ -480,10 +509,14 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.log.Fatal("could not load existing scheduled runs", zap.Error(err))
 		}
 		m.executor = executor
+		m.tasksReady.Ready()
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
 		schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
 		var sch stoppingScheduler = &scheduler.NoopScheduler{}
+		if opts.NoTasks {
+			m.schedulerReady.Ready()
+		}
 		if !opts.NoTasks {
 			var (
 				sm  *scheduler.SchedulerMetrics
@@ -511,6 +544,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 				},
 			})
 			m.reg.MustRegister(sm.PrometheusCollectors()...)
+			m.schedulerReady.Ready()
 		}
 
 		m.scheduler = sch
@@ -553,6 +587,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		zap.Int("max_select_buckets", opts.CoordinatorConfig.MaxSelectBucketsN))
 
 	qe := iqlquery.NewExecutor(m.log, cm)
+	influxqlProxy := iqlquery.NewProxyExecutor(m.log, qe)
+	m.checkHandler.AddHealthCheck(check.Named("influxql", influxqlProxy))
 	se := &iqlcoordinator.StatementExecutor{
 		MetaClient:        metaClient,
 		TSDBStore:         m.engine.TSDBStore(),
@@ -738,7 +774,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
 		PasswordsService:                ts.PasswordsService,
-		InfluxqldService:                iqlquery.NewProxyExecutor(m.log, qe),
+		InfluxqldService:                influxqlProxy,
 		FluxService:                     storageQueryService,
 		FluxLanguageService:             fluxlang.DefaultService,
 		TaskService:                     taskSvc,
@@ -928,7 +964,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(configHandler),
 	)
 
-	httpLogger := m.log.With(zap.String("service", "http"))
 	var httpHandler nethttp.Handler = http.NewRootHandler(
 		"platform",
 		http.WithLog(httpLogger),
@@ -948,9 +983,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	if !opts.ReportingDisabled {
 		m.runReporter(ctx)
 	}
-	if err := m.runHTTP(opts, httpHandler, httpLogger); err != nil {
-		return err
-	}
+	m.checkHandler.SetHandler(httpHandler)
 
 	return nil
 }

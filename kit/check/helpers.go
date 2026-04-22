@@ -3,6 +3,7 @@ package check
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 )
 
 // NamedChecker is a superset of Checker that also indicates the name of the service.
@@ -71,3 +72,30 @@ func Error(err error) Response {
 		Message: err.Error(),
 	}
 }
+
+// ReadyGate is a NamedChecker that reports StatusFail until Ready is called,
+// after which it reports StatusPass. It is intended for gating readiness on
+// subsystem init phases that complete once at startup.
+type ReadyGate struct {
+	name  string
+	ready atomic.Bool
+}
+
+// NewReadyGate returns a ReadyGate that initially reports StatusFail.
+func NewReadyGate(name string) *ReadyGate {
+	return &ReadyGate{name: name}
+}
+
+// CheckName returns the configured name of the gate.
+func (g *ReadyGate) CheckName() string { return g.name }
+
+// Check returns StatusPass once Ready has been called, otherwise StatusFail.
+func (g *ReadyGate) Check(context.Context) Response {
+	if g.ready.Load() {
+		return Pass()
+	}
+	return Response{Status: StatusFail, Message: "not ready"}
+}
+
+// Ready flips the gate to report StatusPass.
+func (g *ReadyGate) Ready() { g.ready.Store(true) }
