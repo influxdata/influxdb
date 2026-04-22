@@ -1,6 +1,7 @@
 package http
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -16,6 +17,22 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
 )
+
+// gzipLevelFromString maps a user-facing compression name to a compress/gzip constant.
+func gzipLevelFromString(s string) (int, error) {
+	switch s {
+	case "default", "":
+		return gzip.DefaultCompression, nil
+	case "full":
+		return gzip.BestCompression, nil
+	case "speedy":
+		return gzip.BestSpeed, nil
+	case "none":
+		return gzip.NoCompression, nil
+	default:
+		return -1, fmt.Errorf("unknown compression level: %q, valid values: [default, full, speedy, none]", s)
+	}
+}
 
 // BackupBackend is all services and associated parameters required to construct the BackupHandler.
 type BackupBackend struct {
@@ -51,6 +68,8 @@ type BackupHandler struct {
 }
 
 const (
+	headerGzipCompressionLevel = "Gzip-Compression-Level"
+
 	prefixBackup       = "/api/v2/backup"
 	backupKVStorePath  = prefixBackup + "/kv"
 	backupShardPath    = prefixBackup + "/shards/:shardID"
@@ -70,10 +89,43 @@ func NewBackupHandler(b *BackupBackend) *BackupHandler {
 
 	h.HandlerFunc(http.MethodGet, backupKVStorePath, h.handleBackupKVStore) // Deprecated
 
-	h.Handler(http.MethodGet, backupShardPath, gziphandler.GzipHandler(http.HandlerFunc(h.handleBackupShard)))
-	h.Handler(http.MethodGet, backupMetadataPath, gziphandler.GzipHandler(h.requireOperPermissions(http.HandlerFunc(h.handleBackupMetadata))))
+	h.Handler(http.MethodGet, backupShardPath, h.gzipHandlerWithLevel(http.HandlerFunc(h.handleBackupShard)))
+	h.Handler(http.MethodGet, backupMetadataPath, h.gzipHandlerWithLevel(h.requireOperPermissions(http.HandlerFunc(h.handleBackupMetadata))))
 
 	return h
+}
+
+// gzipHandlerWithLevel returns an http.Handler that wraps the given handler with gzip compression.
+// The compression level is determined by the headerGzipCompressionLevel request header.
+// Valid values are: default, full, speedy, none. If not specified, "default" is used.
+func (h *BackupHandler) gzipHandlerWithLevel(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		level, err := gzipLevelFromString(r.Header.Get(headerGzipCompressionLevel))
+		if err != nil {
+			h.HandleHTTPError(r.Context(), &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  err.Error(),
+			}, w)
+			return
+		}
+
+		// No compression: skip gzip entirely. The restore side handles
+		// both compressed and uncompressed data.
+		if level == gzip.NoCompression {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		handler, err := gziphandler.NewGzipLevelHandler(level)
+		if err != nil {
+			h.HandleHTTPError(r.Context(), &errors.Error{
+				Code: errors.EInternal,
+				Msg:  fmt.Sprintf("failed to create gzip handler for level %d: %v", level, err),
+			}, w)
+			return
+		}
+		handler(next).ServeHTTP(w, r)
+	})
 }
 
 // requireOperPermissions returns an "unauthorized" response for requests that do not have OperPermissions.
