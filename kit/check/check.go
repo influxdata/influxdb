@@ -84,25 +84,24 @@ func (c *Check) CheckHealth(ctx context.Context) Response {
 	response := Response{
 		Name:   "Health",
 		Status: StatusPass,
-		Checks: make(Responses, len(checks)),
+		Checks: make(Responses, 0, len(checks)+1),
 	}
 
 	status, overriding := c.healthOverride.get()
 	if overriding {
 		response.Status = status
-		overrideResponse := Response{
+		response.Checks = append(response.Checks, Response{
 			Name:    "manual-override",
 			Status:  status,
 			Message: "health manually overridden",
-		}
-		response.Checks = append(response.Checks, overrideResponse)
+		})
 	}
-	for i, ch := range checks {
+	for _, ch := range checks {
 		resp := ch.Check(ctx)
 		if resp.Status != StatusPass && !overriding {
 			response.Status = resp.Status
 		}
-		response.Checks[i] = resp
+		response.Checks = append(response.Checks, resp)
 	}
 	sort.Sort(response.Checks)
 	return response
@@ -118,25 +117,24 @@ func (c *Check) CheckReady(ctx context.Context) Response {
 	response := Response{
 		Name:   "Ready",
 		Status: StatusPass,
-		Checks: make(Responses, len(checks)),
+		Checks: make(Responses, 0, len(checks)+1),
 	}
 
 	status, overriding := c.readyOverride.get()
 	if overriding {
 		response.Status = status
-		overrideResponse := Response{
+		response.Checks = append(response.Checks, Response{
 			Name:    "manual-override",
 			Status:  status,
 			Message: "ready manually overridden",
-		}
-		response.Checks = append(response.Checks, overrideResponse)
+		})
 	}
-	for i, ch := range checks {
+	for _, ch := range checks {
 		resp := ch.Check(ctx)
 		if resp.Status != StatusPass && !overriding {
 			response.Status = resp.Status
 		}
-		response.Checks[i] = resp
+		response.Checks = append(response.Checks, resp)
 	}
 	sort.Sort(response.Checks)
 	return response

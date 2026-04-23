@@ -10,6 +10,7 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/toml"
+	"go.uber.org/zap"
 )
 
 const startingBody = `{"status":"starting"}` + "\n"
@@ -31,6 +32,7 @@ type HealthReadyHandler struct {
 	startTime time.Time
 	delegate  atomic.Value // holds delegateHandler; zero value == no delegate
 	headers   *AddHeader
+	log       *zap.Logger
 }
 
 type healthBody struct {
@@ -50,8 +52,12 @@ type readyBody struct {
 }
 
 // NewHealthReadyHandler returns a HealthReadyHandler with no registered
-// checkers and no delegate installed.
-func NewHealthReadyHandler() *HealthReadyHandler {
+// checkers and no delegate installed. A nil log is replaced with zap.NewNop
+// so write-error logging is always safe to call.
+func NewHealthReadyHandler(log *zap.Logger) *HealthReadyHandler {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	return &HealthReadyHandler{
 		check:     check.NewCheck(),
 		startTime: time.Now(),
@@ -61,6 +67,7 @@ func NewHealthReadyHandler() *HealthReadyHandler {
 				h.Add("X-Influxdb-Version", platform.GetBuildInfo().Version)
 			},
 		},
+		log: log,
 	}
 }
 
@@ -105,46 +112,15 @@ func (h *HealthReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.headers.WriteHeader(w.Header())
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = io.WriteString(w, startingBody)
-	}
-}
-
-// applyForceHealth mirrors the ?force=true&healthy=... override machinery
-// from check.Check.ServeHTTP.
-func (h *HealthReadyHandler) applyForceHealth(r *http.Request) {
-	q := r.URL.Query()
-	switch q.Get("force") {
-	case "true":
-		switch q.Get("healthy") {
-		case "true":
-			h.check.ForceHealth(true)
-		case "false":
-			h.check.ForceHealth(false)
+		if _, err := io.WriteString(w, startingBody); err != nil {
+			h.log.Debug("failed to write starting body",
+				zap.String("path", r.URL.Path),
+				zap.Error(err))
 		}
-	case "false":
-		h.check.ClearHealthOverride()
-	}
-}
-
-// applyForceReady mirrors the ?force=true&ready=... override machinery from
-// check.Check.ServeHTTP.
-func (h *HealthReadyHandler) applyForceReady(r *http.Request) {
-	q := r.URL.Query()
-	switch q.Get("force") {
-	case "true":
-		switch q.Get("ready") {
-		case "true":
-			h.check.ForceReady(true)
-		case "false":
-			h.check.ForceReady(false)
-		}
-	case "false":
-		h.check.ClearReadyOverride()
 	}
 }
 
 func (h *HealthReadyHandler) writeHealth(w http.ResponseWriter, r *http.Request) {
-	h.applyForceHealth(r)
 	resp := h.check.CheckHealth(r.Context())
 	info := platform.GetBuildInfo()
 	status := http.StatusOK
@@ -153,25 +129,18 @@ func (h *HealthReadyHandler) writeHealth(w http.ResponseWriter, r *http.Request)
 		status = http.StatusServiceUnavailable
 		message = firstFailureMessage(resp.Checks)
 	}
-	checks := resp.Checks
-	if checks == nil {
-		checks = check.Responses{}
-	}
 	body := healthBody{
 		Name:    "influxdb",
 		Status:  string(resp.Status),
 		Message: message,
-		Checks:  checks,
+		Checks:  resp.Checks,
 		Version: info.Version,
 		Commit:  info.Commit,
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
+	h.writeJSON(w, r, status, body)
 }
 
 func (h *HealthReadyHandler) writeReady(w http.ResponseWriter, r *http.Request) {
-	h.applyForceReady(r)
 	resp := h.check.CheckReady(r.Context())
 	status := http.StatusOK
 	readyStatus := "ready"
@@ -187,9 +156,33 @@ func (h *HealthReadyHandler) writeReady(w http.ResponseWriter, r *http.Request) 
 		Up:     toml.Duration(time.Since(h.startTime)),
 		Checks: checks,
 	}
+	h.writeJSON(w, r, status, body)
+}
+
+// writeJSON marshals body and writes it with the given status. If marshaling
+// fails the response collapses to a 500 with a fixed JSON error body, matching
+// kit/check.writeResponse. Marshal errors are not expected for the shape-pinned
+// bodies this handler emits today; this guards against future changes that
+// introduce a field that can fail to encode. Write errors (client hung up
+// mid-response) are logged at debug level — the headers are already on the
+// wire at that point, so there is no recovery.
+func (h *HealthReadyHandler) writeJSON(w http.ResponseWriter, r *http.Request, status int, body interface{}) {
+	buf, err := json.Marshal(body)
+	if err != nil {
+		h.log.Error("failed to marshal response body",
+			zap.String("path", r.URL.Path),
+			zap.Error(err))
+		buf = []byte(`{"message":"error marshaling response","status":"fail"}`)
+		status = http.StatusInternalServerError
+	}
+	buf = append(buf, '\n')
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
+	if _, err := w.Write(buf); err != nil {
+		h.log.Debug("failed to write response body",
+			zap.String("path", r.URL.Path),
+			zap.Error(err))
+	}
 }
 
 func firstFailureMessage(checks check.Responses) string {

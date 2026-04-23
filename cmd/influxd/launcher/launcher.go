@@ -270,7 +270,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// endpoint while slower subsystems (meta stores, storage engine, tasks,
 	// scheduler) finish initializing. Non-check requests return 503
 	// "starting" until SetHandler is called at the end of construction.
-	m.checkHandler = http.NewHealthReadyHandler()
+	httpLogger := m.log.With(zap.String("service", "http"))
+	m.checkHandler = http.NewHealthReadyHandler(httpLogger)
 	m.metastoresReady = check.NewReadyGate("metastores")
 	m.engineReady = check.NewReadyGate("engine")
 	m.tasksReady = check.NewReadyGate("tasks")
@@ -280,7 +281,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.checkHandler.AddReadyCheck(m.tasksReady)
 	m.checkHandler.AddReadyCheck(m.schedulerReady)
 
-	httpLogger := m.log.With(zap.String("service", "http"))
 	if err := m.runHTTP(opts, m.checkHandler, httpLogger); err != nil {
 		return err
 	}
@@ -516,8 +516,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		var sch stoppingScheduler = &scheduler.NoopScheduler{}
 		if opts.NoTasks {
 			m.schedulerReady.Ready()
-		}
-		if !opts.NoTasks {
+		} else {
 			var (
 				sm  *scheduler.SchedulerMetrics
 				err error

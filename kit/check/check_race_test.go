@@ -36,9 +36,9 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 	var wg sync.WaitGroup
 	startMu.Lock()
 
-	for g := 0; g < numRegisterers; g++ {
+	for range numRegisterers {
 		wg.Add(1)
-		go func(idx int) {
+		go func() {
 			startMu.RLock()
 			defer startMu.RUnlock()
 			defer wg.Done()
@@ -49,7 +49,7 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 					break
 				}
 			}
-			for i := 0; i < numChecksEach; i++ {
+			for i := range numChecksEach {
 				if i%2 == 0 {
 					c.AddHealthCheck(mockPass("h"))
 				} else {
@@ -57,12 +57,12 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 				}
 			}
 			concurrency.Add(-1)
-		}(g)
+		}()
 	}
 
-	for g := 0; g < numEvaluators; g++ {
+	for range numEvaluators {
 		wg.Add(1)
-		go func(idx int) {
+		go func() {
 			startMu.RLock()
 			defer startMu.RUnlock()
 			defer wg.Done()
@@ -73,12 +73,12 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 					break
 				}
 			}
-			for i := 0; i < numEvaluations; i++ {
+			for range numEvaluations {
 				c.CheckHealth(ctx)
 				c.CheckReady(ctx)
 			}
 			concurrency.Add(-1)
-		}(g)
+		}()
 	}
 
 	startMu.Unlock()

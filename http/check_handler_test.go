@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 // decodeHealth parses the JSON body emitted by writeHealth. Local struct
@@ -41,11 +42,19 @@ func doRequest(t *testing.T, h http.Handler, method, target string) *http.Respon
 	return rec.Result()
 }
 
+// closeBody closes res.Body and requires no error. Paired with defer so every
+// test verifies the close — useful for catching double-close regressions or
+// handlers that wrap the body in a Closer that can report an error.
+func closeBody(t *testing.T, res *http.Response) {
+	t.Helper()
+	require.NoError(t, res.Body.Close())
+}
+
 func TestHealthReadyHandler_Health_NoChecksPasses(t *testing.T) {
-	h := NewHealthReadyHandler()
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 
 	res := doRequest(t, h, http.MethodGet, "/health")
-	defer res.Body.Close()
+	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
@@ -78,11 +87,11 @@ func (f failingChecker) Check(context.Context) check.Response {
 }
 
 func TestHealthReadyHandler_Health_FailingChecker(t *testing.T) {
-	h := NewHealthReadyHandler()
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	h.AddHealthCheck(failingChecker{name: "query", message: "unreachable"})
 
 	res := doRequest(t, h, http.MethodGet, "/health")
-	defer res.Body.Close()
+	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 
@@ -96,12 +105,12 @@ func TestHealthReadyHandler_Health_FailingChecker(t *testing.T) {
 }
 
 func TestHealthReadyHandler_Ready_FailingGate(t *testing.T) {
-	h := NewHealthReadyHandler()
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	gate := check.NewReadyGate("engine")
 	h.AddReadyCheck(gate)
 
 	res := doRequest(t, h, http.MethodGet, "/ready")
-	defer res.Body.Close()
+	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 	require.Equal(t, "OSS", res.Header.Get("X-Influxdb-Build"))
@@ -118,13 +127,13 @@ func TestHealthReadyHandler_Ready_FailingGate(t *testing.T) {
 }
 
 func TestHealthReadyHandler_Ready_PassingGateOmitsChecks(t *testing.T) {
-	h := NewHealthReadyHandler()
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	gate := check.NewReadyGate("engine")
 	h.AddReadyCheck(gate)
 	gate.Ready()
 
 	res := doRequest(t, h, http.MethodGet, "/ready")
-	defer res.Body.Close()
+	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -139,78 +148,11 @@ func TestHealthReadyHandler_Ready_PassingGateOmitsChecks(t *testing.T) {
 	assert.Equal(t, "ready", generic["status"])
 }
 
-func TestHealthReadyHandler_Health_ForceOverride(t *testing.T) {
-	h := NewHealthReadyHandler()
-	// No checkers → passes by default.
-
-	// Force fail.
-	res := doRequest(t, h, http.MethodGet, "/health?force=true&healthy=false")
-	defer res.Body.Close()
-	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
-
-	// Clear override.
-	res2 := doRequest(t, h, http.MethodGet, "/health?force=false")
-	defer res2.Body.Close()
-	require.Equal(t, http.StatusOK, res2.StatusCode)
-}
-
-func TestHealthReadyHandler_Ready_ForceOverride(t *testing.T) {
-	h := NewHealthReadyHandler()
-	gate := check.NewReadyGate("engine")
-	h.AddReadyCheck(gate)
-
-	// Force pass while gate still reports not-ready.
-	res := doRequest(t, h, http.MethodGet, "/ready?force=true&ready=true")
-	defer res.Body.Close()
-	require.Equal(t, http.StatusOK, res.StatusCode)
-
-	// Clear override returns to the underlying failure.
-	res2 := doRequest(t, h, http.MethodGet, "/ready?force=false")
-	defer res2.Body.Close()
-	require.Equal(t, http.StatusServiceUnavailable, res2.StatusCode)
-}
-
-func TestHealthReadyHandler_Health_ForceFail_ExposesOverrideMessage(t *testing.T) {
-	h := NewHealthReadyHandler()
-	// No real checkers registered; force-fail the health status.
-
-	res := doRequest(t, h, http.MethodGet, "/health?force=true&healthy=false")
-	defer res.Body.Close()
-
-	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
-
-	var got testHealthBody
-	require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
-	assert.Equal(t, "fail", got.Status)
-	assert.Equal(t, "health manually overridden", got.Message)
-	require.Len(t, got.Checks, 1)
-	assert.Equal(t, "manual-override", got.Checks[0].Name)
-	assert.Equal(t, check.StatusFail, got.Checks[0].Status)
-}
-
-func TestHealthReadyHandler_Ready_ForceFail_ExposesOverrideInChecks(t *testing.T) {
-	h := NewHealthReadyHandler()
-	// No real checkers registered; force-fail the ready status.
-
-	res := doRequest(t, h, http.MethodGet, "/ready?force=true&ready=false")
-	defer res.Body.Close()
-
-	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
-
-	var got testReadyBody
-	require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
-	assert.Equal(t, "starting", got.Status)
-	require.Len(t, got.Checks, 1)
-	assert.Equal(t, "manual-override", got.Checks[0].Name)
-	assert.Equal(t, check.StatusFail, got.Checks[0].Status)
-	assert.Equal(t, "ready manually overridden", got.Checks[0].Message)
-}
-
 func TestHealthReadyHandler_NoDelegate_ReturnsStarting(t *testing.T) {
-	h := NewHealthReadyHandler()
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 
 	res := doRequest(t, h, http.MethodGet, "/api/v2/buckets")
-	defer res.Body.Close()
+	defer closeBody(t, res)
 
 	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 	require.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
@@ -221,16 +163,17 @@ func TestHealthReadyHandler_NoDelegate_ReturnsStarting(t *testing.T) {
 }
 
 func TestHealthReadyHandler_DelegateInstalled_ForwardsNonCheckRequests(t *testing.T) {
-	h := NewHealthReadyHandler()
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 
 	delegate := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
-		_, _ = w.Write([]byte("delegated: " + r.URL.Path))
+		_, err := w.Write([]byte("delegated: " + r.URL.Path))
+		assert.NoError(t, err)
 	})
 	h.SetHandler(delegate)
 
 	res := doRequest(t, h, http.MethodGet, "/api/v2/buckets")
-	defer res.Body.Close()
+	defer closeBody(t, res)
 	require.Equal(t, http.StatusTeapot, res.StatusCode)
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -243,7 +186,57 @@ func TestHealthReadyHandler_DelegateInstalled_ForwardsNonCheckRequests(t *testin
 	// /health and /ready are still served locally, not forwarded, and still
 	// carry the build-info headers.
 	resHealth := doRequest(t, h, http.MethodGet, "/health")
-	defer resHealth.Body.Close()
+	defer closeBody(t, resHealth)
 	require.Equal(t, http.StatusOK, resHealth.StatusCode)
 	assert.Equal(t, "OSS", resHealth.Header.Get("X-Influxdb-Build"))
+}
+
+func TestHealthReadyHandler_SetHandler_ReplacesDelegate(t *testing.T) {
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
+
+	first := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	second := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusPaymentRequired)
+	})
+
+	h.SetHandler(first)
+	res := doRequest(t, h, http.MethodGet, "/any")
+	require.NoError(t, res.Body.Close())
+	require.Equal(t, http.StatusTeapot, res.StatusCode)
+
+	h.SetHandler(second)
+	res2 := doRequest(t, h, http.MethodGet, "/any")
+	require.NoError(t, res2.Body.Close())
+	require.Equal(t, http.StatusPaymentRequired, res2.StatusCode)
+}
+
+func TestHealthReadyHandler_SetHandler_NilIsIgnored(t *testing.T) {
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
+
+	// Before any delegate, non-check requests should return 503 starting.
+	res := doRequest(t, h, http.MethodGet, "/any")
+	require.NoError(t, res.Body.Close())
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+
+	// A nil delegate must not be published; subsequent requests still get 503.
+	h.SetHandler(nil)
+	res2 := doRequest(t, h, http.MethodGet, "/any")
+	body, err := io.ReadAll(res2.Body)
+	require.NoError(t, res2.Body.Close())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusServiceUnavailable, res2.StatusCode)
+	require.Equal(t, `{"status":"starting"}`+"\n", string(body))
+
+	// Install a real delegate, then passing nil again must not clear it.
+	delegate := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	h.SetHandler(delegate)
+	h.SetHandler(nil)
+
+	res3 := doRequest(t, h, http.MethodGet, "/any")
+	require.NoError(t, res3.Body.Close())
+	require.Equal(t, http.StatusTeapot, res3.StatusCode)
 }

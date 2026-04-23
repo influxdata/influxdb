@@ -278,7 +278,7 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 }
 
 func TestFluxService_Check(t *testing.T) {
-	ts := httptest.NewServer(NewHealthReadyHandler())
+	ts := httptest.NewServer(NewHealthReadyHandler(zaptest.NewLogger(t)))
 	defer ts.Close()
 	s := &FluxService{
 		Addr: ts.URL,
@@ -296,7 +296,7 @@ func TestFluxService_Check(t *testing.T) {
 }
 
 func TestFluxQueryService_Check(t *testing.T) {
-	ts := httptest.NewServer(NewHealthReadyHandler())
+	ts := httptest.NewServer(NewHealthReadyHandler(zaptest.NewLogger(t)))
 	defer ts.Close()
 	s := &FluxQueryService{
 		Addr: ts.URL,
