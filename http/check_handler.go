@@ -15,12 +15,11 @@ import (
 
 const startingBody = `{"status":"starting"}` + "\n"
 
-// delegateHandler wraps an http.Handler so the delegate can be published
-// via atomic.Value. atomic.Value requires every Store to use the same
-// concrete type; wrapping in a struct satisfies that requirement and
-// avoids the pointer-to-interface ergonomics of
-// atomic.Pointer[http.Handler].
-type delegateHandler struct{ h http.Handler }
+// delegateHandler wraps an http.Handler so the atomic pointer targets a
+// concrete struct instead of an interface, avoiding the pointer-to-interface
+// awkwardness of atomic.Pointer[http.Handler]. The embedded Handler promotes
+// ServeHTTP so callers write d.ServeHTTP(w, r).
+type delegateHandler struct{ http.Handler }
 
 // HealthReadyHandler serves /health and /ready backed by a *check.Check and
 // forwards any other request to an optional delegate handler. Before the
@@ -30,7 +29,7 @@ type delegateHandler struct{ h http.Handler }
 type HealthReadyHandler struct {
 	check     *check.Check
 	startTime time.Time
-	delegate  atomic.Value // holds delegateHandler; zero value == no delegate
+	delegate  atomic.Pointer[delegateHandler] // nil == no delegate installed
 	headers   *AddHeader
 	log       *zap.Logger
 }
@@ -87,7 +86,7 @@ func (h *HealthReadyHandler) SetHandler(next http.Handler) {
 	if next == nil {
 		return
 	}
-	h.delegate.Store(delegateHandler{h: next})
+	h.delegate.Store(&delegateHandler{next})
 }
 
 // ServeHTTP dispatches /health and /ready to the local renderers. Other
@@ -105,8 +104,8 @@ func (h *HealthReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.headers.WriteHeader(w.Header())
 		h.writeReady(w, r)
 	default:
-		if d, ok := h.delegate.Load().(delegateHandler); ok {
-			d.h.ServeHTTP(w, r)
+		if d := h.delegate.Load(); d != nil {
+			d.ServeHTTP(w, r)
 			return
 		}
 		h.headers.WriteHeader(w.Header())
