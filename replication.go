@@ -10,12 +10,20 @@ import (
 const (
 	MinReplicationMaxQueueSizeBytes     int64 = 33554430 // 32 MiB
 	DefaultReplicationMaxQueueSizeBytes       = 2 * MinReplicationMaxQueueSizeBytes
-	DefaultReplicationMaxAge            int64 = 604800 // 1 week, in seconds
+	DefaultReplicationMaxAge            int64 = 604800  // 1 week, in seconds
+	MinReplicationMaxAgeSeconds         int64 = 60      // 1 minute
+	MaxReplicationMaxAgeSeconds         int64 = 1209600 // 2 weeks
 )
 
 var ErrMaxQueueSizeTooSmall = errors.Error{
 	Code: errors.EInvalid,
 	Msg:  fmt.Sprintf("maxQueueSize too small, must be at least %d", MinReplicationMaxQueueSizeBytes),
+}
+
+var ErrMaxAgeOutOfRange = errors.Error{
+	Code: errors.EInvalid,
+	Msg: fmt.Sprintf("maxAgeSeconds must be 0 (use default) or between %d and %d",
+		MinReplicationMaxAgeSeconds, MaxReplicationMaxAgeSeconds),
 }
 
 // Replication contains all info about a replication that should be returned to users.
@@ -78,6 +86,10 @@ func (r *CreateReplicationRequest) OK() error {
 		return &ErrMaxQueueSizeTooSmall
 	}
 
+	if r.MaxAgeSeconds != 0 && (r.MaxAgeSeconds < MinReplicationMaxAgeSeconds || r.MaxAgeSeconds > MaxReplicationMaxAgeSeconds) {
+		return &ErrMaxAgeOutOfRange
+	}
+
 	return nil
 }
 
@@ -94,12 +106,13 @@ type UpdateReplicationRequest struct {
 }
 
 func (r *UpdateReplicationRequest) OK() error {
-	if r.MaxQueueSizeBytes == nil {
-		return nil
+	if r.MaxQueueSizeBytes != nil && *r.MaxQueueSizeBytes < MinReplicationMaxQueueSizeBytes {
+		return &ErrMaxQueueSizeTooSmall
 	}
 
-	if *r.MaxQueueSizeBytes < MinReplicationMaxQueueSizeBytes {
-		return &ErrMaxQueueSizeTooSmall
+	if r.MaxAgeSeconds != nil && *r.MaxAgeSeconds != 0 &&
+		(*r.MaxAgeSeconds < MinReplicationMaxAgeSeconds || *r.MaxAgeSeconds > MaxReplicationMaxAgeSeconds) {
+		return &ErrMaxAgeOutOfRange
 	}
 
 	return nil

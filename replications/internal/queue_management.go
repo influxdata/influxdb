@@ -484,7 +484,7 @@ func (qm *durableQueueManager) newReplicationQueue(id platform.ID, orgID platfor
 	done := make(chan struct{})
 	// check for max age minimum
 	var maxAgeTime time.Duration
-	if maxAgeSeconds < 0 {
+	if maxAgeSeconds <= 0 {
 		maxAgeTime = defaultMaxAge
 	} else {
 		maxAgeTime = time.Duration(maxAgeSeconds) * time.Second
