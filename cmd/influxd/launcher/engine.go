@@ -37,6 +37,7 @@ type Engine interface {
 	MetaClient() storage.MetaClient
 
 	WithLogger(log *zap.Logger)
+	WithStartupMetrics(sp storage.ShardLoadingProgressMetrics)
 	Open(context.Context) error
 	Close() error
 }
@@ -98,6 +99,11 @@ func (t *TemporaryEngine) Open(ctx context.Context) error {
 	t.opened = true
 	return nil
 }
+
+// WithStartupMetrics is a no-op for TemporaryEngine — tests using this engine
+// do not surface shard-loading progress anywhere, and the test setup that
+// opens it typically has zero persisted shards.
+func (*TemporaryEngine) WithStartupMetrics(storage.ShardLoadingProgressMetrics) {}
 
 // Close will remove the directory containing the time-series files.
 func (t *TemporaryEngine) Close() error {

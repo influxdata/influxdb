@@ -27,6 +27,7 @@ import (
 	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/checks"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/run"
 	"github.com/influxdata/influxdb/v2/dashboards"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/dbrp"
@@ -158,6 +159,7 @@ type Launcher struct {
 	engineReady     *check.ReadyGate
 	tasksReady      *check.ReadyGate
 	schedulerReady  *check.ReadyGate
+	startupProgress *run.StartupProgressLogger
 }
 
 type stoppingScheduler interface {
@@ -276,10 +278,13 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.engineReady = check.NewReadyGate("engine")
 	m.tasksReady = check.NewReadyGate("tasks")
 	m.schedulerReady = check.NewReadyGate("scheduler")
+	m.startupProgress = run.NewStartupProgressLogger(
+		m.log.With(zap.String("service", "startup-progress")))
 	m.checkHandler.AddReadyCheck(m.metastoresReady)
 	m.checkHandler.AddReadyCheck(m.engineReady)
 	m.checkHandler.AddReadyCheck(m.tasksReady)
 	m.checkHandler.AddReadyCheck(m.schedulerReady)
+	m.checkHandler.AddReadyCheck(m.startupProgress)
 
 	if err := m.runHTTP(opts, m.checkHandler, httpLogger); err != nil {
 		return err
@@ -384,7 +389,13 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 	m.engine.WithLogger(m.log)
-	if err := m.engine.Open(ctx); err != nil {
+	m.engine.WithStartupMetrics(m.startupProgress)
+	err = m.engine.Open(ctx)
+	// Finish startup progress whether Open succeeded or failed so /ready
+	// stops reporting a stale percentage. On failure the shards check
+	// latches into a terminal Fail that surfaces the error.
+	m.startupProgress.Finish(err)
+	if err != nil {
 		m.log.Error("Failed to open engine", zap.Error(err))
 		return err
 	}

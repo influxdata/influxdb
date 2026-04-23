@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/run"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -168,9 +167,23 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	if e.precreatorService != nil {
 		e.precreatorService.WithLogger(log)
 	}
+}
 
-	sl := run.NewStartupProgressLogger(e.logger)
-	e.tsdbStore.WithStartupMetrics(sl)
+// ShardLoadingProgressMetrics observes shard loading during tsdb.Store
+// startup. Implementations record total shards via AddShard (once per shard
+// found before loading begins) and report each completed shard via
+// CompletedShard.
+type ShardLoadingProgressMetrics interface {
+	AddShard()
+	CompletedShard()
+}
+
+// WithStartupMetrics wires a shard-loading progress observer into the
+// underlying tsdb.Store. Callers that want to surface progress (e.g. as a
+// /ready check) construct and own the observer; the Engine just forwards
+// the hook.
+func (e *Engine) WithStartupMetrics(sp ShardLoadingProgressMetrics) {
+	e.tsdbStore.WithStartupMetrics(sp)
 }
 
 // PrometheusCollectors returns all the prometheus collectors associated with
