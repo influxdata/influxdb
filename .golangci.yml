@@ -1,0 +1,9 @@
+version: "2"
+
+linters:
+  settings:
+    govet:
+      settings:
+        printf:
+          funcs:
+            - Capturef
