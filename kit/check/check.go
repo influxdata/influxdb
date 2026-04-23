@@ -48,7 +48,7 @@ func NewCheck() *Check {
 	return ch
 }
 
-// AddHealthCheck adds the check to the list of ready checks.
+// AddHealthCheck adds the check to the list of health checks.
 // If c is a NamedChecker, the name will be added.
 func (c *Check) AddHealthCheck(check Checker) {
 	c.mu.Lock()
