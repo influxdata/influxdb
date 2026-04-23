@@ -170,6 +170,42 @@ func TestHealthReadyHandler_Ready_ForceOverride(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, res2.StatusCode)
 }
 
+func TestHealthReadyHandler_Health_ForceFail_ExposesOverrideMessage(t *testing.T) {
+	h := NewHealthReadyHandler()
+	// No real checkers registered; force-fail the health status.
+
+	res := doRequest(t, h, http.MethodGet, "/health?force=true&healthy=false")
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+
+	var got testHealthBody
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
+	assert.Equal(t, "fail", got.Status)
+	assert.Equal(t, "health manually overridden", got.Message)
+	require.Len(t, got.Checks, 1)
+	assert.Equal(t, "manual-override", got.Checks[0].Name)
+	assert.Equal(t, check.StatusFail, got.Checks[0].Status)
+}
+
+func TestHealthReadyHandler_Ready_ForceFail_ExposesOverrideInChecks(t *testing.T) {
+	h := NewHealthReadyHandler()
+	// No real checkers registered; force-fail the ready status.
+
+	res := doRequest(t, h, http.MethodGet, "/ready?force=true&ready=false")
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+
+	var got testReadyBody
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
+	assert.Equal(t, "starting", got.Status)
+	require.Len(t, got.Checks, 1)
+	assert.Equal(t, "manual-override", got.Checks[0].Name)
+	assert.Equal(t, check.StatusFail, got.Checks[0].Status)
+	assert.Equal(t, "ready manually overridden", got.Checks[0].Message)
+}
+
 func TestHealthReadyHandler_NoDelegate_ReturnsStarting(t *testing.T) {
 	h := NewHealthReadyHandler()
 

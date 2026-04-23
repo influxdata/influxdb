@@ -14,6 +14,13 @@ import (
 
 const startingBody = `{"status":"starting"}` + "\n"
 
+// delegateHandler wraps an http.Handler so the delegate can be published
+// via atomic.Value. atomic.Value requires every Store to use the same
+// concrete type; wrapping in a struct satisfies that requirement and
+// avoids the pointer-to-interface ergonomics of
+// atomic.Pointer[http.Handler].
+type delegateHandler struct{ h http.Handler }
+
 // HealthReadyHandler serves /health and /ready backed by a *check.Check and
 // forwards any other request to an optional delegate handler. Before the
 // delegate is installed, non-check requests get a 503 "starting" response.
@@ -22,7 +29,7 @@ const startingBody = `{"status":"starting"}` + "\n"
 type HealthReadyHandler struct {
 	check     *check.Check
 	startTime time.Time
-	delegate  atomic.Pointer[http.Handler]
+	delegate  atomic.Value // holds delegateHandler; zero value == no delegate
 	headers   *AddHeader
 }
 
@@ -64,8 +71,17 @@ func (h *HealthReadyHandler) AddReadyCheck(c check.Checker) { h.check.AddReadyCh
 func (h *HealthReadyHandler) AddHealthCheck(c check.Checker) { h.check.AddHealthCheck(c) }
 
 // SetHandler installs the delegate handler used for any request that is not
-// /health or /ready. It is safe to call concurrently with ServeHTTP.
-func (h *HealthReadyHandler) SetHandler(next http.Handler) { h.delegate.Store(&next) }
+// /health or /ready. A nil next is ignored to prevent a nil delegate from
+// being published. Note: Go's typed-nil-through-interface gotcha means a
+// concrete typed nil (e.g. (*T)(nil)) will still pass this guard; the
+// delegate's own ServeHTTP needs to tolerate a nil receiver if that
+// pattern is possible. Safe to call concurrently with ServeHTTP.
+func (h *HealthReadyHandler) SetHandler(next http.Handler) {
+	if next == nil {
+		return
+	}
+	h.delegate.Store(delegateHandler{h: next})
+}
 
 // ServeHTTP dispatches /health and /ready to the local renderers. Other
 // paths are forwarded to the installed delegate; if no delegate has been
@@ -82,8 +98,8 @@ func (h *HealthReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.headers.WriteHeader(w.Header())
 		h.writeReady(w, r)
 	default:
-		if p := h.delegate.Load(); p != nil {
-			(*p).ServeHTTP(w, r)
+		if d, ok := h.delegate.Load().(delegateHandler); ok {
+			d.h.ServeHTTP(w, r)
 			return
 		}
 		h.headers.WriteHeader(w.Header())

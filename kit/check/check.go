@@ -74,12 +74,17 @@ func (c *Check) AddReadyCheck(check Checker) {
 
 // CheckHealth evaluates c's set of health checks and returns a populated Response.
 func (c *Check) CheckHealth(ctx context.Context) Response {
+	// Snapshot the checker slice under the read lock and release the lock
+	// before evaluating. Checkers can block (network calls) or even re-enter
+	// registration, so we must not hold c.mu across Check invocations.
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	checks := append([]Checker(nil), c.healthChecks...)
+	c.mu.RUnlock()
+
 	response := Response{
 		Name:   "Health",
 		Status: StatusPass,
-		Checks: make(Responses, len(c.healthChecks)),
+		Checks: make(Responses, len(checks)),
 	}
 
 	status, overriding := c.healthOverride.get()
@@ -87,11 +92,12 @@ func (c *Check) CheckHealth(ctx context.Context) Response {
 		response.Status = status
 		overrideResponse := Response{
 			Name:    "manual-override",
+			Status:  status,
 			Message: "health manually overridden",
 		}
 		response.Checks = append(response.Checks, overrideResponse)
 	}
-	for i, ch := range c.healthChecks {
+	for i, ch := range checks {
 		resp := ch.Check(ctx)
 		if resp.Status != StatusPass && !overriding {
 			response.Status = resp.Status
@@ -104,12 +110,15 @@ func (c *Check) CheckHealth(ctx context.Context) Response {
 
 // CheckReady evaluates c's set of ready checks and returns a populated Response.
 func (c *Check) CheckReady(ctx context.Context) Response {
+	// See CheckHealth: snapshot under lock, evaluate outside.
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	checks := append([]Checker(nil), c.readyChecks...)
+	c.mu.RUnlock()
+
 	response := Response{
 		Name:   "Ready",
 		Status: StatusPass,
-		Checks: make(Responses, len(c.readyChecks)),
+		Checks: make(Responses, len(checks)),
 	}
 
 	status, overriding := c.readyOverride.get()
@@ -117,12 +126,13 @@ func (c *Check) CheckReady(ctx context.Context) Response {
 		response.Status = status
 		overrideResponse := Response{
 			Name:    "manual-override",
+			Status:  status,
 			Message: "ready manually overridden",
 		}
 		response.Checks = append(response.Checks, overrideResponse)
 	}
-	for i, c := range c.readyChecks {
-		resp := c.Check(ctx)
+	for i, ch := range checks {
+		resp := ch.Check(ctx)
 		if resp.Status != StatusPass && !overriding {
 			response.Status = resp.Status
 		}
