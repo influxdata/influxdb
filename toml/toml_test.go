@@ -2212,8 +2212,10 @@ func TestDuration_SetEmpty(t *testing.T) {
 //
 // SizeV2 uses pure humanize semantics: bare "k"/"m"/"g" are SI decimal
 // (1000-based), IEC binary units require explicit "kib"/"mib"/"gib".
-// MarshalText emits the humanize.IBytes form ("1.0 KiB" etc.). These tests
-// verify that behavior and contrast it with the V1 rewrite path.
+// String() renders the humanize.IBytes form ("1.0 KiB" etc.), while TOML
+// serialization remains a raw integer because SizeV2 does not implement
+// encoding.TextMarshaler. These tests verify the parsing behavior and
+// contrast it with the V1 rewrite path.
 
 func TestSizeV2_UnmarshalText(t *testing.T) {
 	for _, tc := range []struct {
