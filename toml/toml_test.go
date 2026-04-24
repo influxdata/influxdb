@@ -1284,10 +1284,6 @@ func TestEnvOverride_Errors(t *testing.T) {
 		{"X_FLOAT", "not_a_float", `failed to apply X_FLOAT to Float using type float64 and value "not_a_float": strconv.ParseFloat: parsing "not_a_float": invalid syntax`},
 		{"X_BOOL", "not_a_bool", `failed to apply X_BOOL to Bool using type bool and value "not_a_bool": strconv.ParseBool: parsing "not_a_bool": invalid syntax`},
 		{"X_DURATION", "not_a_duration", `failed to apply X_DURATION to Duration using TextUnmarshaler toml.Duration and value "not_a_duration": time: invalid duration "not_a_duration"`},
-		// Parsing delegates to humanize, which reports errors from strconv.ParseFloat
-		// on its own numeric extraction.
-		{"X_SIZE", "not_a_size", `failed to apply X_SIZE to Size using TextUnmarshaler toml.SizeV1 and value "not_a_size": strconv.ParseFloat: parsing "": invalid syntax`},
-		{"X_SSIZE", "not_a_size", `failed to apply X_SSIZE to SSize using TextUnmarshaler toml.SSizeV1 and value "not_a_size": strconv.ParseFloat: parsing "": invalid syntax`},
 		// Indexed slice element with invalid value
 		{"X_INTS_0", "bad", `failed to apply X_INTS_0 to Ints[0] using type int and value "bad": strconv.ParseInt: parsing "bad": invalid syntax`},
 		// Unindexed (comma-separated) slice with invalid value
@@ -1324,6 +1320,29 @@ func TestEnvOverride_Errors(t *testing.T) {
 		require.Empty(t, appliedVars)
 	})
 
+	// Invalid size / ssize values delegate to humanize, whose error messages
+	// are not part of its public API (constructed inline with fmt.Errorf,
+	// not exported as sentinels). Pin only the env-override wrapper prefix —
+	// code we own — so these assertions survive humanize or strconv churn.
+	for _, tc := range []struct {
+		envKey, envVal, wrapperPrefix string
+	}{
+		{"X_SIZE", "not_a_size", `failed to apply X_SIZE to Size using TextUnmarshaler toml.SizeV1 and value "not_a_size":`},
+		{"X_SSIZE", "not_a_size", `failed to apply X_SSIZE to SSize using TextUnmarshaler toml.SSizeV1 and value "not_a_size":`},
+	} {
+		t.Run(tc.envKey, func(t *testing.T) {
+			var c config
+			env := func(s string) string {
+				if s == tc.envKey {
+					return tc.envVal
+				}
+				return ""
+			}
+			appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+			require.ErrorContains(t, err, tc.wrapperPrefix)
+			require.Empty(t, appliedVars)
+		})
+	}
 }
 
 // TestEnvOverride_NumericPrefixes verifies that integer and unsigned-integer
