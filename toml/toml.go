@@ -10,13 +10,14 @@ import (
 	"os"
 	"os/user"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/pflag"
 )
 
@@ -73,111 +74,105 @@ func (d Duration) MarshalText() (text []byte, err error) {
 	return []byte(d.String()), nil
 }
 
-// Size represents a TOML parseable file size.
-// Users can specify size using "k" or "K" for kibibytes, "m" or "M" for mebibytes,
-// and "g" or "G" for gibibytes. If a size suffix isn't specified then bytes are assumed.
-type Size uint64
+// SizeV1 represents a TOML-parseable file size using the historical 1.x
+// bare-letter binary suffixes ('k'/'K' = KiB, 'm'/'M' = MiB, 'g'/'G' = GiB)
+// on top of the richer vocabulary from github.com/dustin/go-humanize ("kib",
+// "kb", "tib", "1.5g", etc.). A 1.x bare-letter suffix is detected and
+// rewritten to its explicit IEC form ("1k" → "1 kib") before the string is
+// handed to humanize.
+//
+// Callers should reference this type as Size via the alias in size_alias.go —
+// SizeV1 is the implementation name so that the 2.x branch can alias Size to
+// SizeV2 (pure humanize) without changing any shared source.
+type SizeV1 uint64
 
-// SSize is like Size but uses a signed int64, allowing negative values.
-type SSize int64
+// SSizeV1 is like SizeV1 but uses a signed int64, allowing negative values.
+// Callers should reference this type as SSize via the alias in size_alias.go.
+type SSizeV1 int64
 
+// SizeV2 represents a TOML-parseable file size using github.com/dustin/go-humanize
+// as the only parser. Bare 'k'/'m'/'g' mean SI decimal (KB = 1000, MB = 10^6,
+// GB = 10^9); IEC binary units must be spelled explicitly ("kib", "mib", "gib").
+// See the doc block on String for how the type serializes to TOML.
+//
+// SizeV2 is defined for both 1.x and 2.x branches so the source stays
+// identical, but is only selected as the active Size alias on the 2.x branch
+// (see size_alias.go).
+type SizeV2 uint64
+
+// SSizeV2 is like SizeV2 but uses a signed int64, allowing negative values.
+type SSizeV2 int64
+
+// ErrSizeOutOfRange is returned by the ToInt / ToInt64 / ToUint64 conversion
+// helpers when the stored size cannot be represented in the target type.
+var ErrSizeOutOfRange = errors.New("size value out of range for target type")
+
+// bareIECSuffixRe matches inputs that end in a bare 1.x binary suffix
+// (k/K/m/M/g/G), optionally surrounded by whitespace. Capture group 1 is
+// the numeric prefix (sign, digits, dots, commas, internal whitespace —
+// whatever humanize will later accept); capture group 2 is the single-
+// letter suffix. The trailing [0-9\s] on group 1 constrains the suffix
+// to be preceded by a digit or whitespace, so embedded letters like
+// "1kib" or "1√k" don't accidentally match — those fall through to
+// humanize with their native meanings (1024 and an error, respectively).
+var bareIECSuffixRe = regexp.MustCompile(`\A(.*[0-9\s])\s*([kKmMgG])\s*\z`)
+
+// rewriteBareIECSuffix detects the 1.x bare-letter binary suffix and
+// rewrites it to the explicit IEC form that humanize understands
+// (" kib"/" mib"/" gib"). Inputs without such a suffix are returned
+// unchanged so humanize sees them verbatim.
+//
+// The rule "single trailing letter preceded by a digit or whitespace"
+// ensures we never override a longer humanize suffix: "1kb" ends in
+// 'b', "1kib" ends in 'b' — neither matches, both fall through to
+// humanize with their native meanings (1000 and 1024 respectively).
+func rewriteBareIECSuffix(text []byte) []byte {
+	m := bareIECSuffixRe.FindSubmatch(text)
+	if m == nil {
+		return text
+	}
+	var canonical string
+	switch m[2][0] {
+	case 'k', 'K':
+		canonical = "kib"
+	case 'm', 'M':
+		canonical = "mib"
+	case 'g', 'G':
+		canonical = "gib"
+	}
+	numPart := bytes.TrimSpace(m[1])
+	out := make([]byte, 0, len(numPart)+1+len(canonical))
+	out = append(out, numPart...)
+	out = append(out, ' ')
+	out = append(out, canonical...)
+	return out
+}
+
+// The 1.x Size / SSize accept pattern, extended to allow whitespace between
+// the digits and the bare-letter suffix (e.g. "1 k"): optional sign, one or
+// more decimal digits, optional whitespace, optional single bare-letter IEC
+// suffix. The whitespace-between-digit-and-suffix form was rejected by 1.x;
+// it is accepted here as a new extension. No leading or trailing whitespace —
+// those forms fall through to the humanize path via rewriteBareIECSuffix.
+// SizeV1 / SSizeV1 detect this pattern and route matches through strconv
+// for bit-exact parity with 1.x at the top of uint64 / int64 range where
+// humanize's float64 path loses precision.
+//
+// [0-9] (rather than \d) makes it locally obvious that these patterns accept
+// only ASCII digits, matching strconv.ParseUint / ParseInt without requiring
+// the reader to know that Go's regexp treats \d as ASCII-only by default.
 var (
-	ErrSizeBadSuffix  = errors.New("unknown size suffix")
-	ErrSizeParse      = errors.New("invalid size")
-	ErrSizeOverflow   = errors.New("size overflow")
-	ErrSizeOutOfRange = errors.New("size value out of range for target type")
+	sizeV1Pattern  = regexp.MustCompile(`\A([0-9]+)\s*([kKmMgG]?)\z`)
+	ssizeV1Pattern = regexp.MustCompile(`\A([+-]?[0-9]+)\s*([kKmMgG]?)\z`)
 )
 
-// sizeConstraint is the type constraint for size types.
-type sizeConstraint interface {
-	~uint64 | ~int64
-}
-
-// parseSizeSuffix extracts the multiplier and numeric text from a size string.
-// It returns the numeric portion of the text and the multiplier.
-func parseSizeSuffix(text []byte) (numText []byte, mult uint64, err error) {
-	if len(text) == 0 {
-		return nil, 1, nil
-	}
-
-	mult = 1
-	numText = text
-
-	// Decode the trailing rune. The valid suffixes are all ASCII single-byte,
-	// but the input may end in a multi-byte rune (typically when the input is
-	// malformed); using DecodeLastRune ensures we report the actual character
-	// in the error message rather than a stray UTF-8 continuation byte.
-	suffix, suffixSize := utf8.DecodeLastRune(text)
-	if !unicode.IsDigit(suffix) {
-		switch suffix {
-		case 'k', 'K':
-			mult = 1 << 10 // KiB
-		case 'm', 'M':
-			mult = 1 << 20 // MiB
-		case 'g', 'G':
-			mult = 1 << 30 // GiB
-		default:
-			return nil, 0, fmt.Errorf("%w: %c (expected k, m, or g)", ErrSizeBadSuffix, suffix)
-		}
-		numText = text[:len(text)-suffixSize]
-		if len(numText) == 0 {
-			return nil, 0, fmt.Errorf("%w: missing numeric value before suffix %c", ErrSizeParse, suffix)
-		}
-	}
-
-	return numText, mult, nil
-}
-
-// unmarshalSize parses a byte size from text into a size type.
-// Unsigned types reject negative values; signed types accept them.
-// BT is necessary so that strconv.ParseInt and strconv.ParseUint can be
-// passed directly without requiring wrappers.
-func unmarshalSize[T sizeConstraint, BT sizeConstraint](dst *T, text []byte, parse func(string, int, int) (BT, error), max uint64) error {
-	// If text contains no ASCII digits (the accept set for strconv.ParseInt /
-	// strconv.ParseUint in base 10), the error messages from the rest of the
-	// function can be confusing. Matching strconv's accept set here ensures
-	// this pre-check never lets through an input that strconv will then
-	// reject with a less helpful "invalid syntax" error.
-	if bytes.IndexFunc(text, func(r rune) bool { return r >= '0' && r <= '9' }) < 0 {
-		return fmt.Errorf("%w: no numeric value in %q", ErrSizeParse, text)
-	}
-
-	numText, mult, err := parseSizeSuffix(text)
-	if err != nil {
-		return err
-	}
-	// Check that mult is not zero to prevent division by zero later. This should never happen.
-	if mult == 0 {
-		return fmt.Errorf("%w: parsing size suffix of %q got multiplier of 0", ErrSizeParse, text)
-	}
-
-	typ := reflect.TypeOf(*dst)
-	baseSize, err := parse(string(numText), 10, typ.Bits())
-	if err != nil {
-		// strconv reports an out-of-range value with strconv.ErrRange. That is
-		// semantically an overflow, so re-wrap it as ErrSizeOverflow to unify
-		// with the post-multiply overflow check below.
-		if errors.Is(err, strconv.ErrRange) {
-			return fmt.Errorf("%w: would overflow the max size (%d) of type %s: %q", ErrSizeOverflow, max, typ.Kind(), text)
-		}
-		return fmt.Errorf("%w: error parsing %q: %w", ErrSizeParse, text, err)
-	}
-	size := T(baseSize)
-
-	// Calculate size with suffix, check for potential overflow.
-	result := size * T(mult)
-	if result/T(mult) != size {
-		return fmt.Errorf("%w: would overflow the max size (%d) of type %s: %q", ErrSizeOverflow, max, typ.Kind(), text)
-	}
-
-	*dst = result
-	return nil
-}
-
-// marshalSize formats a size value with the largest whole-unit suffix.
-// BT is necessary so that strconv.AppendInt / strconv.AppendUint can be passed
-// without needing a wrapper.
-func marshalSize[T sizeConstraint, BT sizeConstraint](size T, format func([]byte, BT, int) []byte) []byte {
+// marshalSize formats a size value with the largest whole-unit binary suffix.
+// Used by SizeV1 / SSizeV1 so that 1.x config files written by a newer
+// influxd remain parseable by older 1.x releases.
+//
+// BT lets strconv.AppendInt / strconv.AppendUint be passed directly without
+// needing a wrapper.
+func marshalSize[T ~uint64 | ~int64, BT ~uint64 | ~int64](size T, format func([]byte, BT, int) []byte) []byte {
 	// Pick the largest whole-unit suffix. The checks work correctly on signed
 	// values without an abs conversion: size/threshold is non-zero iff
 	// |size| >= threshold, and size%threshold == 0 holds regardless of sign.
@@ -206,34 +201,158 @@ func marshalSize[T sizeConstraint, BT sizeConstraint](size T, format func([]byte
 	return out
 }
 
-// Compile-time check that *Size implements pflag.Value so it can be
-// registered directly as a command-line flag.
-var _ pflag.Value = (*Size)(nil)
-
-// UnmarshalText parses a byte size from text.
-func (s *Size) UnmarshalText(text []byte) error {
-	return unmarshalSize(s, text, strconv.ParseUint, math.MaxUint64)
+// parseBytesSigned handles the "strip sign, parse unsigned, reapply sign,
+// range-check int64" flow shared by SSizeV1 and SSizeV2.
+func parseBytesSigned(text string) (int64, error) {
+	t := strings.TrimSpace(text)
+	neg := false
+	// Look for negative sign.
+	if r, size := utf8.DecodeRuneInString(t); r == '-' {
+		neg = true
+		t = t[size:]
+	}
+	v, err := humanize.ParseBytes(t)
+	if err != nil {
+		return 0, err
+	}
+	if neg {
+		// Special case: |MinInt64| = MaxInt64 + 1, which fits in uint64 but
+		// not int64. Accept exactly that value as MinInt64.
+		if v == uint64(math.MaxInt64)+1 {
+			return math.MinInt64, nil
+		}
+		if v > math.MaxInt64 {
+			return 0, fmt.Errorf("value %d exceeds signed int64 range", v)
+		}
+		return -int64(v), nil
+	}
+	if v > math.MaxInt64 {
+		return 0, fmt.Errorf("value %d exceeds signed int64 range", v)
+	}
+	return int64(v), nil
 }
 
-// MarshalText converts a Size to a string for encoding toml.
-func (s Size) MarshalText() ([]byte, error) {
+// unmarshalSizeV1 parses inputs matching the 1.x accept pattern via strconv
+// + integer multiplication for bit-exact parity, falling back to a caller-
+// supplied humanize parser for anything that doesn't match. T is the size
+// type (SizeV1 or SSizeV1); B is the base integer type the strconv parser
+// returns (uint64 for SizeV1, int64 for SSizeV1).
+func unmarshalSizeV1[T ~uint64 | ~int64, B ~uint64 | ~int64](
+	dst *T,
+	text []byte,
+	pattern *regexp.Regexp,
+	parse func(string, int, int) (B, error),
+	humanizeParse func(string) (B, error),
+) error {
+	if m := pattern.FindSubmatch(text); m != nil {
+		n, err := parse(string(m[1]), 10, reflect.TypeOf(*dst).Bits())
+		if err != nil {
+			return err
+		}
+		// Map the suffix capture to its binary multiplier. The pattern's
+		// second capture is [kKmMgG]?, so m[2] is either empty (no suffix)
+		// or a single byte from that set — no other case is reachable.
+		mult := B(1)
+		if len(m[2]) > 0 {
+			switch m[2][0] {
+			case 'k', 'K':
+				mult = 1 << 10
+			case 'm', 'M':
+				mult = 1 << 20
+			case 'g', 'G':
+				mult = 1 << 30
+			}
+		}
+		result := n * mult
+		// Overflow check: if the round-trip through integer division
+		// doesn't reproduce n, the multiplication wrapped. Works on
+		// signed and unsigned alike; mult is always nonzero here.
+		if result/mult != n {
+			return fmt.Errorf("size overflow: %q", text)
+		}
+		*dst = T(result)
+		return nil
+	}
+	rewritten := rewriteBareIECSuffix(text)
+	v, err := humanizeParse(string(rewritten))
+	if err != nil {
+		return err
+	}
+	*dst = T(v)
+	return nil
+}
+
+// negAsUint64 returns |v| as uint64, handling MinInt64 without overflow.
+func negAsUint64(v int64) uint64 {
+	if v == math.MinInt64 {
+		return uint64(math.MaxInt64) + 1
+	}
+	return uint64(-v)
+}
+
+func sizeToInt(v uint64) (int, error) {
+	if v > math.MaxInt {
+		return 0, fmt.Errorf("%w: size value %d exceeds maximum int value %d", ErrSizeOutOfRange, v, math.MaxInt)
+	}
+	return int(v), nil
+}
+
+func sizeToInt64(v uint64) (int64, error) {
+	if v > math.MaxInt64 {
+		return 0, fmt.Errorf("%w: size value %d exceeds maximum int64 value %d", ErrSizeOutOfRange, v, int64(math.MaxInt64))
+	}
+	return int64(v), nil
+}
+
+func ssizeToInt(v int64) (int, error) {
+	if v > math.MaxInt || v < math.MinInt {
+		return 0, fmt.Errorf("%w: ssize value %d is outside int range [%d, %d]", ErrSizeOutOfRange, v, math.MinInt, math.MaxInt)
+	}
+	return int(v), nil
+}
+
+func ssizeToUint64(v int64) (uint64, error) {
+	if v < 0 {
+		return 0, fmt.Errorf("%w: ssize value %d cannot be converted to uint64: negative", ErrSizeOutOfRange, v)
+	}
+	return uint64(v), nil
+}
+
+// --- SizeV1 ---
+
+var _ pflag.Value = (*SizeV1)(nil)
+
+// UnmarshalText parses a byte size. Any input matching 1.x's exact accept
+// pattern (digits + optional bare k/K/m/M/g/G) is routed through strconv +
+// integer multiplication for bit-exact parity with 1.x. Everything else
+// falls through to humanize; bare 1.x suffixes reached via whitespace or
+// mixed forms are rewritten to humanize's explicit IEC form ("1k " →
+// "1 kib") before parsing.
+func (s *SizeV1) UnmarshalText(text []byte) error {
+	return unmarshalSizeV1(s, text, sizeV1Pattern, strconv.ParseUint, humanize.ParseBytes)
+}
+
+// MarshalText emits the compact form ("1g"/"512m") that older 1.x influxd
+// releases can still parse. Changing this would break backward compatibility
+// of config files regenerated by `influxd config`.
+func (s SizeV1) MarshalText() ([]byte, error) {
 	return marshalSize(s, strconv.AppendUint), nil
 }
 
-// String returns the size formatted with the largest whole-unit suffix (e.g.
-// "1g", "512m"). The format round-trips through Set/UnmarshalText.
-func (s Size) String() string {
+// String returns the same compact format as MarshalText so pflag help text
+// and written config values stay consistent.
+func (s SizeV1) String() string {
 	return string(marshalSize(s, strconv.AppendUint))
 }
 
-// Set parses s into the receiver. It satisfies pflag.Value so Size can be
-// used as a command-line flag via pflag.Var.
-func (s *Size) Set(str string) error {
+// Set satisfies pflag.Value.
+func (s *SizeV1) Set(str string) error {
 	return s.UnmarshalText([]byte(str))
 }
 
-// Type returns the name of the flag type for pflag's help output.
-func (s Size) Type() string {
+// Type satisfies pflag.Value. Returns "Size" (not "SizeV1") so pflag help
+// output doesn't leak the branch-specific implementation name.
+func (s SizeV1) Type() string {
 	return "Size"
 }
 
@@ -242,75 +361,168 @@ func (s Size) Type() string {
 // of int on any platform (and routinely does on 32-bit platforms). Callers
 // passing a Size to APIs that take int should go through ToInt rather than a
 // bare cast.
-func (s Size) ToInt() (int, error) {
-	if uint64(s) > math.MaxInt {
-		return 0, fmt.Errorf("%w: size value %d exceeds maximum int value %d", ErrSizeOutOfRange, uint64(s), math.MaxInt)
-	}
-	return int(s), nil
+func (s SizeV1) ToInt() (int, error) {
+	return sizeToInt(uint64(s))
 }
 
 // ToInt64 returns the value as an int64, or an error wrapping
 // ErrSizeOutOfRange if it does not fit. Size is uint64 so values above
 // math.MaxInt64 silently wrap to negative when cast directly. ToInt64 rejects
 // those instead.
-func (s Size) ToInt64() (int64, error) {
-	if uint64(s) > math.MaxInt64 {
-		return 0, fmt.Errorf("%w: size value %d exceeds maximum int64 value %d", ErrSizeOutOfRange, uint64(s), int64(math.MaxInt64))
-	}
-	return int64(s), nil
+func (s SizeV1) ToInt64() (int64, error) {
+	return sizeToInt64(uint64(s))
 }
 
-// Compile-time check that *SSize implements pflag.Value so it can be
-// registered directly as a command-line flag.
-var _ pflag.Value = (*SSize)(nil)
+// --- SSizeV1 ---
 
-// UnmarshalText parses a byte size from text, allowing negative values.
-func (s *SSize) UnmarshalText(text []byte) error {
-	return unmarshalSize(s, text, strconv.ParseInt, math.MaxInt64)
+var _ pflag.Value = (*SSizeV1)(nil)
+
+// UnmarshalText parses a signed byte size. Any input matching 1.x's exact
+// accept pattern (optional sign + digits + optional bare k/K/m/M/g/G) goes
+// through strconv + integer multiplication for bit-exact parity with 1.x.
+// Everything else falls through to humanize via parseSigned.
+func (s *SSizeV1) UnmarshalText(text []byte) error {
+	return unmarshalSizeV1(s, text, ssizeV1Pattern, strconv.ParseInt, parseBytesSigned)
 }
 
-// MarshalText converts an SSize to a string for encoding toml.
-func (s SSize) MarshalText() ([]byte, error) {
+// MarshalText emits the compact form ("-512m"/"1g") — same backward-compat
+// rationale as SizeV1.
+func (s SSizeV1) MarshalText() ([]byte, error) {
 	return marshalSize(s, strconv.AppendInt), nil
 }
 
-// String returns the size formatted with the largest whole-unit suffix (e.g.
-// "1g", "-512m"). The format round-trips through Set/UnmarshalText.
-func (s SSize) String() string {
+// String returns the same compact format as MarshalText.
+func (s SSizeV1) String() string {
 	return string(marshalSize(s, strconv.AppendInt))
 }
 
-// Set parses s into the receiver. It satisfies pflag.Value so SSize can be
-// used as a command-line flag via pflag.Var.
-func (s *SSize) Set(str string) error {
+// Set satisfies pflag.Value.
+func (s *SSizeV1) Set(str string) error {
 	return s.UnmarshalText([]byte(str))
 }
 
-// Type returns the name of the flag type for pflag's help output.
-func (s SSize) Type() string {
+// Type satisfies pflag.Value.
+func (s SSizeV1) Type() string {
 	return "SSize"
 }
 
 // ToInt returns the value as an int, or an error wrapping ErrSizeOutOfRange
 // if it does not fit. SSize is int64 so on 32-bit platforms values outside
-// the int32 range cannot be represented as int. Callers passing an SSize to
-// APIs that take int should go through ToInt rather than a bare cast.
-func (s SSize) ToInt() (int, error) {
-	if int64(s) > math.MaxInt || int64(s) < math.MinInt {
-		return 0, fmt.Errorf("%w: ssize value %d is outside int range [%d, %d]", ErrSizeOutOfRange, int64(s), math.MinInt, math.MaxInt)
-	}
-	return int(s), nil
+// the int32 range cannot be represented as int.
+func (s SSizeV1) ToInt() (int, error) {
+	return ssizeToInt(int64(s))
 }
 
 // ToUint64 returns the value as a uint64, or an error wrapping
-// ErrSizeOutOfRange if it is negative. SSize is int64 so negative values
-// silently wrap to large positive uint64 values when cast directly. ToUint64
-// rejects those instead.
-func (s SSize) ToUint64() (uint64, error) {
-	if int64(s) < 0 {
-		return 0, fmt.Errorf("%w: ssize value %d cannot be converted to uint64: negative", ErrSizeOutOfRange, int64(s))
+// ErrSizeOutOfRange if it is negative.
+func (s SSizeV1) ToUint64() (uint64, error) {
+	return ssizeToUint64(int64(s))
+}
+
+// --- SizeV2 ---
+
+var _ pflag.Value = (*SizeV2)(nil)
+
+// UnmarshalText parses a byte size with pure humanize semantics: bare
+// 'k'/'m'/'g' mean SI decimal (1000-based), IEC binary requires explicit
+// "kib"/"mib"/"gib".
+func (s *SizeV2) UnmarshalText(text []byte) error {
+	v, err := humanize.ParseBytes(string(text))
+	if err != nil {
+		return err
 	}
-	return uint64(s), nil
+	*s = SizeV2(v)
+	return nil
+}
+
+// SizeV2 deliberately does NOT implement encoding.TextMarshaler. BurntSushi/toml
+// falls back to the underlying uint64 encoding when no TextMarshaler is
+// present, which emits a raw integer (e.g. `cache-max-memory-size = 1073741824`).
+// That matches the wire format used by v2.8.0 and earlier byte-for-byte and,
+// crucially, round-trips exactly: a value like 25_000_000 (the default
+// [http] max-body-size) survives a marshal → unmarshal cycle unchanged.
+//
+// Emitting a humanized form via humanize.IBytes (e.g. "1.0 GiB") looks nicer
+// but is lossy — humanize.IBytes formats non-power-of-2 values with limited
+// precision, so 25_000_000 would become "24 MiB" and read back as 25_165_824,
+// silently altering the operator's configured limit across an upgrade.
+//
+// String uses humanize.IBytes, matching v2.8.0's Size.String. It is only
+// used in human-facing contexts (pflag help, log lines); BurntSushi/toml
+// consults TextMarshaler rather than Stringer when encoding, so the lossy
+// conversion in String never reaches the on-disk config.
+func (s SizeV2) String() string {
+	return humanize.IBytes(uint64(s))
+}
+
+// Set satisfies pflag.Value.
+func (s *SizeV2) Set(str string) error {
+	return s.UnmarshalText([]byte(str))
+}
+
+// Type satisfies pflag.Value.
+func (s SizeV2) Type() string {
+	return "Size"
+}
+
+// ToInt — see SizeV1.ToInt for rationale.
+func (s SizeV2) ToInt() (int, error) {
+	return sizeToInt(uint64(s))
+}
+
+// ToInt64 — see SizeV1.ToInt64 for rationale.
+func (s SizeV2) ToInt64() (int64, error) {
+	return sizeToInt64(uint64(s))
+}
+
+// --- SSizeV2 ---
+
+var _ pflag.Value = (*SSizeV2)(nil)
+
+// UnmarshalText parses a signed byte size using pure humanize semantics.
+// Negative sign is handled outside humanize (which is unsigned-only).
+func (s *SSizeV2) UnmarshalText(text []byte) error {
+	v, err := parseBytesSigned(string(text))
+	if err != nil {
+		return err
+	}
+	*s = SSizeV2(v)
+	return nil
+}
+
+// SSizeV2, like SizeV2, deliberately does NOT implement encoding.TextMarshaler.
+// See the comment above SizeV2.String for the full rationale; the short
+// version is that BurntSushi/toml's default int64 encoding preserves exact
+// values, while humanize.IBytes would silently drift non-power-of-2 values
+// across a marshal/unmarshal cycle.
+//
+// String is humanize-formatted with a sign prepended for negatives. Used for
+// human display only, same as SizeV2.String.
+func (s SSizeV2) String() string {
+	if s < 0 {
+		return "-" + humanize.IBytes(negAsUint64(int64(s)))
+	}
+	return humanize.IBytes(uint64(s))
+}
+
+// Set satisfies pflag.Value.
+func (s *SSizeV2) Set(str string) error {
+	return s.UnmarshalText([]byte(str))
+}
+
+// Type satisfies pflag.Value.
+func (s SSizeV2) Type() string {
+	return "SSize"
+}
+
+// ToInt — see SSizeV1.ToInt for rationale.
+func (s SSizeV2) ToInt() (int, error) {
+	return ssizeToInt(int64(s))
+}
+
+// ToUint64 — see SSizeV1.ToUint64 for rationale.
+func (s SSizeV2) ToUint64() (uint64, error) {
+	return ssizeToUint64(int64(s))
 }
 
 // FileMode is a TOML wrapper around os.FileMode. Values are parsed as octal
