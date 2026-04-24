@@ -12,7 +12,7 @@ const (
 	DefaultReplicationMaxQueueSizeBytes       = 2 * MinReplicationMaxQueueSizeBytes
 	DefaultReplicationMaxAge            int64 = 604800  // 1 week, in seconds
 	MinReplicationMaxAgeSeconds         int64 = 60      // 1 minute
-	MaxReplicationMaxAgeSeconds         int64 = 1209600 // 2 weeks
+	MaxReplicationMaxAgeSeconds         int64 = 5184000 // 2 months
 )
 
 var ErrMaxQueueSizeTooSmall = errors.Error{
@@ -81,16 +81,19 @@ type CreateReplicationRequest struct {
 	MaxAgeSeconds        int64       `json:"maxAgeSeconds,omitempty"`
 }
 
+func CheckMaxAgeInRange(maxAge int64) error {
+	if maxAge != 0 && (maxAge < MinReplicationMaxAgeSeconds || maxAge > MaxReplicationMaxAgeSeconds) {
+		return &ErrMaxAgeOutOfRange
+	}
+	return nil
+}
+
 func (r *CreateReplicationRequest) OK() error {
 	if r.MaxQueueSizeBytes < MinReplicationMaxQueueSizeBytes {
 		return &ErrMaxQueueSizeTooSmall
 	}
 
-	if r.MaxAgeSeconds != 0 && (r.MaxAgeSeconds < MinReplicationMaxAgeSeconds || r.MaxAgeSeconds > MaxReplicationMaxAgeSeconds) {
-		return &ErrMaxAgeOutOfRange
-	}
-
-	return nil
+	return CheckMaxAgeInRange(r.MaxAgeSeconds)
 }
 
 // UpdateReplicationRequest contains a partial update to existing info about a replication.
@@ -110,9 +113,8 @@ func (r *UpdateReplicationRequest) OK() error {
 		return &ErrMaxQueueSizeTooSmall
 	}
 
-	if r.MaxAgeSeconds != nil && *r.MaxAgeSeconds != 0 &&
-		(*r.MaxAgeSeconds < MinReplicationMaxAgeSeconds || *r.MaxAgeSeconds > MaxReplicationMaxAgeSeconds) {
-		return &ErrMaxAgeOutOfRange
+	if r.MaxAgeSeconds != nil {
+		return CheckMaxAgeInRange(*r.MaxAgeSeconds)
 	}
 
 	return nil
