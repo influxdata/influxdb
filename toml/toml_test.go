@@ -2258,6 +2258,16 @@ func TestPflagValue(t *testing.T) {
 	require.Equal(t, "SSize", ss.Type())
 }
 
+// TestDuration_SetEmpty pins that Duration.Set rejects the empty string,
+// diverging from UnmarshalText's TOML-friendly empty-is-absent behavior.
+// The specific error text mirrors what time.ParseDuration("") returns so
+// callers see a consistent message regardless of which path produced it.
+func TestDuration_SetEmpty(t *testing.T) {
+	var d itoml.Duration
+	require.EqualError(t, d.Set(""), `time: invalid duration ""`)
+	require.Equal(t, itoml.Duration(0), d, "receiver must remain unchanged on error")
+}
+
 // --- SizeV2 / SSizeV2 tests ---
 //
 // SizeV2 uses pure humanize semantics: bare "k"/"m"/"g" are SI decimal

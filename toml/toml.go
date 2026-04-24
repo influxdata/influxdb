@@ -41,8 +41,15 @@ func (d Duration) String() string {
 }
 
 // Set parses s into the receiver. It satisfies pflag.Value so Duration can
-// be used as a command-line flag via pflag.Var.
+// be used as a command-line flag via pflag.Var. Unlike UnmarshalText, Set
+// rejects the empty string — an explicit `--flag=""` on the command line
+// is almost always a user mistake, and surfacing it as an error matches
+// pflag.DurationVar's native behavior. The error text mirrors what
+// time.ParseDuration("") returns so callers see a consistent message.
 func (d *Duration) Set(s string) error {
+	if s == "" {
+		return errors.New(`time: invalid duration ""`)
+	}
 	return d.UnmarshalText([]byte(s))
 }
 
