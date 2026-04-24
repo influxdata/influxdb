@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"go.uber.org/zap"
@@ -17,6 +18,7 @@ const (
 	msgWaitingForShardEnumeration = "waiting for shard enumeration"
 	msgShardLoadingFailedFmt      = "shard loading failed: %s"
 	msgLoadingShardsFmt           = "loading shards %.1f%% (%d / %d)"
+	msgStartupReadyFmt            = "ready: %d shards loaded in %s"
 )
 
 type StartupProgressLogger struct {
@@ -24,12 +26,14 @@ type StartupProgressLogger struct {
 	shardsTotal     atomic.Uint64
 	done            atomic.Bool
 	failErrMsg      atomic.Pointer[string]
+	startTime       time.Time
 	logger          *zap.Logger
 }
 
 func NewStartupProgressLogger(logger *zap.Logger) *StartupProgressLogger {
 	return &StartupProgressLogger{
-		logger: logger,
+		startTime: time.Now(),
+		logger:    logger,
 	}
 }
 
@@ -82,7 +86,9 @@ func (s *StartupProgressLogger) Check(_ context.Context) check.Response {
 				Message: fmt.Sprintf(msgShardLoadingFailedFmt, *msg),
 			}
 		}
-		return check.Pass()
+		return check.Info(msgStartupReadyFmt,
+			s.shardsCompleted.Load(),
+			time.Since(s.startTime).Round(time.Second))
 	}
 	completed := s.shardsCompleted.Load()
 	total := s.shardsTotal.Load()

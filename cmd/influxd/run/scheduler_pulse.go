@@ -20,6 +20,9 @@ const (
 	DefaultSchedulerPulseThreshold = 30 * time.Second
 
 	msgSchedulerStalledFmt = "scheduler stalled: next run due %s ago"
+	msgSchedulerIdle       = "scheduler idle: no scheduled runs"
+	msgSchedulerNextRunFmt = "next run in %s"
+	msgSchedulerOnTimeFmt  = "on time, dispatch lag %s"
 )
 
 // NextRunScheduled is implemented by task schedulers that expose the time at
@@ -53,11 +56,13 @@ func (*SchedulerPulseCheck) CheckName() string { return TaskSchedulerCheckName }
 
 // Check returns StatusPass when the scheduler has no pending work or its
 // next-run timestamp is in the future / within threshold; StatusFail when
-// the next-run timestamp is in the past by more than threshold.
+// the next-run timestamp is in the past by more than threshold. Pass
+// responses carry an Info message distinguishing idle, waiting-on-timer,
+// and recently-dispatched states.
 func (c *SchedulerPulseCheck) Check(_ context.Context) check.Response {
 	w := c.sched.When()
 	if w.IsZero() {
-		return check.Pass()
+		return check.Info(msgSchedulerIdle)
 	}
 	lag := c.now().Sub(w)
 	if lag > c.threshold {
@@ -66,5 +71,8 @@ func (c *SchedulerPulseCheck) Check(_ context.Context) check.Response {
 			Message: fmt.Sprintf(msgSchedulerStalledFmt, lag.Round(time.Second)),
 		}
 	}
-	return check.Pass()
+	if lag < 0 {
+		return check.Info(msgSchedulerNextRunFmt, (-lag).Round(time.Second))
+	}
+	return check.Info(msgSchedulerOnTimeFmt, lag.Round(time.Second))
 }

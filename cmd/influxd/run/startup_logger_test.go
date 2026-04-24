@@ -49,7 +49,8 @@ func TestStartupProgressLogger_CheckFinishBeforeEnumeration(t *testing.T) {
 
 	resp := s.Check(context.Background())
 	require.Equal(t, check.StatusPass, resp.Status)
-	assert.Empty(t, resp.Message)
+	// Duration is non-deterministic; assert prefix only.
+	require.Contains(t, resp.Message, "ready: 0 shards loaded in ")
 }
 
 func TestStartupProgressLogger_CheckFinishAfterLoading(t *testing.T) {
@@ -62,6 +63,7 @@ func TestStartupProgressLogger_CheckFinishAfterLoading(t *testing.T) {
 
 	resp := s.Check(context.Background())
 	require.Equal(t, check.StatusPass, resp.Status)
+	require.Contains(t, resp.Message, "ready: 3 shards loaded in ")
 }
 
 func TestStartupProgressLogger_CheckFinishWithError(t *testing.T) {
