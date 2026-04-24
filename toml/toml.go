@@ -159,11 +159,14 @@ func rewriteBareIECSuffix(text []byte) []byte {
 // the digits and the bare-letter suffix (e.g. "1 k"): optional sign, one or
 // more decimal digits, optional whitespace, optional single bare-letter IEC
 // suffix. The whitespace-between-digit-and-suffix form was rejected by 1.x;
-// it is accepted here as a new extension. No leading or trailing whitespace —
-// those forms fall through to the humanize path via rewriteBareIECSuffix.
-// SizeV1 / SSizeV1 detect this pattern and route matches through strconv
-// for bit-exact parity with 1.x at the top of uint64 / int64 range where
-// humanize's float64 path loses precision.
+// it is accepted here as a new extension. Leading whitespace and whitespace
+// after the suffix are not accepted — those forms fall through to the
+// humanize path via rewriteBareIECSuffix. (Trailing whitespace before an
+// absent suffix, e.g. "1 ", matches this pattern and is parsed as 1 byte;
+// the same input would also parse as 1 via the humanize path, so the routing
+// choice is cosmetic.) SizeV1 / SSizeV1 detect this pattern and route matches
+// through strconv for bit-exact parity with 1.x at the top of uint64 / int64
+// range where humanize's float64 path loses precision.
 //
 // [0-9] (rather than \d) makes it locally obvious that these patterns accept
 // only ASCII digits, matching strconv.ParseUint / ParseInt without requiring
