@@ -410,7 +410,7 @@ var _ pflag.Value = (*SSizeV1)(nil)
 // UnmarshalText parses a signed byte size. Any input matching 1.x's exact
 // accept pattern (optional sign + digits + optional bare k/K/m/M/g/G) goes
 // through strconv + integer multiplication for bit-exact parity with 1.x.
-// Everything else falls through to humanize via parseSigned.
+// Everything else falls through to humanize via parseBytesSigned.
 func (s *SSizeV1) UnmarshalText(text []byte) error {
 	return unmarshalSizeV1(s, text, ssizeV1Pattern, strconv.ParseInt, parseBytesSigned)
 }
