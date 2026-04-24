@@ -2588,6 +2588,61 @@ func TestSSizeV2_StringNegative(t *testing.T) {
 	require.Equal(t, "-8.0 EiB", itoml.SSizeV2(math.MinInt64).String())
 }
 
+// TestSizeErrorsIncludeInput pins the invariant that every error returned
+// by a size-type UnmarshalText includes the original input text in its
+// wrapper. Guards the wrap in parseBytesUnsigned and parseBytesSigned —
+// without it, humanize errors like `strconv.ParseFloat: parsing "":
+// invalid syntax` would reach the caller with no reference to the input.
+func TestSizeErrorsIncludeInput(t *testing.T) {
+	unmarshalers := []struct {
+		name string
+		um   func([]byte) error
+	}{
+		{"SizeV1", func(b []byte) error { var s itoml.SizeV1; return s.UnmarshalText(b) }},
+		{"SizeV2", func(b []byte) error { var s itoml.SizeV2; return s.UnmarshalText(b) }},
+		{"SSizeV1", func(b []byte) error { var s itoml.SSizeV1; return s.UnmarshalText(b) }},
+		{"SSizeV2", func(b []byte) error { var s itoml.SSizeV2; return s.UnmarshalText(b) }},
+	}
+
+	// Inputs that take the humanize path and fail there. All four types
+	// wrap with `invalid size %q:` and keep the inner error reachable.
+	for _, in := range []string{
+		"not_a_size",               // humanize digit-scan failure
+		"1.5xyz",                   // humanize unknown suffix
+		"99999999999999999999 EiB", // humanize "too large"
+	} {
+		want := fmt.Sprintf("invalid size %q", in)
+		for _, u := range unmarshalers {
+			t.Run(u.name+"/"+in, func(t *testing.T) {
+				err := u.um([]byte(in))
+				require.ErrorContains(t, err, want)
+				require.NotNil(t, errors.Unwrap(err),
+					"inner humanize/strconv error must remain reachable via errors.Unwrap")
+			})
+		}
+	}
+
+	// Signed-only: a value humanize parses successfully but that exceeds
+	// int64 range goes through parseBytesSigned's own error branch, which
+	// uses a different wrapper shape ("size %q exceeds signed int64 range")
+	// and does not wrap an inner error.
+	signed := []struct {
+		name string
+		um   func([]byte) error
+	}{
+		{"SSizeV1", func(b []byte) error { var s itoml.SSizeV1; return s.UnmarshalText(b) }},
+		{"SSizeV2", func(b []byte) error { var s itoml.SSizeV2; return s.UnmarshalText(b) }},
+	}
+	for _, in := range []string{"10 EiB", "-10 EiB"} {
+		want := fmt.Sprintf("size %q exceeds signed int64 range", in)
+		for _, u := range signed {
+			t.Run(u.name+"/overflow/"+in, func(t *testing.T) {
+				require.ErrorContains(t, u.um([]byte(in)), want)
+			})
+		}
+	}
+}
+
 // TestApplyEnvOverrides_V2 pins that ApplyEnvOverrides works with SizeV2 /
 // SSizeV2 fields and routes values through humanize semantics (SI decimal
 // for bare k/m/g, as opposed to V1's binary interpretation). The env-override

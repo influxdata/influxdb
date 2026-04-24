@@ -211,8 +211,22 @@ func marshalSizeV1[T ~uint64 | ~int64, BT ~uint64 | ~int64](size T, format func(
 	return out
 }
 
+// parseBytesUnsigned wraps humanize.ParseBytes with the original input text
+// in any error message. humanize's errors may reference only the residual
+// substring it found after its own digit scan (for example an empty string
+// when given non-numeric input), which makes bare errors hard to read.
+// The wrap keeps the inner error reachable via errors.Is.
+func parseBytesUnsigned(text string) (uint64, error) {
+	v, err := humanize.ParseBytes(text)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size %q: %w", text, err)
+	}
+	return v, nil
+}
+
 // parseBytesSigned handles the "strip sign, parse unsigned, reapply sign,
-// range-check int64" flow shared by SSizeV1 and SSizeV2.
+// range-check int64" flow shared by SSizeV1 and SSizeV2. Like
+// parseBytesUnsigned, all returned errors include the original input text.
 func parseBytesSigned(text string) (int64, error) {
 	t := strings.TrimSpace(text)
 	neg := false
@@ -223,7 +237,11 @@ func parseBytesSigned(text string) (int64, error) {
 	}
 	v, err := humanize.ParseBytes(t)
 	if err != nil {
-		return 0, err
+		// Wrap with the original (pre-sign-strip) input: humanize's errors
+		// may reference a residual substring after its own digit scan, not
+		// the text the caller passed in. Using %w keeps the inner error
+		// reachable via errors.Is.
+		return 0, fmt.Errorf("invalid size %q: %w", text, err)
 	}
 	if neg {
 		// Special case: |MinInt64| = MaxInt64 + 1, which fits in uint64 but
@@ -232,12 +250,12 @@ func parseBytesSigned(text string) (int64, error) {
 			return math.MinInt64, nil
 		}
 		if v > math.MaxInt64 {
-			return 0, fmt.Errorf("value %d exceeds signed int64 range", v)
+			return 0, fmt.Errorf("size %q exceeds signed int64 range", text)
 		}
 		return -int64(v), nil
 	}
 	if v > math.MaxInt64 {
-		return 0, fmt.Errorf("value %d exceeds signed int64 range", v)
+		return 0, fmt.Errorf("size %q exceeds signed int64 range", text)
 	}
 	return int64(v), nil
 }
@@ -286,6 +304,8 @@ func unmarshalSizeV1[T ~uint64 | ~int64, B ~uint64 | ~int64](
 	rewritten := rewriteBareIECSuffix(text)
 	v, err := humanizeParse(string(rewritten))
 	if err != nil {
+		// humanizeParse is expected to wrap its own errors with the input
+		// text (see parseBytesUnsigned / parseBytesSigned); no extra wrap here.
 		return err
 	}
 	*dst = T(v)
@@ -339,7 +359,7 @@ var _ pflag.Value = (*SizeV1)(nil)
 // mixed forms are rewritten to humanize's explicit IEC form ("1k " →
 // "1 kib") before parsing.
 func (s *SizeV1) UnmarshalText(text []byte) error {
-	return unmarshalSizeV1(s, text, sizeV1Pattern, strconv.ParseUint, humanize.ParseBytes)
+	return unmarshalSizeV1(s, text, sizeV1Pattern, strconv.ParseUint, parseBytesUnsigned)
 }
 
 // MarshalText emits the compact form ("1g"/"512m") that older 1.x influxd
@@ -437,7 +457,7 @@ var _ pflag.Value = (*SizeV2)(nil)
 // 'k'/'m'/'g' mean SI decimal (1000-based), IEC binary requires explicit
 // "kib"/"mib"/"gib".
 func (s *SizeV2) UnmarshalText(text []byte) error {
-	v, err := humanize.ParseBytes(string(text))
+	v, err := parseBytesUnsigned(string(text))
 	if err != nil {
 		return err
 	}
