@@ -393,7 +393,7 @@ func TestSSizeV1_MarshalText(t *testing.T) {
 }
 
 func TestSSizeV1_RoundTrip(t *testing.T) {
-	// Values stay within float64's exact-integer range — see TestSize_RoundTrip.
+	// Values stay within float64's exact-integer range — see TestSizeV1_RoundTrip.
 	for _, size := range []itoml.SSizeV1{
 		0, 1, -1, 1023, -1023,
 		1 << 10, -(1 << 10), 100 << 10, -(100 << 10),
