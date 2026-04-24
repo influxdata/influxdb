@@ -859,7 +859,7 @@ func TestVerifyConfigType_AllImplemented(t *testing.T) {
 		Ptrs []*defaulterSub `toml:"ptrs"`
 		// Primitive slices and TextUnmarshaler slices are exempt.
 		Strs  []string         `toml:"strs"`
-		Sizes []itoml.SizeV1     `toml:"sizes"`
+		Sizes []itoml.SizeV1   `toml:"sizes"`
 		Durs  []itoml.Duration `toml:"durs"`
 	}
 	require.NoError(t, itoml.VerifyConfigType(config{}))
@@ -1092,7 +1092,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		NilPtr          *nestedConfig           `toml:"nilptr"`
 		UnmarshalSlice  []stringUnmarshaler     `toml:"strings"`
 		LogLevel        zapcore.Level           `toml:"loglevel"`
-		MaxSize         itoml.SizeV1              `toml:"maxSize"`
+		MaxSize         itoml.SizeV1            `toml:"maxSize"`
 		Group           itoml.Group             `toml:"group"`
 		GroupNumeric    itoml.Group             `toml:"groupnumeric"`
 		GroupEmpty      itoml.Group             `toml:"groupempty"`
@@ -1101,18 +1101,18 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		StrSlice3       []string                `toml:"strslice3"`
 		IntSlice        []int                   `toml:"intslice"`
 		IntSlice2       []int                   `toml:"intslice2"`
-		SizeSlice       []itoml.SizeV1            `toml:"sizeslice"`
-		SizeSlice2      []itoml.SizeV1            `toml:"sizeslice2"`
-		SizeSlice3      []itoml.SizeV1            `toml:"sizeslice3"`
+		SizeSlice       []itoml.SizeV1          `toml:"sizeslice"`
+		SizeSlice2      []itoml.SizeV1          `toml:"sizeslice2"`
+		SizeSlice3      []itoml.SizeV1          `toml:"sizeslice3"`
 		DurationSlice   []itoml.Duration        `toml:"durationslice"`
 		DurationSlice2  []itoml.Duration        `toml:"durationslice2"`
 		NestedSlice     []nestedConfig          `toml:"nestedslice"`
 		EmbedSlice      []nestedWithEmbedConfig `toml:"embedslice"`
 		IntSlice3       []int                   `toml:"intslice3"`
-		SSize           itoml.SSizeV1             `toml:"ssize"`
-		SSizeSlice      []itoml.SSizeV1           `toml:"ssizeslice"`
-		SSizeSlice2     []itoml.SSizeV1           `toml:"ssizeslice2"`
-		SSizeSlice3     []itoml.SSizeV1           `toml:"ssizeslice3"`
+		SSize           itoml.SSizeV1           `toml:"ssize"`
+		SSizeSlice      []itoml.SSizeV1         `toml:"ssizeslice"`
+		SSizeSlice2     []itoml.SSizeV1         `toml:"ssizeslice2"`
+		SSizeSlice3     []itoml.SSizeV1         `toml:"ssizeslice3"`
 		MultiHyphenName string                  `toml:"multi-hyphen-name"`
 
 		EmbeddedConfig
@@ -1267,8 +1267,8 @@ func TestEnvOverride_Errors(t *testing.T) {
 		Float        float64        `toml:"float"`
 		Bool         bool           `toml:"bool"`
 		Duration     itoml.Duration `toml:"duration"`
-		Size         itoml.SizeV1     `toml:"size"`
-		SSize        itoml.SSizeV1    `toml:"ssize"`
+		Size         itoml.SizeV1   `toml:"size"`
+		SSize        itoml.SSizeV1  `toml:"ssize"`
 		Ints         []int          `toml:"ints"`
 		NoDefaulters []noDefaulter  `toml:"nodefaulter"`
 	}
@@ -1546,7 +1546,7 @@ func TestEnvOverride_CommaSeparatedTextUnmarshaler(t *testing.T) {
 	// when starting from an empty slice.
 	type config struct {
 		Durations []itoml.Duration `toml:"durations"`
-		Sizes     []itoml.SizeV1     `toml:"sizes"`
+		Sizes     []itoml.SizeV1   `toml:"sizes"`
 	}
 
 	env := func(s string) string {
@@ -1928,7 +1928,7 @@ func TestEnvOverride_AllocatesPointerWhenGrowingTextUnmarshalerSlice(t *testing.
 	// Entries should be allocated when growing a slice of pointers to TextUnmarshalers.
 	type config struct {
 		Durations []*itoml.Duration `toml:"durations"`
-		Sizes     []*itoml.SizeV1     `toml:"sizes"`
+		Sizes     []*itoml.SizeV1   `toml:"sizes"`
 	}
 
 	// We'll use indexed env vars to grow durations, and unindexed csv to grow sizes
@@ -2078,12 +2078,12 @@ func TestEnvOverride_SparseIndexedSlice(t *testing.T) {
 }
 
 type subLeafConfig struct {
-	Str   string     `toml:"str"`
-	Int   int        `toml:"int"`
-	Uint  uint       `toml:"uint"`
+	Str   string       `toml:"str"`
+	Int   int          `toml:"int"`
+	Uint  uint         `toml:"uint"`
 	Size  itoml.SizeV1 `toml:"size"`
-	Bool  bool       `toml:"bool"`
-	Float float64    `toml:"float"`
+	Bool  bool         `toml:"bool"`
+	Float float64      `toml:"float"`
 }
 
 func (sc *subLeafConfig) ApplyDefaults() {
@@ -2421,10 +2421,11 @@ func TestSizeV2_TOMLEncode(t *testing.T) {
 // precision when MarshalText emitted humanize.IBytes output. Every value
 // must come back exact.
 //
-// Values stay ≤ MaxInt64: BurntSushi/toml represents integers as int64
-// internally, so uint64 values above that range can't be encoded as TOML
-// integers regardless of the underlying Go type. Real influxd size configs
-// never approach 2^63 bytes (~9 EiB).
+// Values stay ≤ MaxInt64 because TOML integers are 64-bit signed per the
+// spec — BurntSushi/toml's decoder rejects uint64 values above MaxInt64
+// as out-of-range. (Its encoder permissively emits them anyway, which is
+// why TestSizeV2_TOMLEncode can include MaxUint64.) Real influxd size
+// configs never approach 2^63 bytes (~9 EiB).
 func TestSizeV2_TOMLRoundTrip(t *testing.T) {
 	type cfg struct {
 		V itoml.SizeV2 `toml:"v"`
@@ -2643,7 +2644,7 @@ func TestSSizeV2_TOMLRoundTrip(t *testing.T) {
 // and the MinInt64 special case in negAsUint64 (which avoids int64 overflow
 // when negating the absolute value).
 func TestSSizeV2_StringNegative(t *testing.T) {
-	require.Equal(t, "-1.0 KiB", itoml.SSizeV2(-(1<<10)).String())
+	require.Equal(t, "-1.0 KiB", itoml.SSizeV2(-(1 << 10)).String())
 	require.Equal(t, "-8.0 EiB", itoml.SSizeV2(math.MinInt64).String())
 }
 
@@ -2660,7 +2661,7 @@ func TestPflagValueV2(t *testing.T) {
 	fs.Var(&ss, "buffer", "")
 	require.NoError(t, fs.Parse([]string{"--cache", "1KiB", "--buffer", "-1KiB"}))
 	require.Equal(t, itoml.SizeV2(1<<10), s)
-	require.Equal(t, itoml.SSizeV2(-(1<<10)), ss)
+	require.Equal(t, itoml.SSizeV2(-(1 << 10)), ss)
 	require.Equal(t, "Size", s.Type())
 	require.Equal(t, "SSize", ss.Type())
 }
