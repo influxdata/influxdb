@@ -13,9 +13,9 @@ const (
 	// MaxAgeSeconds bounds the queue purge window. 0 disables purging (unbounded growth);
 	// too-small values purge faster than replication can drain (data loss, churn);
 	// too-large values retain data indefinitely (memory/latency bloat).
-	DefaultReplicationMaxAge            int64 = 604800  // 1 week, in seconds
-	MinReplicationMaxAgeSeconds         int64 = 60      // 1 minute
-	MaxReplicationMaxAgeSeconds         int64 = 5184000 // 2 months
+	DefaultReplicationMaxAge    int64 = 604800  // 1 week, in seconds
+	MinReplicationMaxAgeSeconds int64 = 60      // 1 minute
+	MaxReplicationMaxAgeSeconds int64 = 5184000 // 2 months
 )
 
 var ErrMaxQueueSizeTooSmall = errors.Error{
