@@ -21,6 +21,13 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// mapEnv returns a getenv-style lookup closure over m. Keys not in m map
+// to "". Used throughout the env-override tests to replace ad-hoc switch
+// statements with a declarative fixture.
+func mapEnv(m map[string]string) func(string) string {
+	return func(s string) string { return m[s] }
+}
+
 func TestSizeV1_UnmarshalText(t *testing.T) {
 	for _, tc := range []struct {
 		str  string
@@ -1470,19 +1477,13 @@ func TestEnvOverride_DefaultAppliedToNewSliceElements(t *testing.T) {
 		Items []hostConfig `toml:"items"`
 	}
 
-	env := func(s string) string {
-		switch s {
-		// Default host for all elements
-		case "X_ITEMS_HOST":
-			return "localhost"
-		// Element 0 gets just the default host (no indexed overrides)
-		// Element 1 is appended and gets an indexed port override
-		case "X_ITEMS_1_PORT":
-			return "9999"
-		default:
-			return ""
-		}
-	}
+	// X_ITEMS_HOST is the default host for all elements; element 0 gets just
+	// that default (no indexed overrides) while element 1 is appended and
+	// also gets an indexed port override.
+	env := mapEnv(map[string]string{
+		"X_ITEMS_HOST":   "localhost",
+		"X_ITEMS_1_PORT": "9999",
+	})
 
 	c := config{Items: []hostConfig{{Port: 80}}}
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -1549,16 +1550,10 @@ func TestEnvOverride_CommaSeparatedTextUnmarshaler(t *testing.T) {
 		Sizes     []itoml.SizeV1   `toml:"sizes"`
 	}
 
-	env := func(s string) string {
-		switch s {
-		case "X_DURATIONS":
-			return "1m,2m,3m"
-		case "X_SIZES":
-			return "128m, 256m"
-		default:
-			return ""
-		}
-	}
+	env := mapEnv(map[string]string{
+		"X_DURATIONS": "1m,2m,3m",
+		"X_SIZES":     "128m, 256m",
+	})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -1579,16 +1574,10 @@ func TestEnvOverride_LeafTypesCannotMixIndexedAndUnindexed(t *testing.T) {
 		Vals []string `toml:"vals"`
 	}
 
-	env := func(s string) string {
-		switch s {
-		case "X_VALS":
-			return "a,b,c"
-		case "X_VALS_0":
-			return "override"
-		default:
-			return ""
-		}
-	}
+	env := mapEnv(map[string]string{
+		"X_VALS":   "a,b,c",
+		"X_VALS_0": "override",
+	})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -1603,14 +1592,7 @@ func TestEnvOverride_LeafTypeUnindexedErasesExisting(t *testing.T) {
 		Vals []string `toml:"vals"`
 	}
 
-	env := func(s string) string {
-		switch s {
-		case "X_VALS":
-			return "a,b,c"
-		default:
-			return ""
-		}
-	}
+	env := mapEnv(map[string]string{"X_VALS": "a,b,c"})
 
 	for _, tc := range []struct {
 		name string
@@ -1673,15 +1655,10 @@ func TestEnvOverride_GrowNestedStructMixedDefaultAndIndexed(t *testing.T) {
 		Sub []defaulterSub `toml:"sub"`
 	}
 
-	env := func(s string) string {
-		switch s {
-		case "X_SUB_0_A":
-			return "override [0].a"
-		case "X_SUB_B":
-			return "default b"
-		}
-		return ""
-	}
+	env := mapEnv(map[string]string{
+		"X_SUB_0_A": "override [0].a",
+		"X_SUB_B":   "default b",
+	})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -1710,15 +1687,10 @@ func TestEnvOverride_GrowReversedNestedStructMixedDefaultAndIndexed(t *testing.T
 		Sub []reverseConfigSub `toml:"sub"`
 	}
 
-	env := func(s string) string {
-		switch s {
-		case "X_SUB_0_A":
-			return "override [0].a"
-		case "X_SUB_B":
-			return "default b"
-		}
-		return ""
-	}
+	env := mapEnv(map[string]string{
+		"X_SUB_0_A": "override [0].a",
+		"X_SUB_B":   "default b",
+	})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -1765,15 +1737,10 @@ func TestEnvOverride_GrowIndexedOverridesBuiltinDefaults(t *testing.T) {
 		Sub []defaulterSub `toml:"sub"`
 	}
 
-	env := func(s string) string {
-		switch s {
-		case "X_SUB_B": // unindexed broadcast — overrides built-in B
-			return "broadcast-b"
-		case "X_SUB_0_C": // indexed override — wins over both
-			return "indexed-c"
-		}
-		return ""
-	}
+	env := mapEnv(map[string]string{
+		"X_SUB_B":   "broadcast-b", // unindexed broadcast — overrides built-in B
+		"X_SUB_0_C": "indexed-c",   // indexed override — wins over both
+	})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -1889,19 +1856,12 @@ func TestEnvOverride_AllocatesPointerWhenGrowingScalarSlice(t *testing.T) {
 
 	// We'll use indexed env vars to grow names, and unindexed csv to grow counts
 	// to check both code paths.
-	env := func(s string) string {
-		switch s {
-		case "X_NAMES_0":
-			return "Alice"
-		case "X_NAMES_1":
-			return "Bob"
-		case "X_NAMES_2":
-			return "Carol"
-		case "X_COUNTS":
-			return "100,200,300"
-		}
-		return ""
-	}
+	env := mapEnv(map[string]string{
+		"X_NAMES_0": "Alice",
+		"X_NAMES_1": "Bob",
+		"X_NAMES_2": "Carol",
+		"X_COUNTS":  "100,200,300",
+	})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -1933,19 +1893,12 @@ func TestEnvOverride_AllocatesPointerWhenGrowingTextUnmarshalerSlice(t *testing.
 
 	// We'll use indexed env vars to grow durations, and unindexed csv to grow sizes
 	// to check both code paths.
-	env := func(s string) string {
-		switch s {
-		case "X_DURATIONS_0":
-			return "30s"
-		case "X_DURATIONS_1":
-			return "30m"
-		case "X_DURATIONS_2":
-			return "4h"
-		case "X_SIZES":
-			return "128,1k,1m"
-		}
-		return ""
-	}
+	env := mapEnv(map[string]string{
+		"X_DURATIONS_0": "30s",
+		"X_DURATIONS_1": "30m",
+		"X_DURATIONS_2": "4h",
+		"X_SIZES":       "128,1k,1m",
+	})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -1976,19 +1929,12 @@ func TestEnvOverride_AllocatesPointerWhenGrowingStructSlice(t *testing.T) {
 
 	// Structs only support indexed env var overrides.
 	// to check both code paths.
-	env := func(s string) string {
-		switch s {
-		case "X_SUB_0_A":
-			return "my a"
-		case "X_SUB_1_B":
-			return "my b"
-		case "X_SUB_2_C":
-			return "my c"
-		case "X_SUB_C":
-			return "new default c"
-		}
-		return ""
-	}
+	env := mapEnv(map[string]string{
+		"X_SUB_0_A": "my a",
+		"X_SUB_1_B": "my b",
+		"X_SUB_2_C": "my c",
+		"X_SUB_C":   "new default c",
+	})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -2040,13 +1986,7 @@ func TestEnvOverride_FalseGrowFromDefault(t *testing.T) {
 		Sub []defaulterSub `toml:"sub"`
 	}
 
-	env := func(s string) string {
-		switch s {
-		case "X_SUB_B":
-			return "default b"
-		}
-		return ""
-	}
+	env := mapEnv(map[string]string{"X_SUB_B": "default b"})
 
 	var c config
 	appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
@@ -2646,6 +2586,44 @@ func TestSSizeV2_TOMLRoundTrip(t *testing.T) {
 func TestSSizeV2_StringNegative(t *testing.T) {
 	require.Equal(t, "-1.0 KiB", itoml.SSizeV2(-(1 << 10)).String())
 	require.Equal(t, "-8.0 EiB", itoml.SSizeV2(math.MinInt64).String())
+}
+
+// TestApplyEnvOverrides_V2 pins that ApplyEnvOverrides works with SizeV2 /
+// SSizeV2 fields and routes values through humanize semantics (SI decimal
+// for bare k/m/g, as opposed to V1's binary interpretation). The env-override
+// framework reaches these types via their TextUnmarshaler interface, so this
+// mostly exercises the TextUnmarshaler branch of applyEnvOverrides coupled
+// with the V2-specific parse semantics.
+func TestApplyEnvOverrides_V2(t *testing.T) {
+	type config struct {
+		Size  itoml.SizeV2  `toml:"size"`
+		SSize itoml.SSizeV2 `toml:"ssize"`
+	}
+	t.Run("bare letter uses SI decimal", func(t *testing.T) {
+		env := mapEnv(map[string]string{
+			"X_SIZE":  "1k",  // V2 semantics: 1000, not 1024
+			"X_SSIZE": "-1m", // V2 semantics: -1_000_000
+		})
+		var c config
+		applied, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.NoError(t, err)
+		require.Equal(t, itoml.SizeV2(1000), c.Size)
+		require.Equal(t, itoml.SSizeV2(-1_000_000), c.SSize)
+		require.ElementsMatch(t, []string{"X_SIZE", "X_SSIZE"}, applied)
+	})
+	t.Run("explicit IEC suffix", func(t *testing.T) {
+		env := mapEnv(map[string]string{"X_SIZE": "1 GiB"})
+		var c config
+		_, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.NoError(t, err)
+		require.Equal(t, itoml.SizeV2(1<<30), c.Size)
+	})
+	t.Run("invalid value surfaces error", func(t *testing.T) {
+		env := mapEnv(map[string]string{"X_SIZE": "nope"})
+		var c config
+		_, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.ErrorContains(t, err, "X_SIZE")
+	})
 }
 
 // TestPflagValueV2 is the V2 counterpart to TestPflagValue. It exercises
