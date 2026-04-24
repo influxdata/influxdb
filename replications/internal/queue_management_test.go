@@ -709,6 +709,37 @@ func TestGetReplications(t *testing.T) {
 	require.ElementsMatch(t, expectedRepls, repls)
 }
 
+func TestNewReplicationQueueMaxAge(t *testing.T) {
+	t.Parallel()
+
+	weekDefault := time.Duration(influxdb.DefaultReplicationMaxAge) * time.Second
+	minAge := time.Duration(influxdb.MinReplicationMaxAgeSeconds) * time.Second
+	maxAge := time.Duration(influxdb.MaxReplicationMaxAgeSeconds) * time.Second
+
+	tests := []struct {
+		name          string
+		maxAgeSeconds int64
+		expected      time.Duration
+	}{
+		{"zero uses default", 0, weekDefault},
+		{"negative uses default", -1, weekDefault},
+		{"below minimum clamped to min", 1, minAge},
+		{"just below minimum clamped to min", influxdb.MinReplicationMaxAgeSeconds - 1, minAge},
+		{"at minimum kept", influxdb.MinReplicationMaxAgeSeconds, minAge},
+		{"in range kept", influxdb.DefaultReplicationMaxAge, weekDefault},
+		{"at maximum kept", influxdb.MaxReplicationMaxAgeSeconds, maxAge},
+		{"just above maximum clamped to max", influxdb.MaxReplicationMaxAgeSeconds + 1, maxAge},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, qm := initQueueManager(t)
+			rq := qm.newReplicationQueue(id1, orgID1, localBucketID1, nil, tt.maxAgeSeconds)
+			require.Equal(t, tt.expected, rq.maxAge)
+		})
+	}
+}
+
 func TestReplicationStartMissingQueue(t *testing.T) {
 	t.Parallel()
 

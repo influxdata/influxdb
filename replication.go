@@ -10,12 +10,23 @@ import (
 const (
 	MinReplicationMaxQueueSizeBytes     int64 = 33554430 // 32 MiB
 	DefaultReplicationMaxQueueSizeBytes       = 2 * MinReplicationMaxQueueSizeBytes
-	DefaultReplicationMaxAge            int64 = 604800 // 1 week, in seconds
+	// MaxAgeSeconds bounds the queue purge window. 0 disables purging (unbounded growth);
+	// too-small values purge faster than replication can drain (data loss, churn);
+	// too-large values retain data indefinitely (memory/latency bloat).
+	DefaultReplicationMaxAge    int64 = 604800  // 1 week, in seconds
+	MinReplicationMaxAgeSeconds int64 = 60      // 1 minute
+	MaxReplicationMaxAgeSeconds int64 = 5184000 // 2 months
 )
 
 var ErrMaxQueueSizeTooSmall = errors.Error{
 	Code: errors.EInvalid,
 	Msg:  fmt.Sprintf("maxQueueSize too small, must be at least %d", MinReplicationMaxQueueSizeBytes),
+}
+
+var ErrMaxAgeOutOfRange = errors.Error{
+	Code: errors.EInvalid,
+	Msg: fmt.Sprintf("maxAgeSeconds must be 0 (use default) or between %d and %d",
+		MinReplicationMaxAgeSeconds, MaxReplicationMaxAgeSeconds),
 }
 
 // Replication contains all info about a replication that should be returned to users.
@@ -73,12 +84,20 @@ type CreateReplicationRequest struct {
 	MaxAgeSeconds        int64       `json:"maxAgeSeconds,omitempty"`
 }
 
+func checkMaxAgeInRange(maxAge int64) error {
+	// 0 is allowed as a sentinel meaning "use default"; non-zero must fall within bounds.
+	if maxAge != 0 && (maxAge < MinReplicationMaxAgeSeconds || maxAge > MaxReplicationMaxAgeSeconds) {
+		return &ErrMaxAgeOutOfRange
+	}
+	return nil
+}
+
 func (r *CreateReplicationRequest) OK() error {
 	if r.MaxQueueSizeBytes < MinReplicationMaxQueueSizeBytes {
 		return &ErrMaxQueueSizeTooSmall
 	}
 
-	return nil
+	return checkMaxAgeInRange(r.MaxAgeSeconds)
 }
 
 // UpdateReplicationRequest contains a partial update to existing info about a replication.
@@ -94,12 +113,12 @@ type UpdateReplicationRequest struct {
 }
 
 func (r *UpdateReplicationRequest) OK() error {
-	if r.MaxQueueSizeBytes == nil {
-		return nil
+	if r.MaxQueueSizeBytes != nil && *r.MaxQueueSizeBytes < MinReplicationMaxQueueSizeBytes {
+		return &ErrMaxQueueSizeTooSmall
 	}
 
-	if *r.MaxQueueSizeBytes < MinReplicationMaxQueueSizeBytes {
-		return &ErrMaxQueueSizeTooSmall
+	if r.MaxAgeSeconds != nil {
+		return checkMaxAgeInRange(*r.MaxAgeSeconds)
 	}
 
 	return nil

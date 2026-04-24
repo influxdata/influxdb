@@ -483,10 +483,23 @@ func (qm *durableQueueManager) newReplicationQueue(id platform.ID, orgID platfor
 	logger := qm.logger.With(zap.String("replication_id", id.String()))
 	done := make(chan struct{})
 	// check for max age minimum
+	// Legacy persisted replications predate API bounds validation, so clamp
+	// out-of-range positive values to [Min, Max] rather than passing them through.
 	var maxAgeTime time.Duration
-	if maxAgeSeconds < 0 {
+	switch {
+	case maxAgeSeconds <= 0:
 		maxAgeTime = defaultMaxAge
-	} else {
+	case maxAgeSeconds < influxdb.MinReplicationMaxAgeSeconds:
+		maxAgeTime = time.Duration(influxdb.MinReplicationMaxAgeSeconds) * time.Second
+		logger.Warn("maxAgeSeconds below minimum; clamping",
+			zap.Int64("requested", maxAgeSeconds),
+			zap.Int64("clamped_to", influxdb.MinReplicationMaxAgeSeconds))
+	case maxAgeSeconds > influxdb.MaxReplicationMaxAgeSeconds:
+		maxAgeTime = time.Duration(influxdb.MaxReplicationMaxAgeSeconds) * time.Second
+		logger.Warn("maxAgeSeconds above maximum; clamping",
+			zap.Int64("requested", maxAgeSeconds),
+			zap.Int64("clamped_to", influxdb.MaxReplicationMaxAgeSeconds))
+	default:
 		maxAgeTime = time.Duration(maxAgeSeconds) * time.Second
 	}
 
