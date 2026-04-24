@@ -723,9 +723,12 @@ func TestNewReplicationQueueMaxAge(t *testing.T) {
 	}{
 		{"zero uses default", 0, weekDefault},
 		{"negative uses default", -1, weekDefault},
+		{"below minimum clamped to min", 1, minAge},
+		{"just below minimum clamped to min", influxdb.MinReplicationMaxAgeSeconds - 1, minAge},
 		{"at minimum kept", influxdb.MinReplicationMaxAgeSeconds, minAge},
 		{"in range kept", influxdb.DefaultReplicationMaxAge, weekDefault},
 		{"at maximum kept", influxdb.MaxReplicationMaxAgeSeconds, maxAge},
+		{"just above maximum clamped to max", influxdb.MaxReplicationMaxAgeSeconds + 1, maxAge},
 	}
 
 	for _, tt := range tests {
