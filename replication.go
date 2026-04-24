@@ -84,7 +84,7 @@ type CreateReplicationRequest struct {
 	MaxAgeSeconds        int64       `json:"maxAgeSeconds,omitempty"`
 }
 
-func CheckMaxAgeInRange(maxAge int64) error {
+func checkMaxAgeInRange(maxAge int64) error {
 	// 0 is allowed as a sentinel meaning "use default"; non-zero must fall within bounds.
 	if maxAge != 0 && (maxAge < MinReplicationMaxAgeSeconds || maxAge > MaxReplicationMaxAgeSeconds) {
 		return &ErrMaxAgeOutOfRange
@@ -97,7 +97,7 @@ func (r *CreateReplicationRequest) OK() error {
 		return &ErrMaxQueueSizeTooSmall
 	}
 
-	return CheckMaxAgeInRange(r.MaxAgeSeconds)
+	return checkMaxAgeInRange(r.MaxAgeSeconds)
 }
 
 // UpdateReplicationRequest contains a partial update to existing info about a replication.
@@ -118,7 +118,7 @@ func (r *UpdateReplicationRequest) OK() error {
 	}
 
 	if r.MaxAgeSeconds != nil {
-		return CheckMaxAgeInRange(*r.MaxAgeSeconds)
+		return checkMaxAgeInRange(*r.MaxAgeSeconds)
 	}
 
 	return nil
