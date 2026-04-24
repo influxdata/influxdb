@@ -299,6 +299,13 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		return err
 	}
 	m.metastoresReady.Ready()
+
+	// Surface metastore liveness on /health. In-memory KV (testing mode)
+	// has no meaningful failure surface; skip it.
+	if boltKV, ok := m.kvStore.(*bolt.KVStore); ok {
+		m.checkHandler.AddHealthCheck(boltKV)
+	}
+	m.checkHandler.AddHealthCheck(m.sqlStore)
 	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	tenantStore := tenant.NewStore(m.kvStore)
@@ -558,6 +565,12 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		}
 
 		m.scheduler = sch
+
+		// Register a pulse health check for the real tree scheduler.
+		// NoopScheduler has no pulse to monitor; skip it.
+		if treeSch, ok := sch.(*scheduler.TreeScheduler); ok {
+			m.checkHandler.AddHealthCheck(run.NewSchedulerPulseCheck(treeSch, run.DefaultSchedulerPulseThreshold))
+		}
 
 		coordLogger := m.log.With(zap.String("service", "task-coordinator"))
 		taskCoord := coordinator.NewCoordinator(

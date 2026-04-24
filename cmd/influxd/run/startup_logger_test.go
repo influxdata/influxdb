@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestStartupProgressLogger_CheckName(t *testing.T) {
-	require.Equal(t, "shards", NewStartupProgressLogger(zaptest.NewLogger(t)).CheckName())
+	require.Equal(t, ShardsCheckName, NewStartupProgressLogger(zaptest.NewLogger(t)).CheckName())
 }
 
 func TestStartupProgressLogger_CheckWaiting(t *testing.T) {
@@ -22,7 +23,7 @@ func TestStartupProgressLogger_CheckWaiting(t *testing.T) {
 
 	resp := s.Check(context.Background())
 	require.Equal(t, check.StatusFail, resp.Status)
-	require.Equal(t, "waiting for shard enumeration", resp.Message)
+	require.Equal(t, msgWaitingForShardEnumeration, resp.Message)
 }
 
 func TestStartupProgressLogger_CheckInProgress(t *testing.T) {
@@ -37,7 +38,7 @@ func TestStartupProgressLogger_CheckInProgress(t *testing.T) {
 
 	resp := s.Check(context.Background())
 	require.Equal(t, check.StatusFail, resp.Status)
-	require.Equal(t, "loading shards 47.0% (94 / 200)", resp.Message)
+	require.Equal(t, fmt.Sprintf(msgLoadingShardsFmt, 47.0, 94, 200), resp.Message)
 }
 
 func TestStartupProgressLogger_CheckFinishBeforeEnumeration(t *testing.T) {
@@ -70,7 +71,7 @@ func TestStartupProgressLogger_CheckFinishWithError(t *testing.T) {
 
 	resp := s.Check(context.Background())
 	require.Equal(t, check.StatusFail, resp.Status)
-	require.Equal(t, "shard loading failed: disk on fire", resp.Message)
+	require.Equal(t, fmt.Sprintf(msgShardLoadingFailedFmt, "disk on fire"), resp.Message)
 }
 
 func TestStartupProgressLogger_CompletedShardBeforeAddShard(t *testing.T) {

@@ -9,6 +9,16 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// ShardsCheckName is the name surfaced on /ready for the shard-loading
+	// progress check.
+	ShardsCheckName = "shards"
+
+	msgWaitingForShardEnumeration = "waiting for shard enumeration"
+	msgShardLoadingFailedFmt      = "shard loading failed: %s"
+	msgLoadingShardsFmt           = "loading shards %.1f%% (%d / %d)"
+)
+
 type StartupProgressLogger struct {
 	shardsCompleted atomic.Uint64
 	shardsTotal     atomic.Uint64
@@ -57,19 +67,19 @@ func (s *StartupProgressLogger) Finish(err error) {
 
 // CheckName returns the name used when this logger is registered as a
 // check.NamedChecker.
-func (*StartupProgressLogger) CheckName() string { return "shards" }
+func (*StartupProgressLogger) CheckName() string { return ShardsCheckName }
 
 // Check reports readiness. After Finish(nil) it returns StatusPass; after
 // Finish(err) with a non-nil err it returns a terminal StatusFail with the
 // error message. Before Finish it returns StatusFail with a percentage-loaded
-// message, or "waiting for shard enumeration" if the shard count has not yet
+// message, or msgWaitingForShardEnumeration if the shard count has not yet
 // been established.
 func (s *StartupProgressLogger) Check(_ context.Context) check.Response {
 	if s.done.Load() {
 		if msg := s.failErrMsg.Load(); msg != nil {
 			return check.Response{
 				Status:  check.StatusFail,
-				Message: fmt.Sprintf("shard loading failed: %s", *msg),
+				Message: fmt.Sprintf(msgShardLoadingFailedFmt, *msg),
 			}
 		}
 		return check.Pass()
@@ -77,11 +87,11 @@ func (s *StartupProgressLogger) Check(_ context.Context) check.Response {
 	completed := s.shardsCompleted.Load()
 	total := s.shardsTotal.Load()
 	if total == 0 {
-		return check.Response{Status: check.StatusFail, Message: "waiting for shard enumeration"}
+		return check.Response{Status: check.StatusFail, Message: msgWaitingForShardEnumeration}
 	}
 	pct := float64(completed) / float64(total) * 100
 	return check.Response{
 		Status:  check.StatusFail,
-		Message: fmt.Sprintf("loading shards %.1f%% (%d / %d)", pct, completed, total),
+		Message: fmt.Sprintf(msgLoadingShardsFmt, pct, completed, total),
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
+	"time"
 )
 
 // NamedChecker is a superset of Checker that also indicates the name of the service.
@@ -71,6 +72,25 @@ func Error(err error) Response {
 		Status:  StatusFail,
 		Message: err.Error(),
 	}
+}
+
+// DefaultProbeTimeout is the recommended upper bound for a single
+// Check probe. It keeps aggregate /health latency bounded when a
+// subsystem is wedged, while still leaving room for one slow round-trip.
+const DefaultProbeTimeout = 500 * time.Millisecond
+
+// BoundDeadline caps ctx's deadline at max. If ctx already has a deadline
+// at or inside max, it is returned unchanged with a no-op cancel; otherwise
+// a child context with a max-duration deadline is returned. Callers must
+// always defer the returned cancel.
+//
+// Intended for Check implementations that want a bounded probe latency
+// even when /health callers pass context.Background().
+func BoundDeadline(ctx context.Context, max time.Duration) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= max {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, max)
 }
 
 // ReadyGate is a NamedChecker that reports StatusFail until Ready is called,
