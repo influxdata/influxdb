@@ -29,7 +29,7 @@ const (
 	// store.
 	HealthCheckName = "sql"
 	// msgDatabaseNotOpen is returned when Check is called before the DB
-	// has been opened (or after Close).
+	// has been opened.
 	msgDatabaseNotOpen = "sqlite database not open"
 )
 
