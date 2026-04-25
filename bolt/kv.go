@@ -33,8 +33,7 @@ const (
 	// wedged database strands the probe goroutine until it recovers;
 	// this message indicates that state to the caller.
 	ProbeInFlightMsg = "bolt probe in flight (prior probe has not returned)"
-	// msgDatabaseNotOpen is returned when Check is called before Open
-	// (or after Close).
+	// msgDatabaseNotOpen is returned when Check is called before Open.
 	msgDatabaseNotOpen = "bolt database not open"
 )
 
