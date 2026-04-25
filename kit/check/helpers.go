@@ -3,6 +3,8 @@ package check
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
+	"time"
 )
 
 // NamedChecker is a superset of Checker that also indicates the name of the service.
@@ -71,3 +73,49 @@ func Error(err error) Response {
 		Message: err.Error(),
 	}
 }
+
+// DefaultProbeTimeout is the recommended upper bound for a single
+// Check probe. It keeps aggregate /health latency bounded when a
+// subsystem is wedged, while still leaving room for one slow round-trip.
+const DefaultProbeTimeout = 500 * time.Millisecond
+
+// BoundDeadline caps ctx's deadline at max. If ctx already has a deadline
+// at or inside max, it is returned unchanged with a no-op cancel; otherwise
+// a child context with a max-duration deadline is returned. Callers must
+// always defer the returned cancel.
+//
+// Intended for Check implementations that want a bounded probe latency
+// even when /health callers pass context.Background().
+func BoundDeadline(ctx context.Context, max time.Duration) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= max {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, max)
+}
+
+// ReadyGate is a NamedChecker that reports StatusFail until Ready is called,
+// after which it reports StatusPass. It is intended for gating readiness on
+// subsystem init phases that complete once at startup.
+type ReadyGate struct {
+	name  string
+	ready atomic.Bool
+}
+
+// NewReadyGate returns a ReadyGate that initially reports StatusFail.
+func NewReadyGate(name string) *ReadyGate {
+	return &ReadyGate{name: name}
+}
+
+// CheckName returns the configured name of the gate.
+func (g *ReadyGate) CheckName() string { return g.name }
+
+// Check returns StatusPass once Ready has been called, otherwise StatusFail.
+func (g *ReadyGate) Check(context.Context) Response {
+	if g.ready.Load() {
+		return Pass()
+	}
+	return Response{Status: StatusFail, Message: "not ready"}
+}
+
+// Ready flips the gate to report StatusPass.
+func (g *ReadyGate) Ready() { g.ready.Store(true) }

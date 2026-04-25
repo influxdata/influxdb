@@ -11,6 +11,7 @@ import (
 
 	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 
+	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
@@ -23,6 +24,13 @@ const (
 	DefaultFilename     = "influxd.sqlite"
 	InmemPath           = ":memory:"
 	migrationsTableName = "migrations"
+
+	// HealthCheckName is the name surfaced on /health for the sqlite SQL
+	// store.
+	HealthCheckName = "sql"
+	// msgDatabaseNotOpen is returned when Check is called before the DB
+	// has been opened.
+	msgDatabaseNotOpen = "sqlite database not open"
 )
 
 // SqlStore is a wrapper around the db and provides basic functionality for maintaining the db
@@ -66,6 +74,29 @@ func (s *SqlStore) openDB() error {
 	s.DB = db
 
 	return nil
+}
+
+// CheckName returns the name used when this store is registered as a
+// check.NamedChecker.
+func (*SqlStore) CheckName() string { return HealthCheckName }
+
+// Check pings the underlying sqlite database to confirm it is reachable.
+// The probe has an upper bound of check.DefaultProbeTimeout even when
+// ctx has no deadline, so /health latency stays bounded if the driver is
+// wedged. s.Mu is held as a reader so a concurrent RestoreSqlStore
+// (which swaps s.DB under the write lock) cannot observe a torn handle.
+func (s *SqlStore) Check(ctx context.Context) check.Response {
+	s.Mu.RLock()
+	defer s.Mu.RUnlock()
+	if s.DB == nil {
+		return check.Response{Status: check.StatusFail, Message: msgDatabaseNotOpen}
+	}
+	probeCtx, cancel := check.BoundDeadline(ctx, check.DefaultProbeTimeout)
+	defer cancel()
+	if err := s.DB.PingContext(probeCtx); err != nil {
+		return check.Error(err)
+	}
+	return check.Pass()
 }
 
 // Close the connection to the sqlite database

@@ -189,8 +189,8 @@ func TestForceHealthy(t *testing.T) {
 		Name:   "Health",
 		Status: "pass",
 		Checks: Responses{
-			Response{Name: "manual-override", Message: "health manually overridden"},
 			Response{Name: "a", Status: "fail"},
+			Response{Name: "manual-override", Status: "pass", Message: "health manually overridden"},
 		},
 	}
 
@@ -249,7 +249,7 @@ func TestForceUnhealthy(t *testing.T) {
 		Name:   "Health",
 		Status: "fail",
 		Checks: Responses{
-			Response{Name: "manual-override", Message: "health manually overridden"},
+			Response{Name: "manual-override", Status: "fail", Message: "health manually overridden"},
 			Response{Name: "a", Status: "pass"},
 		},
 	}
@@ -309,8 +309,8 @@ func TestForceReady(t *testing.T) {
 		Name:   "Ready",
 		Status: "pass",
 		Checks: Responses{
-			Response{Name: "manual-override", Message: "ready manually overridden"},
 			Response{Name: "a", Status: "fail"},
+			Response{Name: "manual-override", Status: "pass", Message: "ready manually overridden"},
 		},
 	}
 
@@ -369,7 +369,7 @@ func TestForceNotReady(t *testing.T) {
 		Name:   "Ready",
 		Status: "fail",
 		Checks: Responses{
-			Response{Name: "manual-override", Message: "ready manually overridden"},
+			Response{Name: "manual-override", Status: "fail", Message: "ready manually overridden"},
 			Response{Name: "a", Status: "pass"},
 		},
 	}

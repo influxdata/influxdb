@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/check"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -24,12 +25,31 @@ import (
 // check that *KVStore implement kv.SchemaStore interface.
 var _ kv.SchemaStore = (*KVStore)(nil)
 
+const (
+	// HealthCheckName is the name surfaced on /health for the bolt KV store.
+	HealthCheckName = "bolt"
+	// ProbeInFlightMsg is returned when a concurrent Check observes a
+	// prior probe still running. bbolt's View cannot be canceled, so a
+	// wedged database strands the probe goroutine until it recovers;
+	// this message indicates that state to the caller.
+	ProbeInFlightMsg = "bolt probe in flight (prior probe has not returned)"
+	// msgDatabaseNotOpen is returned when Check is called before Open.
+	msgDatabaseNotOpen = "bolt database not open"
+)
+
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
 	path string
 	mu   sync.RWMutex
 	db   *bolt.DB
 	log  *zap.Logger
+
+	// probeMu serializes in-flight health probes. bbolt's View does not
+	// honor context, so a wedged database will strand the probe goroutine
+	// until it recovers. Holding probeMu for the entire goroutine lifetime
+	// (acquired via TryLock in Check, released in the goroutine's defer)
+	// ensures at most one stranded goroutine exists per store.
+	probeMu sync.Mutex
 
 	noSync bool
 }
@@ -155,6 +175,47 @@ func (s *KVStore) WithDB(db *bolt.DB) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.db = db
+}
+
+// CheckName returns the name used when this store is registered as a
+// check.NamedChecker.
+func (*KVStore) CheckName() string { return HealthCheckName }
+
+// Check runs a trivial read transaction against the underlying bolt
+// database to confirm it is reachable. The probe has an upper bound of
+// check.DefaultProbeTimeout even when ctx has no deadline, so /health
+// latency stays bounded if bolt is wedged.
+//
+// bbolt's View does not honor context, so on a timeout the probe
+// goroutine remains blocked inside View until bolt recovers. probeMu is
+// held for that entire goroutine lifetime, so concurrent Check calls
+// observe a locked probeMu and return "probe in flight" immediately
+// rather than spawning additional stranded goroutines.
+func (s *KVStore) Check(ctx context.Context) check.Response {
+	db := s.DB()
+	if db == nil {
+		return check.Response{Status: check.StatusFail, Message: msgDatabaseNotOpen}
+	}
+	if !s.probeMu.TryLock() {
+		return check.Response{Status: check.StatusFail, Message: ProbeInFlightMsg}
+	}
+	probeCtx, cancel := check.BoundDeadline(ctx, check.DefaultProbeTimeout)
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		defer s.probeMu.Unlock()
+		errCh <- db.View(func(*bolt.Tx) error { return nil })
+	}()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return check.Error(err)
+		}
+		return check.Pass()
+	case <-probeCtx.Done():
+		return check.Error(probeCtx.Err())
+	}
 }
 
 // View opens up a view transaction against the store.
