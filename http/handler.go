@@ -134,6 +134,8 @@ func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 		r.Use(
 			kithttp.Metrics(name, h.requests, h.requestDur),
 		)
+		// This handler mounts only metrics and debug endpoints here.
+		// /health and /ready are served separately by HealthReadyHandler.
 		r.Mount(MetricsPath, opt.metricsHTTPHandler())
 		r.Mount(DebugPath, pprof.NewHTTPHandler(opt.pprofEnabled))
 	})
