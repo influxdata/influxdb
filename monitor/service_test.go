@@ -106,7 +106,7 @@ func TestMonitor_StoreStatistics(t *testing.T) {
 		}
 		if spec.ReplicaN != nil {
 			if got, want := *spec.ReplicaN, monitor.MonitorRetentionPolicyReplicaN; got != want {
-				t.Errorf("unexpected replica number: got=%q want=%q", got, want)
+				t.Errorf("unexpected replica number: got=%d want=%d", got, want)
 			}
 		} else {
 			t.Error("expected replica number in retention policy spec")
