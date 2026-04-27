@@ -310,7 +310,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				pv := reflect.ValueOf(destP)
 				if dv.IsValid() && pv.Kind() == reflect.Ptr && dv.Type() == pv.Elem().Type() {
 					pv.Elem().Set(dv)
-				} else if s, err := cast.ToStringE(o.Default); err == nil {
+				} else {
+					s, err := cast.ToStringE(o.Default)
+					if err != nil {
+						return fmt.Errorf("flag %q: cannot resolve Default of type %T: %w", o.Flag, o.Default, err)
+					}
 					_ = destP.Set(s)
 				}
 			}

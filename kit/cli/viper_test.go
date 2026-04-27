@@ -320,16 +320,21 @@ func yamlConfigWriter(shortExt bool) configWriter {
 // string Default goes through the cast.ToStringE → Set path, a typed
 // Default whose type matches destP takes the direct-copy fast path, and
 // a Default whose type neither matches destP nor casts to a string is
-// silently ignored (the destP retains its prior value).
+// rejected at bind time with an error naming the flag and offending type.
 func Test_PFlagValueTypedDefault(t *testing.T) {
 	tests := []struct {
-		name string
-		dflt interface{}
-		want customFlag
+		name             string
+		dflt             interface{}
+		want             customFlag
+		wantBindErrParts []string // non-empty means NewCommand is expected to fail
 	}{
 		{name: "string default still works", dflt: "on", want: customFlag(true)},
 		{name: "typed Stringer default", dflt: customFlag(true), want: customFlag(true)},
-		{name: "non-stringable default is silently skipped", dflt: struct{}{}, want: customFlag(false)},
+		{
+			name:             "non-stringable default is rejected",
+			dflt:             struct{}{},
+			wantBindErrParts: []string{`flag "fancy-bool"`, "cannot resolve Default", "struct {}"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -342,6 +347,13 @@ func Test_PFlagValueTypedDefault(t *testing.T) {
 					{DestP: &got, Flag: "fancy-bool", Default: tt.dflt},
 				},
 			})
+			if len(tt.wantBindErrParts) > 0 {
+				require.Error(t, err)
+				for _, p := range tt.wantBindErrParts {
+					require.Contains(t, err.Error(), p)
+				}
+				return
+			}
 			require.NoError(t, err)
 			cmd.SetArgs([]string{})
 			require.NoError(t, cmd.Execute())
