@@ -907,6 +907,7 @@ func TestVerifyConfigType_SkipsTomlDashTag(t *testing.T) {
 
 func TestVerifyConfigType_SkipsUnexportedFields(t *testing.T) {
 	type config struct {
+		//lint:ignore U1000 intentionally unused — test verifies VerifyConfigType skips unexported fields
 		bad []nonDefaulterSub
 	}
 	require.NoError(t, itoml.VerifyConfigType(config{}))
