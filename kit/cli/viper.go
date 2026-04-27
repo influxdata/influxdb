@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 	"time"
 
@@ -296,7 +297,22 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				flagset.Var(destP, o.Flag, o.Desc)
 			}
 			if o.Default != nil {
-				_ = destP.Set(o.Default.(string))
+				// Prefer a direct value copy when Default's concrete type
+				// matches destP's pointee type. This bypasses the Stringer →
+				// Set round-trip, which is lossy for types whose String() goes
+				// through humanize.IBytes (toml.Size / toml.SSize emit a
+				// rounded form like "24 MiB" for non-power-of-2 byte counts,
+				// which then parses back to a different value). Falling
+				// through to cast.ToStringE keeps Defaults like a plain string
+				// or untyped int working for callers whose Default differs in
+				// type from DestP — e.g. Default: "on" for a customFlag.
+				dv := reflect.ValueOf(o.Default)
+				pv := reflect.ValueOf(destP)
+				if dv.IsValid() && pv.Kind() == reflect.Ptr && dv.Type() == pv.Elem().Type() {
+					pv.Elem().Set(dv)
+				} else if s, err := cast.ToStringE(o.Default); err == nil {
+					_ = destP.Set(s)
+				}
 			}
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)

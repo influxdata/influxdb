@@ -245,5 +245,22 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("unrecognized index %s", c.Index)
 	}
 
+	// These sizes are uint64 on disk but are passed to rate limiters (int) and
+	// the tsi1 log file writer (int64); an oversized config value would
+	// otherwise silently wrap to a negative number and disable rate limiting
+	// or corrupt log-file size accounting.
+	if _, err := c.CompactThroughput.ToInt(); err != nil {
+		return fmt.Errorf("compact-throughput: %w", err)
+	}
+	if _, err := c.CompactThroughputBurst.ToInt(); err != nil {
+		return fmt.Errorf("compact-throughput-burst: %w", err)
+	}
+	if _, err := c.AggressivePointsPerBlock.ToInt(); err != nil {
+		return fmt.Errorf("aggressive-points-per-block: %w", err)
+	}
+	if _, err := c.MaxIndexLogFileSize.ToInt64(); err != nil {
+		return fmt.Errorf("max-index-log-file-size: %w", err)
+	}
+
 	return nil
 }

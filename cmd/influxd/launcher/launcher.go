@@ -434,9 +434,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	m.queryController, err = control.New(control.Config{
 		ConcurrencyQuota:                opts.ConcurrencyQuota,
-		InitialMemoryBytesQuotaPerQuery: opts.InitialMemoryBytesQuotaPerQuery,
-		MemoryBytesQuotaPerQuery:        opts.MemoryBytesQuotaPerQuery,
-		MaxMemoryBytes:                  opts.MaxMemoryBytes,
+		InitialMemoryBytesQuotaPerQuery: int64(opts.InitialMemoryBytesQuotaPerQuery),
+		MemoryBytesQuotaPerQuery:        int64(opts.MemoryBytesQuotaPerQuery),
+		MaxMemoryBytes:                  int64(opts.MaxMemoryBytes),
 		QueueSize:                       opts.QueueSize,
 		ExecutorDependencies:            dependencyList,
 		FluxLogEnabled:                  opts.FluxLogEnabled,
