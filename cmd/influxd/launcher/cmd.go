@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pprof"
 	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/toml"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/vault"
 	"github.com/spf13/cobra"
@@ -182,9 +183,9 @@ type InfluxdOpts struct {
 
 	// Query options.
 	ConcurrencyQuota                int32
-	InitialMemoryBytesQuotaPerQuery int64
-	MemoryBytesQuotaPerQuery        int64
-	MaxMemoryBytes                  int64
+	InitialMemoryBytesQuotaPerQuery toml.SSize
+	MemoryBytesQuotaPerQuery        toml.SSize
+	MaxMemoryBytes                  toml.SSize
 	QueueSize                       int32
 	CoordinatorConfig               coordinator.Config
 
@@ -473,6 +474,9 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Default: o.ConcurrencyQuota,
 			Desc:    "the number of queries that are allowed to execute concurrently. Set to 0 to allow an unlimited number of concurrent queries",
 		},
+		// Default on the next three Opts is documentary: for a pflag.Value
+		// DestP, pflag.Var already uses destP's NewOpts-set value as the help
+		// default, so omitting Default would not change behavior.
 		{
 			DestP:   &o.InitialMemoryBytesQuotaPerQuery,
 			Flag:    "query-initial-memory-bytes",

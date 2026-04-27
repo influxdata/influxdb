@@ -315,6 +315,87 @@ func yamlConfigWriter(shortExt bool) configWriter {
 	}
 }
 
+// Test_PFlagValueTypedDefault confirms the pflag.Value binding path
+// resolves Defaults of various concrete types into the destP value: a
+// string Default goes through the cast.ToStringE → Set path, a typed
+// Default whose type matches destP takes the direct-copy fast path, and
+// a Default whose type neither matches destP nor casts to a string is
+// rejected at bind time with an error naming the flag and offending type.
+func Test_PFlagValueTypedDefault(t *testing.T) {
+	tests := []struct {
+		name             string
+		dflt             interface{}
+		want             customFlag
+		wantBindErrParts []string // non-empty means NewCommand is expected to fail
+	}{
+		{name: "string default still works", dflt: "on", want: customFlag(true)},
+		{name: "typed Stringer default", dflt: customFlag(true), want: customFlag(true)},
+		{
+			name:             "non-stringable default is rejected",
+			dflt:             struct{}{},
+			wantBindErrParts: []string{`flag "fancy-bool"`, "cannot resolve Default", "struct {}"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got customFlag
+			cmd, err := NewCommand(viper.New(), &Program{
+				Name: "test",
+				Run:  func() error { return nil },
+				Opts: []Opt{
+					{DestP: &got, Flag: "fancy-bool", Default: tt.dflt},
+				},
+			})
+			if len(tt.wantBindErrParts) > 0 {
+				require.Error(t, err)
+				for _, p := range tt.wantBindErrParts {
+					require.Contains(t, err.Error(), p)
+				}
+				return
+			}
+			require.NoError(t, err)
+			cmd.SetArgs([]string{})
+			require.NoError(t, cmd.Execute())
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// lossyValue is a pflag.Value whose String() form is deliberately not
+// reversible by Set(): String returns a constant token, and Set ignores its
+// input and assigns a sentinel value. This makes any Stringer→Set round-trip
+// observable: if the kit ever regresses to round-tripping typed Defaults
+// through cast.ToStringE, dest will land on the sentinel instead of the
+// caller's value.
+type lossyValue uint64
+
+func (v lossyValue) String() string    { return "lossy" }
+func (v *lossyValue) Set(string) error { *v = 999; return nil }
+func (v *lossyValue) Type() string     { return "lossy" }
+
+// Test_PFlagValueTypedDefault_BypassesLossyStringer pins down that when
+// Default's concrete type matches destP's pointee type, the kit copies the
+// value directly rather than going through Stringer→Set. Without that
+// bypass, the Default would be silently corrupted for any pflag.Value type
+// whose String() is lossy (the motivating real-world case is toml.Size and
+// toml.SSize, whose humanize.IBytes formatting drifts non-power-of-2 byte
+// counts across a marshal/unmarshal cycle).
+func Test_PFlagValueTypedDefault_BypassesLossyStringer(t *testing.T) {
+	var got lossyValue
+	cmd, err := NewCommand(viper.New(), &Program{
+		Name: "test",
+		Run:  func() error { return nil },
+		Opts: []Opt{
+			{DestP: &got, Flag: "lossy", Default: lossyValue(42)},
+		},
+	})
+	require.NoError(t, err)
+	cmd.SetArgs([]string{})
+	require.NoError(t, cmd.Execute())
+	require.Equal(t, lossyValue(42), got, "typed Default should be copied directly, not round-tripped through Stringer/Set")
+}
+
 func Test_RequiredFlag(t *testing.T) {
 	var testVar string
 	program := &Program{
