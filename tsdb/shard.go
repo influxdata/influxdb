@@ -86,11 +86,6 @@ var (
 	fieldsIndexMagicNumber = []byte{0, 6, 1, 3}
 )
 
-var (
-	// Static objects to prevent small allocs.
-	TimeBytes = []byte("time")
-)
-
 // A ShardError implements the error interface, and contains extra
 // context about the shard that generated the error.
 type ShardError struct {
@@ -631,7 +626,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		tags := p.Tags()
 
 		// Drop any series w/ a "time" tag, these are illegal
-		if v := tags.Get(TimeBytes); v != nil {
+		if v := tags.Get(models.TimeBytes); v != nil {
 			dropped++
 			if reason == "" {
 				reason = fmt.Sprintf(
@@ -689,7 +684,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		iter := p.FieldIterator()
 		validField := false
 		for iter.Next() {
-			if bytes.Equal(iter.FieldKey(), TimeBytes) {
+			if bytes.Equal(iter.FieldKey(), models.TimeBytes) {
 				continue
 			}
 			validField = true

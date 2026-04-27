@@ -876,8 +876,23 @@ func columnsEqual(prev, current []string) bool {
 	return reflect.DeepEqual(prev, current)
 }
 
+func groupingKeysEqual(prev, current []string) bool {
+	if len(prev) != len(current) {
+		return false
+	}
+	for i := range prev {
+		if prev[i] != current[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func headersEqual(prev, current models.Row) bool {
 	if prev.Name != current.Name {
+		return false
+	}
+	if !groupingKeysEqual(prev.GroupingKeys, current.GroupingKeys) {
 		return false
 	}
 	return tagsEqual(prev.Tags, current.Tags) && columnsEqual(prev.Columns, current.Columns)
@@ -890,9 +905,10 @@ func (c *CommandLine) writeCSV(response *client.Response, w io.Writer) {
 		suppressHeaders := len(result.Series) > 0 && headersEqual(previousHeaders, result.Series[0])
 		if !suppressHeaders && len(result.Series) > 0 {
 			previousHeaders = models.Row{
-				Name:    result.Series[0].Name,
-				Tags:    result.Series[0].Tags,
-				Columns: result.Series[0].Columns,
+				Name:         result.Series[0].Name,
+				Tags:         result.Series[0].Tags,
+				GroupingKeys: result.Series[0].GroupingKeys,
+				Columns:      result.Series[0].Columns,
 			}
 		}
 
@@ -920,9 +936,10 @@ func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
 		suppressHeaders := len(result.Series) > 0 && headersEqual(previousHeaders, result.Series[0])
 		if !suppressHeaders && len(result.Series) > 0 {
 			previousHeaders = models.Row{
-				Name:    result.Series[0].Name,
-				Tags:    result.Series[0].Tags,
-				Columns: result.Series[0].Columns,
+				Name:         result.Series[0].Name,
+				Tags:         result.Series[0].Tags,
+				GroupingKeys: result.Series[0].GroupingKeys,
+				Columns:      result.Series[0].Columns,
 			}
 		}
 
@@ -983,6 +1000,9 @@ func (c *CommandLine) formatResults(result client.Result, separator string, supp
 			if len(tags) > 0 {
 				t := fmt.Sprintf("tags: %s", (strings.Join(tags, ", ")))
 				rows = append(rows, t)
+			}
+			if len(row.GroupingKeys) > 0 {
+				rows = append(rows, fmt.Sprintf("group: %s", strings.Join(row.GroupingKeys, ", ")))
 			}
 		}
 

@@ -2,8 +2,10 @@ package query
 
 import (
 	"math"
+	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 )
 
@@ -65,6 +67,10 @@ type Row struct {
 
 	// Values contains the values within the current row.
 	Values []interface{}
+
+	// GroupingKeys contains the names of active date_part grouping
+	// dimensions. Actual per-row values are in the Values slice.
+	GroupingKeys map[string]struct{}
 }
 
 type Cursor interface {
@@ -164,6 +170,7 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 	}
 
 	m := make(map[string]interface{})
+	mapValuer := influxql.MapValuer(m)
 	return scannerCursorBase{
 		fields:  exprs,
 		m:       m,
@@ -173,7 +180,8 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 		valuer: influxql.ValuerEval{
 			Valuer: influxql.MultiValuer(
 				MathValuer{},
-				influxql.MapValuer(m),
+				DatePartValuer{Valuer: mapValuer},
+				mapValuer,
 			),
 			IntegerFloatDivision: true,
 		},
@@ -181,6 +189,10 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 }
 
 func (cur *scannerCursorBase) Scan(row *Row) bool {
+	// Clear date_part state from previous scan so it doesn't leak across rows.
+	delete(cur.m, DatePartDimensionsString)
+	row.GroupingKeys = nil
+
 	ts, name, tags := cur.scan(cur.m)
 	if ts == ZeroTime {
 		return false
@@ -199,8 +211,12 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 	}
 
 	for i, expr := range cur.fields {
+		// Set the timestamp in the map so date_part can access it
+		if callExpr, ok := expr.(*influxql.Call); ok && callExpr.Name == DatePartString {
+			cur.m[models.TimeString] = row.Time
+		}
 		// A special case if the field is time to reduce memory allocations.
-		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == "time" {
+		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
 		}
@@ -210,6 +226,23 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 			// so this can be serialized correctly, but not mistaken for
 			// a null value that needs to be filled.
 			v = NullFloat
+		}
+		if cur.m != nil {
+			if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
+				if dpd, ok := val.(DecodedDatePartKey); ok {
+					dimName := dpd.Expr.String()
+					if row.GroupingKeys == nil {
+						row.GroupingKeys = make(map[string]struct{})
+					}
+					row.GroupingKeys[dimName] = struct{}{}
+					// Only set the column value if this field matches the dimension
+					exprName := strings.TrimSuffix(expr.String(), "::integer")
+					if exprName == dimName {
+						row.Values[i] = dpd.Val
+						continue
+					}
+				}
+			}
 		}
 		row.Values[i] = v
 	}
