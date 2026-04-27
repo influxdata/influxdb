@@ -14,6 +14,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
+	github.com/dustin/go-humanize v1.0.1
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang/mock v1.6.0
@@ -40,6 +41,7 @@ require (
 	github.com/retailnext/hllpp v1.0.1-0.20180308014038-101a6d2f8b52
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/cobra v0.0.3
+	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.1.0
 	github.com/uber/jaeger-client-go v2.28.0+incompatible
@@ -116,7 +118,6 @@ require (
 	github.com/cncf/xds/go v0.0.0-20251210132809-ee656c7534f5 // indirect
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/deepmap/oapi-codegen v1.6.0 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/dvsekhvalnov/jose2go v1.7.0 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
 	github.com/elastic/go-sysinfo v1.8.1 // indirect
@@ -186,7 +187,6 @@ require (
 	github.com/segmentio/kafka-go v0.4.50 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/uber-go/tally/v4 v4.1.17 // indirect
