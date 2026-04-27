@@ -1040,6 +1040,10 @@ func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterat
 // DiskSizeBytes always returns zero bytes, since this is an in-memory index.
 func (i *Index) DiskSizeBytes() int64 { return 0 }
 
+// TagValueCacheBytes always returns zero bytes, since the in-memory index
+// does not use a tag value series ID cache.
+func (i *Index) TagValueCacheBytes() int64 { return 0 }
+
 // Rebuild recreates the measurement indexes to allow deleted series to be removed
 // and garbage collected.
 func (i *Index) Rebuild() {
