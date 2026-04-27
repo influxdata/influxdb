@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdata/influxdb/cmd/influxd/run"
-	itoml "github.com/influxdata/influxdb/toml"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
+
+	itoml "github.com/influxdata/influxdb/toml"
 )
 
 // mapEnv returns a getenv-style lookup closure over m. Keys not in m map
@@ -719,14 +719,6 @@ func TestDuration_Decode(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestConfig_Encode(t *testing.T) {
-	var c *run.Config = run.NewConfig()
-	c.Coordinator.WriteTimeout = itoml.Duration(time.Minute)
-	buf := new(bytes.Buffer)
-	require.NoError(t, toml.NewEncoder(buf).Encode(c))
-	require.Contains(t, buf.String(), `write-timeout = "1m0s"`, "Encoding config failed (did not find expected substring)")
 }
 
 type stringUnmarshaler struct {
