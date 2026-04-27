@@ -133,26 +133,31 @@ var bareIECSuffixRe = regexp.MustCompile(`\A(.*[0-9\s])\s*([kKmMgG])\s*\z`)
 // ensures we never override a longer humanize suffix: "1kb" ends in
 // 'b', "1kib" ends in 'b' — neither matches, both fall through to
 // humanize with their native meanings (1000 and 1024 respectively).
-func rewriteBareIECSuffix(text []byte) []byte {
+func rewriteBareIECSuffix(text []byte) ([]byte, error) {
 	m := bareIECSuffixRe.FindSubmatch(text)
 	if m == nil {
-		return text
+		return text, nil
 	}
 	var canonical string
-	switch m[2][0] {
+	bareSuffix := m[2][0]
+	switch bareSuffix {
 	case 'k', 'K':
 		canonical = "kib"
 	case 'm', 'M':
 		canonical = "mib"
 	case 'g', 'G':
 		canonical = "gib"
+	default:
+		// This error can only occur if bareIECSuffixRe is buggy and letting
+		// through invalid suffixes.
+		return nil, fmt.Errorf("invalid bare IEC suffix: %q", bareSuffix)
 	}
 	numPart := bytes.TrimSpace(m[1])
 	out := make([]byte, 0, len(numPart)+1+len(canonical))
 	out = append(out, numPart...)
 	out = append(out, ' ')
 	out = append(out, canonical...)
-	return out
+	return out, nil
 }
 
 // The 1.x Size / SSize accept pattern, extended to allow whitespace between
@@ -301,7 +306,10 @@ func unmarshalSizeV1[T ~uint64 | ~int64, B ~uint64 | ~int64](
 		*dst = T(result)
 		return nil
 	}
-	rewritten := rewriteBareIECSuffix(text)
+	rewritten, err := rewriteBareIECSuffix(text)
+	if err != nil {
+		return fmt.Errorf("bad suffix for %q: %w", text, err)
+	}
 	v, err := humanizeParse(string(rewritten))
 	if err != nil {
 		// humanizeParse is expected to wrap its own errors with the input
