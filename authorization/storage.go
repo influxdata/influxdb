@@ -26,7 +26,7 @@ supported. Opt-in support for hashed tokens was introduced in 2.8.0. Since 2.9.0
 by default but still supports opt-out with "--use-hashed-tokens=false"
 
 Upgrading the BoltDB schema is automatic on startup when using a new version of InfluxDB with token hashing support.
-Additionally, raw tokens are automatically migrated to hashed tokens if `--use-hashed-tokens` is configured.
+Additionally, raw tokens are automatically migrated to hashed tokens if whenever token hashing is enabled.
 Due to the schema changes, to use a version of InfluxDB without hashed token support, a manual downgrade using
 `influxd downgrade` must be run. Any tokens stored as hashed tokens will be unusable by the old version of InfluxDB
 and must be reset or recreated.
