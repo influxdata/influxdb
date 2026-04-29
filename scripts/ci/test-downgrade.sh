@@ -87,7 +87,7 @@ function wait_for_influxd () {
 function setup_influxd () {
     local -r influxd_path=$1 tmp=$2
     INFLUXD_BOLT_PATH="${tmp}/influxd.bolt" INFLUXD_SQLITE_PATH="${tmp}/influxd.sqlite" INFLUXD_ENGINE_PATH="${tmp}/engine" \
-        "$influxd_path" &
+        "$influxd_path" --use-hashed-tokens=false &
     local -r influxd_pid="$!"
 
     wait_for_influxd "$influxd_pid"
