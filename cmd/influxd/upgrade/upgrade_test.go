@@ -323,7 +323,7 @@ func TestUpgradeRealDB(t *testing.T) {
 			require.NotEqual(t, token, auths[0].HashedToken, "hashed token should not be the token.")
 			require.Empty(t, auths[0].Token, "token should be empty when token hashing is enabled. Was UseHashedTokens default changed?")
 
-			// Verify the that the HashedToken has been hashed properly.
+			// Verify that HashedToken has been hashed properly.
 			decoder := crypt.NewDecoder()
 			require.NoError(t, influxdb2.RegisterDecoder(decoder))
 			digest, err := decoder.Decode(auths[0].HashedToken)
