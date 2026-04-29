@@ -811,7 +811,7 @@ jobs:
       - attach_workspace:
           at: ~/project
       - run:
-          command: ./bin/influxd_linux_amd64/influxd --store=memory --log-level=debug
+          command: ./bin/influxd_linux_amd64/influxd --use-hashed-tokens=false --store=memory --log-level=debug
           background: true
       - run: mkdir -p ~/project/results
       - run:
