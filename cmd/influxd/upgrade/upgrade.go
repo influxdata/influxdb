@@ -657,7 +657,7 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 	// We explicitly disable hashed tokens during upgrade processes. The actual token hashing
 	// will be done on every influxd startup, so it doesn't have to be done now. Also, if the
 	// user does not want to enable token hashing, having the upgrade command hash by default might
-	// cause issues because they might not realize that the upgrade command also needs "--use-token-hashing=false".
+	// cause issues because they might not realize that the upgrade command also needs "--use-hashed-tokens=false".
 	authStoreV2, err := authorization.NewStore(ctx, svc.store, false, authorization.WithAuthorizationHashVariantName(hashVariantName), authorization.WithLogger(log))
 	if err != nil {
 		return nil, err
