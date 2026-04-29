@@ -37,7 +37,7 @@ func (fs *FileSet) bytes() int {
 }
 
 // Close closes all the files in the file set.
-func (fs FileSet) Close() error {
+func (fs *FileSet) Close() error {
 	return Files(fs.files).Close()
 }
 
