@@ -13,6 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/dustin/go-humanize"
+	"github.com/go-crypt/crypt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influx-cli/v2/clients"
 	"github.com/influxdata/influxdb/v2"
@@ -20,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/internal/testutil"
 	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/pkg/crypt/algorithm/influxdb2"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -209,6 +211,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	configPath := filepath.Join(tl.Path, "config.toml")
 
 	v1opts := &optionsV1{configFile: v1ConfigPath}
+	token := "my-token"
 	v2opts := &optionsV2{
 		boltPath:       boltPath,
 		enginePath:     enginePath,
@@ -220,7 +223,7 @@ func TestUpgradeRealDB(t *testing.T) {
 		orgName:        "my-org",
 		bucket:         "my-bucket",
 		retention:      "7d",
-		token:          "my-token",
+		token:          token,
 	}
 
 	opts := &options{source: *v1opts, target: *v2opts, force: true}
@@ -231,6 +234,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	v := viper.New()
 	v.SetConfigFile(configPath)
 	require.NoError(t, v.ReadInConfig())
+	// Don't adjust lOpts.UseHashedTokens. This test will fail if UseHashedTokens does not default to true.
 	lOpts := launcher.NewOpts(v)
 	cliOpts := lOpts.BindCliOpts()
 
@@ -315,17 +319,27 @@ func TestUpgradeRealDB(t *testing.T) {
 			auths, _, err := tl.Launcher.AuthorizationService().FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
 			require.NoError(t, err)
 			require.Len(t, auths, 1)
+			require.NotEmpty(t, auths[0].HashedToken, "hashed token should not be empty when token hashing is enabled. Was UseHashedTokens default changed?")
+			require.NotEqual(t, token, auths[0].HashedToken, "hashed token should not be the token.")
+			require.Empty(t, auths[0].Token, "token should be empty when token hashing is enabled. Was UseHashedTokens default changed?")
 
-			respBody := mustRunQuery(t, tl, "test", "select count(avg) from stat", auths[0].Token)
+			// Verify the that the HashedToken has been hashed properly.
+			decoder := crypt.NewDecoder()
+			require.NoError(t, influxdb2.RegisterDecoder(decoder))
+			digest, err := decoder.Decode(auths[0].HashedToken)
+			require.NoError(t, err)
+			require.True(t, digest.Match(token), "HashedToken does not match token")
+
+			respBody := mustRunQuery(t, tl, "test", "select count(avg) from stat", token)
 			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",5776]`)
 
-			respBody = mustRunQuery(t, tl, "mydb", "select count(avg) from testv1", auths[0].Token)
+			respBody = mustRunQuery(t, tl, "mydb", "select count(avg) from testv1", token)
 			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",2882]`)
 
-			respBody = mustRunQuery(t, tl, "mydb", "select count(i) from testv1", auths[0].Token)
+			respBody = mustRunQuery(t, tl, "mydb", "select count(i) from testv1", token)
 			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",21]`)
 
-			respBody = mustRunQuery(t, tl, "mydb", `select count(line) from mydb."1week".log`, auths[0].Token)
+			respBody = mustRunQuery(t, tl, "mydb", `select count(line) from mydb."1week".log`, token)
 			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",1]`)
 
 			cqBytes, err := os.ReadFile(cqPath)

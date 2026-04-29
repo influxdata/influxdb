@@ -257,6 +257,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		HardeningEnabled:         false,
 		TemplateFileUrlsDisabled: false,
 		StrongPasswords:          false,
+		UseHashedTokens:          true,
 	}
 }
 
@@ -711,7 +712,7 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP:   &o.UseHashedTokens,
 			Flag:    "use-hashed-tokens",
 			Default: o.UseHashedTokens,
-			Desc:    "enable storing hashed API tokens on disk (improves security, but prevents downgrades to < 2.8)",
+			Desc:    "enable storing hashed API tokens on disk (enabled by default; pass --use-hashed-tokens=false to disable for < 2.8 compatibility)",
 		},
 	}
 }

@@ -21,8 +21,9 @@ import (
 /*---
 Token storage and verification
 
-Storage of hashed tokens has been added as an optional feature. This stores only the hash of a token
-in BoltDB. Token hashing is enabled with the `--use-hashed-tokens` option.
+Tokens are stored as hashes in BoltDB by default. Prior to version 2.8, only raw, unhashed tokens were
+supported. Opt-in support for hashed tokens was introduced in 2.8.0. Since 2.9.0, token hashing is on
+by default but still supports opt-out with "--use-hashed-tokens=false"
 
 Upgrading the BoltDB schema is automatic on startup when using a new version of InfluxDB with token hashing support.
 Additionally, raw tokens are automatically migrated to hashed tokens if `--use-hashed-tokens` is configured.
@@ -201,6 +202,8 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 		s.log = zap.NewNop()
 	}
 
+	s.log.Info("Creating authorization store", zap.Bool("UseHashedTokens", useHashedTokens))
+
 	if err := s.setup(ctx); err != nil {
 		return nil, fmt.Errorf("error during authorization store setup: %w", err)
 	}
@@ -324,6 +327,10 @@ func (s *Store) MigrateTokens(ctx context.Context) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	if len(authsNeedingUpdate) > 0 {
+		s.log.Info("Migrating raw tokens to hashed tokens", zap.Int("count", len(authsNeedingUpdate)))
 	}
 
 	for batch := range slices.Chunk(authsNeedingUpdate, 100) {

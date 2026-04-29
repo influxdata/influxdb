@@ -88,13 +88,12 @@ func (o *optionsV1) populateDirs() {
 }
 
 type optionsV2 struct {
-	boltPath        string
-	cliConfigsPath  string
-	enginePath      string
-	cqPath          string
-	configPath      string
-	rmConflicts     bool
-	useHashedTokens bool
+	boltPath       string
+	cliConfigsPath string
+	enginePath     string
+	cqPath         string
+	configPath     string
+	rmConflicts    bool
 
 	userName  string
 	password  string
@@ -200,12 +199,6 @@ func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 			Flag:    "continuous-query-export-path",
 			Default: filepath.Join(homeOrAnyDir(), "continuous_queries.txt"),
 			Desc:    "path for exported 1.x continuous queries",
-		},
-		{
-			DestP:   &options.target.useHashedTokens,
-			Flag:    "use-hashed-tokens",
-			Default: options.target.useHashedTokens,
-			Desc:    "enable token hashing",
 		},
 		{
 			DestP:   &options.target.userName,
@@ -661,7 +654,11 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 	svc.ts.BucketService = storage.NewBucketService(log, svc.ts.BucketService, engine)
 
 	hashVariantName := authorization.DefaultHashVariantName // In the future this could come from opts.
-	authStoreV2, err := authorization.NewStore(ctx, svc.store, opts.useHashedTokens, authorization.WithAuthorizationHashVariantName(hashVariantName), authorization.WithLogger(log))
+	// We explicitly disable hashed tokens during upgrade processes. The actual token hashing
+	// will be done on every influxd startup, so it doesn't have to be done now. Also, if the
+	// user does not want to enable token hashing, having the upgrade command hash by default might
+	// cause issues because they might not realize that the upgrade command also needs "--use-token-hashing=false".
+	authStoreV2, err := authorization.NewStore(ctx, svc.store, false, authorization.WithAuthorizationHashVariantName(hashVariantName), authorization.WithLogger(log))
 	if err != nil {
 		return nil, err
 	}
