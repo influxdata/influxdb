@@ -1,8 +1,8 @@
 module github.com/influxdata/influxdb
 
-go 1.25.7
+go 1.26
 
-toolchain go1.25.9
+toolchain go1.26.2
 
 require (
 	collectd.org v0.3.0
