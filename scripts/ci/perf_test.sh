@@ -13,7 +13,7 @@ instance_info=$(aws --region us-west-2 ec2 run-instances \
   --block-device-mappings DeviceName=/dev/sda1,Ebs={VolumeSize=200} \
   --key-name circleci-oss-test \
   --security-group-ids sg-03004366a38eccc97 \
-  --subnet-id subnet-0c079d746f27ede5e \
+  --subnet-id subnet-3f84ec65 \
   --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=oss-perftest-$datestring-${CIRCLE_BRANCH}-${CIRCLE_SHA1}}]")
 
 # get instance info
