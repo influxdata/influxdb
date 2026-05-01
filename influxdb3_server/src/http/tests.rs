@@ -2,8 +2,8 @@ use http::{HeaderMap, HeaderValue, StatusCode, header::ACCEPT};
 use http::{Request, Uri};
 
 use super::{
-    MAXIMUM_DATABASE_NAME_LENGTH, extract_client_ip, extract_db_from_query_param,
-    truncate_for_logging,
+    MAXIMUM_DATABASE_NAME_LENGTH, PluginType, extract_client_ip, extract_db_from_query_param,
+    truncate_for_logging, validate_restricted_plugin_trigger_specification,
 };
 use crate::http::{AuthenticationError, Error};
 
@@ -69,6 +69,43 @@ fn test_validate_db_name() {
     assert_validate_db_name!("-foo", Err(ValidateDbNameError::InvalidStartChar));
     assert_validate_db_name!("/", Err(ValidateDbNameError::InvalidStartChar));
     assert_validate_db_name!("", Err(ValidateDbNameError::Empty));
+}
+
+#[test]
+fn test_validate_restricted_plugin_trigger_specification() {
+    assert!(validate_restricted_plugin_trigger_specification("all_tables", &[]).is_ok());
+
+    let schedule_only = [PluginType::Schedule];
+    assert!(
+        validate_restricted_plugin_trigger_specification("cron:* * * * * *", &schedule_only)
+            .is_ok()
+    );
+    assert!(validate_restricted_plugin_trigger_specification("every:10s", &schedule_only).is_ok());
+
+    assert!(matches!(
+        validate_restricted_plugin_trigger_specification("all_tables", &schedule_only),
+        Err(Error::InvalidRequest(_))
+    ));
+    assert!(matches!(
+        validate_restricted_plugin_trigger_specification("table:cpu", &schedule_only),
+        Err(Error::InvalidRequest(_))
+    ));
+    assert!(matches!(
+        validate_restricted_plugin_trigger_specification("request:foo", &schedule_only),
+        Err(Error::InvalidRequest(_))
+    ));
+
+    let wal_and_request = [PluginType::WalRows, PluginType::Request];
+    assert!(
+        validate_restricted_plugin_trigger_specification("table:cpu", &wal_and_request).is_ok()
+    );
+    assert!(
+        validate_restricted_plugin_trigger_specification("request:foo", &wal_and_request).is_ok()
+    );
+    assert!(matches!(
+        validate_restricted_plugin_trigger_specification("every:10s", &wal_and_request),
+        Err(Error::InvalidRequest(_))
+    ));
 }
 
 #[tokio::test]

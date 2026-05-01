@@ -271,10 +271,8 @@ jobs:
           command: cargo install cargo-deny --locked
       - run:
           name: cargo-deny Checks
-          # `--warn unsound` downgrades RustSec `informational = "unsound"`
-          # advisories to warnings, they flag API soundness concerns, not
-          # exploitable vulnerabilities, so we don't want them to fail CI.
           command: cargo deny check -s --warn unsound
+
   doc:
     docker:
       - image: quay.io/influxdb/rust:ci

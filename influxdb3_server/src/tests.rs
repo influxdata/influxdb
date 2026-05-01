@@ -1445,6 +1445,7 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
         Arc::clone(&write_buffer),
         Arc::clone(&query_executor) as _,
         Arc::clone(&processing_engine),
+        vec![],
         usize::MAX,
         Arc::clone(&authorizer) as _,
     ));

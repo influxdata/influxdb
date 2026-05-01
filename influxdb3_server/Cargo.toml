@@ -26,6 +26,7 @@ iox_time = { path = "../core/iox_time" }
 iox_v1_query_api = { path = "../core/iox_v1_query_api" }
 metric = { path = "../core/metric" }
 metric_exporters = { path = "../core/metric_exporters" }
+object_store_utils = { path = "../object_store_utils" }
 observability_deps = { path = "../core/observability_deps" }
 schema = { path = "../core/schema" }
 service_grpc_flight = { path = "../core/service_grpc_flight" }
@@ -50,6 +51,7 @@ influxdb3_write = { path = "../influxdb3_write" }
 # crates.io Dependencies
 anyhow.workspace = true
 arrow.workspace = true
+async-trait.workspace = true
 arrow-csv.workspace = true
 arrow-flight.workspace = true
 arrow-json.workspace = true

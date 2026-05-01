@@ -119,6 +119,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "virtual-env-location",
     "package-manager",
     "plugin-repo",
+    "restrict-plugin-triggers-to",
     // Other parameters
     "tcp-listener-file-path",
     // Tokio console parameters

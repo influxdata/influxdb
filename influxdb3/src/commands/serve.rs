@@ -10,8 +10,8 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
-use influxdb3_catalog::{CatalogError, catalog::Catalog};
-use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
+use influxdb3_catalog::{CatalogError, catalog::Catalog, log::PluginType};
+use influxdb3_clap_blocks::plugins::{PackageManager, PluginTriggerType, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
     datafusion::IoxQueryDatafusionConfig, memory_size::MemorySizeMb,
     object_store::ObjectStoreConfig, socket_addr::SocketAddr, tokio::TokioDatafusionConfig,
@@ -1197,6 +1197,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Arc::clone(&write_buffer),
         Arc::clone(&query_executor) as _,
         Arc::clone(&processing_engine),
+        restricted_plugin_trigger_types(&config.processing_engine_config),
         config.max_http_request_size,
         Arc::clone(&authorizer),
     ));
@@ -1396,6 +1397,18 @@ pub(crate) fn setup_processing_engine_env_manager(
         package_manager,
         plugin_repo: config.plugin_repo.clone(),
     }
+}
+
+fn restricted_plugin_trigger_types(config: &ProcessingEngineConfig) -> Vec<PluginType> {
+    config
+        .restrict_plugin_triggers_to
+        .iter()
+        .map(|trigger_type| match trigger_type {
+            PluginTriggerType::Wal => PluginType::WalRows,
+            PluginTriggerType::Schedule => PluginType::Schedule,
+            PluginTriggerType::Request => PluginType::Request,
+        })
+        .collect()
 }
 
 fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {

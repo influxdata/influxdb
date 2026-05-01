@@ -1437,8 +1437,11 @@ else
     STARTUP_CHOICE=${STARTUP_CHOICE:-1}
 
     case "$STARTUP_CHOICE" in
-        1)
+        1|*)
             # Quick Start - use defaults and check for existing license
+            if [ "$STARTUP_CHOICE" != "1" ]; then
+                printf "Invalid choice. Using Quick Start (option 1).\n"
+            fi
             setup_quick_start_defaults enterprise
             setup_license_for_quick_start
             START_SERVICE="y"
@@ -1450,12 +1453,6 @@ else
         3)
             # Skip startup
             START_SERVICE="n"
-            ;;
-        *)
-            printf "Invalid choice. Using Quick Start (option 1).\n"
-            setup_quick_start_defaults enterprise
-            setup_license_for_quick_start
-            START_SERVICE="y"
             ;;
     esac
 

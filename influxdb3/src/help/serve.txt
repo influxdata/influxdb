@@ -73,6 +73,10 @@ Examples
   --package-manager <MANAGER>      Python package manager  
                                     [possible values: discover, pip, uv, disabled] [default: discover]
                                     [env: INFLUXDB3_PACKAGE_MANAGER=]
+  --restrict-plugin-triggers-to <TYPE>...
+                                    Restrict plugin triggers to the provided trigger type(s)
+                                    [possible values: wal, schedule, request]
+                                    [env: INFLUXDB3_RESTRICT_PLUGIN_TRIGGERS_TO=]
 
 {}
   -h, --help                       Print help information

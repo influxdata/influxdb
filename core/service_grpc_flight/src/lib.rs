@@ -116,7 +116,7 @@ const IOX_FLIGHT_PARTITIONS_RESPONSE_TRAILER: &str = "x-influxdata-partitions";
 const IOX_FLIGHT_PARQUET_FILES_RESPONSE_TRAILER: &str = "x-influxdata-parquet-files";
 
 /// Trailer that describes the peak memory usage of a query.
-const IOX_FLIGHT_MAX_MEMORY_RESPONSE_TRAILER: &str = "x-influxdata-max-memory-bytes";
+pub const IOX_FLIGHT_MAX_MEMORY_RESPONSE_TRAILER: &str = "x-influxdata-max-memory-bytes";
 
 /// Trailer that describes the latency to planning from ingester response.
 const IOX_FLIGHT_INGESTER_LATENCY_PLAN_RESPONSE_TRAILER: &str =

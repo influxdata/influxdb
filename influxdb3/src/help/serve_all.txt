@@ -153,6 +153,9 @@ Examples:
                                                  [env: INFLUXDB3_PACKAGE_MANAGER=]
   --plugin-repo <URL>                          URL of plugin repository
                                                  [env: INFLUXDB3_PLUGIN_REPO=]
+  --restrict-plugin-triggers-to <TYPE>...      Restrict plugin triggers to the provided trigger type(s)
+                                                 [possible values: wal, schedule, request]
+                                                 [env: INFLUXDB3_RESTRICT_PLUGIN_TRIGGERS_TO=]
 
 {}
   --gen1-duration <DURATION>                   Duration for Parquet file arrangement [default: 10m]

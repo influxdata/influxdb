@@ -6,6 +6,7 @@ pub(crate) const API_V3_QUERY_INFLUXQL: &str = "/api/v3/query_influxql";
 pub(crate) const API_V1_QUERY: &str = "/query";
 pub const API_V3_HEALTH: &str = "/health";
 pub const API_V1_HEALTH: &str = "/api/v1/health";
+pub const API_V3_READY: &str = "/ready";
 pub(crate) const API_V3_ENGINE: &str = "/api/v3/engine/";
 pub(crate) const API_V3_CONFIGURE_DISTINCT_CACHE: &str = "/api/v3/configure/distinct_cache";
 pub(crate) const API_V3_CONFIGURE_LAST_CACHE: &str = "/api/v3/configure/last_cache";

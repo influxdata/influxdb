@@ -10,6 +10,7 @@ test-helpers = ["tokio"]
 
 [dependencies]
 # core deps
+iox_time = { path = "../core/iox_time" }
 observability_deps = { path = "../core/observability_deps" }
 
 # crates.io deps

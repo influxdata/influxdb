@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 /// Nanoseconds has units of nanoseconds (naturally)
 pub type Nanoseconds = i64;
@@ -151,6 +151,36 @@ impl std::str::FromStr for Precision {
             _ => return Err(format!("unrecognized precision unit: {s}")),
         };
         Ok(p)
+    }
+}
+
+/// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
+/// returning an error for any invalid lines. This is the error information for a single invalid line.
+///
+/// `original_line` is stored in full in memory but truncated on serialize: the serialized output caps the field
+/// at 20 bytes, rounded down to the nearest UTF-8 char boundary. Consumers reading the serialized form should not
+/// assume `original_line` is the complete input line.
+#[derive(Debug)]
+pub struct WriteLineError {
+    pub original_line: String,
+    pub line_number: usize,
+    pub error_message: String,
+}
+
+impl Serialize for WriteLineError {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("WriteLineError", 3)?;
+        const TRUNCATE_LIMIT: usize = 20;
+        let truncated_line =
+            &self.original_line[..self.original_line.floor_char_boundary(TRUNCATE_LIMIT)];
+        state.serialize_field("error_message", &self.error_message)?;
+        state.serialize_field("line_number", &self.line_number)?;
+        state.serialize_field("original_line", truncated_line)?;
+        state.end()
     }
 }
 

@@ -411,6 +411,25 @@ impl std::fmt::Display for ColumnType {
     }
 }
 
+impl std::str::FromStr for ColumnType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "i64" => Ok(Self::I64),
+            "u64" => Ok(Self::U64),
+            "f64" => Ok(Self::F64),
+            "bool" => Ok(Self::Bool),
+            "string" => Ok(Self::String),
+            "time" => Ok(Self::Time),
+            "tag" => Ok(Self::Tag),
+            _ => Err(format!(
+                "invalid column type '{s}': valid types are i64, u64, f64, bool, string, time, tag"
+            )),
+        }
+    }
+}
+
 impl TryFrom<&ArrowDataType> for ColumnType {
     type Error = &'static str;
 

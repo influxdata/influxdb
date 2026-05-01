@@ -39,6 +39,7 @@ mod limits;
 mod logs;
 mod packages;
 mod ping;
+mod plugin_restriction;
 mod query;
 mod system_tables;
 mod write;
@@ -95,6 +96,7 @@ pub struct TestConfig {
     plugin_dir: Option<String>,
     virtual_env_dir: Option<String>,
     package_manager: Option<String>,
+    restrict_plugin_triggers_to: Vec<String>,
     // If None, use memory object store.
     object_store_dir: Option<String>,
     disable_authz: Vec<String>,
@@ -161,6 +163,15 @@ impl TestConfig {
 
     pub fn with_package_manager<S: Into<String>>(mut self, package_manager: S) -> Self {
         self.package_manager = Some(package_manager.into());
+        self
+    }
+
+    pub fn with_restrict_plugin_triggers_to<I, S>(mut self, types: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.restrict_plugin_triggers_to = types.into_iter().map(Into::into).collect();
         self
     }
 
@@ -272,6 +283,12 @@ impl ConfigProvider for TestConfig {
                 "--package-manager".to_string(),
                 package_manager.to_owned(),
             ]);
+        }
+        if !self.restrict_plugin_triggers_to.is_empty() {
+            args.push("--restrict-plugin-triggers-to".to_string());
+            for t in &self.restrict_plugin_triggers_to {
+                args.push(t.to_owned());
+            }
         }
         args.push("--node-id".to_string());
         if let Some(host) = &self.node_id {

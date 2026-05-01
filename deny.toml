@@ -29,6 +29,13 @@ ignore = [
     # via datafusion-udf-wasm/wasmtime/rustls 0.22.x, with the same current
     # incompatibility on the available upstream fix path.
     "RUSTSEC-2026-0098",
+    # rustls-webpki CRL parsing reachable panic; only 0.103.13+ and 0.104.0-alpha.7+
+    # ship the fix. The 0.103.x transitive is patched via the Cargo.toml pin bump,
+    # but the 0.102.x transitive is still stuck via datafusion-udf-wasm/wasmtime/
+    # rustls 0.22.x with no patched 0.102.x release available. We don't configure
+    # CRLs anywhere in this repo, so the panic is unreachable in practice on that
+    # remaining 0.102.x path.
+    "RUSTSEC-2026-0104",
 
     # wasmtime 41.0.4 advisories (transitive dep via datafusion-udf-wasm)
     #
@@ -55,6 +62,9 @@ ignore = [
     # Guest realloc validation (single-component host-guest interaction; low risk given UDFs are disabled):
     "RUSTSEC-2026-0091", # GHSA-394w-hwhg-8vgm: OOB write from unvalidated guest realloc
     #
+    # Panic when allocating a table that is larger than host address space.
+    # The UDF/WASM parts are currently unused in production.
+    "RUSTSEC-2026-0114",
     # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=42.0.2)
 ]
 git-fetch-with-cli = true

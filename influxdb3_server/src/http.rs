@@ -33,7 +33,7 @@ use influxdb3_cache::distinct_cache;
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::HardDeletionTime;
-use influxdb3_catalog::log::FieldDataType;
+use influxdb3_catalog::log::{FieldDataType, PluginType, TriggerSpecificationDefinition};
 use influxdb3_id::TokenId;
 use influxdb3_internal_api::query_executor::{
     QueryExecutor, QueryExecutorError, ShowDatabases, ShowRetentionPolicies,
@@ -381,6 +381,9 @@ pub enum Error {
 
     #[error("Current node mode does not use the processing engine")]
     NoProcessingEngine,
+
+    #[error("invalid request: {0}")]
+    InvalidRequest(String),
 
     #[error(transparent)]
     LegacyWriteParse(#[from] WriteParseError),
@@ -926,6 +929,10 @@ impl IntoResponse for Error {
                 .status(StatusCode::METHOD_NOT_ALLOWED)
                 .body(bytes_to_response_body(self.to_string()))
                 .unwrap(),
+            Self::InvalidRequest(_) => ResponseBuilder::new()
+                .status(StatusCode::BAD_REQUEST)
+                .body(bytes_to_response_body(self.to_string()))
+                .unwrap(),
             Self::MissingDb(_) | Self::MissingTable(_) | Self::NoHandler => ResponseBuilder::new()
                 .status(StatusCode::NOT_FOUND)
                 .body(bytes_to_response_body(self.to_string()))
@@ -985,6 +992,7 @@ pub struct HttpApi {
     common_state: CommonServerState,
     write_buffer: Arc<dyn WriteBuffer>,
     processing_engine: Arc<ProcessingEngineManagerImpl>,
+    allowed_plugin_trigger_types: Vec<PluginType>,
     time_provider: Arc<dyn TimeProvider>,
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
     max_request_bytes: usize,
@@ -993,12 +1001,14 @@ pub struct HttpApi {
 }
 
 impl HttpApi {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         common_state: CommonServerState,
         time_provider: Arc<dyn TimeProvider>,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
         processing_engine: Arc<ProcessingEngineManagerImpl>,
+        allowed_plugin_trigger_types: Vec<PluginType>,
         max_request_bytes: usize,
         authorizer: Arc<dyn AuthProvider>,
     ) -> Self {
@@ -1015,6 +1025,7 @@ impl HttpApi {
             authorizer,
             legacy_write_param_unifier,
             processing_engine,
+            allowed_plugin_trigger_types,
         }
     }
 }
@@ -1545,6 +1556,10 @@ impl HttpApi {
             self.read_body_json(req).await?
         };
         debug!(%db, %plugin_filename, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
+        validate_restricted_plugin_trigger_specification(
+            &trigger_specification,
+            &self.allowed_plugin_trigger_types,
+        )?;
         let plugin_filename = self
             .processing_engine
             .validate_plugin_filename(&plugin_filename)
@@ -2865,6 +2880,25 @@ pub(crate) async fn route_admin_token_recovery_request(
         .insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
 
     Ok(response)
+}
+
+fn validate_restricted_plugin_trigger_specification(
+    trigger_specification: &str,
+    allowed_plugin_trigger_types: &[PluginType],
+) -> Result<()> {
+    if allowed_plugin_trigger_types.is_empty() {
+        return Ok(());
+    }
+
+    let trigger = TriggerSpecificationDefinition::from_string_rep(trigger_specification)?;
+    let plugin_type = trigger.plugin_type();
+    if allowed_plugin_trigger_types.contains(&plugin_type) {
+        Ok(())
+    } else {
+        Err(Error::InvalidRequest(format!(
+            "server is configured to reject {plugin_type} plugin triggers"
+        )))
+    }
 }
 
 #[cfg(test)]
