@@ -34,11 +34,6 @@ install_telegraf() {
   DEBIAN_FRONTEND=noninteractive apt-get update
   DEBIAN_FRONTEND=noninteractive apt-get install -y git jq telegraf awscli
 
-  # Install influx_tools
-  aws --region us-west-2 s3 cp s3://perftest-binaries-influxdb/influx_tools/influx_tools-d3be25b251256755d622792ec91826c5670c6106 ./influx_tools
-  mv ./influx_tools /usr/bin/influx_tools
-  chmod 755 /usr/bin/influx_tools
-
   root_branch="$(echo "${INFLUXDB_VERSION}" | rev | cut -d '-' -f1 | rev)"
   log_date=$(date +%Y%m%d%H%M%S)
 
@@ -125,6 +120,17 @@ install_go_bins() {
   go install github.com/influxdata/influxdb-comparisons/cmd/query_benchmarker_influxdb@latest
   # install yq
   go install github.com/mikefarah/yq/v4@v4.23.1
+}
+
+install_influx_tools() {
+  local src=/tmp/influxdb-1x
+  mkdir -p "$src"
+  git -C "$src" init -q
+  git -C "$src" remote add origin https://github.com/influxdata/influxdb.git
+  git -C "$src" fetch --depth 1 -q origin d3be25b251256755d622792ec91826c5670c6106
+  git -C "$src" checkout -q FETCH_HEAD
+  (cd "$src" && go build -o /usr/bin/influx_tools ./cmd/influx_tools)
+  chmod 755 /usr/bin/influx_tools
 }
 
 # Helper functions containing common logic
@@ -308,6 +314,7 @@ install_influxdb
 install_telegraf
 install_go
 install_go_bins
+install_influx_tools
 
 # Common variables used across all tests
 db_name="benchmark_db"
