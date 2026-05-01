@@ -125,7 +125,7 @@ exclude = [
 #
 # For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
 # stripping the `-oss`.
-version = "3.9.1"
+version = "3.9.2"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -211,7 +211,7 @@ regex = "1.11.1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
 rstest = "0.26"
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-webpki = { version = "0.103", default-features = false, features = ["ring", "std"] }
+rustls-webpki = { version = "0.103.13", default-features = false, features = ["ring", "std"] }
 secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }
 # serde_json is set to 1.0.127 to prevent a conflict with core, if that gets updated upstream, this
@@ -230,7 +230,7 @@ sysinfo = "<0.38"
 tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
-tokio = { version = "1.45", features = ["full"] }
+tokio = { version = "1.50.0", features = ["full"] }
 tokio-rustls = { version = "0.25", default-features = false, features = ["ring", "tls12"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 tonic = { version = "0.14", features = ["tls-native-roots"] }
