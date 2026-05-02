@@ -13,13 +13,15 @@ use iox_system_tables::IoxSystemTable;
 pub(super) struct QueriesTable {
     schema: SchemaRef,
     query_log: Arc<QueryLog>,
+    db_name: Arc<str>,
 }
 
 impl QueriesTable {
-    pub(super) fn new(query_log: Arc<QueryLog>) -> Self {
+    pub(super) fn new(query_log: Arc<QueryLog>, db_name: Arc<str>) -> Self {
         Self {
             schema: queries_schema(),
             query_log,
+            db_name,
         }
     }
 }
@@ -43,6 +45,7 @@ impl IoxSystemTable for QueriesTable {
             .entries
             .into_iter()
             .map(|e| e.state())
+            .filter(|state| state.namespace_name.as_ref() == self.db_name.as_ref())
             .collect::<Vec<_>>();
 
         from_query_log_entries(Arc::clone(&schema), &entries)

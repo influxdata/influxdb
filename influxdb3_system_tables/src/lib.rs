@@ -127,6 +127,7 @@ impl AllSystemSchemaTablesProvider {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
             query_log,
+            db_schema.name(),
         ))));
         tables.insert(QUERIES_TABLE_NAME, queries);
         let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
