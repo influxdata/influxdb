@@ -1204,7 +1204,10 @@ impl HttpApi {
 
     fn handle_metrics(&self) -> Result<Response> {
         let mut body: Vec<u8> = Default::default();
-        let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
+        let mut default_attributes = metric::Attributes::from(&[]);
+        default_attributes.insert("node_id", self.common_state.node_id().to_string());
+        let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body)
+            .with_default_attributes(default_attributes);
         self.common_state.metrics.report(&mut reporter);
 
         // Add required OpenMetrics EOF marker

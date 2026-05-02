@@ -1382,6 +1382,7 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
         None,
         trace_header_parser,
         Arc::clone(&sample_telem_store),
+        Arc::from("test-node"),
     );
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
         catalog: write_buffer.catalog(),
