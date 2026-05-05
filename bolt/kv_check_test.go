@@ -24,9 +24,12 @@ func TestKVStore_CheckFailsAfterClose(t *testing.T) {
 	require.NoError(t, s.Close())
 	defer closeFn()
 
-	resp := s.Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.NotEmpty(t, resp.Message)
+	// Close signals the prober to exit; the prober writes the closed
+	// response in its deferred cleanup. Check reflects it eventually.
+	require.Eventually(t, func() bool {
+		resp := s.Check(context.Background())
+		return resp.Status == check.StatusFail && resp.Message != ""
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestKVStore_CheckCompletesPromptlyOnCanceledContext(t *testing.T) {
@@ -37,8 +40,9 @@ func TestKVStore_CheckCompletesPromptlyOnCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	// Wait well above check.DefaultProbeTimeout so a single scheduling
-	// hiccup does not flake the test while still catching a real hang.
+	// Check is a non-blocking cached read; a canceled context must not
+	// cause it to hang. The deadline is generous so a scheduling hiccup
+	// does not flake the test.
 	const deadline = 4 * check.DefaultProbeTimeout
 	done := make(chan struct{})
 	go func() {

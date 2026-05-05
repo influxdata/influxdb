@@ -13,7 +13,7 @@ const (
 	SubsystemScraper       = "scraper"
 	SubsystemJaeger        = "jaeger"
 	SubsystemPIDFile       = "pidfile"
-	SubsystemKV            = "kv"
+	SubsystemKV            = "bolt"
 	SubsystemSQLite        = "sqlite"
 	SubsystemHTTPServer    = "http-server"
 	SubsystemShards        = "shards"

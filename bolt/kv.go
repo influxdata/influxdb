@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/check"
@@ -26,12 +27,18 @@ import (
 var _ kv.SchemaStore = (*KVStore)(nil)
 
 const (
-	// ProbeInFlightMsg is returned when a concurrent Check observes a
-	// prior probe still running. bbolt's View cannot be canceled, so a
-	// wedged database strands the probe goroutine until it recovers;
-	// this message indicates that state to the caller.
+	// DefaultProbeInterval is how often the background prober probes the
+	// bolt DB. Picked to give /health callers near-fresh results without
+	// adding meaningful load to bolt.
+	DefaultProbeInterval = 1 * time.Second
+	// ProbeInFlightMsg is recorded when a probe exceeds
+	// check.DefaultProbeTimeout. bbolt's View cannot be canceled, so the
+	// probe goroutine remains stuck inside View until the database
+	// recovers; this message surfaces that state on /health while the
+	// prober blocks waiting for the wedged View to return.
 	ProbeInFlightMsg = "bolt probe in flight (prior probe has not returned)"
-	// msgDatabaseNotOpen is returned when Check is called before Open.
+	// msgDatabaseNotOpen is returned when Check is called before Open or
+	// after Close, when no probe has populated the cache.
 	msgDatabaseNotOpen = "bolt database not open"
 )
 
@@ -42,12 +49,22 @@ type KVStore struct {
 	db   *bolt.DB
 	log  *zap.Logger
 
-	// probeMu serializes in-flight health probes. bbolt's View does not
-	// honor context, so a wedged database will strand the probe goroutine
-	// until it recovers. Holding probeMu for the entire goroutine lifetime
-	// (acquired via TryLock in Check, released in the goroutine's defer)
-	// ensures at most one stranded goroutine exists per store.
-	probeMu sync.Mutex
+	// Background probe state. The prober is started by Open or WithDB,
+	// runs an initial synchronous probe, then loops on
+	// DefaultProbeInterval writing the latest check.Response into
+	// probeState. Check returns probeState's value with a single atomic
+	// load; it does not invoke bolt directly. Close signals the prober
+	// to exit; the prober itself writes the final "closed" response to
+	// probeState in a deferred cleanup, so Check eventually reflects the
+	// closed state without Close needing to wait.
+	//
+	// probeStop is nil before startProberOnce; non-nil-and-open while
+	// the prober is running; non-nil-and-closed after Close. The first
+	// startProberOnce wins; subsequent calls (and post-Close Open/WithDB
+	// — user error) no-op when they observe probeStop != nil.
+	probeState atomic.Pointer[check.Response]
+	probeMu    sync.Mutex
+	probeStop  chan struct{}
 
 	noSync bool
 }
@@ -106,6 +123,8 @@ func (s *KVStore) Open(ctx context.Context) error {
 		return fmt.Errorf("unable to open boltdb file %v", err)
 	}
 
+	s.startProberOnce()
+
 	s.log.Info("Resources opened", zap.String("path", s.path))
 	return nil
 }
@@ -118,8 +137,24 @@ func (s *KVStore) openDB() (err error) {
 	return nil
 }
 
-// Close the connection to the bolt database
+// Close signals the background prober (if any) to exit and closes the
+// underlying bolt database. Close does not wait for the prober: the
+// prober writes the final "closed" response to probeState in a deferred
+// cleanup, so Check eventually reflects the closed state — though there
+// is a brief window after Close returns where Check may still report
+// the last probe's result.
 func (s *KVStore) Close() error {
+	s.probeMu.Lock()
+	if s.probeStop != nil {
+		select {
+		case <-s.probeStop:
+			// Already closed (idempotent Close).
+		default:
+			close(s.probeStop)
+		}
+	}
+	s.probeMu.Unlock()
+
 	if db := s.DB(); db != nil {
 		return db.Close()
 	}
@@ -168,48 +203,95 @@ func (s *KVStore) cleanBucket(tx *bolt.Tx, b *bolt.Bucket) {
 	}
 }
 
-// WithDB sets the boltdb on the store.
+// WithDB sets the boltdb on the store and starts the background health
+// prober if it has not yet been started.
 func (s *KVStore) WithDB(db *bolt.DB) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.db = db
+	s.mu.Unlock()
+	s.startProberOnce()
 }
 
-// Check runs a trivial read transaction against the underlying bolt
-// database to confirm it is reachable. The probe has an upper bound of
-// check.DefaultProbeTimeout even when ctx has no deadline, so /health
-// latency stays bounded if bolt is wedged.
-//
-// bbolt's View does not honor context, so on a timeout the probe
-// goroutine remains blocked inside View until bolt recovers. probeMu is
-// held for that entire goroutine lifetime, so concurrent Check calls
-// observe a locked probeMu and return "probe in flight" immediately
-// rather than spawning additional stranded goroutines.
-func (s *KVStore) Check(ctx context.Context) check.Response {
+// Check returns the latest cached probe result. It is non-blocking: a
+// background prober (started by Open / WithDB) periodically probes the
+// underlying bolt database and writes the result into the cache. ctx is
+// unused; it is retained to satisfy the check.Checker interface.
+func (s *KVStore) Check(_ context.Context) check.Response {
+	if r := s.probeState.Load(); r != nil {
+		return *r
+	}
+	return check.Response{Status: check.StatusFail, Message: msgDatabaseNotOpen}
+}
+
+// startProberOnce starts the background prober the first time it is
+// called. Subsequent calls — including any Open/WithDB after Close —
+// observe probeStop != nil and no-op. The initial probe runs
+// synchronously so probeState is populated before returning.
+func (s *KVStore) startProberOnce() {
+	s.probeMu.Lock()
+	if s.probeStop != nil {
+		s.probeMu.Unlock()
+		return
+	}
+	s.probeStop = make(chan struct{})
+	s.probeMu.Unlock()
+
+	s.runOneProbe()
+	go s.proberLoop()
+}
+
+func (s *KVStore) proberLoop() {
+	// Whatever the exit path (stop signal, panic), leave probeState
+	// reflecting that the store is no longer probing.
+	defer func() {
+		r := check.Response{Status: check.StatusFail, Message: msgDatabaseNotOpen}
+		s.probeState.Store(&r)
+	}()
+	t := time.NewTicker(DefaultProbeInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.probeStop:
+			return
+		case <-t.C:
+			s.runOneProbe()
+		}
+	}
+}
+
+// runOneProbe issues a no-op View against the bolt database and writes
+// the result to probeState. If View does not return within
+// check.DefaultProbeTimeout, a "probe in flight" Fail is recorded
+// immediately and the prober blocks waiting for the stranded View
+// goroutine to return before the next probe — capping the number of
+// stuck goroutines to one per store on a wedged database.
+func (s *KVStore) runOneProbe() {
 	db := s.DB()
 	if db == nil {
-		return check.Response{Status: check.StatusFail, Message: msgDatabaseNotOpen}
+		r := check.Response{Status: check.StatusFail, Message: msgDatabaseNotOpen}
+		s.probeState.Store(&r)
+		return
 	}
-	if !s.probeMu.TryLock() {
-		return check.Response{Status: check.StatusFail, Message: ProbeInFlightMsg}
-	}
-	probeCtx, cancel := check.BoundDeadline(ctx, check.DefaultProbeTimeout)
-	defer cancel()
-
 	errCh := make(chan error, 1)
-	go func() {
-		defer s.probeMu.Unlock()
-		errCh <- db.View(func(*bolt.Tx) error { return nil })
-	}()
+	go func() { errCh <- db.View(func(*bolt.Tx) error { return nil }) }()
 	select {
 	case err := <-errCh:
-		if err != nil {
-			return check.Error(err)
-		}
-		return check.Pass()
-	case <-probeCtx.Done():
-		return check.Error(probeCtx.Err())
+		s.storeResult(err)
+	case <-time.After(check.DefaultProbeTimeout):
+		timeoutResp := check.Response{Status: check.StatusFail, Message: ProbeInFlightMsg}
+		s.probeState.Store(&timeoutResp)
+		s.storeResult(<-errCh)
 	}
+}
+
+func (s *KVStore) storeResult(err error) {
+	if err != nil {
+		r := check.Error(err)
+		s.probeState.Store(&r)
+		return
+	}
+	r := check.Pass()
+	s.probeState.Store(&r)
 }
 
 // View opens up a view transaction against the store.

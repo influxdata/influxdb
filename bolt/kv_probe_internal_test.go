@@ -11,7 +11,7 @@ import (
 )
 
 // newProbeTestStore mirrors bolt_test.NewTestKVStore but stays in the bolt
-// package so a test can reach the unexported probeMu field.
+// package so a test can reach unexported probe state.
 func newProbeTestStore(t *testing.T) *KVStore {
 	f, err := os.CreateTemp(t.TempDir(), "bolt-probe-")
 	require.NoError(t, err)
@@ -23,21 +23,27 @@ func newProbeTestStore(t *testing.T) *KVStore {
 	return s
 }
 
-// TestKVStore_CheckReportsInFlight verifies that when a prior probe
-// goroutine is stranded (simulated by holding probeMu), a subsequent
-// Check returns ProbeInFlightMsg immediately instead of spawning a
-// second goroutine.
-func TestKVStore_CheckReportsInFlight(t *testing.T) {
+// TestKVStore_StartProberPopulatesCache verifies that Open's invocation
+// of startProberOnce runs a synchronous initial probe — probeState must
+// be non-nil and reporting Pass by the time Open returns, so the first
+// /health hit doesn't see "probe pending".
+func TestKVStore_StartProberPopulatesCache(t *testing.T) {
 	s := newProbeTestStore(t)
 
-	// Sanity-check the happy path first — confirms the guard doesn't
-	// break normal probes.
-	require.Equal(t, check.StatusPass, s.Check(context.Background()).Status)
+	got := s.probeState.Load()
+	require.NotNil(t, got)
+	require.Equal(t, check.StatusPass, got.Status)
+}
 
-	s.probeMu.Lock()
-	defer s.probeMu.Unlock()
+// TestKVStore_CheckReturnsCachedState verifies that Check is a pure read
+// of probeState — overwriting the cache directly is reflected on the
+// next Check, with no probe in between.
+func TestKVStore_CheckReturnsCachedState(t *testing.T) {
+	s := newProbeTestStore(t)
 
-	resp := s.Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.Equal(t, ProbeInFlightMsg, resp.Message)
+	stub := check.Response{Status: check.StatusFail, Message: "stubbed"}
+	s.probeState.Store(&stub)
+
+	got := s.Check(context.Background())
+	require.Equal(t, stub, got)
 }
