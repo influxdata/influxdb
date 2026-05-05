@@ -39,9 +39,10 @@ func (n namedChecker) Check(ctx context.Context) Response {
 	return resp
 }
 
-// Named returns a NamedChecker that delegates to checker and stamps name
-// onto the response. This way callers can attach a human-readable name to
-// a response without encoding that logic into the underlying check.
+// Named returns a Checker that also implements NamedChecker, delegates to
+// checker, and stamps name onto the response. This way callers can attach
+// a human-readable name to a response without encoding that logic into the
+// underlying check.
 func Named(name string, checker Checker) Checker {
 	return namedChecker{name: name, checker: checker}
 }
