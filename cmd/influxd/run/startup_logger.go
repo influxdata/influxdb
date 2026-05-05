@@ -11,10 +11,6 @@ import (
 )
 
 const (
-	// ShardsCheckName is the name surfaced on /ready for the shard-loading
-	// progress check.
-	ShardsCheckName = "shards"
-
 	msgWaitingForShardEnumeration = "waiting for shard enumeration"
 	msgShardLoadingFailedFmt      = "shard loading failed: %s"
 	msgLoadingShardsFmt           = "loading shards %.1f%% (%d / %d)"
@@ -68,10 +64,6 @@ func (s *StartupProgressLogger) Finish(err error) {
 	}
 	s.done.Store(true)
 }
-
-// CheckName returns the name used when this logger is registered as a
-// check.NamedChecker.
-func (*StartupProgressLogger) CheckName() string { return ShardsCheckName }
 
 // Check reports readiness. After Finish(nil) it returns StatusPass; after
 // Finish(err) with a non-nil err it returns a terminal StatusFail with the

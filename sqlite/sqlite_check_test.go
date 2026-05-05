@@ -10,11 +10,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestSqlStore_CheckName(t *testing.T) {
-	s := NewTestStore(t)
-	require.Equal(t, HealthCheckName, s.CheckName())
-}
-
 func TestSqlStore_CheckPasses(t *testing.T) {
 	s := NewTestStore(t)
 	resp := s.Check(context.Background())

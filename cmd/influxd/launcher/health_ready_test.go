@@ -5,11 +5,8 @@ import (
 	nethttp "net/http"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/run"
 	"github.com/influxdata/influxdb/v2/kit/check"
-	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,16 +56,22 @@ func TestLauncher_HealthEndpoint(t *testing.T) {
 			// launcher's type-assertion at registration time skips the
 			// bolt health check. NoopScheduler is *not* used by default
 			// (only set when opts.NoTasks), so task-scheduler is wired.
-			expected: []string{"query", "influxql", sqlite.HealthCheckName, run.TaskSchedulerCheckName},
+			expected: []string{
+				launcher.SubsystemQuery,
+				launcher.SubsystemInfluxQL,
+				launcher.SubsystemSQLite,
+				launcher.SubsystemTaskScheduler,
+			},
 		},
 		{
 			name:        "disk_mode",
 			newLauncher: launcher.NewTestLauncherServer,
 			expected: []string{
-				"query", "influxql",
-				bolt.HealthCheckName,
-				sqlite.HealthCheckName,
-				run.TaskSchedulerCheckName,
+				launcher.SubsystemQuery,
+				launcher.SubsystemInfluxQL,
+				launcher.SubsystemKV,
+				launcher.SubsystemSQLite,
+				launcher.SubsystemTaskScheduler,
 			},
 		},
 	}
@@ -99,11 +102,10 @@ func TestLauncher_HealthEndpoint(t *testing.T) {
 }
 
 // TestLauncher_ReadyEndpoint verifies the /ready endpoint returns a
-// passing response after the launcher finishes setup. The /ready body
-// only enumerates checks when failing (`omitempty` on Checks); we cannot
-// assert per-check names from a passing response, so this is a smoke test
-// for endpoint wiring and overall ready state. The per-check semantics
-// are covered by the unit tests on each Checker type.
+// passing response after the launcher finishes setup, and that the
+// expected ready checks are registered. The /ready body only enumerates
+// checks when failing (`omitempty` on Checks), so we cross-check the
+// registered set via the launcher's ReadyCheckNames accessor.
 func TestLauncher_ReadyEndpoint(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
@@ -114,4 +116,18 @@ func TestLauncher_ReadyEndpoint(t *testing.T) {
 	status := httpGetJSON(t, l.URL().String()+"/ready", &body)
 	require.Equal(t, nethttp.StatusOK, status)
 	require.Equal(t, "ready", body.Status)
+
+	expected := []string{
+		launcher.SubsystemKV,
+		launcher.SubsystemSQLite,
+		launcher.SubsystemEngine,
+		launcher.SubsystemReplications,
+		launcher.SubsystemQuery,
+		launcher.SubsystemTasks,
+		launcher.SubsystemTaskScheduler,
+		launcher.SubsystemShards,
+	}
+	got := l.ReadyCheckNames()
+	require.ElementsMatchf(t, expected, got,
+		"unexpected /ready check set: %v", got)
 }

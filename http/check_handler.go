@@ -76,6 +76,14 @@ func (h *HealthReadyHandler) AddReadyCheck(c check.Checker) { h.check.AddReadyCh
 // AddHealthCheck registers a health check.
 func (h *HealthReadyHandler) AddHealthCheck(c check.Checker) { h.check.AddHealthCheck(c) }
 
+// ReadyCheckNames returns the names of currently-registered ready checks
+// in registration order.
+func (h *HealthReadyHandler) ReadyCheckNames() []string { return h.check.ReadyCheckNames() }
+
+// HealthCheckNames returns the names of currently-registered health checks
+// in registration order.
+func (h *HealthReadyHandler) HealthCheckNames() []string { return h.check.HealthCheckNames() }
+
 // SetHandler installs the delegate handler used for any request that is not
 // /health or /ready. A nil next is ignored to prevent a nil delegate from
 // being published. Note: Go's typed-nil-through-interface gotcha means a

@@ -9,10 +9,6 @@ import (
 )
 
 const (
-	// TaskSchedulerCheckName is the name surfaced on /health for the task
-	// scheduler pulse check.
-	TaskSchedulerCheckName = "task-scheduler"
-
 	// DefaultSchedulerPulseThreshold is the default wall-clock lag above
 	// which the scheduler is considered stalled. Picked to absorb a GC
 	// pause or a cold dispatch without being so long that operators miss
@@ -50,9 +46,6 @@ func NewSchedulerPulseCheck(sched NextRunScheduled, threshold time.Duration) *Sc
 		now:       time.Now,
 	}
 }
-
-// CheckName reports the check name used when registered with check.Check.
-func (*SchedulerPulseCheck) CheckName() string { return TaskSchedulerCheckName }
 
 // Check returns StatusPass when the scheduler has no pending work or its
 // next-run timestamp is in the future / within threshold; StatusFail when

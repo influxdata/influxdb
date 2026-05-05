@@ -25,9 +25,6 @@ const (
 	InmemPath           = ":memory:"
 	migrationsTableName = "migrations"
 
-	// HealthCheckName is the name surfaced on /health for the sqlite SQL
-	// store.
-	HealthCheckName = "sql"
 	// msgDatabaseNotOpen is returned when Check is called before the DB
 	// has been opened.
 	msgDatabaseNotOpen = "sqlite database not open"
@@ -75,10 +72,6 @@ func (s *SqlStore) openDB() error {
 
 	return nil
 }
-
-// CheckName returns the name used when this store is registered as a
-// check.NamedChecker.
-func (*SqlStore) CheckName() string { return HealthCheckName }
 
 // Check pings the underlying sqlite database to confirm it is reachable.
 // The probe has an upper bound of check.DefaultProbeTimeout even when

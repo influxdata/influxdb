@@ -28,7 +28,9 @@ const (
 type Check struct {
 	mu             sync.RWMutex
 	healthChecks   []Checker
+	healthNames    []string
 	readyChecks    []Checker
+	readyNames     []string
 	healthOverride override
 	readyOverride  override
 
@@ -53,11 +55,14 @@ func NewCheck() *Check {
 func (c *Check) AddHealthCheck(check Checker) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	var name string
 	if nc, ok := check.(NamedChecker); ok {
-		c.healthChecks = append(c.healthChecks, Named(nc.CheckName(), nc))
+		name = nc.CheckName()
+		c.healthChecks = append(c.healthChecks, Named(name, nc))
 	} else {
 		c.healthChecks = append(c.healthChecks, check)
 	}
+	c.healthNames = append(c.healthNames, name)
 }
 
 // AddReadyCheck adds the check to the list of ready checks.
@@ -65,11 +70,36 @@ func (c *Check) AddHealthCheck(check Checker) {
 func (c *Check) AddReadyCheck(check Checker) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	var name string
 	if nc, ok := check.(NamedChecker); ok {
-		c.readyChecks = append(c.readyChecks, Named(nc.CheckName(), nc))
+		name = nc.CheckName()
+		c.readyChecks = append(c.readyChecks, Named(name, nc))
 	} else {
 		c.readyChecks = append(c.readyChecks, check)
 	}
+	c.readyNames = append(c.readyNames, name)
+}
+
+// ReadyCheckNames returns the names of currently-registered ready checks
+// in registration order. Anonymous checks (registered without a name) are
+// returned as empty strings.
+func (c *Check) ReadyCheckNames() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]string, len(c.readyNames))
+	copy(out, c.readyNames)
+	return out
+}
+
+// HealthCheckNames returns the names of currently-registered health checks
+// in registration order. Anonymous checks (registered without a name) are
+// returned as empty strings.
+func (c *Check) HealthCheckNames() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]string, len(c.healthNames))
+	copy(out, c.healthNames)
+	return out
 }
 
 // CheckHealth evaluates c's set of health checks and returns a populated Response.

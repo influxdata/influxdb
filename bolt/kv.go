@@ -26,8 +26,6 @@ import (
 var _ kv.SchemaStore = (*KVStore)(nil)
 
 const (
-	// HealthCheckName is the name surfaced on /health for the bolt KV store.
-	HealthCheckName = "bolt"
 	// ProbeInFlightMsg is returned when a concurrent Check observes a
 	// prior probe still running. bbolt's View cannot be canceled, so a
 	// wedged database strands the probe goroutine until it recovers;
@@ -176,10 +174,6 @@ func (s *KVStore) WithDB(db *bolt.DB) {
 	defer s.mu.Unlock()
 	s.db = db
 }
-
-// CheckName returns the name used when this store is registered as a
-// check.NamedChecker.
-func (*KVStore) CheckName() string { return HealthCheckName }
 
 // Check runs a trivial read transaction against the underlying bolt
 // database to confirm it is reachable. The probe has an upper bound of

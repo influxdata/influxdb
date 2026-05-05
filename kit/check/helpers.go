@@ -23,15 +23,27 @@ func (f CheckerFunc) Check(ctx context.Context) Response {
 	return f(ctx)
 }
 
-// Named returns a Checker that will attach a name to the Response from the check.
-// This way, it is possible to augment a Response with a human-readable name, but not have to encode
-// that logic in the actual check itself.
+// namedChecker pairs a Checker with a fixed name. It implements NamedChecker
+// so AddHealthCheck/AddReadyCheck can record the name without invoking
+// Check, and its Check method stamps the name onto the Response.
+type namedChecker struct {
+	name    string
+	checker Checker
+}
+
+func (n namedChecker) CheckName() string { return n.name }
+
+func (n namedChecker) Check(ctx context.Context) Response {
+	resp := n.checker.Check(ctx)
+	resp.Name = n.name
+	return resp
+}
+
+// Named returns a NamedChecker that delegates to checker and stamps name
+// onto the response. This way callers can attach a human-readable name to
+// a response without encoding that logic into the underlying check.
 func Named(name string, checker Checker) Checker {
-	return CheckerFunc(func(ctx context.Context) Response {
-		resp := checker.Check(ctx)
-		resp.Name = name
-		return resp
-	})
+	return namedChecker{name: name, checker: checker}
 }
 
 // NamedFunc is the same as Named except it takes a CheckerFunc.
@@ -119,3 +131,6 @@ func (g *ReadyGate) Check(context.Context) Response {
 
 // Ready flips the gate to report StatusPass.
 func (g *ReadyGate) Ready() { g.ready.Store(true) }
+
+// Unready flips the gate to report StatusFail.
+func (g *ReadyGate) Unready() { g.ready.Store(false) }

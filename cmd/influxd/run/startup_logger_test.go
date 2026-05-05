@@ -14,10 +14,6 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-func TestStartupProgressLogger_CheckName(t *testing.T) {
-	require.Equal(t, ShardsCheckName, NewStartupProgressLogger(zaptest.NewLogger(t)).CheckName())
-}
-
 func TestStartupProgressLogger_CheckWaiting(t *testing.T) {
 	s := NewStartupProgressLogger(zaptest.NewLogger(t))
 

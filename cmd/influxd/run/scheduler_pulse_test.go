@@ -65,7 +65,3 @@ func TestSchedulerPulseCheck_OverThresholdFails(t *testing.T) {
 	require.Equal(t, check.StatusFail, resp.Status)
 	require.Equal(t, fmt.Sprintf(msgSchedulerStalledFmt, lag.Round(time.Second)), resp.Message)
 }
-
-func TestSchedulerPulseCheck_CheckName(t *testing.T) {
-	require.Equal(t, TaskSchedulerCheckName, (&SchedulerPulseCheck{}).CheckName())
-}

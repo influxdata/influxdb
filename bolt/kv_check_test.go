@@ -5,18 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/stretchr/testify/require"
 )
-
-func TestKVStore_CheckName(t *testing.T) {
-	s, closeFn, err := NewTestKVStore(t)
-	require.NoError(t, err)
-	defer closeFn()
-
-	require.Equal(t, bolt.HealthCheckName, s.CheckName())
-}
 
 func TestKVStore_CheckPasses(t *testing.T) {
 	s, closeFn, err := NewTestKVStore(t)
