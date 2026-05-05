@@ -17,7 +17,6 @@ hashbrown = { workspace = true }
 schema = { path = "../schema" }
 snafu = "0.9"
 
-
 [dev-dependencies]
 assert_matches = "1.5.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }

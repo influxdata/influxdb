@@ -54,6 +54,16 @@ pub enum WriteParseError {
     MultiTenantError(#[from] MultiTenantExtractError),
 }
 
+impl From<&WriteParseError> for hyper::StatusCode {
+    fn from(value: &WriteParseError) -> Self {
+        match value {
+            WriteParseError::NotImplemented => Self::METHOD_NOT_ALLOWED,
+            WriteParseError::SingleTenantError(e) => Self::from(e),
+            WriteParseError::MultiTenantError(e) => Self::from(e),
+        }
+    }
+}
+
 /// A [`WriteRequestUnifier`] abstraction returns a unified [`WriteParams`]
 /// from [`Request`] that conform to the [V1 Write API] or [V2 Write API].
 ///

@@ -10,7 +10,6 @@ futures = { version = "0.3.32" }
 futures-concurrency = "7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
 
-
 [dev-dependencies]
 clap = { version = "4", features = ["derive"] }
 rand = "0.9.2"

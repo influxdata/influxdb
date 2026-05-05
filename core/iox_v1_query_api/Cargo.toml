@@ -36,15 +36,14 @@ schema = { path = "../schema" }
 thiserror = "2.0.18"
 trace = { path = "../trace" }
 
-
 [dev-dependencies] # In alphabetical order
 async-trait = "0.1"
 data_types = { path = "../data_types" }
 datafusion_util = { path = "../datafusion_util" }
-insta = { version = "1.46.3", features = ["json", "redactions"] }
+insta = { version = "1.47.2", features = ["json", "redactions"] }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
-tokio = { version = "1.50", features = [
+tokio = { version = "1.52", features = [
     "macros",
     "net",
     "parking_lot",

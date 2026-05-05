@@ -20,9 +20,8 @@ num-integer = { version = "0.1", default-features = false, features = [
 num-traits = "0.2"
 thiserror = "2.0.18"
 
-
 [dev-dependencies] # In alphabetical order
 assert_matches = "1"
-insta = { version = "1.46.3", features = ["yaml"] }
+insta = { version = "1.47.2", features = ["yaml"] }
 paste = "1.0.15"
 test_helpers = { path = "../test_helpers" }

@@ -2,13 +2,12 @@
 
 use datafusion::logical_expr::{WindowFunctionDefinition, WindowUDF};
 use query_functions::{
+    derivative::{DERIVATIVE_UDWF, NON_NEGATIVE_DERIVATIVE_UDWF},
     difference::{DIFFERENCE_UDWF, NON_NEGATIVE_DIFFERENCE_UDWF},
-    non_negative::NonNegativeUDWF,
 };
 use std::sync::{Arc, LazyLock};
 
 mod cumulative_sum;
-mod derivative;
 mod elapsed;
 mod integral;
 mod moving_average;
@@ -22,11 +21,8 @@ pub(crate) static CUMULATIVE_SUM: LazyLock<WindowFunctionDefinition> = LazyLock:
 });
 
 /// Definition of the `DERIVATIVE` user-defined window function.
-pub(crate) static DERIVATIVE: LazyLock<WindowFunctionDefinition> = LazyLock::new(|| {
-    WindowFunctionDefinition::WindowUDF(Arc::new(WindowUDF::new_from_impl(
-        derivative::DerivativeUDWF::new(),
-    )))
-});
+pub(crate) static DERIVATIVE: LazyLock<WindowFunctionDefinition> =
+    LazyLock::new(|| WindowFunctionDefinition::WindowUDF(DERIVATIVE_UDWF.clone()));
 
 /// Definition of the `DIFFERENCE` user-defined window function.
 pub(crate) static DIFFERENCE: LazyLock<WindowFunctionDefinition> =
@@ -55,11 +51,7 @@ pub(crate) static MOVING_AVERAGE: LazyLock<WindowFunctionDefinition> = LazyLock:
 
 /// Definition of the `NON_NEGATIVE_DERIVATIVE` user-defined window function.
 pub(crate) static NON_NEGATIVE_DERIVATIVE: LazyLock<WindowFunctionDefinition> =
-    LazyLock::new(|| {
-        WindowFunctionDefinition::WindowUDF(Arc::new(WindowUDF::new_from_impl(
-            NonNegativeUDWF::new("non_negative_derivative", derivative::DerivativeUDWF::new()),
-        )))
-    });
+    LazyLock::new(|| WindowFunctionDefinition::WindowUDF(NON_NEGATIVE_DERIVATIVE_UDWF.clone()));
 
 /// Definition of the `NON_NEGATIVE_DIFFERENCE` user-defined window function.
 pub(crate) static NON_NEGATIVE_DIFFERENCE: LazyLock<WindowFunctionDefinition> =

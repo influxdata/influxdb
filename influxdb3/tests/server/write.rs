@@ -3,7 +3,7 @@ use pretty_assertions::assert_eq;
 use reqwest::StatusCode;
 use serde_json::Value;
 
-use crate::server::TestServer;
+use crate::server::{ConfigProvider, TestServer};
 
 #[tokio::test]
 async fn api_v1_write_request_parsing() {
@@ -296,6 +296,67 @@ async fn api_v2_write_round_trip() {
         | cpu              | 2065-01-07T17:28:52 | a    | 0.6   |\n\
         | cpu              | 2065-01-07T17:28:53 | a    | 0.7   |\n\
         +------------------+---------------------+------+-------+"
+    );
+}
+
+#[tokio::test]
+async fn api_v2_write_without_token_returns_unauthorized() {
+    let server = TestServer::configure().with_auth().spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+    let db_name = "mydb";
+
+    server.create_database(db_name).run().unwrap();
+
+    let resp = client
+        .post(&write_url)
+        .query(&[("bucket", db_name), ("precision", "ns")])
+        .body("cpu,host=a usage=0.5")
+        .send()
+        .await
+        .expect("send api/v2/write request without token");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, resp.status());
+
+    let body = resp.text().await.expect("response body as text");
+    let json: Value = serde_json::from_str(&body)
+        .unwrap_or_else(|_| panic!("Failed to parse JSON response. Body: {}", body));
+    assert_eq!(
+        json,
+        serde_json::json!({
+            "error": "the request was not authenticated",
+        })
+    );
+}
+
+#[tokio::test]
+async fn api_v2_write_invalid_token_returns_unauthorized() {
+    let server = TestServer::configure().with_auth().spawn().await;
+    let client = server.http_client();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+    let db_name = "mydb";
+
+    server.create_database(db_name).run().unwrap();
+
+    let resp = client
+        .post(&write_url)
+        .query(&[("bucket", db_name), ("precision", "ns")])
+        .body("cpu,host=a usage=0.5")
+        .bearer_auth("apiv3_nonexistent_token") // Use a non-existent token to simulate invalid authentication
+        .send()
+        .await
+        .expect("send api/v2/write request with invalid token");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, resp.status());
+
+    let body = resp.text().await.expect("response body as text");
+    let json: Value = serde_json::from_str(&body)
+        .unwrap_or_else(|_| panic!("Failed to parse JSON response. Body: {}", body));
+    assert_eq!(
+        json,
+        serde_json::json!({
+            "error": "the request was not authenticated",
+        })
     );
 }
 

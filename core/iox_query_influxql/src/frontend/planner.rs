@@ -182,19 +182,27 @@ impl DisplayAs for SchemaExec {
 pub struct InfluxQLQueryPlanner;
 
 impl InfluxQLQueryPlanner {
-    /// Plan an InfluxQL query against the catalogs registered with `ctx`, and return a
-    /// DataFusion physical execution plan that runs on the query executor.
-    pub async fn query(
+    /// Logically plan an InfluxQL query against the catalogs registered with `ctx`, and return a
+    /// DataFusion logical plan that runs on the query executor.
+    pub async fn logical_plan(
         query: &str,
         params: impl Into<StatementParams> + Send,
         ctx: &IOxSessionContext,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        let ctx = ctx.child_ctx("InfluxQLQueryPlanner::query");
-        debug!(text=%query, "planning InfluxQL query");
+    ) -> Result<LogicalPlan> {
+        let ctx = ctx.child_ctx("InfluxQLQueryPlanner::logical_plan");
+        debug!(text=%query, "logically planning InfluxQL query");
 
         let statement = Self::query_to_statement(query)?;
-        let logical_plan = Self::statement_to_plan(statement, params, &ctx).await?;
+        Self::statement_to_plan(statement, params, &ctx).await
+    }
 
+    /// Physically plan an InfluxQL query against the catalogs registered with `ctx`, and return a
+    /// DataFusion physical execution plan that runs on the query executor.
+    pub async fn physical_plan(
+        logical_plan: LogicalPlan,
+        ctx: &IOxSessionContext,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let ctx = ctx.child_ctx("InfluxQLQueryPlanner::physical_plan");
         // Strip "influxql::filled" metadata before physical planning. Removing
         // it avoids schema mismatch errors since parquet files won't have it.
         let logical_plan = strip_influxql_metadata_from_plan(logical_plan)?;

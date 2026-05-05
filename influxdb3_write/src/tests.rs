@@ -10,7 +10,7 @@ use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 use query_functions::tz::TZ_UDF;
 use std::sync::Arc;
 
-use data_types::NamespaceName;
+use influxdb3_types::DatabaseName;
 use influxdb3_types::write::Precision;
 use iox_time::Time;
 
@@ -186,7 +186,7 @@ async fn test_series_key_columns_with_slashes() {
         .await
         .map(Arc::new)
         .unwrap();
-    let db_name = NamespaceName::new("test-db").unwrap();
+    let db_name = DatabaseName::new("test-db").unwrap();
     let writer = WriteValidator::initialize(db_name, Arc::clone(&catalog)).unwrap();
     // write and commit the catalog changes:
     let _ = writer

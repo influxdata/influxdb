@@ -2,9 +2,9 @@ use crate::{Precision, write_buffer::validator::WriteValidator};
 
 use super::*;
 use arrow_util::assert_batches_sorted_eq;
-use data_types::NamespaceName;
 use datafusion::prelude::{Expr, col, lit_timestamp_nano};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_types::DatabaseName;
 use iox_time::{MockProvider, Time};
 use object_store::memory::InMemory;
 
@@ -27,7 +27,7 @@ impl TestWriter {
     }
 
     async fn write_to_rows(&self, lp: impl AsRef<str>, ingest_time_sec: i64) -> Vec<Row> {
-        let db = NamespaceName::try_from(Self::DB_NAME).unwrap();
+        let db = DatabaseName::try_from(Self::DB_NAME).unwrap();
         let ingest_time_ns = ingest_time_sec * 1_000_000_000;
         let validator = WriteValidator::initialize(db, Arc::clone(&self.catalog)).unwrap();
         validator

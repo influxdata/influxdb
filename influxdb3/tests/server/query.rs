@@ -74,6 +74,34 @@ async fn api_v3_query_sql_not_found() {
 }
 
 #[tokio::test]
+async fn api_v3_query_sql_invalid_query_should_return_400_bad_request() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db("foo", "cpu,host=a usage=1.0 1", Precision::Second)
+        .await
+        .unwrap();
+
+    let invalid_queries = vec![
+        "SHOW MEASUREMENTS",
+        "SELEC * FROM cpu",
+        "SELECT * cpu",
+        "SELECT count( FROM cpu",
+    ];
+
+    for query in invalid_queries {
+        let resp = server
+            .api_v3_query_sql(&[("db", "foo"), ("format", "pretty"), ("q", query)])
+            .await;
+
+        assert!(
+            resp.status().is_client_error(),
+            "query should be rejected with 400: {query}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn api_v3_query_sql_params() {
     let server = TestServer::spawn().await;
 
@@ -181,13 +209,7 @@ async fn api_v3_query_sql_params() {
         let status = resp.status();
         let body = resp.text().await.unwrap();
 
-        // TODO - it would be nice if this was a 4xx error, because this is really
-        //   a user error; however, the underlying error that occurs when Logical
-        //   planning is DatafusionError::Internal, and is not so convenient to deal
-        //   with. This may get addressed in:
-        //
-        //   https://github.com/apache/arrow-datafusion/issues/9738
-        assert!(status.is_server_error());
+        assert!(status.is_client_error());
         assert_contains!(body, "No value found for placeholder with name $host");
     }
 }
@@ -523,18 +545,40 @@ async fn api_v3_query_influxql_params() {
         let status = resp.status();
         let body = resp.text().await.unwrap();
 
-        // TODO - it would be nice if this was a 4xx error, because this is really
-        //   a user error; however, the underlying error that occurs when Logical
-        //   planning is DatafusionError::Internal, and is not so convenient to deal
-        //   with. This may get addressed in:
-        //
-        //   https://github.com/apache/arrow-datafusion/issues/9738
-        assert!(status.is_server_error());
+        assert!(status.is_client_error());
         assert_contains!(
             body,
             "Bind parameter '$host' was referenced in the InfluxQL \
             statement but its value is undefined"
         );
+    }
+}
+
+#[tokio::test]
+async fn api_v3_query_influxql_invalid_query_should_return_client_error() {
+    let server = TestServer::spawn().await;
+
+    let invalid_queries = vec![
+        "show tags",
+        "show",
+        "select from",
+        "select * from",
+        "show measurements where",
+    ];
+
+    for query in invalid_queries {
+        let resp = server
+            .api_v3_query_influxql(&[("db", "_internal"), ("q", query), ("format", "pretty")])
+            .await;
+
+        let status = resp.status();
+        let body = resp.text().await.unwrap();
+
+        assert!(
+            status.is_client_error(),
+            "query should be rejected as client error: {query}; status={status}; body={body}"
+        );
+        assert_contains!(body, "error in InfluxQL statement: parsing error:");
     }
 }
 

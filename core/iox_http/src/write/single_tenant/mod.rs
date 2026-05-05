@@ -70,7 +70,11 @@ impl From<&SingleTenantExtractError> for hyper::StatusCode {
             SingleTenantExtractError::Authorizer(e) => match e {
                 authz::Error::Forbidden { .. } => Self::FORBIDDEN,
                 authz::Error::NoToken => Self::UNAUTHORIZED,
-                _ => Self::FORBIDDEN,
+                authz::Error::InvalidToken => Self::FORBIDDEN,
+                // Communication errors with the auth service should be 503, not 403.
+                // This allows clients to distinguish between "your token is bad" (403)
+                // and "we couldn't reach the auth service" (503) and retry appropriately.
+                authz::Error::Verification { .. } => Self::SERVICE_UNAVAILABLE,
             },
         }
     }
@@ -665,4 +669,46 @@ mod tests {
             assert_matches!(precision, Precision::Nanosecond);
         }
     );
+
+    /// Test that auth errors map to the correct HTTP status codes.
+    ///
+    /// This is important because clients rely on status codes to determine
+    /// whether to retry:
+    /// - 401/403: Don't retry with the same token
+    /// - 503: Safe to retry (transient error)
+    mod authz_error_status_codes {
+        use super::*;
+        use hyper::StatusCode;
+
+        #[test]
+        fn verification_error_returns_503() {
+            // Communication errors with the auth service should be 503,
+            // allowing clients to safely retry during auth service rollouts.
+            let err = SingleTenantExtractError::Authorizer(authz::Error::verification(
+                "tcp connect error",
+                std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused"),
+            ));
+            assert_eq!(StatusCode::from(&err), StatusCode::SERVICE_UNAVAILABLE);
+        }
+
+        #[test]
+        fn forbidden_error_returns_403() {
+            let err = SingleTenantExtractError::Authorizer(authz::Error::Forbidden {
+                authorization: Authorization::new(None, vec![]),
+            });
+            assert_eq!(StatusCode::from(&err), StatusCode::FORBIDDEN);
+        }
+
+        #[test]
+        fn invalid_token_error_returns_403() {
+            let err = SingleTenantExtractError::Authorizer(authz::Error::InvalidToken);
+            assert_eq!(StatusCode::from(&err), StatusCode::FORBIDDEN);
+        }
+
+        #[test]
+        fn no_token_error_returns_401() {
+            let err = SingleTenantExtractError::Authorizer(authz::Error::NoToken);
+            assert_eq!(StatusCode::from(&err), StatusCode::UNAUTHORIZED);
+        }
+    }
 }

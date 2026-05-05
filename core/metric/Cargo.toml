@@ -11,5 +11,4 @@ workspace = true
 [dependencies] # In alphabetical order
 parking_lot = "0.12"
 
-
 [dev-dependencies] # In alphabetical order

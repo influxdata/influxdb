@@ -20,7 +20,6 @@ authz = { path = "../authz", features = ["http"] }
 data_types = { path = "../data_types" }
 iox_http_util = { path = "../iox_http_util" }
 
-
 [dev-dependencies]
 # crates.io dependencies in alphabetical order
 assert_matches = "1.5"

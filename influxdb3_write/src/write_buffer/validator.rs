@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use crate::{Precision, WriteLineError, write_buffer::Result};
-use data_types::{NamespaceName, Timestamp};
+use data_types::Timestamp;
 use hashbrown::HashSet;
 use indexmap::IndexMap;
 use influxdb3_catalog::catalog::{
     Catalog, CatalogSequenceNumber, DatabaseCatalogTransaction, Prompt,
 };
+use influxdb3_types::DatabaseName;
 
 use influxdb_line_protocol::{FieldValue, ParsedLine, parse_lines};
 use influxdb3_id::{ColumnId, DbId, TableId};
@@ -95,7 +96,7 @@ impl<T> WriteValidator<T> {
 impl WriteValidator<Initialized> {
     /// Initialize the [`WriteValidator`] by starting a catalog transaction on the given database
     /// with name `db_name`. This initializes the database if it does not already exist.
-    pub fn initialize(db_name: NamespaceName<'static>, catalog: Arc<Catalog>) -> Result<Self> {
+    pub fn initialize(db_name: DatabaseName, catalog: Arc<Catalog>) -> Result<Self> {
         let txn = catalog.begin(db_name.as_str())?;
         // Check if the database is soft-deleted and reject writes if so.
         if txn.db_schema().deleted {

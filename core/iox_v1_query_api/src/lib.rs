@@ -12,7 +12,7 @@ use types::Statement;
 mod error;
 pub use error::HttpError;
 mod handler;
-pub use handler::V1HttpHandler;
+pub use handler::{ExtractedV1Request, V1HttpHandler};
 mod response;
 mod types;
 mod value;

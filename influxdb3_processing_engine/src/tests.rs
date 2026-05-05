@@ -2,7 +2,6 @@ use crate::ProcessingEngineManagerImpl;
 use crate::TriggerSpecificationDefinition;
 use crate::environment::TestManager;
 use crate::plugins::ProcessingEngineEnvironmentManager;
-use data_types::NamespaceName;
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
@@ -13,6 +12,7 @@ use influxdb3_id::DbId;
 use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
 use influxdb3_shutdown::ShutdownManager;
 use influxdb3_sys_events::SysEventStore;
+use influxdb3_types::DatabaseName;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::Precision;
 use influxdb3_write::persister::Persister;
@@ -57,7 +57,7 @@ async fn test_trigger_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
     // Create the DB by inserting a line.
     pem.write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -147,7 +147,7 @@ async fn test_create_disabled_trigger() -> Result<(), Box<dyn std::error::Error>
     // Create the DB by inserting a line.
     pem.write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -201,7 +201,7 @@ async fn test_enable_nonexistent_trigger() -> Result<(), Box<dyn std::error::Err
     // Create the DB by inserting a line.
     pem.write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -264,7 +264,7 @@ async fn setup(
         metric_registry: Arc::clone(&metric_registry),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -451,7 +451,7 @@ def helper_function():
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -548,7 +548,7 @@ async fn test_missing_init_py() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -713,7 +713,7 @@ async fn test_atomic_directory_replacement() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -738,7 +738,7 @@ async fn test_atomic_directory_replacement() {
     // Create the DB and trigger first
     pem.write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -902,7 +902,7 @@ async fn test_create_plugin_file_path_traversal_parent_dir() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -992,7 +992,7 @@ async fn test_create_plugin_file_path_traversal_absolute() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -1081,7 +1081,7 @@ async fn test_create_plugin_file_path_traversal_nested() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -1170,7 +1170,7 @@ async fn test_create_plugin_file_valid_nested_path() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -1268,7 +1268,7 @@ async fn test_replace_plugin_directory_path_traversal_in_files() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -1293,7 +1293,7 @@ async fn test_replace_plugin_directory_path_traversal_in_files() {
     // Create the DB and trigger first
     pem.write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -1405,7 +1405,7 @@ async fn test_create_plugin_file_symlink_escape() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -1505,7 +1505,7 @@ async fn test_update_plugin_file_validates_path() {
         metric_registry: Arc::new(Registry::new()),
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
-        shutdown: shutdown.register(),
+        shutdown: shutdown.register("test"),
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
@@ -1530,7 +1530,7 @@ async fn test_update_plugin_file_validates_path() {
     // Create the DB and trigger
     pem.write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -1670,7 +1670,7 @@ async fn setup_db_with_trigger(
     // Create the DB
     pem.write_buffer
         .write_lp(
-            NamespaceName::new("test_db").unwrap(),
+            DatabaseName::new("test_db").unwrap(),
             "cpu,host=a val=1\n",
             start_time,
             false,

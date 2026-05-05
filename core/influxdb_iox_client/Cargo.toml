@@ -43,7 +43,7 @@ rand = { version = "0.9.2", optional = true }
 reqwest = { workspace = true, features = ["stream", "rustls-tls-native-roots"] }
 schema = { path = "../schema", optional = true }
 serde_json = { version = "1.0.149", optional = true }
-tokio = { version = "1.50", features = [
+tokio = { version = "1.52", features = [
     "macros",
     "parking_lot",
     "rt-multi-thread",

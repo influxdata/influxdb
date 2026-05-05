@@ -19,7 +19,7 @@ use iox_http_util::{
 use iox_query::{
     QueryDatabase,
     exec::IOxSessionContext,
-    query_log::{PermitAndToken, QueryCompletedToken, StatePlanned},
+    query_log::{PermitAndToken, QueryCompletedToken, StatePhysicallyPlanned},
 };
 use iox_query_influxql::{
     frontend::planner::InfluxQLQueryPlanner, show_databases::InfluxQlShowDatabases,
@@ -57,8 +57,50 @@ use crate::{
 struct QueryPlan {
     physical_plan: Arc<dyn ExecutionPlan>,
     schema: Arc<Schema>,
-    query_completed_token: QueryCompletedToken<StatePlanned>,
+    query_completed_token: QueryCompletedToken<StatePhysicallyPlanned>,
     context: IOxSessionContext,
+}
+
+/// A V1 `/query` request parsed but not yet executed.
+///
+/// Returned by [`V1HttpHandler::extract_query_request`] and consumed by
+/// [`V1HttpHandler::execute_query`]. Callers can read
+/// [`Self::requested_database`] between the two phases to wire up
+/// observability that needs the database name from the request.
+///
+/// The inner fields hold the auth token bytes and the raw query text;
+/// the manual `Debug` impl redacts both so accidental `{:?}` formatting
+/// can't leak them into logs.
+pub struct ExtractedV1Request {
+    span_ctx: Option<SpanContext>,
+    token: Option<Vec<u8>>,
+    params: QueryParams,
+    format: QueryFormat,
+}
+
+impl std::fmt::Debug for ExtractedV1Request {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExtractedV1Request")
+            .field("requested_database", &self.requested_database())
+            .field("token", &self.token.as_ref().map(|_| "<redacted>"))
+            .field("query", &self.params.query.as_ref().map(|_| "<redacted>"))
+            .field("format", &self.format)
+            .finish()
+    }
+}
+
+impl ExtractedV1Request {
+    /// The database name as supplied by the request — URL query string,
+    /// `application/x-www-form-urlencoded` body, or multipart `db` field.
+    /// Empty strings collapse to `None`, matching `execute_query`'s own
+    /// handling.
+    ///
+    /// This is the request-level value only. Per-statement DB/RP overrides
+    /// embedded in InfluxQL (e.g. `SELECT … FROM "otherdb"."rp"."m"`) are
+    /// resolved during execution and are not reflected here.
+    pub fn requested_database(&self) -> Option<&str> {
+        self.params.database.as_deref().filter(|s| !s.is_empty())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -132,7 +174,19 @@ impl V1HttpHandler {
             .map_err(|e| HttpError::InternalError(e.to_string()))
     }
 
-    async fn handle_parameterized_query(&self, mut req: Request) -> Result<Response, HttpError> {
+    async fn handle_parameterized_query(&self, req: Request) -> Result<Response, HttpError> {
+        let extracted = self.extract_query_request(req).await?;
+        self.execute_query(extracted).await
+    }
+
+    /// Parse the request: trace context, auth token, and body params/format.
+    ///
+    /// Splitting this out from execution lets callers inspect the resolved
+    /// `database` (e.g. for service-level logging) before the request runs.
+    pub async fn extract_query_request(
+        &self,
+        mut req: Request,
+    ) -> Result<ExtractedV1Request, HttpError> {
         let span_ctx = Some(SpanContext::new_with_optional_collector(
             self.trace_collector.as_ref().map(Arc::clone),
         ));
@@ -142,6 +196,26 @@ impl V1HttpHandler {
         let token = self.get_token_from_request(&mut req)?;
 
         let (params, format) = extract_request(req).await?;
+
+        Ok(ExtractedV1Request {
+            span_ctx,
+            token,
+            params,
+            format,
+        })
+    }
+
+    /// Execute a previously parsed V1 request.
+    pub async fn execute_query(
+        &self,
+        extracted: ExtractedV1Request,
+    ) -> Result<Response, HttpError> {
+        let ExtractedV1Request {
+            span_ctx,
+            token,
+            params,
+            format,
+        } = extracted;
 
         let QueryParams {
             chunk_size,
@@ -381,31 +455,44 @@ impl V1HttpHandler {
             authz_id,
         );
 
-        // Log after we acquire the permit and are about to start execution
+        // Log after we are about to start logically planning
         info!(
             %namespace_name,
             %query,
             trace=external_span_ctx.format_jaeger().as_str(),
             variant=QueryVariant::InfluxQl.str(),
             request_protocol="v1_http_query",
-            "InfluxQL request planning",
+            "InfluxQL request logical planning",
         );
 
         let context = db.new_query_context(span_ctx, None);
 
-        let planner_ctx = context.child_ctx("v1 query planner");
+        let planner_ctx = context.child_ctx("v1 query logical planner");
         // Run planner on a separate threadpool, rather than the IO pool that is servicing this request
+        let logical_plan_res = context
+            .run(async move {
+                InfluxQLQueryPlanner::logical_plan(query.as_ref(), params, &planner_ctx).await
+            })
+            .await;
+        let logical_plan = match logical_plan_res {
+            Ok(logical_plan) => logical_plan,
+            Err(e) => Err(Error::from(e))?,
+        };
+        let query_completed_token =
+            query_completed_token.logically_planned(&context, &logical_plan);
+
+        let planner_ctx = context.child_ctx("v1 query physical planner");
         let physical_plan_res =
             context
                 .run(async move {
-                    InfluxQLQueryPlanner::query(query.as_ref(), params, &planner_ctx).await
+                    InfluxQLQueryPlanner::physical_plan(logical_plan, &planner_ctx).await
                 })
                 .await;
 
         let (physical_plan, query_completed_token) = match physical_plan_res {
             Ok(physical_plan) => {
                 let query_completed_token =
-                    query_completed_token.planned(&context, Arc::clone(&physical_plan));
+                    query_completed_token.physically_planned(&context, Arc::clone(&physical_plan));
                 (physical_plan, query_completed_token)
             }
             Err(e) => {
@@ -515,11 +602,13 @@ fn get_executing_statement_from_plan(
     } = query_plan;
 
     let fut = async move {
-        let permit_span = context.child_span("query_rate_limit_semaphore");
-        let permit = database.acquire_semaphore(permit_span).await;
+        let execution_permit_span = context.child_span("query_execution_rate_limit_semaphore");
+        let execution_permit = database
+            .acquire_execution_semaphore(execution_permit_span)
+            .await;
         let query_completed_token: iox_query::query_log::QueryCompletedToken<
-            iox_query::query_log::StatePermit,
-        > = query_completed_token.permit();
+            iox_query::query_log::StateExecutionPermit,
+        > = query_completed_token.execution_permit();
 
         context
             .execute_stream(physical_plan)
@@ -528,7 +617,7 @@ fn get_executing_statement_from_plan(
                 Statement::new(
                     Arc::clone(&schema),
                     Some(PermitAndToken {
-                        permit,
+                        permit: execution_permit,
                         query_completed_token,
                     }),
                     stream,
@@ -959,5 +1048,115 @@ mod tests {
         },{
             insta::assert_snapshot!(res);
         });
+    }
+
+    /// Helper: build a fresh handler for `extract_query_request` tests.
+    /// These tests do not exercise execution, so the database / authz
+    /// implementations are inert.
+    fn handler_for_extract_tests() -> V1HttpHandler {
+        let db: Arc<dyn QueryDatabase> = Arc::new(TestDatabaseStore::default());
+        V1HttpHandler::new(db, None, None, "test".to_string())
+    }
+
+    #[tokio::test]
+    async fn extract_query_request_db_in_url() {
+        let req = RequestBuilder::new()
+            .method("GET")
+            .uri("http://h/query?db=mydb&q=SELECT%201")
+            .body(empty_request_body())
+            .unwrap();
+        let extracted = handler_for_extract_tests()
+            .extract_query_request(req)
+            .await
+            .expect("extract should succeed");
+        assert_eq!(extracted.requested_database(), Some("mydb"));
+    }
+
+    #[tokio::test]
+    async fn extract_query_request_db_in_form_body() {
+        let req = RequestBuilder::new()
+            .method("POST")
+            .uri("http://h/query")
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(iox_http_util::bytes_to_request_body("db=mydb&q=SELECT+1"))
+            .unwrap();
+        let extracted = handler_for_extract_tests()
+            .extract_query_request(req)
+            .await
+            .expect("extract should succeed");
+        assert_eq!(extracted.requested_database(), Some("mydb"));
+    }
+
+    #[tokio::test]
+    async fn extract_query_request_db_in_multipart_body() {
+        let boundary = "----v1tests-boundary-9f8d";
+        let body = format!(
+            "--{boundary}\r\n\
+             Content-Disposition: form-data; name=\"db\"\r\n\r\n\
+             mydb\r\n\
+             --{boundary}\r\n\
+             Content-Disposition: form-data; name=\"q\"\r\n\r\n\
+             SELECT 1\r\n\
+             --{boundary}--\r\n"
+        );
+        let req = RequestBuilder::new()
+            .method("POST")
+            .uri("http://h/query")
+            .header(
+                "Content-Type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(iox_http_util::bytes_to_request_body(body))
+            .unwrap();
+        let extracted = handler_for_extract_tests()
+            .extract_query_request(req)
+            .await
+            .expect("extract should succeed");
+        assert_eq!(extracted.requested_database(), Some("mydb"));
+    }
+
+    #[tokio::test]
+    async fn extract_query_request_debug_redacts_token_and_query() {
+        // Token comes from the `p=` URL parameter on the V1 path — that's
+        // one of the two real ingress points for V1 auth (the other is
+        // `AuthorizationHeaderExtension` in `req.extensions()`, which is
+        // populated by upstream middleware not present in this unit test).
+        let req = RequestBuilder::new()
+            .method("POST")
+            .uri("http://h/query?p=supersecret-token-bytes")
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(iox_http_util::bytes_to_request_body(
+                "db=mydb&q=SELECT+secret_field+FROM+t",
+            ))
+            .unwrap();
+        let extracted = handler_for_extract_tests()
+            .extract_query_request(req)
+            .await
+            .expect("extract should succeed");
+        // Sanity: the token actually got captured, otherwise we'd be
+        // proving redaction of a None field.
+        assert!(
+            extracted.token.is_some(),
+            "test fixture should populate a token via ?p="
+        );
+        let dbg = format!("{extracted:?}");
+        assert!(!dbg.contains("supersecret-token-bytes"), "{dbg}");
+        assert!(!dbg.contains("secret_field"), "{dbg}");
+        // Database name is fine to display.
+        assert!(dbg.contains("mydb"), "{dbg}");
+    }
+
+    #[tokio::test]
+    async fn extract_query_request_empty_db_collapses_to_none() {
+        let req = RequestBuilder::new()
+            .method("GET")
+            .uri("http://h/query?db=&q=SELECT%201")
+            .body(empty_request_body())
+            .unwrap();
+        let extracted = handler_for_extract_tests()
+            .extract_query_request(req)
+            .await
+            .expect("extract should succeed");
+        assert_eq!(extracted.requested_database(), None);
     }
 }

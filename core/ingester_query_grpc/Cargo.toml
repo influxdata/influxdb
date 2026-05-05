@@ -22,7 +22,6 @@ snafu = "0.9"
 tonic = { workspace = true, features = ["tls-ring", "tls-native-roots"] }
 tonic-prost = { workspace = true }
 
-
 [build-dependencies] # In alphabetical order
 pbjson-build = { workspace = true }
 tonic-prost-build = { workspace = true }

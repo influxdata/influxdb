@@ -2,13 +2,13 @@ use crate::PluginCode;
 use crate::ProcessingEngineManagerImpl;
 use crate::environment::PythonEnvironmentManager;
 use crate::{RequestEvent, ScheduleEvent, WalEvent};
-use data_types::NamespaceName;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::log::TriggerDefinition;
 use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_py_api::system_py::{CacheStore, PluginLogger, ProcessingEngineLogger, PyCache};
+use influxdb3_types::DatabaseName;
 
 use influxdb3_sys_events::SysEventStore;
 
@@ -54,7 +54,7 @@ impl DryRunBufferer {
 impl Bufferer for DryRunBufferer {
     async fn write_lp(
         &self,
-        database: NamespaceName<'static>,
+        database: DatabaseName,
         lp: &str,
         _ingest_time: Time,
         _accept_partial: bool,
@@ -841,7 +841,7 @@ mod python_plugin {
             let mut errors = Vec::new();
 
             if !plugin_return_state.write_back_lines.is_empty() {
-                let Ok(namespace_name) = NamespaceName::new(self.db_name.clone()) else {
+                let Ok(database_name) = DatabaseName::new(self.db_name.clone()) else {
                     errors.push(anyhow!("invalid database name: {}", self.db_name));
                     return errors;
                 };
@@ -849,7 +849,7 @@ mod python_plugin {
                 if let Err(e) = self
                     .write_buffer
                     .write_lp(
-                        namespace_name,
+                        database_name,
                         plugin_return_state.write_back_lines.join("\n").as_str(),
                         Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
                         false,
@@ -864,7 +864,7 @@ mod python_plugin {
             }
 
             for (db_name, lines) in plugin_return_state.write_db_lines {
-                let Ok(namespace_name) = NamespaceName::new(db_name.clone()) else {
+                let Ok(database_name) = DatabaseName::new(db_name.clone()) else {
                     errors.push(anyhow!("invalid database name: {db_name}"));
                     continue;
                 };
@@ -872,7 +872,7 @@ mod python_plugin {
                 if let Err(e) = self
                     .write_buffer
                     .write_lp(
-                        namespace_name,
+                        database_name,
                         lines.join("\n").as_str(),
                         Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
                         false,
@@ -1073,10 +1073,10 @@ pub(crate) fn run_dry_run_wal_plugin(
     use influxdb3_write::write_buffer::validator::WriteValidator;
 
     let database = request.database;
-    let namespace = NamespaceName::new(database.clone())
+    let database_name = DatabaseName::new(database.clone())
         .map_err(|_e| PluginError::InvalidDatabase(database.clone()))?;
     // parse the lp into a write batch
-    let validator = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog))?;
+    let validator = WriteValidator::initialize(database_name.clone(), Arc::clone(&catalog))?;
     let parsed = validator.v1_parse_lines_and_catalog_updates(
         &request.input_lp,
         false,
@@ -1243,20 +1243,16 @@ impl DryRunWriteHandler {
         Self { catalog, now_time }
     }
 
-    /// Validates a vec of lines for a namespace, returning any errors as strings.
-    fn validate_write_lines(
-        &self,
-        namespace: NamespaceName<'static>,
-        lines: &[String],
-    ) -> Vec<String> {
+    /// Validates a vec of lines for a database, returning any errors as strings.
+    fn validate_write_lines(&self, database_name: DatabaseName, lines: &[String]) -> Vec<String> {
         use influxdb3_wal::Gen1Duration;
         use influxdb3_write::write_buffer::validator::WriteValidator;
 
         let mut errors = Vec::new();
-        let db_name = namespace.as_str();
+        let db_name = database_name.as_str();
 
         let validator =
-            match WriteValidator::initialize(namespace.clone(), Arc::clone(&self.catalog)) {
+            match WriteValidator::initialize(database_name.clone(), Arc::clone(&self.catalog)) {
                 Ok(v) => v,
                 Err(e) => {
                     errors.push(format!(
@@ -1297,15 +1293,15 @@ impl DryRunWriteHandler {
     fn validate_all_writes(&self, writes: &HashMap<String, Vec<String>>) -> Vec<String> {
         let mut all_errors = Vec::new();
         for (db_name, lines) in writes {
-            let namespace = match NamespaceName::new(db_name.to_string()) {
-                Ok(namespace) => namespace,
+            let database_name = match DatabaseName::new(db_name.to_string()) {
+                Ok(database_name) => database_name,
                 Err(e) => {
                     all_errors.push(format!("database name {db_name} is invalid: {e}"));
                     continue;
                 }
             };
 
-            let db_errors = self.validate_write_lines(namespace, lines);
+            let db_errors = self.validate_write_lines(database_name, lines);
             all_errors.extend(db_errors);
         }
 

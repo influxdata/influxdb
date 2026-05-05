@@ -19,6 +19,7 @@ use influxdb3_catalog::log::FieldDataType;
 use influxdb3_id::{ColumnId, DbId, ParquetFileId};
 use influxdb3_shutdown::ShutdownManager;
 use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
+use influxdb3_types::DatabaseName;
 use influxdb3_types::http::LastCacheSize;
 use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::exec::{Executor, ExecutorConfig, IOxSessionContext, PerQueryMemoryPoolConfig};
@@ -42,7 +43,7 @@ async fn parse_lp_into_buffer() {
             .await
             .unwrap(),
     );
-    let db_name = NamespaceName::new("foo").unwrap();
+    let db_name = DatabaseName::new("foo").unwrap();
     let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
     WriteValidator::initialize(db_name, Arc::clone(&catalog))
         .unwrap()
@@ -90,7 +91,7 @@ async fn test_write_to_deleted_database_rejected() {
     )
     .await;
 
-    let db_name = NamespaceName::new("test_db").unwrap();
+    let db_name = DatabaseName::new("test_db").unwrap();
     let lp = "cpu,region=west user=23.2 100";
 
     // First, successfully write to create the database
@@ -139,7 +140,7 @@ async fn test_write_to_deleted_database_rejected() {
 
     // Try to write to the renamed deleted database - should fail
     let deleted_db_name_str = deleted_db_schema.name.to_string();
-    let deleted_db_name = NamespaceName::new(deleted_db_name_str.clone()).unwrap();
+    let deleted_db_name = DatabaseName::new(deleted_db_name_str.clone()).unwrap();
     let result = write_buffer
         .write_lp(
             deleted_db_name,
@@ -200,7 +201,7 @@ async fn writes_data_to_wal_and_is_queryable() {
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-        shutdown: ShutdownManager::new_testing().register(),
+        shutdown: ShutdownManager::new_testing().register("test"),
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
@@ -212,7 +213,7 @@ async fn writes_data_to_wal_and_is_queryable() {
 
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=1 10",
             Time::from_timestamp_nanos(123),
             false,
@@ -237,7 +238,7 @@ async fn writes_data_to_wal_and_is_queryable() {
     // do two more writes to trigger a snapshot
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=2 20",
             Time::from_timestamp_nanos(124),
             false,
@@ -249,7 +250,7 @@ async fn writes_data_to_wal_and_is_queryable() {
 
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=3 30",
             Time::from_timestamp_nanos(125),
             false,
@@ -310,7 +311,7 @@ async fn writes_data_to_wal_and_is_queryable() {
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-        shutdown: ShutdownManager::new_testing().register(),
+        shutdown: ShutdownManager::new_testing().register("test"),
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
@@ -343,7 +344,7 @@ async fn last_cache_create_and_delete_is_durable() {
     let cache_name = "cache";
     // Write some data to the current segment and update the catalog:
     wbuf.write_lp(
-        NamespaceName::new(db_name).unwrap(),
+        DatabaseName::new(db_name).unwrap(),
         format!("{tbl_name},t1=a f1=true").as_str(),
         Time::from_timestamp(20, 0).unwrap(),
         false,
@@ -407,7 +408,7 @@ async fn last_cache_create_and_delete_is_durable() {
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
             n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-            shutdown: ShutdownManager::new_testing().register(),
+            shutdown: ShutdownManager::new_testing().register("test"),
             wal_replay_concurrency_limit: 1,
             parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
         })
@@ -428,7 +429,7 @@ async fn last_cache_create_and_delete_is_durable() {
     // Do another write that will update the state of the catalog, specifically, the table
     // that the last cache was created for, and add a new field to the table/cache `f2`:
     wbuf.write_lp(
-        NamespaceName::new(db_name).unwrap(),
+        DatabaseName::new(db_name).unwrap(),
         format!("{tbl_name},t1=a f1=false,f2=42i").as_str(),
         Time::from_timestamp(30, 0).unwrap(),
         false,
@@ -450,7 +451,7 @@ async fn last_cache_create_and_delete_is_durable() {
 
     // write a new data point to fill the cache
     wbuf.write_lp(
-        NamespaceName::new(db_name).unwrap(),
+        DatabaseName::new(db_name).unwrap(),
         format!("{tbl_name},t1=a f1=true,f2=53i").as_str(),
         Time::from_timestamp(40, 0).unwrap(),
         false,
@@ -510,7 +511,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
 
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=1",
             Time::from_timestamp(10, 0).unwrap(),
             false,
@@ -534,7 +535,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
 
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=2",
             Time::from_timestamp(65, 0).unwrap(),
             false,
@@ -560,7 +561,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
     // trigger snapshot with a third write, creating parquet files
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=3 147000000000",
             Time::from_timestamp(147, 0).unwrap(),
             false,
@@ -603,7 +604,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
     // now validate that buffered data and parquet data are all returned
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=4",
             Time::from_timestamp(250, 0).unwrap(),
             false,
@@ -669,7 +670,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-        shutdown: ShutdownManager::new_testing().register(),
+        shutdown: ShutdownManager::new_testing().register("test"),
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
@@ -692,7 +693,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
     // now write some new data
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=5",
             Time::from_timestamp(300, 0).unwrap(),
             false,
@@ -705,7 +706,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
     // and write more to force another snapshot
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu bar=6",
             Time::from_timestamp(330, 0).unwrap(),
             false,
@@ -875,7 +876,7 @@ async fn new_snapshots_use_correct_sequence() {
 
     // do three writes to force a new snapshot
     wbuf.write_lp(
-        NamespaceName::new("foo").unwrap(),
+        DatabaseName::new("foo").unwrap(),
         "cpu bar=1",
         Time::from_timestamp(10, 0).unwrap(),
         false,
@@ -885,7 +886,7 @@ async fn new_snapshots_use_correct_sequence() {
     .await
     .unwrap();
     wbuf.write_lp(
-        NamespaceName::new("foo").unwrap(),
+        DatabaseName::new("foo").unwrap(),
         "cpu bar=2",
         Time::from_timestamp(20, 0).unwrap(),
         false,
@@ -895,7 +896,7 @@ async fn new_snapshots_use_correct_sequence() {
     .await
     .unwrap();
     wbuf.write_lp(
-        NamespaceName::new("foo").unwrap(),
+        DatabaseName::new("foo").unwrap(),
         "cpu bar=3",
         Time::from_timestamp(30, 0).unwrap(),
         false,
@@ -1621,7 +1622,7 @@ async fn test_delete_database() {
         setup_cache_optional(start_time, test_store, wal_config, false).await;
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -1678,7 +1679,7 @@ async fn test_delete_table() {
         setup_cache_optional(start_time, test_store, wal_config, false).await;
     let _ = write_buffer
         .write_lp(
-            NamespaceName::new("foo").unwrap(),
+            DatabaseName::new("foo").unwrap(),
             "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
             start_time,
             false,
@@ -2258,7 +2259,7 @@ async fn test_query_path_parquet_cache() {
     for i in 1..=3 {
         let _ = write_buffer
             .write_lp(
-                NamespaceName::new(db_name).unwrap(),
+                DatabaseName::new(db_name).unwrap(),
                 "temp,warehouse=us-east,room=01a,device=10001 reading=36\n\
             temp,warehouse=us-east,room=01b,device=10002 reading=29\n\
             temp,warehouse=us-east,room=02a,device=30003 reading=33\n\
@@ -2391,7 +2392,7 @@ async fn test_query_path_parquet_cache() {
 #[tokio::test]
 async fn series_key_updated_on_new_tag() {
     let catalog = Arc::new(Catalog::new_in_memory("test-catalog").await.unwrap());
-    let db_name = NamespaceName::new("foo").unwrap();
+    let db_name = DatabaseName::new("foo").unwrap();
     let lp = "test_table,tag0=foo field0=1";
     WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog))
         .unwrap()
@@ -2469,7 +2470,7 @@ async fn test_empty_write_does_not_corrupt_wal() {
     // empty write should be rejected:
     let err = buf
         .write_lp(
-            NamespaceName::new("cats").unwrap(),
+            DatabaseName::new("cats").unwrap(),
             "",
             Time::from_timestamp_nanos(1),
             true,
@@ -2486,7 +2487,7 @@ async fn test_empty_write_does_not_corrupt_wal() {
     // do a write with only invalid lines:
     let res = buf
         .write_lp(
-            NamespaceName::new("cats").unwrap(),
+            DatabaseName::new("cats").unwrap(),
             "not_valid_line_protocol",
             Time::from_timestamp_nanos(1),
             true,
@@ -2706,7 +2707,7 @@ async fn do_writes<W: WriteBuffer, LP: AsRef<str> + Send + Sync>(
     for w in writes {
         buffer
             .write_lp(
-                NamespaceName::new(db).unwrap(),
+                DatabaseName::new(db).unwrap(),
                 w.lp.as_ref(),
                 Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                 false,
@@ -2726,7 +2727,7 @@ async fn do_writes_partial<W: WriteBuffer, LP: AsRef<str> + Send + Sync>(
     for w in writes {
         buffer
             .write_lp(
-                NamespaceName::new(db).unwrap(),
+                DatabaseName::new(db).unwrap(),
                 w.lp.as_ref(),
                 Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                 true,
@@ -2869,7 +2870,7 @@ async fn setup_inner(
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-        shutdown: ShutdownManager::new_testing().register(),
+        shutdown: ShutdownManager::new_testing().register("test"),
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })
@@ -3029,7 +3030,7 @@ async fn setup_with_checkpointing(
         snapshotted_wal_files_to_keep: 10,
         query_file_limit: None,
         n_snapshots_to_load_on_start: N_SNAPSHOTS_TO_LOAD_ON_START,
-        shutdown: ShutdownManager::new_testing().register(),
+        shutdown: ShutdownManager::new_testing().register("test"),
         wal_replay_concurrency_limit: 1,
         parquet_snapshot_concurrency_limit: NonZeroUsize::new(10).unwrap(),
     })

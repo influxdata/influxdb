@@ -22,9 +22,7 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use data_types::{
-    ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError, PartitionHashId,
-};
+use data_types::{ChunkId, ChunkOrder, ColumnType, PartitionHashId};
 use datafusion::{
     catalog::Session, common::DataFusionError, datasource::object_store::ObjectStoreUrl,
 };
@@ -41,6 +39,7 @@ use influxdb3_catalog::{
     catalog::{Catalog, DatabaseSchema, Prompt, TableDefinition},
 };
 use influxdb3_id::{DbId, TableId};
+use influxdb3_types::{DatabaseName, DatabaseNameError};
 use influxdb3_wal::{
     SnapshotSequenceNumber, Wal, WalConfig, WalFileNotifier, WalOp,
     object_store::{CreateWalObjectStoreArgs, WalObjectStore},
@@ -91,7 +90,7 @@ pub enum Error {
     CorruptLoadState(String),
 
     #[error("database name error: {0}")]
-    DatabaseNameError(#[from] NamespaceNameError),
+    DatabaseNameError(#[from] DatabaseNameError),
 
     #[error("error from table buffer: {0}")]
     TableBufferError(#[from] table_buffer::Error),
@@ -149,7 +148,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct WriteRequest<'a> {
-    pub db_name: NamespaceName<'static>,
+    pub db_name: DatabaseName,
     pub line_protocol: &'a str,
     pub default_time: u64,
 }
@@ -450,7 +449,7 @@ impl WriteBufferImpl {
 
     async fn write_lp(
         &self,
-        db_name: NamespaceName<'static>,
+        db_name: DatabaseName,
         lp: &str,
         ingest_time: Time,
         accept_partial: bool,
@@ -698,7 +697,7 @@ pub fn parquet_chunk_from_file(
 impl Bufferer for WriteBufferImpl {
     async fn write_lp(
         &self,
-        database: NamespaceName<'static>,
+        database: DatabaseName,
         lp: &str,
         ingest_time: Time,
         accept_partial: bool,

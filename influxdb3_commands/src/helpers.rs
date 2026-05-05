@@ -5,9 +5,8 @@ use std::{str::FromStr, sync::OnceLock};
 use influxdb3_server::all_paths;
 use observability_deps::tracing::trace;
 
-const DISABLED_AUTHZ_TOO_MANY_VALUES_ERR: &str = "--disable-authz cannot take more than 3 items";
-const DISABLED_AUTHZ_INVALID_VALUE_ERR: &str =
-    "invalid value passed in for --disable-authz, allowed values are health, ping, and metrics";
+const DISABLED_AUTHZ_TOO_MANY_VALUES_ERR: &str = "--disable-authz cannot take more than 4 items";
+const DISABLED_AUTHZ_INVALID_VALUE_ERR: &str = "invalid value passed in for --disable-authz, allowed values are health, ping, metrics, and ready";
 
 static AUTHZ_DISABLED_RESOURCES: OnceLock<Vec<&'static str>> = OnceLock::new();
 
@@ -41,12 +40,12 @@ impl FromStr for DisableAuthzList {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let resources: Vec<String> = s.split(',').map(|s| s.trim().to_string()).collect();
-        if resources.len() > 3 {
+        if resources.len() > 4 {
             return Err(DISABLED_AUTHZ_TOO_MANY_VALUES_ERR);
         }
 
         for r in &resources {
-            if !["health", "ping", "metrics"]
+            if !["health", "ping", "metrics", "ready"]
                 .iter()
                 .any(|resource| resource == r)
             {
@@ -67,6 +66,10 @@ impl FromStr for DisableAuthzList {
 
                 if path == "metrics" {
                     return vec![all_paths::API_METRICS];
+                }
+
+                if path == "ready" {
+                    return vec![all_paths::API_V3_READY];
                 }
                 vec![]
             })

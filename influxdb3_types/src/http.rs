@@ -66,6 +66,15 @@ pub enum Error {
     Unexpected(#[from] anyhow::Error),
 }
 
+impl From<&Error> for hyper::StatusCode {
+    fn from(value: &Error) -> Self {
+        match value {
+            Error::InvalidMimeType(_) | Error::NonUtf8MimeType(_) => Self::BAD_REQUEST,
+            Error::Unexpected(_) => Self::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PingResponse {
     #[serde(default)]

@@ -134,14 +134,14 @@ impl SchemaMerger<'_> {
     pub fn merge(mut self, other: &Schema) -> Result<Self> {
         // Verify measurement name is compatible
         match (self.measurement.as_ref(), other.measurement()) {
-            (Some(existing_measurement), Some(new_measurement))
-                if existing_measurement != new_measurement =>
-            {
-                return TryMergeDifferentMeasurementNamesSnafu {
-                    existing_measurement,
-                    new_measurement,
+            (Some(existing_measurement), Some(new_measurement)) => {
+                if existing_measurement != new_measurement {
+                    return TryMergeDifferentMeasurementNamesSnafu {
+                        existing_measurement,
+                        new_measurement,
+                    }
+                    .fail();
                 }
-                .fail();
             }
             (None, Some(other)) => self.measurement = Some(other.clone()),
             _ => {}

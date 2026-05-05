@@ -227,7 +227,7 @@ impl QueryDatabase for UnimplementedQueryExecutor {
         unimplemented!()
     }
 
-    async fn acquire_semaphore(
+    async fn acquire_execution_semaphore(
         &self,
         _span: Option<Span>,
     ) -> InstrumentedAsyncOwnedSemaphorePermit {

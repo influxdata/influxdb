@@ -9,7 +9,9 @@ use datafusion::{
     logical_expr::{AggregateUDF, ScalarUDF, WindowUDF, planner::ExprPlanner},
 };
 
-use crate::{date_bin_wallclock, difference, gapfill, regex, sleep, to_timestamp, tz, window};
+use crate::{
+    date_bin_wallclock, derivative, difference, gapfill, regex, sleep, to_timestamp, tz, window,
+};
 
 /// Contains IOx UDFs
 static IOX_REGISTRY: LazyLock<IOxFunctionRegistry> = LazyLock::new(IOxFunctionRegistry::new);
@@ -68,7 +70,9 @@ impl FunctionRegistry for IOxFunctionRegistry {
 
     fn udwfs(&self) -> HashSet<String> {
         [
+            derivative::DERIVATIVE_UDWF_NAME,
             difference::DIFFERENCE_UDWF_NAME,
+            derivative::NON_NEGATIVE_DERIVATIVE_UDWF_NAME,
             difference::NON_NEGATIVE_DIFFERENCE_UDWF_NAME,
         ]
         .into_iter()
@@ -126,7 +130,11 @@ impl FunctionRegistry for IOxFunctionRegistry {
 
     fn udwf(&self, name: &str) -> DataFusionResult<Arc<WindowUDF>> {
         match name {
+            derivative::DERIVATIVE_UDWF_NAME => Ok(derivative::DERIVATIVE_UDWF.clone()),
             difference::DIFFERENCE_UDWF_NAME => Ok(difference::DIFFERENCE_UDWF.clone()),
+            derivative::NON_NEGATIVE_DERIVATIVE_UDWF_NAME => {
+                Ok(derivative::NON_NEGATIVE_DERIVATIVE_UDWF.clone())
+            }
             difference::NON_NEGATIVE_DIFFERENCE_UDWF_NAME => {
                 Ok(difference::NON_NEGATIVE_DIFFERENCE_UDWF.clone())
             }

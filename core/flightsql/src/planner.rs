@@ -102,37 +102,35 @@ impl FlightSQLPlanner {
         }
     }
 
-    /// Returns a plan that computes results requested in msg
-    pub async fn do_get(
+    /// Returns a logical plan that computes results requested in msg
+    pub async fn do_get_logical_plan(
         namespace_name: impl AsRef<str> + Send,
         _database: Arc<dyn QueryNamespace>,
         cmd: FlightSQLCommand,
         ctx: &IOxSessionContext,
         base_table_type: BaseTableType,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
+    ) -> Result<LogicalPlan> {
         let namespace_name = namespace_name.as_ref();
-        debug!(%namespace_name, %cmd, "Handling flightsql do_get");
+        debug!(%namespace_name, %cmd, "Handling flightsql do_get logical plan");
 
         match cmd {
             FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query, .. }) => {
-                debug!(%query, "Planning FlightSQL query");
-                Ok(ctx.sql_to_physical_plan(&query).await?)
+                debug!(%query, "Logically planning FlightSQL query");
+                Ok(ctx.sql_to_logical_plan(&query).await?)
             }
             FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
-                debug!(%handle, "Planning FlightSQL prepared query");
+                debug!(%handle, "Logically planning FlightSQL prepared query");
                 Ok(ctx
-                    .sql_to_physical_plan_with_params(handle.query(), handle.to_df_param_values()?)
+                    .sql_to_logical_plan_with_params(handle.query(), handle.to_df_param_values()?)
                     .await?)
             }
             FlightSQLCommand::CommandGetSqlInfo(cmd) => {
-                debug!(?cmd, "Planning GetSqlInfo query");
-                let plan = plan_get_sql_info(ctx, cmd).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                debug!(?cmd, "Logically planning GetSqlInfo query");
+                Ok(plan_get_sql_info(ctx, cmd).await?)
             }
             FlightSQLCommand::CommandGetCatalogs(cmd) => {
-                debug!("Planning GetCatalogs query");
-                let plan = plan_get_catalogs(ctx, cmd).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                debug!("Logically planning GetCatalogs query");
+                Ok(plan_get_catalogs(ctx, cmd).await?)
             }
             FlightSQLCommand::CommandGetCrossReference(CommandGetCrossReference {
                 pk_catalog,
@@ -149,9 +147,9 @@ impl FlightSQLPlanner {
                     ?fk_catalog,
                     ?fk_db_schema,
                     ?fk_table,
-                    "Planning CommandGetCrossReference query"
+                    "Logically planning CommandGetCrossReference query"
                 );
-                let plan = plan_get_cross_reference(
+                Ok(plan_get_cross_reference(
                     ctx,
                     pk_catalog,
                     pk_db_schema,
@@ -160,17 +158,15 @@ impl FlightSQLPlanner {
                     fk_db_schema,
                     fk_table,
                 )
-                .await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                .await?)
             }
             FlightSQLCommand::CommandGetDbSchemas(cmd) => {
                 debug!(
                     catalog=?cmd.catalog,
                     db_schema_filter_pattern=?cmd.db_schema_filter_pattern,
-                    "Planning GetDbSchemas query"
+                    "Logically planning GetDbSchemas query"
                 );
-                let plan = plan_get_db_schemas(ctx, cmd).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                Ok(plan_get_db_schemas(ctx, cmd).await?)
             }
             FlightSQLCommand::CommandGetExportedKeys(CommandGetExportedKeys {
                 catalog,
@@ -181,10 +177,9 @@ impl FlightSQLPlanner {
                     ?catalog,
                     ?db_schema,
                     ?table,
-                    "Planning GetExportedKeys query"
+                    "Logically planning GetExportedKeys query"
                 );
-                let plan = plan_get_exported_keys(ctx, catalog, db_schema, table).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                Ok(plan_get_exported_keys(ctx, catalog, db_schema, table).await?)
             }
             FlightSQLCommand::CommandGetImportedKeys(CommandGetImportedKeys {
                 catalog,
@@ -195,10 +190,9 @@ impl FlightSQLPlanner {
                     ?catalog,
                     ?db_schema,
                     ?table,
-                    "Planning CommandGetImportedKeys query"
+                    "Logically planning CommandGetImportedKeys query"
                 );
-                let plan = plan_get_imported_keys(ctx, catalog, db_schema, table).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                Ok(plan_get_imported_keys(ctx, catalog, db_schema, table).await?)
             }
             FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys {
                 catalog,
@@ -209,10 +203,9 @@ impl FlightSQLPlanner {
                     ?catalog,
                     ?db_schema,
                     ?table,
-                    "Planning GetPrimaryKeys query"
+                    "Logically planning GetPrimaryKeys query"
                 );
-                let plan = plan_get_primary_keys(ctx, catalog, db_schema, table).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                Ok(plan_get_primary_keys(ctx, catalog, db_schema, table).await?)
             }
             FlightSQLCommand::CommandGetTables(cmd) => {
                 debug!(
@@ -221,20 +214,17 @@ impl FlightSQLPlanner {
                     table_name_filter_pattern=?cmd.table_name_filter_pattern,
                     table_types=?cmd.table_types,
                     include_schema=?cmd.include_schema,
-                    "Planning GetTables query"
+                    "Logically planning GetTables query"
                 );
-                let plan = plan_get_tables(ctx, cmd, base_table_type).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                Ok(plan_get_tables(ctx, cmd, base_table_type).await?)
             }
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes {}) => {
-                debug!("Planning GetTableTypes query");
-                let plan = plan_get_table_types(ctx, base_table_type).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                debug!("Logically planning GetTableTypes query");
+                Ok(plan_get_table_types(ctx, base_table_type).await?)
             }
             FlightSQLCommand::CommandGetXdbcTypeInfo(cmd) => {
-                debug!(?cmd, "Planning GetXdbcTypeInfo query");
-                let plan = plan_get_xdbc_type_info(ctx, cmd).await?;
-                Ok(ctx.create_physical_plan(&plan).await?)
+                debug!(?cmd, "Logically planning GetXdbcTypeInfo query");
+                Ok(plan_get_xdbc_type_info(ctx, cmd).await?)
             }
             FlightSQLCommand::ActionClosePreparedStatementRequest(_)
             | FlightSQLCommand::ActionCreatePreparedStatementRequest(_) => ProtocolSnafu {
@@ -243,6 +233,19 @@ impl FlightSQLPlanner {
             }
             .fail(),
         }
+    }
+
+    /// Returns a physical plan that computes results requested in the logical plan
+    pub async fn do_get_physical_plan(
+        namespace_name: impl AsRef<str> + Send,
+        cmd: FlightSQLCommand,
+        ctx: &IOxSessionContext,
+        logical_plan: &LogicalPlan,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let namespace_name = namespace_name.as_ref();
+        debug!(%namespace_name, %cmd, "Handling flightsql do_get physical plan");
+
+        Ok(ctx.create_physical_plan(logical_plan).await?)
     }
 
     /// Handles the action specified in `msg` and returns bytes for

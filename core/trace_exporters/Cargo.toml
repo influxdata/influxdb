@@ -18,9 +18,8 @@ tracing = { workspace = true }
 snafu = "0.9"
 socket2 = "0.6.3"
 thrift = { version = "0.17.0" }
-tokio = { version = "1.50", features = ["macros", "parking_lot", "rt", "sync"] }
+tokio = { version = "1.52", features = ["macros", "parking_lot", "rt", "sync"] }
 trace = { path = "../trace" }
-
 
 [dev-dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

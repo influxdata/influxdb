@@ -24,5 +24,4 @@ pin-project = "1.1"
 snafu = "0.9"
 tower = { workspace = true }
 
-
 [dev-dependencies]

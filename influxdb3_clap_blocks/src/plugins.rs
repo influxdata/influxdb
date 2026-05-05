@@ -18,6 +18,23 @@ pub struct ProcessingEngineConfig {
     pub package_manager: PackageManager,
     #[clap(long = "plugin-repo", env = "INFLUXDB3_PLUGIN_REPO")]
     pub plugin_repo: Option<String>,
+    /// Restrict plugin triggers to the provided trigger type(s).
+    #[clap(
+        long = "restrict-plugin-triggers-to",
+        env = "INFLUXDB3_RESTRICT_PLUGIN_TRIGGERS_TO",
+        value_enum,
+        value_delimiter = ',',
+        num_args = 1..
+    )]
+    pub restrict_plugin_triggers_to: Vec<PluginTriggerType>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, clap::ValueEnum)]
+pub enum PluginTriggerType {
+    #[value(alias = "wal_flush")]
+    Wal,
+    Schedule,
+    Request,
 }
 
 #[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]

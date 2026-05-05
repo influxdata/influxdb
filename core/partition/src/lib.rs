@@ -455,6 +455,7 @@ impl PartitionWrite<'_, RecordBatch> {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    // Workaround for "unused crate" lint false positives.
     // These crates are used in integration tests but not unit tests
     use criterion as _;
     use mutable_batch_lp::LinesConverter;

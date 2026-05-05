@@ -1046,14 +1046,14 @@ mod tests {
         assert_eq!(metrics.permits_acquired_hwm.fetch(), 0);
         assert_eq!(metrics.holders_acquired_hwm.fetch(), 0);
 
-        // Acquire 3 permits across 2 holders
+        // Acquire 3 permits across 2 holders.
         let p1 = semaphore.acquire(None).await.unwrap();
         let p2 = semaphore.acquire_many(2, None).await.unwrap();
 
         assert_eq!(metrics.permits_acquired_hwm.fetch(), 3);
         assert_eq!(metrics.holders_acquired_hwm.fetch(), 2);
 
-        // Release all permits — HWMs must not decrease
+        // Release all permits - HWMs must not decrease.
         drop(p1);
         drop(p2);
 
@@ -1062,12 +1062,12 @@ mod tests {
         assert_eq!(metrics.permits_acquired_hwm.fetch(), 3);
         assert_eq!(metrics.holders_acquired_hwm.fetch(), 2);
 
-        // Acquire fewer permits — HWMs stay at previous peak
+        // Acquire fewer permits - HWMs stay at previous peak.
         let _p3 = semaphore.acquire(None).await.unwrap();
         assert_eq!(metrics.permits_acquired_hwm.fetch(), 3);
         assert_eq!(metrics.holders_acquired_hwm.fetch(), 2);
 
-        // Acquire more permits — HWMs increase
+        // Acquire more permits - HWMs increase.
         let _p4 = semaphore.acquire_many(4, None).await.unwrap();
         assert_eq!(metrics.permits_acquired_hwm.fetch(), 5);
         assert_eq!(metrics.holders_acquired_hwm.fetch(), 2);
@@ -1081,10 +1081,10 @@ mod tests {
         assert_eq!(metrics.permits_pending_hwm.fetch(), 0);
         assert_eq!(metrics.holders_pending_hwm.fetch(), 0);
 
-        // Exhaust the single permit
+        // Exhaust the single permit.
         let _p1 = semaphore.acquire(None).await.unwrap();
 
-        // Create a pending acquire
+        // Create a pending acquire.
         {
             let fut = semaphore.acquire_many(3, None);
             pin!(fut);
@@ -1092,8 +1092,6 @@ mod tests {
 
             assert_eq!(metrics.permits_pending_hwm.fetch(), 3);
             assert_eq!(metrics.holders_pending_hwm.fetch(), 1);
-
-            // fut dropped here — pending metrics reset but HWMs persist
         }
 
         assert_eq!(metrics.permits_pending.fetch(), 0);

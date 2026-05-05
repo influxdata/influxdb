@@ -28,7 +28,6 @@ schema = { path = "../schema" }
 serde_json = "1.0.149"
 thiserror = "2.0"
 
-
 [dev-dependencies] # In alphabetical order
 chrono = { version = "0.4", default-features = false }
 insta = { version = "1", features = ["yaml"] }

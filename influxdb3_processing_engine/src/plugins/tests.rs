@@ -143,8 +143,9 @@ async fn test_wal_plugin_invalid_lines() {
         .await
         .unwrap(),
     );
-    let namespace = NamespaceName::new("foodb").unwrap();
-    let validator = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog)).unwrap();
+    let database_name = DatabaseName::new("foodb").unwrap();
+    let validator =
+        WriteValidator::initialize(database_name.clone(), Arc::clone(&catalog)).unwrap();
     let _data = validator
         .v1_parse_lines_and_catalog_updates(
             "cpu,host=A f1=10i 100",

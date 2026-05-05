@@ -48,8 +48,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::{Arc, RwLock};
-use tokio::sync::Semaphore;
+use std::sync::{Arc, OnceLock};
 use trace::span::{Span, SpanRecorder};
 use trace::{ctx::SpanContext, span::MetaValue};
 use trace_http::ctx::RequestLogContext;
@@ -68,7 +67,9 @@ pub struct QueryExecutorImpl {
     telemetry_store: Arc<TelemetryStore>,
     sys_events_store: Arc<SysEventStore>,
     started_with_auth: bool,
-    processing_engine: Arc<RwLock<Option<Arc<ProcessingEngineManagerImpl>>>>,
+    /// Uses `Arc<OnceLock<...>>` for post-construction initialization, since
+    /// ProcessingEngineManagerImpl requires a QueryExecutor reference to initialize.
+    processing_engine: Arc<OnceLock<Arc<ProcessingEngineManagerImpl>>>,
 }
 
 impl Clone for QueryExecutorImpl {
@@ -101,7 +102,7 @@ pub struct CreateQueryExecutorArgs {
     pub telemetry_store: Arc<TelemetryStore>,
     pub sys_events_store: Arc<SysEventStore>,
     pub started_with_auth: bool,
-    pub processing_engine: Option<Arc<ProcessingEngineManagerImpl>>,
+    pub max_concurrent_queries: usize,
 }
 
 impl QueryExecutorImpl {
@@ -117,7 +118,7 @@ impl QueryExecutorImpl {
             sys_events_store,
             started_with_auth,
             time_provider,
-            processing_engine,
+            max_concurrent_queries,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -125,7 +126,7 @@ impl QueryExecutorImpl {
             &[("semaphore", "query_execution")],
         ));
         let query_execution_semaphore =
-            Arc::new(semaphore_metrics.new_semaphore(Semaphore::MAX_PERMITS));
+            Arc::new(semaphore_metrics.new_semaphore(max_concurrent_queries));
         let query_log = Arc::new(QueryLog::new(query_log_size, time_provider, &metrics, None));
         Self {
             catalog,
@@ -137,12 +138,18 @@ impl QueryExecutorImpl {
             telemetry_store,
             sys_events_store,
             started_with_auth,
-            processing_engine: Arc::new(RwLock::new(processing_engine)),
+            processing_engine: Arc::new(OnceLock::new()),
         }
     }
 
+    /// Set the processing engine after construction.
+    ///
+    /// # Panics
+    /// Panics if called more than once.
     pub fn set_processing_engine(&self, processing_engine: Arc<ProcessingEngineManagerImpl>) {
-        *self.processing_engine.write().unwrap() = Some(processing_engine);
+        self.processing_engine
+            .set(processing_engine)
+            .expect("set_processing_engine called more than once");
     }
 }
 
@@ -320,10 +327,11 @@ async fn query_database_sql(
             return Err(e);
         }
     };
-    let token = token.planned(&ctx, Arc::clone(&plan));
+    let token = token.logically_planned(&ctx, &datafusion::logical_expr::LogicalPlan::default());
+    let token = token.physically_planned(&ctx, Arc::clone(&plan));
 
     // TODO: Enforce concurrency limit here
-    let token = token.permit();
+    let token = token.execution_permit();
 
     telemetry_store.update_num_queries();
 
@@ -372,9 +380,10 @@ async fn query_database_influxql(
         }
     };
 
-    let token = token.planned(&ctx, Arc::clone(&plan));
+    let token = token.logically_planned(&ctx, &datafusion::logical_expr::LogicalPlan::default());
+    let token = token.physically_planned(&ctx, Arc::clone(&plan));
 
-    let token = token.permit();
+    let token = token.execution_permit();
 
     telemetry_store.update_num_queries();
 
@@ -477,7 +486,7 @@ impl QueryDatabase for QueryExecutorImpl {
                 Arc::clone(&self.sys_events_store),
                 Arc::clone(&self.write_buffer.catalog()),
                 self.started_with_auth,
-                self.processing_engine.read().unwrap().clone(),
+                self.processing_engine.get().cloned(),
             ),
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
@@ -497,7 +506,10 @@ impl QueryDatabase for QueryExecutorImpl {
         Ok(self.catalog.list_namespaces())
     }
 
-    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
+    async fn acquire_execution_semaphore(
+        &self,
+        span: Option<Span>,
+    ) -> InstrumentedAsyncOwnedSemaphorePermit {
         acquire_semaphore(Arc::clone(&self.query_execution_semaphore), span).await
     }
 

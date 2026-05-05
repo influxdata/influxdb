@@ -71,7 +71,7 @@ async fn test_retention_handler_shutdown() {
     ));
 
     let shutdown_manager = ShutdownManager::new_testing();
-    let shutdown_token = shutdown_manager.register();
+    let shutdown_token = shutdown_manager.register("test");
 
     // Start the background task
     let task_handle = tokio::spawn(handler.background_task(shutdown_token));

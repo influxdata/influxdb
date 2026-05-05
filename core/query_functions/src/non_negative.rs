@@ -7,7 +7,7 @@ use datafusion::logical_expr::function::{
     ExpressionArgs, PartitionEvaluatorArgs, WindowUDFFieldArgs,
 };
 use datafusion::logical_expr::window_state::WindowAggState;
-use datafusion::logical_expr::{PartitionEvaluator, Signature, WindowUDFImpl};
+use datafusion::logical_expr::{Documentation, PartitionEvaluator, Signature, WindowUDFImpl};
 use datafusion::physical_expr::PhysicalExpr;
 use std::any::Any;
 use std::ops::Range;
@@ -16,10 +16,26 @@ use std::sync::Arc;
 /// Wrap a WindowUDF so that all values are non-negative.
 /// If the inner window function produces a negative value, it will be
 /// replaced with NULL.
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct NonNegativeUDWF<U: WindowUDFImpl> {
+#[derive(Debug)]
+pub(crate) struct NonNegativeUDWF<U: WindowUDFImpl> {
     name: String,
     inner: U,
+    documentation: Option<&'static Documentation>,
+}
+
+impl<U: WindowUDFImpl + PartialEq> PartialEq for NonNegativeUDWF<U> {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.inner == other.inner
+    }
+}
+
+impl<U: WindowUDFImpl + Eq> Eq for NonNegativeUDWF<U> {}
+
+impl<U: WindowUDFImpl + std::hash::Hash> std::hash::Hash for NonNegativeUDWF<U> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.inner.hash(state);
+    }
 }
 
 impl<U: WindowUDFImpl> NonNegativeUDWF<U> {
@@ -29,7 +45,14 @@ impl<U: WindowUDFImpl> NonNegativeUDWF<U> {
         Self {
             name: name.into(),
             inner,
+            documentation: None,
         }
+    }
+
+    /// Set the documentation for this window function.
+    pub fn with_documentation(mut self, documentation: &'static Documentation) -> Self {
+        self.documentation = Some(documentation);
+        self
     }
 }
 
@@ -52,6 +75,10 @@ impl<U: WindowUDFImpl + std::hash::Hash + Eq + 'static> WindowUDFImpl for NonNeg
 
     fn expressions(&self, expr_args: ExpressionArgs<'_>) -> Vec<Arc<dyn PhysicalExpr>> {
         self.inner.expressions(expr_args)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.documentation
     }
 
     fn partition_evaluator(

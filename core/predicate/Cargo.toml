@@ -19,7 +19,6 @@ itertools = "0.13"
 tracing = { workspace = true }
 schema = { path = "../schema" }
 
-
 [dev-dependencies]
 query_functions = { path = "../query_functions"}
 test_helpers = { path = "../test_helpers" }

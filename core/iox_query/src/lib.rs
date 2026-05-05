@@ -175,8 +175,11 @@ pub trait QueryDatabase: Debug + Send + Sync + 'static {
         not_impl_err!("QueryDatabase::list_namespaces is only used in InfluxDB 3 Core/Enterprise")
     }
 
-    /// Acquire concurrency-limiting semapahore
-    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit;
+    /// Acquire concurrency-limiting execution semaphore
+    async fn acquire_execution_semaphore(
+        &self,
+        span: Option<Span>,
+    ) -> InstrumentedAsyncOwnedSemaphorePermit;
 
     /// Return the query log entries
     fn query_log(&self) -> QueryLogEntries;

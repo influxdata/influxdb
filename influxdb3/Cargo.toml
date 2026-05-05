@@ -20,13 +20,13 @@ workspace = true
 # Core Crates
 authz = { path = "../core/authz" }
 datafusion_util = { path = "../core/datafusion_util" }
-iox_query = { path = "../core/iox_query" }
+iox_query = { path = "../core/iox_query", features = ["v3"] }
 iox_time = { path = "../core/iox_time" }
 metric = { path = "../core/metric" }
 object_store_metrics = { path = "../core/object_store_metrics" }
 observability_deps = { path = "../core/observability_deps" }
 panic_logging = { path = "../core/panic_logging" }
-parquet_file = { path = "../core/parquet_file" }
+parquet_file = { path = "../core/parquet_file", features = ["v3"] }
 tokio_metrics_bridge = { path = "../core/tokio_metrics_bridge" }
 trace = { path = "../core/trace" }
 trace_exporters = { path = "../core/trace_exporters" }
@@ -34,6 +34,7 @@ trace_http = { path = "../core/trace_http" }
 trogging = { path = "../core/trogging", features = ["clap"] }
 
 # Local Crates
+cli_types = { path = "../cli_types" }
 influxdb3_authz = { path = "../influxdb3_authz" }
 influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_catalog = { path = "../influxdb3_catalog" }

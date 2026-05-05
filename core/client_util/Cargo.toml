@@ -17,9 +17,8 @@ thiserror = "2.0.18"
 tonic = { workspace = true, features = ["gzip", "tls-ring", "tls-native-roots", "zstd"] }
 tower = { workspace = true }
 
-
 [dev-dependencies]
-tokio = { version = "1.50", features = [
+tokio = { version = "1.52", features = [
     "macros",
     "parking_lot",
     "rt-multi-thread",

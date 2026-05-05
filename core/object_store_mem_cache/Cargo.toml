@@ -12,7 +12,7 @@ bytes = { version = "1.11.0", default-features = false }
 dashmap = "6.1.0"
 futures = { version = "0.3.32" }
 http = { workspace = true }
-indexmap = { version = "2.13", features = ["std"] }
+indexmap = { version = "2.14", features = ["std"] }
 iox_time = { path = "../iox_time" }
 linear_buffer = { path = "../linear_buffer" }
 metric = { path = "../metric" }
@@ -21,9 +21,9 @@ object_store_metrics = { path = "../object_store_metrics" }
 object_store_mock = { path = "../object_store_mock" }
 object_store_size_hinting = { path = "../object_store_size_hinting" }
 tracing = { workspace = true }
-tokio = { version = "1.50.0", default-features = false }
+tokio = { version = "1.52.0", default-features = false }
+tokio-util = "0.7.18"
 tracker = { path = "../tracker" }
-
 
 [dev-dependencies]
 clap = { version = "4", features = ["derive"] }

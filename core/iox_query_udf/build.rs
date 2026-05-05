@@ -13,6 +13,7 @@
 use std::{
     collections::HashMap,
     fs::File,
+    io::Read,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -112,11 +113,22 @@ fn download(url: &str, path: &Path) -> Result<(), std::io::Error> {
 
 /// Get SHA256 of given file.
 fn sha256(path: &Path) -> String {
+    const READ_BUFFER_SIZE: usize = 8192;
     let mut hasher = sha2::Sha256::new();
     let mut file = File::open(path).unwrap();
-    std::io::copy(&mut file, &mut hasher).unwrap();
+    let mut buffer = [0u8; READ_BUFFER_SIZE];
+    loop {
+        let n = file.read(&mut buffer).unwrap();
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
     let digest = hasher.finalize();
-    format!("{:x}", digest)
+    digest
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>()
 }
 
 /// Get download location.

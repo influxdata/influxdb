@@ -493,11 +493,18 @@ mod tests {
         assert_eq!(batch.num_columns(), 4);
         assert_eq!(batch.num_rows(), 8192 * 2);
 
-        // NOTE: previously, this test asserted that IoxSchema::try_from would
-        // fail on a batch without IOx metadata. With the schema crate's "v3"
-        // feature (enabled by influxdb3_catalog and unified across the
-        // workspace), columns lacking metadata are accepted as arrow-native
-        // columns, so that assertion no longer holds.
+        // With schema crate `v3`, columns lacking metadata are accepted as
+        // Arrow-native columns, so this assertion only holds without `v3`.
+        #[cfg(not(feature = "v3"))]
+        {
+            use schema::{Error::InvalidInfluxColumnType, Schema as IoxSchema};
+
+            let iox_schema = IoxSchema::try_from(batch.schema());
+            assert!(
+                matches!(iox_schema, Err(InvalidInfluxColumnType { .. })),
+                "should not have iox schema, yet"
+            );
+        }
 
         // build & use iox_schema
         let iox_schema = SchemaBuilder::new()

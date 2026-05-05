@@ -346,7 +346,7 @@ fn distinct_counts<'a>(
             let set = distinct_values_across_batches
                 .entry(column)
                 .or_insert_with(HashSet::new);
-            set.extend(distinct_values);
+            set.extend(distinct_values.into_iter());
         }
     }
 

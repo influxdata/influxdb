@@ -16,7 +16,7 @@ pub mod write_buffer;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use data_types::{NamespaceName, TimestampMinMax};
+use data_types::TimestampMinMax;
 use datafusion::{
     catalog::Session,
     common::{Column, DFSchema},
@@ -30,13 +30,14 @@ use datafusion::{
 use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
+use influxdb3_types::DatabaseName;
 pub use influxdb3_types::write::Precision;
 use influxdb3_wal::{SnapshotSequenceNumber, Wal, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use observability_deps::tracing::debug;
 use schema::TIME_COLUMN_NAME;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 use thiserror::Error;
 
@@ -69,7 +70,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     /// and returns the result with any lines that had errors and summary statistics.
     async fn write_lp(
         &self,
-        database: NamespaceName<'static>,
+        database: DatabaseName,
         lp: &str,
         ingest_time: Time,
         accept_partial: bool,
@@ -80,7 +81,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     /// Returns the database schema provider
     fn catalog(&self) -> Arc<Catalog>;
 
-    /// Reutrns the WAL this bufferer is using
+    /// Returns the WAL this bufferer is using
     fn wal(&self) -> Arc<dyn Wal>;
 
     /// Returns the parquet files for a given database and table
@@ -129,40 +130,13 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider>;
 }
 
-/// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
-/// returning an error for any invalid lines. This is the error information for a single invalid line.
-#[derive(Debug)]
-pub struct WriteLineError {
-    pub original_line: String,
-    pub line_number: usize,
-    pub error_message: String,
-}
-
-impl Serialize for WriteLineError {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("WriteLineError", 3)?;
-        const TRUNCATE_LIMIT: usize = 20;
-        let truncated_line = if self.original_line.len() > TRUNCATE_LIMIT {
-            &self.original_line[..TRUNCATE_LIMIT]
-        } else {
-            &self.original_line
-        };
-        state.serialize_field("error_message", &self.error_message)?;
-        state.serialize_field("line_number", &self.line_number)?;
-        state.serialize_field("original_line", truncated_line)?;
-        state.end()
-    }
-}
+pub use influxdb3_types::write::WriteLineError;
 
 /// A write that has been validated against the catalog schema, written to the WAL (if configured), and buffered in
 /// memory. This is the summary information for the write along with any errors that were encountered.
 #[derive(Debug)]
 pub struct BufferedWriteRequest {
-    pub db_name: NamespaceName<'static>,
+    pub db_name: DatabaseName,
     pub invalid_lines: Vec<WriteLineError>,
     pub line_count: usize,
     pub field_count: usize,
@@ -807,9 +781,9 @@ pub mod test_helpers {
     use crate::WriteBuffer;
     use crate::write_buffer::validator::WriteValidator;
     use arrow::array::RecordBatch;
-    use data_types::NamespaceName;
     use datafusion::prelude::Expr;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+    use influxdb3_types::DatabaseName;
     use influxdb3_wal::{Gen1Duration, WriteBatch};
     use iox_query::exec::IOxSessionContext;
     use iox_time::Time;
@@ -884,7 +858,7 @@ pub mod test_helpers {
     }
 
     pub async fn do_write(wb: &dyn WriteBuffer, db: &str, lp: &str, time: Time) {
-        let db_name = NamespaceName::new(db.to_owned()).expect("valid namespace name for database");
+        let db_name = DatabaseName::new(db.to_owned()).expect("valid database name");
         wb.write_lp(
             db_name,
             lp,

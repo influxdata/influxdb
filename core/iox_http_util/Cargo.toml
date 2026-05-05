@@ -12,6 +12,5 @@ http-body = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true }
 
-
 [lints]
 workspace = true

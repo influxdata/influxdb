@@ -17,8 +17,7 @@ regex-syntax = "0.8.10"
 schema = { path = "../schema" }
 snafu = "0.9"
 
-
 [dev-dependencies]
 datafusion_util = { path = "../datafusion_util" }
 itertools = "0.13.0"
-tokio = { version = "1.50", features = ["macros", "parking_lot"] }
+tokio = { version = "1.52", features = ["macros", "parking_lot"] }

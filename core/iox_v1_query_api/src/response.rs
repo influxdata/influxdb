@@ -474,7 +474,10 @@ mod tests {
         datatypes::{DataType, Field, Schema, SchemaRef},
     };
     use data_types::NamespaceId;
-    use datafusion::physical_plan::{ExecutionPlan, test::exec::MockExec};
+    use datafusion::{
+        logical_expr::LogicalPlan,
+        physical_plan::{ExecutionPlan, test::exec::MockExec},
+    };
     use generated_types::influxdata::iox::querier::v1::{
         InfluxQlMetadata, influx_ql_metadata::TagKeyColumn,
     };
@@ -528,11 +531,12 @@ mod tests {
                 None,
                 None,
             );
-            let token = token.planned(ctx.as_ref(), Arc::clone(&exec));
-            let permit = database.acquire_semaphore(None).await;
-            let query_completed_token = token.permit();
+            let token = token.logically_planned(ctx.as_ref(), &LogicalPlan::default());
+            let token = token.physically_planned(ctx.as_ref(), Arc::clone(&exec));
+            let execution_permit = database.acquire_execution_semaphore(None).await;
+            let query_completed_token = token.execution_permit();
             let permit_state = Some(PermitAndToken {
-                permit,
+                permit: execution_permit,
                 query_completed_token,
             });
             ctx.execute_stream(exec)

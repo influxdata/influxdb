@@ -61,7 +61,7 @@ pub struct TestDatabaseStore {
     databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
     executor: Arc<Executor>,
     pub metric_registry: Arc<metric::Registry>,
-    pub query_semaphore: Arc<tracker::InstrumentedAsyncSemaphore>,
+    pub query_execution_semaphore: Arc<tracker::InstrumentedAsyncSemaphore>,
 }
 
 impl TestDatabaseStore {
@@ -79,7 +79,7 @@ impl TestDatabaseStore {
             databases: Mutex::new(BTreeMap::new()),
             executor: Arc::new(Executor::new_testing()),
             metric_registry,
-            query_semaphore: Arc::new(semaphore_metrics.new_semaphore(semaphore_size)),
+            query_execution_semaphore: Arc::new(semaphore_metrics.new_semaphore(semaphore_size)),
         }
     }
 
@@ -139,8 +139,11 @@ impl QueryDatabase for TestDatabaseStore {
             .collect())
     }
 
-    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
-        Arc::clone(&self.query_semaphore)
+    async fn acquire_execution_semaphore(
+        &self,
+        span: Option<Span>,
+    ) -> InstrumentedAsyncOwnedSemaphorePermit {
+        Arc::clone(&self.query_execution_semaphore)
             .acquire_owned(span)
             .await
             .unwrap()
