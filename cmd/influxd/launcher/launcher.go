@@ -549,13 +549,20 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.log.Fatal("could not load existing scheduled runs", zap.Error(err))
 		}
 		m.executor = executor
-		m.tasksReady.Ready()
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
 		schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
 		var sch stoppingScheduler = &scheduler.NoopScheduler{}
 		if opts.NoTasks {
 			m.schedulerReady.Ready()
+			m.closers = append(m.closers, labeledCloser{
+				label: SubsystemTaskScheduler,
+				closer: func(context.Context) error {
+					m.schedulerReady.Unready()
+					m.tasksReady.Unready()
+					return nil
+				},
+			})
 		} else {
 			var (
 				sm  *scheduler.SchedulerMetrics
@@ -585,6 +592,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 				},
 			})
 			m.reg.MustRegister(sm.PrometheusCollectors()...)
+			m.tasksReady.Ready()
 			m.schedulerReady.Ready()
 		}
 

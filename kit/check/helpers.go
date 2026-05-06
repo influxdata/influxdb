@@ -54,7 +54,7 @@ func NamedFunc(name string, fn CheckerFunc) Checker {
 
 // ErrCheck will create a health checker that executes a function. If the function returns an error,
 // it will return an unhealthy response. Otherwise, it will be as if the Ok function was called.
-// Note: it is better to use CheckFunc, because with Check, the context is ignored.
+// Note: it is better to use CheckerFunc, because with Check, the context is ignored.
 func ErrCheck(fn func() error) Checker {
 	return CheckerFunc(func(_ context.Context) Response {
 		if err := fn(); err != nil {

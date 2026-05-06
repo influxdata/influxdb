@@ -225,8 +225,7 @@ func (s *KVStore) Check(_ context.Context) check.Response {
 
 // startProberOnce starts the background prober the first time it is
 // called. Subsequent calls — including any Open/WithDB after Close —
-// observe probeStop != nil and no-op. The initial probe runs
-// synchronously so probeState is populated before returning.
+// observe probeStop != nil and no-op.
 func (s *KVStore) startProberOnce() {
 	s.probeMu.Lock()
 	if s.probeStop != nil {
@@ -235,8 +234,6 @@ func (s *KVStore) startProberOnce() {
 	}
 	s.probeStop = make(chan struct{})
 	s.probeMu.Unlock()
-
-	s.runOneProbe()
 	go s.proberLoop()
 }
 
