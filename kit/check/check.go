@@ -40,7 +40,7 @@ type Checker interface {
 	Check(ctx context.Context) Response
 }
 
-// NewCheck returns a Health with a default checker.
+// NewCheck returns an empty Check with no default checkers registered.
 func NewCheck() *Check {
 	return &Check{}
 }
