@@ -61,6 +61,7 @@ func TestLauncher_HealthEndpoint(t *testing.T) {
 				launcher.SubsystemInfluxQL,
 				launcher.SubsystemSQLite,
 				launcher.SubsystemTaskScheduler,
+				launcher.SubsystemShards,
 			},
 		},
 		{
@@ -72,6 +73,7 @@ func TestLauncher_HealthEndpoint(t *testing.T) {
 				launcher.SubsystemKV,
 				launcher.SubsystemSQLite,
 				launcher.SubsystemTaskScheduler,
+				launcher.SubsystemShards,
 			},
 		},
 	}

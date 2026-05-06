@@ -292,6 +292,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.tasksReady = check.NewReadyGate(SubsystemTasks)
 	m.schedulerReady = check.NewReadyGate(SubsystemTaskScheduler)
 	m.startupProgress = run.NewStartupProgressLogger(
+		SubsystemShards,
 		m.log.With(zap.String("service", "startup-progress")))
 	m.checkHandler.AddReadyCheck(m.kvReady)
 	m.checkHandler.AddReadyCheck(m.sqliteReady)
@@ -300,7 +301,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.checkHandler.AddReadyCheck(m.queryReady)
 	m.checkHandler.AddReadyCheck(m.tasksReady)
 	m.checkHandler.AddReadyCheck(m.schedulerReady)
-	m.checkHandler.AddReadyCheck(check.Named(SubsystemShards, m.startupProgress))
+	m.checkHandler.AddReadyCheck(m.startupProgress.ReadyChecker())
+	m.checkHandler.AddHealthCheck(m.startupProgress.HealthChecker())
 
 	if err := m.runHTTP(opts, m.checkHandler, httpLogger); err != nil {
 		return err

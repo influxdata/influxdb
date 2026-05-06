@@ -176,6 +176,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 type ShardLoadingProgressMetrics interface {
 	AddShard()
 	CompletedShard()
+	ShardLoadFailed(shardID uint64, err error)
 }
 
 // WithStartupMetrics wires a shard-loading progress observer into the
