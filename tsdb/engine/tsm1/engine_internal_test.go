@@ -4,12 +4,16 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -96,4 +100,75 @@ func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
 		f(v)
 	}
 	return nil
+}
+
+// TestCompactLoPriorityLevel_ReleasesActiveCount verifies that
+// compactLoPriorityLevel returns the activeCompactions level counter to its
+// pre-call value after the spawned goroutine completes.
+func TestCompactLoPriorityLevel_ReleasesActiveCount(t *testing.T) {
+	e := newCompactionTestEngine()
+
+	var wg sync.WaitGroup
+	started := e.compactLoPriorityLevel(CompactionGroup{}, 3, true, &wg)
+	require.True(t, started, "compactLoPriorityLevel should have started a goroutine")
+	wg.Wait()
+
+	require.Equal(t, int64(0), atomic.LoadInt64(&e.activeCompactions.l3),
+		"activeCompactions.l3 should return to 0 after the compaction goroutine exits")
+}
+
+// TestCompactLoPriorityLevel_LeavesSchedulerRunnable verifies that after a
+// compactLoPriorityLevel goroutine completes, Scheduler.next() can still
+// pick work for any level whose queue is non-empty.
+func TestCompactLoPriorityLevel_LeavesSchedulerRunnable(t *testing.T) {
+	const maxConcurrency = 2
+	e := newCompactionTestEngine()
+	e.compactionLimiter = limiter.NewFixed(maxConcurrency)
+	e.Scheduler = newScheduler(e.activeCompactions, maxConcurrency)
+
+	for lvl := 1; lvl <= TotalCompactionLevels; lvl++ {
+		e.Scheduler.SetDepth(lvl, 10)
+	}
+
+	var wg sync.WaitGroup
+	require.True(t, e.compactLoPriorityLevel(CompactionGroup{}, 3, true, &wg))
+	wg.Wait()
+
+	level, runnable := e.Scheduler.next()
+	require.True(t, runnable,
+		"Scheduler.next() should remain runnable after a compaction goroutine exits")
+	require.Equal(t, 1, level,
+		"Scheduler.next() should pick level 1 when all queues are equally deep and no compactions are active")
+}
+
+// TestCompactHiPriorityLevel_ReleasesActiveCount verifies the same invariant
+// as TestCompactLoPriorityLevel_ReleasesActiveCount for the hi-priority path.
+func TestCompactHiPriorityLevel_ReleasesActiveCount(t *testing.T) {
+	e := newCompactionTestEngine()
+
+	var wg sync.WaitGroup
+	started := e.compactHiPriorityLevel(CompactionGroup{}, 1, false, &wg)
+	require.True(t, started)
+	wg.Wait()
+
+	require.Equal(t, int64(0), atomic.LoadInt64(&e.activeCompactions.l1))
+}
+
+// newCompactionTestEngine builds a minimal *Engine sufficient for invoking
+// compactLoPriorityLevel / compactHiPriorityLevel. The Compactor is left in
+// its default disabled state so CompactFast returns errCompactionsDisabled
+// immediately, letting the spawned goroutine exit quickly without needing
+// real TSM files.
+func newCompactionTestEngine() *Engine {
+	activeCompactions := &compactionCounter{}
+	return &Engine{
+		id:                1,
+		logger:            zap.NewNop(),
+		Compactor:         NewCompactor(),
+		FileStore:         &FileStore{},
+		CompactionPlan:    &DefaultPlanner{filesInUse: map[string]struct{}{}},
+		activeCompactions: activeCompactions,
+		Stats:             newEngineMetrics(tsdb.EngineTags{}),
+		compactionLimiter: limiter.NewFixed(2),
+	}
 }

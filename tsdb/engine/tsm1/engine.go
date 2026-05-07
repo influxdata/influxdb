@@ -2391,10 +2391,8 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast boo
 	}
 
 	if e.compactionLimiter.TryTake() {
-		{
-			val := atomic.AddInt64(e.activeCompactions.countForLevel(level), 1)
-			e.Stats.Active.With(labelForLevel(level)).Set(float64(val))
-		}
+		val := atomic.AddInt64(e.activeCompactions.countForLevel(level), 1)
+		e.Stats.Active.With(labelForLevel(level)).Set(float64(val))
 
 		wg.Add(1)
 		go func() {
@@ -2428,11 +2426,15 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast boo
 	if e.compactionLimiter.TryTake() {
 		val := atomic.AddInt64(e.activeCompactions.countForLevel(level), 1)
 		e.Stats.Active.With(labelForLevel(level)).Set(float64(val))
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			val := atomic.AddInt64(e.activeCompactions.countForLevel(level), 1)
-			e.Stats.Active.With(labelForLevel(level)).Set(float64(val))
+			defer func() {
+				val := atomic.AddInt64(e.activeCompactions.countForLevel(level), -1)
+				e.Stats.Active.With(labelForLevel(level)).Set(float64(val))
+			}()
+
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
