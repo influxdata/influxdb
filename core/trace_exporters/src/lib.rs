@@ -102,7 +102,8 @@ pub struct TracingConfig {
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[clap(
-        long = "traces-jaeger-debug-name",
+        long = "traces-exporter-jaeger-debug-name",
+        alias = "traces-jaeger-debug-name",
         env = "TRACES_EXPORTER_JAEGER_DEBUG_NAME",
         default_value = "jaeger-debug-id",
         action
@@ -115,7 +116,8 @@ pub struct TracingConfig {
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[clap(
-        long = "traces-jaeger-tags",
+        long = "traces-exporter-jaeger-tags",
+        alias = "traces-jaeger-tags",
         env = "TRACES_EXPORTER_JAEGER_TAGS",
         value_delimiter = ',',
         action
@@ -210,4 +212,56 @@ fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<AsyncExporter>> {
     }
 
     Ok(Arc::new(AsyncExporter::new(jaeger)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{CommandFactory, Parser};
+
+    #[test]
+    fn jaeger_debug_and_tags_flags_match_exporter_env_names() {
+        let cmd = TracingConfig::command();
+
+        assert_long_option_has_env(
+            &cmd,
+            "traces-exporter-jaeger-debug-name",
+            "TRACES_EXPORTER_JAEGER_DEBUG_NAME",
+        );
+        assert_long_option_has_env(
+            &cmd,
+            "traces-exporter-jaeger-tags",
+            "TRACES_EXPORTER_JAEGER_TAGS",
+        );
+    }
+
+    #[test]
+    fn deprecated_jaeger_debug_and_tags_flags_remain_accepted() {
+        let config = TracingConfig::try_parse_from([
+            "cmd",
+            "--traces-jaeger-debug-name",
+            "debug-header",
+            "--traces-jaeger-tags",
+            "env=prod,region=west",
+        ])
+        .expect("deprecated Jaeger flags should still parse");
+
+        assert_eq!(config.traces_jaeger_debug_name, "debug-header");
+        let tags = config.traces_jaeger_tags.expect("tags should be parsed");
+        assert_eq!(tags.len(), 2);
+        assert_eq!(tags[0].key(), "env");
+        assert_eq!(tags[1].key(), "region");
+    }
+
+    fn assert_long_option_has_env(cmd: &clap::Command, long: &str, env: &str) {
+        let arg = cmd
+            .get_arguments()
+            .find(|arg| arg.get_long() == Some(long))
+            .unwrap_or_else(|| panic!("missing --{long}"));
+        assert_eq!(
+            arg.get_env().and_then(std::ffi::OsStr::to_str),
+            Some(env),
+            "--{long} should use {env}"
+        );
+    }
 }
