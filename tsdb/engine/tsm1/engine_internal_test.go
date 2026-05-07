@@ -154,21 +154,51 @@ func TestCompactHiPriorityLevel_ReleasesActiveCount(t *testing.T) {
 	require.Equal(t, int64(0), atomic.LoadInt64(&e.activeCompactions.l1))
 }
 
-// newCompactionTestEngine builds a minimal *Engine sufficient for invoking
-// compactLoPriorityLevel / compactHiPriorityLevel. The Compactor is left in
-// its default disabled state so CompactFast returns errCompactionsDisabled
+// TestCompactFull_ReleasesActiveCount verifies that compactFull returns the
+// activeCompactions.full counter to its pre-call value after the spawned
+// goroutine completes.
+func TestCompactFull_ReleasesActiveCount(t *testing.T) {
+	e := newCompactionTestEngine()
+
+	var wg sync.WaitGroup
+	started := e.compactFull(CompactionGroup{}, &wg)
+	require.True(t, started)
+	wg.Wait()
+
+	require.Equal(t, int64(0), atomic.LoadInt64(&e.activeCompactions.full),
+		"activeCompactions.full should return to 0 after the compaction goroutine exits")
+}
+
+// TestCompactOptimize_ReleasesActiveCount verifies that compactOptimize returns
+// the activeCompactions.optimize counter to its pre-call value after the
+// spawned goroutine completes.
+func TestCompactOptimize_ReleasesActiveCount(t *testing.T) {
+	e := newCompactionTestEngine()
+
+	var wg sync.WaitGroup
+	require.NoError(t, e.compactOptimize(CompactionGroup{}, tsdb.DefaultMaxPointsPerBlock, &wg))
+	wg.Wait()
+
+	require.Equal(t, int64(0), atomic.LoadInt64(&e.activeCompactions.optimize),
+		"activeCompactions.optimize should return to 0 after the compaction goroutine exits")
+}
+
+// newCompactionTestEngine builds a minimal *Engine sufficient for invoking the
+// per-level compaction kickoff helpers. The Compactor is left in its default
+// disabled state so CompactFast/CompactFull return errCompactionsDisabled
 // immediately, letting the spawned goroutine exit quickly without needing
 // real TSM files.
 func newCompactionTestEngine() *Engine {
 	activeCompactions := &compactionCounter{}
 	return &Engine{
-		id:                1,
-		logger:            zap.NewNop(),
-		Compactor:         NewCompactor(),
-		FileStore:         &FileStore{},
-		CompactionPlan:    &DefaultPlanner{filesInUse: map[string]struct{}{}},
-		activeCompactions: activeCompactions,
-		Stats:             newEngineMetrics(tsdb.EngineTags{}),
-		compactionLimiter: limiter.NewFixed(2),
+		id:                         1,
+		logger:                     zap.NewNop(),
+		Compactor:                  NewCompactor(),
+		FileStore:                  &FileStore{},
+		CompactionPlan:             &DefaultPlanner{filesInUse: map[string]struct{}{}},
+		activeCompactions:          activeCompactions,
+		Stats:                      newEngineMetrics(tsdb.EngineTags{}),
+		compactionLimiter:          limiter.NewFixed(2),
+		optimizedCompactionLimiter: limiter.NewFixed(2),
 	}
 }
