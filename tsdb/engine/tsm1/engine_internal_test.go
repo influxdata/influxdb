@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -142,16 +143,28 @@ func TestCompactLoPriorityLevel_LeavesSchedulerRunnable(t *testing.T) {
 }
 
 // TestCompactHiPriorityLevel_ReleasesActiveCount verifies the same invariant
-// as TestCompactLoPriorityLevel_ReleasesActiveCount for the hi-priority path.
+// as TestCompactLoPriorityLevel_ReleasesActiveCount for the hi-priority path,
+// which is used for both level 1 and level 2 compactions.
 func TestCompactHiPriorityLevel_ReleasesActiveCount(t *testing.T) {
-	e := newCompactionTestEngine()
+	tests := []struct {
+		level   int
+		counter func(*compactionCounter) *int64
+	}{
+		{level: 1, counter: func(c *compactionCounter) *int64 { return &c.l1 }},
+		{level: 2, counter: func(c *compactionCounter) *int64 { return &c.l2 }},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("level=%d", tt.level), func(t *testing.T) {
+			e := newCompactionTestEngine()
 
-	var wg sync.WaitGroup
-	started := e.compactHiPriorityLevel(CompactionGroup{}, 1, false, &wg)
-	require.True(t, started)
-	wg.Wait()
+			var wg sync.WaitGroup
+			started := e.compactHiPriorityLevel(CompactionGroup{}, tt.level, false, &wg)
+			require.True(t, started)
+			wg.Wait()
 
-	require.Equal(t, int64(0), atomic.LoadInt64(&e.activeCompactions.l1))
+			require.Equal(t, int64(0), atomic.LoadInt64(tt.counter(e.activeCompactions)))
+		})
+	}
 }
 
 // TestCompactFull_ReleasesActiveCount verifies that compactFull returns the
