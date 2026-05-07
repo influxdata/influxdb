@@ -50,13 +50,13 @@ type KVStore struct {
 	log  *zap.Logger
 
 	// Background probe state. The prober is started by Open or WithDB,
-	// runs an initial synchronous probe, then loops on
-	// DefaultProbeInterval writing the latest check.Response into
-	// probeState. Check returns probeState's value with a single atomic
-	// load; it does not invoke bolt directly. Close signals the prober
-	// to exit; the prober itself writes the final "closed" response to
-	// probeState in a deferred cleanup, so Check eventually reflects the
-	// closed state without Close needing to wait.
+	// which seeds probeState with an initial cached response and then
+	// starts a background loop on DefaultProbeInterval writing the latest
+	// check.Response into probeState. Check returns probeState's value
+	// with a single atomic load; it does not invoke bolt directly. Close
+	// signals the prober to exit; the prober itself writes the final
+	// "closed" response to probeState in a deferred cleanup, so Check
+	// eventually reflects the closed state without Close needing to wait.
 	//
 	// probeStop is nil before startProberOnce; non-nil-and-open while
 	// the prober is running; non-nil-and-closed after Close. The first
