@@ -137,6 +137,25 @@ func (s *KVStore) openDB() (err error) {
 	return nil
 }
 
+// StopProber signals the background prober (if any) to exit. It does
+// not close the underlying *bolt.DB. Idempotent and safe to call
+// concurrently. Intended for callers that own the DB lifecycle
+// separately (e.g. constructed the store via WithDB) and need to stop
+// the prober without closing the DB they own.
+func (s *KVStore) StopProber() {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
+	if s.probeStop == nil {
+		return
+	}
+	select {
+	case <-s.probeStop:
+		// Already stopped (idempotent).
+	default:
+		close(s.probeStop)
+	}
+}
+
 // Close signals the background prober (if any) to exit and closes the
 // underlying bolt database. Close does not wait for the prober: the
 // prober writes the final "closed" response to probeState in a deferred
@@ -144,16 +163,7 @@ func (s *KVStore) openDB() (err error) {
 // is a brief window after Close returns where Check may still report
 // the last probe's result.
 func (s *KVStore) Close() error {
-	s.probeMu.Lock()
-	if s.probeStop != nil {
-		select {
-		case <-s.probeStop:
-			// Already closed (idempotent Close).
-		default:
-			close(s.probeStop)
-		}
-	}
-	s.probeMu.Unlock()
+	s.StopProber()
 
 	if db := s.DB(); db != nil {
 		return db.Close()
@@ -225,7 +235,9 @@ func (s *KVStore) Check(_ context.Context) check.Response {
 
 // startProberOnce starts the background prober the first time it is
 // called. Subsequent calls — including any Open/WithDB after Close —
-// observe probeStop != nil and no-op.
+// observe probeStop != nil and no-op. The cache is seeded with Pass
+// when a DB is present so /health does not report Fail during the
+// DefaultProbeInterval window before the first probe tick.
 func (s *KVStore) startProberOnce() {
 	s.probeMu.Lock()
 	if s.probeStop != nil {
@@ -234,6 +246,14 @@ func (s *KVStore) startProberOnce() {
 	}
 	s.probeStop = make(chan struct{})
 	s.probeMu.Unlock()
+	// The caller has already opened the DB (Open's openDB succeeded, or
+	// WithDB was passed an opened DB), so Pass is the correct initial
+	// state. The first probe tick (~DefaultProbeInterval) will overwrite
+	// this with the real result.
+	if s.DB() != nil {
+		seed := check.Pass()
+		s.probeState.Store(&seed)
+	}
 	go s.proberLoop()
 }
 

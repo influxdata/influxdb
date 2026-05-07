@@ -289,8 +289,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.engineReady = check.NewReadyGate(SubsystemEngine)
 	m.replicationsReady = check.NewReadyGate(SubsystemReplications)
 	m.queryReady = check.NewReadyGate(SubsystemQuery)
-	m.tasksReady = check.NewReadyGate(SubsystemTasks)
-	m.schedulerReady = check.NewReadyGate(SubsystemTaskScheduler)
 	m.startupProgress = run.NewStartupProgressLogger(
 		SubsystemShards,
 		m.log.With(zap.String("service", "startup-progress")))
@@ -299,10 +297,15 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.checkHandler.AddReadyCheck(m.engineReady)
 	m.checkHandler.AddReadyCheck(m.replicationsReady)
 	m.checkHandler.AddReadyCheck(m.queryReady)
-	m.checkHandler.AddReadyCheck(m.tasksReady)
-	m.checkHandler.AddReadyCheck(m.schedulerReady)
 	m.checkHandler.AddReadyCheck(m.startupProgress.ReadyChecker())
 	m.checkHandler.AddHealthCheck(m.startupProgress.HealthChecker())
+
+	if !opts.NoTasks {
+		m.tasksReady = check.NewReadyGate(SubsystemTasks)
+		m.schedulerReady = check.NewReadyGate(SubsystemTaskScheduler)
+		m.checkHandler.AddReadyCheck(m.tasksReady)
+		m.checkHandler.AddReadyCheck(m.schedulerReady)
+	}
 
 	if err := m.runHTTP(opts, m.checkHandler, httpLogger); err != nil {
 		return err
@@ -553,17 +556,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
 		var sch stoppingScheduler = &scheduler.NoopScheduler{}
-		if opts.NoTasks {
-			m.schedulerReady.Ready()
-			m.closers = append(m.closers, labeledCloser{
-				label: SubsystemTaskScheduler,
-				closer: func(context.Context) error {
-					m.schedulerReady.Unready()
-					m.tasksReady.Unready()
-					return nil
-				},
-			})
-		} else {
+		if !opts.NoTasks {
 			var (
 				sm  *scheduler.SchedulerMetrics
 				err error
@@ -1166,19 +1159,22 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 			m.log.Error("Failed opening bolt", zap.Error(err))
 			return "", err
 		}
-		m.closers = append(m.closers, labeledCloser{
-			label: SubsystemKV,
-			closer: func(context.Context) error {
-				m.kvReady.Unready()
-				return boltClient.Close()
-			},
-		})
 		m.reg.MustRegister(boltClient)
 		procID = boltClient.ID().String()
 
 		boltKV := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
 		boltKV.WithDB(boltClient.DB())
 		kvStore = boltKV
+		// boltKV's prober shares the *bolt.DB owned by boltClient; stop the
+		// prober before closing the DB so it does not see a torn handle.
+		m.closers = append(m.closers, labeledCloser{
+			label: SubsystemKV,
+			closer: func(context.Context) error {
+				m.kvReady.Unready()
+				boltKV.StopProber()
+				return boltClient.Close()
+			},
+		})
 
 		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
 		if opts.SqLitePath == "" {

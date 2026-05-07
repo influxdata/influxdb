@@ -4,9 +4,11 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/stretchr/testify/require"
+	bbolt "go.etcd.io/bbolt"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -46,4 +48,42 @@ func TestKVStore_CheckReturnsCachedState(t *testing.T) {
 
 	got := s.Check(context.Background())
 	require.Equal(t, stub, got)
+}
+
+// TestKVStore_StopProberLeavesDBOpen exercises the launcher's pattern:
+// the *bolt.DB is owned externally (bolt.Client) and the KVStore gets
+// it via WithDB. StopProber must signal the prober to exit without
+// touching the DB so the owner can close it. Regression test for a
+// goroutine leak introduced by the launcher closing the bolt.Client
+// directly without first stopping the KVStore prober.
+func TestKVStore_StopProberLeavesDBOpen(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "bolt-stopprober-")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	db, err := bbolt.Open(f.Name(), 0600, &bbolt.Options{Timeout: time.Second})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, db.Close()) })
+
+	s := NewKVStore(zaptest.NewLogger(t), f.Name())
+	s.WithDB(db)
+
+	s.StopProber()
+
+	// proberLoop's deferred cleanup writes a Fail response after exiting,
+	// so Check eventually reports the prober is no longer running.
+	require.Eventually(t, func() bool {
+		return s.Check(context.Background()).Status == check.StatusFail
+	}, time.Second, 10*time.Millisecond)
+
+	select {
+	case <-s.probeStop:
+	default:
+		t.Fatal("probeStop should be closed after StopProber")
+	}
+
+	// DB is still usable — StopProber must not close it.
+	require.NoError(t, db.View(func(*bbolt.Tx) error { return nil }))
+
+	require.NotPanics(t, func() { s.StopProber() }, "StopProber must be idempotent")
 }
