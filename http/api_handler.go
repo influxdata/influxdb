@@ -260,6 +260,7 @@ var apiLinks = map[string]interface{}{
 		"metrics": "/metrics",
 		"debug":   "/debug/pprof",
 		"health":  "/health",
+		"ready":   "/ready",
 	},
 	"tasks":     "/api/v2/tasks",
 	"checks":    "/api/v2/checks",

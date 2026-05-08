@@ -279,9 +279,11 @@ func (s *KVStore) proberLoop() {
 // runOneProbe issues a no-op View against the bolt database and writes
 // the result to probeState. If View does not return within
 // check.DefaultProbeTimeout, a "probe in flight" Fail is recorded
-// immediately and the prober blocks waiting for the stranded View
-// goroutine to return before the next probe — capping the number of
-// stuck goroutines to one per store on a wedged database.
+// immediately and the prober waits for the stranded View goroutine to
+// return before the next probe — capping the number of stuck goroutines
+// to one per store on a wedged database. The wait is interruptible by
+// probeStop so shutdown is not blocked on a wedged DB; the leaked View
+// goroutine exits when db.Close unsticks it.
 func (s *KVStore) runOneProbe() {
 	db := s.DB()
 	if db == nil {
@@ -297,7 +299,12 @@ func (s *KVStore) runOneProbe() {
 	case <-time.After(check.DefaultProbeTimeout):
 		timeoutResp := check.Response{Status: check.StatusFail, Message: ProbeInFlightMsg}
 		s.probeState.Store(&timeoutResp)
-		s.storeResult(<-errCh)
+		select {
+		case err := <-errCh:
+			s.storeResult(err)
+		case <-s.probeStop:
+			return
+		}
 	}
 }
 
