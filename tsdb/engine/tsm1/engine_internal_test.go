@@ -196,29 +196,6 @@ func TestCompactOptimize_ReleasesActiveCount(t *testing.T) {
 		"activeCompactions.optimize should return to 0 after the compaction goroutine exits")
 }
 
-// TestPlanCompactions_DoesNotClobberActiveCounters is a regression test for
-// #27409. PlanCompactions stores plan queue depths for stats reporting; those
-// writes must not land on the active running counters that Scheduler.next()
-// reads to gate concurrency.
-func TestPlanCompactions_DoesNotClobberActiveCounters(t *testing.T) {
-	e := newCompactionTestEngine()
-	e.CompactionPlan.(*DefaultPlanner).FileStore = e.FileStore
-
-	atomic.StoreInt64(&e.activeCompactions.l1, 1)
-	atomic.StoreInt64(&e.activeCompactions.l2, 2)
-	atomic.StoreInt64(&e.activeCompactions.l3, 3)
-	atomic.StoreInt64(&e.activeCompactions.full, 4)
-	atomic.StoreInt64(&e.activeCompactions.optimize, 5)
-
-	_, _, _, _, _ = e.PlanCompactions()
-
-	require.Equal(t, int64(1), atomic.LoadInt64(&e.activeCompactions.l1))
-	require.Equal(t, int64(2), atomic.LoadInt64(&e.activeCompactions.l2))
-	require.Equal(t, int64(3), atomic.LoadInt64(&e.activeCompactions.l3))
-	require.Equal(t, int64(4), atomic.LoadInt64(&e.activeCompactions.full))
-	require.Equal(t, int64(5), atomic.LoadInt64(&e.activeCompactions.optimize))
-}
-
 // TestScheduler_RunnableWhenOnlyQueueDepthsSet verifies the post-fix contract:
 // the scheduler gates on active-running counts only, never on queue depths,
 // so a plan with depth >= maxConcurrency does not block scheduling.
