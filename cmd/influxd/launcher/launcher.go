@@ -307,7 +307,12 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.checkHandler.AddNamedReadyCheck(m.schedulerReady)
 	}
 
-	if err := m.runHTTP(opts, m.checkHandler, httpLogger); err != nil {
+	registerCloser, err := m.runHTTP(opts, m.checkHandler, httpLogger)
+	// Register the HTTP server's shutdown closer last (deferred until run
+	// returns) so that during Shutdown — which iterates closers in reverse —
+	// the listener is closed before subsystems are torn down.
+	defer registerCloser()
+	if err != nil {
 		return err
 	}
 
@@ -1249,7 +1254,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 // runHTTP configures and launches a listener for incoming HTTP(S) requests.
 // The listener is run in a separate goroutine. If it fails to start up, it
 // will cancel the launcher.
-func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogger *zap.Logger) error {
+func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogger *zap.Logger) (func(), error) {
 	log := m.log.With(zap.String("service", "tcp-listener"))
 
 	httpServer := &nethttp.Server{
@@ -1261,15 +1266,17 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		IdleTimeout:       opts.HttpIdleTimeout,
 		ErrorLog:          zap.NewStdLog(httpLogger),
 	}
-	m.closers = append(m.closers, labeledCloser{
-		label:  SubsystemHTTPServer,
-		closer: httpServer.Shutdown,
-	})
+	registerCloser := func() {
+		m.closers = append(m.closers, labeledCloser{
+			label:  SubsystemHTTPServer,
+			closer: httpServer.Shutdown,
+		})
+	}
 
 	ln, err := net.Listen("tcp", opts.HttpBindAddress)
 	if err != nil {
 		log.Error("Failed to set up TCP listener", zap.String("addr", opts.HttpBindAddress), zap.Error(err))
-		return err
+		return registerCloser, err
 	}
 	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
 		m.httpPort = addr.Port
@@ -1293,12 +1300,24 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 			log.Info("Stopping")
 		}(log)
 
-		return nil
+		return registerCloser, nil
+	}
+
+	// Cleanup for paths that fail after Listen but before Serve. The
+	// registered closer (httpServer.Shutdown) only closes listeners that
+	// the server tracks via Serve/ServeTLS, so it cannot release ln here;
+	// and m.wg.Add(1) above has no goroutine to decrement it.
+	cleanupBeforeServe := func() {
+		if cerr := ln.Close(); cerr != nil {
+			log.Warn("Failed to close TCP listener after error", zap.Error(cerr))
+		}
+		m.wg.Done()
 	}
 
 	if _, err = tls.LoadX509KeyPair(opts.HttpTLSCert, opts.HttpTLSKey); err != nil {
 		log.Error("Failed to load x509 key pair", zap.String("cert-path", opts.HttpTLSCert), zap.String("key-path", opts.HttpTLSKey))
-		return err
+		cleanupBeforeServe()
+		return registerCloser, err
 	}
 
 	var tlsMinVersion uint16
@@ -1319,7 +1338,8 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		}
 		tlsMinVersion = tls.VersionTLS13
 	default:
-		return fmt.Errorf("unsupported TLS version: %s", opts.HttpTLSMinVersion)
+		cleanupBeforeServe()
+		return registerCloser, fmt.Errorf("unsupported TLS version: %s", opts.HttpTLSMinVersion)
 	}
 
 	// nil uses the default cipher suite
@@ -1354,7 +1374,7 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		log.Info("Stopping")
 	}(log)
 
-	return nil
+	return registerCloser, nil
 }
 
 // runReporter configures and launches a periodic telemetry report for the server.
