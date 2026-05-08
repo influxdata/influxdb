@@ -528,9 +528,9 @@ func (s *Store) loadShards(ctx context.Context) error {
 	if lim == 0 {
 		lim = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
 
-		// Floor of 4 gives one slot per lane: L1, L2, L3, full/opt.
-		if lim < 4 {
-			lim = 4
+		// Floor of 2, allows for large compactions to not hog all compactions.
+		if lim < 2 {
+			lim = 2
 		}
 	}
 
