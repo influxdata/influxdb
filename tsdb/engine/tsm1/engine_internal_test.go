@@ -196,6 +196,21 @@ func TestCompactOptimize_ReleasesActiveCount(t *testing.T) {
 		"activeCompactions.optimize should return to 0 after the compaction goroutine exits")
 }
 
+// TestScheduler_RunnableWhenOnlyQueueDepthsSet verifies the post-fix contract:
+// the scheduler gates on active-running counts only, never on queue depths,
+// so a plan with depth >= maxConcurrency does not block scheduling.
+func TestScheduler_RunnableWhenOnlyQueueDepthsSet(t *testing.T) {
+	const maxConcurrency = 1
+	activeCompactions := &compactionCounter{}
+	s := newScheduler(activeCompactions, maxConcurrency)
+
+	s.SetDepth(1, 130)
+
+	level, runnable := s.next()
+	require.True(t, runnable, "scheduler must remain runnable when queue depth (130) >= maxConcurrency (1)")
+	require.Equal(t, 1, level)
+}
+
 // newCompactionTestEngine builds a minimal *Engine sufficient for invoking the
 // per-level compaction kickoff helpers. The Compactor is left in its default
 // disabled state so CompactFast/CompactFull return errCompactionsDisabled

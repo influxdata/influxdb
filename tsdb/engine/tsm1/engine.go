@@ -2374,11 +2374,12 @@ func (e *Engine) PlanCompactions() ([]PlannedCompactionGroup, []PlannedCompactio
 	// Update the level plan queue stats
 	// For stats, use the length needed, even if the lock was
 	// not acquired
-	atomic.StoreInt64(&e.activeCompactions.l1, int64(len(l1)))
-	atomic.StoreInt64(&e.activeCompactions.l2, int64(len(l2)))
-	atomic.StoreInt64(&e.activeCompactions.l3, int64(len(l3)))
-	atomic.StoreInt64(&e.activeCompactions.full, int64(len(l4)))
-	atomic.StoreInt64(&e.activeCompactions.optimize, int64(len(l5)))
+	e.Stats.Queued.With(labelForLevel(1)).Set(float64(len(l1)))
+	e.Stats.Queued.With(labelForLevel(2)).Set(float64(len(l2)))
+	e.Stats.Queued.With(labelForLevel(3)).Set(float64(len(l3)))
+	e.Stats.Queued.With(prometheus.Labels{levelKey: levelFull}).Set(float64(len(l4)))
+	e.Stats.Queued.With(prometheus.Labels{levelKey: levelOpt}).Set(float64(len(l5)))
+
 	return l1, l2, l3, l4, l5
 }
 
