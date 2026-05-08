@@ -710,6 +710,12 @@ type compactionCounter struct {
 	l3       int64
 	full     int64
 	optimize int64
+
+	queueL1       int64
+	queueL2       int64
+	queueL3       int64
+	queueFull     int64
+	queueOptimize int64
 }
 
 func (c *compactionCounter) countForLevel(l int) *int64 {
@@ -2374,11 +2380,18 @@ func (e *Engine) PlanCompactions() ([]PlannedCompactionGroup, []PlannedCompactio
 	// Update the level plan queue stats
 	// For stats, use the length needed, even if the lock was
 	// not acquired
-	atomic.StoreInt64(&e.activeCompactions.l1, int64(len(l1)))
-	atomic.StoreInt64(&e.activeCompactions.l2, int64(len(l2)))
-	atomic.StoreInt64(&e.activeCompactions.l3, int64(len(l3)))
-	atomic.StoreInt64(&e.activeCompactions.full, int64(len(l4)))
-	atomic.StoreInt64(&e.activeCompactions.optimize, int64(len(l5)))
+	atomic.StoreInt64(&e.activeCompactions.queueL1, int64(len(l1)))
+	atomic.StoreInt64(&e.activeCompactions.queueL2, int64(len(l2)))
+	atomic.StoreInt64(&e.activeCompactions.queueL3, int64(len(l3)))
+	atomic.StoreInt64(&e.activeCompactions.queueFull, int64(len(l4)))
+	atomic.StoreInt64(&e.activeCompactions.queueOptimize, int64(len(l5)))
+
+	e.Stats.Queued.With(labelForLevel(1)).Set(float64(len(l1)))
+	e.Stats.Queued.With(labelForLevel(2)).Set(float64(len(l2)))
+	e.Stats.Queued.With(labelForLevel(3)).Set(float64(len(l3)))
+	e.Stats.Queued.With(prometheus.Labels{levelKey: levelFull}).Set(float64(len(l4)))
+	e.Stats.Queued.With(prometheus.Labels{levelKey: levelOpt}).Set(float64(len(l5)))
+
 	return l1, l2, l3, l4, l5
 }
 
