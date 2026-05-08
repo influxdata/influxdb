@@ -115,10 +115,10 @@ func (h *HealthReadyHandler) SetHandler(next http.Handler) {
 // double-adding them.
 func (h *HealthReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case HealthPath:
+	case HealthPath, HealthPath + "/":
 		h.headers.WriteHeader(w.Header())
 		h.writeHealth(w, r)
-	case ReadyPath:
+	case ReadyPath, ReadyPath + "/":
 		h.headers.WriteHeader(w.Header())
 		h.writeReady(w, r)
 	default:

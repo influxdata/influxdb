@@ -191,6 +191,37 @@ func TestHealthReadyHandler_DelegateInstalled_ForwardsNonCheckRequests(t *testin
 	assert.Equal(t, "OSS", resHealth.Header.Get("X-Influxdb-Build"))
 }
 
+// TestHealthReadyHandler_TrailingSlashServedLocally pins the compatibility
+// guarantee that /health/ and /ready/ are still served by the local
+// renderer rather than falling through to the delegate. The previous
+// implementation mounted these via chi.Mount, which matches the
+// trailing-slash form; clients that probe with that form must keep
+// working. The test installs a delegate that returns 418 so a regression
+// (trailing-slash request leaking to the delegate) surfaces as a teapot
+// instead of 200 with the build-info header.
+func TestHealthReadyHandler_TrailingSlashServedLocally(t *testing.T) {
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
+	gate := check.NewReadyGate("engine")
+	h.AddNamedReadyCheck(gate)
+	gate.Ready()
+
+	h.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+
+	paths := []string{"/health", "/health/", "/ready", "/ready/"}
+	for _, p := range paths {
+		t.Run(p, func(t *testing.T) {
+			res := doRequest(t, h, http.MethodGet, p)
+			defer closeBody(t, res)
+			require.Equal(t, http.StatusOK, res.StatusCode,
+				"%s must be served locally, not delegated", p)
+			assert.Equal(t, "OSS", res.Header.Get("X-Influxdb-Build"),
+				"%s response must carry the locally-set build-info header", p)
+		})
+	}
+}
+
 func TestHealthReadyHandler_SetHandler_ReplacesDelegate(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 
