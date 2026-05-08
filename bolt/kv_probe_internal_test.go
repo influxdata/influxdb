@@ -26,9 +26,9 @@ func newProbeTestStore(t *testing.T) *KVStore {
 }
 
 // TestKVStore_StartProberPopulatesCache verifies that Open's invocation
-// of startProberOnce runs a synchronous initial probe — probeState must
-// be non-nil and reporting Pass by the time Open returns, so the first
-// /health hit doesn't see "probe pending".
+// of startProberOnce seeds probeState with a passing cached response.
+// probeState must be non-nil and reporting Pass by the time Open
+// returns, so the first /health hit doesn't see "probe pending".
 func TestKVStore_StartProberPopulatesCache(t *testing.T) {
 	s := newProbeTestStore(t)
 
