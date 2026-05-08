@@ -227,8 +227,6 @@ func TestScheduler_RunnableWhenOnlyQueueDepthsSet(t *testing.T) {
 	activeCompactions := &compactionCounter{}
 	s := newScheduler(activeCompactions, maxConcurrency)
 
-	atomic.StoreInt64(&activeCompactions.queueL1, 130)
-
 	s.SetDepth(1, 130)
 
 	level, runnable := s.next()
