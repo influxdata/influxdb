@@ -7,9 +7,11 @@ import (
 	"time"
 )
 
-// NamedChecker is a superset of Checker that also indicates the name of the service.
-// Prefer to implement NamedChecker if your service has a fixed name,
-// as opposed to calling *Health.AddNamed.
+// NamedChecker is a superset of Checker that also indicates the name of
+// the service. Implementations MUST stamp Response.Name with CheckName()
+// before returning from Check, so that AddNamedHealthCheck /
+// AddNamedReadyCheck can register the value without an extra wrapper.
+// Use Named to attach a name to a Checker that does not already do so.
 type NamedChecker interface {
 	Checker
 	CheckName() string
@@ -24,8 +26,8 @@ func (f CheckerFunc) Check(ctx context.Context) Response {
 }
 
 // namedChecker pairs a Checker with a fixed name. It implements NamedChecker
-// so AddHealthCheck/AddReadyCheck can record the name without invoking
-// Check, and its Check method stamps the name onto the Response.
+// so AddNamedHealthCheck/AddNamedReadyCheck can record the name without
+// invoking Check, and its Check method stamps the name onto the Response.
 type namedChecker struct {
 	name    string
 	checker Checker
@@ -39,16 +41,15 @@ func (n namedChecker) Check(ctx context.Context) Response {
 	return resp
 }
 
-// Named returns a Checker that also implements NamedChecker, delegates to
-// checker, and stamps name onto the response. This way callers can attach
-// a human-readable name to a response without encoding that logic into the
-// underlying check.
-func Named(name string, checker Checker) Checker {
+// Named returns a NamedChecker that delegates to checker and stamps name
+// onto the response. Callers attach a human-readable name to a response
+// without encoding that logic into the underlying check.
+func Named(name string, checker Checker) NamedChecker {
 	return namedChecker{name: name, checker: checker}
 }
 
 // NamedFunc is the same as Named except it takes a CheckerFunc.
-func NamedFunc(name string, fn CheckerFunc) Checker {
+func NamedFunc(name string, fn CheckerFunc) NamedChecker {
 	return Named(name, fn)
 }
 
@@ -123,11 +124,13 @@ func NewReadyGate(name string) *ReadyGate {
 func (g *ReadyGate) CheckName() string { return g.name }
 
 // Check returns StatusPass once Ready has been called, otherwise StatusFail.
+// The response is stamped with the gate's name to satisfy the NamedChecker
+// contract.
 func (g *ReadyGate) Check(context.Context) Response {
 	if g.ready.Load() {
-		return Pass()
+		return Response{Name: g.name, Status: StatusPass}
 	}
-	return Response{Status: StatusFail, Message: "not ready"}
+	return Response{Name: g.name, Status: StatusFail, Message: "not ready"}
 }
 
 // Ready flips the gate to report StatusPass.

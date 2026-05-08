@@ -31,7 +31,7 @@ func TestEmptyCheck(t *testing.T) {
 
 func TestAddHealthCheck(t *testing.T) {
 	h := NewCheck()
-	h.AddHealthCheck(Named("awesome", ErrCheck(func() error {
+	h.AddNamedHealthCheck(Named("awesome", ErrCheck(func() error {
 		return nil
 	})))
 	r := h.CheckHealth(context.Background())
@@ -51,7 +51,7 @@ func TestAddHealthCheck(t *testing.T) {
 
 func TestAddUnHealthyCheck(t *testing.T) {
 	h := NewCheck()
-	h.AddHealthCheck(Named("failure", ErrCheck(func() error {
+	h.AddNamedHealthCheck(Named("failure", ErrCheck(func() error {
 		return errors.New("Oops! I am sorry")
 	})))
 	r := h.CheckHealth(context.Background())
@@ -265,7 +265,7 @@ func ExampleNewCheck() {
 
 func ExampleCheck_CheckHealth() {
 	h := NewCheck()
-	h.AddHealthCheck(Named("google", CheckerFunc(func(ctx context.Context) Response {
+	h.AddNamedHealthCheck(Named("google", CheckerFunc(func(ctx context.Context) Response {
 		var r net.Resolver
 		_, err := r.LookupHost(ctx, "google.com")
 		if err != nil {

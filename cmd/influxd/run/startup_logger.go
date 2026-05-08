@@ -161,5 +161,9 @@ type startupChecker struct {
 	fn   func(context.Context) check.Response
 }
 
-func (c startupChecker) CheckName() string                        { return c.name }
-func (c startupChecker) Check(ctx context.Context) check.Response { return c.fn(ctx) }
+func (c startupChecker) CheckName() string { return c.name }
+func (c startupChecker) Check(ctx context.Context) check.Response {
+	resp := c.fn(ctx)
+	resp.Name = c.name
+	return resp
+}

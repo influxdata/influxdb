@@ -292,19 +292,19 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.startupProgress = run.NewStartupProgressLogger(
 		SubsystemShards,
 		m.log.With(zap.String("service", "startup-progress")))
-	m.checkHandler.AddReadyCheck(m.kvReady)
-	m.checkHandler.AddReadyCheck(m.sqliteReady)
-	m.checkHandler.AddReadyCheck(m.engineReady)
-	m.checkHandler.AddReadyCheck(m.replicationsReady)
-	m.checkHandler.AddReadyCheck(m.queryReady)
-	m.checkHandler.AddReadyCheck(m.startupProgress.ReadyChecker())
-	m.checkHandler.AddHealthCheck(m.startupProgress.HealthChecker())
+	m.checkHandler.AddNamedReadyCheck(m.kvReady)
+	m.checkHandler.AddNamedReadyCheck(m.sqliteReady)
+	m.checkHandler.AddNamedReadyCheck(m.engineReady)
+	m.checkHandler.AddNamedReadyCheck(m.replicationsReady)
+	m.checkHandler.AddNamedReadyCheck(m.queryReady)
+	m.checkHandler.AddNamedReadyCheck(m.startupProgress.ReadyChecker())
+	m.checkHandler.AddNamedHealthCheck(m.startupProgress.HealthChecker())
 
 	if !opts.NoTasks {
 		m.tasksReady = check.NewReadyGate(SubsystemTasks)
 		m.schedulerReady = check.NewReadyGate(SubsystemTaskScheduler)
-		m.checkHandler.AddReadyCheck(m.tasksReady)
-		m.checkHandler.AddReadyCheck(m.schedulerReady)
+		m.checkHandler.AddNamedReadyCheck(m.tasksReady)
+		m.checkHandler.AddNamedReadyCheck(m.schedulerReady)
 	}
 
 	if err := m.runHTTP(opts, m.checkHandler, httpLogger); err != nil {
@@ -324,9 +324,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// Surface metastore liveness on /health. In-memory KV (testing mode)
 	// has no meaningful failure surface; skip it.
 	if boltKV, ok := m.kvStore.(*bolt.KVStore); ok {
-		m.checkHandler.AddHealthCheck(check.Named(SubsystemKV, boltKV))
+		m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemKV, boltKV))
 	}
-	m.checkHandler.AddHealthCheck(check.Named(SubsystemSQLite, m.sqlStore))
+	m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemSQLite, m.sqlStore))
 	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	tenantStore := tenant.NewStore(m.kvStore)
@@ -526,7 +526,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
-	m.checkHandler.AddHealthCheck(check.Named(SubsystemQuery, storageQueryService))
+	m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemQuery, storageQueryService))
 	var taskSvc taskmodel.TaskService
 	{
 		// create the task stack
@@ -594,7 +594,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		// Register a pulse health check for the real tree scheduler.
 		// NoopScheduler has no pulse to monitor; skip it.
 		if treeSch, ok := sch.(*scheduler.TreeScheduler); ok {
-			m.checkHandler.AddHealthCheck(check.Named(SubsystemTaskScheduler, run.NewSchedulerPulseCheck(treeSch, run.DefaultSchedulerPulseThreshold)))
+			m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemTaskScheduler, run.NewSchedulerPulseCheck(treeSch, run.DefaultSchedulerPulseThreshold)))
 		}
 
 		coordLogger := m.log.With(zap.String("service", "task-coordinator"))
@@ -636,7 +636,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	qe := iqlquery.NewExecutor(m.log, cm)
 	influxqlProxy := iqlquery.NewProxyExecutor(m.log, qe)
-	m.checkHandler.AddHealthCheck(check.Named(SubsystemInfluxQL, influxqlProxy))
+	m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemInfluxQL, influxqlProxy))
 	se := &iqlcoordinator.StatementExecutor{
 		MetaClient:        metaClient,
 		TSDBStore:         m.engine.TSDBStore(),

@@ -83,12 +83,12 @@ type failingChecker struct {
 
 func (f failingChecker) CheckName() string { return f.name }
 func (f failingChecker) Check(context.Context) check.Response {
-	return check.Response{Status: check.StatusFail, Message: f.message}
+	return check.Response{Name: f.name, Status: check.StatusFail, Message: f.message}
 }
 
 func TestHealthReadyHandler_Health_FailingChecker(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
-	h.AddHealthCheck(failingChecker{name: "query", message: "unreachable"})
+	h.AddNamedHealthCheck(failingChecker{name: "query", message: "unreachable"})
 
 	res := doRequest(t, h, http.MethodGet, "/health")
 	defer closeBody(t, res)
@@ -107,7 +107,7 @@ func TestHealthReadyHandler_Health_FailingChecker(t *testing.T) {
 func TestHealthReadyHandler_Ready_FailingGate(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	gate := check.NewReadyGate("engine")
-	h.AddReadyCheck(gate)
+	h.AddNamedReadyCheck(gate)
 
 	res := doRequest(t, h, http.MethodGet, "/ready")
 	defer closeBody(t, res)
@@ -129,7 +129,7 @@ func TestHealthReadyHandler_Ready_FailingGate(t *testing.T) {
 func TestHealthReadyHandler_Ready_PassingGateOmitsChecks(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 	gate := check.NewReadyGate("engine")
-	h.AddReadyCheck(gate)
+	h.AddNamedReadyCheck(gate)
 	gate.Ready()
 
 	res := doRequest(t, h, http.MethodGet, "/ready")

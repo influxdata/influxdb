@@ -45,34 +45,52 @@ func NewCheck() *Check {
 	return &Check{}
 }
 
-// AddHealthCheck adds the check to the list of health checks.
-// If c is a NamedChecker, the name will be added.
+// AddHealthCheck registers an anonymous health check. If check happens to
+// implement NamedChecker, registration is delegated to AddNamedHealthCheck
+// so the name is recorded; otherwise the check is stored as-is and its
+// recorded name is empty. Prefer AddNamedHealthCheck when the caller
+// already knows the name.
 func (c *Check) AddHealthCheck(check Checker) {
+	if nc, ok := check.(NamedChecker); ok {
+		c.AddNamedHealthCheck(nc)
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var name string
-	if nc, ok := check.(NamedChecker); ok {
-		name = nc.CheckName()
-		c.healthChecks = append(c.healthChecks, Named(name, nc))
-	} else {
-		c.healthChecks = append(c.healthChecks, check)
-	}
-	c.healthNames = append(c.healthNames, name)
+	c.healthChecks = append(c.healthChecks, check)
+	c.healthNames = append(c.healthNames, "")
 }
 
-// AddReadyCheck adds the check to the list of ready checks.
-// If c is a NamedChecker, the name will be added.
+// AddReadyCheck registers an anonymous ready check. See AddHealthCheck for
+// the NamedChecker fallback.
 func (c *Check) AddReadyCheck(check Checker) {
+	if nc, ok := check.(NamedChecker); ok {
+		c.AddNamedReadyCheck(nc)
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var name string
-	if nc, ok := check.(NamedChecker); ok {
-		name = nc.CheckName()
-		c.readyChecks = append(c.readyChecks, Named(name, nc))
-	} else {
-		c.readyChecks = append(c.readyChecks, check)
-	}
-	c.readyNames = append(c.readyNames, name)
+	c.readyChecks = append(c.readyChecks, check)
+	c.readyNames = append(c.readyNames, "")
+}
+
+// AddNamedHealthCheck registers nc as a health check. The name is taken
+// from nc.CheckName(); nc.Check is responsible for stamping Response.Name
+// (see NamedChecker), so no additional wrapping happens here.
+func (c *Check) AddNamedHealthCheck(nc NamedChecker) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.healthChecks = append(c.healthChecks, nc)
+	c.healthNames = append(c.healthNames, nc.CheckName())
+}
+
+// AddNamedReadyCheck registers nc as a ready check. See AddNamedHealthCheck
+// for naming semantics.
+func (c *Check) AddNamedReadyCheck(nc NamedChecker) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.readyChecks = append(c.readyChecks, nc)
+	c.readyNames = append(c.readyNames, nc.CheckName())
 }
 
 // ReadyCheckNames returns the names of currently-registered ready checks

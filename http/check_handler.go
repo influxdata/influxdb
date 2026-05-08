@@ -70,11 +70,21 @@ func NewHealthReadyHandler(log *zap.Logger) *HealthReadyHandler {
 	}
 }
 
-// AddReadyCheck registers a ready check.
+// AddReadyCheck registers an anonymous ready check.
 func (h *HealthReadyHandler) AddReadyCheck(c check.Checker) { h.check.AddReadyCheck(c) }
 
-// AddHealthCheck registers a health check.
+// AddHealthCheck registers an anonymous health check.
 func (h *HealthReadyHandler) AddHealthCheck(c check.Checker) { h.check.AddHealthCheck(c) }
+
+// AddNamedReadyCheck registers nc as a ready check under nc.CheckName().
+func (h *HealthReadyHandler) AddNamedReadyCheck(nc check.NamedChecker) {
+	h.check.AddNamedReadyCheck(nc)
+}
+
+// AddNamedHealthCheck registers nc as a health check under nc.CheckName().
+func (h *HealthReadyHandler) AddNamedHealthCheck(nc check.NamedChecker) {
+	h.check.AddNamedHealthCheck(nc)
+}
 
 // ReadyCheckNames returns the names of currently-registered ready checks
 // in registration order.
