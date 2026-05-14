@@ -769,13 +769,16 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 		sources = append(sources, struct{ db, rp string }{q.Database, q.RetentionPolicy})
 	}
 
-	var rows []measurementRow
+	var (
+		rows     []measurementRow
+		messages []*query.Message
+		allErrs  []error
+	)
 	for _, source := range sources {
 		names, err := e.TSDBStore.MeasurementNames(ctx.Context, ctx.Authorizer, source.db, source.rp, q.Condition)
 		if err != nil {
-			return ctx.Send(&query.Result{
-				Err: err,
-			})
+			allErrs = append(allErrs, err)
+			messages = append(messages, partialMeasurementsWarning(source.db, source.rp, err))
 		}
 		for _, name := range names {
 			rows = append(rows, measurementRow{
@@ -784,6 +787,12 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 				rp:   source.rp,
 			})
 		}
+	}
+
+	if len(rows) == 0 && len(allErrs) > 0 {
+		return ctx.Send(&query.Result{
+			Err: errors.Join(allErrs...),
+		})
 	}
 
 	if q.Offset > 0 {
@@ -804,33 +813,49 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 		return ctx.Send(&query.Result{})
 	}
 
+	var series *models.Row
 	if onlyPrintMeasurements {
 		values := make([][]interface{}, len(rows))
 		for i, r := range rows {
 			values[i] = []interface{}{string(r.name)}
 		}
-
-		return ctx.Send(&query.Result{
-			Series: []*models.Row{{
-				Name:    "measurements",
-				Columns: []string{"name"},
-				Values:  values,
-			}},
-		})
-	}
-
-	values := make([][]interface{}, len(rows))
-	for i, r := range rows {
-		values[i] = []interface{}{string(r.name), r.db, r.rp}
-	}
-
-	return ctx.Send(&query.Result{
-		Series: []*models.Row{{
+		series = &models.Row{
+			Name:    "measurements",
+			Columns: []string{"name"},
+			Values:  values,
+		}
+	} else {
+		values := make([][]interface{}, len(rows))
+		for i, r := range rows {
+			values[i] = []interface{}{string(r.name), r.db, r.rp}
+		}
+		series = &models.Row{
 			Name:    "measurements",
 			Columns: []string{"name", "database", "retention policy"},
 			Values:  values,
-		}},
+		}
+	}
+
+	return ctx.Send(&query.Result{
+		Series:   []*models.Row{series},
+		Messages: messages,
+		Partial:  len(messages) > 0,
 	})
+}
+
+// partialMeasurementsWarning builds a user-facing warning Message for a single
+// SHOW MEASUREMENTS source that failed (fully or partially). The source is
+// identified by database and (when non-empty) retention policy so that
+// wildcard queries across many DB/RP pairs remain disambiguated.
+func partialMeasurementsWarning(db, rp string, err error) *query.Message {
+	src := fmt.Sprintf("%q", db)
+	if rp != "" {
+		src = fmt.Sprintf("%q.%q", db, rp)
+	}
+	return &query.Message{
+		Level: query.WarningLevel,
+		Text:  fmt.Sprintf("partial results for %s: %s", src, err.Error()),
+	}
 }
 
 func (e *StatementExecutor) executeShowMeasurementCardinalityStatement(ctx *query.ExecutionContext, stmt *influxql.ShowMeasurementCardinalityStatement) (models.Rows, error) {

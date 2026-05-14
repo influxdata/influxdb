@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -681,4 +682,152 @@ type writePointsIntoFunc func(req *coordinator.IntoWriteRequest) error
 
 func (fn writePointsIntoFunc) WritePointsInto(req *coordinator.IntoWriteRequest) error {
 	return fn(req)
+}
+
+// TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial covers the
+// contract change in executeShowMeasurementsStatement where TSDBStore.MeasurementNames
+// may now return (some-names, err) on a partially-successful fan-out (used by
+// the clustered MetaExecutor that vendors this package). The executor must
+// surface those names with a warning Message and Partial=true rather than
+// throwing the data away with Result.Err set.
+func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T) {
+	wildcardDBs := func() []meta.DatabaseInfo {
+		return []meta.DatabaseInfo{
+			{Name: "db0", RetentionPolicies: []meta.RetentionPolicyInfo{{Name: "rp0"}}},
+			{Name: "db1", RetentionPolicies: []meta.RetentionPolicyInfo{{Name: "rp0"}}},
+		}
+	}
+
+	t.Run("all_succeed", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, _ string, _ string, _ influxql.Expr) ([][]byte, error) {
+			return [][]byte{[]byte("cpu"), []byte("mem")}, nil
+		}
+
+		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON db0", "", 0))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.NoError(t, r.Err)
+		require.False(t, r.Partial)
+		require.Empty(t, r.Messages)
+		require.Len(t, r.Series, 1)
+		require.Equal(t, "measurements", r.Series[0].Name)
+		require.Equal(t, []string{"name"}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{"cpu"}, {"mem"}}, r.Series[0].Values)
+	})
+
+	t.Run("all_fail_single_source", func(t *testing.T) {
+		e := NewQueryExecutor()
+		nodeErr := errors.New("node 1: down")
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, _ string, _ string, _ influxql.Expr) ([][]byte, error) {
+			return nil, nodeErr
+		}
+
+		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON db0", "", 0))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.Error(t, r.Err)
+		require.ErrorContains(t, r.Err, "node 1: down")
+		require.Empty(t, r.Series)
+		require.Empty(t, r.Messages)
+		require.False(t, r.Partial)
+	})
+
+	t.Run("partial_names_with_error", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, _ string, _ string, _ influxql.Expr) ([][]byte, error) {
+			return [][]byte{[]byte("cpu"), []byte("mem")}, errors.New("node 2: timeout")
+		}
+
+		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON db0", "", 0))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.NoError(t, r.Err)
+		require.True(t, r.Partial)
+		require.Len(t, r.Messages, 1)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, `"db0"`)
+		require.Contains(t, r.Messages[0].Text, "node 2: timeout")
+		require.Len(t, r.Series, 1)
+		require.Equal(t, []string{"name"}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{"cpu"}, {"mem"}}, r.Series[0].Values)
+	})
+
+	t.Run("wildcard_one_source_dead", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.MetaClient.DatabasesFn = wildcardDBs
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
+			switch database {
+			case "db0":
+				return [][]byte{[]byte("cpu")}, nil
+			case "db1":
+				return nil, errors.New("all nodes down")
+			}
+			return nil, fmt.Errorf("unexpected database %q", database)
+		}
+
+		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON *.*", "", 0))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.NoError(t, r.Err)
+		require.True(t, r.Partial)
+		require.Len(t, r.Messages, 1)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, `"db1"."rp0"`)
+		require.Contains(t, r.Messages[0].Text, "all nodes down")
+		require.Len(t, r.Series, 1)
+		require.Equal(t, []string{"name", "database", "retention policy"}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{"cpu", "db0", "rp0"}}, r.Series[0].Values)
+	})
+
+	t.Run("wildcard_all_sources_dead", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.MetaClient.DatabasesFn = wildcardDBs
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
+			return nil, fmt.Errorf("%s: down", database)
+		}
+
+		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON *.*", "", 0))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.Error(t, r.Err)
+		require.ErrorContains(t, r.Err, "db0: down")
+		require.ErrorContains(t, r.Err, "db1: down")
+		require.Empty(t, r.Series)
+		require.Empty(t, r.Messages)
+		require.False(t, r.Partial)
+	})
+
+	t.Run("wildcard_partial_per_source", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.MetaClient.DatabasesFn = wildcardDBs
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
+			switch database {
+			case "db0":
+				return [][]byte{[]byte("cpu")}, errors.New("db0: timeout")
+			case "db1":
+				return [][]byte{[]byte("mem")}, errors.New("db1: refused")
+			}
+			return nil, fmt.Errorf("unexpected database %q", database)
+		}
+
+		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON *.*", "", 0))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.NoError(t, r.Err)
+		require.True(t, r.Partial)
+		require.Len(t, r.Messages, 2)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, `"db0"."rp0"`)
+		require.Contains(t, r.Messages[0].Text, "timeout")
+		require.Equal(t, query.WarningLevel, r.Messages[1].Level)
+		require.Contains(t, r.Messages[1].Text, `"db1"."rp0"`)
+		require.Contains(t, r.Messages[1].Text, "refused")
+		require.Len(t, r.Series, 1)
+		require.Equal(t, []string{"name", "database", "retention policy"}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{
+			{"cpu", "db0", "rp0"},
+			{"mem", "db1", "rp0"},
+		}, r.Series[0].Values)
+	})
 }
