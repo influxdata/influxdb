@@ -69,7 +69,7 @@ func TestHealthReadyHandler_Health_NoChecksPasses(t *testing.T) {
 	info := platform.GetBuildInfo()
 	require.Equal(t, "influxdb", got.Name)
 	require.Equal(t, "pass", got.Status)
-	require.Equal(t, "ready for queries and writes", got.Message)
+	require.Equal(t, "healthy", got.Message)
 	require.Equal(t, info.Version, got.Version)
 	require.Equal(t, info.Commit, got.Commit)
 	require.NotNil(t, got.Checks)

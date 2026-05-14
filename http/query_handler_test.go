@@ -287,7 +287,7 @@ func TestFluxService_Check(t *testing.T) {
 	want := check.Response{
 		Name:    "influxdb",
 		Status:  "pass",
-		Message: "ready for queries and writes",
+		Message: "healthy",
 		Checks:  check.Responses{},
 	}
 	if !cmp.Equal(want, got) {
@@ -305,7 +305,7 @@ func TestFluxQueryService_Check(t *testing.T) {
 	want := check.Response{
 		Name:    "influxdb",
 		Status:  "pass",
-		Message: "ready for queries and writes",
+		Message: "healthy",
 		Checks:  check.Responses{},
 	}
 	if !cmp.Equal(want, got) {
