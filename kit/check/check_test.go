@@ -2,15 +2,13 @@ package check
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEmptyCheck(t *testing.T) {
@@ -75,11 +73,6 @@ func TestAddUnHealthyCheck(t *testing.T) {
 	}
 }
 
-func buildCheckWithServer() (*Check, *httptest.Server) {
-	c := NewCheck()
-	return c, httptest.NewServer(c)
-}
-
 type mockCheck struct {
 	status Status
 	name   string
@@ -100,29 +93,13 @@ func mockFail(name string) Checker {
 	return mockCheck{status: StatusFail, name: name}
 }
 
-func respBuilder(body io.ReadCloser) (*Response, error) {
-	defer body.Close()
-	d := json.NewDecoder(body)
-	r := &Response{}
-	return r, d.Decode(r)
-}
-
-func TestBasicHTTPHandler(t *testing.T) {
-	_, ts := buildCheckWithServer()
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/ready")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected := &Response{
+func TestCheckReadyEmpty(t *testing.T) {
+	c := NewCheck()
+	actual := c.CheckReady(context.Background())
+	expected := Response{
 		Name:   "Ready",
 		Status: StatusPass,
+		Checks: Responses{},
 	}
 	if !reflect.DeepEqual(expected, actual) {
 		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
@@ -130,8 +107,7 @@ func TestBasicHTTPHandler(t *testing.T) {
 }
 
 func TestHealthSorting(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
+	c := NewCheck()
 
 	c.AddHealthCheck(mockPass("a"))
 	c.AddHealthCheck(mockPass("c"))
@@ -139,16 +115,9 @@ func TestHealthSorting(t *testing.T) {
 	c.AddHealthCheck(mockFail("k"))
 	c.AddHealthCheck(mockFail("b"))
 
-	resp, err := http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	actual := c.CheckHealth(context.Background())
 
-	expected := &Response{
+	expected := Response{
 		Name:   "Health",
 		Status: "fail",
 		Checks: Responses{
@@ -166,8 +135,7 @@ func TestHealthSorting(t *testing.T) {
 }
 
 func TestNoCrossOver(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
+	c := NewCheck()
 
 	c.AddHealthCheck(mockPass("a"))
 	c.AddHealthCheck(mockPass("c"))
@@ -175,16 +143,9 @@ func TestNoCrossOver(t *testing.T) {
 	c.AddReadyCheck(mockFail("k"))
 	c.AddHealthCheck(mockFail("b"))
 
-	resp, err := http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	actualHealth := c.CheckHealth(context.Background())
 
-	expected := &Response{
+	expectedHealth := Response{
 		Name:   "Health",
 		Status: "fail",
 		Checks: Responses{
@@ -194,20 +155,13 @@ func TestNoCrossOver(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	if !reflect.DeepEqual(expectedHealth, actualHealth) {
+		t.Errorf("unexpected response. expected %v, actual %v", expectedHealth, actualHealth)
 	}
 
-	resp, err = http.Get(ts.URL + "/ready")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err = respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	actualReady := c.CheckReady(context.Background())
 
-	expected = &Response{
+	expectedReady := Response{
 		Name:   "Ready",
 		Status: "fail",
 		Checks: Responses{
@@ -216,44 +170,55 @@ func TestNoCrossOver(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	if !reflect.DeepEqual(expectedReady, actualReady) {
+		t.Errorf("unexpected response. expected %v, actual %v", expectedReady, actualReady)
 	}
 }
 
-func TestPassthrough(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
+func TestReadyCheckNames(t *testing.T) {
+	c := NewCheck()
 
-	resp, err := http.Get(ts.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Empty Check returns an empty (non-nil) slice.
+	names := c.ReadyCheckNames()
+	require.NotNil(t, names)
+	require.Empty(t, names)
 
-	if resp.StatusCode != 404 {
-		t.Fatalf("failed to error when no passthrough is present, status: %d", resp.StatusCode)
-	}
+	c.AddNamedReadyCheck(Named("a", mockPass("a")))
+	c.AddReadyCheck(mockPass("")) // anonymous: not a NamedChecker
+	c.AddNamedReadyCheck(Named("c", mockPass("c")))
 
-	used := false
-	s := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		used = true
-		w.Write([]byte("hi"))
-	})
+	names = c.ReadyCheckNames()
+	require.Equal(t, []string{"a", "", "c"}, names)
 
-	c.SetPassthrough(s)
+	// The returned slice must be a copy: mutating it does not affect
+	// subsequent calls.
+	names[0] = "MUTATED"
+	require.Equal(t, []string{"a", "", "c"}, c.ReadyCheckNames())
+}
 
-	resp, err = http.Get(ts.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestAddHealthCheck_NamedCheckerDispatch(t *testing.T) {
+	// mockPass("") returns Response.Name == "". If AddHealthCheck honors
+	// the NamedChecker interface, Named() stamps "alpha" onto the
+	// response. If it doesn't, the response name would stay empty.
+	c := NewCheck()
+	c.AddHealthCheck(Named("alpha", mockPass("")))
 
-	if resp.StatusCode != 200 {
-		t.Fatalf("bad response code from passthrough, status: %d", resp.StatusCode)
-	}
+	resp := c.CheckHealth(context.Background())
+	require.Len(t, resp.Checks, 1)
+	require.Equal(t, "alpha", resp.Checks[0].Name)
+}
 
-	if !used {
-		t.Fatal("passthrough server not used")
-	}
+func TestAddReadyCheck_NamedCheckerDispatch(t *testing.T) {
+	// ReadyCheckNames is the clearest signal: the recorded name is the
+	// side effect of dispatching to AddNamedReadyCheck.
+	c := NewCheck()
+	c.AddReadyCheck(Named("beta", mockPass("")))
+
+	require.Equal(t, []string{"beta"}, c.ReadyCheckNames())
+
+	resp := c.CheckReady(context.Background())
+	require.Len(t, resp.Checks, 1)
+	require.Equal(t, "beta", resp.Checks[0].Name)
 }
 
 func ExampleNewCheck() {
@@ -276,20 +241,4 @@ func ExampleCheck_CheckHealth() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	h.CheckHealth(ctx)
-}
-
-func ExampleCheck_ServeHTTP() {
-	c := NewCheck()
-	http.ListenAndServe(":6060", c)
-}
-
-func ExampleCheck_SetPassthrough() {
-	c := NewCheck()
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello friends!"))
-	})
-
-	c.SetPassthrough(http.DefaultServeMux)
-	http.ListenAndServe(":6060", c)
 }

@@ -4,9 +4,6 @@ package check
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
 	"sort"
 	"sync"
 )
@@ -28,11 +25,8 @@ const (
 type Check struct {
 	mu           sync.RWMutex
 	healthChecks []Checker
-	healthNames  []string
 	readyChecks  []Checker
 	readyNames   []string
-
-	passthroughHandler http.Handler
 }
 
 // Checker indicates a service whose health can be checked.
@@ -58,7 +52,6 @@ func (c *Check) AddHealthCheck(check Checker) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.healthChecks = append(c.healthChecks, check)
-	c.healthNames = append(c.healthNames, "")
 }
 
 // AddReadyCheck registers an anonymous ready check. See AddHealthCheck for
@@ -81,7 +74,6 @@ func (c *Check) AddNamedHealthCheck(nc NamedChecker) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.healthChecks = append(c.healthChecks, nc)
-	c.healthNames = append(c.healthNames, nc.CheckName())
 }
 
 // AddNamedReadyCheck registers nc as a ready check. See AddNamedHealthCheck
@@ -101,17 +93,6 @@ func (c *Check) ReadyCheckNames() []string {
 	defer c.mu.RUnlock()
 	out := make([]string, len(c.readyNames))
 	copy(out, c.readyNames)
-	return out
-}
-
-// HealthCheckNames returns the names of currently-registered health checks
-// in registration order. Anonymous checks (registered without a name) are
-// returned as empty strings.
-func (c *Check) HealthCheckNames() []string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	out := make([]string, len(c.healthNames))
-	copy(out, c.healthNames)
 	return out
 }
 
@@ -163,62 +144,4 @@ func (c *Check) CheckReady(ctx context.Context) Response {
 	}
 	sort.Sort(response.Checks)
 	return response
-}
-
-// SetPassthrough allows you to set a handler to use if the request is not a ready or health check.
-// This can be useful if you intend to use this as a middleware.
-func (c *Check) SetPassthrough(h http.Handler) {
-	c.passthroughHandler = h
-}
-
-// ServeHTTP serves /ready and /health requests with the respective checks.
-func (c *Check) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	const (
-		pathReady  = "/ready"
-		pathHealth = "/health"
-	)
-
-	path := r.URL.Path
-
-	// Allow requests not intended for checks to pass through.
-	if path != pathReady && path != pathHealth {
-		if c.passthroughHandler != nil {
-			c.passthroughHandler.ServeHTTP(w, r)
-			return
-		}
-
-		// We can't handle this request.
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	ctx := r.Context()
-	switch path {
-	case pathReady:
-		writeResponse(w, c.CheckReady(ctx))
-	case pathHealth:
-		writeResponse(w, c.CheckHealth(ctx))
-	}
-}
-
-// writeResponse writes a Response to the wire as JSON. The HTTP status code
-// accompanying the payload is the primary means for signaling the status of the
-// checks. The possible status codes are:
-//
-// - 200 OK: All checks pass.
-// - 503 Service Unavailable: Some checks are failing.
-// - 500 Internal Server Error: There was a problem serializing the Response.
-func writeResponse(w http.ResponseWriter, resp Response) {
-	status := http.StatusOK
-	if resp.Status == StatusFail {
-		status = http.StatusServiceUnavailable
-	}
-
-	msg, err := json.MarshalIndent(resp, "", "  ")
-	if err != nil {
-		msg = []byte(`{"message": "error marshaling response", "status": "fail"}`)
-		status = http.StatusInternalServerError
-	}
-	w.WriteHeader(status)
-	fmt.Fprintln(w, string(msg))
 }
