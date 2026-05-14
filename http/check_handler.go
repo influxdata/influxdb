@@ -137,7 +137,7 @@ func (h *HealthReadyHandler) writeHealth(w http.ResponseWriter, r *http.Request)
 	resp := h.check.CheckHealth(r.Context())
 	info := platform.GetBuildInfo()
 	status := http.StatusOK
-	message := "ready for queries and writes"
+	message := "healthy"
 	if resp.Status == check.StatusFail {
 		status = http.StatusServiceUnavailable
 		message = firstFailureMessage(resp.Checks)
