@@ -33,7 +33,7 @@ func TestService_OpenDisabled(t *testing.T) {
 	}
 
 	if s.LogBuf.Len() > 0 {
-		t.Fatalf("service logged %q, didn't expect any logging", s.LogBuf.All())
+		t.Fatalf("service logged %v, didn't expect any logging", s.LogBuf.All())
 	}
 }
 
