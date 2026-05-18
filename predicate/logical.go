@@ -23,7 +23,7 @@ func (op LogicalOperator) Value() (datatypes.Node_Logical, error) {
 	default:
 		return 0, &errors.Error{
 			Code: errors.EInvalid,
-			Msg:  fmt.Sprintf("the logical operator %q is invalid", op),
+			Msg:  fmt.Sprintf("the logical operator %d is invalid", op),
 		}
 	}
 }
