@@ -99,5 +99,5 @@ type staticChecker struct {
 	resp check.Response
 }
 
-func (s staticChecker) CheckName() string                  { return s.name }
+func (s staticChecker) CheckName() string                    { return s.name }
 func (s staticChecker) Check(context.Context) check.Response { return s.resp }
