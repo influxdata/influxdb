@@ -17,8 +17,8 @@ func (f fakeScheduler) When() time.Time { return f.when }
 func TestSchedulerPulseCheck_ZeroWhenPasses(t *testing.T) {
 	c := NewSchedulerPulseCheck(fakeScheduler{}, DefaultSchedulerPulseThreshold)
 	resp := c.Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
-	require.Equal(t, msgSchedulerIdle, resp.Message)
+	require.Equal(t, check.StatusPass, resp.Status())
+	require.Equal(t, msgSchedulerIdle, resp.Message())
 }
 
 func TestSchedulerPulseCheck_FutureWhenPasses(t *testing.T) {
@@ -28,8 +28,8 @@ func TestSchedulerPulseCheck_FutureWhenPasses(t *testing.T) {
 	c.now = func() time.Time { return now }
 
 	resp := c.Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
-	require.Equal(t, fmt.Sprintf(msgSchedulerNextRunFmt, until.Round(time.Second)), resp.Message)
+	require.Equal(t, check.StatusPass, resp.Status())
+	require.Equal(t, fmt.Sprintf(msgSchedulerNextRunFmt, until.Round(time.Second)), resp.Message())
 }
 
 func TestSchedulerPulseCheck_SmallLagPasses(t *testing.T) {
@@ -39,8 +39,8 @@ func TestSchedulerPulseCheck_SmallLagPasses(t *testing.T) {
 	c.now = func() time.Time { return now }
 
 	resp := c.Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
-	require.Equal(t, fmt.Sprintf(msgSchedulerOnTimeFmt, lag.Round(time.Second)), resp.Message)
+	require.Equal(t, check.StatusPass, resp.Status())
+	require.Equal(t, fmt.Sprintf(msgSchedulerOnTimeFmt, lag.Round(time.Second)), resp.Message())
 }
 
 func TestSchedulerPulseCheck_AtThresholdPasses(t *testing.T) {
@@ -51,8 +51,8 @@ func TestSchedulerPulseCheck_AtThresholdPasses(t *testing.T) {
 	c.now = func() time.Time { return now }
 
 	resp := c.Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
-	require.Equal(t, fmt.Sprintf(msgSchedulerOnTimeFmt, lag.Round(time.Second)), resp.Message)
+	require.Equal(t, check.StatusPass, resp.Status())
+	require.Equal(t, fmt.Sprintf(msgSchedulerOnTimeFmt, lag.Round(time.Second)), resp.Message())
 }
 
 func TestSchedulerPulseCheck_OverThresholdFails(t *testing.T) {
@@ -62,6 +62,6 @@ func TestSchedulerPulseCheck_OverThresholdFails(t *testing.T) {
 	c.now = func() time.Time { return now }
 
 	resp := c.Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.Equal(t, fmt.Sprintf(msgSchedulerStalledFmt, lag.Round(time.Second)), resp.Message)
+	require.Equal(t, check.StatusFail, resp.Status())
+	require.Equal(t, fmt.Sprintf(msgSchedulerStalledFmt, lag.Round(time.Second)), resp.Message())
 }

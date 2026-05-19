@@ -13,7 +13,7 @@ import (
 func TestSqlStore_CheckPasses(t *testing.T) {
 	s := NewTestStore(t)
 	resp := s.Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
+	require.Equal(t, check.StatusPass, resp.Status())
 }
 
 func TestSqlStore_CheckFailsAfterClose(t *testing.T) {
@@ -24,8 +24,8 @@ func TestSqlStore_CheckFailsAfterClose(t *testing.T) {
 	require.NoError(t, s.Close())
 
 	resp := s.Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.NotEmpty(t, resp.Message)
+	require.Equal(t, check.StatusFail, resp.Status())
+	require.NotEmpty(t, resp.Message())
 }
 
 func TestSqlStore_CheckCompletesPromptlyOnCanceledContext(t *testing.T) {

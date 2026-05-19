@@ -34,8 +34,8 @@ func TestStartupProgressLogger_ReadyCheckWaiting(t *testing.T) {
 	s := newTestProgressLogger(t)
 
 	resp := s.ReadyChecker().Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.Equal(t, msgWaitingForShardEnumeration, resp.Message)
+	require.Equal(t, check.StatusFail, resp.Status())
+	require.Equal(t, msgWaitingForShardEnumeration, resp.Message())
 }
 
 func TestStartupProgressLogger_ReadyCheckInProgress(t *testing.T) {
@@ -49,8 +49,8 @@ func TestStartupProgressLogger_ReadyCheckInProgress(t *testing.T) {
 	}
 
 	resp := s.ReadyChecker().Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.Equal(t, fmt.Sprintf(msgLoadingShardsFmt, 47.0, 94, 200), resp.Message)
+	require.Equal(t, check.StatusFail, resp.Status())
+	require.Equal(t, fmt.Sprintf(msgLoadingShardsFmt, 47.0, 94, 200), resp.Message())
 }
 
 func TestStartupProgressLogger_ReadyCheckFinishBeforeEnumeration(t *testing.T) {
@@ -60,9 +60,9 @@ func TestStartupProgressLogger_ReadyCheckFinishBeforeEnumeration(t *testing.T) {
 	s.Finish(nil)
 
 	resp := s.ReadyChecker().Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
+	require.Equal(t, check.StatusPass, resp.Status())
 	// Duration is non-deterministic; assert prefix only.
-	require.Contains(t, resp.Message, "ready: 0 shards loaded in ")
+	require.Contains(t, resp.Message(), "ready: 0 shards loaded in ")
 }
 
 func TestStartupProgressLogger_ReadyCheckFinishAfterLoading(t *testing.T) {
@@ -74,8 +74,8 @@ func TestStartupProgressLogger_ReadyCheckFinishAfterLoading(t *testing.T) {
 	s.Finish(nil)
 
 	resp := s.ReadyChecker().Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
-	require.Contains(t, resp.Message, "ready: 3 shards loaded in ")
+	require.Equal(t, check.StatusPass, resp.Status())
+	require.Contains(t, resp.Message(), "ready: 3 shards loaded in ")
 }
 
 func TestStartupProgressLogger_ReadyCheckFinishWithError(t *testing.T) {
@@ -84,8 +84,8 @@ func TestStartupProgressLogger_ReadyCheckFinishWithError(t *testing.T) {
 	s.Finish(errors.New("disk on fire"))
 
 	resp := s.ReadyChecker().Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.Equal(t, fmt.Sprintf(msgShardLoadingFailedFmt, "disk on fire"), resp.Message)
+	require.Equal(t, check.StatusFail, resp.Status())
+	require.Equal(t, fmt.Sprintf(msgShardLoadingFailedFmt, "disk on fire"), resp.Message())
 }
 
 // Ready remains Pass even when individual shards failed, as long as
@@ -98,14 +98,14 @@ func TestStartupProgressLogger_ReadyCheckPassesDespiteShardFailures(t *testing.T
 	s.Finish(nil)
 
 	resp := s.ReadyChecker().Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
+	require.Equal(t, check.StatusPass, resp.Status())
 }
 
 func TestStartupProgressLogger_HealthCheckPassesByDefault(t *testing.T) {
 	s := newTestProgressLogger(t)
 
 	resp := s.HealthChecker().Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
+	require.Equal(t, check.StatusPass, resp.Status())
 }
 
 func TestStartupProgressLogger_HealthCheckReportsAllFailures(t *testing.T) {
@@ -115,11 +115,11 @@ func TestStartupProgressLogger_HealthCheckReportsAllFailures(t *testing.T) {
 	s.ShardLoadFailed(99, errors.New("bad TSM"))
 
 	resp := s.HealthChecker().Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.Contains(t, resp.Message, "3 shard(s) failed to load")
-	require.Contains(t, resp.Message, "shard 7: corrupt index")
-	require.Contains(t, resp.Message, "shard 42: missing series file")
-	require.Contains(t, resp.Message, "shard 99: bad TSM")
+	require.Equal(t, check.StatusFail, resp.Status())
+	require.Contains(t, resp.Message(), "3 shard(s) failed to load")
+	require.Contains(t, resp.Message(), "shard 7: corrupt index")
+	require.Contains(t, resp.Message(), "shard 42: missing series file")
+	require.Contains(t, resp.Message(), "shard 99: bad TSM")
 }
 
 // HealthChecker tracks shard failures independently of Finish — it
@@ -130,8 +130,8 @@ func TestStartupProgressLogger_HealthCheckIndependentOfFinish(t *testing.T) {
 	s.Finish(nil) // engine.Open returned nil
 
 	resp := s.HealthChecker().Check(context.Background())
-	require.Equal(t, check.StatusFail, resp.Status)
-	require.Contains(t, resp.Message, "shard 1: boom")
+	require.Equal(t, check.StatusFail, resp.Status())
+	require.Contains(t, resp.Message(), "shard 1: boom")
 }
 
 func TestStartupProgressLogger_CompletedShardBeforeAddShard(t *testing.T) {
@@ -233,7 +233,7 @@ func TestStartupProgressLogger_ConcurrentReadersAndLoaders(t *testing.T) {
 				// Before Finish, ready is always Fail. Health may be
 				// Pass or Fail depending on whether any failer has
 				// reported; both are valid mid-test states.
-				assert.Equal(t, check.StatusFail, ready.Check(context.Background()).Status)
+				assert.Equal(t, check.StatusFail, ready.Check(context.Background()).Status())
 				_ = health.Check(context.Background())
 			}
 			concurrency.Add(-1)
@@ -256,6 +256,6 @@ func TestStartupProgressLogger_ConcurrentReadersAndLoaders(t *testing.T) {
 	// After Finish(nil), ReadyChecker flips to Pass; HealthChecker still
 	// reflects the recorded shard failures.
 	s.Finish(nil)
-	require.Equal(t, check.StatusPass, s.ReadyChecker().Check(context.Background()).Status)
-	require.Equal(t, check.StatusFail, s.HealthChecker().Check(context.Background()).Status)
+	require.Equal(t, check.StatusPass, s.ReadyChecker().Check(context.Background()).Status())
+	require.Equal(t, check.StatusFail, s.HealthChecker().Check(context.Background()).Status())
 }

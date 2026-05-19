@@ -6,18 +6,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResponse_HasCheck(t *testing.T) {
-	r := Response{
-		Checks: Responses{
-			{Name: "a"},
-			{Name: "b"},
-		},
-	}
-	require.True(t, r.HasCheck("a"))
-	require.True(t, r.HasCheck("b"))
-	require.False(t, r.HasCheck("c"))
-	require.False(t, r.HasCheck(""))
+func TestHasCheck(t *testing.T) {
+	r := NewBasicResponse("", StatusPass, "", Responses{
+		NamedPass("a"),
+		NamedPass("b"),
+	})
+	require.True(t, HasCheck(r, "a"))
+	require.True(t, HasCheck(r, "b"))
+	require.False(t, HasCheck(r, "c"))
+	require.False(t, HasCheck(r, ""))
 
-	empty := Response{}
-	require.False(t, empty.HasCheck("a"))
+	require.False(t, HasCheck(BasicResponse{}, "a"))
 }

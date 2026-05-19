@@ -33,6 +33,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -284,15 +285,10 @@ func TestFluxService_Check(t *testing.T) {
 		Addr: ts.URL,
 	}
 	got := s.Check(context.Background())
-	want := check.Response{
-		Name:    "influxdb",
-		Status:  "pass",
-		Message: "healthy",
-		Checks:  check.Responses{},
-	}
-	if !cmp.Equal(want, got) {
-		t.Error("unexpected response -want/+got: " + cmp.Diff(want, got))
-	}
+	require.Equal(t, "influxdb", got.Name())
+	require.Equal(t, check.StatusPass, got.Status())
+	require.Equal(t, "healthy", got.Message())
+	require.Empty(t, got.Checks())
 }
 
 func TestFluxQueryService_Check(t *testing.T) {
@@ -302,15 +298,10 @@ func TestFluxQueryService_Check(t *testing.T) {
 		Addr: ts.URL,
 	}
 	got := s.Check(context.Background())
-	want := check.Response{
-		Name:    "influxdb",
-		Status:  "pass",
-		Message: "healthy",
-		Checks:  check.Responses{},
-	}
-	if !cmp.Equal(want, got) {
-		t.Error("unexpected response -want/+got: " + cmp.Diff(want, got))
-	}
+	require.Equal(t, "influxdb", got.Name())
+	require.Equal(t, check.StatusPass, got.Status())
+	require.Equal(t, "healthy", got.Message())
+	require.Empty(t, got.Checks())
 }
 
 var crlfPattern = regexp.MustCompile(`\r?\n`)

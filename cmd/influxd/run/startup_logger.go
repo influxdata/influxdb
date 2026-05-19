@@ -115,10 +115,7 @@ func (s *StartupProgressLogger) HealthChecker() check.NamedChecker {
 func (s *StartupProgressLogger) checkReady(_ context.Context) check.Response {
 	if s.done.Load() {
 		if msg := s.failErrMsg.Load(); msg != nil {
-			return check.Response{
-				Status:  check.StatusFail,
-				Message: fmt.Sprintf(msgShardLoadingFailedFmt, *msg),
-			}
+			return check.Fail(fmt.Sprintf(msgShardLoadingFailedFmt, *msg))
 		}
 		return check.Info(msgStartupReadyFmt,
 			s.shardsCompleted.Load(),
@@ -127,13 +124,10 @@ func (s *StartupProgressLogger) checkReady(_ context.Context) check.Response {
 	completed := s.shardsCompleted.Load()
 	total := s.shardsTotal.Load()
 	if total == 0 {
-		return check.Response{Status: check.StatusFail, Message: msgWaitingForShardEnumeration}
+		return check.Fail(msgWaitingForShardEnumeration)
 	}
 	pct := float64(completed) / float64(total) * 100
-	return check.Response{
-		Status:  check.StatusFail,
-		Message: fmt.Sprintf(msgLoadingShardsFmt, pct, completed, total),
-	}
+	return check.Fail(fmt.Sprintf(msgLoadingShardsFmt, pct, completed, total))
 }
 
 func (s *StartupProgressLogger) checkHealth(_ context.Context) check.Response {
@@ -147,10 +141,7 @@ func (s *StartupProgressLogger) checkHealth(_ context.Context) check.Response {
 	for i, e := range errs {
 		parts[i] = fmt.Sprintf(msgShardLoadEntryFmt, e.shardID, e.msg)
 	}
-	return check.Response{
-		Status:  check.StatusFail,
-		Message: fmt.Sprintf(msgShardLoadFailedCountFmt, len(errs), strings.Join(parts, "; ")),
-	}
+	return check.Fail(fmt.Sprintf(msgShardLoadFailedCountFmt, len(errs), strings.Join(parts, "; ")))
 }
 
 // startupChecker pairs a fixed name with a check function so
@@ -163,7 +154,7 @@ type startupChecker struct {
 
 func (c startupChecker) CheckName() string { return c.name }
 func (c startupChecker) Check(ctx context.Context) check.Response {
-	resp := c.fn(ctx)
-	resp.Name = c.name
-	return resp
+	// Stamp c.name onto whatever fn returns. Rename handles both
+	// BasicResponse (by-value) and stateful Responses (wrapped).
+	return check.Rename(c.fn(ctx), c.name)
 }

@@ -27,18 +27,20 @@ func httpGetJSON(t *testing.T, url string, out interface{}) int {
 
 // healthBody mirrors the JSON shape served by the /health endpoint.
 // Defined locally to avoid taking a test-only dependency on the http
-// package's unexported `healthBody`.
+// package's unexported `healthBody`. check.Response is an interface
+// and cannot be a decode target, so nested checks decode as
+// BasicResponse.
 type healthBody struct {
-	Name   string          `json:"name"`
-	Status check.Status    `json:"status"`
-	Checks check.Responses `json:"checks"`
+	Name   string                `json:"name"`
+	Status check.Status          `json:"status"`
+	Checks []check.BasicResponse `json:"checks"`
 }
 
-// checkNames returns the set of names present in a Responses slice.
-func checkNames(rs check.Responses) map[string]check.Status {
+// checkNames returns the set of names present in a checks slice.
+func checkNames(rs []check.BasicResponse) map[string]check.Status {
 	out := make(map[string]check.Status, len(rs))
 	for _, c := range rs {
-		out[c.Name] = c.Status
+		out[c.Name()] = c.Status()
 	}
 	return out
 }

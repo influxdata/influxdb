@@ -14,40 +14,39 @@ import (
 
 // newProbeTestStore mirrors bolt_test.NewTestKVStore but stays in the bolt
 // package so a test can reach unexported probe state.
-func newProbeTestStore(t *testing.T) *KVStore {
+func newProbeTestStore(t *testing.T, opts ...KVOption) *KVStore {
 	f, err := os.CreateTemp(t.TempDir(), "bolt-probe-")
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	s := NewKVStore(zaptest.NewLogger(t), f.Name(), WithNoSync)
+	opts = append([]KVOption{WithNoSync}, opts...)
+	s := NewKVStore(zaptest.NewLogger(t), f.Name(), opts...)
 	require.NoError(t, s.Open(context.Background()))
 	t.Cleanup(func() { require.NoError(t, s.Close()) })
 	return s
 }
 
 // TestKVStore_StartProberPopulatesCache verifies that Open's invocation
-// of startProberOnce seeds probeState with a passing cached response.
-// probeState must be non-nil and reporting Pass by the time Open
-// returns, so the first /health hit doesn't see "probe pending".
+// of startProberOnce runs a synchronous probe before returning, so
+// Check reports StatusPass by the time Open is done. The first /health
+// hit must not see "no probe yet".
 func TestKVStore_StartProberPopulatesCache(t *testing.T) {
 	s := newProbeTestStore(t)
 
-	got := s.probeState.Load()
-	require.NotNil(t, got)
-	require.Equal(t, check.StatusPass, got.Status)
+	got := s.Check(context.Background())
+	require.Equal(t, check.StatusPass, got.Status())
 }
 
 // TestKVStore_CheckReturnsCachedState verifies that Check is a pure read
-// of probeState — overwriting the cache directly is reflected on the
-// next Check, with no probe in between.
+// of probeState — pushing a stub via Update is reflected on the next
+// Check, with no probe in between.
 func TestKVStore_CheckReturnsCachedState(t *testing.T) {
 	s := newProbeTestStore(t)
 
-	stub := check.Response{Status: check.StatusFail, Message: "stubbed"}
-	s.probeState.Store(&stub)
-
+	s.probeState.Update(check.Fail("stubbed"))
 	got := s.Check(context.Background())
-	require.Equal(t, stub, got)
+	require.Equal(t, check.StatusFail, got.Status())
+	require.Equal(t, "stubbed", got.Message())
 }
 
 // TestKVStore_StopProberLeavesDBOpen exercises the launcher's pattern:
@@ -65,15 +64,18 @@ func TestKVStore_StopProberLeavesDBOpen(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
 
-	s := NewKVStore(zaptest.NewLogger(t), f.Name())
+	// Use a short staleness so the freshness wrapper can age past it
+	// well within the test's Eventually deadline.
+	const staleness = 50 * time.Millisecond
+	s := NewKVStore(zaptest.NewLogger(t), f.Name(), WithStaleness(staleness))
 	s.WithDB(db)
 
 	s.StopProber()
 
-	// proberLoop's deferred cleanup writes a Fail response after exiting,
-	// so Check eventually reports the prober is no longer running.
+	// After StopProber the prober stops calling Update; the wrapper
+	// ages past its staleness budget and Check flips to fail.
 	require.Eventually(t, func() bool {
-		return s.Check(context.Background()).Status == check.StatusFail
+		return s.Check(context.Background()).Status() == check.StatusFail
 	}, time.Second, 10*time.Millisecond)
 
 	select {

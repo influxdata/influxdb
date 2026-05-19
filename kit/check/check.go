@@ -98,50 +98,46 @@ func (c *Check) ReadyCheckNames() []string {
 
 // CheckHealth evaluates c's set of health checks and returns a populated Response.
 func (c *Check) CheckHealth(ctx context.Context) Response {
-	// Snapshot the checker slice under the read lock and release the lock
-	// before evaluating. Checkers can block (network calls) or even re-enter
-	// registration, so we must not hold c.mu across Check invocations.
-	c.mu.RLock()
-	checks := append([]Checker(nil), c.healthChecks...)
-	c.mu.RUnlock()
-
-	response := Response{
-		Name:   "Health",
-		Status: StatusPass,
-		Checks: make(Responses, 0, len(checks)),
-	}
-
-	for _, ch := range checks {
-		resp := ch.Check(ctx)
-		if resp.Status != StatusPass {
-			response.Status = resp.Status
-		}
-		response.Checks = append(response.Checks, resp)
-	}
-	sort.Sort(response.Checks)
-	return response
+	return c.evaluate(ctx, "Health", c.snapshotHealth)
 }
 
 // CheckReady evaluates c's set of ready checks and returns a populated Response.
 func (c *Check) CheckReady(ctx context.Context) Response {
-	// See CheckHealth: snapshot under lock, evaluate outside.
+	return c.evaluate(ctx, "Ready", c.snapshotReady)
+}
+
+func (c *Check) snapshotHealth() []Checker {
 	c.mu.RLock()
-	checks := append([]Checker(nil), c.readyChecks...)
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
+	return append([]Checker(nil), c.healthChecks...)
+}
 
-	response := Response{
-		Name:   "Ready",
-		Status: StatusPass,
-		Checks: make(Responses, 0, len(checks)),
-	}
+func (c *Check) snapshotReady() []Checker {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return append([]Checker(nil), c.readyChecks...)
+}
 
+// evaluate runs every checker returned by snap and aggregates the
+// responses into a single BasicResponse. The snap callback is taken
+// under the read lock and the lock is released before any Check runs:
+// checkers can block (network calls) or re-enter registration, so we
+// must not hold c.mu across Check invocations.
+func (c *Check) evaluate(ctx context.Context, name string, snap func() []Checker) Response {
+	checks := snap()
+	results := make(Responses, 0, len(checks))
+	overall := StatusPass
 	for _, ch := range checks {
 		resp := ch.Check(ctx)
-		if resp.Status != StatusPass {
-			response.Status = resp.Status
+		// Cache Status() to one call: a stateful Response (e.g.
+		// FreshnessResponse) may observe a different snapshot on a
+		// second invocation, which would let overall disagree with
+		// the value appended into results.
+		if s := resp.Status(); s != StatusPass {
+			overall = s
 		}
-		response.Checks = append(response.Checks, resp)
+		results = append(results, resp)
 	}
-	sort.Sort(response.Checks)
-	return response
+	sort.Sort(results)
+	return NewBasicResponse(name, overall, "", results)
 }

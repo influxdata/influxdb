@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/stretchr/testify/require"
 )
@@ -15,20 +16,24 @@ func TestKVStore_CheckPasses(t *testing.T) {
 	defer closeFn()
 
 	resp := s.Check(context.Background())
-	require.Equal(t, check.StatusPass, resp.Status)
+	require.Equal(t, check.StatusPass, resp.Status())
 }
 
 func TestKVStore_CheckFailsAfterClose(t *testing.T) {
-	s, closeFn, err := NewTestKVStore(t)
+	// Short staleness so the prober's silence after Close ages out
+	// quickly enough to satisfy the test's Eventually deadline.
+	const staleness = 50 * time.Millisecond
+	s, closeFn, err := NewTestKVStore(t, bolt.WithStaleness(staleness))
 	require.NoError(t, err)
 	require.NoError(t, s.Close())
 	defer closeFn()
 
-	// Close signals the prober to exit; the prober writes the closed
-	// response in its deferred cleanup. Check reflects it eventually.
+	// Close stops the prober from calling Update on the freshness
+	// wrapper; the wrapper's last snapshot ages past `staleness` and
+	// Check flips to fail with a "stale" message.
 	require.Eventually(t, func() bool {
 		resp := s.Check(context.Background())
-		return resp.Status == check.StatusFail && resp.Message != ""
+		return resp.Status() == check.StatusFail && resp.Message() != ""
 	}, time.Second, 10*time.Millisecond)
 }
 

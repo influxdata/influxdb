@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"reflect"
 	"testing"
 	"time"
 
@@ -14,17 +13,9 @@ import (
 func TestEmptyCheck(t *testing.T) {
 	c := NewCheck()
 	resp := c.CheckReady(context.Background())
-	if len(resp.Checks) > 0 {
-		t.Errorf("no checks added but %d returned", len(resp.Checks))
-	}
-
-	if resp.Name != "Ready" {
-		t.Errorf("expected: \"Ready\", got: %q", resp.Name)
-	}
-
-	if resp.Status != StatusPass {
-		t.Errorf("expected: %q, got: %q", StatusPass, resp.Status)
-	}
+	require.Empty(t, resp.Checks(), "no checks added")
+	require.Equal(t, "Ready", resp.Name())
+	require.Equal(t, StatusPass, resp.Status())
 }
 
 func TestAddHealthCheck(t *testing.T) {
@@ -33,18 +24,9 @@ func TestAddHealthCheck(t *testing.T) {
 		return nil
 	})))
 	r := h.CheckHealth(context.Background())
-	if r.Status != StatusPass {
-		t.Error("Health should fail because one of the check is unhealthy")
-	}
-
-	if len(r.Checks) != 1 {
-		t.Fatalf("check not in results: %+v", r.Checks)
-	}
-
-	v := r.Checks[0]
-	if v.Status != StatusPass {
-		t.Errorf("the added check should be pass not %q.", v.Status)
-	}
+	require.Equal(t, StatusPass, r.Status())
+	require.Len(t, r.Checks(), 1)
+	require.Equal(t, StatusPass, r.Checks()[0].Status())
 }
 
 func TestAddUnHealthyCheck(t *testing.T) {
@@ -53,24 +35,10 @@ func TestAddUnHealthyCheck(t *testing.T) {
 		return errors.New("Oops! I am sorry")
 	})))
 	r := h.CheckHealth(context.Background())
-	if r.Status != StatusFail {
-		t.Error("Health should fail because one of the check is unhealthy")
-	}
-
-	if len(r.Checks) != 1 {
-		t.Fatal("check not in results")
-	}
-
-	v := r.Checks[0]
-	if v.Status != StatusFail {
-		t.Errorf("the added check should be fail not %s.", v.Status)
-	}
-	if v.Message != "Oops! I am sorry" {
-		t.Errorf(
-			"the error should be 'Oops! I am sorry' not  %s.",
-			v.Message,
-		)
-	}
+	require.Equal(t, StatusFail, r.Status())
+	require.Len(t, r.Checks(), 1)
+	require.Equal(t, StatusFail, r.Checks()[0].Status())
+	require.Equal(t, "Oops! I am sorry", r.Checks()[0].Message())
 }
 
 type mockCheck struct {
@@ -79,10 +47,7 @@ type mockCheck struct {
 }
 
 func (m mockCheck) Check(_ context.Context) Response {
-	return Response{
-		Name:   m.name,
-		Status: m.status,
-	}
+	return NewBasicResponse(m.name, m.status, "", nil)
 }
 
 func mockPass(name string) Checker {
@@ -93,17 +58,28 @@ func mockFail(name string) Checker {
 	return mockCheck{status: StatusFail, name: name}
 }
 
+// assertResponseEqual compares the wire-visible fields of two Response
+// values. Used in place of reflect.DeepEqual because Response is an
+// interface; concrete impls may differ even when their derived fields
+// match.
+func assertResponseEqual(t *testing.T, want, got Response) {
+	t.Helper()
+	require.Equal(t, want.Name(), got.Name(), "name")
+	require.Equal(t, want.Status(), got.Status(), "status")
+	require.Equal(t, want.Message(), got.Message(), "message")
+	require.Equal(t, len(want.Checks()), len(got.Checks()), "checks length")
+	for i := range want.Checks() {
+		require.Equal(t, want.Checks()[i].Name(), got.Checks()[i].Name(), "checks[%d].name", i)
+		require.Equal(t, want.Checks()[i].Status(), got.Checks()[i].Status(), "checks[%d].status", i)
+		require.Equal(t, want.Checks()[i].Message(), got.Checks()[i].Message(), "checks[%d].message", i)
+	}
+}
+
 func TestCheckReadyEmpty(t *testing.T) {
 	c := NewCheck()
 	actual := c.CheckReady(context.Background())
-	expected := Response{
-		Name:   "Ready",
-		Status: StatusPass,
-		Checks: Responses{},
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
+	expected := NewBasicResponse("Ready", StatusPass, "", Responses{})
+	assertResponseEqual(t, expected, actual)
 }
 
 func TestHealthSorting(t *testing.T) {
@@ -117,21 +93,14 @@ func TestHealthSorting(t *testing.T) {
 
 	actual := c.CheckHealth(context.Background())
 
-	expected := Response{
-		Name:   "Health",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "b", Status: "fail"},
-			Response{Name: "k", Status: "fail"},
-			Response{Name: "a", Status: "pass"},
-			Response{Name: "b", Status: "pass"},
-			Response{Name: "c", Status: "pass"},
-		},
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
+	expected := NewBasicResponse("Health", StatusFail, "", Responses{
+		NamedFail("b", ""),
+		NamedFail("k", ""),
+		NamedPass("a"),
+		NamedPass("b"),
+		NamedPass("c"),
+	})
+	assertResponseEqual(t, expected, actual)
 }
 
 func TestNoCrossOver(t *testing.T) {
@@ -144,41 +113,24 @@ func TestNoCrossOver(t *testing.T) {
 	c.AddHealthCheck(mockFail("b"))
 
 	actualHealth := c.CheckHealth(context.Background())
-
-	expectedHealth := Response{
-		Name:   "Health",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "b", Status: "fail"},
-			Response{Name: "a", Status: "pass"},
-			Response{Name: "c", Status: "pass"},
-		},
-	}
-
-	if !reflect.DeepEqual(expectedHealth, actualHealth) {
-		t.Errorf("unexpected response. expected %v, actual %v", expectedHealth, actualHealth)
-	}
+	expectedHealth := NewBasicResponse("Health", StatusFail, "", Responses{
+		NamedFail("b", ""),
+		NamedPass("a"),
+		NamedPass("c"),
+	})
+	assertResponseEqual(t, expectedHealth, actualHealth)
 
 	actualReady := c.CheckReady(context.Background())
-
-	expectedReady := Response{
-		Name:   "Ready",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "k", Status: "fail"},
-			Response{Name: "b", Status: "pass"},
-		},
-	}
-
-	if !reflect.DeepEqual(expectedReady, actualReady) {
-		t.Errorf("unexpected response. expected %v, actual %v", expectedReady, actualReady)
-	}
+	expectedReady := NewBasicResponse("Ready", StatusFail, "", Responses{
+		NamedFail("k", ""),
+		NamedPass("b"),
+	})
+	assertResponseEqual(t, expectedReady, actualReady)
 }
 
 func TestReadyCheckNames(t *testing.T) {
 	c := NewCheck()
 
-	// Empty Check returns an empty (non-nil) slice.
 	names := c.ReadyCheckNames()
 	require.NotNil(t, names)
 	require.Empty(t, names)
@@ -190,40 +142,33 @@ func TestReadyCheckNames(t *testing.T) {
 	names = c.ReadyCheckNames()
 	require.Equal(t, []string{"a", "", "c"}, names)
 
-	// The returned slice must be a copy: mutating it does not affect
-	// subsequent calls.
 	names[0] = "MUTATED"
 	require.Equal(t, []string{"a", "", "c"}, c.ReadyCheckNames())
 }
 
 func TestAddHealthCheck_NamedCheckerDispatch(t *testing.T) {
-	// mockPass("") returns Response.Name == "". If AddHealthCheck honors
-	// the NamedChecker interface, Named() stamps "alpha" onto the
-	// response. If it doesn't, the response name would stay empty.
+	// mockPass("") returns an empty name. Named("alpha", ...) must override
+	// it so the registered response carries "alpha".
 	c := NewCheck()
 	c.AddHealthCheck(Named("alpha", mockPass("")))
 
 	resp := c.CheckHealth(context.Background())
-	require.Len(t, resp.Checks, 1)
-	require.Equal(t, "alpha", resp.Checks[0].Name)
+	require.Len(t, resp.Checks(), 1)
+	require.Equal(t, "alpha", resp.Checks()[0].Name())
 }
 
 func TestAddReadyCheck_NamedCheckerDispatch(t *testing.T) {
-	// ReadyCheckNames is the clearest signal: the recorded name is the
-	// side effect of dispatching to AddNamedReadyCheck.
 	c := NewCheck()
 	c.AddReadyCheck(Named("beta", mockPass("")))
 
 	require.Equal(t, []string{"beta"}, c.ReadyCheckNames())
 
 	resp := c.CheckReady(context.Background())
-	require.Len(t, resp.Checks, 1)
-	require.Equal(t, "beta", resp.Checks[0].Name)
+	require.Len(t, resp.Checks(), 1)
+	require.Equal(t, "beta", resp.Checks()[0].Name())
 }
 
 func ExampleNewCheck() {
-	// Run the default healthcheck. it always return 200. It is good if you
-	// have a service without any dependency
 	h := NewCheck()
 	h.CheckHealth(context.Background())
 }

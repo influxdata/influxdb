@@ -22,7 +22,7 @@ func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.P
 }
 
 func (s *ProxyQueryService) Check(ctx context.Context) check.Response {
-	return check.Response{Name: "Mock Proxy Query Service", Status: check.StatusPass}
+	return check.NamedPass("Mock Proxy Query Service")
 }
 
 // QueryService mocks the idep QueryService for testing.
@@ -36,7 +36,7 @@ func (s *QueryService) Query(ctx context.Context, req *query.Request) (flux.Resu
 }
 
 func (s *QueryService) Check(ctx context.Context) check.Response {
-	return check.Response{Name: "Mock Query Service", Status: check.StatusPass}
+	return check.NamedPass("Mock Query Service")
 }
 
 // AsyncQueryService mocks the idep QueryService for testing.

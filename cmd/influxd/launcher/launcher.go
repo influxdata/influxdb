@@ -327,11 +327,15 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 
 	// Surface metastore liveness on /health. In-memory KV (testing mode)
-	// has no meaningful failure surface; skip it.
+	// has no meaningful failure surface; skip it. Both boltKV and
+	// m.sqlStore are registered via their own NamedChecker impls; their
+	// CheckNames were set to SubsystemKV / SubsystemSQLite at
+	// construction (see bolt.WithCheckName and sqlite.WithCheckName), so
+	// no extra Named wrap is needed here.
 	if boltKV, ok := m.kvStore.(*bolt.KVStore); ok {
-		m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemKV, boltKV))
+		m.checkHandler.AddNamedHealthCheck(boltKV)
 	}
-	m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemSQLite, m.sqlStore))
+	m.checkHandler.AddNamedHealthCheck(m.sqlStore)
 	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	tenantStore := tenant.NewStore(m.kvStore)
@@ -1167,7 +1171,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		m.reg.MustRegister(boltClient)
 		procID = boltClient.ID().String()
 
-		boltKV := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
+		boltKV := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath, bolt.WithCheckName(SubsystemKV))
 		boltKV.WithDB(boltClient.DB())
 		kvStore = boltKV
 		// boltKV's prober shares the *bolt.DB owned by boltClient; stop the
@@ -1185,7 +1189,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		if opts.SqLitePath == "" {
 			opts.SqLitePath = filepath.Join(filepath.Dir(opts.BoltPath), sqlite.DefaultFilename)
 		}
-		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")))
+		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")), sqlite.WithCheckName(SubsystemSQLite))
 		if err != nil {
 			m.log.Error("Failed opening sqlite store", zap.Error(err))
 			return "", err
@@ -1193,7 +1197,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 
 	case MemoryStore:
 		kvStore = inmem.NewKVStore()
-		sqlStore, err = sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")))
+		sqlStore, err = sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")), sqlite.WithCheckName(SubsystemSQLite))
 		if err != nil {
 			m.log.Error("Failed opening sqlite store", zap.Error(err))
 			return "", err

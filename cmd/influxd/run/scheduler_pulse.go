@@ -59,10 +59,7 @@ func (c *SchedulerPulseCheck) Check(_ context.Context) check.Response {
 	}
 	lag := c.now().Sub(w)
 	if lag > c.threshold {
-		return check.Response{
-			Status:  check.StatusFail,
-			Message: fmt.Sprintf(msgSchedulerStalledFmt, lag.Round(time.Second)),
-		}
+		return check.Fail(fmt.Sprintf(msgSchedulerStalledFmt, lag.Round(time.Second)))
 	}
 	if lag < 0 {
 		return check.Info(msgSchedulerNextRunFmt, (-lag).Round(time.Second))

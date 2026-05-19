@@ -20,14 +20,14 @@ func TestReadyGate_Check(t *testing.T) {
 
 	// Initially fails with "not ready".
 	resp := g.Check(context.Background())
-	require.Equal(t, StatusFail, resp.Status)
-	require.Equal(t, "not ready", resp.Message)
+	require.Equal(t, StatusFail, resp.Status())
+	require.Equal(t, "not ready", resp.Message())
 
 	// After Ready() it passes.
 	g.Ready()
 	resp = g.Check(context.Background())
-	require.Equal(t, StatusPass, resp.Status)
-	assert.Empty(t, resp.Message)
+	require.Equal(t, StatusPass, resp.Status())
+	assert.Empty(t, resp.Message())
 }
 
 func TestReadyGate_UnreadyRoundTrip(t *testing.T) {
@@ -35,13 +35,13 @@ func TestReadyGate_UnreadyRoundTrip(t *testing.T) {
 
 	g.Ready()
 	resp := g.Check(context.Background())
-	require.Equal(t, StatusPass, resp.Status)
+	require.Equal(t, StatusPass, resp.Status())
 
 	g.Unready()
 	resp = g.Check(context.Background())
-	require.Equal(t, StatusFail, resp.Status)
-	require.Equal(t, "not ready", resp.Message)
-	require.Equal(t, "engine", resp.Name)
+	require.Equal(t, StatusFail, resp.Status())
+	require.Equal(t, "not ready", resp.Message())
+	require.Equal(t, "engine", resp.Name())
 }
 
 func TestBoundDeadline(t *testing.T) {
@@ -96,21 +96,21 @@ func TestBoundDeadline(t *testing.T) {
 
 func TestPass(t *testing.T) {
 	resp := Pass()
-	require.Equal(t, StatusPass, resp.Status)
-	assert.Empty(t, resp.Name)
-	assert.Empty(t, resp.Message)
+	require.Equal(t, StatusPass, resp.Status())
+	assert.Empty(t, resp.Name())
+	assert.Empty(t, resp.Message())
 }
 
 func TestInfo(t *testing.T) {
 	resp := Info("hello %s", "world")
-	require.Equal(t, StatusPass, resp.Status)
-	require.Equal(t, "hello world", resp.Message)
+	require.Equal(t, StatusPass, resp.Status())
+	require.Equal(t, "hello world", resp.Message())
 }
 
 func TestError(t *testing.T) {
 	resp := Error(errors.New("boom"))
-	require.Equal(t, StatusFail, resp.Status)
-	require.Equal(t, "boom", resp.Message)
+	require.Equal(t, StatusFail, resp.Status())
+	require.Equal(t, "boom", resp.Message())
 }
 
 func TestReadyGate_IntegrationWithCheck_NamedWrapping(t *testing.T) {
@@ -121,13 +121,13 @@ func TestReadyGate_IntegrationWithCheck_NamedWrapping(t *testing.T) {
 	c.AddReadyCheck(gate)
 
 	resp := c.CheckReady(context.Background())
-	require.Equal(t, StatusFail, resp.Status)
-	require.Len(t, resp.Checks, 1)
-	require.Equal(t, "metastores", resp.Checks[0].Name)
+	require.Equal(t, StatusFail, resp.Status())
+	require.Len(t, resp.Checks(), 1)
+	require.Equal(t, "metastores", resp.Checks()[0].Name())
 
 	gate.Ready()
 	resp = c.CheckReady(context.Background())
-	require.Equal(t, StatusPass, resp.Status)
-	require.Len(t, resp.Checks, 1)
-	require.Equal(t, "metastores", resp.Checks[0].Name)
+	require.Equal(t, StatusPass, resp.Status())
+	require.Len(t, resp.Checks(), 1)
+	require.Equal(t, "metastores", resp.Checks()[0].Name())
 }

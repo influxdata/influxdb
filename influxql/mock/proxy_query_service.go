@@ -20,5 +20,5 @@ func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *influxq
 }
 
 func (s *ProxyQueryService) Check(ctx context.Context) check.Response {
-	return check.Response{Name: "Mock InfluxQL Proxy Query Service", Status: check.StatusPass}
+	return check.NamedPass("Mock InfluxQL Proxy Query Service")
 }

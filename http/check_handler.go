@@ -138,15 +138,15 @@ func (h *HealthReadyHandler) writeHealth(w http.ResponseWriter, r *http.Request)
 	info := platform.GetBuildInfo()
 	status := http.StatusOK
 	message := "healthy"
-	if resp.Status == check.StatusFail {
+	if resp.Status() == check.StatusFail {
 		status = http.StatusServiceUnavailable
-		message = firstFailureMessage(resp.Checks)
+		message = firstFailureMessage(resp.Checks())
 	}
 	body := healthBody{
 		Name:    "influxdb",
-		Status:  string(resp.Status),
+		Status:  string(resp.Status()),
 		Message: message,
-		Checks:  resp.Checks,
+		Checks:  resp.Checks(),
 		Version: info.Version,
 		Commit:  info.Commit,
 	}
@@ -158,10 +158,10 @@ func (h *HealthReadyHandler) writeReady(w http.ResponseWriter, r *http.Request) 
 	status := http.StatusOK
 	readyStatus := "ready"
 	var checks check.Responses
-	if resp.Status == check.StatusFail {
+	if resp.Status() == check.StatusFail {
 		status = http.StatusServiceUnavailable
 		readyStatus = "starting"
-		checks = failingChecks(resp.Checks)
+		checks = failingChecks(resp.Checks())
 	}
 	body := readyBody{
 		Status: readyStatus,
@@ -200,9 +200,9 @@ func (h *HealthReadyHandler) writeJSON(w http.ResponseWriter, r *http.Request, s
 
 func firstFailureMessage(checks check.Responses) string {
 	for _, c := range checks {
-		if c.Status == check.StatusFail {
-			if c.Message != "" {
-				return c.Message
+		if c.Status() == check.StatusFail {
+			if msg := c.Message(); msg != "" {
+				return msg
 			}
 			return string(check.StatusFail)
 		}
@@ -213,7 +213,7 @@ func firstFailureMessage(checks check.Responses) string {
 func failingChecks(checks check.Responses) check.Responses {
 	var out check.Responses
 	for _, c := range checks {
-		if c.Status == check.StatusFail {
+		if c.Status() == check.StatusFail {
 			out = append(out, c)
 		}
 	}

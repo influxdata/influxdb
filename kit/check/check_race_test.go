@@ -91,7 +91,7 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 	wantHealth := numRegisterers * (numChecksEach / 2)
 	wantReady := numRegisterers * (numChecksEach / 2)
 	resp := c.CheckHealth(ctx)
-	require.Len(t, resp.Checks, wantHealth)
+	require.Len(t, resp.Checks(), wantHealth)
 	resp = c.CheckReady(ctx)
-	require.Len(t, resp.Checks, wantReady)
+	require.Len(t, resp.Checks(), wantReady)
 }

@@ -17,21 +17,23 @@ import (
 )
 
 // decodeHealth parses the JSON body emitted by writeHealth. Local struct
-// (not healthBody) so the test is checking the wire format.
+// (not healthBody) so the test is checking the wire format. check.Response
+// is an interface and cannot be a decode target; the decoder reads
+// nested checks as BasicResponse values.
 type testHealthBody struct {
-	Name    string           `json:"name"`
-	Status  string           `json:"status"`
-	Message string           `json:"message"`
-	Checks  []check.Response `json:"checks"`
-	Version string           `json:"version"`
-	Commit  string           `json:"commit"`
+	Name    string                `json:"name"`
+	Status  string                `json:"status"`
+	Message string                `json:"message"`
+	Checks  []check.BasicResponse `json:"checks"`
+	Version string                `json:"version"`
+	Commit  string                `json:"commit"`
 }
 
 type testReadyBody struct {
-	Status  string           `json:"status"`
-	Started time.Time        `json:"started"`
-	Up      string           `json:"up"`
-	Checks  []check.Response `json:"checks"`
+	Status  string                `json:"status"`
+	Started time.Time             `json:"started"`
+	Up      string                `json:"up"`
+	Checks  []check.BasicResponse `json:"checks"`
 }
 
 func doRequest(t *testing.T, h http.Handler, method, target string) *http.Response {
@@ -83,7 +85,7 @@ type failingChecker struct {
 
 func (f failingChecker) CheckName() string { return f.name }
 func (f failingChecker) Check(context.Context) check.Response {
-	return check.Response{Name: f.name, Status: check.StatusFail, Message: f.message}
+	return check.NamedFail(f.name, f.message)
 }
 
 func TestHealthReadyHandler_Health_FailingChecker(t *testing.T) {
@@ -100,8 +102,8 @@ func TestHealthReadyHandler_Health_FailingChecker(t *testing.T) {
 	assert.Equal(t, "fail", got.Status)
 	assert.Equal(t, "unreachable", got.Message)
 	require.Len(t, got.Checks, 1)
-	assert.Equal(t, "query", got.Checks[0].Name)
-	assert.Equal(t, check.StatusFail, got.Checks[0].Status)
+	assert.Equal(t, "query", got.Checks[0].Name())
+	assert.Equal(t, check.StatusFail, got.Checks[0].Status())
 }
 
 func TestHealthReadyHandler_Ready_FailingGate(t *testing.T) {
@@ -121,9 +123,9 @@ func TestHealthReadyHandler_Ready_FailingGate(t *testing.T) {
 	assert.False(t, got.Started.IsZero())
 	assert.NotEmpty(t, got.Up)
 	require.Len(t, got.Checks, 1)
-	assert.Equal(t, "engine", got.Checks[0].Name)
-	assert.Equal(t, check.StatusFail, got.Checks[0].Status)
-	assert.Equal(t, "not ready", got.Checks[0].Message)
+	assert.Equal(t, "engine", got.Checks[0].Name())
+	assert.Equal(t, check.StatusFail, got.Checks[0].Status())
+	assert.Equal(t, "not ready", got.Checks[0].Message())
 }
 
 func TestHealthReadyHandler_Ready_PassingGateOmitsChecks(t *testing.T) {

@@ -2,14 +2,15 @@ package check
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
 )
 
 // NamedChecker is a superset of Checker that also indicates the name of
-// the service. Implementations MUST stamp Response.Name with CheckName()
-// before returning from Check, so that AddNamedHealthCheck /
+// the service. Implementations MUST stamp Response.Name() with
+// CheckName() before returning from Check, so that AddNamedHealthCheck /
 // AddNamedReadyCheck can register the value without an extra wrapper.
 // Use Named to attach a name to a Checker that does not already do so.
 type NamedChecker interface {
@@ -36,9 +37,42 @@ type namedChecker struct {
 func (n namedChecker) CheckName() string { return n.name }
 
 func (n namedChecker) Check(ctx context.Context) Response {
-	resp := n.checker.Check(ctx)
-	resp.Name = n.name
-	return resp
+	return Rename(n.checker.Check(ctx), n.name)
+}
+
+// Rename returns r with its reported name replaced by name. A
+// BasicResponse is rewritten by value via WithName; any other
+// Response is wrapped in a renamedResponse so the inner type's state
+// (e.g. FreshnessResponse) is not copied. Used by namedChecker and
+// by callers that compose a Response themselves and need to stamp a
+// name without knowing the concrete implementation.
+func Rename(r Response, name string) Response {
+	if br, ok := r.(BasicResponse); ok {
+		return br.WithName(name)
+	}
+	return renamedResponse{name: name, inner: r}
+}
+
+// renamedResponse overrides Name() on an inner Response without copying
+// state. Used by Rename when the inner Response is stateful (e.g.
+// FreshnessResponse) so WithName cannot be applied as a value copy.
+type renamedResponse struct {
+	name  string
+	inner Response
+}
+
+func (r renamedResponse) Name() string      { return r.name }
+func (r renamedResponse) Status() Status    { return r.inner.Status() }
+func (r renamedResponse) Message() string   { return r.inner.Message() }
+func (r renamedResponse) Checks() Responses { return r.inner.Checks() }
+
+func (r renamedResponse) MarshalJSON() ([]byte, error) {
+	return json.Marshal(wireResponse{
+		Name:    r.name,
+		Status:  r.inner.Status(),
+		Message: r.inner.Message(),
+		Checks:  r.inner.Checks(),
+	})
 }
 
 // Named returns a NamedChecker that delegates to checker and stamps name
@@ -65,28 +99,34 @@ func ErrCheck(fn func() error) Checker {
 	})
 }
 
-// Pass is a utility function to generate a passing status response with the default parameters.
-func Pass() Response {
-	return Response{
-		Status: StatusPass,
-	}
+// basic builds a BasicResponse with no nested checks. Internal helper
+// used by the Pass/Info/Error/Fail/NamedPass/NamedFail factories so
+// each call site reads as "this response has name/status/message"
+// rather than repeating the BasicResponse{wireResponse{...}} literal.
+// Use NewBasicResponse when nested checks are needed.
+func basic(name string, status Status, msg string) BasicResponse {
+	return BasicResponse{wireResponse{Name: name, Status: status, Message: msg}}
 }
+
+// Pass is a utility function to generate a passing status response with the default parameters.
+func Pass() BasicResponse { return basic("", StatusPass, "") }
 
 // Info is a utility function to generate a healthy status with a printf message.
-func Info(msg string, args ...interface{}) Response {
-	return Response{
-		Status:  StatusPass,
-		Message: fmt.Sprintf(msg, args...),
-	}
+func Info(msg string, args ...interface{}) BasicResponse {
+	return basic("", StatusPass, fmt.Sprintf(msg, args...))
 }
 
-// Error is a utility function for creating a response from an error message.
-func Error(err error) Response {
-	return Response{
-		Status:  StatusFail,
-		Message: err.Error(),
-	}
-}
+// Error is a utility function for creating a failing response from an error.
+func Error(err error) BasicResponse { return basic("", StatusFail, err.Error()) }
+
+// Fail is a utility function for creating a failing response with a fixed message.
+func Fail(msg string) BasicResponse { return basic("", StatusFail, msg) }
+
+// NamedPass builds a passing response with the given name.
+func NamedPass(name string) BasicResponse { return basic(name, StatusPass, "") }
+
+// NamedFail builds a failing response with the given name and message.
+func NamedFail(name, msg string) BasicResponse { return basic(name, StatusFail, msg) }
 
 // DefaultProbeTimeout is the recommended upper bound for a single
 // Check probe. It keeps aggregate /health latency bounded when a
@@ -128,9 +168,9 @@ func (g *ReadyGate) CheckName() string { return g.name }
 // contract.
 func (g *ReadyGate) Check(context.Context) Response {
 	if g.ready.Load() {
-		return Response{Name: g.name, Status: StatusPass}
+		return NamedPass(g.name)
 	}
-	return Response{Name: g.name, Status: StatusFail, Message: "not ready"}
+	return NamedFail(g.name, "not ready")
 }
 
 // Ready flips the gate to report StatusPass.
