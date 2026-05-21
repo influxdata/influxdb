@@ -869,7 +869,7 @@ func partialMeasurementsWarning(db, rp string, err error) *query.Message {
 	}
 	return &query.Message{
 		Level: query.WarningLevel,
-		Text:  fmt.Sprintf("partial results for %s: %s", src, err.Error()),
+		Text:  fmt.Sprintf("partial results for %s: %v", src, err),
 	}
 }
 
