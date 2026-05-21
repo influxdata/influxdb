@@ -571,11 +571,14 @@ func DefaultQueryExecutor() *QueryExecutor {
 	return e
 }
 
-// ExecuteQuery parses query and executes against the database.
+// ExecuteQuery parses query and executes against the database. CoarseAuthorizer
+// defaults to OpenCoarseAuthorizer so test paths match the production HTTP
+// handler, which always populates it (see services/httpd/handler.go).
 func (e *QueryExecutor) ExecuteQuery(q, database string, chunkSize int) <-chan *query.Result {
 	return e.Executor.ExecuteQuery(MustParseQuery(q), query.ExecutionOptions{
-		Database:  database,
-		ChunkSize: chunkSize,
+		Database:         database,
+		ChunkSize:        chunkSize,
+		CoarseAuthorizer: query.OpenCoarseAuthorizer,
 	}, make(chan struct{}))
 }
 
@@ -688,8 +691,8 @@ func (fn writePointsIntoFunc) WritePointsInto(req *coordinator.IntoWriteRequest)
 // contract change in executeShowMeasurementsStatement where TSDBStore.MeasurementNames
 // may now return (some-names, err) on a partially-successful fan-out (used by
 // the clustered MetaExecutor that vendors this package). The executor must
-// surface those names with a warning Message and Partial=true rather than
-// throwing the data away with Result.Err set.
+// surface those names with a warning Message rather than throwing the data
+// away with Result.Err set.
 func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T) {
 	const (
 		db1Name = "db1"
@@ -704,8 +707,12 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		colDatabase        = "database"
 		colRetentionPolicy = "retention policy"
 
-		quotedDB0RP0 = `"` + DefaultDatabase + `"."` + DefaultRetentionPolicy + `"`
-		quotedDB1RP0 = `"` + db1Name + `"."` + DefaultRetentionPolicy + `"`
+		// Source labels match influxql.QuoteIdent: simple names emit unquoted,
+		// joined by '.'. Update these alongside formatMeasurementSource if the
+		// labeling format changes.
+		quotedDB0     = DefaultDatabase
+		quotedDB0RP0  = DefaultDatabase + "." + DefaultRetentionPolicy
+		quotedDB1RP0  = db1Name + "." + DefaultRetentionPolicy
 	)
 
 	wildcardDBs := func() []meta.DatabaseInfo {
@@ -725,7 +732,6 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
-		require.False(t, r.Partial)
 		require.Empty(t, r.Messages)
 		require.Len(t, r.Series, 1)
 		require.Equal(t, "measurements", r.Series[0].Name)
@@ -747,7 +753,6 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.ErrorContains(t, r.Err, "node 1: down")
 		require.Empty(t, r.Series)
 		require.Empty(t, r.Messages)
-		require.False(t, r.Partial)
 	})
 
 	t.Run("partial_names_with_error", func(t *testing.T) {
@@ -760,10 +765,9 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
-		require.True(t, r.Partial)
 		require.Len(t, r.Messages, 1)
 		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
-		require.Contains(t, r.Messages[0].Text, `"`+DefaultDatabase+`"`)
+		require.Contains(t, r.Messages[0].Text, "partial results for "+quotedDB0+":")
 		require.Contains(t, r.Messages[0].Text, "node 2: timeout")
 		require.Len(t, r.Series, 1)
 		require.Equal(t, []string{colName}, r.Series[0].Columns)
@@ -787,7 +791,6 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
-		require.True(t, r.Partial)
 		require.Len(t, r.Messages, 1)
 		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
 		require.Contains(t, r.Messages[0].Text, quotedDB1RP0)
@@ -797,28 +800,59 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.Equal(t, [][]interface{}{{measurementCPU, DefaultDatabase, DefaultRetentionPolicy}}, r.Series[0].Values)
 	})
 
+	// When every wildcard source fails, the joined error must carry a per-source
+	// label applied by the executor itself — so use a generic, source-agnostic
+	// error in the mock. If the executor stopped labeling, neither quoted
+	// identifier would appear in r.Err and the assertions below would catch it.
 	t.Run("wildcard_all_sources_dead", func(t *testing.T) {
 		e := NewQueryExecutor()
 		e.MetaClient.DatabasesFn = wildcardDBs
-		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
-			return nil, fmt.Errorf("%s: down", database)
+		const genericErr = "connection refused"
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, _ string, _ string, _ influxql.Expr) ([][]byte, error) {
+			return nil, errors.New(genericErr)
 		}
 
 		got := ReadAllResults(e.ExecuteQuery(queryShowOnWildcard, "", 0))
 		require.Len(t, got, 1)
 		r := got[0]
 		require.Error(t, r.Err)
-		require.ErrorContains(t, r.Err, DefaultDatabase+": down")
-		require.ErrorContains(t, r.Err, db1Name+": down")
+		require.ErrorContains(t, r.Err, quotedDB0RP0+": "+genericErr)
+		require.ErrorContains(t, r.Err, quotedDB1RP0+": "+genericErr)
 		require.Empty(t, r.Series)
 		require.Empty(t, r.Messages)
-		require.False(t, r.Partial)
+	})
+
+	// Mixed wildcard fan-out: one source errors, the other succeeds with zero
+	// rows. Pre-fix this collapsed to a hard error because the predicate was
+	// "no rows AND any error"; the correct behavior is an empty-success result
+	// with the surviving warning, since not every source failed.
+	t.Run("wildcard_one_error_one_empty_success", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.MetaClient.DatabasesFn = wildcardDBs
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
+			switch database {
+			case DefaultDatabase:
+				return nil, errors.New("node 1: down")
+			case db1Name:
+				return nil, nil
+			}
+			return nil, fmt.Errorf("unexpected database %q", database)
+		}
+
+		got := ReadAllResults(e.ExecuteQuery(queryShowOnWildcard, "", 0))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.NoError(t, r.Err)
+		require.Len(t, r.Messages, 1)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, quotedDB0RP0)
+		require.Contains(t, r.Messages[0].Text, "node 1: down")
+		require.Empty(t, r.Series, "no rows came back, but this is not a total failure")
 	})
 
 	// Regression: when OFFSET trims away every surviving row on a partial
-	// fan-out, the warning Messages and Partial=true flag must still reach the
-	// caller — otherwise the user sees an empty success and never learns a
-	// source failed.
+	// fan-out, the warning Messages must still reach the caller — otherwise
+	// the user sees an empty success and never learns a source failed.
 	t.Run("wildcard_offset_past_partial_rows_keeps_warnings", func(t *testing.T) {
 		e := NewQueryExecutor()
 		e.MetaClient.DatabasesFn = wildcardDBs
@@ -836,7 +870,6 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
-		require.True(t, r.Partial)
 		require.Empty(t, r.Series, "OFFSET trimmed all rows, so no series should be sent")
 		require.Len(t, r.Messages, 1)
 		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
@@ -861,7 +894,6 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
-		require.True(t, r.Partial)
 		require.Len(t, r.Messages, 2)
 		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
 		require.Contains(t, r.Messages[0].Text, quotedDB0RP0)
@@ -908,6 +940,5 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.Equal(t, []string{DefaultDatabase}, queried, "unauthorized db must not be fanned out to")
 		require.Empty(t, r.Series)
 		require.Empty(t, r.Messages)
-		require.False(t, r.Partial)
 	})
 }

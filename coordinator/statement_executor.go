@@ -755,7 +755,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 		// of databases the user has no read/write access to.
 		a := ctx.ExecutionOptions.CoarseAuthorizer
 		for _, dbInfo := range e.MetaClient.Databases() {
-			if a != nil && !a.AuthorizeDatabase(influxql.ReadPrivilege, dbInfo.Name) && !a.AuthorizeDatabase(influxql.WritePrivilege, dbInfo.Name) {
+			if !a.AuthorizeDatabase(influxql.ReadPrivilege, dbInfo.Name) && !a.AuthorizeDatabase(influxql.WritePrivilege, dbInfo.Name) {
 				continue
 			}
 			for _, rpInfo := range dbInfo.RetentionPolicies {
@@ -784,7 +784,11 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 	for _, source := range sources {
 		names, err := e.TSDBStore.MeasurementNames(ctx.Context, ctx.Authorizer, source.db, source.rp, q.Condition)
 		if err != nil {
-			allErrs = append(allErrs, err)
+			// Label each error with its source so a fully-failed wildcard
+			// fan-out tells the user which db/rp produced which error,
+			// rather than joining bare strings like "i/o timeout" repeated
+			// once per source.
+			allErrs = append(allErrs, fmt.Errorf("%s: %w", formatMeasurementSource(source.db, source.rp), err))
 			messages = append(messages, partialMeasurementsWarning(source.db, source.rp, err))
 		}
 		for _, name := range names {
@@ -796,7 +800,16 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 		}
 	}
 
-	if len(rows) == 0 && len(allErrs) > 0 {
+	// Surface as a hard error only when every source errored AND none
+	// produced rows. The two conditions are both needed:
+	//   - len(rows) == 0 alone is wrong: a wildcard mixing one error with
+	//     one empty-success source produces zero rows but is partial, not
+	//     total failure.
+	//   - len(allErrs) == len(sources) alone is wrong: a partial fan-out
+	//     where each TSDBStore call returns (names, err) errors on every
+	//     source yet still yields rows, which the user should see with
+	//     warnings rather than as a hard failure.
+	if len(sources) > 0 && len(allErrs) == len(sources) && len(rows) == 0 {
 		return ctx.Send(&query.Result{
 			Err: errors.Join(allErrs...),
 		})
@@ -822,7 +835,6 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 		// empty result and never learns a source failed.
 		return ctx.Send(&query.Result{
 			Messages: messages,
-			Partial:  len(messages) > 0,
 		})
 	}
 
@@ -852,24 +864,31 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 	return ctx.Send(&query.Result{
 		Series:   []*models.Row{series},
 		Messages: messages,
-		Partial:  len(messages) > 0,
 	})
 }
 
-// partialMeasurementsWarning builds a user-facing warning Message for a single
-// SHOW MEASUREMENTS source that failed (fully or partially). The source is
-// identified by database and (when non-empty) retention policy so that
-// wildcard queries across many DB/RP pairs remain disambiguated.
-func partialMeasurementsWarning(db, rp string, err error) *query.Message {
-	var src string
+// formatMeasurementSource returns a canonical InfluxQL identifier for a
+// SHOW MEASUREMENTS source — `db.rp` when rp is non-empty, otherwise just
+// `db` — quoting each segment only when influxql.IdentNeedsQuotes deems it
+// necessary. Used to disambiguate wildcard fan-outs in per-source warning
+// Messages and labeled error joins; emitting canonical idents lets a user
+// paste the label back into a query if they want to drill in. Built by
+// quoting each segment independently rather than via influxql.QuoteIdent's
+// variadic form, which unconditionally quotes every non-trailing segment
+// and would yield asymmetric output like `"db".rp`.
+func formatMeasurementSource(db, rp string) string {
 	if rp != "" {
-		src = fmt.Sprintf("%q.%q", db, rp)
-	} else {
-		src = fmt.Sprintf("%q", db)
+		return influxql.QuoteIdent(db) + "." + influxql.QuoteIdent(rp)
 	}
+	return influxql.QuoteIdent(db)
+}
+
+// partialMeasurementsWarning builds a user-facing warning Message for a single
+// SHOW MEASUREMENTS source that failed (fully or partially).
+func partialMeasurementsWarning(db, rp string, err error) *query.Message {
 	return &query.Message{
 		Level: query.WarningLevel,
-		Text:  fmt.Sprintf("partial results for %s: %v", src, err),
+		Text:  fmt.Sprintf("partial results for %s: %v", formatMeasurementSource(db, rp), err),
 	}
 }
 
