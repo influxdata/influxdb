@@ -110,6 +110,7 @@ func TestFreshnessResponse_ConcurrentUpdateAndRead(t *testing.T) {
 		startMu        sync.RWMutex
 		concurrency    atomic.Int64
 		maxConcurrency atomic.Int64
+		marshalErr     atomic.Pointer[error]
 	)
 
 	bumpMax := func() {
@@ -155,8 +156,9 @@ func TestFreshnessResponse_ConcurrentUpdateAndRead(t *testing.T) {
 				_ = f.Status()
 				_ = f.Message()
 				_ = f.Checks()
-				_, err := json.Marshal(f)
-				require.NoError(t, err)
+				if _, err := json.Marshal(f); err != nil {
+					marshalErr.CompareAndSwap(nil, &err)
+				}
 			}
 			concurrency.Add(-1)
 		}()
@@ -165,6 +167,9 @@ func TestFreshnessResponse_ConcurrentUpdateAndRead(t *testing.T) {
 	startMu.Unlock()
 	wg.Wait()
 
+	if e := marshalErr.Load(); e != nil {
+		require.NoError(t, *e)
+	}
 	t.Logf("max concurrency: %d", maxConcurrency.Load())
 }
 

@@ -32,9 +32,11 @@ type wireResponse struct {
 	Checks  Responses `json:"checks,omitempty"`
 }
 
-// BasicResponse is the Response implementation.
-// Construct via Pass/Info/Error/Fail/NamedPass/NamedFail/NewBasicResponse;
-// the zero value is a fail with empty name and message.
+// BasicResponse is the Response implementation. Construct via
+// Pass/Info/Error/Fail/NamedPass/NamedFail/NewBasicResponse; the zero
+// value has empty Name/Status/Message and is not safe to return from a
+// Checker — its wire status would be the empty string, which the HTTP
+// handler treats as pass.
 type BasicResponse struct {
 	wireResponse
 }
