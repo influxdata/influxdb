@@ -657,6 +657,33 @@ func emptyTestServerWithPath(path string) *httptest.Server {
 	}))
 }
 
+// Shared fixture values for the two PartialMeasurements tests below.
+const (
+	formatColumn = "column"
+	formatJSON   = "json"
+
+	levelWarning       = "warning"
+	levelWarningPrefix = levelWarning + ": "
+
+	seriesNameMeasurements    = "measurements"
+	seriesNameHeaderColumnFmt = "name: " + seriesNameMeasurements
+
+	colNameField       = "name"
+	colDatabase        = "database"
+	colRetentionPolicy = "retention policy"
+
+	measurementCPU = "cpu"
+	measurementMem = "mem"
+
+	dbName0 = "db0"
+	dbName1 = "db1"
+	rpName0 = "rp0"
+
+	warnTextSingleDB0 = `partial results for "db0": node 2: timeout`
+	warnTextDB0RP0    = `partial results for "db0"."rp0": db0: timeout`
+	warnTextDB1RP0    = `partial results for "db1"."rp0": db1: refused`
+)
+
 // TestCommandLine_FormatResponse_Column_PartialMeasurements verifies that
 // when SHOW MEASUREMENTS returns partial results — some measurement rows plus
 // one or more warning Messages produced by partialMeasurementsWarning in the
@@ -684,33 +711,33 @@ func TestCommandLine_FormatResponse_Column_PartialMeasurements(t *testing.T) {
 		resp := &client.Response{
 			Results: []client.Result{{
 				Messages: []*client.Message{{
-					Level: "warning",
-					Text:  `partial results for "db0": node 2: timeout`,
+					Level: levelWarning,
+					Text:  warnTextSingleDB0,
 				}},
 				Series: []models.Row{{
-					Name:    "measurements",
-					Columns: []string{"name"},
-					Values:  [][]interface{}{{"cpu"}, {"mem"}},
+					Name:    seriesNameMeasurements,
+					Columns: []string{colNameField},
+					Values:  [][]interface{}{{measurementCPU}, {measurementMem}},
 				}},
 			}},
 		}
 
 		c := cli.New(CLIENT_VERSION)
-		c.Format = "column"
+		c.Format = formatColumn
 		var buf bytes.Buffer
 		c.FormatResponse(resp, &buf)
 
 		out := buf.String()
 		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
 
-		warnIdx := findLine(lines, "warning: ")
+		warnIdx := findLine(lines, levelWarningPrefix)
 		require.NotEqual(t, -1, warnIdx, "expected a warning line in output:\n%s", out)
-		require.Equal(t, `warning: partial results for "db0": node 2: timeout.`, strings.TrimRight(lines[warnIdx], " "),
+		require.Equal(t, levelWarningPrefix+warnTextSingleDB0+".", strings.TrimRight(lines[warnIdx], " "),
 			"warning line should be rendered as '<level>: <text>.' with the CLI-appended period")
 
-		nameHdrIdx := findLine(lines, "name: measurements")
+		nameHdrIdx := findLine(lines, seriesNameHeaderColumnFmt)
 		require.NotEqual(t, -1, nameHdrIdx, "expected series name header line:\n%s", out)
-		colHdrIdx := findLine(lines[nameHdrIdx+1:], "name")
+		colHdrIdx := findLine(lines[nameHdrIdx+1:], colNameField)
 		require.NotEqual(t, -1, colHdrIdx, "expected 'name' column header line:\n%s", out)
 		colHdrIdx += nameHdrIdx + 1
 		dashIdx := colHdrIdx + 1
@@ -718,8 +745,8 @@ func TestCommandLine_FormatResponse_Column_PartialMeasurements(t *testing.T) {
 		require.Equal(t, "----", strings.TrimSpace(lines[dashIdx]),
 			"column underline should match the width of 'name'")
 
-		cpuIdx := findLine(lines, "cpu")
-		memIdx := findLine(lines, "mem")
+		cpuIdx := findLine(lines, measurementCPU)
+		memIdx := findLine(lines, measurementMem)
 		require.NotEqual(t, -1, cpuIdx)
 		require.NotEqual(t, -1, memIdx)
 
@@ -733,72 +760,76 @@ func TestCommandLine_FormatResponse_Column_PartialMeasurements(t *testing.T) {
 		resp := &client.Response{
 			Results: []client.Result{{
 				Messages: []*client.Message{
-					{Level: "warning", Text: `partial results for "db0"."rp0": db0: timeout`},
-					{Level: "warning", Text: `partial results for "db1"."rp0": db1: refused`},
+					{Level: levelWarning, Text: warnTextDB0RP0},
+					{Level: levelWarning, Text: warnTextDB1RP0},
 				},
 				Series: []models.Row{{
-					Name:    "measurements",
-					Columns: []string{"name", "database", "retention policy"},
+					Name:    seriesNameMeasurements,
+					Columns: []string{colNameField, colDatabase, colRetentionPolicy},
 					Values: [][]interface{}{
-						{"cpu", "db0", "rp0"},
-						{"mem", "db1", "rp0"},
+						{measurementCPU, dbName0, rpName0},
+						{measurementMem, dbName1, rpName0},
 					},
 				}},
 			}},
 		}
 
 		c := cli.New(CLIENT_VERSION)
-		c.Format = "column"
+		c.Format = formatColumn
 		var buf bytes.Buffer
 		c.FormatResponse(resp, &buf)
 
 		out := buf.String()
 		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
 
-		w0 := findLine(lines, `partial results for "db0"."rp0": db0: timeout.`)
-		w1 := findLine(lines, `partial results for "db1"."rp0": db1: refused.`)
+		w0 := findLine(lines, warnTextDB0RP0+".")
+		w1 := findLine(lines, warnTextDB1RP0+".")
 		require.NotEqual(t, -1, w0, "expected first warning line:\n%s", out)
 		require.NotEqual(t, -1, w1, "expected second warning line:\n%s", out)
-		require.True(t, strings.HasPrefix(strings.TrimSpace(lines[w0]), "warning: "),
+		require.True(t, strings.HasPrefix(strings.TrimSpace(lines[w0]), levelWarningPrefix),
 			"first warning should carry the 'warning: ' level prefix; got: %q", lines[w0])
-		require.True(t, strings.HasPrefix(strings.TrimSpace(lines[w1]), "warning: "),
+		require.True(t, strings.HasPrefix(strings.TrimSpace(lines[w1]), levelWarningPrefix),
 			"second warning should carry the 'warning: ' level prefix; got: %q", lines[w1])
 		require.Less(t, w0, w1, "warnings preserved in coordinator order")
 
-		nameHdrIdx := findLine(lines, "name: measurements")
+		nameHdrIdx := findLine(lines, seriesNameHeaderColumnFmt)
 		require.NotEqual(t, -1, nameHdrIdx, "expected series name header line:\n%s", out)
 
 		// Column header line must list all three columns in order.
-		var colHdrIdx int = -1
+		colHdrIdx := -1
 		for i := nameHdrIdx + 1; i < len(lines); i++ {
 			l := lines[i]
-			if strings.Contains(l, "name") && strings.Contains(l, "database") && strings.Contains(l, "retention policy") {
+			if strings.Contains(l, colNameField) && strings.Contains(l, colDatabase) && strings.Contains(l, colRetentionPolicy) {
 				colHdrIdx = i
 				break
 			}
 		}
 		require.NotEqual(t, -1, colHdrIdx, "expected a three-column header line:\n%s", out)
-		require.Less(t, strings.Index(lines[colHdrIdx], "name"), strings.Index(lines[colHdrIdx], "database"),
+		require.Less(t, strings.Index(lines[colHdrIdx], colNameField), strings.Index(lines[colHdrIdx], colDatabase),
 			"column order is name | database | retention policy")
-		require.Less(t, strings.Index(lines[colHdrIdx], "database"), strings.Index(lines[colHdrIdx], "retention policy"),
+		require.Less(t, strings.Index(lines[colHdrIdx], colDatabase), strings.Index(lines[colHdrIdx], colRetentionPolicy),
 			"column order is name | database | retention policy")
 
-		// Dashed underline: lengths must match each column header exactly.
+		// Dashed underline: lengths must match each column header exactly
+		// (len("name")=4, len("database")=8, len("retention policy")=16).
 		dashIdx := colHdrIdx + 1
 		require.Less(t, dashIdx, len(lines), "expected dashed underline after column header")
 		dashFields := strings.Fields(lines[dashIdx])
-		require.Equal(t, []string{"----", "--------", "----------------"}, dashFields,
-			"each column's underline width matches its header width")
+		require.Equal(t, []string{
+			strings.Repeat("-", len(colNameField)),
+			strings.Repeat("-", len(colDatabase)),
+			strings.Repeat("-", len(colRetentionPolicy)),
+		}, dashFields, "each column's underline width matches its header width")
 
 		// Data rows present, after the underline, in series order.
-		cpuIdx := findLine(lines, "cpu")
-		memIdx := findLine(lines, "mem")
+		cpuIdx := findLine(lines, measurementCPU)
+		memIdx := findLine(lines, measurementMem)
 		require.NotEqual(t, -1, cpuIdx)
 		require.NotEqual(t, -1, memIdx)
-		require.Contains(t, lines[cpuIdx], "db0")
-		require.Contains(t, lines[cpuIdx], "rp0")
-		require.Contains(t, lines[memIdx], "db1")
-		require.Contains(t, lines[memIdx], "rp0")
+		require.Contains(t, lines[cpuIdx], dbName0)
+		require.Contains(t, lines[cpuIdx], rpName0)
+		require.Contains(t, lines[memIdx], dbName1)
+		require.Contains(t, lines[memIdx], rpName0)
 
 		require.Less(t, w1, nameHdrIdx, "all warnings precede the table")
 		require.Less(t, dashIdx, cpuIdx, "data rows come after the dashed underline")
@@ -853,19 +884,19 @@ func TestCommandLine_FormatResponse_JSON_PartialMeasurements(t *testing.T) {
 		resp := &client.Response{
 			Results: []client.Result{{
 				Messages: []*client.Message{{
-					Level: "warning",
-					Text:  `partial results for "db0": node 2: timeout`,
+					Level: levelWarning,
+					Text:  warnTextSingleDB0,
 				}},
 				Series: []models.Row{{
-					Name:    "measurements",
-					Columns: []string{"name"},
-					Values:  [][]interface{}{{"cpu"}, {"mem"}},
+					Name:    seriesNameMeasurements,
+					Columns: []string{colNameField},
+					Values:  [][]interface{}{{measurementCPU}, {measurementMem}},
 				}},
 			}},
 		}
 
 		c := cli.New(CLIENT_VERSION)
-		c.Format = "json"
+		c.Format = formatJSON
 		var buf bytes.Buffer
 		c.FormatResponse(resp, &buf)
 
@@ -881,13 +912,13 @@ func TestCommandLine_FormatResponse_JSON_PartialMeasurements(t *testing.T) {
 		r := got.Results[0]
 		require.Empty(t, r.Error, "no per-result error expected on partial success")
 		require.Equal(t, []wireMessage{{
-			Level: "warning",
-			Text:  `partial results for "db0": node 2: timeout`,
+			Level: levelWarning,
+			Text:  warnTextSingleDB0,
 		}}, r.Messages, "JSON message text is the raw coordinator string — no trailing period (unlike the column formatter)")
 		require.Equal(t, []wireRow{{
-			Name:    "measurements",
-			Columns: []string{"name"},
-			Values:  [][]interface{}{{"cpu"}, {"mem"}},
+			Name:    seriesNameMeasurements,
+			Columns: []string{colNameField},
+			Values:  [][]interface{}{{measurementCPU}, {measurementMem}},
 		}}, r.Series)
 	})
 
@@ -896,22 +927,22 @@ func TestCommandLine_FormatResponse_JSON_PartialMeasurements(t *testing.T) {
 		resp := &client.Response{
 			Results: []client.Result{{
 				Messages: []*client.Message{
-					{Level: "warning", Text: `partial results for "db0"."rp0": db0: timeout`},
-					{Level: "warning", Text: `partial results for "db1"."rp0": db1: refused`},
+					{Level: levelWarning, Text: warnTextDB0RP0},
+					{Level: levelWarning, Text: warnTextDB1RP0},
 				},
 				Series: []models.Row{{
-					Name:    "measurements",
-					Columns: []string{"name", "database", "retention policy"},
+					Name:    seriesNameMeasurements,
+					Columns: []string{colNameField, colDatabase, colRetentionPolicy},
 					Values: [][]interface{}{
-						{"cpu", "db0", "rp0"},
-						{"mem", "db1", "rp0"},
+						{measurementCPU, dbName0, rpName0},
+						{measurementMem, dbName1, rpName0},
 					},
 				}},
 			}},
 		}
 
 		c := cli.New(CLIENT_VERSION)
-		c.Format = "json"
+		c.Format = formatJSON
 		c.Pretty = true
 		var buf bytes.Buffer
 		c.FormatResponse(resp, &buf)
@@ -929,15 +960,15 @@ func TestCommandLine_FormatResponse_JSON_PartialMeasurements(t *testing.T) {
 		r := got.Results[0]
 		require.Empty(t, r.Error)
 		require.Equal(t, []wireMessage{
-			{Level: "warning", Text: `partial results for "db0"."rp0": db0: timeout`},
-			{Level: "warning", Text: `partial results for "db1"."rp0": db1: refused`},
+			{Level: levelWarning, Text: warnTextDB0RP0},
+			{Level: levelWarning, Text: warnTextDB1RP0},
 		}, r.Messages, "messages preserved in order with original (unpunctuated) coordinator text")
 		require.Equal(t, []wireRow{{
-			Name:    "measurements",
-			Columns: []string{"name", "database", "retention policy"},
+			Name:    seriesNameMeasurements,
+			Columns: []string{colNameField, colDatabase, colRetentionPolicy},
 			Values: [][]interface{}{
-				{"cpu", "db0", "rp0"},
-				{"mem", "db1", "rp0"},
+				{measurementCPU, dbName0, rpName0},
+				{measurementMem, dbName1, rpName0},
 			},
 		}}, r.Series)
 	})

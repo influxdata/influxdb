@@ -810,7 +810,13 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 	}
 
 	if len(rows) == 0 {
-		return ctx.Send(&query.Result{})
+		// Preserve partial-source warnings even when pagination (or an empty
+		// wildcard) leaves no rows to return — otherwise the user sees a clean
+		// empty result and never learns a source failed.
+		return ctx.Send(&query.Result{
+			Messages: messages,
+			Partial:  len(messages) > 0,
+		})
 	}
 
 	var series *models.Row
@@ -848,9 +854,11 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 // identified by database and (when non-empty) retention policy so that
 // wildcard queries across many DB/RP pairs remain disambiguated.
 func partialMeasurementsWarning(db, rp string, err error) *query.Message {
-	src := fmt.Sprintf("%q", db)
+	var src string
 	if rp != "" {
 		src = fmt.Sprintf("%q.%q", db, rp)
+	} else {
+		src = fmt.Sprintf("%q", db)
 	}
 	return &query.Message{
 		Level: query.WarningLevel,

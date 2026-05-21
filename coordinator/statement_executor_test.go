@@ -691,20 +691,37 @@ func (fn writePointsIntoFunc) WritePointsInto(req *coordinator.IntoWriteRequest)
 // surface those names with a warning Message and Partial=true rather than
 // throwing the data away with Result.Err set.
 func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T) {
+	const (
+		db1Name = "db1"
+
+		measurementCPU = "cpu"
+		measurementMem = "mem"
+
+		queryShowOnDB0      = "SHOW MEASUREMENTS ON " + DefaultDatabase
+		queryShowOnWildcard = "SHOW MEASUREMENTS ON *.*"
+
+		colName            = "name"
+		colDatabase        = "database"
+		colRetentionPolicy = "retention policy"
+
+		quotedDB0RP0 = `"` + DefaultDatabase + `"."` + DefaultRetentionPolicy + `"`
+		quotedDB1RP0 = `"` + db1Name + `"."` + DefaultRetentionPolicy + `"`
+	)
+
 	wildcardDBs := func() []meta.DatabaseInfo {
 		return []meta.DatabaseInfo{
-			{Name: "db0", RetentionPolicies: []meta.RetentionPolicyInfo{{Name: "rp0"}}},
-			{Name: "db1", RetentionPolicies: []meta.RetentionPolicyInfo{{Name: "rp0"}}},
+			{Name: DefaultDatabase, RetentionPolicies: []meta.RetentionPolicyInfo{{Name: DefaultRetentionPolicy}}},
+			{Name: db1Name, RetentionPolicies: []meta.RetentionPolicyInfo{{Name: DefaultRetentionPolicy}}},
 		}
 	}
 
 	t.Run("all_succeed", func(t *testing.T) {
 		e := NewQueryExecutor()
 		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, _ string, _ string, _ influxql.Expr) ([][]byte, error) {
-			return [][]byte{[]byte("cpu"), []byte("mem")}, nil
+			return [][]byte{[]byte(measurementCPU), []byte(measurementMem)}, nil
 		}
 
-		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON db0", "", 0))
+		got := ReadAllResults(e.ExecuteQuery(queryShowOnDB0, "", 0))
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
@@ -712,8 +729,8 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		require.Empty(t, r.Messages)
 		require.Len(t, r.Series, 1)
 		require.Equal(t, "measurements", r.Series[0].Name)
-		require.Equal(t, []string{"name"}, r.Series[0].Columns)
-		require.Equal(t, [][]interface{}{{"cpu"}, {"mem"}}, r.Series[0].Values)
+		require.Equal(t, []string{colName}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{measurementCPU}, {measurementMem}}, r.Series[0].Values)
 	})
 
 	t.Run("all_fail_single_source", func(t *testing.T) {
@@ -723,7 +740,7 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 			return nil, nodeErr
 		}
 
-		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON db0", "", 0))
+		got := ReadAllResults(e.ExecuteQuery(queryShowOnDB0, "", 0))
 		require.Len(t, got, 1)
 		r := got[0]
 		require.Error(t, r.Err)
@@ -736,21 +753,21 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 	t.Run("partial_names_with_error", func(t *testing.T) {
 		e := NewQueryExecutor()
 		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, _ string, _ string, _ influxql.Expr) ([][]byte, error) {
-			return [][]byte{[]byte("cpu"), []byte("mem")}, errors.New("node 2: timeout")
+			return [][]byte{[]byte(measurementCPU), []byte(measurementMem)}, errors.New("node 2: timeout")
 		}
 
-		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON db0", "", 0))
+		got := ReadAllResults(e.ExecuteQuery(queryShowOnDB0, "", 0))
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
 		require.True(t, r.Partial)
 		require.Len(t, r.Messages, 1)
 		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
-		require.Contains(t, r.Messages[0].Text, `"db0"`)
+		require.Contains(t, r.Messages[0].Text, `"`+DefaultDatabase+`"`)
 		require.Contains(t, r.Messages[0].Text, "node 2: timeout")
 		require.Len(t, r.Series, 1)
-		require.Equal(t, []string{"name"}, r.Series[0].Columns)
-		require.Equal(t, [][]interface{}{{"cpu"}, {"mem"}}, r.Series[0].Values)
+		require.Equal(t, []string{colName}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{measurementCPU}, {measurementMem}}, r.Series[0].Values)
 	})
 
 	t.Run("wildcard_one_source_dead", func(t *testing.T) {
@@ -758,26 +775,26 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		e.MetaClient.DatabasesFn = wildcardDBs
 		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
 			switch database {
-			case "db0":
-				return [][]byte{[]byte("cpu")}, nil
-			case "db1":
+			case DefaultDatabase:
+				return [][]byte{[]byte(measurementCPU)}, nil
+			case db1Name:
 				return nil, errors.New("all nodes down")
 			}
 			return nil, fmt.Errorf("unexpected database %q", database)
 		}
 
-		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON *.*", "", 0))
+		got := ReadAllResults(e.ExecuteQuery(queryShowOnWildcard, "", 0))
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
 		require.True(t, r.Partial)
 		require.Len(t, r.Messages, 1)
 		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
-		require.Contains(t, r.Messages[0].Text, `"db1"."rp0"`)
+		require.Contains(t, r.Messages[0].Text, quotedDB1RP0)
 		require.Contains(t, r.Messages[0].Text, "all nodes down")
 		require.Len(t, r.Series, 1)
-		require.Equal(t, []string{"name", "database", "retention policy"}, r.Series[0].Columns)
-		require.Equal(t, [][]interface{}{{"cpu", "db0", "rp0"}}, r.Series[0].Values)
+		require.Equal(t, []string{colName, colDatabase, colRetentionPolicy}, r.Series[0].Columns)
+		require.Equal(t, [][]interface{}{{measurementCPU, DefaultDatabase, DefaultRetentionPolicy}}, r.Series[0].Values)
 	})
 
 	t.Run("wildcard_all_sources_dead", func(t *testing.T) {
@@ -787,15 +804,44 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 			return nil, fmt.Errorf("%s: down", database)
 		}
 
-		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON *.*", "", 0))
+		got := ReadAllResults(e.ExecuteQuery(queryShowOnWildcard, "", 0))
 		require.Len(t, got, 1)
 		r := got[0]
 		require.Error(t, r.Err)
-		require.ErrorContains(t, r.Err, "db0: down")
-		require.ErrorContains(t, r.Err, "db1: down")
+		require.ErrorContains(t, r.Err, DefaultDatabase+": down")
+		require.ErrorContains(t, r.Err, db1Name+": down")
 		require.Empty(t, r.Series)
 		require.Empty(t, r.Messages)
 		require.False(t, r.Partial)
+	})
+
+	// Regression: when OFFSET trims away every surviving row on a partial
+	// fan-out, the warning Messages and Partial=true flag must still reach the
+	// caller — otherwise the user sees an empty success and never learns a
+	// source failed.
+	t.Run("wildcard_offset_past_partial_rows_keeps_warnings", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.MetaClient.DatabasesFn = wildcardDBs
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
+			switch database {
+			case DefaultDatabase:
+				return [][]byte{[]byte(measurementCPU)}, errors.New(DefaultDatabase + ": timeout")
+			case db1Name:
+				return [][]byte{[]byte(measurementMem)}, nil
+			}
+			return nil, fmt.Errorf("unexpected database %q", database)
+		}
+
+		got := ReadAllResults(e.ExecuteQuery(queryShowOnWildcard+" LIMIT 1 OFFSET 10", "", 0))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.NoError(t, r.Err)
+		require.True(t, r.Partial)
+		require.Empty(t, r.Series, "OFFSET trimmed all rows, so no series should be sent")
+		require.Len(t, r.Messages, 1)
+		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
+		require.Contains(t, r.Messages[0].Text, quotedDB0RP0)
+		require.Contains(t, r.Messages[0].Text, "timeout")
 	})
 
 	t.Run("wildcard_partial_per_source", func(t *testing.T) {
@@ -803,31 +849,31 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 		e.MetaClient.DatabasesFn = wildcardDBs
 		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
 			switch database {
-			case "db0":
-				return [][]byte{[]byte("cpu")}, errors.New("db0: timeout")
-			case "db1":
-				return [][]byte{[]byte("mem")}, errors.New("db1: refused")
+			case DefaultDatabase:
+				return [][]byte{[]byte(measurementCPU)}, errors.New(DefaultDatabase + ": timeout")
+			case db1Name:
+				return [][]byte{[]byte(measurementMem)}, errors.New(db1Name + ": refused")
 			}
 			return nil, fmt.Errorf("unexpected database %q", database)
 		}
 
-		got := ReadAllResults(e.ExecuteQuery("SHOW MEASUREMENTS ON *.*", "", 0))
+		got := ReadAllResults(e.ExecuteQuery(queryShowOnWildcard, "", 0))
 		require.Len(t, got, 1)
 		r := got[0]
 		require.NoError(t, r.Err)
 		require.True(t, r.Partial)
 		require.Len(t, r.Messages, 2)
 		require.Equal(t, query.WarningLevel, r.Messages[0].Level)
-		require.Contains(t, r.Messages[0].Text, `"db0"."rp0"`)
+		require.Contains(t, r.Messages[0].Text, quotedDB0RP0)
 		require.Contains(t, r.Messages[0].Text, "timeout")
 		require.Equal(t, query.WarningLevel, r.Messages[1].Level)
-		require.Contains(t, r.Messages[1].Text, `"db1"."rp0"`)
+		require.Contains(t, r.Messages[1].Text, quotedDB1RP0)
 		require.Contains(t, r.Messages[1].Text, "refused")
 		require.Len(t, r.Series, 1)
-		require.Equal(t, []string{"name", "database", "retention policy"}, r.Series[0].Columns)
+		require.Equal(t, []string{colName, colDatabase, colRetentionPolicy}, r.Series[0].Columns)
 		require.Equal(t, [][]interface{}{
-			{"cpu", "db0", "rp0"},
-			{"mem", "db1", "rp0"},
+			{measurementCPU, DefaultDatabase, DefaultRetentionPolicy},
+			{measurementMem, db1Name, DefaultRetentionPolicy},
 		}, r.Series[0].Values)
 	})
 }
