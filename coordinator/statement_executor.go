@@ -750,7 +750,14 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 				Err: fmt.Errorf("query 'SHOW MEASUREMENTS ON *' not supported. use 'ON *.*' or specify a database"),
 			})
 		}
+		// Filter wildcard sources by the coarse authorizer so that per-source
+		// warnings (which include db/rp names) cannot disclose the existence
+		// of databases the user has no read/write access to.
+		a := ctx.ExecutionOptions.CoarseAuthorizer
 		for _, dbInfo := range e.MetaClient.Databases() {
+			if a != nil && !a.AuthorizeDatabase(influxql.ReadPrivilege, dbInfo.Name) && !a.AuthorizeDatabase(influxql.WritePrivilege, dbInfo.Name) {
+				continue
+			}
 			for _, rpInfo := range dbInfo.RetentionPolicies {
 				sources = append(sources, struct{ db, rp string }{dbInfo.Name, rpInfo.Name})
 			}

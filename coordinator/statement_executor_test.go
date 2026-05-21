@@ -876,4 +876,38 @@ func TestStatementExecutor_ExecuteShowMeasurementsStatement_Partial(t *testing.T
 			{measurementMem, db1Name, DefaultRetentionPolicy},
 		}, r.Series[0].Values)
 	})
+
+	// Wildcard expansion must not include databases the caller has no
+	// read/write access to. Otherwise a per-source warning (which embeds the
+	// db/rp name) would disclose the existence of unauthorized DBs to users
+	// who cannot read them.
+	t.Run("wildcard_unauthorized_dbs_filtered", func(t *testing.T) {
+		e := NewQueryExecutor()
+		e.MetaClient.DatabasesFn = wildcardDBs
+		var queried []string
+		e.TSDBStore.MeasurementNamesFn = func(_ query.FineAuthorizer, database string, _ string, _ influxql.Expr) ([][]byte, error) {
+			queried = append(queried, database)
+			// Force an error so any unauthorized source would surface a warning
+			// disclosing its name — that's the leak we're guarding against.
+			return nil, errors.New(database + ": down")
+		}
+
+		opt := query.ExecutionOptions{
+			CoarseAuthorizer: &mockCoarseAuthorizer{
+				AuthorizeDatabaseFn: func(_ influxql.Privilege, name string) bool {
+					return name == DefaultDatabase
+				},
+			},
+		}
+		got := ReadAllResults(e.Executor.ExecuteQuery(MustParseQuery(queryShowOnWildcard), opt, make(chan struct{})))
+		require.Len(t, got, 1)
+		r := got[0]
+		require.Error(t, r.Err)
+		require.ErrorContains(t, r.Err, DefaultDatabase+": down")
+		require.NotContains(t, r.Err.Error(), db1Name, "unauthorized db must not leak via error")
+		require.Equal(t, []string{DefaultDatabase}, queried, "unauthorized db must not be fanned out to")
+		require.Empty(t, r.Series)
+		require.Empty(t, r.Messages)
+		require.False(t, r.Partial)
+	})
 }
