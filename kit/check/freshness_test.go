@@ -95,7 +95,7 @@ func TestFreshnessResponse_JSONMarshalEmitsDerivedValues(t *testing.T) {
 
 // TestFreshnessResponse_ConcurrentUpdateAndRead exercises Update racing
 // with the four interface methods and MarshalJSON. Uses the RWMutex
-// start-gate from CLAUDE.md so every goroutine contends simultaneously.
+// start-gate so every goroutine contends simultaneously.
 // Under -race this fails without the atomic.Pointer.
 func TestFreshnessResponse_ConcurrentUpdateAndRead(t *testing.T) {
 	const (

@@ -224,6 +224,67 @@ func TestHealthReadyHandler_TrailingSlashServedLocally(t *testing.T) {
 	}
 }
 
+// TestHealthReadyHandler_PathVariants pins how the routing handles paths
+// adjacent to /health and /ready. The handler matches r.URL.Path against
+// the canonical paths exactly (with an optional single trailing slash),
+// which has two consequences worth pinning:
+//
+//   - Query strings are stripped before matching, so /health?foo=bar is
+//     served locally and the parameters are ignored. Kubernetes-style
+//     liveness probes that append cache-busting parameters keep working.
+//   - Subpaths and lookalikes (/health/foo, /healthz, /health//) are
+//     distinct paths and must fall through to the delegate. A regression
+//     that absorbed them locally would shadow real routes mounted by the
+//     delegate.
+//
+// The teapot delegate makes a delegation regression surface as 418 instead
+// of the 200 a local /health renderer would produce.
+func TestHealthReadyHandler_PathVariants(t *testing.T) {
+	h := NewHealthReadyHandler(zaptest.NewLogger(t))
+	gate := check.NewReadyGate("engine")
+	h.AddNamedReadyCheck(gate)
+	gate.Ready()
+	h.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+
+	tests := []struct {
+		target    string
+		wantLocal bool
+	}{
+		{"/health?foo=bar", true},
+		{"/health?", true},
+		{"/health?cachebust=1&t=2", true},
+		{"/health/?foo=bar", true},
+		{"/ready?foo=bar", true},
+		{"/ready/?foo=bar", true},
+
+		{"/health/foo", false},
+		{"/health//", false},
+		{"/healthz", false},
+		{"/ready/foo", false},
+		{"/ready//", false},
+		{"/readyz", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.target, func(t *testing.T) {
+			res := doRequest(t, h, http.MethodGet, tc.target)
+			defer closeBody(t, res)
+			if tc.wantLocal {
+				require.Equal(t, http.StatusOK, res.StatusCode,
+					"%s must be served locally", tc.target)
+				assert.Equal(t, "OSS", res.Header.Get("X-Influxdb-Build"),
+					"%s response must carry the locally-set build-info header", tc.target)
+			} else {
+				require.Equal(t, http.StatusTeapot, res.StatusCode,
+					"%s must fall through to the delegate", tc.target)
+				assert.Empty(t, res.Header.Values("X-Influxdb-Build"),
+					"%s must not carry the build-info header — that header is local-only", tc.target)
+			}
+		})
+	}
+}
+
 func TestHealthReadyHandler_SetHandler_ReplacesDelegate(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 

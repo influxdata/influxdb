@@ -14,8 +14,8 @@ import (
 // register checkers while N goroutines concurrently call CheckHealth and
 // CheckReady. Under -race this fails without the mutex.
 //
-// Uses the RWMutex start-gate pattern from CLAUDE.md so all goroutines
-// start contending simultaneously.
+// Uses the RWMutex start-gate pattern to start all goroutines
+// contending simultaneously.
 func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 	const (
 		numRegisterers = 16

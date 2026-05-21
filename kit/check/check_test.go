@@ -14,7 +14,7 @@ func TestEmptyCheck(t *testing.T) {
 	c := NewCheck()
 	resp := c.CheckReady(context.Background())
 	require.Empty(t, resp.Checks(), "no checks added")
-	require.Equal(t, "Ready", resp.Name())
+	require.Equal(t, NameReady, resp.Name())
 	require.Equal(t, StatusPass, resp.Status())
 }
 
@@ -78,7 +78,7 @@ func assertResponseEqual(t *testing.T, want, got Response) {
 func TestCheckReadyEmpty(t *testing.T) {
 	c := NewCheck()
 	actual := c.CheckReady(context.Background())
-	expected := NewBasicResponse("Ready", StatusPass, "", Responses{})
+	expected := NewBasicResponse(NameReady, StatusPass, "", Responses{})
 	assertResponseEqual(t, expected, actual)
 }
 
@@ -93,7 +93,7 @@ func TestHealthSorting(t *testing.T) {
 
 	actual := c.CheckHealth(context.Background())
 
-	expected := NewBasicResponse("Health", StatusFail, "", Responses{
+	expected := NewBasicResponse(NameHealth, StatusFail, "", Responses{
 		NamedFail("b", ""),
 		NamedFail("k", ""),
 		NamedPass("a"),
@@ -113,7 +113,7 @@ func TestNoCrossOver(t *testing.T) {
 	c.AddHealthCheck(mockFail("b"))
 
 	actualHealth := c.CheckHealth(context.Background())
-	expectedHealth := NewBasicResponse("Health", StatusFail, "", Responses{
+	expectedHealth := NewBasicResponse(NameHealth, StatusFail, "", Responses{
 		NamedFail("b", ""),
 		NamedPass("a"),
 		NamedPass("c"),
@@ -121,7 +121,7 @@ func TestNoCrossOver(t *testing.T) {
 	assertResponseEqual(t, expectedHealth, actualHealth)
 
 	actualReady := c.CheckReady(context.Background())
-	expectedReady := NewBasicResponse("Ready", StatusFail, "", Responses{
+	expectedReady := NewBasicResponse(NameReady, StatusFail, "", Responses{
 		NamedFail("k", ""),
 		NamedPass("b"),
 	})

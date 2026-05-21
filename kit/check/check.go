@@ -19,6 +19,13 @@ const (
 
 	// DefaultCheckName is the name of the default checker.
 	DefaultCheckName = "internal"
+
+	// NameHealth is the Name carried by the aggregate Response returned
+	// from CheckHealth.
+	NameHealth = "Health"
+	// NameReady is the Name carried by the aggregate Response returned
+	// from CheckReady.
+	NameReady = "Ready"
 )
 
 // Check wraps a map of service names to status checkers.
@@ -98,12 +105,12 @@ func (c *Check) ReadyCheckNames() []string {
 
 // CheckHealth evaluates c's set of health checks and returns a populated Response.
 func (c *Check) CheckHealth(ctx context.Context) Response {
-	return c.evaluate(ctx, "Health", c.snapshotHealth)
+	return c.evaluate(ctx, NameHealth, c.snapshotHealth)
 }
 
 // CheckReady evaluates c's set of ready checks and returns a populated Response.
 func (c *Check) CheckReady(ctx context.Context) Response {
-	return c.evaluate(ctx, "Ready", c.snapshotReady)
+	return c.evaluate(ctx, NameReady, c.snapshotReady)
 }
 
 func (c *Check) snapshotHealth() []Checker {
