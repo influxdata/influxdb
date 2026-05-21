@@ -679,9 +679,11 @@ const (
 	dbName1 = "db1"
 	rpName0 = "rp0"
 
-	warnTextSingleDB0 = `partial results for "db0": node 2: timeout`
-	warnTextDB0RP0    = `partial results for "db0"."rp0": db0: timeout`
-	warnTextDB1RP0    = `partial results for "db1"."rp0": db1: refused`
+	// Match the coordinator's formatMeasurementSource output: simple
+	// identifiers emit unquoted via influxql.QuoteIdent, joined by '.'.
+	warnTextSingleDB0 = `partial results for db0: node 2: timeout`
+	warnTextDB0RP0    = `partial results for db0.rp0: db0: timeout`
+	warnTextDB1RP0    = `partial results for db1.rp0: db1: refused`
 )
 
 // TestCommandLine_FormatResponse_Column_PartialMeasurements verifies that
