@@ -559,6 +559,10 @@ func (s *Store) loadShards(ctx context.Context) error {
 	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
 	if throughput > 0 {
 		if throughputBurst < throughput {
+			s.Logger.Info("Compaction throughput burst is less than throughput, raising burst to match throughput",
+				zap.Int("configured_throughput_bytes_per_second_burst", throughputBurst),
+				zap.Int("throughput_bytes_per_second", throughput),
+			)
 			throughputBurst = throughput
 		}
 
