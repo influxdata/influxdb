@@ -7861,7 +7861,7 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 			{
 				name:    `show measurements on specific rp - inmem fails`,
 				command: "SHOW MEASUREMENTS on db0.rp0",
-				exp:     `{"results":[{"statement_id":0,"error":"retention policy filter for measurements not supported for index inmem"}]}`,
+				exp:     `{"results":[{"statement_id":0,"error":"db0.rp0: retention policy filter for measurements not supported for index inmem"}]}`,
 				params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
 			},
 		}...)
