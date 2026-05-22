@@ -437,6 +437,7 @@ storage-cache-max-memory-size = 1073741824
 storage-cache-snapshot-memory-size = 26214400
 storage-cache-snapshot-write-cold-duration = "10m0s"
 storage-compact-full-write-cold-duration = "4h0m0s"
+storage-compact-throughput = 50331648
 storage-compact-throughput-burst = 50331648
 storage-max-concurrent-compactions = 0
 storage-max-index-log-file-size = 1048576
