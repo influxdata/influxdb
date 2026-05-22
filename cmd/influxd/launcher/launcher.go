@@ -289,6 +289,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.engineReady = check.NewReadyGate(SubsystemEngine)
 	m.replicationsReady = check.NewReadyGate(SubsystemReplications)
 	m.queryReady = check.NewReadyGate(SubsystemQuery)
+	m.tasksReady = check.NewReadyGate(SubsystemTasks)
+	m.schedulerReady = check.NewReadyGate(SubsystemTaskScheduler)
 	m.startupProgress = run.NewStartupProgressLogger(
 		SubsystemShards,
 		m.log.With(zap.String("service", "startup-progress")))
@@ -297,14 +299,19 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.checkHandler.AddNamedReadyCheck(m.engineReady)
 	m.checkHandler.AddNamedReadyCheck(m.replicationsReady)
 	m.checkHandler.AddNamedReadyCheck(m.queryReady)
+	m.checkHandler.AddNamedReadyCheck(m.tasksReady)
+	m.checkHandler.AddNamedReadyCheck(m.schedulerReady)
 	m.checkHandler.AddNamedReadyCheck(m.startupProgress.ReadyChecker())
 	m.checkHandler.AddNamedHealthCheck(m.startupProgress.HealthChecker())
 
-	if !opts.NoTasks {
-		m.tasksReady = check.NewReadyGate(SubsystemTasks)
-		m.schedulerReady = check.NewReadyGate(SubsystemTaskScheduler)
-		m.checkHandler.AddNamedReadyCheck(m.tasksReady)
-		m.checkHandler.AddNamedReadyCheck(m.schedulerReady)
+	// Under NoTasks the tasks subsystem and scheduler never start; pre-fire
+	// their gates so /ready does not block forever waiting on subsystems
+	// that will never come up. The gates remain registered and refer to the
+	// same fields the !NoTasks scheduler-init path fires later (see below),
+	// so /ready output is uniform between modes.
+	if opts.NoTasks {
+		m.tasksReady.Ready()
+		m.schedulerReady.Ready()
 	}
 
 	registerCloser, err := m.runHTTP(opts, m.checkHandler, httpLogger)
@@ -567,10 +574,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		var sch stoppingScheduler = &scheduler.NoopScheduler{}
 		if !opts.NoTasks {
 			var (
-				sm  *scheduler.SchedulerMetrics
-				err error
+				sm      *scheduler.SchedulerMetrics
+				err     error
+				treeSch *scheduler.TreeScheduler
 			)
-			sch, sm, err = scheduler.NewScheduler(
+			treeSch, sm, err = scheduler.NewScheduler(
 				executor,
 				taskbackend.NewSchedulableTaskService(m.kvService),
 				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
@@ -581,6 +589,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 						zap.Error(err))
 				}),
 			)
+			sch = treeSch
 			if err != nil {
 				m.log.Fatal("could not start task scheduler", zap.Error(err))
 			}
@@ -596,16 +605,12 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.reg.MustRegister(sm.PrometheusCollectors()...)
 			m.tasksReady.Ready()
 			m.schedulerReady.Ready()
-		}
-
-		m.scheduler = sch
-
-		// Register a pulse health check for the real tree scheduler.
-		// NoopScheduler has no pulse to monitor; skip it.
-		if treeSch, ok := sch.(*scheduler.TreeScheduler); ok {
+			// Register a pulse health check for the real tree scheduler.
+			// NoopScheduler has no pulse to monitor; skip it.
 			m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemTaskScheduler, run.NewSchedulerPulseCheck(treeSch, run.DefaultSchedulerPulseThreshold)))
 		}
 
+		m.scheduler = sch
 		coordLogger := m.log.With(zap.String("service", "task-coordinator"))
 		taskCoord := coordinator.NewCoordinator(
 			coordLogger,
@@ -1257,7 +1262,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 
 // runHTTP configures and launches a listener for incoming HTTP(S) requests.
 // The listener is run in a separate goroutine. If it fails to start up, it
-// will cancel the launcher.
+// will cancel the launcher. Returns a closer func to be called for shutdown.
 func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogger *zap.Logger) (func(), error) {
 	log := m.log.With(zap.String("service", "tcp-listener"))
 

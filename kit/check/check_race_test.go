@@ -22,6 +22,9 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 		numEvaluators  = 16
 		numChecksEach  = 32
 		numEvaluations = 64
+
+		healthName = "h"
+		readyName  = "r"
 	)
 
 	c := NewCheck()
@@ -51,9 +54,9 @@ func TestCheck_ConcurrentRegistrationAndEvaluation(t *testing.T) {
 			}
 			for i := range numChecksEach {
 				if i%2 == 0 {
-					c.AddHealthCheck(mockPass("h"))
+					c.AddHealthCheck(mockPass(healthName))
 				} else {
-					c.AddReadyCheck(mockPass("r"))
+					c.AddNamedReadyCheck(Named(readyName, mockPass(readyName)))
 				}
 			}
 			concurrency.Add(-1)

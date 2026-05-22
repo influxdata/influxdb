@@ -13,7 +13,30 @@ import (
 	"go.uber.org/zap"
 )
 
-const startingBody = `{"status":"starting"}` + "\n"
+const (
+	// statusStarting is the body-level status value reported by /ready when
+	// any ready check is still failing, by ServeHTTP's pre-delegate 503
+	// fallback, and as the firstFailureMessage fallback when a failing
+	// health check supplies no message of its own. statusReady is its
+	// counterpart on the /ready 200 path; messageHealthy is the top-level
+	// message on the /health 200 path.
+	statusStarting = "starting"
+	statusReady    = "ready"
+	messageHealthy = "healthy"
+
+	// startingBody is the response body for non-/health-or-/ready requests
+	// received before SetHandler installs a delegate.
+	startingBody = `{"status":"` + statusStarting + `"}` + "\n"
+
+	// contentTypeKey and contentTypeJSON are the header name and value
+	// used on every response body this handler writes itself.
+	contentTypeKey  = "Content-Type"
+	contentTypeJSON = "application/json; charset=utf-8"
+
+	// pathKey is the zap field key carrying the request path on
+	// write-error log lines.
+	pathKey = "path"
+)
 
 // delegateHandler wraps an http.Handler so the atomic pointer targets a
 // concrete struct instead of an interface, avoiding the pointer-to-interface
@@ -70,9 +93,6 @@ func NewHealthReadyHandler(log *zap.Logger) *HealthReadyHandler {
 	}
 }
 
-// AddReadyCheck registers an anonymous ready check.
-func (h *HealthReadyHandler) AddReadyCheck(c check.Checker) { h.check.AddReadyCheck(c) }
-
 // AddHealthCheck registers an anonymous health check.
 func (h *HealthReadyHandler) AddHealthCheck(c check.Checker) { h.check.AddHealthCheck(c) }
 
@@ -123,11 +143,11 @@ func (h *HealthReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.headers.WriteHeader(w.Header())
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set(contentTypeKey, contentTypeJSON)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		if _, err := io.WriteString(w, startingBody); err != nil {
 			h.log.Debug("failed to write starting body",
-				zap.String("path", r.URL.Path),
+				zap.String(pathKey, r.URL.Path),
 				zap.Error(err))
 		}
 	}
@@ -137,7 +157,7 @@ func (h *HealthReadyHandler) writeHealth(w http.ResponseWriter, r *http.Request)
 	resp := h.check.CheckHealth(r.Context())
 	info := platform.GetBuildInfo()
 	status := http.StatusOK
-	message := "healthy"
+	message := messageHealthy
 	if resp.Status() == check.StatusFail {
 		status = http.StatusServiceUnavailable
 		message = firstFailureMessage(resp.Checks())
@@ -156,11 +176,11 @@ func (h *HealthReadyHandler) writeHealth(w http.ResponseWriter, r *http.Request)
 func (h *HealthReadyHandler) writeReady(w http.ResponseWriter, r *http.Request) {
 	resp := h.check.CheckReady(r.Context())
 	status := http.StatusOK
-	readyStatus := "ready"
+	readyStatus := statusReady
 	var checks check.Responses
 	if resp.Status() == check.StatusFail {
 		status = http.StatusServiceUnavailable
-		readyStatus = "starting"
+		readyStatus = statusStarting
 		checks = failingChecks(resp.Checks())
 	}
 	body := readyBody{
@@ -183,17 +203,17 @@ func (h *HealthReadyHandler) writeJSON(w http.ResponseWriter, r *http.Request, s
 	buf, err := json.Marshal(body)
 	if err != nil {
 		h.log.Error("failed to marshal response body",
-			zap.String("path", r.URL.Path),
+			zap.String(pathKey, r.URL.Path),
 			zap.Error(err))
 		buf = []byte(`{"message":"error marshaling response","status":"fail"}`)
 		status = http.StatusInternalServerError
 	}
 	buf = append(buf, '\n')
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set(contentTypeKey, contentTypeJSON)
 	w.WriteHeader(status)
 	if _, err := w.Write(buf); err != nil {
 		h.log.Debug("failed to write response body",
-			zap.String("path", r.URL.Path),
+			zap.String(pathKey, r.URL.Path),
 			zap.Error(err))
 	}
 }
@@ -207,7 +227,7 @@ func firstFailureMessage(checks check.Responses) string {
 			return string(check.StatusFail)
 		}
 	}
-	return "starting"
+	return statusStarting
 }
 
 func failingChecks(checks check.Responses) check.Responses {

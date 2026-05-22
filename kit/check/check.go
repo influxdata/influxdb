@@ -61,19 +61,6 @@ func (c *Check) AddHealthCheck(check Checker) {
 	c.healthChecks = append(c.healthChecks, check)
 }
 
-// AddReadyCheck registers an anonymous ready check. See AddHealthCheck for
-// the NamedChecker fallback.
-func (c *Check) AddReadyCheck(check Checker) {
-	if nc, ok := check.(NamedChecker); ok {
-		c.AddNamedReadyCheck(nc)
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.readyChecks = append(c.readyChecks, check)
-	c.readyNames = append(c.readyNames, "")
-}
-
 // AddNamedHealthCheck registers nc as a health check. The name is taken
 // from nc.CheckName(); nc.Check is responsible for stamping Response.Name
 // (see NamedChecker), so no additional wrapping happens here.
@@ -93,8 +80,8 @@ func (c *Check) AddNamedReadyCheck(nc NamedChecker) {
 }
 
 // ReadyCheckNames returns the names of currently-registered ready checks
-// in registration order. Anonymous checks (registered without a name) are
-// returned as empty strings.
+// in registration order. All ready checks are required to be named, so
+// no entry is ever empty.
 func (c *Check) ReadyCheckNames() []string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

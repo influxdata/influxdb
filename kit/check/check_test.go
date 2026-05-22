@@ -104,46 +104,58 @@ func TestHealthSorting(t *testing.T) {
 }
 
 func TestNoCrossOver(t *testing.T) {
+	const (
+		nameA = "a"
+		nameB = "b"
+		nameC = "c"
+		nameK = "k"
+	)
 	c := NewCheck()
 
-	c.AddHealthCheck(mockPass("a"))
-	c.AddHealthCheck(mockPass("c"))
-	c.AddReadyCheck(mockPass("b"))
-	c.AddReadyCheck(mockFail("k"))
-	c.AddHealthCheck(mockFail("b"))
+	c.AddHealthCheck(mockPass(nameA))
+	c.AddHealthCheck(mockPass(nameC))
+	c.AddNamedReadyCheck(Named(nameB, mockPass(nameB)))
+	c.AddNamedReadyCheck(Named(nameK, mockFail(nameK)))
+	c.AddHealthCheck(mockFail(nameB))
 
 	actualHealth := c.CheckHealth(context.Background())
 	expectedHealth := NewBasicResponse(NameHealth, StatusFail, "", Responses{
-		NamedFail("b", ""),
-		NamedPass("a"),
-		NamedPass("c"),
+		NamedFail(nameB, ""),
+		NamedPass(nameA),
+		NamedPass(nameC),
 	})
 	assertResponseEqual(t, expectedHealth, actualHealth)
 
 	actualReady := c.CheckReady(context.Background())
 	expectedReady := NewBasicResponse(NameReady, StatusFail, "", Responses{
-		NamedFail("k", ""),
-		NamedPass("b"),
+		NamedFail(nameK, ""),
+		NamedPass(nameB),
 	})
 	assertResponseEqual(t, expectedReady, actualReady)
 }
 
 func TestReadyCheckNames(t *testing.T) {
+	const (
+		nameA = "a"
+		nameB = "b"
+		nameC = "c"
+	)
 	c := NewCheck()
 
 	names := c.ReadyCheckNames()
 	require.NotNil(t, names)
 	require.Empty(t, names)
 
-	c.AddNamedReadyCheck(Named("a", mockPass("a")))
-	c.AddReadyCheck(mockPass("")) // anonymous: not a NamedChecker
-	c.AddNamedReadyCheck(Named("c", mockPass("c")))
+	c.AddNamedReadyCheck(Named(nameA, mockPass(nameA)))
+	c.AddNamedReadyCheck(Named(nameB, mockPass(nameB)))
+	c.AddNamedReadyCheck(Named(nameC, mockPass(nameC)))
 
+	want := []string{nameA, nameB, nameC}
 	names = c.ReadyCheckNames()
-	require.Equal(t, []string{"a", "", "c"}, names)
+	require.Equal(t, want, names)
 
 	names[0] = "MUTATED"
-	require.Equal(t, []string{"a", "", "c"}, c.ReadyCheckNames())
+	require.Equal(t, want, c.ReadyCheckNames())
 }
 
 func TestAddHealthCheck_NamedCheckerDispatch(t *testing.T) {
@@ -155,17 +167,6 @@ func TestAddHealthCheck_NamedCheckerDispatch(t *testing.T) {
 	resp := c.CheckHealth(context.Background())
 	require.Len(t, resp.Checks(), 1)
 	require.Equal(t, "alpha", resp.Checks()[0].Name())
-}
-
-func TestAddReadyCheck_NamedCheckerDispatch(t *testing.T) {
-	c := NewCheck()
-	c.AddReadyCheck(Named("beta", mockPass("")))
-
-	require.Equal(t, []string{"beta"}, c.ReadyCheckNames())
-
-	resp := c.CheckReady(context.Background())
-	require.Len(t, resp.Checks(), 1)
-	require.Equal(t, "beta", resp.Checks()[0].Name())
 }
 
 func ExampleNewCheck() {

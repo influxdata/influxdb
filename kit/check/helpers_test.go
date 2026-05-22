@@ -116,18 +116,19 @@ func TestError(t *testing.T) {
 func TestReadyGate_IntegrationWithCheck_NamedWrapping(t *testing.T) {
 	// Verify that when a *ReadyGate is added to *Check, the resulting
 	// response uses the gate's configured name.
+	const gateName = "metastores"
 	c := NewCheck()
-	gate := NewReadyGate("metastores")
-	c.AddReadyCheck(gate)
+	gate := NewReadyGate(gateName)
+	c.AddNamedReadyCheck(gate)
 
 	resp := c.CheckReady(context.Background())
 	require.Equal(t, StatusFail, resp.Status())
 	require.Len(t, resp.Checks(), 1)
-	require.Equal(t, "metastores", resp.Checks()[0].Name())
+	require.Equal(t, gateName, resp.Checks()[0].Name())
 
 	gate.Ready()
 	resp = c.CheckReady(context.Background())
 	require.Equal(t, StatusPass, resp.Status())
 	require.Len(t, resp.Checks(), 1)
-	require.Equal(t, "metastores", resp.Checks()[0].Name())
+	require.Equal(t, gateName, resp.Checks()[0].Name())
 }
