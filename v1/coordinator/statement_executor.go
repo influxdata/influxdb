@@ -481,12 +481,20 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context
 			mappingsFilter.RetentionPolicy = &q.RetentionPolicy
 		}
 	}
+	// e.DBRP is the authorized DBRP service (dbrp.AuthorizedService), so a
+	// wildcard fan-out only sees mappings whose bucket the caller can read.
+	// Per-source warnings below therefore cannot disclose the existence of
+	// databases the user has no access to.
 	mappings, _, err := e.DBRP.FindMany(ctx, mappingsFilter)
 	if err != nil {
 		return fmt.Errorf("finding DBRP mappings: %v", err)
 	}
 
-	rows := make([]measurementRow, 0)
+	var (
+		rows     []measurementRow
+		messages []*query.Message
+		allErrs  []error
+	)
 
 	// Sort the sources for consistent output
 	sort.Slice(mappings, func(i, j int) bool {
@@ -499,9 +507,12 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context
 	for _, mapping := range mappings {
 		names, err := e.TSDBStore.MeasurementNames(ctx, ectx.Authorizer, mapping.BucketID.String(), q.Condition)
 		if err != nil {
-			return ectx.Send(ctx, &query.Result{
-				Err: err,
-			})
+			// Label each error with its source so a fully-failed wildcard
+			// fan-out tells the user which db/rp produced which error,
+			// rather than joining bare strings like "i/o timeout" repeated
+			// once per source.
+			allErrs = append(allErrs, fmt.Errorf("%s: %w", formatMeasurementSource(mapping.Database, mapping.RetentionPolicy), err))
+			messages = append(messages, partialMeasurementsWarning(mapping.Database, mapping.RetentionPolicy, err))
 		}
 		for _, name := range names {
 			rows = append(rows, measurementRow{
@@ -510,6 +521,21 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context
 				rp:   mapping.RetentionPolicy,
 			})
 		}
+	}
+
+	// Surface as a hard error only when every source errored AND none
+	// produced rows. The two conditions are both needed:
+	//   - len(rows) == 0 alone is wrong: a wildcard mixing one error with
+	//     one empty-success source produces zero rows but is partial, not
+	//     total failure.
+	//   - len(allErrs) == len(mappings) alone is wrong: a partial fan-out
+	//     where each TSDBStore call returns (names, err) errors on every
+	//     source yet still yields rows, which the user should see with
+	//     warnings rather than as a hard failure.
+	if len(mappings) > 0 && len(allErrs) == len(mappings) && len(rows) == 0 {
+		return ectx.Send(ctx, &query.Result{
+			Err: errors.Join(allErrs...),
+		})
 	}
 
 	if q.Offset > 0 {
@@ -527,37 +553,66 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context
 	}
 
 	if len(rows) == 0 {
-		return ectx.Send(ctx, &query.Result{})
+		// Preserve partial-source warnings even when pagination (or an empty
+		// wildcard) leaves no rows to return — otherwise the user sees a clean
+		// empty result and never learns a source failed.
+		return ectx.Send(ctx, &query.Result{
+			Messages: messages,
+		})
 	}
 
+	var series *models.Row
 	if onlyPrintMeasurements {
 		values := make([][]interface{}, len(rows))
 		for i, r := range rows {
 			values[i] = []interface{}{string(r.name)}
 		}
-
-		return ectx.Send(ctx, &query.Result{
-			Series: []*models.Row{{
-				Name:    "measurements",
-				Columns: []string{"name"},
-				Values:  values,
-			}},
-		})
-	}
-
-	values := make([][]interface{}, len(rows))
-	for i, r := range rows {
-		values[i] = []interface{}{string(r.name), r.db, r.rp}
-	}
-
-	return ectx.Send(ctx, &query.Result{
-		Series: []*models.Row{{
+		series = &models.Row{
+			Name:    "measurements",
+			Columns: []string{"name"},
+			Values:  values,
+		}
+	} else {
+		values := make([][]interface{}, len(rows))
+		for i, r := range rows {
+			values[i] = []interface{}{string(r.name), r.db, r.rp}
+		}
+		series = &models.Row{
 			Name:    "measurements",
 			Columns: []string{"name", "database", "retention policy"},
 			Values:  values,
-		}},
-	})
+		}
+	}
 
+	return ectx.Send(ctx, &query.Result{
+		Series:   []*models.Row{series},
+		Messages: messages,
+	})
+}
+
+// formatMeasurementSource returns a canonical InfluxQL identifier for a
+// SHOW MEASUREMENTS source — `db.rp` when rp is non-empty, otherwise just
+// `db` — quoting each segment only when influxql.IdentNeedsQuotes deems it
+// necessary. Used to disambiguate wildcard fan-outs in per-source warning
+// Messages and labeled error joins; emitting canonical idents lets a user
+// paste the label back into a query if they want to drill in. Built by
+// quoting each segment independently rather than via influxql.QuoteIdent's
+// variadic form, which unconditionally quotes every non-trailing segment
+// and would yield asymmetric output like `"db".rp`.
+func formatMeasurementSource(db, rp string) string {
+	if rp != "" {
+		return influxql.QuoteIdent(db) + "." + influxql.QuoteIdent(rp)
+	}
+	return influxql.QuoteIdent(db)
+}
+
+// partialMeasurementsWarning builds a user-facing warning Message for a single
+// SHOW MEASUREMENTS source that failed (fully or partially).
+func partialMeasurementsWarning(db, rp string, err error) *query.Message {
+	return &query.Message{
+		Level: query.WarningLevel,
+		Text:  fmt.Sprintf("partial results for %s: %v", formatMeasurementSource(db, rp), err),
+	}
 }
 
 func (e *StatementExecutor) executeShowRetentionPoliciesStatement(ctx context.Context, q *influxql.ShowRetentionPoliciesStatement, ectx *query.ExecutionContext) (models.Rows, error) {
