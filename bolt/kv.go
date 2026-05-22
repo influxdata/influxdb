@@ -60,11 +60,14 @@ type KVStore struct {
 	// constructed at the end of NewKVStore. Set by WithStaleness;
 	// defaults to DefaultProbeStaleness.
 	probeStaleness time.Duration
+	// probeInterval is the period of the background prober's ticker.
+	// Set by WithProbeInterval; defaults to DefaultProbeInterval.
+	probeInterval time.Duration
 
 	// Background probe state. The prober is started by Open or WithDB,
 	// which runs one synchronous probe to seed probeState and then
-	// starts a background loop on DefaultProbeInterval calling
-	// runOneProbe. probeState is the live FreshnessResponse returned
+	// starts a background loop on probeInterval calling runOneProbe.
+	// probeState is the live FreshnessResponse returned
 	// by Check; its Status() flips to fail when no Update arrives
 	// within probeState.staleness.
 	//
@@ -99,6 +102,18 @@ func WithStaleness(d time.Duration) KVOption {
 	}
 }
 
+// WithProbeInterval overrides the period of the background prober's
+// ticker. Intended for tests that need probes to run more frequently
+// than DefaultProbeInterval; production callers should accept the
+// default. Callers that raise this above DefaultProbeInterval should
+// also raise the staleness budget via WithStaleness, since the budget
+// defaults to a small multiple of DefaultProbeInterval.
+func WithProbeInterval(d time.Duration) KVOption {
+	return func(s *KVStore) {
+		s.probeInterval = d
+	}
+}
+
 // WithCheckName sets the name reported by Check and CheckName.
 // Required for callers that register the store with a kit/check.Check
 // registry; other callers can omit it and leave CheckName empty.
@@ -115,6 +130,7 @@ func NewKVStore(log *zap.Logger, path string, opts ...KVOption) *KVStore {
 		path:           path,
 		log:            log,
 		probeStaleness: DefaultProbeStaleness,
+		probeInterval:  DefaultProbeInterval,
 	}
 
 	for _, opt := range opts {
@@ -291,7 +307,7 @@ func (s *KVStore) startProberOnce() {
 }
 
 func (s *KVStore) proberLoop() {
-	t := time.NewTicker(DefaultProbeInterval)
+	t := time.NewTicker(s.probeInterval)
 	defer t.Stop()
 	for {
 		select {

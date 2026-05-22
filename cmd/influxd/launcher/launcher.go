@@ -1171,7 +1171,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		m.reg.MustRegister(boltClient)
 		procID = boltClient.ID().String()
 
-		boltKV := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath, bolt.WithCheckName(SubsystemKV))
+		boltKV := bolt.NewKVStore(m.log.With(zap.String("service", SubsystemKV)), opts.BoltPath, bolt.WithCheckName(SubsystemKV))
 		boltKV.WithDB(boltClient.DB())
 		kvStore = boltKV
 		// boltKV's prober shares the *bolt.DB owned by boltClient; stop the
