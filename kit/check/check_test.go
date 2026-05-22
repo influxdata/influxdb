@@ -2,82 +2,43 @@ package check
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net"
-	"net/http"
-	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEmptyCheck(t *testing.T) {
 	c := NewCheck()
 	resp := c.CheckReady(context.Background())
-	if len(resp.Checks) > 0 {
-		t.Errorf("no checks added but %d returned", len(resp.Checks))
-	}
-
-	if resp.Name != "Ready" {
-		t.Errorf("expected: \"Ready\", got: %q", resp.Name)
-	}
-
-	if resp.Status != StatusPass {
-		t.Errorf("expected: %q, got: %q", StatusPass, resp.Status)
-	}
+	require.Empty(t, resp.Checks(), "no checks added")
+	require.Equal(t, NameReady, resp.Name())
+	require.Equal(t, StatusPass, resp.Status())
 }
 
 func TestAddHealthCheck(t *testing.T) {
 	h := NewCheck()
-	h.AddHealthCheck(Named("awesome", ErrCheck(func() error {
+	h.AddNamedHealthCheck(Named("awesome", ErrCheck(func() error {
 		return nil
 	})))
 	r := h.CheckHealth(context.Background())
-	if r.Status != StatusPass {
-		t.Error("Health should fail because one of the check is unhealthy")
-	}
-
-	if len(r.Checks) != 1 {
-		t.Fatalf("check not in results: %+v", r.Checks)
-	}
-
-	v := r.Checks[0]
-	if v.Status != StatusPass {
-		t.Errorf("the added check should be pass not %q.", v.Status)
-	}
+	require.Equal(t, StatusPass, r.Status())
+	require.Len(t, r.Checks(), 1)
+	require.Equal(t, StatusPass, r.Checks()[0].Status())
 }
 
 func TestAddUnHealthyCheck(t *testing.T) {
 	h := NewCheck()
-	h.AddHealthCheck(Named("failure", ErrCheck(func() error {
+	h.AddNamedHealthCheck(Named("failure", ErrCheck(func() error {
 		return errors.New("Oops! I am sorry")
 	})))
 	r := h.CheckHealth(context.Background())
-	if r.Status != StatusFail {
-		t.Error("Health should fail because one of the check is unhealthy")
-	}
-
-	if len(r.Checks) != 1 {
-		t.Fatal("check not in results")
-	}
-
-	v := r.Checks[0]
-	if v.Status != StatusFail {
-		t.Errorf("the added check should be fail not %s.", v.Status)
-	}
-	if v.Message != "Oops! I am sorry" {
-		t.Errorf(
-			"the error should be 'Oops! I am sorry' not  %s.",
-			v.Message,
-		)
-	}
-}
-
-func buildCheckWithServer() (*Check, *httptest.Server) {
-	c := NewCheck()
-	return c, httptest.NewServer(c)
+	require.Equal(t, StatusFail, r.Status())
+	require.Len(t, r.Checks(), 1)
+	require.Equal(t, StatusFail, r.Checks()[0].Status())
+	require.Equal(t, "Oops! I am sorry", r.Checks()[0].Message())
 }
 
 type mockCheck struct {
@@ -86,10 +47,7 @@ type mockCheck struct {
 }
 
 func (m mockCheck) Check(_ context.Context) Response {
-	return Response{
-		Name:   m.name,
-		Status: m.status,
-	}
+	return NewBasicResponse(m.name, m.status, "", nil)
 }
 
 func mockPass(name string) Checker {
@@ -100,38 +58,32 @@ func mockFail(name string) Checker {
 	return mockCheck{status: StatusFail, name: name}
 }
 
-func respBuilder(body io.ReadCloser) (*Response, error) {
-	defer body.Close()
-	d := json.NewDecoder(body)
-	r := &Response{}
-	return r, d.Decode(r)
+// assertResponseEqual compares the wire-visible fields of two Response
+// values. Used in place of reflect.DeepEqual because Response is an
+// interface; concrete impls may differ even when their derived fields
+// match.
+func assertResponseEqual(t *testing.T, want, got Response) {
+	t.Helper()
+	require.Equal(t, want.Name(), got.Name(), "name")
+	require.Equal(t, want.Status(), got.Status(), "status")
+	require.Equal(t, want.Message(), got.Message(), "message")
+	require.Equal(t, len(want.Checks()), len(got.Checks()), "checks length")
+	for i := range want.Checks() {
+		require.Equal(t, want.Checks()[i].Name(), got.Checks()[i].Name(), "checks[%d].name", i)
+		require.Equal(t, want.Checks()[i].Status(), got.Checks()[i].Status(), "checks[%d].status", i)
+		require.Equal(t, want.Checks()[i].Message(), got.Checks()[i].Message(), "checks[%d].message", i)
+	}
 }
 
-func TestBasicHTTPHandler(t *testing.T) {
-	_, ts := buildCheckWithServer()
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/ready")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected := &Response{
-		Name:   "Ready",
-		Status: StatusPass,
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
+func TestCheckReadyEmpty(t *testing.T) {
+	c := NewCheck()
+	actual := c.CheckReady(context.Background())
+	expected := NewBasicResponse(NameReady, StatusPass, "", Responses{})
+	assertResponseEqual(t, expected, actual)
 }
 
 func TestHealthSorting(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
+	c := NewCheck()
 
 	c.AddHealthCheck(mockPass("a"))
 	c.AddHealthCheck(mockPass("c"))
@@ -139,373 +91,92 @@ func TestHealthSorting(t *testing.T) {
 	c.AddHealthCheck(mockFail("k"))
 	c.AddHealthCheck(mockFail("b"))
 
-	resp, err := http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	actual := c.CheckHealth(context.Background())
 
-	expected := &Response{
-		Name:   "Health",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "b", Status: "fail"},
-			Response{Name: "k", Status: "fail"},
-			Response{Name: "a", Status: "pass"},
-			Response{Name: "b", Status: "pass"},
-			Response{Name: "c", Status: "pass"},
-		},
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-}
-
-func TestForceHealthy(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
-
-	c.AddHealthCheck(mockFail("a"))
-
-	_, err := http.Get(ts.URL + "/health?force=true&healthy=true")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err := http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := &Response{
-		Name:   "Health",
-		Status: "pass",
-		Checks: Responses{
-			Response{Name: "manual-override", Message: "health manually overridden"},
-			Response{Name: "a", Status: "fail"},
-		},
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-
-	_, err = http.Get(ts.URL + "/health?force=false")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected = &Response{
-		Name:   "Health",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "a", Status: "fail"},
-		},
-	}
-
-	resp, err = http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err = respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-}
-
-func TestForceUnhealthy(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
-
-	c.AddHealthCheck(mockPass("a"))
-
-	_, err := http.Get(ts.URL + "/health?force=true&healthy=false")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err := http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := &Response{
-		Name:   "Health",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "manual-override", Message: "health manually overridden"},
-			Response{Name: "a", Status: "pass"},
-		},
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-
-	_, err = http.Get(ts.URL + "/health?force=false")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected = &Response{
-		Name:   "Health",
-		Status: "pass",
-		Checks: Responses{
-			Response{Name: "a", Status: "pass"},
-		},
-	}
-
-	resp, err = http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err = respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-}
-
-func TestForceReady(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
-
-	c.AddReadyCheck(mockFail("a"))
-
-	_, err := http.Get(ts.URL + "/ready?force=true&ready=true")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err := http.Get(ts.URL + "/ready")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := &Response{
-		Name:   "Ready",
-		Status: "pass",
-		Checks: Responses{
-			Response{Name: "manual-override", Message: "ready manually overridden"},
-			Response{Name: "a", Status: "fail"},
-		},
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-
-	_, err = http.Get(ts.URL + "/ready?force=false")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected = &Response{
-		Name:   "Ready",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "a", Status: "fail"},
-		},
-	}
-
-	resp, err = http.Get(ts.URL + "/ready")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err = respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-}
-
-func TestForceNotReady(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
-
-	c.AddReadyCheck(mockPass("a"))
-
-	_, err := http.Get(ts.URL + "/ready?force=true&ready=false")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err := http.Get(ts.URL + "/ready")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := &Response{
-		Name:   "Ready",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "manual-override", Message: "ready manually overridden"},
-			Response{Name: "a", Status: "pass"},
-		},
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-
-	_, err = http.Get(ts.URL + "/ready?force=false")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected = &Response{
-		Name:   "Ready",
-		Status: "pass",
-		Checks: Responses{
-			Response{Name: "a", Status: "pass"},
-		},
-	}
-
-	resp, err = http.Get(ts.URL + "/ready")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err = respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
+	expected := NewBasicResponse(NameHealth, StatusFail, "", Responses{
+		NamedFail("b", ""),
+		NamedFail("k", ""),
+		NamedPass("a"),
+		NamedPass("b"),
+		NamedPass("c"),
+	})
+	assertResponseEqual(t, expected, actual)
 }
 
 func TestNoCrossOver(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
+	const (
+		nameA = "a"
+		nameB = "b"
+		nameC = "c"
+		nameK = "k"
+	)
+	c := NewCheck()
 
-	c.AddHealthCheck(mockPass("a"))
-	c.AddHealthCheck(mockPass("c"))
-	c.AddReadyCheck(mockPass("b"))
-	c.AddReadyCheck(mockFail("k"))
-	c.AddHealthCheck(mockFail("b"))
+	c.AddHealthCheck(mockPass(nameA))
+	c.AddHealthCheck(mockPass(nameC))
+	c.AddNamedReadyCheck(Named(nameB, mockPass(nameB)))
+	c.AddNamedReadyCheck(Named(nameK, mockFail(nameK)))
+	c.AddHealthCheck(mockFail(nameB))
 
-	resp, err := http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	actualHealth := c.CheckHealth(context.Background())
+	expectedHealth := NewBasicResponse(NameHealth, StatusFail, "", Responses{
+		NamedFail(nameB, ""),
+		NamedPass(nameA),
+		NamedPass(nameC),
+	})
+	assertResponseEqual(t, expectedHealth, actualHealth)
 
-	expected := &Response{
-		Name:   "Health",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "b", Status: "fail"},
-			Response{Name: "a", Status: "pass"},
-			Response{Name: "c", Status: "pass"},
-		},
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
-
-	resp, err = http.Get(ts.URL + "/ready")
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err = respBuilder(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected = &Response{
-		Name:   "Ready",
-		Status: "fail",
-		Checks: Responses{
-			Response{Name: "k", Status: "fail"},
-			Response{Name: "b", Status: "pass"},
-		},
-	}
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
-	}
+	actualReady := c.CheckReady(context.Background())
+	expectedReady := NewBasicResponse(NameReady, StatusFail, "", Responses{
+		NamedFail(nameK, ""),
+		NamedPass(nameB),
+	})
+	assertResponseEqual(t, expectedReady, actualReady)
 }
 
-func TestPassthrough(t *testing.T) {
-	c, ts := buildCheckWithServer()
-	defer ts.Close()
+func TestReadyCheckNames(t *testing.T) {
+	const (
+		nameA = "a"
+		nameB = "b"
+		nameC = "c"
+	)
+	c := NewCheck()
 
-	resp, err := http.Get(ts.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	names := c.ReadyCheckNames()
+	require.NotNil(t, names)
+	require.Empty(t, names)
 
-	if resp.StatusCode != 404 {
-		t.Fatalf("failed to error when no passthrough is present, status: %d", resp.StatusCode)
-	}
+	c.AddNamedReadyCheck(Named(nameA, mockPass(nameA)))
+	c.AddNamedReadyCheck(Named(nameB, mockPass(nameB)))
+	c.AddNamedReadyCheck(Named(nameC, mockPass(nameC)))
 
-	used := false
-	s := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		used = true
-		w.Write([]byte("hi"))
-	})
+	want := []string{nameA, nameB, nameC}
+	names = c.ReadyCheckNames()
+	require.Equal(t, want, names)
 
-	c.SetPassthrough(s)
+	names[0] = "MUTATED"
+	require.Equal(t, want, c.ReadyCheckNames())
+}
 
-	resp, err = http.Get(ts.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestAddHealthCheck_NamedCheckerDispatch(t *testing.T) {
+	// mockPass("") returns an empty name. Named("alpha", ...) must override
+	// it so the registered response carries "alpha".
+	c := NewCheck()
+	c.AddHealthCheck(Named("alpha", mockPass("")))
 
-	if resp.StatusCode != 200 {
-		t.Fatalf("bad response code from passthrough, status: %d", resp.StatusCode)
-	}
-
-	if !used {
-		t.Fatal("passthrough server not used")
-	}
+	resp := c.CheckHealth(context.Background())
+	require.Len(t, resp.Checks(), 1)
+	require.Equal(t, "alpha", resp.Checks()[0].Name())
 }
 
 func ExampleNewCheck() {
-	// Run the default healthcheck. it always return 200. It is good if you
-	// have a service without any dependency
 	h := NewCheck()
 	h.CheckHealth(context.Background())
 }
 
 func ExampleCheck_CheckHealth() {
 	h := NewCheck()
-	h.AddHealthCheck(Named("google", CheckerFunc(func(ctx context.Context) Response {
+	h.AddNamedHealthCheck(Named("google", CheckerFunc(func(ctx context.Context) Response {
 		var r net.Resolver
 		_, err := r.LookupHost(ctx, "google.com")
 		if err != nil {
@@ -516,20 +187,4 @@ func ExampleCheck_CheckHealth() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	h.CheckHealth(ctx)
-}
-
-func ExampleCheck_ServeHTTP() {
-	c := NewCheck()
-	http.ListenAndServe(":6060", c)
-}
-
-func ExampleCheck_SetPassthrough() {
-	c := NewCheck()
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello friends!"))
-	})
-
-	c.SetPassthrough(http.DefaultServeMux)
-	http.ListenAndServe(":6060", c)
 }

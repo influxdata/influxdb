@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/check"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -24,12 +25,59 @@ import (
 // check that *KVStore implement kv.SchemaStore interface.
 var _ kv.SchemaStore = (*KVStore)(nil)
 
+const (
+	// DefaultProbeInterval is how often the background prober probes the
+	// bolt DB. Picked to give /health callers near-fresh results without
+	// adding meaningful load to bolt.
+	DefaultProbeInterval = 1 * time.Second
+	// DefaultProbeStaleness is the default staleness budget on the
+	// freshness wrapper. After this much time without a successful probe
+	// update, /health reports fail with a "stale" message. Sized at 5x
+	// DefaultProbeInterval so a single skipped tick does not flip the
+	// status, but a wedged or dead prober goroutine becomes visible
+	// within a small multiple of the probe interval.
+	DefaultProbeStaleness = 5 * DefaultProbeInterval
+	// msgDatabaseNotOpen is the message recorded by runOneProbe when
+	// the underlying DB pointer is nil (Open hasn't been called yet, or
+	// WithDB was never given a DB).
+	msgDatabaseNotOpen = "bolt database not open"
+)
+
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
 	path string
 	mu   sync.RWMutex
 	db   *bolt.DB
 	log  *zap.Logger
+
+	// name is the check.Response name reported by this store. Set by
+	// WithCheckName; empty when no caller registers the store with
+	// kit/check (recovery, upgrade, tests). The launcher passes its
+	// own SubsystemKV here so subsystem identity stays owned in one
+	// place outside this package.
+	name string
+	// probeStaleness is the staleness budget used when probeState is
+	// constructed at the end of NewKVStore. Set by WithStaleness;
+	// defaults to DefaultProbeStaleness.
+	probeStaleness time.Duration
+	// probeInterval is the period of the background prober's ticker.
+	// Set by WithProbeInterval; defaults to DefaultProbeInterval.
+	probeInterval time.Duration
+
+	// Background probe state. The prober is started by Open or WithDB,
+	// which runs one synchronous probe to seed probeState and then
+	// starts a background loop on probeInterval calling runOneProbe.
+	// probeState is the live FreshnessResponse returned
+	// by Check; its Status() flips to fail when no Update arrives
+	// within probeState.staleness.
+	//
+	// probeStop is nil before startProberOnce; non-nil-and-open while
+	// the prober is running; non-nil-and-closed after Close. The first
+	// startProberOnce wins; subsequent calls (and post-Close Open/WithDB
+	// — user error) no-op when they observe probeStop != nil.
+	probeState *check.FreshnessResponse
+	probeMu    sync.Mutex
+	probeStop  chan struct{}
 
 	noSync bool
 }
@@ -44,20 +92,62 @@ func WithNoSync(s *KVStore) {
 	s.noSync = true
 }
 
+// WithStaleness overrides the staleness budget used when the probe
+// state's FreshnessResponse is constructed. Intended for tests that
+// need to observe staleness quickly; production callers should accept
+// the default.
+func WithStaleness(d time.Duration) KVOption {
+	return func(s *KVStore) {
+		s.probeStaleness = d
+	}
+}
+
+// WithProbeInterval overrides the period of the background prober's
+// ticker. Intended for tests that need probes to run more frequently
+// than DefaultProbeInterval; production callers should accept the
+// default. Callers that raise this above DefaultProbeInterval should
+// also raise the staleness budget via WithStaleness, since the budget
+// defaults to a small multiple of DefaultProbeInterval.
+func WithProbeInterval(d time.Duration) KVOption {
+	return func(s *KVStore) {
+		s.probeInterval = d
+	}
+}
+
+// WithCheckName sets the name reported by Check and CheckName.
+// Required for callers that register the store with a kit/check.Check
+// registry; other callers can omit it and leave CheckName empty.
+func WithCheckName(name string) KVOption {
+	return func(s *KVStore) {
+		s.name = name
+	}
+}
+
 // NewKVStore returns an instance of KVStore with the file at
 // the provided path.
 func NewKVStore(log *zap.Logger, path string, opts ...KVOption) *KVStore {
 	store := &KVStore{
-		path: path,
-		log:  log,
+		path:           path,
+		log:            log,
+		probeStaleness: DefaultProbeStaleness,
+		probeInterval:  DefaultProbeInterval,
 	}
 
 	for _, opt := range opts {
 		opt(store)
 	}
 
+	// Build probeState after options so WithCheckName and WithStaleness
+	// can be passed in any order and both are reflected on the wrapper.
+	store.probeState = check.NewFreshnessResponse(store.name, store.probeStaleness)
+
 	return store
 }
+
+// CheckName satisfies check.NamedChecker so registration via
+// AddHealthCheck takes the named-fast-path without an extra wrapper.
+// Returns the name configured by WithCheckName, or "" if unset.
+func (s *KVStore) CheckName() string { return s.name }
 
 // tempPath returns the path to the temporary file used by Restore().
 func (s *KVStore) tempPath() string {
@@ -88,6 +178,8 @@ func (s *KVStore) Open(ctx context.Context) error {
 		return fmt.Errorf("unable to open boltdb file %v", err)
 	}
 
+	s.startProberOnce()
+
 	s.log.Info("Resources opened", zap.String("path", s.path))
 	return nil
 }
@@ -100,8 +192,34 @@ func (s *KVStore) openDB() (err error) {
 	return nil
 }
 
-// Close the connection to the bolt database
+// StopProber signals the background prober (if any) to exit. It does
+// not close the underlying *bolt.DB. Idempotent and safe to call
+// concurrently. Intended for callers that own the DB lifecycle
+// separately (e.g. constructed the store via WithDB) and need to stop
+// the prober without closing the DB they own.
+func (s *KVStore) StopProber() {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
+	if s.probeStop == nil {
+		return
+	}
+	select {
+	case <-s.probeStop:
+		// Already stopped (idempotent).
+	default:
+		close(s.probeStop)
+	}
+}
+
+// Close signals the background prober (if any) to exit and closes the
+// underlying bolt database. Close does not wait for the prober: the
+// prober simply stops updating the freshness wrapper, which ages out
+// to a fail status within DefaultProbeStaleness. There is a window
+// after Close returns where Check may still report the last probe's
+// result; once staleness elapses, /health flips to fail.
 func (s *KVStore) Close() error {
+	s.StopProber()
+
 	if db := s.DB(); db != nil {
 		return db.Close()
 	}
@@ -150,11 +268,76 @@ func (s *KVStore) cleanBucket(tx *bolt.Tx, b *bolt.Bucket) {
 	}
 }
 
-// WithDB sets the boltdb on the store.
+// WithDB sets the boltdb on the store and starts the background health
+// prober if it has not yet been started.
 func (s *KVStore) WithDB(db *bolt.DB) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.db = db
+	s.mu.Unlock()
+	s.startProberOnce()
+}
+
+// Check returns the live freshness-aware probe state. It is
+// non-blocking: a background prober (started by Open / WithDB)
+// periodically probes the underlying bolt database via runOneProbe,
+// which calls Update on the wrapper. The wrapper's Status/Message
+// derive from the cached snapshot's age vs. configured staleness at
+// the moment they're read, so a wedged or dead prober flips /health
+// to fail once the snapshot ages past the budget. ctx is unused; it
+// is retained to satisfy the check.Checker interface.
+func (s *KVStore) Check(_ context.Context) check.Response {
+	return s.probeState
+}
+
+// startProberOnce starts the background prober the first time it is
+// called. Subsequent calls — including any Open/WithDB after Close —
+// observe probeStop != nil and no-op. One synchronous probe runs
+// before the goroutine is spawned so the freshness wrapper has a
+// snapshot by the time the caller continues.
+func (s *KVStore) startProberOnce() {
+	s.probeMu.Lock()
+	if s.probeStop != nil {
+		s.probeMu.Unlock()
+		return
+	}
+	s.probeStop = make(chan struct{})
+	s.probeMu.Unlock()
+	s.runOneProbe()
+	go s.proberLoop()
+}
+
+func (s *KVStore) proberLoop() {
+	t := time.NewTicker(s.probeInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.probeStop:
+			return
+		case <-t.C:
+			s.runOneProbe()
+		}
+	}
+}
+
+// runOneProbe issues a no-op View against the bolt database and
+// updates the freshness wrapper with the result. Called serially by
+// proberLoop, so it has no concurrency guard of its own. If db.View
+// wedges — bbolt's View cannot be cancelled — proberLoop blocks
+// inside this call and no further Updates arrive; the freshness
+// wrapper then ages past its staleness budget and /health flips to
+// fail. db.Close (on shutdown) unsticks any wedged View, letting the
+// goroutine exit.
+func (s *KVStore) runOneProbe() {
+	db := s.DB()
+	if db == nil {
+		s.probeState.Update(check.Fail(msgDatabaseNotOpen))
+		return
+	}
+	if err := db.View(func(*bolt.Tx) error { return nil }); err != nil {
+		s.probeState.Update(check.Error(err))
+		return
+	}
+	s.probeState.Update(check.Pass())
 }
 
 // View opens up a view transaction against the store.

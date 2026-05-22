@@ -13,6 +13,13 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
+// fluxQueryServiceName is the check.Response name reported by the
+// passing Check methods on the Flux query-service bridges in this
+// file. The launcher wraps these bridges in check.Named (under
+// SubsystemQuery) before registering them with /health, so this name
+// is only observed by direct callers (tests, REPL, etc.).
+const fluxQueryServiceName = "Flux Query Service"
+
 // QueryServiceBridge implements the QueryService interface while consuming the AsyncQueryService interface.
 type QueryServiceBridge struct {
 	AsyncQueryService AsyncQueryService
@@ -29,7 +36,7 @@ func (b QueryServiceBridge) Query(ctx context.Context, req *Request) (flux.Resul
 // Check returns the status of this query service.  Since this bridge consumes an AsyncQueryService,
 // which is not available over the network, this check always passes.
 func (QueryServiceBridge) Check(context.Context) check.Response {
-	return check.Response{Name: "Query Service", Status: check.StatusPass}
+	return check.NamedPass(fluxQueryServiceName)
 }
 
 // QueryServiceProxyBridge implements QueryService while consuming a ProxyQueryService interface.
@@ -165,7 +172,7 @@ func (b ProxyQueryServiceAsyncBridge) Query(ctx context.Context, w io.Writer, re
 // Check returns the status of this query service.  Since this bridge consumes an AsyncQueryService,
 // which is not available over the network, this check always passes.
 func (ProxyQueryServiceAsyncBridge) Check(context.Context) check.Response {
-	return check.Response{Name: "Query Service", Status: check.StatusPass}
+	return check.NamedPass(fluxQueryServiceName)
 }
 
 // REPLQuerier implements the repl.Querier interface while consuming a QueryService

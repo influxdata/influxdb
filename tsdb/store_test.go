@@ -3122,6 +3122,12 @@ func (m *mockStartupLogger) CompletedShard() {
 	m.mu.Unlock()
 }
 
+func (m *mockStartupLogger) ShardLoadFailed(shardID uint64, err error) {
+	m.mu.Lock()
+	m._shardTracker = append(m._shardTracker, fmt.Sprintf("shard-failed-%d-%s", shardID, err.Error()))
+	m.mu.Unlock()
+}
+
 func (m *mockStartupLogger) Tracked() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()

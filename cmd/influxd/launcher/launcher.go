@@ -27,6 +27,7 @@ import (
 	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/checks"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/run"
 	"github.com/influxdata/influxdb/v2/dashboards"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/dbrp"
@@ -36,6 +37,7 @@ import (
 	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/resource"
+	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/kit/metric"
@@ -151,6 +153,16 @@ type Launcher struct {
 	reg *prom.Registry
 
 	apibackend *http.APIBackend
+
+	checkHandler      *http.HealthReadyHandler
+	kvReady           *check.ReadyGate
+	sqliteReady       *check.ReadyGate
+	engineReady       *check.ReadyGate
+	replicationsReady *check.ReadyGate
+	queryReady        *check.ReadyGate
+	tasksReady        *check.ReadyGate
+	schedulerReady    *check.ReadyGate
+	startupProgress   *run.StartupProgressLogger
 }
 
 type stoppingScheduler interface {
@@ -174,6 +186,13 @@ func (m *Launcher) Registry() *prom.Registry {
 // for end-to-end testing purposes.
 func (m *Launcher) Engine() Engine {
 	return m.engine
+}
+
+// ReadyCheckNames returns the names of currently-registered /ready checks
+// in registration order. Intended for tests that want to assert which
+// subsystems gate readiness.
+func (m *Launcher) ReadyCheckNames() []string {
+	return m.checkHandler.ReadyCheckNames()
 }
 
 // Shutdown shuts down the HTTP server and waits for all services to clean up.
@@ -259,14 +278,71 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		return fmt.Errorf("error writing PIDFile %q: %w", opts.PIDFile, err)
 	}
 
+	// Bring up /health and /ready early so k8s probes have a responsive
+	// endpoint while slower subsystems (meta stores, storage engine, tasks,
+	// scheduler) finish initializing. Non-check requests return 503
+	// "starting" until SetHandler is called at the end of construction.
+	httpLogger := m.log.With(zap.String("service", "http"))
+	m.checkHandler = http.NewHealthReadyHandler(httpLogger)
+	m.kvReady = check.NewReadyGate(SubsystemKV)
+	m.sqliteReady = check.NewReadyGate(SubsystemSQLite)
+	m.engineReady = check.NewReadyGate(SubsystemEngine)
+	m.replicationsReady = check.NewReadyGate(SubsystemReplications)
+	m.queryReady = check.NewReadyGate(SubsystemQuery)
+	m.tasksReady = check.NewReadyGate(SubsystemTasks)
+	m.schedulerReady = check.NewReadyGate(SubsystemTaskScheduler)
+	m.startupProgress = run.NewStartupProgressLogger(
+		SubsystemShards,
+		m.log.With(zap.String("service", "startup-progress")))
+	m.checkHandler.AddNamedReadyCheck(m.kvReady)
+	m.checkHandler.AddNamedReadyCheck(m.sqliteReady)
+	m.checkHandler.AddNamedReadyCheck(m.engineReady)
+	m.checkHandler.AddNamedReadyCheck(m.replicationsReady)
+	m.checkHandler.AddNamedReadyCheck(m.queryReady)
+	m.checkHandler.AddNamedReadyCheck(m.tasksReady)
+	m.checkHandler.AddNamedReadyCheck(m.schedulerReady)
+	m.checkHandler.AddNamedReadyCheck(m.startupProgress.ReadyChecker())
+	m.checkHandler.AddNamedHealthCheck(m.startupProgress.HealthChecker())
+
+	// Under NoTasks the tasks subsystem and scheduler never start; pre-fire
+	// their gates so /ready does not block forever waiting on subsystems
+	// that will never come up. The gates remain registered and refer to the
+	// same fields the !NoTasks scheduler-init path fires later (see below),
+	// so /ready output is uniform between modes.
+	if opts.NoTasks {
+		m.tasksReady.Ready()
+		m.schedulerReady.Ready()
+	}
+
+	registerCloser, err := m.runHTTP(opts, m.checkHandler, httpLogger)
+	// Register the HTTP server's shutdown closer last (deferred until run
+	// returns) so that during Shutdown — which iterates closers in reverse —
+	// the listener is closed before subsystems are torn down.
+	defer registerCloser()
+	if err != nil {
+		return err
+	}
+
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(collectors.NewGoCollector())
 
-	// Open KV and SQL stores.
+	// Open KV and SQL stores. openMetaStores fires m.kvReady and
+	// m.sqliteReady individually as each store's migrations succeed.
 	procID, err := m.openMetaStores(ctx, opts)
 	if err != nil {
 		return err
 	}
+
+	// Surface metastore liveness on /health. In-memory KV (testing mode)
+	// has no meaningful failure surface; skip it. Both boltKV and
+	// m.sqlStore are registered via their own NamedChecker impls; their
+	// CheckNames were set to SubsystemKV / SubsystemSQLite at
+	// construction (see bolt.WithCheckName and sqlite.WithCheckName), so
+	// no extra Named wrap is needed here.
+	if boltKV, ok := m.kvStore.(*bolt.KVStore); ok {
+		m.checkHandler.AddNamedHealthCheck(boltKV)
+	}
+	m.checkHandler.AddNamedHealthCheck(m.sqlStore)
 	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	tenantStore := tenant.NewStore(m.kvStore)
@@ -357,13 +433,21 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 	m.engine.WithLogger(m.log)
-	if err := m.engine.Open(ctx); err != nil {
+	m.engine.WithStartupMetrics(m.startupProgress)
+	err = m.engine.Open(ctx)
+	// Finish startup progress whether Open succeeded or failed so /ready
+	// stops reporting a stale percentage. On failure the shards check
+	// latches into a terminal Fail that surfaces the error.
+	m.startupProgress.Finish(err)
+	if err != nil {
 		m.log.Error("Failed to open engine", zap.Error(err))
 		return err
 	}
+	m.engineReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
-		label: "engine",
+		label: SubsystemEngine,
 		closer: func(context.Context) error {
+			m.engineReady.Unready()
 			return m.engine.Close()
 		},
 	})
@@ -393,10 +477,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Error("Failed to open replications service", zap.Error(err))
 		return err
 	}
-
+	m.replicationsReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
-		label: "replications",
+		label: SubsystemReplications,
 		closer: func(context.Context) error {
+			m.replicationsReady.Unready()
 			return replicationSvc.Close()
 		},
 	})
@@ -445,9 +530,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Error("Failed to create query controller", zap.Error(err))
 		return err
 	}
+	m.queryReady.Ready()
 	m.closers = append(m.closers, labeledCloser{
-		label: "query",
+		label: SubsystemQuery,
 		closer: func(ctx context.Context) error {
+			m.queryReady.Unready()
 			return m.queryController.Shutdown(ctx)
 		},
 	})
@@ -455,6 +542,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
+	m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemQuery, storageQueryService))
 	var taskSvc taskmodel.TaskService
 	{
 		// create the task stack
@@ -486,10 +574,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		var sch stoppingScheduler = &scheduler.NoopScheduler{}
 		if !opts.NoTasks {
 			var (
-				sm  *scheduler.SchedulerMetrics
-				err error
+				sm      *scheduler.SchedulerMetrics
+				err     error
+				treeSch *scheduler.TreeScheduler
 			)
-			sch, sm, err = scheduler.NewScheduler(
+			treeSch, sm, err = scheduler.NewScheduler(
 				executor,
 				taskbackend.NewSchedulableTaskService(m.kvService),
 				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
@@ -500,21 +589,28 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 						zap.Error(err))
 				}),
 			)
+			sch = treeSch
 			if err != nil {
 				m.log.Fatal("could not start task scheduler", zap.Error(err))
 			}
 			m.closers = append(m.closers, labeledCloser{
-				label: "task",
+				label: SubsystemTaskScheduler,
 				closer: func(context.Context) error {
+					m.schedulerReady.Unready()
+					m.tasksReady.Unready()
 					sch.Stop()
 					return nil
 				},
 			})
 			m.reg.MustRegister(sm.PrometheusCollectors()...)
+			m.tasksReady.Ready()
+			m.schedulerReady.Ready()
+			// Register a pulse health check for the real tree scheduler.
+			// NoopScheduler has no pulse to monitor; skip it.
+			m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemTaskScheduler, run.NewSchedulerPulseCheck(treeSch, run.DefaultSchedulerPulseThreshold)))
 		}
 
 		m.scheduler = sch
-
 		coordLogger := m.log.With(zap.String("service", "task-coordinator"))
 		taskCoord := coordinator.NewCoordinator(
 			coordLogger,
@@ -553,6 +649,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		zap.Int("max_select_buckets", opts.CoordinatorConfig.MaxSelectBucketsN))
 
 	qe := iqlquery.NewExecutor(m.log, cm)
+	influxqlProxy := iqlquery.NewProxyExecutor(m.log, qe)
+	m.checkHandler.AddNamedHealthCheck(check.Named(SubsystemInfluxQL, influxqlProxy))
 	se := &iqlcoordinator.StatementExecutor{
 		MetaClient:        metaClient,
 		TSDBStore:         m.engine.TSDBStore(),
@@ -601,7 +699,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		return err
 	}
 	m.closers = append(m.closers, labeledCloser{
-		label: "scraper",
+		label: SubsystemScraper,
 		closer: func(ctx context.Context) error {
 			scraperScheduler.Close()
 			return nil
@@ -738,7 +836,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
 		PasswordsService:                ts.PasswordsService,
-		InfluxqldService:                iqlquery.NewProxyExecutor(m.log, qe),
+		InfluxqldService:                influxqlProxy,
 		FluxService:                     storageQueryService,
 		FluxLanguageService:             fluxlang.DefaultService,
 		TaskService:                     taskSvc,
@@ -928,7 +1026,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(configHandler),
 	)
 
-	httpLogger := m.log.With(zap.String("service", "http"))
 	var httpHandler nethttp.Handler = http.NewRootHandler(
 		"platform",
 		http.WithLog(httpLogger),
@@ -948,9 +1045,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	if !opts.ReportingDisabled {
 		m.runReporter(ctx)
 	}
-	if err := m.runHTTP(opts, httpHandler, httpLogger); err != nil {
-		return err
-	}
+	m.checkHandler.SetHandler(httpHandler)
 
 	return nil
 }
@@ -976,7 +1071,7 @@ func (m *Launcher) initTracing(opts *InfluxdOpts) {
 			return
 		}
 		m.closers = append(m.closers, labeledCloser{
-			label: "Jaeger tracer",
+			label: SubsystemJaeger,
 			closer: func(context.Context) error {
 				return closer.Close()
 			},
@@ -1041,7 +1136,7 @@ func (m *Launcher) writePIDFile(pidFilename string, overwrite bool) error {
 
 	// Add a cleanup function.
 	m.closers = append(m.closers, labeledCloser{
-		label: "pidfile",
+		label: SubsystemPIDFile,
 		closer: func(context.Context) error {
 			if err := os.Remove(pidFilename); err != nil {
 				return fmt.Errorf("removing PID file %q: %w", pidFilename, err)
@@ -1078,24 +1173,28 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 			m.log.Error("Failed opening bolt", zap.Error(err))
 			return "", err
 		}
-		m.closers = append(m.closers, labeledCloser{
-			label: "bolt",
-			closer: func(context.Context) error {
-				return boltClient.Close()
-			},
-		})
 		m.reg.MustRegister(boltClient)
 		procID = boltClient.ID().String()
 
-		boltKV := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
+		boltKV := bolt.NewKVStore(m.log.With(zap.String("service", SubsystemKV)), opts.BoltPath, bolt.WithCheckName(SubsystemKV))
 		boltKV.WithDB(boltClient.DB())
 		kvStore = boltKV
+		// boltKV's prober shares the *bolt.DB owned by boltClient; stop the
+		// prober before closing the DB so it does not see a torn handle.
+		m.closers = append(m.closers, labeledCloser{
+			label: SubsystemKV,
+			closer: func(context.Context) error {
+				m.kvReady.Unready()
+				boltKV.StopProber()
+				return boltClient.Close()
+			},
+		})
 
 		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
 		if opts.SqLitePath == "" {
 			opts.SqLitePath = filepath.Join(filepath.Dir(opts.BoltPath), sqlite.DefaultFilename)
 		}
-		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")))
+		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")), sqlite.WithCheckName(SubsystemSQLite))
 		if err != nil {
 			m.log.Error("Failed opening sqlite store", zap.Error(err))
 			return "", err
@@ -1103,7 +1202,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 
 	case MemoryStore:
 		kvStore = inmem.NewKVStore()
-		sqlStore, err = sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")))
+		sqlStore, err = sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")), sqlite.WithCheckName(SubsystemSQLite))
 		if err != nil {
 			m.log.Error("Failed opening sqlite store", zap.Error(err))
 			return "", err
@@ -1116,8 +1215,9 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 	}
 
 	m.closers = append(m.closers, labeledCloser{
-		label: "sqlite",
+		label: SubsystemSQLite,
 		closer: func(context.Context) error {
+			m.sqliteReady.Unready()
 			return sqlStore.Close()
 		},
 	})
@@ -1148,10 +1248,12 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		m.log.Error("Failed to apply KV migrations", zap.Error(err))
 		return "", err
 	}
+	m.kvReady.Ready()
 	if err := sqlMigrator.Up(ctx, sqliteMigrations.AllUp); err != nil {
 		m.log.Error("Failed to apply SQL migrations", zap.Error(err))
 		return "", err
 	}
+	m.sqliteReady.Ready()
 
 	m.kvStore = kvStore
 	m.sqlStore = sqlStore
@@ -1160,8 +1262,8 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 
 // runHTTP configures and launches a listener for incoming HTTP(S) requests.
 // The listener is run in a separate goroutine. If it fails to start up, it
-// will cancel the launcher.
-func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogger *zap.Logger) error {
+// will cancel the launcher. Returns a closer func to be called for shutdown.
+func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogger *zap.Logger) (func(), error) {
 	log := m.log.With(zap.String("service", "tcp-listener"))
 
 	httpServer := &nethttp.Server{
@@ -1173,15 +1275,17 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		IdleTimeout:       opts.HttpIdleTimeout,
 		ErrorLog:          zap.NewStdLog(httpLogger),
 	}
-	m.closers = append(m.closers, labeledCloser{
-		label:  "HTTP server",
-		closer: httpServer.Shutdown,
-	})
+	registerCloser := func() {
+		m.closers = append(m.closers, labeledCloser{
+			label:  SubsystemHTTPServer,
+			closer: httpServer.Shutdown,
+		})
+	}
 
 	ln, err := net.Listen("tcp", opts.HttpBindAddress)
 	if err != nil {
 		log.Error("Failed to set up TCP listener", zap.String("addr", opts.HttpBindAddress), zap.Error(err))
-		return err
+		return registerCloser, err
 	}
 	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
 		m.httpPort = addr.Port
@@ -1205,12 +1309,24 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 			log.Info("Stopping")
 		}(log)
 
-		return nil
+		return registerCloser, nil
+	}
+
+	// Cleanup for paths that fail after Listen but before Serve. The
+	// registered closer (httpServer.Shutdown) only closes listeners that
+	// the server tracks via Serve/ServeTLS, so it cannot release ln here;
+	// and m.wg.Add(1) above has no goroutine to decrement it.
+	cleanupBeforeServe := func() {
+		if cerr := ln.Close(); cerr != nil {
+			log.Warn("Failed to close TCP listener after error", zap.Error(cerr))
+		}
+		m.wg.Done()
 	}
 
 	if _, err = tls.LoadX509KeyPair(opts.HttpTLSCert, opts.HttpTLSKey); err != nil {
 		log.Error("Failed to load x509 key pair", zap.String("cert-path", opts.HttpTLSCert), zap.String("key-path", opts.HttpTLSKey))
-		return err
+		cleanupBeforeServe()
+		return registerCloser, err
 	}
 
 	var tlsMinVersion uint16
@@ -1231,7 +1347,8 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		}
 		tlsMinVersion = tls.VersionTLS13
 	default:
-		return fmt.Errorf("unsupported TLS version: %s", opts.HttpTLSMinVersion)
+		cleanupBeforeServe()
+		return registerCloser, fmt.Errorf("unsupported TLS version: %s", opts.HttpTLSMinVersion)
 	}
 
 	// nil uses the default cipher suite
@@ -1266,7 +1383,7 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		log.Info("Stopping")
 	}(log)
 
-	return nil
+	return registerCloser, nil
 }
 
 // runReporter configures and launches a periodic telemetry report for the server.

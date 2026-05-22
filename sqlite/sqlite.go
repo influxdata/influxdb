@@ -11,6 +11,7 @@ import (
 
 	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 
+	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
@@ -23,6 +24,10 @@ const (
 	DefaultFilename     = "influxd.sqlite"
 	InmemPath           = ":memory:"
 	migrationsTableName = "migrations"
+
+	// msgDatabaseNotOpen is returned when Check is called before the DB
+	// has been opened.
+	msgDatabaseNotOpen = "sqlite database not open"
 )
 
 // SqlStore is a wrapper around the db and provides basic functionality for maintaining the db
@@ -32,12 +37,34 @@ type SqlStore struct {
 	DB   *sqlx.DB
 	log  *zap.Logger
 	path string
+
+	// name is the check.Response name reported by Check and CheckName.
+	// Set by WithCheckName; empty when no caller registers the store
+	// with kit/check (downgrade, internal backup/restore, tests). The
+	// launcher passes its own SubsystemSQLite here so subsystem
+	// identity stays owned in one place outside this package.
+	name string
 }
 
-func NewSqlStore(path string, log *zap.Logger) (*SqlStore, error) {
+// SqlStoreOption configures a SqlStore at construction time.
+type SqlStoreOption func(*SqlStore)
+
+// WithCheckName sets the name reported by Check and CheckName.
+// Required for callers that register the store with a kit/check.Check
+// registry; other callers can omit it and leave CheckName empty.
+func WithCheckName(name string) SqlStoreOption {
+	return func(s *SqlStore) {
+		s.name = name
+	}
+}
+
+func NewSqlStore(path string, log *zap.Logger, opts ...SqlStoreOption) (*SqlStore, error) {
 	s := &SqlStore{
 		log:  log,
 		path: path,
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 
 	if err := s.openDB(); err != nil {
@@ -46,6 +73,11 @@ func NewSqlStore(path string, log *zap.Logger) (*SqlStore, error) {
 
 	return s, nil
 }
+
+// CheckName satisfies check.NamedChecker so registration via
+// AddHealthCheck takes the named-fast-path without an extra wrapper.
+// Returns the name configured by WithCheckName, or "" if unset.
+func (s *SqlStore) CheckName() string { return s.name }
 
 // open the file at the specified path
 func (s *SqlStore) openDB() error {
@@ -66,6 +98,27 @@ func (s *SqlStore) openDB() error {
 	s.DB = db
 
 	return nil
+}
+
+// Check pings the underlying sqlite database to confirm it is reachable.
+// The probe has an upper bound of check.DefaultProbeTimeout even when
+// ctx has no deadline, so /health latency stays bounded if the driver is
+// wedged. s.Mu is held as a reader so a concurrent RestoreSqlStore
+// (which swaps s.DB under the write lock) cannot observe a torn handle.
+// The response is stamped with s.name so the launcher can register the
+// store without an extra check.Named wrapper.
+func (s *SqlStore) Check(ctx context.Context) check.Response {
+	s.Mu.RLock()
+	defer s.Mu.RUnlock()
+	if s.DB == nil {
+		return check.NamedFail(s.name, msgDatabaseNotOpen)
+	}
+	probeCtx, cancel := check.BoundDeadline(ctx, check.DefaultProbeTimeout)
+	defer cancel()
+	if err := s.DB.PingContext(probeCtx); err != nil {
+		return check.NamedFail(s.name, err.Error())
+	}
+	return check.NamedPass(s.name)
 }
 
 // Close the connection to the sqlite database

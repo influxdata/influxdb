@@ -41,11 +41,9 @@ type Handler struct {
 
 type (
 	handlerOpts struct {
-		log           *zap.Logger
-		apiHandler    http.Handler
-		healthHandler http.Handler
-		readyHandler  http.Handler
-		pprofEnabled  bool
+		log          *zap.Logger
+		apiHandler   http.Handler
+		pprofEnabled bool
 
 		// NOTE: Track the registry even if metricsExposed = false
 		// so we can report HTTP metrics via telemetry.
@@ -109,8 +107,6 @@ func (h *AddHeader) Middleware(next http.Handler) http.Handler {
 func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 	opt := handlerOpts{
 		log:             zap.NewNop(),
-		healthHandler:   http.HandlerFunc(HealthHandler),
-		readyHandler:    ReadyHandler(),
 		pprofEnabled:    false,
 		metricsRegistry: nil,
 		metricsExposed:  false,
@@ -138,9 +134,9 @@ func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 		r.Use(
 			kithttp.Metrics(name, h.requests, h.requestDur),
 		)
+		// This handler mounts only metrics and debug endpoints here.
+		// /health and /ready are served separately by HealthReadyHandler.
 		r.Mount(MetricsPath, opt.metricsHTTPHandler())
-		r.Mount(ReadyPath, opt.readyHandler)
-		r.Mount(HealthPath, opt.healthHandler)
 		r.Mount(DebugPath, pprof.NewHTTPHandler(opt.pprofEnabled))
 	})
 

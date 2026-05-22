@@ -16,6 +16,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// queryServiceName is the check.Response name reported by ProxyExecutor.Check.
+// The launcher wraps ProxyExecutor in check.Named (under SubsystemInfluxQL)
+// before registering it with /health, so this name is only observed by direct
+// callers (tests, REPL, etc.).
+const queryServiceName = "InfluxQL Query Service"
+
 type ProxyExecutor struct {
 	log      *zap.Logger
 	executor *Executor
@@ -26,7 +32,7 @@ func NewProxyExecutor(log *zap.Logger, executor *Executor) *ProxyExecutor {
 }
 
 func (s *ProxyExecutor) Check(ctx context.Context) check.Response {
-	return check.Response{Name: "Query Service", Status: check.StatusPass}
+	return check.NamedPass(queryServiceName)
 }
 
 func (s *ProxyExecutor) Query(ctx context.Context, w io.Writer, req *iql.QueryRequest) (iql.Statistics, error) {

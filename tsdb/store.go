@@ -137,6 +137,7 @@ type Store struct {
 	startupProgressMetrics interface {
 		AddShard()
 		CompletedShard()
+		ShardLoadFailed(shardID uint64, err error)
 	}
 
 	closing chan struct{}
@@ -172,6 +173,7 @@ func (s *Store) WithLogger(log *zap.Logger) {
 func (s *Store) WithStartupMetrics(sp interface {
 	AddShard()
 	CompletedShard()
+	ShardLoadFailed(shardID uint64, err error)
 }) {
 	s.startupProgressMetrics = sp
 }
@@ -674,6 +676,9 @@ func (s *Store) registerShard(res *shardResponse) {
 	}
 	if res.err != nil {
 		s.badShards.setShardOpenError(res.s.ID(), res.err)
+		if s.startupProgressMetrics != nil {
+			s.startupProgressMetrics.ShardLoadFailed(res.s.ID(), res.err)
+		}
 		return
 	}
 

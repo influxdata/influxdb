@@ -59,7 +59,7 @@ func TestClientOpen(t *testing.T) {
 	}
 }
 
-func NewTestKVStore(t *testing.T) (*bolt.KVStore, func(), error) {
+func NewTestKVStore(t *testing.T, opts ...bolt.KVOption) (*bolt.KVStore, func(), error) {
 	f, err := os.CreateTemp("", "influxdata-platform-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")
@@ -67,7 +67,8 @@ func NewTestKVStore(t *testing.T) (*bolt.KVStore, func(), error) {
 	f.Close()
 
 	path := f.Name()
-	s := bolt.NewKVStore(zaptest.NewLogger(t), path, bolt.WithNoSync)
+	opts = append([]bolt.KVOption{bolt.WithNoSync}, opts...)
+	s := bolt.NewKVStore(zaptest.NewLogger(t), path, opts...)
 	if err := s.Open(context.TODO()); err != nil {
 		return nil, nil, err
 	}
