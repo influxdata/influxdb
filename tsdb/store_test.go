@@ -20,6 +20,11 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
+	"golang.org/x/time/rate"
+
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/internal"
 	"github.com/influxdata/influxdb/v2/models"
@@ -27,10 +32,8 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/pkg/snowflake"
 	"github.com/influxdata/influxdb/v2/predicate"
+	"github.com/influxdata/influxdb/v2/toml"
 	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxql"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 )
 
 // Ensure the store can delete a retention policy and all shards under
@@ -1115,6 +1118,66 @@ func TestStore_WRRSegments(t *testing.T) {
 			createWRRSnapshot(t, sh1WALPath)
 			sh1Uncommitted = nil
 			checkReopen(t)
+		})
+	}
+}
+
+// Ensure the store wires the configured compaction throughput rate limits
+// into the limiter the compactor uses.
+func TestStore_CompactionThroughputConfigs(t *testing.T) {
+	const (
+		throughput = 10 * 1024 * 1024 // 10 MB/s
+		burst      = 25 * 1024 * 1024 // 25 MB/s
+	)
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := NewStore(t, index)
+			s.EngineOptions.Config.CompactThroughput = toml.Size(throughput)
+			s.EngineOptions.Config.CompactThroughputBurst = toml.Size(burst)
+
+			require.NoError(t, s.Open(context.Background()))
+			defer s.CloseStore(t, index)
+
+			lim := s.EngineOptions.CompactionThroughputLimiter
+			require.NotNil(t, lim, "expected a compaction throughput limiter to be configured")
+
+			// The limiter the compactor uses must reflect the configured values.
+			require.Equal(t, burst, lim.Burst())
+
+			rl, ok := lim.(*rate.Limiter)
+			require.True(t, ok, "expected limiter to be a *rate.Limiter")
+			require.Equal(t, rate.Limit(throughput), rl.Limit())
+		})
+	}
+}
+
+// Ensure the store clamps the compaction throughput burst up to the throughput
+// rate when a smaller burst is configured.
+func TestStore_CompactionThroughputBurstClamped(t *testing.T) {
+	const (
+		throughput = 10 * 1024 * 1024 // 10 MB/s
+		burst      = 1 * 1024 * 1024  // 1 MB/s, smaller than throughput
+	)
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			s := NewStore(t, index)
+			s.EngineOptions.Config.CompactThroughput = toml.Size(throughput)
+			s.EngineOptions.Config.CompactThroughputBurst = toml.Size(burst)
+
+			require.NoError(t, s.Open(context.Background()))
+			defer s.CloseStore(t, index)
+
+			lim := s.EngineOptions.CompactionThroughputLimiter
+			require.NotNil(t, lim, "expected a compaction throughput limiter to be configured")
+
+			// A burst smaller than the throughput is raised to the throughput.
+			require.Equal(t, throughput, lim.Burst())
+
+			rl, ok := lim.(*rate.Limiter)
+			require.True(t, ok, "expected limiter to be a *rate.Limiter")
+			require.Equal(t, rate.Limit(throughput), rl.Limit())
 		})
 	}
 }
