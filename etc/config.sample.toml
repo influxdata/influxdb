@@ -178,7 +178,8 @@
   # Both settings must be specified together to enable adaptive sizing, or both
   # left at 0 to disable it (the default). When enabled,
   # series-id-set-cache-size must be > 0 and series-id-set-cache-max-size must
-  # be >= series-id-set-cache-size.
+  # be > series-id-set-cache-size (a cache that cannot grow is just a fixed
+  # cache; set only series-id-set-cache-size for that).
 
   # The upper bound on adaptive growth of the series-id-set cache. A value of 0
   # disables adaptive sizing.

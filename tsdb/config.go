@@ -96,6 +96,17 @@ const (
 	DefaultTarStreamBufferSize = toml.SSize(1024 * 1024) // 1MB
 )
 
+// Validation errors returned by Config.Validate for the TSI series-id-set
+// cache settings. Exported so tests can assert on them with errors.Is
+// rather than duplicating the message text.
+var (
+	ErrSeriesIDSetCacheMaxSizeNegative      = errors.New("series-id-set-cache-max-size must be non-negative")
+	ErrSeriesIDSetCacheTargetHitRateRange   = errors.New("series-id-set-cache-target-hit-rate must be in [0.0, 1.0]")
+	ErrAdaptiveCacheSizingPairing           = errors.New("series-id-set-cache-max-size and series-id-set-cache-target-hit-rate must both be set to enable adaptive cache sizing, or both be zero to disable it")
+	ErrAdaptiveCacheSizingRequiresCacheSize = errors.New("series-id-set-cache-size must be > 0 to use adaptive cache sizing")
+	ErrAdaptiveCacheMaxSizeTooSmall         = errors.New("series-id-set-cache-max-size must be > series-id-set-cache-size")
+)
+
 var SingleGenerationReasonText string = SingleGenerationReason()
 
 // SingleGenerationReason outputs a log message for our single generation compaction
@@ -273,22 +284,22 @@ func (c *Config) Validate() error {
 	}
 
 	if c.SeriesIDSetCacheMaxSize < 0 {
-		return errors.New("series-id-set-cache-max-size must be non-negative")
+		return ErrSeriesIDSetCacheMaxSizeNegative
 	}
 	if c.SeriesIDSetCacheTargetHitRate < 0 || c.SeriesIDSetCacheTargetHitRate > 1 {
-		return errors.New("series-id-set-cache-target-hit-rate must be in [0.0, 1.0]")
+		return ErrSeriesIDSetCacheTargetHitRateRange
 	}
 	adaptiveMax := c.SeriesIDSetCacheMaxSize > 0
 	adaptiveTarget := c.SeriesIDSetCacheTargetHitRate > 0
 	if adaptiveMax != adaptiveTarget {
-		return errors.New("series-id-set-cache-max-size and series-id-set-cache-target-hit-rate must both be set to enable adaptive cache sizing, or both be zero to disable it")
+		return ErrAdaptiveCacheSizingPairing
 	}
 	if adaptiveMax {
 		if c.SeriesIDSetCacheSize <= 0 {
-			return errors.New("series-id-set-cache-size must be > 0 to use adaptive cache sizing")
+			return ErrAdaptiveCacheSizingRequiresCacheSize
 		}
-		if c.SeriesIDSetCacheMaxSize < c.SeriesIDSetCacheSize {
-			return errors.New("series-id-set-cache-max-size must be >= series-id-set-cache-size")
+		if c.SeriesIDSetCacheMaxSize <= c.SeriesIDSetCacheSize {
+			return ErrAdaptiveCacheMaxSizeTooSmall
 		}
 	}
 

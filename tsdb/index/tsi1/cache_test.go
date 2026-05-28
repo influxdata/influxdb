@@ -252,7 +252,7 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 	statValues := func(cache *TagValueSeriesIDCache) map[string]interface{} {
 		stats := cache.Statistics(nil)
 		require.Len(t, stats, 1)
-		require.Equal(t, "tsi1_cache", stats[0].Name)
+		require.Equal(t, statTagValueCacheMeasurement, stats[0].Name)
 		return stats[0].Values
 	}
 
@@ -589,5 +589,5 @@ func TestIndex_WithLogger_PropagatesToAdaptiveCache(t *testing.T) {
 
 	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "cache should have grown after policy fired")
 	require.Equal(t, 1, logs.Len(), "resize event must be emitted to the logger propagated by WithLogger")
-	require.Equal(t, "tsi cache capacity increased", logs.All()[0].Message)
+	require.Equal(t, logMsgCacheCapacityIncreased, logs.All()[0].Message)
 }

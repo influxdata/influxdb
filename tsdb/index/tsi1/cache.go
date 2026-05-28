@@ -11,7 +11,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// Statistic names for the tag value series ID cache.
+// statTagValueCacheMeasurement is the measurement name under which the tag
+// value series ID cache reports its statistics.
+const statTagValueCacheMeasurement = "tsi1_cache"
+
+// logMsgCacheCapacityIncreased is the message logged when adaptive sizing
+// grows the cache. Shared with tests so the assertion tracks the source.
+const logMsgCacheCapacityIncreased = "tsi cache capacity increased"
+
+// Statistic field names for the tag value series ID cache.
 const (
 	statTagValueCacheHit      = "hit"
 	statTagValueCacheMiss     = "miss"
@@ -94,14 +102,15 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 // never shrinks. minSamples is a floor on the number of Get operations
 // observed in a window before the policy is allowed to act; below this
 // floor the rate is treated as too noisy to react to. Panics on invalid
-// arguments: initial must be > 0, max >= initial, target in (0, 1],
-// minSamples >= 0.
+// arguments: initial must be > 0, max > initial (an adaptive cache that
+// cannot grow is a misconfiguration — use NewTagValueSeriesIDCache for a
+// fixed cache), target in (0, 1], minSamples >= 0.
 func NewAdaptiveTagValueSeriesIDCache(initial, max int, target float64, minSamples int, logger *zap.Logger) *TagValueSeriesIDCache {
 	if initial <= 0 {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: initial must be > 0, got %d", initial))
 	}
-	if max < initial {
-		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: max (%d) must be >= initial (%d)", max, initial))
+	if max <= initial {
+		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: max (%d) must be > initial (%d)", max, initial))
 	}
 	if target <= 0 || target > 1 {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: target must be in (0, 1], got %v", target))
@@ -137,7 +146,7 @@ func (c *TagValueSeriesIDCache) SetLogger(logger *zap.Logger) {
 // Statistics returns statistics for periodic monitoring.
 func (c *TagValueSeriesIDCache) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
-		Name: "tsi1_cache",
+		Name: statTagValueCacheMeasurement,
 		Tags: tags,
 		Values: map[string]interface{}{
 			statTagValueCacheHit:      atomic.LoadInt64(&c.stats.Hits),
@@ -237,13 +246,11 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 	})
 	atomic.AddInt64(&c.stats.Size, 1)
 
-	// Add the listElement to the set of items.
+	// Add the listElement to the set of items. The tuple cannot already
+	// exist here: the exists() check at the top of Put returns early if it
+	// does, and nothing inserts into c.cache between that check and here.
 	if mmap, ok := c.cache[nameStr]; ok {
 		if tkmap, ok := mmap[keyStr]; ok {
-			if _, ok := tkmap[valueStr]; ok {
-				goto EVICT
-			}
-
 			// Add the set to the map
 			tkmap[valueStr] = listElement
 			goto EVICT
@@ -409,7 +416,7 @@ func decideResize(hits, misses, lastHits, lastMisses, capacity, maxCapacity, min
 // c.maxCapacity and c.targetHitRate directly — both are set at
 // construction and never mutated.
 func (c *TagValueSeriesIDCache) logResize(e resizeEvent) {
-	c.logger.Info("tsi cache capacity increased",
+	c.logger.Info(logMsgCacheCapacityIncreased,
 		zap.Int64("old_capacity", e.oldCap),
 		zap.Int64("new_capacity", e.newCap),
 		zap.Int64("max_capacity", c.maxCapacity),

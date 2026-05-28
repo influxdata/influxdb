@@ -2381,6 +2381,7 @@ func TestEngine_Statistics_TSI1Cache(t *testing.T) {
 	require.Contains(t, found.Values, "miss")
 	require.Contains(t, found.Values, "eviction")
 	require.Contains(t, found.Values, "size")
+	require.Contains(t, found.Values, "capacity")
 	require.Equal(t, "db0", found.Tags["database"])
 	require.Greater(t, found.Values["hit"].(int64), int64(0), "expected at least one cache hit")
 	require.Greater(t, found.Values["miss"].(int64), int64(0), "expected at least one cache miss")
