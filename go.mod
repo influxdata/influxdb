@@ -7,7 +7,7 @@ toolchain go1.26.3
 require (
 	collectd.org v0.3.0
 	github.com/BurntSushi/toml v1.4.0
-	github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db
+	github.com/apache/arrow-go/v18 v18.4.0
 	github.com/apache/arrow/go/v16 v16.1.0
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
@@ -88,7 +88,6 @@ require (
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/aokoli/goutils v1.0.1 // indirect
-	github.com/apache/arrow-go/v18 v18.4.0 // indirect
 	github.com/apache/arrow/go/v15 v15.0.2 // indirect
 	github.com/apache/thrift v0.22.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.4 // indirect
