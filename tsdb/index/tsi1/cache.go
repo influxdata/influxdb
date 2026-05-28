@@ -415,9 +415,12 @@ func decideResize(hits, misses, lastHits, lastMisses, capacity, maxCapacity, min
 		return capacity, gets, rate, false
 	}
 
-	newCap = capacity * 2
-	if newCap > maxCapacity {
+	// Clamp before doubling so large valid int64 capacities cannot
+	// overflow when applying the adaptive growth policy.
+	if capacity > maxCapacity/2 {
 		newCap = maxCapacity
+	} else {
+		newCap = capacity * 2
 	}
 	return newCap, gets, rate, true
 }
