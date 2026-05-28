@@ -59,19 +59,32 @@ type resizeEvent struct {
 // order by which items should be evicted from the cache, and a hashmap implementation
 // to provide constant time retrievals of items from the cache.
 type TagValueSeriesIDCache struct {
-	sync.RWMutex
-	cache   map[string]map[string]map[string]*list.Element
-	evictor *list.List
+	// Due to a bug in atomic, 64-bit words accessed with sync/atomic must be
+	// 64-bit aligned, and the first word of an allocated struct is the only
+	// position guaranteed to be 8-byte aligned on 32-bit platforms. Keep all
+	// atomically-accessed int64 fields (capacity and the stats counters)
+	// contiguous at the top of the struct, ahead of every other field.
+	// See: https://golang.org/pkg/sync/atomic/#pkg-note-BUG
 
 	// capacity is the current cache capacity. Read with atomic.LoadInt64
 	// (lockless reads from Statistics); written with atomic.StoreInt64 under
 	// the cache write lock when the adaptive policy grows it.
 	capacity int64
 
+	// stats holds the atomically-accessed counters. Its int64 fields stay
+	// 8-byte aligned because capacity above is exactly one 64-bit word.
+	stats TagValueSeriesIDCacheStatistics
+
+	sync.RWMutex
+	cache   map[string]map[string]map[string]*list.Element
+	evictor *list.List
+
 	// Adaptive sizing fields. maxCapacity == 0 means adaptive sizing is
 	// disabled and none of the other fields below are consulted. When
 	// enabled, lastHits/lastMisses/evictionsSinceCheck are read and written
-	// only under the write lock (checkEviction always holds it).
+	// only under the write lock (checkEviction always holds it). None of
+	// these int64 fields are accessed atomically, so their placement is
+	// unconstrained.
 	maxCapacity         int64
 	targetHitRate       float64
 	minSamples          int64
@@ -79,8 +92,6 @@ type TagValueSeriesIDCache struct {
 	evictionsSinceCheck int64
 	lastHits            int64
 	lastMisses          int64
-
-	stats TagValueSeriesIDCacheStatistics
 }
 
 // NewTagValueSeriesIDCache returns a TagValueSeriesIDCache with fixed

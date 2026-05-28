@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/stretchr/testify/require"
@@ -246,6 +247,18 @@ func (c TestCache) GetByString(name, key, value string) *tsdb.SeriesIDSet {
 
 func (c TestCache) PutByString(name, key, value string, ss *tsdb.SeriesIDSet) {
 	c.Put([]byte(name), []byte(key), []byte(value), ss)
+}
+
+// TestTagValueSeriesIDCache_AtomicFieldAlignment guards the struct layout:
+// fields accessed with sync/atomic (capacity and the stats counters) must be
+// 64-bit aligned, or atomic ops panic on 32-bit platforms. The allocation
+// base is guaranteed 8-byte aligned, so it suffices that these fields sit at
+// 8-byte-multiple offsets. The leading layout has no sub-8-byte fields, so
+// the offsets observed here (on any host) match those on 32-bit.
+func TestTagValueSeriesIDCache_AtomicFieldAlignment(t *testing.T) {
+	var c TagValueSeriesIDCache
+	require.Zero(t, unsafe.Offsetof(c.capacity)%8, "capacity must be 8-byte aligned")
+	require.Zero(t, unsafe.Offsetof(c.stats)%8, "stats counters must be 8-byte aligned")
 }
 
 func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
