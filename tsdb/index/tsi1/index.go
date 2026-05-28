@@ -274,6 +274,12 @@ func (i *Index) WithLogger(l *zap.Logger) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.logger = l.With(zap.String("index", "tsi"))
+	// The cache is constructed in NewIndex with the index's initial
+	// (no-op) logger; propagate the real logger so adaptive resize
+	// events are emitted to it.
+	if i.tagValueCache != nil {
+		i.tagValueCache.SetLogger(i.logger)
+	}
 }
 
 // Type returns the type of Index this is.

@@ -551,3 +551,43 @@ func TestTagValueSeriesIDCache_AdaptiveDisabled_NoLogNoGrowth(t *testing.T) {
 	require.Equal(t, int64(2), atomic.LoadInt64(&cache.capacity), "capacity must not change when adaptive sizing is disabled")
 	require.Equal(t, 0, logs.Len(), "no log lines must be emitted when adaptive sizing is disabled")
 }
+
+// TestIndex_WithLogger_PropagatesToAdaptiveCache verifies that WithLogger,
+// called after the adaptive cache has already been constructed in NewIndex
+// (with the index's initial no-op logger), re-points the cache at the real
+// logger so resize events are actually emitted. Regression test: previously
+// WithLogger only updated i.logger and the cache kept its no-op logger.
+func TestIndex_WithLogger_PropagatesToAdaptiveCache(t *testing.T) {
+	const minSamples = tsdb.DefaultAdaptiveCacheMinSamples
+
+	idx := NewIndex(nil, "db0",
+		WithSeriesIDCacheSize(2),
+		WithSeriesIDCacheMaxSize(16),
+		WithSeriesIDCacheTargetHitRate(0.99),
+	)
+
+	core, logs := observer.New(zap.InfoLevel)
+	idx.WithLogger(zap.New(core))
+
+	cache := idx.tagValueCache
+
+	// Fill the cache to capacity (2).
+	cache.Put([]byte("m"), []byte("k"), []byte{0}, tsdb.NewSeriesIDSet(0))
+	cache.Put([]byte("m"), []byte("k"), []byte{1}, tsdb.NewSeriesIDSet(1))
+
+	// Bank enough misses to clear the per-window sample floor without
+	// triggering evictions (Get never evicts).
+	for i := 0; i < minSamples; i++ {
+		require.Nil(t, cache.Get([]byte("m"), []byte("absent"), []byte{byte(i)}))
+	}
+
+	// Two more inserts of new keys cause two evictions; the second is the
+	// `capacity`-th eviction, firing the policy. The window hit rate is
+	// 0 (< 0.99 target) over >= minSamples gets, so the cache must grow.
+	cache.Put([]byte("m"), []byte("k"), []byte{2}, tsdb.NewSeriesIDSet(2))
+	cache.Put([]byte("m"), []byte("k"), []byte{3}, tsdb.NewSeriesIDSet(3))
+
+	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "cache should have grown after policy fired")
+	require.Equal(t, 1, logs.Len(), "resize event must be emitted to the logger propagated by WithLogger")
+	require.Equal(t, "tsi cache capacity increased", logs.All()[0].Message)
+}

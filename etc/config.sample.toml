@@ -167,6 +167,29 @@
   # increase in cache size may lead to an increase in heap usage.
   series-id-set-cache-size = 100
 
+  # Adaptive sizing for the TSI series-id-set cache. When enabled, the cache
+  # starts at series-id-set-cache-size and grows (doubling) up to
+  # series-id-set-cache-max-size whenever its observed query hit rate falls
+  # below series-id-set-cache-target-hit-rate while it is evicting. The cache
+  # never shrinks. Adaptive sizing trades higher heap usage for fewer cache
+  # misses on workloads whose working set of tag key/value predicates exceeds
+  # series-id-set-cache-size.
+  #
+  # Both settings must be specified together to enable adaptive sizing, or both
+  # left at 0 to disable it (the default). When enabled,
+  # series-id-set-cache-size must be > 0 and series-id-set-cache-max-size must
+  # be >= series-id-set-cache-size.
+
+  # The upper bound on adaptive growth of the series-id-set cache. A value of 0
+  # disables adaptive sizing.
+  # series-id-set-cache-max-size = 0
+
+  # The desired query hit rate for the series-id-set cache, expressed as a
+  # fraction in (0.0, 1.0]. The cache grows adaptively until either this hit
+  # rate is met or series-id-set-cache-max-size is reached. A value of 0.0
+  # disables adaptive sizing.
+  # series-id-set-cache-target-hit-rate = 0.0
+
   # The size of tar buffer window size in bytes while running tar
   # streaming operations such as renaming and copying tar files during backups.
   # The default value is 1MB. This should only change if backups are having performance issues
