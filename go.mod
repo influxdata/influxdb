@@ -2,12 +2,12 @@ module github.com/influxdata/influxdb
 
 go 1.26
 
-toolchain go1.26.2
+toolchain go1.26.3
 
 require (
 	collectd.org v0.3.0
 	github.com/BurntSushi/toml v1.4.0
-	github.com/apache/arrow/go/arrow v0.0.0-20211112161151-bc219186db40
+	github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db
 	github.com/apache/arrow/go/v16 v16.1.0
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
