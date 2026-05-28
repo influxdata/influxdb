@@ -79,6 +79,9 @@ type Index interface {
 	// Bytes estimates the memory footprint of this Index, in bytes.
 	Bytes() int
 
+	// Statistics returns index statistics for periodic monitoring.
+	Statistics(tags map[string]string) []models.Statistic
+
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string)
 

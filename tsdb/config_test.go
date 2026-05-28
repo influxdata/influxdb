@@ -6,6 +6,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_Parse(t *testing.T) {
@@ -74,6 +75,111 @@ func TestConfig_Validate_Error(t *testing.T) {
 	c.SeriesIDSetCacheSize = -1
 	if err := c.Validate(); err == nil || err.Error() != "series-id-set-cache-size must be non-negative" {
 		t.Errorf("unexpected error: %s", err)
+	}
+}
+
+func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
+	base := func() tsdb.Config {
+		c := tsdb.NewConfig()
+		c.Dir = "/var/lib/influxdb/data"
+		c.WALDir = "/var/lib/influxdb/wal"
+		return c
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(c *tsdb.Config)
+		wantErr string // "" = expect success
+	}{
+		{
+			name:    "defaults are valid (adaptive disabled)",
+			mutate:  func(c *tsdb.Config) {},
+			wantErr: "",
+		},
+		{
+			name: "negative max rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheMaxSize = -1
+			},
+			wantErr: "series-id-set-cache-max-size must be non-negative",
+		},
+		{
+			name: "negative target rate rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = -0.1
+			},
+			wantErr: "series-id-set-cache-target-hit-rate must be in [0.0, 1.0]",
+		},
+		{
+			name: "target rate above 1 rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = 1.01
+			},
+			wantErr: "series-id-set-cache-target-hit-rate must be in [0.0, 1.0]",
+		},
+		{
+			name: "max without target rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheMaxSize = 200
+			},
+			wantErr: "series-id-set-cache-max-size and series-id-set-cache-target-hit-rate must both be set to enable adaptive cache sizing, or both be zero to disable it",
+		},
+		{
+			name: "target without max rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: "series-id-set-cache-max-size and series-id-set-cache-target-hit-rate must both be set to enable adaptive cache sizing, or both be zero to disable it",
+		},
+		{
+			name: "adaptive enabled with cache disabled rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 0
+				c.SeriesIDSetCacheMaxSize = 200
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: "series-id-set-cache-size must be > 0 to use adaptive cache sizing",
+		},
+		{
+			name: "max < initial rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 200
+				c.SeriesIDSetCacheMaxSize = 100
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: "series-id-set-cache-max-size must be >= series-id-set-cache-size",
+		},
+		{
+			name: "adaptive enabled with valid configuration",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 100
+				c.SeriesIDSetCacheMaxSize = 1600
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: "",
+		},
+		{
+			name: "adaptive enabled at equal min/max boundary",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 100
+				c.SeriesIDSetCacheMaxSize = 100
+				c.SeriesIDSetCacheTargetHitRate = 1.0
+			},
+			wantErr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := base()
+			tt.mutate(&c)
+			err := c.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, tt.wantErr)
+			}
+		})
 	}
 }
 

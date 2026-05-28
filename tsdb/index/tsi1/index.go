@@ -49,6 +49,8 @@ func init() {
 			WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)),
 			WithMaximumLogFileAge(time.Duration(opt.Config.CompactFullWriteColdDuration)),
 			WithSeriesIDCacheSize(opt.Config.SeriesIDSetCacheSize),
+			WithSeriesIDCacheMaxSize(opt.Config.SeriesIDSetCacheMaxSize),
+			WithSeriesIDCacheTargetHitRate(opt.Config.SeriesIDSetCacheTargetHitRate),
 		)
 		return idx
 	})
@@ -131,14 +133,34 @@ var WithSeriesIDCacheSize = func(sz int) IndexOption {
 	}
 }
 
+// WithSeriesIDCacheMaxSize sets the upper bound on adaptive growth of
+// the series id set cache. A value of 0 disables adaptive sizing. Must
+// be paired with WithSeriesIDCacheTargetHitRate.
+var WithSeriesIDCacheMaxSize = func(sz int) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheMaxSize = sz
+	}
+}
+
+// WithSeriesIDCacheTargetHitRate sets the target Get hit rate used to
+// drive adaptive cache growth. A value of 0 disables adaptive sizing.
+// Must be paired with WithSeriesIDCacheMaxSize.
+var WithSeriesIDCacheTargetHitRate = func(rate float64) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheTargetHitRate = rate
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
 	partitions []*Partition
 	opened     bool
 
-	tagValueCache     *TagValueSeriesIDCache
-	tagValueCacheSize int
+	tagValueCache              *TagValueSeriesIDCache
+	tagValueCacheSize          int
+	tagValueCacheMaxSize       int     // 0 = adaptive sizing disabled
+	tagValueCacheTargetHitRate float64 // 0 = adaptive sizing disabled
 
 	// The following may be set when initializing an Index.
 	path               string        // Root directory of the index partitions.
@@ -189,7 +211,17 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 		option(idx)
 	}
 
-	idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
+	if idx.tagValueCacheMaxSize > 0 && idx.tagValueCacheTargetHitRate > 0 {
+		idx.tagValueCache = NewAdaptiveTagValueSeriesIDCache(
+			idx.tagValueCacheSize,
+			idx.tagValueCacheMaxSize,
+			idx.tagValueCacheTargetHitRate,
+			tsdb.DefaultAdaptiveCacheMinSamples,
+			idx.logger,
+		)
+	} else {
+		idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
+	}
 	return idx
 }
 
@@ -224,6 +256,14 @@ func (i *Index) Bytes() int {
 // Database returns the name of the database the index was initialized with.
 func (i *Index) Database() string {
 	return i.database
+}
+
+// Statistics returns statistics for periodic monitoring.
+func (i *Index) Statistics(tags map[string]string) []models.Statistic {
+	if i.tagValueCache == nil {
+		return nil
+	}
+	return i.tagValueCache.Statistics(tags)
 }
 
 // WithLogger sets the logger on the index after it's been created.

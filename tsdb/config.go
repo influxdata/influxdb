@@ -77,6 +77,12 @@ const (
 	// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache in the TSI index.
 	DefaultSeriesIDSetCacheSize = 100
 
+	// DefaultAdaptiveCacheMinSamples is the default floor on the number of
+	// Get operations observed in a single adaptive-sizing window before the
+	// policy is allowed to act on the measured hit rate. Below this floor
+	// the rate is treated as too noisy to react to.
+	DefaultAdaptiveCacheMinSamples = 100
+
 	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
 	// partition snapshot compactions that can run at one time.
 	// A value of 0 results in runtime.GOMAXPROCS(0).
@@ -176,6 +182,21 @@ type Config struct {
 	// Setting series-id-set-cache-size to 0 disables the cache.
 	SeriesIDSetCacheSize int `toml:"series-id-set-cache-size"`
 
+	// SeriesIDSetCacheMaxSize is the upper bound on adaptive growth of the
+	// TSI series-id-set cache. When set to a value greater than
+	// SeriesIDSetCacheSize and SeriesIDSetCacheTargetHitRate is also set,
+	// the cache will grow (doubling) past its initial size up to this
+	// ceiling whenever the observed hit rate falls below the target while
+	// the cache is evicting. A value of 0 disables adaptive sizing.
+	SeriesIDSetCacheMaxSize int `toml:"series-id-set-cache-max-size"`
+
+	// SeriesIDSetCacheTargetHitRate is the desired Get hit rate for the
+	// TSI series-id-set cache, expressed as a fraction in (0.0, 1.0].
+	// When set together with SeriesIDSetCacheMaxSize, the cache grows
+	// adaptively until either the target rate is met or the max size is
+	// reached. A value of 0.0 disables adaptive sizing.
+	SeriesIDSetCacheTargetHitRate float64 `toml:"series-id-set-cache-target-hit-rate"`
+
 	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
 	// that can be running at one time across all series partitions in a database. Snapshots scheduled
 	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
@@ -249,6 +270,26 @@ func (c *Config) Validate() error {
 
 	if c.SeriesIDSetCacheSize < 0 {
 		return errors.New("series-id-set-cache-size must be non-negative")
+	}
+
+	if c.SeriesIDSetCacheMaxSize < 0 {
+		return errors.New("series-id-set-cache-max-size must be non-negative")
+	}
+	if c.SeriesIDSetCacheTargetHitRate < 0 || c.SeriesIDSetCacheTargetHitRate > 1 {
+		return errors.New("series-id-set-cache-target-hit-rate must be in [0.0, 1.0]")
+	}
+	adaptiveMax := c.SeriesIDSetCacheMaxSize > 0
+	adaptiveTarget := c.SeriesIDSetCacheTargetHitRate > 0
+	if adaptiveMax != adaptiveTarget {
+		return errors.New("series-id-set-cache-max-size and series-id-set-cache-target-hit-rate must both be set to enable adaptive cache sizing, or both be zero to disable it")
+	}
+	if adaptiveMax {
+		if c.SeriesIDSetCacheSize <= 0 {
+			return errors.New("series-id-set-cache-size must be > 0 to use adaptive cache sizing")
+		}
+		if c.SeriesIDSetCacheMaxSize < c.SeriesIDSetCacheSize {
+			return errors.New("series-id-set-cache-max-size must be >= series-id-set-cache-size")
+		}
 	}
 
 	if c.SeriesFileMaxConcurrentSnapshotCompactions < 0 {
