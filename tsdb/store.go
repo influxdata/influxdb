@@ -45,11 +45,12 @@ var (
 
 // Statistics gathered by the store.
 const (
-	statDatabaseSeries       = "numSeries"       // number of series in a database
-	statDatabaseMeasurements = "numMeasurements" // number of measurements in a database
-	statPointsWritten        = "pointsWritten"   // number of points parsed by engines successfully
-	statValuesWritten        = "valuesWritten"   // number of values parsed by engines successfully
-	statSeriesCreated        = "seriesCreated"   // number of series created since startup
+	statDatabaseSeries       = "numSeries"          // number of series in a database
+	statDatabaseMeasurements = "numMeasurements"    // number of measurements in a database
+	statTagValueCacheBytes   = "tagValueCacheBytes" // bytes used by the tag value series ID cache
+	statPointsWritten        = "pointsWritten"      // number of points parsed by engines successfully
+	statValuesWritten        = "valuesWritten"      // number of values parsed by engines successfully
+	statSeriesCreated        = "seriesCreated"      // number of series created since startup
 )
 
 // SeriesFileDirectory is the name of the directory containing series files for
@@ -200,6 +201,22 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	s.mu.RLock()
 	shards := s.shardsSlice()
 	s.mu.RUnlock()
+
+	// Collect tag value cache bytes from unique indexes, grouped by database.
+	dbCacheBytes := make(map[string]int64)
+	seenIndexes := make(map[uintptr]bool)
+	for _, sh := range shards {
+		idx, err := sh.Index()
+		if err != nil || idx == nil {
+			continue
+		}
+		id := idx.UniqueReferenceID()
+		if !seenIndexes[id] {
+			seenIndexes[id] = true
+			dbCacheBytes[sh.Database()] += idx.TagValueCacheBytes()
+		}
+	}
+
 	// Add all the series and measurements cardinality estimations.
 	databases := s.Databases()
 	statistics := make([]models.Statistic, 0, len(databases))
@@ -223,6 +240,7 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 			Values: map[string]interface{}{
 				statDatabaseSeries:       sc,
 				statDatabaseMeasurements: mc,
+				statTagValueCacheBytes:   dbCacheBytes[database],
 			},
 		})
 	}

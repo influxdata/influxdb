@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 )
 
 // This function is used to log the components of disk size when DiskSizeBytes fails
@@ -148,6 +149,53 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 	cache.Has(t, "m2", "k0", "v1", m2k0v1)
 	cache.Has(t, "m2", "k0", "v2", m2k0v2)
 	cache.Has(t, "m3", "k0", "v0", m3k0v0)
+}
+
+// TestTagValueSeriesIDCache_HeapSize verifies that HeapSize tracks memory growth
+// as entries are added, shrinks after eviction, and handles nil SeriesIDSets.
+func TestTagValueSeriesIDCache_HeapSize(t *testing.T) {
+	cache := TestCache{NewTagValueSeriesIDCache(10)}
+
+	emptySize := cache.HeapSize()
+	require.Positive(t, emptySize)
+
+	cache.PutByString("m0", "k0", "v0", tsdb.NewSeriesIDSet(1, 2, 3))
+	sizeAfterOne := cache.HeapSize()
+	require.Greater(t, sizeAfterOne, emptySize)
+
+	cache.PutByString("m0", "k0", "v1", tsdb.NewSeriesIDSet(100, 200, 300, 400, 500))
+	sizeAfterTwo := cache.HeapSize()
+	require.Greater(t, sizeAfterTwo, sizeAfterOne)
+
+	cache.PutByString("m1", "k0", "v0", tsdb.NewSeriesIDSet(1000))
+	sizeAfterThree := cache.HeapSize()
+	require.Greater(t, sizeAfterThree, sizeAfterTwo)
+}
+
+// TestTagValueSeriesIDCache_HeapSize_eviction verifies that evicting a large
+// entry and replacing it with a small one reduces the reported HeapSize.
+func TestTagValueSeriesIDCache_HeapSize_eviction(t *testing.T) {
+	cache := TestCache{NewTagValueSeriesIDCache(2)}
+
+	large := make([]uint64, 1000)
+	for i := range large {
+		large[i] = uint64(i)
+	}
+	cache.PutByString("m0", "k0", "v0", tsdb.NewSeriesIDSet(large...))
+	cache.PutByString("m0", "k0", "v1", tsdb.NewSeriesIDSet(large...))
+	fullSize := cache.HeapSize()
+
+	cache.PutByString("m0", "k0", "v2", tsdb.NewSeriesIDSet(1))
+	require.Less(t, cache.HeapSize(), fullSize)
+}
+
+// TestTagValueSeriesIDCache_HeapSize_nil_set verifies that a nil SeriesIDSet
+// entry is counted without panicking.
+func TestTagValueSeriesIDCache_HeapSize_nil_set(t *testing.T) {
+	cache := TestCache{NewTagValueSeriesIDCache(10)}
+
+	cache.PutByString("m0", "k0", "v0", nil)
+	require.Positive(t, cache.HeapSize())
 }
 
 func TestTagValueSeriesIDCache_addToSet(t *testing.T) {

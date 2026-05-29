@@ -76,6 +76,10 @@ type Index interface {
 	// Size of the index on disk, if applicable.
 	DiskSizeBytes() int64
 
+	// TagValueCacheBytes is the size of tag value cache for TSI indexes.
+	// This is only to be used with TSI.
+	TagValueCacheBytes() int64
+
 	// Bytes estimates the memory footprint of this Index, in bytes.
 	Bytes() int
 
