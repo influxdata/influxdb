@@ -63,7 +63,17 @@ ignore = [
     "RUSTSEC-2026-0091", # GHSA-394w-hwhg-8vgm: OOB write from unvalidated guest realloc
     "RUSTSEC-2026-0114", # GHSA-p8xm-42r7-89xg: Panic when allocating a table exceeding the size of the host's address space
     #
+    # WASI filesystem access required (we don't grant any preopened dirs to UDFs):
+    "RUSTSEC-2026-0149", # GHSA-2r75-cxrj-cmph: WASI path_open(TRUNCATE) bypasses FilePerms::WRITE host restriction
+    #
     # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=42.0.2)
+
+    # rand unsoundness: only reachable with rand's `log` feature plus a custom logger
+    # that calls rand::rng() and triggers a reseed. We don't enable rand's `log`
+    # feature (verified via `cargo tree -e features -i rand`), so the UB path is
+    # unreachable. Patched in rand >=0.9.3 / >=0.8.6; the 0.8.x copy is pinned
+    # transitively via cap-rand/wasmtime. Tracked for a version bump on main.
+    "RUSTSEC-2026-0097", # rand unsound with custom logger calling thread_rng (log feature not enabled here)
 ]
 git-fetch-with-cli = true
 
@@ -120,3 +130,11 @@ deny = [
     # Use stdlib ( https://doc.rust-lang.org/stable/std/io/trait.IsTerminal.html )
     { name = "atty" },
 ]
+
+# rand's `log` feature enables the RUSTSEC-2026-0097 unsoundness path
+# (custom logger calling rand::rng() during reseed). The advisory is
+# ignored above on the basis that this feature is not enabled; this ban
+# enforces that invariant.
+[[bans.features]]
+name = "rand"
+deny = ["log"]

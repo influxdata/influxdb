@@ -271,7 +271,7 @@ jobs:
           command: cargo install cargo-deny --locked
       - run:
           name: cargo-deny Checks
-          command: cargo deny check -s --warn unsound
+          command: cargo deny check -s
 
   doc:
     docker:
