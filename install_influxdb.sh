@@ -72,7 +72,7 @@
 # CONFIGURATION OPTIONS:
 #   Command Line Arguments:
 #     [enterprise]        Install Enterprise edition (default: Core)
-#     --version VERSION   Specify InfluxDB version (default: 3.8.0)
+#     --version VERSION   Specify InfluxDB version (default: 3.9.3)
 #
 #   Interactive Prompts (Binary Installation):
 #     Installation Type:  Docker Compose or Binary
@@ -167,8 +167,8 @@ PORT=8181
 # Set the default (latest) version here. Users may specify a version using the
 # --version arg (handled below)
 INFLUXDB_VERSION_FLAG_SET="0"
-INFLUXDB_OSS_VERSION="3.9.2"
-INFLUXDB_ENT_VERSION="3.9.2"
+INFLUXDB_OSS_VERSION="3.9.3"
+INFLUXDB_ENT_VERSION="3.9.3"
 
 EDITION="Core"
 EDITION_TAG="core"
@@ -279,15 +279,23 @@ find_next_available_port() {
 
 # --- Browser Integration ---
 
-# Utility function to open URL in browser
+# Open URL in the user's default browser. Runs synchronously and surfaces
+# errors so a failed launch is visible.
 open_browser_url() {
     URL="$1"
     if command -v open >/dev/null 2>&1; then
-        open "$URL" >/dev/null 2>&1 &
+        OPENER="open"
     elif command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "$URL" >/dev/null 2>&1 &
+        OPENER="xdg-open"
     elif command -v start >/dev/null 2>&1; then
-        start "$URL" >/dev/null 2>&1 &
+        OPENER="start"
+    else
+        printf "├─${YELLOW} No browser opener found — open %s manually${NC}\n" "$URL"
+        return 0
+    fi
+    printf "├─ Opening %s in your default browser\n" "$URL"
+    if ! "$OPENER" "$URL" >/dev/null; then
+        printf "├─${YELLOW} Browser opener (%s) failed — open %s manually${NC}\n" "$OPENER" "$URL"
     fi
 }
 
@@ -542,6 +550,7 @@ generate_docker_compose_yaml() {
     SESSION_SECRET="$2"
     LICENSE_EMAIL="$3"
     DOCKER_DIR="$4"
+    LICENSE_TYPE="$5"  # "trial"/"home", or empty to reuse an existing license
 
     USER_UID=$(id -u)
     USER_GID=$(id -g)
@@ -553,6 +562,11 @@ generate_docker_compose_yaml() {
         CLUSTER_ARG="      - --cluster-id=cluster0"
         ENV_SECTION="    environment:
       - INFLUXDB3_ENTERPRISE_LICENSE_EMAIL=\${INFLUXDB_EMAIL}"
+        # Empty LICENSE_TYPE means reuse an existing license file.
+        if [ -n "$LICENSE_TYPE" ]; then
+            ENV_SECTION="${ENV_SECTION}
+      - INFLUXDB3_ENTERPRISE_LICENSE_TYPE=${LICENSE_TYPE}"
+        fi
     else
         SERVICE_NAME="influxdb3-core"
         IMAGE_NAME="influxdb:3-core"
@@ -589,7 +603,8 @@ ${ENV_SECTION}}
     container_name: influxdb3-explorer
     command: ["--mode=admin"]
     ports:
-      - "${EXPLORER_PORT}:80"
+      # Explorer image nginx listens on 8080 (was 80 prior to influxdb3-ui v1.7.0).
+      - "${EXPLORER_PORT}:8080"
     volumes:
       - ./explorer/db:/db:rw
       - ./explorer/config:/app-root/config:ro
@@ -711,16 +726,7 @@ setup_docker_compose() {
         elif [ -z "$LICENSE_EMAIL" ]; then
             # Prompt for license if not provided
             printf "\n${BOLD}License Setup Required${NC}\n"
-            printf "1) ${GREEN}Trial${NC} ${DIM}- Full features for 30 days (up to 256 cores)${NC}\n"
-            printf "2) ${GREEN}Home${NC} ${DIM}- Free for non-commercial use (max 2 cores, single node)${NC}\n"
-            printf "\nEnter your choice (1-2): "
-            read -r LICENSE_CHOICE
-
-            case "${LICENSE_CHOICE:-1}" in
-                1) LICENSE_TYPE="trial" ;;
-                2) LICENSE_TYPE="home" ;;
-                *) LICENSE_TYPE="trial" ;;
-            esac
+            prompt_license_type
 
             printf "Enter your email: "
             read -r LICENSE_EMAIL
@@ -750,7 +756,7 @@ setup_docker_compose() {
     SESSION_SECRET=$(generate_session_secret)
 
     printf "├─ Creating docker-compose.yml\n"
-    generate_docker_compose_yaml "$EDITION_TYPE" "$SESSION_SECRET" "$LICENSE_EMAIL" "$DOCKER_DIR"
+    generate_docker_compose_yaml "$EDITION_TYPE" "$SESSION_SECRET" "$LICENSE_EMAIL" "$DOCKER_DIR" "$LICENSE_TYPE"
 
     cd "$DOCKER_DIR"
 
@@ -957,6 +963,27 @@ configure_google_cloud_storage() {
 
 # --- Enterprise License ---
 
+# Prompt for the Enterprise license type. Sets LICENSE_TYPE and LICENSE_DESC.
+# Re-prompts on invalid input; aborts on EOF rather than defaulting to trial.
+prompt_license_type() {
+    printf "1) ${GREEN}Trial${NC} ${DIM}- Full features for 30 days (up to 256 cores)${NC}\n"
+    printf "2) ${GREEN}Home${NC} ${DIM}- Free for non-commercial use (max 2 cores, single node)${NC}\n"
+    while true; do
+        printf "Enter your choice (1-2): "
+        if ! read -r LICENSE_CHOICE; then
+            printf "\n${RED}Error:${NC} No license type selected and no interactive input is available.\n"
+            printf "Re-run this installer in an interactive terminal, or start the server\n"
+            printf "manually with --license-type=trial or --license-type=home.\n"
+            exit 1
+        fi
+        case "$LICENSE_CHOICE" in
+            1) LICENSE_TYPE="trial"; LICENSE_DESC="Trial"; return ;;
+            2) LICENSE_TYPE="home"; LICENSE_DESC="Home"; return ;;
+            *) printf "${YELLOW}Please enter 1 for Trial or 2 for Home.${NC}\n" ;;
+        esac
+    done
+}
+
 # Function to set up license for Enterprise Quick Start
 setup_license_for_quick_start() {
     # Check if license file exists
@@ -969,26 +996,7 @@ setup_license_for_quick_start() {
         # Prompt for license type and email only
         printf "\n"
         printf "${BOLD}License Setup Required${NC}\n"
-        printf "1) ${GREEN}Trial${NC} ${DIM}- Full features for 30 days (up to 256 cores)${NC}\n"
-        printf "2) ${GREEN}Home${NC} ${DIM}- Free for non-commercial use (max 2 cores, single node)${NC}\n"
-        printf "\n"
-        printf "Enter your choice (1-2): "
-        read -r LICENSE_CHOICE
-
-        case "${LICENSE_CHOICE:-1}" in
-            1)
-                LICENSE_TYPE="trial"
-                LICENSE_DESC="Trial"
-                ;;
-            2)
-                LICENSE_TYPE="home"
-                LICENSE_DESC="Home"
-                ;;
-            *)
-                LICENSE_TYPE="trial"
-                LICENSE_DESC="Trial"
-                ;;
-        esac
+        prompt_license_type
 
         printf "Enter your email: "
         read -r LICENSE_EMAIL
@@ -1345,6 +1353,7 @@ if [ "${EDITION}" = "Core" ]; then
             ;;
         *)
             printf "Invalid choice. Using Quick Start (option 1).\n"
+            STARTUP_CHOICE=1  # normalize so downstream STARTUP_CHOICE checks match
             setup_quick_start_defaults core
             ;;
     esac
@@ -1441,6 +1450,7 @@ else
             # Quick Start - use defaults and check for existing license
             if [ "$STARTUP_CHOICE" != "1" ]; then
                 printf "Invalid choice. Using Quick Start (option 1).\n"
+                STARTUP_CHOICE=1  # normalize so downstream STARTUP_CHOICE checks match
             fi
             setup_quick_start_defaults enterprise
             setup_license_for_quick_start
@@ -1524,26 +1534,7 @@ else
         # Prompt for license type
         printf "\n"
         printf "${BOLD}Select Your License Type${NC}\n"
-        printf "├─ 1) Trial - Full features for 30 days (up to 256 cores)\n"
-        printf "├─ 2) Home - Free for non-commercial use (max 2 cores, single node)\n"
-        printf "└─ Enter your choice (1-2): "
-        read -r LICENSE_CHOICE
-
-        case "$LICENSE_CHOICE" in
-            1)
-                LICENSE_TYPE="trial"
-                LICENSE_DESC="Trial"
-                ;;
-            2)
-                LICENSE_TYPE="home"
-                LICENSE_DESC="Home"
-                ;;
-            *)
-                printf "Invalid choice. Defaulting to trial.\n"
-                LICENSE_TYPE="trial"
-                LICENSE_DESC="Trial"
-                ;;
-        esac
+        prompt_license_type
 
         # Prompt for email
         printf "\n"
