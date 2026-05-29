@@ -3,6 +3,7 @@ package tsi1
 import (
 	"container/list"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 
@@ -18,6 +19,16 @@ const statTagValueCacheMeasurement = "tsi1_cache"
 // logMsgCacheCapacityIncreased is the message logged when adaptive sizing
 // grows the cache. Shared with tests so the assertion tracks the source.
 const logMsgCacheCapacityIncreased = "tsi cache capacity increased"
+
+// logMsgCacheCapacityDecreased is the message logged when adaptive sizing
+// shrinks the cache. Shared with tests so the assertion tracks the source.
+const logMsgCacheCapacityDecreased = "tsi cache capacity decreased"
+
+// shrinkCooldownWindows is the number of shrink-evaluation windows for which
+// shrink is suppressed after any capacity change (grow or shrink). It prevents
+// grow⇄shrink oscillation; only shrink respects it (grow always reacts to real
+// eviction pressure immediately).
+const shrinkCooldownWindows = 3
 
 // Statistic field names for the tag value series ID cache.
 const (
@@ -38,12 +49,13 @@ type TagValueSeriesIDCacheStatistics struct {
 	Size      int64
 }
 
-// resizeEvent describes a single capacity-growth event. Snapshot fields are
-// captured under the cache write lock so the log line can be emitted by the
-// caller after releasing the lock.
+// resizeEvent describes a single capacity-change event (grow or shrink).
+// Snapshot fields are captured under the cache write lock so the log line can be
+// emitted by the caller after releasing the lock. evicted is set only for shrink
+// events (entries shed to reach the new capacity); it is 0 for grow.
 type resizeEvent struct {
-	oldCap, newCap, gets int64
-	rate                 float64
+	oldCap, newCap, gets, evicted int64
+	rate                          float64
 }
 
 // TagValueSeriesIDCache is an LRU cache for series id sets associated with
@@ -92,6 +104,24 @@ type TagValueSeriesIDCache struct {
 	evictionsSinceCheck int64
 	lastHits            int64
 	lastMisses          int64
+
+	// Shrink (capacity-decay) state. Written only under the write lock; not
+	// accessed atomically, so placement is unconstrained. minCapacity is the
+	// floor (the configured initial size); capacity never shrinks below it.
+	// A window spans getsSinceShrinkCheck Gets up to shrinkWindowGets (0 means
+	// no active window — recompute from current occupancy on the next Get). The
+	// shrinkBase* fields snapshot the stats counters at window start so deltas
+	// can be measured. deepestTouched marks the back of the warm front-prefix
+	// observed this window (the LRU access footprint). cooldownRemaining gates
+	// shrink for a few windows after any capacity change.
+	minCapacity          int64
+	getsSinceShrinkCheck int64
+	shrinkWindowGets     int64
+	shrinkBaseHits       int64
+	shrinkBaseMisses     int64
+	shrinkBaseEvictions  int64
+	cooldownRemaining    int64
+	deepestTouched       *list.Element
 }
 
 // NewTagValueSeriesIDCache returns a TagValueSeriesIDCache with fixed
@@ -115,7 +145,8 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 // floor the rate is treated as too noisy to react to. Panics on invalid
 // arguments: initial must be > 0, max > initial (an adaptive cache that
 // cannot grow is a misconfiguration — use NewTagValueSeriesIDCache for a
-// fixed cache), target in (0, 1], minSamples >= 0.
+// fixed cache), target in (0, 1) (1.0 is unachievable and is rejected by config
+// validation), minSamples >= 0.
 func NewAdaptiveTagValueSeriesIDCache(initial, max int, target float64, minSamples int, logger *zap.Logger) *TagValueSeriesIDCache {
 	if initial <= 0 {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: initial must be > 0, got %d", initial))
@@ -123,8 +154,8 @@ func NewAdaptiveTagValueSeriesIDCache(initial, max int, target float64, minSampl
 	if max <= initial {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: max (%d) must be > initial (%d)", max, initial))
 	}
-	if target <= 0 || target > 1 {
-		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: target must be in (0, 1], got %v", target))
+	if target <= 0 || target >= 1 {
+		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: target must be in (0, 1), got %v", target))
 	}
 	if minSamples < 0 {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: minSamples must be >= 0, got %d", minSamples))
@@ -136,6 +167,7 @@ func NewAdaptiveTagValueSeriesIDCache(initial, max int, target float64, minSampl
 		cache:         map[string]map[string]map[string]*list.Element{},
 		evictor:       list.New(),
 		capacity:      int64(initial),
+		minCapacity:   int64(initial),
 		maxCapacity:   int64(max),
 		targetHitRate: target,
 		minSamples:    int64(minSamples),
@@ -173,14 +205,27 @@ func (c *TagValueSeriesIDCache) Statistics(tags map[string]string) []models.Stat
 // exists.
 func (c *TagValueSeriesIDCache) Get(name, key, value []byte) *tsdb.SeriesIDSet {
 	c.Lock()
-	defer c.Unlock()
-	return c.get(name, key, value)
+	ss := c.get(name, key, value)
+	// Drive the adaptive shrink check from the read path: the grow check is
+	// eviction-driven and is blind when the cache is quiet (exactly when a
+	// shrink may be warranted). Log after releasing the lock, like Put.
+	event, shrank := c.checkShrink()
+	c.Unlock()
+	if shrank {
+		c.logShrink(event)
+	}
+	return ss
 }
 
 func (c *TagValueSeriesIDCache) get(name, key, value []byte) *tsdb.SeriesIDSet {
 	if mmap, ok := c.cache[string(name)]; ok {
 		if tkmap, ok := mmap[string(key)]; ok {
 			if ele, ok := tkmap[string(value)]; ok {
+				// Track the LRU access footprint for the shrink policy before
+				// MoveToFront moves the element (the rule reads ele.Prev()).
+				if c.maxCapacity != 0 {
+					c.trackTouchLocked(ele)
+				}
 				c.evictor.MoveToFront(ele) // This now becomes most recently used.
 				atomic.AddInt64(&c.stats.Hits, 1)
 				return ele.Value.(*seriesIDCacheElement).SeriesIDSet
@@ -189,6 +234,26 @@ func (c *TagValueSeriesIDCache) get(name, key, value []byte) *tsdb.SeriesIDSet {
 	}
 	atomic.AddInt64(&c.stats.Misses, 1)
 	return nil
+}
+
+// trackTouchLocked maintains deepestTouched — the back-most element of the warm
+// front-prefix (the deepest element touched this window). Called on a hit before
+// MoveToFront. Invariant: touched elements form a contiguous front-prefix, so the
+// boundary only recedes (toward the front) when the boundary element is itself
+// re-touched (it is about to jump to the front); touching a cold or non-deepest
+// warm element leaves the boundary unchanged. Must be called under the write lock.
+func (c *TagValueSeriesIDCache) trackTouchLocked(e *list.Element) {
+	switch {
+	case c.deepestTouched == nil:
+		c.deepestTouched = e
+	case e == c.deepestTouched:
+		// Re-touching the boundary moves it to the front; its predecessor (still
+		// warm) becomes the new boundary. Keep e if it is already at the front
+		// (warm set is the single element {e}).
+		if p := e.Prev(); p != nil {
+			c.deepestTouched = p
+		}
+	}
 }
 
 // exists returns true if the item exists for the tuple {name, key, value}.
@@ -317,26 +382,8 @@ func (c *TagValueSeriesIDCache) checkEviction() (resizeEvent, bool) {
 	if int64(c.evictor.Len()) <= atomic.LoadInt64(&c.capacity) {
 		return resizeEvent{}, false
 	}
-
-	e := c.evictor.Back() // Least recently used item.
-	listElement := e.Value.(*seriesIDCacheElement)
-	name := listElement.name
-	key := listElement.key
-	value := listElement.value
-
-	c.evictor.Remove(e)                                       // Remove from evictor
-	delete(c.cache[string(name)][string(key)], string(value)) // Remove from hashmap of items.
-	atomic.AddInt64(&c.stats.Evictions, 1)
-	atomic.AddInt64(&c.stats.Size, -1)
-
-	// Check if there are no more tag values for the tag key.
-	if len(c.cache[string(name)][string(key)]) == 0 {
-		delete(c.cache[string(name)], string(key))
-	}
-
-	// Check there are no more tag keys for the measurement.
-	if len(c.cache[string(name)]) == 0 {
-		delete(c.cache, string(name))
+	if !c.evictLRULocked() {
+		return resizeEvent{}, false
 	}
 
 	// Adaptive sizing: skip entirely when disabled to keep the hot path
@@ -351,6 +398,44 @@ func (c *TagValueSeriesIDCache) checkEviction() (resizeEvent, bool) {
 	}
 	c.evictionsSinceCheck = 0
 	return c.maybeResizeLocked()
+}
+
+// evictLRULocked removes the least-recently-used entry (the back of the evictor
+// list) from the eviction list, the cache maps, and the size/eviction counters.
+// Returns false if the cache is empty. Must be called under the write lock.
+// Shared by the grow path (checkEviction) and the shrink trim.
+func (c *TagValueSeriesIDCache) evictLRULocked() bool {
+	e := c.evictor.Back() // Least recently used item.
+	if e == nil {
+		return false
+	}
+	listElement := e.Value.(*seriesIDCacheElement)
+	name := listElement.name
+	key := listElement.key
+	value := listElement.value
+
+	// Drop the shrink footprint boundary if it points at the element being
+	// evicted (only possible via the grow path on an all-warm cache). Avoids a
+	// dangling pointer; such a window has evictionsW > 0 and is gated out anyway.
+	if e == c.deepestTouched {
+		c.deepestTouched = nil
+	}
+
+	c.evictor.Remove(e)               // Remove from evictor
+	delete(c.cache[name][key], value) // Remove from hashmap of items.
+	atomic.AddInt64(&c.stats.Evictions, 1)
+	atomic.AddInt64(&c.stats.Size, -1)
+
+	// Check if there are no more tag values for the tag key.
+	if len(c.cache[name][key]) == 0 {
+		delete(c.cache[name], key)
+	}
+
+	// Check there are no more tag keys for the measurement.
+	if len(c.cache[name]) == 0 {
+		delete(c.cache, name)
+	}
+	return true
 }
 
 // maybeResizeLocked samples the windowed hit rate, calls the pure policy
@@ -377,6 +462,9 @@ func (c *TagValueSeriesIDCache) maybeResizeLocked() (resizeEvent, bool) {
 	}
 
 	atomic.StoreInt64(&c.capacity, newCap)
+	// Suppress shrink for a few windows after a grow so a freshly-grown cache
+	// (occupancy ~50% of the new capacity) isn't immediately clawed back.
+	c.cooldownRemaining = shrinkCooldownWindows
 	return resizeEvent{
 		oldCap: curCap,
 		newCap: newCap,
@@ -438,6 +526,238 @@ func (c *TagValueSeriesIDCache) logResize(e resizeEvent) {
 		zap.Float64("target", c.targetHitRate),
 		zap.Int64("gets_window", e.gets),
 	)
+}
+
+// checkShrink advances the Get-driven shrink window and, when a window
+// completes, evaluates whether to shrink the cache. It is called from Get under
+// the write lock and returns a resizeEvent the caller should log after releasing
+// the lock (the bool is true iff a shrink occurred). When adaptive sizing is
+// disabled it does nothing, keeping the read path free of shrink bookkeeping.
+func (c *TagValueSeriesIDCache) checkShrink() (resizeEvent, bool) {
+	if c.maxCapacity == 0 {
+		return resizeEvent{}, false
+	}
+
+	// Start a window if none is active (first ever, or just completed). The
+	// window length is recomputed from current occupancy each time. The current
+	// Get's hit was already folded into deepestTouched by get(), so the boundary
+	// is reset only at window completion, never here.
+	if c.shrinkWindowGets == 0 {
+		c.shrinkWindowGets = shrinkWindowLen(int64(c.evictor.Len()), c.minSamples, c.targetHitRate)
+		c.getsSinceShrinkCheck = 0
+		c.shrinkBaseHits = atomic.LoadInt64(&c.stats.Hits)
+		c.shrinkBaseMisses = atomic.LoadInt64(&c.stats.Misses)
+		c.shrinkBaseEvictions = atomic.LoadInt64(&c.stats.Evictions)
+		if c.shrinkWindowGets == 0 {
+			// Cache too small (n < 2) to evaluate. Clear the boundary so a
+			// warm-up touch can't carry into the first real window.
+			c.deepestTouched = nil
+			return resizeEvent{}, false
+		}
+	}
+
+	c.getsSinceShrinkCheck++
+	if c.getsSinceShrinkCheck < c.shrinkWindowGets {
+		return resizeEvent{}, false
+	}
+
+	// Window complete. Evaluate unless a recent capacity change is cooling down.
+	var event resizeEvent
+	var shrank bool
+	if c.cooldownRemaining > 0 {
+		c.cooldownRemaining--
+	} else if e, ok := c.maybeShrinkLocked(); ok {
+		event, shrank = e, true
+		c.cooldownRemaining = shrinkCooldownWindows
+	}
+
+	// End the window: a fresh one (with a recomputed length) starts on the next
+	// Get, and the footprint resets so the next window measures cleanly.
+	c.shrinkWindowGets = 0
+	c.deepestTouched = nil
+	return event, shrank
+}
+
+// maybeShrinkLocked measures the completed window, consults the shrink policy,
+// and applies the result: it evicts up to the bounded number of LRU-tail entries
+// and lowers capacity. The O(size) footprint walk (warmCountLocked) is performed
+// only when the gates pass, the slack branch does not apply, and there is in fact
+// an untouched tail — so gated-out and slack windows stay O(1). Must be called
+// under the write lock.
+func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
+	hitsW := atomic.LoadInt64(&c.stats.Hits) - c.shrinkBaseHits
+	missesW := atomic.LoadInt64(&c.stats.Misses) - c.shrinkBaseMisses
+	evictionsW := atomic.LoadInt64(&c.stats.Evictions) - c.shrinkBaseEvictions
+
+	curCap := atomic.LoadInt64(&c.capacity)
+	size := int64(c.evictor.Len())
+
+	newCap, shrink, coldTail := decideShrinkPre(hitsW, missesW, evictionsW, curCap, size, c.minCapacity, c.targetHitRate)
+
+	var evicted int64
+	if coldTail {
+		// The cache is full and the gates passed. Short-circuit the footprint
+		// walk when the whole cache was touched this window (the boundary is at
+		// the LRU tail) or nothing was touched: there is no cold tail to shed.
+		if c.deepestTouched == nil || c.deepestTouched == c.evictor.Back() {
+			return resizeEvent{}, false
+		}
+		var evict int64
+		newCap, evict, shrink = decideColdTail(size, c.warmCountLocked(), c.minCapacity)
+		if !shrink {
+			return resizeEvent{}, false
+		}
+		for evicted < evict && c.evictLRULocked() {
+			evicted++
+		}
+		// Derive the new capacity from what was actually evicted so the
+		// invariant size <= capacity holds even if the list emptied early.
+		newCap = size - evicted
+	} else if !shrink {
+		return resizeEvent{}, false
+	}
+
+	atomic.StoreInt64(&c.capacity, newCap)
+
+	gets := hitsW + missesW
+	var rate float64
+	if gets > 0 {
+		rate = float64(hitsW) / float64(gets)
+	}
+	return resizeEvent{oldCap: curCap, newCap: newCap, gets: gets, evicted: evicted, rate: rate}, true
+}
+
+// warmCountLocked returns the number of entries in the warm front-prefix
+// (Front() through deepestTouched, inclusive) = the distinct entries touched
+// this window. Must be called under the write lock.
+func (c *TagValueSeriesIDCache) warmCountLocked() int64 {
+	if c.deepestTouched == nil {
+		return 0
+	}
+	var n int64
+	for e := c.evictor.Front(); e != nil; e = e.Next() {
+		n++
+		if e == c.deepestTouched {
+			break
+		}
+	}
+	return n
+}
+
+// logShrink emits a single INFO log line describing a capacity-shrink event.
+// Called by Get after releasing the cache write lock.
+func (c *TagValueSeriesIDCache) logShrink(e resizeEvent) {
+	c.logger.Info(logMsgCacheCapacityDecreased,
+		zap.Int64("old_capacity", e.oldCap),
+		zap.Int64("new_capacity", e.newCap),
+		zap.Int64("min_capacity", c.minCapacity),
+		zap.Int64("evicted", e.evicted),
+		zap.Float64("hit_rate", e.rate),
+		zap.Int64("gets_window", e.gets),
+	)
+}
+
+// shrinkWindowLen returns how many Gets to observe before evaluating a shrink,
+// sized so that under ~uniform random access over n cached items the expected
+// fraction left untouched is <= (1-target). An entry still untouched after a
+// full window is therefore genuinely cold, not merely unsampled. The length
+// scales ~linearly with n (≈ 3n at target 0.95). minWindow floors the result so
+// tiny caches don't act on noisy windows. Returns 0 when n < 2 (too small to
+// evaluate). Precondition: target < 1 (config validation rejects target >= 1).
+// As defense, a target that rounds to 1 makes the window infinite; rather than
+// overflow the float->int64 conversion, that degenerate case returns MaxInt64
+// ("effectively never shrink"), which is the correct behavior for an
+// unachievable target.
+func shrinkWindowLen(n, minWindow int64, target float64) int64 {
+	if n < 2 {
+		return 0
+	}
+	// window = ceil( ln(1-target) / ln((n-1)/n) ); both logs are negative.
+	wf := math.Ceil(math.Log(1-target) / math.Log(float64(n-1)/float64(n)))
+	if wf >= float64(math.MaxInt64) { // +Inf (target rounds to 1) or out of range
+		return math.MaxInt64
+	}
+	w := int64(wf)
+	if w < minWindow {
+		w = minWindow
+	}
+	return w
+}
+
+// decideShrink implements the full capacity-decay policy as a pure function of
+// the window's counters, the current occupancy, and the observed access
+// footprint. It mirrors decideResize so the policy can be exercised with integer
+// literals. It composes decideShrinkPre and decideColdTail; production code calls
+// those two directly so the O(size) footprint walk that produces warmCount is
+// only performed when the cold-tail branch is actually reached (see
+// maybeShrinkLocked).
+//
+// Gates (all required): at least one read, zero evictions this window (the cache
+// is not under capacity pressure), and a windowed hit rate >= target (the cache
+// is serving its working set well). When gated through, one of two branches fires:
+//   - slack: capacity exceeds occupancy -> drop the unused headroom (no eviction).
+//   - cold-tail: cache is full -> shed the LRU tail that went untouched this
+//     window, down to the warm footprint (warmCount), clamped at floor, and
+//     bounded to half the cache per event so the write lock is not held long.
+//
+// The evicted entries are always within the untouched cold tail, so warm entries
+// are never shed.
+func decideShrink(hitsW, missesW, evictionsW, capacity, size, warmCount, floor int64, target float64) (newCap, evict int64, shrink bool) {
+	newCap, shrink, coldTail := decideShrinkPre(hitsW, missesW, evictionsW, capacity, size, floor, target)
+	if coldTail {
+		return decideColdTail(size, warmCount, floor)
+	}
+	return newCap, 0, shrink
+}
+
+// decideShrinkPre evaluates everything that does not require the access footprint:
+// the gates and the slack branch. It returns the slack result (newCap/shrink), or
+// coldTail=true to signal that the cache is full and the caller must measure the
+// warm footprint and consult decideColdTail. When coldTail is true, newCap/shrink
+// are not meaningful.
+func decideShrinkPre(hitsW, missesW, evictionsW, capacity, size, floor int64, target float64) (newCap int64, shrink, coldTail bool) {
+	gets := hitsW + missesW
+	if gets <= 0 || evictionsW != 0 {
+		return capacity, false, false
+	}
+	if float64(hitsW)/float64(gets) < target {
+		return capacity, false, false
+	}
+
+	// Slack branch: capacity above occupancy. Drop the unused headroom; no
+	// eviction is needed because occupancy already fits the smaller capacity.
+	if capacity > size {
+		newCap = size
+		if newCap < floor {
+			newCap = floor
+		}
+		if newCap >= capacity {
+			return capacity, false, false
+		}
+		return newCap, true, false
+	}
+
+	// Cache is full (capacity == size): the decision needs the footprint.
+	return capacity, false, true
+}
+
+// decideColdTail trims a full cache to the warm footprint, clamped at floor and
+// bounded to half the cache per event so the write lock is not held long.
+// Returns the new capacity, the number of LRU-tail entries to evict to reach it,
+// and whether a shrink should occur.
+func decideColdTail(size, warmCount, floor int64) (newCap, evict int64, shrink bool) {
+	targetCap := warmCount
+	if targetCap < floor {
+		targetCap = floor
+	}
+	if targetCap >= size {
+		return size, 0, false // nothing cold to shed
+	}
+	evict = size - targetCap
+	if maxEvict := size / 2; evict > maxEvict {
+		evict = maxEvict // bound per-event eviction; decay continues over later windows
+	}
+	return size - evict, evict, true
 }
 
 // seriesIDCacheElement is an item stored within a cache.

@@ -101,7 +101,7 @@ const (
 // rather than duplicating the message text.
 var (
 	ErrSeriesIDSetCacheMaxSizeNegative      = errors.New("series-id-set-cache-max-size must be non-negative")
-	ErrSeriesIDSetCacheTargetHitRateRange   = errors.New("series-id-set-cache-target-hit-rate must be in [0.0, 1.0]")
+	ErrSeriesIDSetCacheTargetHitRateRange   = errors.New("series-id-set-cache-target-hit-rate must be in [0.0, 1.0)")
 	ErrAdaptiveCacheSizingPairing           = errors.New("series-id-set-cache-max-size and series-id-set-cache-target-hit-rate must both be set to enable adaptive cache sizing, or both be zero to disable it")
 	ErrAdaptiveCacheSizingRequiresCacheSize = errors.New("series-id-set-cache-size must be > 0 to use adaptive cache sizing")
 	ErrAdaptiveCacheMaxSizeTooSmall         = errors.New("series-id-set-cache-max-size must be > series-id-set-cache-size")
@@ -202,10 +202,12 @@ type Config struct {
 	SeriesIDSetCacheMaxSize int `toml:"series-id-set-cache-max-size"`
 
 	// SeriesIDSetCacheTargetHitRate is the desired Get hit rate for the
-	// TSI series-id-set cache, expressed as a fraction in (0.0, 1.0].
+	// TSI series-id-set cache, expressed as a fraction in (0.0, 1.0).
 	// When set together with SeriesIDSetCacheMaxSize, the cache grows
 	// adaptively until either the target rate is met or the max size is
-	// reached. A value of 0.0 disables adaptive sizing.
+	// reached. A value of 0.0 disables adaptive sizing. A value of 1.0 is
+	// rejected: it is unachievable (the cache would never stop growing or
+	// shrinking toward it).
 	SeriesIDSetCacheTargetHitRate float64 `toml:"series-id-set-cache-target-hit-rate"`
 
 	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
@@ -286,7 +288,7 @@ func (c *Config) Validate() error {
 	if c.SeriesIDSetCacheMaxSize < 0 {
 		return ErrSeriesIDSetCacheMaxSizeNegative
 	}
-	if c.SeriesIDSetCacheTargetHitRate < 0 || c.SeriesIDSetCacheTargetHitRate > 1 {
+	if c.SeriesIDSetCacheTargetHitRate < 0 || c.SeriesIDSetCacheTargetHitRate >= 1 {
 		return ErrSeriesIDSetCacheTargetHitRateRange
 	}
 	adaptiveMax := c.SeriesIDSetCacheMaxSize > 0

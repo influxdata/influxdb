@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -603,4 +604,320 @@ func TestIndex_WithLogger_PropagatesToAdaptiveCache(t *testing.T) {
 	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "cache should have grown after policy fired")
 	require.Equal(t, 1, logs.Len(), "resize event must be emitted to the logger propagated by WithLogger")
 	require.Equal(t, logMsgCacheCapacityIncreased, logs.All()[0].Message)
+}
+
+func TestShrinkWindowLen(t *testing.T) {
+	tests := []struct {
+		name         string
+		n, minWindow int64
+		target       float64
+		want         int64
+	}{
+		{name: "typical 100 @ 0.95 ≈ 3n", n: 100, minWindow: 1, target: 0.95, want: 299},
+		{name: "typical 1000 @ 0.95 ≈ 3n", n: 1000, minWindow: 1, target: 0.95, want: 2995},
+		{name: "floored for tiny cache", n: 2, minWindow: 100, target: 0.95, want: 100},
+		{name: "n=1 too small", n: 1, minWindow: 100, target: 0.95, want: 0},
+		{name: "n=0 too small", n: 0, minWindow: 100, target: 0.95, want: 0},
+		// 1.0 - SmallestNonzeroFloat64 rounds to exactly 1.0; config rejects this
+		// target, but the helper must not overflow — it returns the MaxInt64
+		// sentinel ("effectively never shrink").
+		{name: "degenerate target rounding to 1 returns sentinel", n: 100, minWindow: 1, target: 1.0 - math.SmallestNonzeroFloat64, want: math.MaxInt64},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, shrinkWindowLen(tt.n, tt.minWindow, tt.target))
+		})
+	}
+}
+
+func TestDecideShrink_PolicyTable(t *testing.T) {
+	const target = 0.95
+	tests := []struct {
+		name                             string
+		hitsW, missesW, evictionsW       int64
+		capacity, size, warmCount, floor int64
+		wantNewCap, wantEvict            int64
+		wantShrink                       bool
+	}{
+		{
+			name:  "no reads does not shrink",
+			hitsW: 0, missesW: 0, evictionsW: 0,
+			capacity: 100, size: 100, warmCount: 0, floor: 10,
+			wantNewCap: 100, wantEvict: 0, wantShrink: false,
+		},
+		{
+			name:  "evictions in window (under pressure) does not shrink",
+			hitsW: 1000, missesW: 0, evictionsW: 5,
+			capacity: 100, size: 100, warmCount: 20, floor: 10,
+			wantNewCap: 100, wantEvict: 0, wantShrink: false,
+		},
+		{
+			name:  "hit rate below target does not shrink",
+			hitsW: 50, missesW: 50, evictionsW: 0,
+			capacity: 100, size: 100, warmCount: 20, floor: 10,
+			wantNewCap: 100, wantEvict: 0, wantShrink: false,
+		},
+		{
+			name:  "slack: capacity above occupancy trims to size, no eviction",
+			hitsW: 1000, missesW: 0, evictionsW: 0,
+			capacity: 200, size: 100, warmCount: 80, floor: 50,
+			wantNewCap: 100, wantEvict: 0, wantShrink: true,
+		},
+		{
+			name:  "slack clamped to floor",
+			hitsW: 1000, missesW: 0, evictionsW: 0,
+			capacity: 200, size: 30, warmCount: 10, floor: 50,
+			wantNewCap: 50, wantEvict: 0, wantShrink: true,
+		},
+		{
+			name:  "slack no-op when size already at/below floor and capacity==floor",
+			hitsW: 1000, missesW: 0, evictionsW: 0,
+			capacity: 50, size: 30, warmCount: 10, floor: 50,
+			wantNewCap: 50, wantEvict: 0, wantShrink: false,
+		},
+		{
+			name:  "cold-tail bounded to half the cache",
+			hitsW: 1000, missesW: 0, evictionsW: 0,
+			capacity: 100, size: 100, warmCount: 20, floor: 10,
+			wantNewCap: 50, wantEvict: 50, wantShrink: true,
+		},
+		{
+			name:  "cold-tail sheds exactly the cold tail when under half",
+			hitsW: 1000, missesW: 0, evictionsW: 0,
+			capacity: 100, size: 100, warmCount: 60, floor: 10,
+			wantNewCap: 60, wantEvict: 40, wantShrink: true,
+		},
+		{
+			name:  "cold-tail clamped at floor",
+			hitsW: 1000, missesW: 0, evictionsW: 0,
+			capacity: 100, size: 100, warmCount: 5, floor: 30,
+			wantNewCap: 50, wantEvict: 50, wantShrink: true,
+		},
+		{
+			name:  "cold-tail no-op when everything was touched",
+			hitsW: 1000, missesW: 0, evictionsW: 0,
+			capacity: 100, size: 100, warmCount: 100, floor: 10,
+			wantNewCap: 100, wantEvict: 0, wantShrink: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newCap, evict, shrink := decideShrink(
+				tt.hitsW, tt.missesW, tt.evictionsW,
+				tt.capacity, tt.size, tt.warmCount, tt.floor, target,
+			)
+			require.Equal(t, tt.wantShrink, shrink, "shrink")
+			require.Equal(t, tt.wantNewCap, newCap, "newCap")
+			require.Equal(t, tt.wantEvict, evict, "evict")
+		})
+	}
+}
+
+// newFullAdaptiveCache returns an adaptive cache forced to the given capacity
+// and filled with that many entries (values 0..capacity-1). The floor is 2, so
+// shrink has room to act. Adaptive growth is not exercised (no evictions occur
+// during setup), so the forced capacity stands in for a previously-grown cache.
+func newFullAdaptiveCache(t *testing.T, capacity, minSamples int, target float64) *TagValueSeriesIDCache {
+	t.Helper()
+	c := NewAdaptiveTagValueSeriesIDCache(2, 1024, target, minSamples, zap.NewNop())
+	atomic.StoreInt64(&c.capacity, int64(capacity))
+	for i := 0; i < capacity; i++ {
+		c.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
+	}
+	require.Equal(t, int64(capacity), atomic.LoadInt64(&c.stats.Size), "setup occupancy")
+	return c
+}
+
+func getVal(c *TagValueSeriesIDCache, v int) *tsdb.SeriesIDSet {
+	return c.Get([]byte("m"), []byte("k"), []byte{byte(v)})
+}
+
+func existsVal(c *TagValueSeriesIDCache, v int) bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.exists("m", "k", string([]byte{byte(v)}))
+}
+
+func TestTagValueSeriesIDCache_ShrinkColdTail(t *testing.T) {
+	// Full cache of 10; touch only {0,1,2} for one window. The window
+	// (floored at minSamples=8 for this size) completes; with a 100% hit
+	// rate and zero evictions, capacity trims toward the warm footprint,
+	// bounded to half the cache per event. Verifies the RIGHT (deepest,
+	// untouched) entries are shed and the warm set + recently-inserted cold
+	// entries survive.
+	cache := newFullAdaptiveCache(t, 10, 8, 0.5)
+
+	for i := 0; i < 8; i++ { // window == 8 for n=10
+		require.NotNil(t, getVal(cache, i%3))
+	}
+
+	require.Equal(t, int64(5), atomic.LoadInt64(&cache.capacity), "capacity = size - min(coldTail, size/2) = 10-5")
+	require.Equal(t, int64(5), atomic.LoadInt64(&cache.stats.Size))
+
+	// Warm {0,1,2} survive; the deepest untouched {3,4,5,6,7} are evicted;
+	// the most-recently-inserted cold {8,9} survive (they are above the LRU tail).
+	for _, v := range []int{0, 1, 2, 8, 9} {
+		require.True(t, existsVal(cache, v), "expected value %d to survive", v)
+	}
+	for _, v := range []int{3, 4, 5, 6, 7} {
+		require.False(t, existsVal(cache, v), "expected value %d to be evicted", v)
+	}
+}
+
+func TestTagValueSeriesIDCache_ShrinkSlack(t *testing.T) {
+	// Capacity 10 but only 4 entries (slack). A quiet, all-hit window trims
+	// capacity down to the occupancy with no eviction.
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, 0.5, 8, zap.NewNop())
+	atomic.StoreInt64(&cache.capacity, 10)
+	for i := 0; i < 4; i++ {
+		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
+	}
+
+	for i := 0; i < 8; i++ { // window == 8 for n=4
+		require.NotNil(t, getVal(cache, i%4))
+	}
+
+	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "slack branch trims capacity to occupancy")
+	require.Equal(t, int64(4), atomic.LoadInt64(&cache.stats.Size), "no eviction in the slack branch")
+	for v := 0; v < 4; v++ {
+		require.True(t, existsVal(cache, v), "value %d must survive a slack trim", v)
+	}
+}
+
+func TestTagValueSeriesIDCache_NoShrinkWhenAllTouched(t *testing.T) {
+	// Full cache; touch every entry within the window. warmCount == size, so
+	// there is no cold tail and capacity is unchanged.
+	cache := newFullAdaptiveCache(t, 10, 16, 0.5) // window == 16, enough to touch all 10
+
+	for i := 0; i < 16; i++ {
+		require.NotNil(t, getVal(cache, i%10))
+	}
+
+	require.Equal(t, int64(10), atomic.LoadInt64(&cache.capacity), "capacity must not shrink when the whole cache is in use")
+	require.Equal(t, int64(10), atomic.LoadInt64(&cache.stats.Size))
+}
+
+func TestTagValueSeriesIDCache_ShrinkCooldown(t *testing.T) {
+	// A capacity change sets a cooldown that suppresses shrink for a few
+	// windows. Seed the cooldown directly and verify shrink is gated until it
+	// elapses, then fires.
+	cache := newFullAdaptiveCache(t, 10, 8, 0.5)
+	cache.cooldownRemaining = 2
+
+	drive := func() {
+		for i := 0; i < 8; i++ { // one window (n stays 10 while no shrink)
+			getVal(cache, i%3)
+		}
+	}
+
+	drive() // window 1: cooldown 2 -> 1, no shrink
+	require.Equal(t, int64(10), atomic.LoadInt64(&cache.capacity), "shrink suppressed during cooldown (window 1)")
+	drive() // window 2: cooldown 1 -> 0, no shrink
+	require.Equal(t, int64(10), atomic.LoadInt64(&cache.capacity), "shrink suppressed during cooldown (window 2)")
+	drive() // window 3: cooldown 0 -> shrink fires
+	require.Equal(t, int64(5), atomic.LoadInt64(&cache.capacity), "shrink fires once the cooldown elapses")
+}
+
+func TestTagValueSeriesIDCache_ShrinkBoundaryReTouch(t *testing.T) {
+	// Re-touching the deepest warm element must recede the boundary to its
+	// predecessor, keeping warmCount equal to the true distinct-touched count.
+	// A large minSamples keeps the window open so we can inspect mid-window.
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, 0.5, 1000, zap.NewNop())
+	atomic.StoreInt64(&cache.capacity, 5)
+	for i := 0; i < 5; i++ {
+		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
+	}
+
+	// Touch 0,1,2 (warm set {0,1,2}, deepest=0), then re-touch 0 (the boundary).
+	for _, v := range []int{0, 1, 2, 0} {
+		require.NotNil(t, getVal(cache, v))
+	}
+
+	cache.Lock()
+	got := cache.warmCountLocked()
+	cache.Unlock()
+	require.Equal(t, int64(3), got, "warmCount must equal distinct-touched (3), not collapse on boundary re-touch")
+}
+
+func TestTagValueSeriesIDCache_ShrinkGrowCooldownStamp(t *testing.T) {
+	// A grow stamps the shared cooldown so a freshly-grown cache is not
+	// immediately shrunk. Drive a grow and assert the cooldown is armed.
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.99, 4, zap.NewNop())
+	insert := func(seq int) {
+		v := []byte{byte(seq)}
+		require.Nil(t, cache.Get([]byte("m"), []byte("k"), v))
+		cache.Put([]byte("m"), []byte("k"), v, tsdb.NewSeriesIDSet(uint64(seq)))
+	}
+	for i := 1; i <= 4; i++ { // drives one doubling (2 -> 4)
+		insert(i)
+	}
+	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "precondition: grow occurred")
+	cache.Lock()
+	cd := cache.cooldownRemaining
+	cache.Unlock()
+	require.Equal(t, int64(shrinkCooldownWindows), cd, "grow must arm the shrink cooldown")
+}
+
+// TestTagValueSeriesIDCache_Adaptive_Concurrent exercises the adaptive grow and
+// shrink paths (and the lockless Statistics reader) under concurrency so the
+// race detector validates the new shrink bookkeeping. The keyspace is small
+// enough to generate both hits (boundary tracking) and eviction pressure
+// (growth), and reads outnumber writes so shrink windows can fire.
+func TestTagValueSeriesIDCache_Adaptive_Concurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping long test")
+	}
+
+	cache := NewAdaptiveTagValueSeriesIDCache(8, 256, 0.9, 16, zap.NewNop())
+
+	const (
+		writers = 4
+		readers = 8
+		iters   = 50000
+		keys    = 40 // > initial capacity, so writes create eviction pressure
+	)
+	key := func(i int) []byte { return []byte{byte(i % keys)} }
+
+	// Start all goroutines simultaneously to maximize contention (per the
+	// project's concurrency-test pattern): each acquires the read lock at the
+	// start and blocks until the write lock is released.
+	var start sync.RWMutex
+	var concurrency, maxConcurrency atomic.Int64
+	var wg sync.WaitGroup
+	start.Lock()
+
+	run := func(body func(i int)) {
+		wg.Add(1)
+		go func() {
+			start.RLock()
+			defer start.RUnlock()
+			defer wg.Done()
+			c := concurrency.Add(1)
+			if old := maxConcurrency.Load(); c > old {
+				maxConcurrency.CompareAndSwap(old, c)
+			}
+			for i := 0; i < iters; i++ {
+				body(i)
+			}
+			concurrency.Add(-1)
+		}()
+	}
+
+	for w := 0; w < writers; w++ {
+		run(func(i int) { cache.Put([]byte("m"), []byte("k"), key(i), tsdb.NewSeriesIDSet(uint64(i))) })
+	}
+	for r := 0; r < readers; r++ {
+		run(func(i int) { _ = cache.Get([]byte("m"), []byte("k"), key(i)) })
+	}
+	// A lockless Statistics sampler races against the atomic counters.
+	run(func(int) { _ = cache.Statistics(nil) })
+
+	start.Unlock() // release all goroutines at once
+	wg.Wait()
+	t.Logf("max concurrency: %d", maxConcurrency.Load())
+
+	finalCap := atomic.LoadInt64(&cache.capacity)
+	require.GreaterOrEqual(t, finalCap, int64(8), "capacity must never drop below the floor")
+	require.LessOrEqual(t, finalCap, int64(256), "capacity must never exceed the max")
+	require.Equal(t, int64(cache.evictor.Len()), atomic.LoadInt64(&cache.stats.Size), "size counter must track the evictor list")
 }

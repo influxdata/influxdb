@@ -118,6 +118,13 @@ func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
 			wantErr: tsdb.ErrSeriesIDSetCacheTargetHitRateRange,
 		},
 		{
+			name: "target rate of exactly 1 rejected (unachievable)",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = 1.0
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheTargetHitRateRange,
+		},
+		{
 			name: "max without target rejected",
 			mutate: func(c *tsdb.Config) {
 				c.SeriesIDSetCacheMaxSize = 200
@@ -154,7 +161,7 @@ func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
 			mutate: func(c *tsdb.Config) {
 				c.SeriesIDSetCacheSize = 100
 				c.SeriesIDSetCacheMaxSize = 100
-				c.SeriesIDSetCacheTargetHitRate = 1.0
+				c.SeriesIDSetCacheTargetHitRate = 0.95
 			},
 			wantErr: tsdb.ErrAdaptiveCacheMaxSizeTooSmall,
 		},
@@ -172,7 +179,7 @@ func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
 			mutate: func(c *tsdb.Config) {
 				c.SeriesIDSetCacheSize = 100
 				c.SeriesIDSetCacheMaxSize = 101
-				c.SeriesIDSetCacheTargetHitRate = 1.0
+				c.SeriesIDSetCacheTargetHitRate = 0.95
 			},
 			wantErr: nil,
 		},

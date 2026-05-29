@@ -186,9 +186,9 @@
   # series-id-set-cache-max-size = 0
 
   # The desired query hit rate for the series-id-set cache, expressed as a
-  # fraction in (0.0, 1.0]. The cache grows adaptively until either this hit
+  # fraction in (0.0, 1.0). The cache grows adaptively until either this hit
   # rate is met or series-id-set-cache-max-size is reached. A value of 0.0
-  # disables adaptive sizing.
+  # disables adaptive sizing; a value of 1.0 is rejected (unachievable).
   # series-id-set-cache-target-hit-rate = 0.0
 
   # The size of tar buffer window size in bytes while running tar
