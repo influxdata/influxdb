@@ -24,12 +24,6 @@ const logMsgCacheCapacityIncreased = "tsi cache capacity increased"
 // shrinks the cache. Shared with tests so the assertion tracks the source.
 const logMsgCacheCapacityDecreased = "tsi cache capacity decreased"
 
-// shrinkCooldownWindows is the number of shrink-evaluation windows for which
-// shrink is suppressed after any capacity change (grow or shrink). It prevents
-// grow⇄shrink oscillation; only shrink respects it (grow always reacts to real
-// eviction pressure immediately).
-const shrinkCooldownWindows = 3
-
 // Statistic field names for the tag value series ID cache.
 const (
 	statTagValueCacheHit      = "hit"
@@ -99,6 +93,7 @@ type TagValueSeriesIDCache struct {
 	// unconstrained.
 	maxCapacity         int64
 	targetHitRate       float64
+	shrinkConservatism  float64 // sigmas below the at-target eviction mean for the shrink gate; >= 0.0
 	minSamples          int64
 	logger              *zap.Logger
 	evictionsSinceCheck int64
@@ -112,15 +107,17 @@ type TagValueSeriesIDCache struct {
 	// no active window — recompute from current occupancy on the next Get). The
 	// shrinkBase* fields snapshot the stats counters at window start so deltas
 	// can be measured. deepestTouched marks the back of the warm front-prefix
-	// observed this window (the LRU access footprint). cooldownRemaining gates
-	// shrink for a few windows after any capacity change.
+	// observed this window (the LRU access footprint). cooldownGets is the number
+	// of Gets for which shrink stays suppressed after any capacity change, sized
+	// to the new capacity so a freshly-resized cache is exercised before the next
+	// shrink decision.
 	minCapacity          int64
 	getsSinceShrinkCheck int64
 	shrinkWindowGets     int64
 	shrinkBaseHits       int64
 	shrinkBaseMisses     int64
 	shrinkBaseEvictions  int64
-	cooldownRemaining    int64
+	cooldownGets         int64
 	deepestTouched       *list.Element
 }
 
@@ -135,27 +132,44 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 	}
 }
 
-// NewAdaptiveTagValueSeriesIDCache returns a TagValueSeriesIDCache that
-// starts at the given initial capacity and grows (doubling) up to max as
-// the observed Get hit rate falls below target. Resizes are driven from
-// the eviction path: after every `capacity` evictions, the cache samples
-// its windowed hit rate and grows once if the policy fires. The cache
-// never shrinks. minSamples is a floor on the number of Get operations
-// observed in a window before the policy is allowed to act; below this
-// floor the rate is treated as too noisy to react to. Panics on invalid
-// arguments: initial must be > 0, max > initial (an adaptive cache that
-// cannot grow is a misconfiguration — use NewTagValueSeriesIDCache for a
+// NewAdaptiveTagValueSeriesIDCache returns a TagValueSeriesIDCache that sizes
+// itself between initial and max as the workload changes; capacity is not a
+// fixed high-water mark and callers must not rely on it staying at any value.
+//
+// It grows by doubling toward max when the observed Get hit rate falls below
+// target while under eviction pressure (driven from the eviction path: after
+// every `capacity` evictions it samples the windowed hit rate and grows once if
+// the policy fires). It also shrinks: driven from the read path, after a
+// self-tuning window of Gets, a cache that is quiet (no evictions) and serving
+// at/above target trims capacity toward its observed working set, shedding only
+// least-recently-used entries left untouched over the window, never below
+// initial. A cooldown between resizes prevents grow/shrink oscillation.
+//
+// minSamples is a floor on the number of Get operations observed in a window
+// before the grow policy is allowed to act; below this floor the rate is treated
+// as too noisy to react to. shrinkConservatism (>= 0.0) is the number of standard
+// deviations below the at-target eviction mean at which the shrink eviction gate
+// sits; see the doc on SeriesIDSetCacheShrinkConservatism in tsdb.Config. Panics
+// on invalid arguments: initial must be > 0, max > initial (an adaptive cache
+// that cannot grow is a misconfiguration — use NewTagValueSeriesIDCache for a
 // fixed cache), target in (0, 1) (1.0 is unachievable and is rejected by config
-// validation), minSamples >= 0.
-func NewAdaptiveTagValueSeriesIDCache(initial, max int, target float64, minSamples int, logger *zap.Logger) *TagValueSeriesIDCache {
+// validation; NaN is rejected), shrinkConservatism finite and >= 0.0 (NaN/±Inf
+// rejected), minSamples >= 0.
+func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservatism float64, minSamples int, logger *zap.Logger) *TagValueSeriesIDCache {
 	if initial <= 0 {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: initial must be > 0, got %d", initial))
 	}
 	if max <= initial {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: max (%d) must be > initial (%d)", max, initial))
 	}
-	if target <= 0 || target >= 1 {
+	// Positive range test so NaN (for which both `<` and `>` are false) is
+	// rejected rather than slipping through.
+	if !(target > 0 && target < 1) {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: target must be in (0, 1), got %v", target))
+	}
+	// Same positive-form trick rejects NaN and ±Inf for the conservatism.
+	if !(shrinkConservatism >= 0 && shrinkConservatism < math.Inf(1)) {
+		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: shrinkConservatism must be a finite value >= 0, got %v", shrinkConservatism))
 	}
 	if minSamples < 0 {
 		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: minSamples must be >= 0, got %d", minSamples))
@@ -164,14 +178,15 @@ func NewAdaptiveTagValueSeriesIDCache(initial, max int, target float64, minSampl
 		logger = zap.NewNop()
 	}
 	return &TagValueSeriesIDCache{
-		cache:         map[string]map[string]map[string]*list.Element{},
-		evictor:       list.New(),
-		capacity:      int64(initial),
-		minCapacity:   int64(initial),
-		maxCapacity:   int64(max),
-		targetHitRate: target,
-		minSamples:    int64(minSamples),
-		logger:        logger,
+		cache:              map[string]map[string]map[string]*list.Element{},
+		evictor:            list.New(),
+		capacity:           int64(initial),
+		minCapacity:        int64(initial),
+		maxCapacity:        int64(max),
+		targetHitRate:      target,
+		shrinkConservatism: shrinkConservatism,
+		minSamples:         int64(minSamples),
+		logger:             logger,
 	}
 }
 
@@ -462,9 +477,11 @@ func (c *TagValueSeriesIDCache) maybeResizeLocked() (resizeEvent, bool) {
 	}
 
 	atomic.StoreInt64(&c.capacity, newCap)
-	// Suppress shrink for a few windows after a grow so a freshly-grown cache
-	// (occupancy ~50% of the new capacity) isn't immediately clawed back.
-	c.cooldownRemaining = shrinkCooldownWindows
+	// Suppress shrink until the freshly-grown cache (occupancy ~50% of the new
+	// capacity) has been exercised: a full observation window sized to the new
+	// capacity, so the cooldown scales with the grown size rather than the
+	// half-full occupancy.
+	c.cooldownGets = adaptiveWindowLen(newCap, c.minSamples, c.targetHitRate)
 	return resizeEvent{
 		oldCap: curCap,
 		newCap: newCap,
@@ -538,12 +555,17 @@ func (c *TagValueSeriesIDCache) checkShrink() (resizeEvent, bool) {
 		return resizeEvent{}, false
 	}
 
+	// One Get elapsed; tick down the post-resize cooldown.
+	if c.cooldownGets > 0 {
+		c.cooldownGets--
+	}
+
 	// Start a window if none is active (first ever, or just completed). The
 	// window length is recomputed from current occupancy each time. The current
 	// Get's hit was already folded into deepestTouched by get(), so the boundary
 	// is reset only at window completion, never here.
 	if c.shrinkWindowGets == 0 {
-		c.shrinkWindowGets = shrinkWindowLen(int64(c.evictor.Len()), c.minSamples, c.targetHitRate)
+		c.shrinkWindowGets = adaptiveWindowLen(int64(c.evictor.Len()), c.minSamples, c.targetHitRate)
 		c.getsSinceShrinkCheck = 0
 		c.shrinkBaseHits = atomic.LoadInt64(&c.stats.Hits)
 		c.shrinkBaseMisses = atomic.LoadInt64(&c.stats.Misses)
@@ -564,11 +586,12 @@ func (c *TagValueSeriesIDCache) checkShrink() (resizeEvent, bool) {
 	// Window complete. Evaluate unless a recent capacity change is cooling down.
 	var event resizeEvent
 	var shrank bool
-	if c.cooldownRemaining > 0 {
-		c.cooldownRemaining--
-	} else if e, ok := c.maybeShrinkLocked(); ok {
-		event, shrank = e, true
-		c.cooldownRemaining = shrinkCooldownWindows
+	if c.cooldownGets == 0 {
+		if e, ok := c.maybeShrinkLocked(); ok {
+			event, shrank = e, true
+			// Cool down for a window sized to the new (smaller) capacity.
+			c.cooldownGets = adaptiveWindowLen(e.newCap, c.minSamples, c.targetHitRate)
+		}
 	}
 
 	// End the window: a fresh one (with a recomputed length) starts on the next
@@ -592,7 +615,7 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 	curCap := atomic.LoadInt64(&c.capacity)
 	size := int64(c.evictor.Len())
 
-	newCap, shrink, coldTail := decideShrinkPre(hitsW, missesW, evictionsW, curCap, size, c.minCapacity, c.targetHitRate)
+	newCap, shrink, coldTail := decideShrinkPre(hitsW, missesW, evictionsW, curCap, size, c.minCapacity, c.targetHitRate, c.shrinkConservatism)
 
 	var evicted int64
 	if coldTail {
@@ -657,31 +680,101 @@ func (c *TagValueSeriesIDCache) logShrink(e resizeEvent) {
 	)
 }
 
-// shrinkWindowLen returns how many Gets to observe before evaluating a shrink,
-// sized so that under ~uniform random access over n cached items the expected
-// fraction left untouched is <= (1-target). An entry still untouched after a
-// full window is therefore genuinely cold, not merely unsampled. The length
-// scales ~linearly with n (≈ 3n at target 0.95). minWindow floors the result so
-// tiny caches don't act on noisy windows. Returns 0 when n < 2 (too small to
-// evaluate). Precondition: target < 1 (config validation rejects target >= 1).
-// As defense, a target that rounds to 1 makes the window infinite; rather than
-// overflow the float->int64 conversion, that degenerate case returns MaxInt64
-// ("effectively never shrink"), which is the correct behavior for an
-// unachievable target.
-func shrinkWindowLen(n, minWindow int64, target float64) int64 {
+// adaptiveWindowLen returns how many Gets to observe before making an adaptive
+// sizing decision over a population of n items — either a shrink evaluation
+// (n = current occupancy) or the quiet period after a resize (n = the new
+// capacity). It is sized so that under ~uniform random access over n items the
+// expected fraction left untouched is <= (1-target), so an item still untouched
+// after a full window is genuinely cold, not merely unsampled. The result is
+// floored at n (always sample at least as many times as there are items) and at
+// minWindow (a noise floor for tiny caches), so it is ~max(3n at target 0.95, n,
+// minWindow). Returns 0 when n < 2 (too small to evaluate). target must be in
+// (0, 1) (enforced by config validation and the constructor); as defense, any
+// out-of-range target — including NaN or a value rounding to 0 or 1 — is rejected
+// up front and returns MaxInt64 ("effectively never"), so the logarithms below
+// cannot produce NaN, ±Inf, or an overflowing window.
+//
+// Derivation. Model each Get as an independent draw landing uniformly on one of
+// the n items. The chance a given item is not the one accessed by a single Get
+// is (n-1)/n, so after k independent Gets the chance it is still untouched is
+// ((n-1)/n)^k. By linearity of expectation that is also the expected fraction of
+// all n items left untouched after k Gets. We want a window long enough that
+// this expected untouched fraction is at most (1-target):
+//
+//	((n-1)/n)^k <= 1 - target
+//
+// Take natural logs. Since (n-1)/n < 1, ln((n-1)/n) is negative, so dividing by
+// it flips the inequality:
+//
+//	k * ln((n-1)/n) <= ln(1 - target)
+//	k >= ln(1 - target) / ln((n-1)/n)
+//
+// Both logs are negative, so the ratio is positive; take the ceiling for a whole
+// number of Gets. For large n, ln((n-1)/n) = ln(1 - 1/n) ~= -1/n, so the window
+// is ~ n * ln(1/(1-target)): linear in n with a multiplier set only by target
+// (e.g. ln(20) ~= 3.0 at target 0.95, hence ~3n; ln(2) ~= 0.69 at target 0.5,
+// which is below n and is why the result is floored at n).
+func adaptiveWindowLen(n, minWindow int64, target float64) int64 {
+	// Defensive argument range check: callers pass target in (0, 1) (enforced by
+	// config validation and the constructor). Reject anything else up front —
+	// including NaN and values rounding to 0 or 1 — so the logarithms below cannot
+	// yield NaN, ±Inf, or an overflowing/negative window; an out-of-range target
+	// disables sizing decisions, the safe choice for a bad input.
+	if !(target > 0 && target < 1) {
+		return math.MaxInt64
+	}
 	if n < 2 {
 		return 0
 	}
-	// window = ceil( ln(1-target) / ln((n-1)/n) ); both logs are negative.
+	// window = ceil( ln(1-target) / ln((n-1)/n) ); both logs are finite and negative.
 	wf := math.Ceil(math.Log(1-target) / math.Log(float64(n-1)/float64(n)))
-	if wf >= float64(math.MaxInt64) { // +Inf (target rounds to 1) or out of range
+	if wf >= float64(math.MaxInt64) { // huge finite window (target very close to 1)
 		return math.MaxInt64
 	}
 	w := int64(wf)
+	if w < n { // sample at least as many times as there are items
+		w = n
+	}
 	if w < minWindow {
 		w = minWindow
 	}
 	return w
+}
+
+// atTargetEvictionGateLimit returns the shrink eviction-gate threshold using a
+// lower confidence bound on the at-target eviction count distribution.
+//
+// Derivation. On a full cache a miss generally produces one eviction, so over a
+// window of m Gets at hit rate T the eviction count is approximately
+// Binomial(m, 1-T), with mean μ = m·(1-T) and variance σ² = m·T·(1-T). The gate
+// admits shrink only when the observed evictions sit below μ − z·σ, the lower
+// edge of the at-target distribution's z-sigma confidence band. Tying the
+// threshold to the distribution itself yields a scale-adaptive margin: as the
+// window m grows, σ grows like √m while μ grows like m, so the relative slack
+// the gate demands shrinks naturally — a 1M-Get window admits a smaller relative
+// margin than a 100-Get one because the rate estimate is correspondingly
+// tighter. Higher z demands the cache outperform target by more standard
+// deviations (more conservative); z = 0 admits at the median (μ). Floored at 1
+// so a single stray eviction never blocks shrink. Out-of-range inputs (gets<1,
+// target outside (0,1), z not in [0, +Inf)) return 1 (fail-safe: gates on any
+// eviction).
+//
+// Note: the binomial assumes independent Bernoulli misses; real cache access
+// is correlated (locality, Zipfian skew), so the true distribution is wider
+// than σ here, and the bound is optimistic in that sense. Operators concerned
+// about workload skew can compensate by raising z.
+func atTargetEvictionGateLimit(gets int64, target, z float64) int64 {
+	if gets < 1 || !(target > 0 && target < 1) || !(z >= 0 && z < math.Inf(1)) {
+		return 1
+	}
+	m := float64(gets)
+	mu := m * (1 - target)
+	sigma := math.Sqrt(m * target * (1 - target))
+	limit := int64(mu - z*sigma)
+	if limit < 1 {
+		limit = 1
+	}
+	return limit
 }
 
 // decideShrink implements the full capacity-decay policy as a pure function of
@@ -692,9 +785,10 @@ func shrinkWindowLen(n, minWindow int64, target float64) int64 {
 // only performed when the cold-tail branch is actually reached (see
 // maybeShrinkLocked).
 //
-// Gates (all required): at least one read, zero evictions this window (the cache
-// is not under capacity pressure), and a windowed hit rate >= target (the cache
-// is serving its working set well). When gated through, one of two branches fires:
+// Gates (all required): at least one read; window evictions at or below the
+// scaled at-target expectation (see atTargetEvictionGateLimit); and a windowed
+// hit rate >= target (the cache is serving its working set well). When gated
+// through, one of two branches fires:
 //   - slack: capacity exceeds occupancy -> drop the unused headroom (no eviction).
 //   - cold-tail: cache is full -> shed the LRU tail that went untouched this
 //     window, down to the warm footprint (warmCount), clamped at floor, and
@@ -702,8 +796,8 @@ func shrinkWindowLen(n, minWindow int64, target float64) int64 {
 //
 // The evicted entries are always within the untouched cold tail, so warm entries
 // are never shed.
-func decideShrink(hitsW, missesW, evictionsW, capacity, size, warmCount, floor int64, target float64) (newCap, evict int64, shrink bool) {
-	newCap, shrink, coldTail := decideShrinkPre(hitsW, missesW, evictionsW, capacity, size, floor, target)
+func decideShrink(hitsW, missesW, evictionsW, capacity, size, warmCount, floor int64, target, conservatism float64) (newCap, evict int64, shrink bool) {
+	newCap, shrink, coldTail := decideShrinkPre(hitsW, missesW, evictionsW, capacity, size, floor, target, conservatism)
 	if coldTail {
 		return decideColdTail(size, warmCount, floor)
 	}
@@ -714,10 +808,15 @@ func decideShrink(hitsW, missesW, evictionsW, capacity, size, warmCount, floor i
 // the gates and the slack branch. It returns the slack result (newCap/shrink), or
 // coldTail=true to signal that the cache is full and the caller must measure the
 // warm footprint and consult decideColdTail. When coldTail is true, newCap/shrink
-// are not meaningful.
-func decideShrinkPre(hitsW, missesW, evictionsW, capacity, size, floor int64, target float64) (newCap int64, shrink, coldTail bool) {
+// are not meaningful. The eviction gate threshold is produced by
+// atTargetEvictionGateLimit (see its doc for derivation). The hit-rate gate is
+// kept for defense.
+func decideShrinkPre(hitsW, missesW, evictionsW, capacity, size, floor int64, target, conservatism float64) (newCap int64, shrink, coldTail bool) {
 	gets := hitsW + missesW
-	if gets <= 0 || evictionsW != 0 {
+	if gets <= 0 {
+		return capacity, false, false
+	}
+	if evictionsW > atTargetEvictionGateLimit(gets, target, conservatism) {
 		return capacity, false, false
 	}
 	if float64(hitsW)/float64(gets) < target {

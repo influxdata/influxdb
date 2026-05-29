@@ -3,6 +3,7 @@ package tsdb
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -83,6 +84,14 @@ const (
 	// the rate is treated as too noisy to react to.
 	DefaultAdaptiveCacheMinSamples = 100
 
+	// DefaultSeriesIDSetCacheShrinkConservatism is the default number of standard
+	// deviations below the at-target eviction count's mean at which the shrink
+	// eviction gate sits. Values >= 0.0 (the validated range) demand the cache
+	// outperform target by that statistical margin before any shrink fires;
+	// higher values are more conservative. 2.0 is the default: shrink admits in
+	// roughly 2.3% of windows in which the cache is exactly at target.
+	DefaultSeriesIDSetCacheShrinkConservatism = 2.0
+
 	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
 	// partition snapshot compactions that can run at one time.
 	// A value of 0 results in runtime.GOMAXPROCS(0).
@@ -100,11 +109,12 @@ const (
 // cache settings. Exported so tests can assert on them with errors.Is
 // rather than duplicating the message text.
 var (
-	ErrSeriesIDSetCacheMaxSizeNegative      = errors.New("series-id-set-cache-max-size must be non-negative")
-	ErrSeriesIDSetCacheTargetHitRateRange   = errors.New("series-id-set-cache-target-hit-rate must be in [0.0, 1.0)")
-	ErrAdaptiveCacheSizingPairing           = errors.New("series-id-set-cache-max-size and series-id-set-cache-target-hit-rate must both be set to enable adaptive cache sizing, or both be zero to disable it")
-	ErrAdaptiveCacheSizingRequiresCacheSize = errors.New("series-id-set-cache-size must be > 0 to use adaptive cache sizing")
-	ErrAdaptiveCacheMaxSizeTooSmall         = errors.New("series-id-set-cache-max-size must be > series-id-set-cache-size")
+	ErrSeriesIDSetCacheMaxSizeNegative         = errors.New("series-id-set-cache-max-size must be non-negative")
+	ErrSeriesIDSetCacheTargetHitRateRange      = errors.New("series-id-set-cache-target-hit-rate must be in [0.0, 1.0)")
+	ErrAdaptiveCacheSizingPairing              = errors.New("series-id-set-cache-max-size and series-id-set-cache-target-hit-rate must both be set to enable adaptive cache sizing, or both be zero to disable it")
+	ErrAdaptiveCacheSizingRequiresCacheSize    = errors.New("series-id-set-cache-size must be > 0 to use adaptive cache sizing")
+	ErrAdaptiveCacheMaxSizeTooSmall            = errors.New("series-id-set-cache-max-size must be > series-id-set-cache-size")
+	ErrSeriesIDSetCacheShrinkConservatismRange = errors.New("series-id-set-cache-shrink-conservatism must be a finite value >= 0.0")
 )
 
 var SingleGenerationReasonText string = SingleGenerationReason()
@@ -210,6 +220,18 @@ type Config struct {
 	// shrinking toward it).
 	SeriesIDSetCacheTargetHitRate float64 `toml:"series-id-set-cache-target-hit-rate"`
 
+	// SeriesIDSetCacheShrinkConservatism sets the TSI series-id-set cache's
+	// adaptive shrink-gate strictness, expressed as the number of standard
+	// deviations below the at-target eviction count's mean at which the gate
+	// sits. The eviction count over an m-Get window at hit rate T is approximately
+	// Binomial(m, 1-T) with mean μ = m·(1-T) and variance σ² = m·T·(1-T); the
+	// gate admits shrink when observed evictions are below μ − conservatism·σ.
+	// Values >= 0.0 are accepted; higher values demand a wider statistical margin
+	// before shrinking (more memory-retaining, more anti-oscillation). The
+	// default is DefaultSeriesIDSetCacheShrinkConservatism (2.0). Validation
+	// rejects NaN, ±Inf, and values < 0.0.
+	SeriesIDSetCacheShrinkConservatism float64 `toml:"series-id-set-cache-shrink-conservatism"`
+
 	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
 	// that can be running at one time across all series partitions in a database. Snapshots scheduled
 	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
@@ -253,8 +275,9 @@ func NewConfig() Config {
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 		MaxConcurrentDeletes:     DefaultMaxConcurrentDeletes,
 
-		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
-		SeriesIDSetCacheSize: DefaultSeriesIDSetCacheSize,
+		MaxIndexLogFileSize:                toml.Size(DefaultMaxIndexLogFileSize),
+		SeriesIDSetCacheSize:               DefaultSeriesIDSetCacheSize,
+		SeriesIDSetCacheShrinkConservatism: DefaultSeriesIDSetCacheShrinkConservatism,
 
 		SeriesFileMaxConcurrentSnapshotCompactions: DefaultSeriesFileMaxConcurrentSnapshotCompactions,
 
@@ -288,7 +311,9 @@ func (c *Config) Validate() error {
 	if c.SeriesIDSetCacheMaxSize < 0 {
 		return ErrSeriesIDSetCacheMaxSizeNegative
 	}
-	if c.SeriesIDSetCacheTargetHitRate < 0 || c.SeriesIDSetCacheTargetHitRate >= 1 {
+	// Positive range test so NaN (for which both `<` and `>=` are false) is
+	// rejected rather than passing as if in range.
+	if !(c.SeriesIDSetCacheTargetHitRate >= 0 && c.SeriesIDSetCacheTargetHitRate < 1) {
 		return ErrSeriesIDSetCacheTargetHitRateRange
 	}
 	adaptiveMax := c.SeriesIDSetCacheMaxSize > 0
@@ -303,6 +328,11 @@ func (c *Config) Validate() error {
 		if c.SeriesIDSetCacheMaxSize <= c.SeriesIDSetCacheSize {
 			return ErrAdaptiveCacheMaxSizeTooSmall
 		}
+	}
+	// Positive-form check so NaN and ±Inf are both rejected (each comparison is
+	// false for NaN; +Inf fails the upper bound; -Inf fails the lower bound).
+	if !(c.SeriesIDSetCacheShrinkConservatism >= 0 && c.SeriesIDSetCacheShrinkConservatism < math.Inf(1)) {
+		return ErrSeriesIDSetCacheShrinkConservatismRange
 	}
 
 	if c.SeriesFileMaxConcurrentSnapshotCompactions < 0 {

@@ -51,6 +51,7 @@ func init() {
 			WithSeriesIDCacheSize(opt.Config.SeriesIDSetCacheSize),
 			WithSeriesIDCacheMaxSize(opt.Config.SeriesIDSetCacheMaxSize),
 			WithSeriesIDCacheTargetHitRate(opt.Config.SeriesIDSetCacheTargetHitRate),
+			WithSeriesIDCacheShrinkConservatism(opt.Config.SeriesIDSetCacheShrinkConservatism),
 		)
 		return idx
 	})
@@ -151,16 +152,26 @@ var WithSeriesIDCacheTargetHitRate = func(rate float64) IndexOption {
 	}
 }
 
+// WithSeriesIDCacheShrinkConservatism sets the number of standard deviations
+// below the at-target eviction mean at which the shrink eviction gate sits.
+// Higher values (>= 0.0) make the cache more reluctant to shrink. See tsdb.Config.
+var WithSeriesIDCacheShrinkConservatism = func(c float64) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheShrinkConservatism = c
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
 	partitions []*Partition
 	opened     bool
 
-	tagValueCache              *TagValueSeriesIDCache
-	tagValueCacheSize          int
-	tagValueCacheMaxSize       int     // 0 = adaptive sizing disabled
-	tagValueCacheTargetHitRate float64 // 0 = adaptive sizing disabled
+	tagValueCache                   *TagValueSeriesIDCache
+	tagValueCacheSize               int
+	tagValueCacheMaxSize            int     // 0 = adaptive sizing disabled
+	tagValueCacheTargetHitRate      float64 // 0 = adaptive sizing disabled
+	tagValueCacheShrinkConservatism float64 // sigmas below the at-target eviction mean for the shrink gate; validated by Config to be >= 0.0
 
 	// The following may be set when initializing an Index.
 	path               string        // Root directory of the index partitions.
@@ -193,18 +204,19 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
-		tagValueCacheSize: tsdb.DefaultSeriesIDSetCacheSize,
-		maxLogFileSize:    tsdb.DefaultMaxIndexLogFileSize,
-		maxLogFileAge:     tsdb.DefaultCompactFullWriteColdDuration,
-		logger:            zap.NewNop(),
-		version:           Version,
-		sfile:             sfile,
-		database:          database,
-		mSketch:           hll.NewDefaultPlus(),
-		mTSketch:          hll.NewDefaultPlus(),
-		sSketch:           hll.NewDefaultPlus(),
-		sTSketch:          hll.NewDefaultPlus(),
-		PartitionN:        DefaultPartitionN,
+		tagValueCacheSize:               tsdb.DefaultSeriesIDSetCacheSize,
+		tagValueCacheShrinkConservatism: tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+		maxLogFileSize:                  tsdb.DefaultMaxIndexLogFileSize,
+		maxLogFileAge:                   tsdb.DefaultCompactFullWriteColdDuration,
+		logger:                          zap.NewNop(),
+		version:                         Version,
+		sfile:                           sfile,
+		database:                        database,
+		mSketch:                         hll.NewDefaultPlus(),
+		mTSketch:                        hll.NewDefaultPlus(),
+		sSketch:                         hll.NewDefaultPlus(),
+		sTSketch:                        hll.NewDefaultPlus(),
+		PartitionN:                      DefaultPartitionN,
 	}
 
 	for _, option := range options {
@@ -216,6 +228,7 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 			idx.tagValueCacheSize,
 			idx.tagValueCacheMaxSize,
 			idx.tagValueCacheTargetHitRate,
+			idx.tagValueCacheShrinkConservatism,
 			tsdb.DefaultAdaptiveCacheMinSamples,
 			idx.logger,
 		)

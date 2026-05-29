@@ -168,12 +168,14 @@
   series-id-set-cache-size = 100
 
   # Adaptive sizing for the TSI series-id-set cache. When enabled, the cache
-  # starts at series-id-set-cache-size and grows (doubling) up to
-  # series-id-set-cache-max-size whenever its observed query hit rate falls
-  # below series-id-set-cache-target-hit-rate while it is evicting. The cache
-  # never shrinks. Adaptive sizing trades higher heap usage for fewer cache
-  # misses on workloads whose working set of tag key/value predicates exceeds
-  # series-id-set-cache-size.
+  # sizes itself between series-id-set-cache-size and series-id-set-cache-max-size
+  # as the workload changes. It grows (doubling) up to the max whenever its
+  # observed query hit rate falls below series-id-set-cache-target-hit-rate while
+  # it is evicting, and shrinks back toward series-id-set-cache-size when the
+  # working set contracts (it reclaims heap by dropping entries that go unused),
+  # so heap usage tracks the active working set rather than the historical peak.
+  # Adaptive sizing trades higher heap usage for fewer cache misses on workloads
+  # whose working set of tag key/value predicates exceeds series-id-set-cache-size.
   #
   # Both settings must be specified together to enable adaptive sizing, or both
   # left at 0 to disable it (the default). When enabled,
@@ -190,6 +192,17 @@
   # rate is met or series-id-set-cache-max-size is reached. A value of 0.0
   # disables adaptive sizing; a value of 1.0 is rejected (unachievable).
   # series-id-set-cache-target-hit-rate = 0.0
+
+  # How conservative the adaptive shrink policy should be, in standard
+  # deviations below the at-target eviction count's mean. The eviction count
+  # over a window of m Gets at hit rate T is approximately Binomial(m, 1-T),
+  # with mean m*(1-T) and variance m*T*(1-T); the shrink gate admits only
+  # when observed evictions are below mean - conservatism*sigma, so higher
+  # values demand a wider statistical margin before shrinking. The valid
+  # range is [0.0, +Inf): 0.0 admits at the median (50% of at-target windows
+  # shrink); 2.0 admits in about 2.3% of at-target windows. The default 2.0
+  # is conservative (memory-retaining; resistant to grow/shrink oscillation).
+  # series-id-set-cache-shrink-conservatism = 2.0
 
   # The size of tar buffer window size in bytes while running tar
   # streaming operations such as renaming and copying tar files during backups.

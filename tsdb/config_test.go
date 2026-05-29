@@ -1,6 +1,7 @@
 package tsdb_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -125,6 +126,15 @@ func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
 			wantErr: tsdb.ErrSeriesIDSetCacheTargetHitRateRange,
 		},
 		{
+			// NaN compares false to every bound, so it must be rejected by a
+			// positive range test rather than slipping through as "disabled".
+			name: "target rate NaN rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = math.NaN()
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheTargetHitRateRange,
+		},
+		{
 			name: "max without target rejected",
 			mutate: func(c *tsdb.Config) {
 				c.SeriesIDSetCacheMaxSize = 200
@@ -180,6 +190,34 @@ func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
 				c.SeriesIDSetCacheSize = 100
 				c.SeriesIDSetCacheMaxSize = 101
 				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: nil,
+		},
+		{
+			name: "negative shrink conservatism rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheShrinkConservatism = -0.1
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheShrinkConservatismRange,
+		},
+		{
+			name: "shrink conservatism NaN rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheShrinkConservatism = math.NaN()
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheShrinkConservatismRange,
+		},
+		{
+			name: "shrink conservatism +Inf rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheShrinkConservatism = math.Inf(1)
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheShrinkConservatismRange,
+		},
+		{
+			name: "shrink conservatism at lower bound (0.0) accepted",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheShrinkConservatism = 0.0
 			},
 			wantErr: nil,
 		},
