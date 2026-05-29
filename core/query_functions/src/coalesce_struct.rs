@@ -446,7 +446,7 @@ mod tests {
         let rb = if cols.is_empty() {
             RecordBatch::new_empty(Arc::new(Schema::new([])))
         } else {
-            RecordBatch::try_from_iter(cols.into_iter())?
+            RecordBatch::try_from_iter(cols)?
         };
 
         let ctx = SessionContext::new();
