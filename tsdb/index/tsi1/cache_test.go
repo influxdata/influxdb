@@ -425,6 +425,16 @@ func TestDecideResize_PolicyTable(t *testing.T) {
 			wantNewCap: initialCap, wantGrow: false,
 		},
 		{
+			// Regression: with minSamples == 0 the gets<minSamples floor does
+			// not fire on a pure-write window, so the policy must independently
+			// gate gets == 0 — otherwise rate stays 0.0 and we grow with no
+			// evidence.
+			name: "pure-write zero-reads with minSamples=0 does not grow",
+			hits: 0, misses: 0, capacity: initialCap, maxCap: maxCap,
+			minSamples: 0, target: target,
+			wantNewCap: initialCap, wantGrow: false,
+		},
+		{
 			name: "grow capped at max when doubling would overshoot",
 			hits: 100, misses: 900, capacity: 600, maxCap: maxCap,
 			minSamples: minSamples, target: target,

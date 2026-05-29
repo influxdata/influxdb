@@ -506,9 +506,14 @@ func decideResize(hits, misses, lastHits, lastMisses, capacity, maxCapacity, min
 		rate = float64(hitsW) / float64(gets)
 	}
 
-	// Floor on sample size: too few reads since the last firing makes
-	// any rate observation noisy. Also covers pure-write workloads
-	// (gets == 0).
+	// Explicitly gate the zero-reads window first: with no Gets there is no
+	// evidence to act on, and the rate would be the zero-init 0.0 (looking
+	// like a 0% hit rate, triggering growth on a pure-write workload). The
+	// minSamples floor below is a configurable noise floor for tiny windows;
+	// it can be 0, so it does not subsume the gets == 0 check.
+	if gets == 0 {
+		return capacity, gets, rate, false
+	}
 	if gets < minSamples {
 		return capacity, gets, rate, false
 	}
