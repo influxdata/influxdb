@@ -2380,6 +2380,7 @@ func TestEngine_Statistics_TSI1Cache(t *testing.T) {
 	require.Contains(t, found.Values, "hit")
 	require.Contains(t, found.Values, "miss")
 	require.Contains(t, found.Values, "eviction")
+	require.Contains(t, found.Values, "shrink_eviction")
 	require.Contains(t, found.Values, "size")
 	require.Contains(t, found.Values, "capacity")
 	require.Equal(t, "db0", found.Tags["database"])
