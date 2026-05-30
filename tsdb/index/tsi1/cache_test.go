@@ -1084,6 +1084,40 @@ func TestTagValueSeriesIDCache_ShrinkGrowCooldownStamp(t *testing.T) {
 	require.Equal(t, adaptiveWindowLen(4, 4, 0.99), cd, "grow arms a cooldown sized to the new capacity")
 }
 
+func TestTagValueSeriesIDCache_ShrinkResetsGrowWindow(t *testing.T) {
+	// After a shrink, the grow policy's per-window state still describes the
+	// pre-shrink window. If evictionsSinceCheck happens to be near or above the
+	// new smaller capacity, the next forced eviction would fire
+	// maybeResizeLocked immediately against stale hit/miss baselines. A shrink
+	// must reset all three so the grow window restarts post-shrink.
+	cache := newFullAdaptiveCache(t, 10, 8, 0.5)
+
+	// Pre-seed the grow-window state to look "almost ready to fire", with
+	// baselines from a moment that predates the shrink window.
+	cache.Lock()
+	cache.evictionsSinceCheck = 7
+	cache.lastHits = 99
+	cache.lastMisses = 99
+	cache.Unlock()
+
+	// Drive a window of all hits on a warm subset of 3 to trigger a shrink.
+	w := adaptiveWindowLen(10, 8, 0.5)
+	for i := int64(0); i < w; i++ {
+		require.NotNil(t, getVal(cache, int(i%3)))
+	}
+	require.Less(t, atomic.LoadInt64(&cache.capacity), int64(10),
+		"precondition: shrink should have fired")
+
+	cache.Lock()
+	defer cache.Unlock()
+	require.Equal(t, int64(0), cache.evictionsSinceCheck,
+		"evictionsSinceCheck must reset so the next forced eviction starts a fresh grow window")
+	require.Equal(t, atomic.LoadInt64(&cache.stats.Hits), cache.lastHits,
+		"lastHits must snap to the current hit count after shrink")
+	require.Equal(t, atomic.LoadInt64(&cache.stats.Misses), cache.lastMisses,
+		"lastMisses must snap to the current miss count after shrink")
+}
+
 // TestTagValueSeriesIDCache_Adaptive_Concurrent exercises the adaptive grow and
 // shrink paths (and the lockless Statistics reader) under concurrency so the
 // race detector validates the new shrink bookkeeping. The keyspace is small

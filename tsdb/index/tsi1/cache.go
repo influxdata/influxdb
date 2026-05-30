@@ -682,6 +682,15 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 
 	atomic.StoreInt64(&c.capacity, newCap)
 
+	// Capacity shrank: reset the grow policy's per-window state so the next
+	// forced eviction measures a fresh post-shrink turnover. Without this,
+	// the stale evictionsSinceCheck (potentially near or above the new
+	// smaller capacity) could immediately fire maybeResizeLocked against
+	// pre-shrink hit/miss baselines, mixing pre- and post-shrink samples.
+	c.evictionsSinceCheck = 0
+	c.lastHits = atomic.LoadInt64(&c.stats.Hits)
+	c.lastMisses = atomic.LoadInt64(&c.stats.Misses)
+
 	gets := hitsW + missesW
 	var rate float64
 	if gets > 0 {
