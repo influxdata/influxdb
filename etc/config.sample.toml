@@ -200,9 +200,12 @@
   # when observed evictions are below mean - conservatism*sigma, so higher
   # values demand a wider statistical margin before shrinking. The valid
   # range is [0.0, +Inf): 0.0 admits at the median (50% of at-target windows
-  # shrink); 2.0 admits in about 2.3% of at-target windows. The default 2.0
-  # is conservative (memory-retaining; resistant to grow/shrink oscillation).
-  # series-id-set-cache-shrink-conservatism = 2.0
+  # shrink); 2.5 admits in about 0.62% of at-target windows. The default 2.5
+  # is conservative (memory-retaining; resistant to grow/shrink oscillation)
+  # and adds extra margin for workloads with high access skew, where the true
+  # eviction-count distribution is wider than the independent-Bernoulli
+  # approximation underlying the bound.
+  # series-id-set-cache-shrink-conservatism = 2.5
 
   # The size of tar buffer window size in bytes while running tar
   # streaming operations such as renaming and copying tar files during backups.

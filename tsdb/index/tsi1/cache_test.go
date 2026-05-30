@@ -274,21 +274,23 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 
 	// Initial state: all counters zero.
 	require.Equal(t, map[string]interface{}{
-		statTagValueCacheHit:      int64(0),
-		statTagValueCacheMiss:     int64(0),
-		statTagValueCacheEviction: int64(0),
-		statTagValueCacheSize:     int64(0),
-		statTagValueCacheCapacity: int64(2),
+		statTagValueCacheHit:            int64(0),
+		statTagValueCacheMiss:           int64(0),
+		statTagValueCacheEviction:       int64(0),
+		statTagValueCacheShrinkEviction: int64(0),
+		statTagValueCacheSize:           int64(0),
+		statTagValueCacheCapacity:       int64(2),
 	}, statValues(cache))
 
 	// Miss on absent key.
 	require.Nil(t, cache.Get([]byte("m0"), []byte("k0"), []byte("v0")))
 	require.Equal(t, map[string]interface{}{
-		statTagValueCacheHit:      int64(0),
-		statTagValueCacheMiss:     int64(1),
-		statTagValueCacheEviction: int64(0),
-		statTagValueCacheSize:     int64(0),
-		statTagValueCacheCapacity: int64(2),
+		statTagValueCacheHit:            int64(0),
+		statTagValueCacheMiss:           int64(1),
+		statTagValueCacheEviction:       int64(0),
+		statTagValueCacheShrinkEviction: int64(0),
+		statTagValueCacheSize:           int64(0),
+		statTagValueCacheCapacity:       int64(2),
 	}, statValues(cache))
 
 	// Put, then Get the same key → one hit, size 1.
@@ -296,11 +298,12 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 	cache.Put([]byte("m0"), []byte("k0"), []byte("v0"), s0)
 	require.True(t, cache.Get([]byte("m0"), []byte("k0"), []byte("v0")).Equals(s0))
 	require.Equal(t, map[string]interface{}{
-		statTagValueCacheHit:      int64(1),
-		statTagValueCacheMiss:     int64(1),
-		statTagValueCacheEviction: int64(0),
-		statTagValueCacheSize:     int64(1),
-		statTagValueCacheCapacity: int64(2),
+		statTagValueCacheHit:            int64(1),
+		statTagValueCacheMiss:           int64(1),
+		statTagValueCacheEviction:       int64(0),
+		statTagValueCacheShrinkEviction: int64(0),
+		statTagValueCacheSize:           int64(1),
+		statTagValueCacheCapacity:       int64(2),
 	}, statValues(cache))
 
 	// Add a second entry to fill the cache.
@@ -308,23 +311,30 @@ func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 	cache.Put([]byte("m0"), []byte("k0"), []byte("v1"), s1)
 	require.Equal(t, int64(2), statValues(cache)[statTagValueCacheSize])
 	require.Equal(t, int64(0), statValues(cache)[statTagValueCacheEviction])
+	require.Equal(t, int64(0), statValues(cache)[statTagValueCacheShrinkEviction])
 
 	// Adding a third distinct entry must evict the least-recently-used.
 	// LRU at this point is v0: it was Put first, Get-promoted to MRU, then
-	// v1 was Put (making v1 MRU and v0 LRU).
+	// v1 was Put (making v1 MRU and v0 LRU). The eviction is a forced
+	// eviction (write pressure on a full cache), so it lands in Evictions
+	// rather than ShrinkEvictions.
 	s2 := tsdb.NewSeriesIDSet(3)
 	cache.Put([]byte("m0"), []byte("k0"), []byte("v2"), s2)
 	require.Equal(t, map[string]interface{}{
-		statTagValueCacheHit:      int64(1),
-		statTagValueCacheMiss:     int64(1),
-		statTagValueCacheEviction: int64(1),
-		statTagValueCacheSize:     int64(2),
-		statTagValueCacheCapacity: int64(2),
+		statTagValueCacheHit:            int64(1),
+		statTagValueCacheMiss:           int64(1),
+		statTagValueCacheEviction:       int64(1),
+		statTagValueCacheShrinkEviction: int64(0),
+		statTagValueCacheSize:           int64(2),
+		statTagValueCacheCapacity:       int64(2),
 	}, statValues(cache))
 	// v0 was evicted; v1 and v2 must survive.
-	require.Nil(t, cache.get([]byte("m0"), []byte("k0"), []byte("v0")))
-	require.True(t, cache.get([]byte("m0"), []byte("k0"), []byte("v1")).Equals(s1))
-	require.True(t, cache.get([]byte("m0"), []byte("k0"), []byte("v2")).Equals(s2))
+	got0, _ := cache.get([]byte("m0"), []byte("k0"), []byte("v0"))
+	require.Nil(t, got0)
+	got1, _ := cache.get([]byte("m0"), []byte("k0"), []byte("v1"))
+	require.True(t, got1.Equals(s1))
+	got2, _ := cache.get([]byte("m0"), []byte("k0"), []byte("v2"))
+	require.True(t, got2.Equals(s2))
 }
 
 func TestTagValueSeriesIDCache_Statistics_EvictsTrueLRU(t *testing.T) {
@@ -346,12 +356,12 @@ func TestTagValueSeriesIDCache_Statistics_EvictsTrueLRU(t *testing.T) {
 	// Inserting v2 must evict v1, not v0.
 	cache.Put([]byte("m"), []byte("k"), []byte("v2"), s2)
 
-	require.True(t, cache.get([]byte("m"), []byte("k"), []byte("v0")).Equals(s0),
-		"recently-touched key v0 should not have been evicted")
-	require.Nil(t, cache.get([]byte("m"), []byte("k"), []byte("v1")),
-		"true LRU key v1 should have been evicted")
-	require.True(t, cache.get([]byte("m"), []byte("k"), []byte("v2")).Equals(s2),
-		"newly inserted key v2 should be present")
+	got0, _ := cache.get([]byte("m"), []byte("k"), []byte("v0"))
+	require.True(t, got0.Equals(s0), "recently-touched key v0 should not have been evicted")
+	got1, _ := cache.get([]byte("m"), []byte("k"), []byte("v1"))
+	require.Nil(t, got1, "true LRU key v1 should have been evicted")
+	got2, _ := cache.get([]byte("m"), []byte("k"), []byte("v2"))
+	require.True(t, got2.Equals(s2), "newly inserted key v2 should be present")
 
 	stats := cache.Statistics(nil)
 	require.Equal(t, int64(1), stats[0].Values[statTagValueCacheEviction])
@@ -743,6 +753,15 @@ func TestDecideShrink_PolicyTable(t *testing.T) {
 			wantNewCap: 50, wantEvict: 50, wantShrink: true,
 		},
 		{
+			// Cold tail of 4900 (and size/2 of 2500) both exceed the per-event
+			// cap, so the absolute bound is the binding one. Decay continues over
+			// later windows (covered by TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped).
+			name:  "cold-tail bounded by maxShrinkEvictPerEvent",
+			hitsW: 1000, missesW: 0, evictionsW: 0,
+			capacity: 5000, size: 5000, warmCount: 100, floor: 10,
+			wantNewCap: 5000 - maxShrinkEvictPerEvent, wantEvict: maxShrinkEvictPerEvent, wantShrink: true,
+		},
+		{
 			name:  "cold-tail sheds exactly the cold tail when under half",
 			hitsW: 1000, missesW: 0, evictionsW: 0,
 			capacity: 100, size: 100, warmCount: 60, floor: 10,
@@ -860,6 +879,112 @@ func TestTagValueSeriesIDCache_NoShrinkWhenAllTouched(t *testing.T) {
 	require.Equal(t, int64(10), atomic.LoadInt64(&cache.stats.Size))
 }
 
+// TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped verifies that when the
+// unbounded cold-tail shed would exceed maxShrinkEvictPerEvent, a single event
+// sheds exactly the cap and subsequent windows continue the decay — the claim
+// made by decideColdTail's doc comment.
+//
+// Cache size 3074 with a warm set of 10 and floor 2:
+//   - Window 1: unbounded shed 3064 → size/2 bound 1537 → cap 1024. New cap 2050.
+//   - Window 2: unbounded shed 2040 → size/2 bound 1025 → cap 1024. New cap 1026.
+//
+// The post-shrink cooldown is adaptiveWindowLen(newCap, samples, target), which
+// matches the next window's length, so the cooldown elapses exactly when window 2
+// ends — no manual cooldown reset is needed (and the natural cycle is itself
+// useful coverage).
+func TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped(t *testing.T) {
+	const (
+		target  = 0.5
+		size    = 3074
+		warm    = 10
+		samples = 8
+	)
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 4096, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, samples, zap.NewNop())
+	atomic.StoreInt64(&cache.capacity, size)
+
+	// 2-byte values give a unique key per i in [0, 65536); the single-byte
+	// values used by newFullAdaptiveCache would collide past 255.
+	keys := make([][]byte, size)
+	for i := 0; i < size; i++ {
+		keys[i] = []byte{byte(i >> 8), byte(i & 0xFF)}
+		cache.Put([]byte("m"), []byte("k"), keys[i], tsdb.NewSeriesIDSet(uint64(i)))
+	}
+	require.Equal(t, int64(size), atomic.LoadInt64(&cache.stats.Size), "setup occupancy")
+
+	drive := func(w int64) {
+		for i := int64(0); i < w; i++ {
+			require.NotNil(t, cache.Get([]byte("m"), []byte("k"), keys[int(i)%warm]))
+		}
+	}
+
+	// Window 1: cap clamps the first shrink at maxShrinkEvictPerEvent.
+	drive(adaptiveWindowLen(size, samples, target))
+	afterFirst := int64(size - maxShrinkEvictPerEvent)
+	require.Equal(t, int64(maxShrinkEvictPerEvent), atomic.LoadInt64(&cache.stats.ShrinkEvictions),
+		"first shrink should hit maxShrinkEvictPerEvent exactly")
+	require.Equal(t, afterFirst, atomic.LoadInt64(&cache.capacity),
+		"capacity reflects the capped shed")
+
+	// Window 2: same workload after the cooldown elapses; cap clamps again.
+	// ShrinkEvictions accumulates, so the second shrink is visible as a second
+	// 1024 increment.
+	drive(adaptiveWindowLen(afterFirst, samples, target))
+	require.Equal(t, int64(2*maxShrinkEvictPerEvent), atomic.LoadInt64(&cache.stats.ShrinkEvictions),
+		"second shrink should add another maxShrinkEvictPerEvent — decay continues")
+	require.Equal(t, afterFirst-int64(maxShrinkEvictPerEvent), atomic.LoadInt64(&cache.capacity),
+		"capacity drops by the cap on each successive event")
+}
+
+// TestTagValueSeriesIDCache_ShrinkAfterPutEvictsBoundary is a regression
+// test for a bug where a Put during an in-progress shrink window evicted
+// the LRU boundary on an all-warm cache and nil-ed deepestTouched. A
+// subsequent narrow Get re-seeded deepestTouched at the touched element
+// (now at the front), so the warm-count walk gave warmCount=1 and
+// decideColdTail trimmed the cache, evicting entries that HAD been
+// touched this window. The fix recedes deepestTouched to e.Prev() (the
+// new back of the now-smaller list, still warm) instead of nil-ing it:
+// Put is reached after a Get miss so the new front element is itself
+// warm, the warm set after the Put is the entire (now smaller) cache,
+// and the existing "boundary == Back" short-circuit then prevents shrink.
+func TestTagValueSeriesIDCache_ShrinkAfterPutEvictsBoundary(t *testing.T) {
+	// minSamples=1 so the rate-floor doesn't block; target=0.95 so the
+	// eviction-gate threshold stays at the 1-eviction floor for w=14.
+	cache := newFullAdaptiveCache(t, 5, 1, 0.95)
+
+	// Touch every entry: cache is fully warm, boundary = LRU.
+	for i := 0; i < 5; i++ {
+		require.NotNil(t, getVal(cache, i))
+	}
+
+	// Put a new key. The LRU IS the boundary; the Put-induced eviction
+	// would have nil-ed deepestTouched pre-fix. With the fix, it recedes
+	// to the new back (still warm).
+	cache.Put([]byte("m"), []byte("k"), []byte{99}, tsdb.NewSeriesIDSet(99))
+
+	// Narrow post-Put access: touch ONLY entry 4 (already at the front),
+	// driving the window to completion without disturbing the new boundary.
+	// Pre-fix, the first such Get re-seeded deepestTouched at 4 and the
+	// walk gave warmCount=1, triggering a shrink to ~size/2 that evicted
+	// warm entries 1 and 2. Post-fix, deepestTouched stays at the new
+	// back, the "boundary == Back" short-circuit fires, and no shrink runs.
+	w := adaptiveWindowLen(5, 1, 0.95)
+	for i := int64(0); i < w; i++ {
+		require.NotNil(t, getVal(cache, 4))
+	}
+
+	require.Equal(t, int64(5), atomic.LoadInt64(&cache.capacity),
+		"capacity must not shrink: post Put-evict the cache is full-warm")
+	require.Equal(t, int64(0), atomic.LoadInt64(&cache.stats.ShrinkEvictions),
+		"no shrink trim should have run")
+	require.Equal(t, int64(1), atomic.LoadInt64(&cache.stats.Evictions),
+		"the Put-induced eviction lands in Evictions, not ShrinkEvictions")
+
+	require.False(t, existsVal(cache, 0), "entry 0 was evicted by the Put")
+	for _, v := range []int{1, 2, 3, 4, 99} {
+		require.True(t, existsVal(cache, v), "entry %d must survive", v)
+	}
+}
+
 func TestTagValueSeriesIDCache_ShrinkCooldown(t *testing.T) {
 	// A capacity change sets a Gets-based cooldown that suppresses shrink until
 	// it elapses. Seed a long cooldown and verify shrink is gated across several
@@ -905,6 +1030,38 @@ func TestTagValueSeriesIDCache_ShrinkBoundaryReTouch(t *testing.T) {
 	got := cache.warmCountLocked()
 	cache.Unlock()
 	require.Equal(t, int64(3), got, "warmCount must equal distinct-touched (3), not collapse on boundary re-touch")
+}
+
+func TestTagValueSeriesIDCache_ShrinkWindowFirstGetCountsInRate(t *testing.T) {
+	// Regression: a shrink window opened on a Get must include that Get's
+	// hit/miss in hitsW/missesW, matching its inclusion in getsSinceShrinkCheck
+	// and deepestTouched. Otherwise a window opened by a miss looks like 100%
+	// hit rate (the only miss is excluded from the baseline) and the rate gate
+	// fails to block a spurious shrink.
+	const target = 0.95
+	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 8, zap.NewNop())
+	atomic.StoreInt64(&cache.capacity, 10)
+	for i := 0; i < 4; i++ {
+		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
+	}
+
+	w := adaptiveWindowLen(4, 8, target)
+	// True rate (w-1)/w must be < target for the gate to block a shrink; any w
+	// in [2, 19] satisfies this for target=0.95. Guard against future tuning.
+	require.Greater(t, w, int64(1), "precondition: window must span >1 Get")
+	require.Less(t, float64(w-1)/float64(w), target, "precondition: true rate < target")
+
+	// First Get of the new window: absent key (a miss). Then fill the rest of
+	// the window with hits on existing keys.
+	require.Nil(t, getVal(cache, 99))
+	for i := int64(1); i < w; i++ {
+		require.NotNil(t, getVal(cache, int(i%4)))
+	}
+
+	// Pre-fix, the opening miss was excluded from missesW, so the window looked
+	// like 100% hit rate and the slack branch trimmed capacity to size (4).
+	require.Equal(t, int64(10), atomic.LoadInt64(&cache.capacity),
+		"rate gate must block shrink when the window-opening miss is counted")
 }
 
 func TestTagValueSeriesIDCache_ShrinkGrowCooldownStamp(t *testing.T) {

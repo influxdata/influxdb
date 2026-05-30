@@ -88,9 +88,14 @@ const (
 	// deviations below the at-target eviction count's mean at which the shrink
 	// eviction gate sits. Values >= 0.0 (the validated range) demand the cache
 	// outperform target by that statistical margin before any shrink fires;
-	// higher values are more conservative. 2.0 is the default: shrink admits in
-	// roughly 2.3% of windows in which the cache is exactly at target.
-	DefaultSeriesIDSetCacheShrinkConservatism = 2.0
+	// higher values are more conservative. 2.5 is the default: shrink admits in
+	// roughly 0.62% of windows in which the cache is exactly at target. The
+	// extra margin over the 2.0σ choice (~2.3%) covers the fact that real cache
+	// access is correlated (locality, Zipfian skew) so the at-target eviction
+	// distribution is wider than the independent-Bernoulli approximation; the
+	// conservative default trades a bit of memory for fewer false-positive
+	// shrinks on skewed workloads.
+	DefaultSeriesIDSetCacheShrinkConservatism = 2.5
 
 	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
 	// partition snapshot compactions that can run at one time.
@@ -228,8 +233,10 @@ type Config struct {
 	// gate admits shrink when observed evictions are below μ − conservatism·σ.
 	// Values >= 0.0 are accepted; higher values demand a wider statistical margin
 	// before shrinking (more memory-retaining, more anti-oscillation). The
-	// default is DefaultSeriesIDSetCacheShrinkConservatism (2.0). Validation
-	// rejects NaN, ±Inf, and values < 0.0.
+	// default is DefaultSeriesIDSetCacheShrinkConservatism (2.5) — conservative
+	// because the binomial model assumes independent misses, while real cache
+	// access is correlated, so the true at-target distribution is wider than σ
+	// here. Validation rejects NaN, ±Inf, and values < 0.0.
 	SeriesIDSetCacheShrinkConservatism float64 `toml:"series-id-set-cache-shrink-conservatism"`
 
 	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
