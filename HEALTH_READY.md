@@ -642,12 +642,14 @@ restarting.
 
 ### `/health` 503 — all checks pass but the body says `"fail"`
 
-If `/health` returns `503` but the `checks` array contains only
-`"pass"` entries, the response is being constructed under an
-inconsistent observation (a check transitioned between the aggregation
-walk and the per-check render). Retry the request — the inconsistency
-window is bounded by the probe interval. If the condition persists
-across many requests, file an issue with the body and headers attached.
+**Meaning:** `/health` returned `503` but the `checks` array contains
+only `"pass"` entries. The response was constructed under an inconsistent
+observation, where a check transitioned between the aggregation walk and
+the per-check render.
+
+**Action:** Retry the request. The inconsistency window is bounded by the
+probe interval. If the condition persists across many requests, file an
+issue with the body and headers attached.
 
 ---
 
