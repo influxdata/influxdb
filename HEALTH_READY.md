@@ -234,7 +234,7 @@ Reports the accumulated shard-load errors observed during engine
 startup. `"pass"` until at least one shard fails to load; thereafter
 `"fail"` with a message of the form:
 
-```
+```text
 <n> shard(s) failed to load: shard <id>: <err>; shard <id>: <err>; ...
 ```
 
