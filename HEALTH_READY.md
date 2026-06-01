@@ -61,7 +61,7 @@ Source: `http/check_handler.go`, `NewHealthReadyHandler`.
 
 ### JSON envelope
 
-```
+```text
 {
   "name":    "influxdb",          // constant
   "status":  "pass" | "fail",     // aggregate over all health checks
