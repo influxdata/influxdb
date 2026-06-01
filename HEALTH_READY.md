@@ -307,9 +307,9 @@ Source: `http/check_handler.go`.
 }
 ```
 
-The literal message `"not ready"` is the default that every unsignaled
-`ReadyGate` emits (`kit/check/helpers.go`). The `shards` gate emits
-different messages — see below.
+Every unsignaled `ReadyGate` emits the default message `"not ready"`
+(`kit/check/helpers.go`). The `shards` gate emits different messages.
+See below.
 
 ### Registered ready gates
 
