@@ -563,12 +563,14 @@ Address the underlying error before you restart.
 }
 ```
 
-**Meaning:** The background bolt prober has not recorded a fresh result
+**Meaning:** The background bolt prober hasn't recorded a fresh result
 within the 5-second staleness budget. Either the prober goroutine is
-wedged in a `db.View` (the bolt mmap is unresponsive — check disk and
-kernel logs) or the host is under such severe scheduling pressure that
-the 1-second probe loop cannot run. Look at `iostat`, `dmesg`, and the
-`influxd` process's CPU/memory state.
+wedged in a `db.View` and the bolt mmap is unresponsive, or the host is
+under severe scheduling pressure that prevents the 1-second probe loop
+from running.
+
+**Action:** Check disk and kernel logs for an unresponsive mmap. Inspect
+`iostat`, `dmesg`, and the `influxd` process's CPU and memory state.
 
 ### `/health` 503 — scheduler stalled
 
