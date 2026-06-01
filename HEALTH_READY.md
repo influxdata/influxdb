@@ -74,7 +74,7 @@ Source: `http/check_handler.go`, `NewHealthReadyHandler`.
 
 Each entry in `checks` is:
 
-```
+```text
 {
   "name":    "<check name>",      // always present
   "status":  "pass" | "fail",     // always present
