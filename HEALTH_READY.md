@@ -578,10 +578,12 @@ the 1-second probe loop cannot run. Look at `iostat`, `dmesg`, and the
 ```
 
 **Meaning:** The task scheduler's next-run timestamp is more than 30
-seconds behind wall clock — its dispatch loop fired a timer but never
-advanced. Look for blocked goroutines in the scheduler (use the runtime
-profile or stack dump). If this fires only at boot and clears within a
-few seconds, it is likely a cold-start dispatch and not a real wedge.
+seconds behind wall clock. Its dispatch loop fired a timer but never
+advanced. If this fires only at boot and clears within a few seconds,
+it's likely a cold-start dispatch and not a real wedge.
+
+**Action:** Look for blocked goroutines in the scheduler using the
+runtime profile or a stack dump.
 
 ### `/health` 503 — sqlite not open
 
