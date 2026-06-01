@@ -527,10 +527,11 @@ currently in flight is logged when it completes.
 }
 ```
 
-**Meaning:** The engine has not yet begun calling `AddShard`. Either the
-engine is still in early initialization (look for the `engine` gate also
-failing with `"not ready"`) or the engine is blocked before
-enumeration. Check logs for engine open progress.
+**Meaning:** The engine hasn't yet begun calling `AddShard`. The engine
+is either still in early initialization or blocked before enumeration.
+
+**Action:** Look for the `engine` gate also failing with `"not ready"`,
+which indicates early initialization. Check logs for engine open progress.
 
 ### `/ready` 503 — terminal shard load failure
 
