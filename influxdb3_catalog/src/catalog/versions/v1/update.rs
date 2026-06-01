@@ -828,7 +828,11 @@ impl DatabaseCatalogTransaction {
             }),
             None => {
                 if table_def.num_columns() >= self.columns_per_table_limit {
-                    return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
+                    return Err(CatalogError::TooManyColumns {
+                        table_name: Arc::clone(&table_def.table_name),
+                        would_have: table_def.num_columns() + 1,
+                        limit: self.columns_per_table_limit,
+                    });
                 }
                 if matches!(column_type, FieldDataType::Tag)
                     && table_def.num_tag_columns() >= NUM_TAG_COLUMNS_LIMIT
@@ -885,7 +889,11 @@ impl DatabaseCatalogTransaction {
             return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
         }
         if tags.len() + fields.len() > self.columns_per_table_limit - 1 {
-            return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
+            return Err(CatalogError::TooManyColumns {
+                table_name: Arc::from(table_name),
+                would_have: tags.len() + fields.len() + 1,
+                limit: self.columns_per_table_limit,
+            });
         }
 
         // Validate tag and field names using the same rules as the line protocol parser

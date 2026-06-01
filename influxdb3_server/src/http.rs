@@ -481,7 +481,7 @@ impl V2WriteApiError {
                 | CatalogError::InvalidConfiguration { .. }
                 | CatalogError::InvalidColumnType { .. }
                 | CatalogError::ReservedColumn(_)
-                | CatalogError::TooManyColumns(_)
+                | CatalogError::TooManyColumns { .. }
                 | CatalogError::TooManyTagColumns(_)
                 | CatalogError::TooManyTables { .. }
                 | CatalogError::TooManyDbs(_)
@@ -659,7 +659,7 @@ impl IntoResponse for CatalogError {
             | Self::DuplicateColumn { .. }
             | Self::InvalidColumnType { .. }
             | Self::NodeAlreadyStopped { .. } => Either::Right(StatusCode::BAD_REQUEST),
-            Self::TooManyColumns(_)
+            Self::TooManyColumns { .. }
             | Self::TooManyTables { .. }
             | Self::TooManyDbs(_)
             | Self::TooManyTagColumns(_)

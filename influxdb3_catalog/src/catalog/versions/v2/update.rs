@@ -1280,7 +1280,11 @@ impl TableTransaction {
     #[inline]
     fn check_columns_limit(&self) -> Result<()> {
         if self.num_columns() >= self.column_limit {
-            Err(CatalogError::TooManyColumns(self.column_limit))
+            Err(CatalogError::TooManyColumns {
+                table_name: Arc::clone(&self.table.table_name),
+                would_have: self.num_columns() + 1,
+                limit: self.column_limit,
+            })
         } else {
             Ok(())
         }
@@ -1677,7 +1681,11 @@ impl DatabaseCatalogTransaction {
                 return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
             }
             if c.num_columns() > self.columns_per_table_limit {
-                return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
+                return Err(CatalogError::TooManyColumns {
+                    table_name: Arc::from(table_name),
+                    would_have: c.num_columns(),
+                    limit: self.columns_per_table_limit,
+                });
             }
         }
 

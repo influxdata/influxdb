@@ -267,7 +267,22 @@ mod create_table {
             "field2",
             InfluxColumnType::Field(InfluxFieldType::Integer),
         );
-        assert!(matches!(result, Err(CatalogError::TooManyColumns(3))));
+        let err = result.unwrap_err();
+        let CatalogError::TooManyColumns {
+            table_name,
+            would_have,
+            limit,
+        } = &err
+        else {
+            panic!("expected TooManyColumns, got {err:?}");
+        };
+        assert_eq!(table_name.as_ref(), "test_table");
+        assert_eq!(*would_have, 4);
+        assert_eq!(*limit, 3);
+        // Surface the table name in the formatted message so API responses are not opaque.
+        let msg = err.to_string();
+        assert!(msg.contains("test_table"), "missing table name in: {msg}");
+        assert!(msg.contains("limit: 3"), "missing limit in: {msg}");
     }
 
     #[tokio::test]
@@ -1176,7 +1191,18 @@ mod update_table {
             "field2",
             InfluxColumnType::Field(InfluxFieldType::Integer),
         );
-        assert!(matches!(result, Err(CatalogError::TooManyColumns(3))));
+        let err = result.unwrap_err();
+        let CatalogError::TooManyColumns {
+            table_name,
+            would_have,
+            limit,
+        } = &err
+        else {
+            panic!("expected TooManyColumns, got {err:?}");
+        };
+        assert_eq!(table_name.as_ref(), "test_table");
+        assert_eq!(*would_have, 4);
+        assert_eq!(*limit, 3);
     }
 }
 

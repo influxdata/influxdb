@@ -48,8 +48,15 @@ pub enum CatalogError {
     #[error("invalid node registration")]
     InvalidNodeRegistration,
 
-    #[error("Update to schema would exceed number of columns per table limit of {0} columns")]
-    TooManyColumns(usize),
+    #[error(
+        "Update to schema would exceed columns per table limit for table '{table_name}': \
+        table would have {would_have} column(s) (limit: {limit})"
+    )]
+    TooManyColumns {
+        table_name: Arc<str>,
+        would_have: usize,
+        limit: usize,
+    },
 
     #[error("Update to schema would exceed number of tag columns per table limit of {0} columns")]
     TooManyTagColumns(usize),
