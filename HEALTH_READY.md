@@ -643,12 +643,13 @@ another process is holding a long-running write transaction.
 }
 ```
 
-**Meaning:** One or more shards failed to load during engine open.
-Errors accumulate — even if the engine itself opened successfully,
-`/health` will continue to report this until restart. Each `shard <id>`
-in the message identifies a specific shard directory under the
-configured data path; address each shard's underlying error before
-restarting.
+**Meaning:** One or more shards failed to load during engine open. Errors
+accumulate. Even if the engine opened successfully, `/health` continues
+to report this until restart.
+
+**Action:** Each `shard <id>` in the message identifies a specific shard
+directory under the configured data path. Address each shard's underlying
+error before you restart.
 
 ### `/health` 503 — all checks pass but the body says `"fail"`
 
