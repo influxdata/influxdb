@@ -597,11 +597,13 @@ runtime profile or a stack dump.
 }
 ```
 
-**Meaning:** The SQLite metadata store handle is nil — the store was
-closed or never opened. This should only be observed transiently during
-startup (before SQL migrations complete) or during shutdown. If it
-persists, the SQLite store failed to open; check `influxd` logs for the
-underlying error.
+**Meaning:** The SQLite metadata store handle is nil because the store
+was closed or never opened. InfluxDB reports this state only briefly,
+while it starts up (before SQL migrations complete) or while it shuts
+down.
+
+**Action:** If the failure persists, the SQLite store failed to open.
+Check `influxd` logs for the underlying error.
 
 ### `/health` 503 — sqlite ping error
 
