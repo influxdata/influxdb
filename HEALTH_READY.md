@@ -179,7 +179,7 @@ Background prober that runs a no-op `bolt.View` every
 (5 seconds). If no fresh probe result is recorded within the budget, the
 check flips to `"fail"` with a message of the form:
 
-```
+```text
 stale: last probe <age> ago (threshold 5s)
 ```
 
