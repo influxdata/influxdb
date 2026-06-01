@@ -38,7 +38,7 @@ This pre-API 503 is byte-exact (pinned by
 | any other path (pre-API)        | any     | —               | `"starting"`      |
 
 Trailing slashes are accepted on both endpoints. Query parameters are
-ignored — `/health?cachebust=1` is matched as `/health`.
+ignored--for example, `/health?cachebust=1` is matched as `/health`.
 
 Path constants are defined in `http/handler.go` as `HealthPath` and
 `ReadyPath`.
