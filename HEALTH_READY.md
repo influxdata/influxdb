@@ -544,10 +544,12 @@ which indicates early initialization. Check logs for engine open progress.
 }
 ```
 
-**Meaning:** `engine.Open` returned an error and the `shards` gate has
-latched into a terminal failure. Restarting will not clear this without
-addressing the underlying error in the message. Check disk health and
-file permissions on the data directory.
+**Meaning:** `engine.Open` returned an error and the `shards` gate
+latched into a terminal failure. Restarting won't clear this without
+addressing the underlying error in the message.
+
+**Action:** Check disk health and file permissions on the data directory.
+Address the underlying error before you restart.
 
 ### `/health` 503 — bolt prober stale
 
