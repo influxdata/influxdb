@@ -624,10 +624,11 @@ Check `influxd` logs for the underlying error.
 }
 ```
 
-**Meaning:** `db.PingContext` did not return within the 500ms probe
-deadline, or returned an I/O error. Check disk health on the SQLite
-database file and whether another process is holding a long-running
-write transaction.
+**Meaning:** `db.PingContext` didn't return within the 500ms probe
+deadline, or it returned an I/O error.
+
+**Action:** Check disk health on the SQLite database file and whether
+another process is holding a long-running write transaction.
 
 ### `/health` 503 — accumulated shard load failures
 
