@@ -249,7 +249,7 @@ Source: `cmd/influxd/run/startup_logger.go`.
 
 ### JSON envelope
 
-```
+```text
 {
   "status":  "ready" | "starting",   // aggregate over all ready gates
   "started": "<RFC3339Nano timestamp>",
