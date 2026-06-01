@@ -390,11 +390,11 @@ Use `/health`:
   scheduler, a shard load failure that occurred after startup
   completed).
 
-Key behavioral difference: once a `/ready` gate has been signaled
-`Ready()`, it does not transition back to `"fail"` unless the launcher
-calls `Unready()` (shutdown). So `/ready` will not flap during normal
-operation. `/health` is recomputed on every request and **will** reflect
-transient failures.
+> [!IMPORTANT]
+> Once a `/ready` gate has been signaled `Ready()`, it does not transition
+> back to `"fail"` unless the launcher calls `Unready()` (shutdown). So
+> `/ready` will not flap during normal operation. `/health` is recomputed
+> on every request and **will** reflect transient failures.
 
 ### curl examples
 
