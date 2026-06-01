@@ -509,10 +509,12 @@ For each scenario below, the JSON snippet is the relevant portion of the
 ```
 
 **Meaning:** Normal startup. The engine has enumerated 200 shards and 94
-have finished opening. Wait — the percentage updates each time another
-shard completes. If the percentage stops climbing, check `influxd` logs
-for `Finished loading shard` lines; whichever shard is currently in
-flight is logged when it completes.
+have finished opening. The percentage updates each time another shard
+completes.
+
+**Action:** Wait for loading to finish. If the percentage stops climbing,
+check `influxd` logs for `Finished loading shard` lines. The shard
+currently in flight is logged when it completes.
 
 ### `/ready` 503 — shards enumeration not yet started
 
