@@ -329,10 +329,10 @@ The launcher registers eight ready gates in this order:
 Source of truth: `cmd/influxd/launcher/health_ready_test.go` and
 `cmd/influxd/launcher/subsystems.go`.
 
-Each gate is binary: a single `Ready()` call latches it to `"pass"` for
-the life of the process. During shutdown, the launcher walks the
-labeled-closer chain and calls `Unready()` on every gate it owns, so
-`/ready` flips back to `503` while subsystems are being shut down.
+Each gate is binary. A single `Ready()` call latches it to `"pass"` for
+the life of the process. During shutdown, the launcher calls `Unready()`
+on every gate it owns, so `/ready` returns `503` while InfluxDB shuts
+down those subsystems.
 
 ### `shards` ready states (progressive)
 
