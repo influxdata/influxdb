@@ -398,21 +398,33 @@ transient failures.
 
 ### curl examples
 
-Probe `/ready` and `/health` and inspect the body:
+Probe `/ready` and inspect the response--for example:
 
+```sh
+curl -sS -o body.json -w '%{http_code}\n' http://localhost:8086/ready
 ```
-$ curl -sS -o body.json -w '%{http_code}\n' http://localhost:8086/ready
-200
-$ jq . body.json
+
+The command prints the HTTP status code to stdout and writes the
+response body to `body.json`. A ready instance returns `200` and the
+following body:
+
+```json
 {
   "status": "ready",
   "started": "2026-05-26T15:42:30.123456789Z",
   "up": "1m32.4s"
 }
+```
 
-$ curl -sS -o body.json -w '%{http_code}\n' http://localhost:8086/health
-200
-$ jq . body.json
+Probe `/health` the same way:
+
+```sh
+curl -sS -o body.json -w '%{http_code}\n' http://localhost:8086/health
+```
+
+A healthy instance returns `200` and a body that lists each check:
+
+```json
 {
   "name": "influxdb",
   "status": "pass",
