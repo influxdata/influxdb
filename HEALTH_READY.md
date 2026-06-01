@@ -442,12 +442,16 @@ A healthy instance returns `200` and a body that lists each check:
 }
 ```
 
-During startup, `/ready` typically shows the `shards` gate progressing:
+Probe `/ready` during startup to watch the `shards` gate progress--for example:
 
+```sh
+curl -sS -o body.json -w '%{http_code}\n' http://localhost:8086/ready
 ```
-$ curl -sS -o body.json -w '%{http_code}\n' http://localhost:8086/ready
-503
-$ jq . body.json
+
+The command returns `503`, and the body lists only the checks that
+haven't passed:
+
+```json
 {
   "status": "starting",
   "started": "2026-05-26T15:42:30.123456789Z",
@@ -463,13 +467,23 @@ $ jq . body.json
 }
 ```
 
-Distinguishing a 200 response from a 503 from the body alone:
+Distinguish a `200` from a `503` using the body alone--for example:
 
+```sh
+curl -sS http://localhost:8086/ready | jq -r .status
 ```
-$ curl -sS http://localhost:8086/ready  | jq -r .status
-ready
 
-$ curl -sS http://localhost:8086/health | jq -r .status
+```text
+ready
+```
+
+Do the same for `/health`:
+
+```sh
+curl -sS http://localhost:8086/health | jq -r .status
+```
+
+```text
 pass
 ```
 
