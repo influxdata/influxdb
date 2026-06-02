@@ -2,7 +2,6 @@ package tsi1
 
 import (
 	"container/list"
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -164,34 +163,58 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 // before the grow policy is allowed to act; below this floor the rate is treated
 // as too noisy to react to. shrinkConservatism (>= 0.0) is the number of standard
 // deviations below the at-target eviction mean at which the shrink eviction gate
-// sits; see the doc on SeriesIDSetCacheShrinkConservatism in tsdb.Config. Panics
-// on invalid arguments: initial must be > 0, max > initial (an adaptive cache
-// that cannot grow is a misconfiguration — use NewTagValueSeriesIDCache for a
-// fixed cache), target in (0, 1) (1.0 is unachievable and is rejected by config
-// validation; NaN is rejected), shrinkConservatism finite and >= 0.0 (NaN/±Inf
-// rejected), minSamples >= 0.
+// sits; see the doc on SeriesIDSetCacheShrinkConservatism in tsdb.Config.
+//
+// If any argument is invalid, the error is logged and a fixed-size (non-adaptive)
+// cache from NewTagValueSeriesIDCache is returned in place of the adaptive one,
+// so misconfiguration degrades to a working cache rather than crashing the
+// process. The fallback uses initial when it is itself valid (>0), otherwise
+// tsdb.DefaultSeriesIDSetCacheSize. Invalid arguments are: initial <= 0; max <=
+// initial (an adaptive cache that cannot grow is a misconfiguration — use
+// NewTagValueSeriesIDCache directly for a fixed cache); target not in (0, 1)
+// (1.0 is unachievable and is rejected by config validation; NaN is rejected);
+// shrinkConservatism not in [0, +Inf) (NaN/±Inf rejected); minSamples < 0.
 func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservatism float64, minSamples int, logger *zap.Logger) *TagValueSeriesIDCache {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
+	// fallback builds the non-adaptive replacement: a fixed-size cache sized to
+	// initial when valid, otherwise tsdb.DefaultSeriesIDSetCacheSize, with the
+	// caller's logger attached so the error log line and the fallback share a
+	// destination. Safe to set the logger directly because the cache has not
+	// yet been shared with other goroutines.
+	fallback := func(reason string, fields ...zap.Field) *TagValueSeriesIDCache {
+		size := initial
+		if size <= 0 {
+			size = tsdb.DefaultSeriesIDSetCacheSize
+		}
+		logger.Error("NewAdaptiveTagValueSeriesIDCache: "+reason+"; falling back to fixed-size cache",
+			append(fields, zap.Int("fallback_size", size))...)
+		c := NewTagValueSeriesIDCache(size)
+		c.SetLogger(logger)
+		return c
+	}
+
 	if initial <= 0 {
-		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: initial must be > 0, got %d", initial))
+		return fallback("initial must be > 0", zap.Int("initial", initial))
 	}
 	if max <= initial {
-		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: max (%d) must be > initial (%d)", max, initial))
+		return fallback("max must be > initial", zap.Int("initial", initial), zap.Int("max", max))
 	}
 	// Positive range test so NaN (for which both `<` and `>` are false) is
 	// rejected rather than slipping through.
 	if !(target > 0 && target < 1) {
-		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: target must be in (0, 1), got %v", target))
+		return fallback("target must be in (0, 1)", zap.Float64("target", target))
 	}
 	// Same positive-form trick rejects NaN and ±Inf for the conservatism.
 	if !(shrinkConservatism >= 0 && shrinkConservatism < math.Inf(1)) {
-		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: shrinkConservatism must be a finite value >= 0, got %v", shrinkConservatism))
+		return fallback("shrinkConservatism must be a finite value >= 0", zap.Float64("shrink_conservatism", shrinkConservatism))
 	}
 	if minSamples < 0 {
-		panic(fmt.Sprintf("NewAdaptiveTagValueSeriesIDCache: minSamples must be >= 0, got %d", minSamples))
+		return fallback("minSamples must be >= 0", zap.Int("min_samples", minSamples))
 	}
-	if logger == nil {
-		logger = zap.NewNop()
-	}
+
 	return &TagValueSeriesIDCache{
 		cache:              map[string]map[string]map[string]*list.Element{},
 		evictor:            list.New(),
@@ -235,13 +258,17 @@ func (c *TagValueSeriesIDCache) Statistics(tags map[string]string) []models.Stat
 // Get returns the SeriesIDSet associated with the {name, key, value} tuple if it
 // exists.
 func (c *TagValueSeriesIDCache) Get(name, key, value []byte) *tsdb.SeriesIDSet {
-	c.Lock()
-	ss, hit := c.get(name, key, value)
-	// Drive the adaptive shrink check from the read path: the grow check is
-	// eviction-driven and is blind when the cache is quiet (exactly when a
-	// shrink may be warranted). Log after releasing the lock, like Put.
-	event, shrank := c.checkShrink(hit)
-	c.Unlock()
+	ss, event, shrank := func() (*tsdb.SeriesIDSet, resizeEvent, bool) {
+		c.Lock()
+		defer c.Unlock()
+		ss, hit := c.get(name, key, value)
+		// Drive the adaptive shrink check from the read path: the grow check is
+		// eviction-driven and is blind when the cache is quiet (exactly when a
+		// shrink may be warranted). Log after releasing the lock, like Put.
+		event, shrank := c.checkShrink(hit)
+		return ss, event, shrank
+	}()
+
 	if shrank {
 		c.logShrink(event)
 	}
@@ -327,7 +354,15 @@ func (c *TagValueSeriesIDCache) measurementContainsSets(name []byte) bool {
 // Put adds the SeriesIDSet to the cache under the tuple {name, key, value}. If
 // the cache is at its limit, then the least recently used item is evicted.
 func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSet) {
+	event, grew := c.innerLockingPut(name, key, value, ss)
+	if grew {
+		c.logResize(event)
+	}
+}
+
+func (c *TagValueSeriesIDCache) innerLockingPut(name, key, value []byte, ss *tsdb.SeriesIDSet) (resizeEvent, bool) {
 	c.Lock()
+	defer c.Unlock()
 	// Convert once; the same string backing array is shared between
 	// the cache element (used during eviction) and the map keys.
 	nameStr := string(name)
@@ -335,8 +370,7 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 	valueStr := string(value)
 	// Check under the write lock if the relevant item is now in the cache.
 	if c.exists(nameStr, keyStr, valueStr) {
-		c.Unlock()
-		return
+		return resizeEvent{}, false
 	}
 
 	// Ensure our SeriesIDSet is go heap backed.
@@ -374,11 +408,7 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 	}
 
 EVICT:
-	event, grew := c.checkEviction()
-	c.Unlock()
-	if grew {
-		c.logResize(event)
-	}
+	return c.checkEviction()
 }
 
 // Delete removes x from the tuple {name, key, value} if it exists.

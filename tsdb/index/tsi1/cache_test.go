@@ -660,25 +660,54 @@ func TestAdaptiveWindowLen(t *testing.T) {
 }
 
 func TestNewAdaptiveTagValueSeriesIDCache_RejectsInvalidArguments(t *testing.T) {
-	// NaN and out-of-range targets must panic; a NaN target would otherwise make
-	// the grow/shrink rate comparisons behave unpredictably.
-	for _, target := range []float64{math.NaN(), 0, 1, -0.1, 1.5} {
-		require.Panics(t, func() {
-			NewAdaptiveTagValueSeriesIDCache(2, 16, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, zap.NewNop())
-		}, "target %v must be rejected", target)
+	// Invalid arguments must NOT panic; the constructor logs the error and
+	// returns a fixed-size (non-adaptive) cache so misconfiguration degrades to
+	// a working cache. A non-adaptive cache is identified by maxCapacity == 0.
+	const defaultC = tsdb.DefaultSeriesIDSetCacheShrinkConservatism
+	cases := []struct {
+		name             string
+		initial, max     int
+		target, cons     float64
+		minSamples       int
+		wantLogSubstring string
+		wantFallbackSize int64 // size NewTagValueSeriesIDCache was called with
+	}{
+		{"initial zero", 0, 16, 0.95, defaultC, 4, "initial must be > 0", int64(tsdb.DefaultSeriesIDSetCacheSize)},
+		{"initial negative", -1, 16, 0.95, defaultC, 4, "initial must be > 0", int64(tsdb.DefaultSeriesIDSetCacheSize)},
+		{"max equal to initial", 2, 2, 0.95, defaultC, 4, "max must be > initial", 2},
+		{"max less than initial", 2, 1, 0.95, defaultC, 4, "max must be > initial", 2},
+		{"target NaN", 2, 16, math.NaN(), defaultC, 4, "target must be in (0, 1)", 2},
+		{"target zero", 2, 16, 0, defaultC, 4, "target must be in (0, 1)", 2},
+		{"target one", 2, 16, 1, defaultC, 4, "target must be in (0, 1)", 2},
+		{"target negative", 2, 16, -0.1, defaultC, 4, "target must be in (0, 1)", 2},
+		{"target above 1", 2, 16, 1.5, defaultC, 4, "target must be in (0, 1)", 2},
+		{"conservatism NaN", 2, 16, 0.95, math.NaN(), 4, "shrinkConservatism", 2},
+		{"conservatism +Inf", 2, 16, 0.95, math.Inf(1), 4, "shrinkConservatism", 2},
+		{"conservatism -Inf", 2, 16, 0.95, math.Inf(-1), 4, "shrinkConservatism", 2},
+		{"conservatism negative", 2, 16, 0.95, -1, 4, "shrinkConservatism", 2},
+		{"minSamples negative", 2, 16, 0.95, defaultC, -1, "minSamples must be >= 0", 2},
 	}
-	// NaN, ±Inf and negative conservatism values must panic; the valid range is
-	// [0, +Inf), so 0 and small positive values are accepted (covered separately).
-	for _, c := range []float64{math.NaN(), math.Inf(1), math.Inf(-1), -1, -0.0001} {
-		require.Panics(t, func() {
-			NewAdaptiveTagValueSeriesIDCache(2, 16, 0.95, c, 4, zap.NewNop())
-		}, "conservatism %v must be rejected", c)
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			core, logs := observer.New(zap.ErrorLevel)
+			c := NewAdaptiveTagValueSeriesIDCache(tt.initial, tt.max, tt.target, tt.cons, tt.minSamples, zap.New(core))
+			require.NotNil(t, c)
+			require.Equal(t, int64(0), c.maxCapacity, "fallback must be non-adaptive (maxCapacity == 0)")
+			require.Equal(t, tt.wantFallbackSize, atomic.LoadInt64(&c.capacity), "fallback capacity")
+			entries := logs.All()
+			require.Len(t, entries, 1, "expected exactly one error log")
+			require.Contains(t, entries[0].Message, tt.wantLogSubstring)
+		})
 	}
-	// Conservatism boundary values (0 = median admit; small positive) must NOT panic.
-	for _, c := range []float64{0, 0.5, 1, 2.0, 10} {
-		require.NotPanics(t, func() {
-			NewAdaptiveTagValueSeriesIDCache(2, 16, 0.95, c, 4, zap.NewNop())
-		}, "conservatism %v must be accepted", c)
+
+	// Valid conservatism boundary values (0 = median admit; small positive)
+	// must produce an adaptive cache and log nothing.
+	for _, cons := range []float64{0, 0.5, 1, 2.0, 10} {
+		core, logs := observer.New(zap.ErrorLevel)
+		cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.95, cons, 4, zap.New(core))
+		require.NotNil(t, cache)
+		require.Equal(t, int64(16), cache.maxCapacity, "valid args must produce adaptive cache, conservatism=%v", cons)
+		require.Empty(t, logs.All(), "valid args must not log, conservatism=%v", cons)
 	}
 }
 
@@ -818,6 +847,92 @@ func decideShrink(hitsW, missesW, evictionsW, capacity, size, warmCount, floor i
 		return decideColdTail(size, warmCount, floor)
 	}
 	return newCap, 0, shrink
+}
+
+// TestAtTargetEvictionGateLimit_Table exercises the gate-threshold helper across
+// a range of z (conservatism) values — including a mid-(0,1) z and a z>3 — that
+// the constructor's NotPanics check accepts but no behavior test exercises. With
+// gets=1000 and target=0.95, mu = 1000*0.05 = 50 and sigma = sqrt(1000*0.95*0.05)
+// ~= 6.8920, so the int64 floor of mu - z*sigma is computable to one count.
+func TestAtTargetEvictionGateLimit_Table(t *testing.T) {
+	tests := []struct {
+		name      string
+		gets      int64
+		target, z float64
+		want      int64
+	}{
+		// z=0 admits at the mean; covers the median-admit case the doc calls out.
+		{name: "z=0 admits at the mean", gets: 1000, target: 0.95, z: 0, want: 50},
+		// z in (0, 1): small relaxation below the mean. 50 - 0.5*6.892 = 46.554.
+		{name: "z=0.5 (in (0,1)) lowers limit below mean", gets: 1000, target: 0.95, z: 0.5, want: 46},
+		// Default production conservatism: 50 - 2.5*6.892 = 32.770.
+		{name: "z=2.5 (default) lowers limit further", gets: 1000, target: 0.95, z: 2.5, want: 32},
+		// z>3 deep below the mean drives the result negative; the floor at 1 binds.
+		{name: "z=10 (>3) floors at 1", gets: 1000, target: 0.95, z: 10, want: 1},
+		// Different targets shift the mean: T=0.5 -> mu=500; T=0.99 -> mu=10.
+		{name: "target=0.5 widens the mean", gets: 1000, target: 0.5, z: 0, want: 500},
+		{name: "target=0.99 narrows the mean", gets: 1000, target: 0.99, z: 0, want: 10},
+		// Tiny window where mu < 1: the floor binds even at z=0.
+		{name: "gets=1 floors at 1", gets: 1, target: 0.95, z: 0, want: 1},
+		// Out-of-range inputs return 1 (fail-safe: gate any eviction).
+		{name: "gets=0 fail-safe", gets: 0, target: 0.95, z: 0, want: 1},
+		{name: "gets=-1 fail-safe", gets: -1, target: 0.95, z: 0, want: 1},
+		{name: "target=0 fail-safe", gets: 1000, target: 0, z: 0, want: 1},
+		{name: "target=1 fail-safe", gets: 1000, target: 1, z: 0, want: 1},
+		{name: "target=NaN fail-safe", gets: 1000, target: math.NaN(), z: 0, want: 1},
+		{name: "z=-0.1 fail-safe", gets: 1000, target: 0.95, z: -0.1, want: 1},
+		{name: "z=NaN fail-safe", gets: 1000, target: 0.95, z: math.NaN(), want: 1},
+		{name: "z=+Inf fail-safe", gets: 1000, target: 0.95, z: math.Inf(1), want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, atTargetEvictionGateLimit(tt.gets, tt.target, tt.z))
+		})
+	}
+}
+
+// TestDecideShrink_ConservatismVariation locks in the scale-adaptive margin the
+// gate provides: with the same window evictions, raising z lowers the admission
+// threshold and flips the gate from pass to block. TestDecideShrink_PolicyTable
+// only exercises the default z (2.5); this test exercises z values in (0, 1) and
+// z > 3 to confirm both ends of the legal range affect shrink behavior.
+func TestDecideShrink_ConservatismVariation(t *testing.T) {
+	const (
+		target  = 0.95
+		rowGets = int64(1000)
+	)
+	// At target=0.95 and gets=1000, mu=50. The cold-tail shape mirrors a row
+	// from TestDecideShrink_PolicyTable: full cache (size=capacity=100), warm
+	// prefix of 20, hit rate 1.0 so the hit-rate gate always passes.
+	tests := []struct {
+		name         string
+		conservatism float64
+		evictionsW   int64
+		wantShrink   bool
+	}{
+		// z=0 admits at the mean (limit=50). evictionsW=50 is NOT > 50, gate
+		// passes, cold-tail branch shrinks. Documents the median-admit boundary.
+		{name: "z=0 admits at the median", conservatism: 0, evictionsW: 50, wantShrink: true},
+		// z=0.5 (in (0,1)) lowers limit to 46; evictionsW=50 > 46 blocks. Proves
+		// a small in-range z already tightens the gate.
+		{name: "z=0.5 (in (0,1)) blocks above lowered limit", conservatism: 0.5, evictionsW: 50, wantShrink: false},
+		// z=10 (>3) drives the limit to the floor (1); evictionsW=50 > 1 blocks
+		// hard. Proves a very conservative operator setting suppresses shrink
+		// under normal eviction pressure.
+		{name: "z=10 (>3) blocks above the floored limit", conservatism: 10, evictionsW: 50, wantShrink: false},
+		// z=10 still admits when evictions sit at the floor: 1 > 1 is false, so
+		// even a very conservative cache can shrink when traffic is genuinely quiet.
+		{name: "z=10 (>3) admits at the floor", conservatism: 10, evictionsW: 1, wantShrink: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, shrink := decideShrink(
+				rowGets, 0, tt.evictionsW,
+				100, 100, 20, 10, target, tt.conservatism,
+			)
+			require.Equal(t, tt.wantShrink, shrink)
+		})
+	}
 }
 
 // newFullAdaptiveCache returns an adaptive cache forced to the given capacity
