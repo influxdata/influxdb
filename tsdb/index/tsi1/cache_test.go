@@ -793,6 +793,33 @@ func TestDecideShrink_PolicyTable(t *testing.T) {
 	}
 }
 
+// decideShrink implements the full capacity-decay policy as a pure function of
+// the window's counters, the current occupancy, and the observed access
+// footprint. It mirrors decideResize so the policy can be exercised with integer
+// literals. It composes decideShrinkPre and decideColdTail; production code calls
+// those two directly so the O(size) footprint walk that produces warmCount is
+// only performed when the cold-tail branch is actually reached (see
+// maybeShrinkLocked).
+//
+// Gates (all required): at least one read; window evictions at or below the
+// scaled at-target expectation (see atTargetEvictionGateLimit); and a windowed
+// hit rate >= target (the cache is serving its working set well). When gated
+// through, one of two branches fires:
+//   - slack: capacity exceeds occupancy -> drop the unused headroom (no eviction).
+//   - cold-tail: cache is full -> shed the LRU tail that went untouched this
+//     window, down to the warm footprint (warmCount), clamped at floor, and
+//     bounded to half the cache per event so the write lock is not held long.
+//
+// The evicted entries are always within the untouched cold tail, so warm entries
+// are never shed.
+func decideShrink(hitsW, missesW, evictionsW, capacity, size, warmCount, floor int64, target, conservatism float64) (newCap, evict int64, shrink bool) {
+	newCap, shrink, coldTail := decideShrinkPre(hitsW, missesW, evictionsW, capacity, size, floor, target, conservatism)
+	if coldTail {
+		return decideColdTail(size, warmCount, floor)
+	}
+	return newCap, 0, shrink
+}
+
 // newFullAdaptiveCache returns an adaptive cache forced to the given capacity
 // and filled with that many entries (values 0..capacity-1). The floor is 2, so
 // shrink has room to act. Adaptive growth is not exercised (no evictions occur
