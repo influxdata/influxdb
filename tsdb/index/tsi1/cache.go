@@ -40,8 +40,8 @@ const (
 const maxShrinkEvictPerEvent = 1024
 
 // TagValueSeriesIDCacheStatistics holds counters describing the behavior of a
-// TagValueSeriesIDCache. Fields are read and written with sync/atomic so that
-// Statistics can be sampled without acquiring the cache lock.
+// TagValueSeriesIDCache. Fields are atomic.Int64 so that Statistics can be
+// sampled without acquiring the cache lock.
 //
 // Evictions counts entries forced out under write pressure (a Put on a full
 // cache); ShrinkEvictions counts entries shed by the adaptive shrink policy.
@@ -50,11 +50,11 @@ const maxShrinkEvictPerEvent = 1024
 // → forced eviction"), and operators often want to distinguish "the cache is
 // under pressure" from "the cache is voluntarily releasing memory."
 type TagValueSeriesIDCacheStatistics struct {
-	Hits            int64
-	Misses          int64
-	Evictions       int64
-	ShrinkEvictions int64
-	Size            int64
+	Hits            atomic.Int64
+	Misses          atomic.Int64
+	Evictions       atomic.Int64
+	ShrinkEvictions atomic.Int64
+	Size            atomic.Int64
 }
 
 // resizeEvent describes a single capacity-change event (grow or shrink).
@@ -79,20 +79,13 @@ type resizeEvent struct {
 // order by which items should be evicted from the cache, and a hashmap implementation
 // to provide constant time retrievals of items from the cache.
 type TagValueSeriesIDCache struct {
-	// Due to a bug in atomic, 64-bit words accessed with sync/atomic must be
-	// 64-bit aligned, and the first word of an allocated struct is the only
-	// position guaranteed to be 8-byte aligned on 32-bit platforms. Keep all
-	// atomically-accessed int64 fields (capacity and the stats counters)
-	// contiguous at the top of the struct, ahead of every other field.
-	// See: https://golang.org/pkg/sync/atomic/#pkg-note-BUG
+	// capacity is the current cache capacity. Read with capacity.Load()
+	// (lockless reads from Statistics); written with capacity.Store() under
+	// the cache write lock when the adaptive policy grows it. It is an
+	// atomic.Int64, which aligns itself, so its placement is unconstrained.
+	capacity atomic.Int64
 
-	// capacity is the current cache capacity. Read with atomic.LoadInt64
-	// (lockless reads from Statistics); written with atomic.StoreInt64 under
-	// the cache write lock when the adaptive policy grows it.
-	capacity int64
-
-	// stats holds the atomically-accessed counters. Its int64 fields stay
-	// 8-byte aligned because capacity above is exactly one 64-bit word.
+	// stats holds the atomically-accessed counters.
 	stats TagValueSeriesIDCacheStatistics
 
 	sync.RWMutex
@@ -138,12 +131,13 @@ type TagValueSeriesIDCache struct {
 // NewTagValueSeriesIDCache returns a TagValueSeriesIDCache with fixed
 // capacity c. Adaptive sizing is disabled; the cache will evict at c.
 func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
-	return &TagValueSeriesIDCache{
-		cache:    map[string]map[string]map[string]*list.Element{},
-		evictor:  list.New(),
-		capacity: int64(c),
-		logger:   zap.NewNop(),
+	cache := &TagValueSeriesIDCache{
+		cache:   map[string]map[string]map[string]*list.Element{},
+		evictor: list.New(),
+		logger:  zap.NewNop(),
 	}
+	cache.capacity.Store(int64(c))
+	return cache
 }
 
 // NewAdaptiveTagValueSeriesIDCache returns a TagValueSeriesIDCache that sizes
@@ -215,10 +209,9 @@ func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservati
 		return fallback("minSamples must be >= 0", zap.Int("min_samples", minSamples))
 	}
 
-	return &TagValueSeriesIDCache{
+	cache := &TagValueSeriesIDCache{
 		cache:              map[string]map[string]map[string]*list.Element{},
 		evictor:            list.New(),
-		capacity:           int64(initial),
 		minCapacity:        int64(initial),
 		maxCapacity:        int64(max),
 		targetHitRate:      target,
@@ -226,6 +219,8 @@ func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservati
 		minSamples:         int64(minSamples),
 		logger:             logger,
 	}
+	cache.capacity.Store(int64(initial))
+	return cache
 }
 
 // SetLogger replaces the cache's logger. Intended for callers that
@@ -245,12 +240,12 @@ func (c *TagValueSeriesIDCache) Statistics(tags map[string]string) []models.Stat
 		Name: statTagValueCacheMeasurement,
 		Tags: tags,
 		Values: map[string]interface{}{
-			statTagValueCacheHit:            atomic.LoadInt64(&c.stats.Hits),
-			statTagValueCacheMiss:           atomic.LoadInt64(&c.stats.Misses),
-			statTagValueCacheEviction:       atomic.LoadInt64(&c.stats.Evictions),
-			statTagValueCacheShrinkEviction: atomic.LoadInt64(&c.stats.ShrinkEvictions),
-			statTagValueCacheSize:           atomic.LoadInt64(&c.stats.Size),
-			statTagValueCacheCapacity:       atomic.LoadInt64(&c.capacity),
+			statTagValueCacheHit:            c.stats.Hits.Load(),
+			statTagValueCacheMiss:           c.stats.Misses.Load(),
+			statTagValueCacheEviction:       c.stats.Evictions.Load(),
+			statTagValueCacheShrinkEviction: c.stats.ShrinkEvictions.Load(),
+			statTagValueCacheSize:           c.stats.Size.Load(),
+			statTagValueCacheCapacity:       c.capacity.Load(),
 		},
 	}}
 }
@@ -285,12 +280,12 @@ func (c *TagValueSeriesIDCache) get(name, key, value []byte) (*tsdb.SeriesIDSet,
 					c.trackTouchLocked(ele)
 				}
 				c.evictor.MoveToFront(ele) // This now becomes most recently used.
-				atomic.AddInt64(&c.stats.Hits, 1)
+				c.stats.Hits.Add(1)
 				return ele.Value.(*seriesIDCacheElement).SeriesIDSet, true
 			}
 		}
 	}
-	atomic.AddInt64(&c.stats.Misses, 1)
+	c.stats.Misses.Add(1)
 	return nil, false
 }
 
@@ -385,7 +380,7 @@ func (c *TagValueSeriesIDCache) innerLockingPut(name, key, value []byte, ss *tsd
 		value:       valueStr,
 		SeriesIDSet: ss,
 	})
-	atomic.AddInt64(&c.stats.Size, 1)
+	c.stats.Size.Add(1)
 
 	// Add the listElement to the set of items. The tuple cannot already
 	// exist here: the exists() check at the top of Put returns early if it
@@ -442,13 +437,13 @@ func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x uint64) {
 // the caller should use to emit a log line after releasing the write lock;
 // the bool is true iff a resize occurred.
 func (c *TagValueSeriesIDCache) checkEviction() (resizeEvent, bool) {
-	if int64(c.evictor.Len()) <= atomic.LoadInt64(&c.capacity) {
+	if int64(c.evictor.Len()) <= c.capacity.Load() {
 		return resizeEvent{}, false
 	}
 	if !c.evictLRULocked() {
 		return resizeEvent{}, false
 	}
-	atomic.AddInt64(&c.stats.Evictions, 1)
+	c.stats.Evictions.Add(1)
 
 	// Adaptive sizing: skip entirely when disabled to keep the hot path
 	// free of per-eviction tracking work.
@@ -457,7 +452,7 @@ func (c *TagValueSeriesIDCache) checkEviction() (resizeEvent, bool) {
 	}
 
 	c.evictionsSinceCheck++
-	if c.evictionsSinceCheck < atomic.LoadInt64(&c.capacity) {
+	if c.evictionsSinceCheck < c.capacity.Load() {
 		return resizeEvent{}, false
 	}
 	c.evictionsSinceCheck = 0
@@ -495,7 +490,7 @@ func (c *TagValueSeriesIDCache) evictLRULocked() bool {
 
 	c.evictor.Remove(e)               // Remove from evictor
 	delete(c.cache[name][key], value) // Remove from hashmap of items.
-	atomic.AddInt64(&c.stats.Size, -1)
+	c.stats.Size.Add(-1)
 
 	// Check if there are no more tag values for the tag key.
 	if len(c.cache[name][key]) == 0 {
@@ -514,9 +509,9 @@ func (c *TagValueSeriesIDCache) evictLRULocked() bool {
 // new capacity if growth is warranted. Must be called under the write
 // lock.
 func (c *TagValueSeriesIDCache) maybeResizeLocked() (resizeEvent, bool) {
-	hits := atomic.LoadInt64(&c.stats.Hits)
-	misses := atomic.LoadInt64(&c.stats.Misses)
-	curCap := atomic.LoadInt64(&c.capacity)
+	hits := c.stats.Hits.Load()
+	misses := c.stats.Misses.Load()
+	curCap := c.capacity.Load()
 
 	newCap, gets, rate, grow := decideResize(
 		hits, misses, c.lastHits, c.lastMisses,
@@ -532,7 +527,7 @@ func (c *TagValueSeriesIDCache) maybeResizeLocked() (resizeEvent, bool) {
 		return resizeEvent{}, false
 	}
 
-	atomic.StoreInt64(&c.capacity, newCap)
+	c.capacity.Store(newCap)
 	// Suppress shrink until the freshly-grown cache (occupancy ~50% of the new
 	// capacity) has been exercised: a full observation window sized to the new
 	// capacity, so the cooldown scales with the grown size rather than the
@@ -631,14 +626,14 @@ func (c *TagValueSeriesIDCache) checkShrink(hit bool) (resizeEvent, bool) {
 	if c.shrinkWindowGets == 0 {
 		c.shrinkWindowGets = adaptiveWindowLen(int64(c.evictor.Len()), c.minSamples, c.targetHitRate)
 		c.getsSinceShrinkCheck = 0
-		c.shrinkBaseHits = atomic.LoadInt64(&c.stats.Hits)
-		c.shrinkBaseMisses = atomic.LoadInt64(&c.stats.Misses)
+		c.shrinkBaseHits = c.stats.Hits.Load()
+		c.shrinkBaseMisses = c.stats.Misses.Load()
 		if hit {
 			c.shrinkBaseHits--
 		} else {
 			c.shrinkBaseMisses--
 		}
-		c.shrinkBaseEvictions = atomic.LoadInt64(&c.stats.Evictions)
+		c.shrinkBaseEvictions = c.stats.Evictions.Load()
 		if c.shrinkWindowGets == 0 {
 			// Cache too small (n < 2) to evaluate. Clear the boundary so a
 			// warm-up touch can't carry into the first real window.
@@ -677,11 +672,11 @@ func (c *TagValueSeriesIDCache) checkShrink(hit bool) (resizeEvent, bool) {
 // an untouched tail — so gated-out and slack windows stay O(1). Must be called
 // under the write lock.
 func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
-	hitsW := atomic.LoadInt64(&c.stats.Hits) - c.shrinkBaseHits
-	missesW := atomic.LoadInt64(&c.stats.Misses) - c.shrinkBaseMisses
-	evictionsW := atomic.LoadInt64(&c.stats.Evictions) - c.shrinkBaseEvictions
+	hitsW := c.stats.Hits.Load() - c.shrinkBaseHits
+	missesW := c.stats.Misses.Load() - c.shrinkBaseMisses
+	evictionsW := c.stats.Evictions.Load() - c.shrinkBaseEvictions
 
-	curCap := atomic.LoadInt64(&c.capacity)
+	curCap := c.capacity.Load()
 	size := int64(c.evictor.Len())
 
 	newCap, shrink, coldTail := decideShrinkPre(hitsW, missesW, evictionsW, curCap, size, c.minCapacity, c.targetHitRate, c.shrinkConservatism)
@@ -702,7 +697,7 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 		for evicted < evict && c.evictLRULocked() {
 			evicted++
 		}
-		atomic.AddInt64(&c.stats.ShrinkEvictions, evicted)
+		c.stats.ShrinkEvictions.Add(evicted)
 		// Derive the new capacity from what was actually evicted so the
 		// invariant size <= capacity holds even if the list emptied early.
 		newCap = size - evicted
@@ -710,7 +705,7 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 		return resizeEvent{}, false
 	}
 
-	atomic.StoreInt64(&c.capacity, newCap)
+	c.capacity.Store(newCap)
 
 	// Capacity shrank: reset the grow policy's per-window state so the next
 	// forced eviction measures a fresh post-shrink turnover. Without this,
@@ -718,8 +713,8 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 	// smaller capacity) could immediately fire maybeResizeLocked against
 	// pre-shrink hit/miss baselines, mixing pre- and post-shrink samples.
 	c.evictionsSinceCheck = 0
-	c.lastHits = atomic.LoadInt64(&c.stats.Hits)
-	c.lastMisses = atomic.LoadInt64(&c.stats.Misses)
+	c.lastHits = c.stats.Hits.Load()
+	c.lastMisses = c.stats.Misses.Load()
 
 	gets := hitsW + missesW
 	var rate float64

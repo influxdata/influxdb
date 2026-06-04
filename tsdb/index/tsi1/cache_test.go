@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/stretchr/testify/require"
@@ -250,18 +249,6 @@ func (c TestCache) PutByString(name, key, value string, ss *tsdb.SeriesIDSet) {
 	c.Put([]byte(name), []byte(key), []byte(value), ss)
 }
 
-// TestTagValueSeriesIDCache_AtomicFieldAlignment guards the struct layout:
-// fields accessed with sync/atomic (capacity and the stats counters) must be
-// 64-bit aligned, or atomic ops panic on 32-bit platforms. The allocation
-// base is guaranteed 8-byte aligned, so it suffices that these fields sit at
-// 8-byte-multiple offsets. The leading layout has no sub-8-byte fields, so
-// the offsets observed here (on any host) match those on 32-bit.
-func TestTagValueSeriesIDCache_AtomicFieldAlignment(t *testing.T) {
-	var c TagValueSeriesIDCache
-	require.Zero(t, unsafe.Offsetof(c.capacity)%8, "capacity must be 8-byte aligned")
-	require.Zero(t, unsafe.Offsetof(c.stats)%8, "stats counters must be 8-byte aligned")
-}
-
 func TestTagValueSeriesIDCache_Statistics(t *testing.T) {
 	statValues := func(cache *TagValueSeriesIDCache) map[string]interface{} {
 		stats := cache.Statistics(nil)
@@ -485,7 +472,7 @@ func TestTagValueSeriesIDCache_AdaptiveGrowth_TriggersOnTurnover(t *testing.T) {
 	logger := zap.NewNop()
 	cache := NewAdaptiveTagValueSeriesIDCache(2, 16, 0.99, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, logger)
 
-	require.Equal(t, int64(2), atomic.LoadInt64(&cache.capacity))
+	require.Equal(t, int64(2), cache.capacity.Load())
 
 	insert := func(seq int) {
 		v := []byte{byte(seq)}
@@ -501,7 +488,7 @@ func TestTagValueSeriesIDCache_AdaptiveGrowth_TriggersOnTurnover(t *testing.T) {
 	for i := 1; i <= 4; i++ {
 		insert(i)
 	}
-	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "after first turnover, capacity=4")
+	require.Equal(t, int64(4), cache.capacity.Load(), "after first turnover, capacity=4")
 
 	// After grow to 4, two free slots. Need to refill before evicting:
 	//   insert 5: size 2→3
@@ -510,7 +497,7 @@ func TestTagValueSeriesIDCache_AdaptiveGrowth_TriggersOnTurnover(t *testing.T) {
 	for i := 5; i <= 10; i++ {
 		insert(i)
 	}
-	require.Equal(t, int64(8), atomic.LoadInt64(&cache.capacity), "after second turnover, capacity=8")
+	require.Equal(t, int64(8), cache.capacity.Load(), "after second turnover, capacity=8")
 
 	// After grow to 8, four free slots. Refill then 8 evictions:
 	//   insert 11..14: fill to size=8
@@ -518,7 +505,7 @@ func TestTagValueSeriesIDCache_AdaptiveGrowth_TriggersOnTurnover(t *testing.T) {
 	for i := 11; i <= 22; i++ {
 		insert(i)
 	}
-	require.Equal(t, int64(16), atomic.LoadInt64(&cache.capacity), "after third turnover, capacity=16 (= max)")
+	require.Equal(t, int64(16), cache.capacity.Load(), "after third turnover, capacity=16 (= max)")
 
 	// Further evictions do not grow past max.
 	// After grow to 16, eight free slots. Fill them, then drive enough
@@ -526,7 +513,7 @@ func TestTagValueSeriesIDCache_AdaptiveGrowth_TriggersOnTurnover(t *testing.T) {
 	for i := 23; i <= 50; i++ {
 		insert(i)
 	}
-	require.Equal(t, int64(16), atomic.LoadInt64(&cache.capacity), "capacity stays at max")
+	require.Equal(t, int64(16), cache.capacity.Load(), "capacity stays at max")
 }
 
 func TestTagValueSeriesIDCache_AdaptiveGrowth_NoOpAtTarget(t *testing.T) {
@@ -565,7 +552,7 @@ func TestTagValueSeriesIDCache_AdaptiveGrowth_NoOpAtTarget(t *testing.T) {
 		hitOnSurvivors()
 		insert(i)
 	}
-	require.Equal(t, int64(2), atomic.LoadInt64(&cache.capacity), "capacity must stay at 2 when target is met")
+	require.Equal(t, int64(2), cache.capacity.Load(), "capacity must stay at 2 when target is met")
 }
 
 func TestTagValueSeriesIDCache_AdaptiveDisabled_NoLogNoGrowth(t *testing.T) {
@@ -582,7 +569,7 @@ func TestTagValueSeriesIDCache_AdaptiveDisabled_NoLogNoGrowth(t *testing.T) {
 		cache.Put([]byte("m"), []byte("k"), v, tsdb.NewSeriesIDSet(uint64(i)))
 	}
 
-	require.Equal(t, int64(2), atomic.LoadInt64(&cache.capacity), "capacity must not change when adaptive sizing is disabled")
+	require.Equal(t, int64(2), cache.capacity.Load(), "capacity must not change when adaptive sizing is disabled")
 	require.Equal(t, 0, logs.Len(), "no log lines must be emitted when adaptive sizing is disabled")
 }
 
@@ -621,7 +608,7 @@ func TestIndex_WithLogger_PropagatesToAdaptiveCache(t *testing.T) {
 	cache.Put([]byte("m"), []byte("k"), []byte{2}, tsdb.NewSeriesIDSet(2))
 	cache.Put([]byte("m"), []byte("k"), []byte{3}, tsdb.NewSeriesIDSet(3))
 
-	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "cache should have grown after policy fired")
+	require.Equal(t, int64(4), cache.capacity.Load(), "cache should have grown after policy fired")
 	require.Equal(t, 1, logs.Len(), "resize event must be emitted to the logger propagated by WithLogger")
 	require.Equal(t, logMsgCacheCapacityIncreased, logs.All()[0].Message)
 }
@@ -693,7 +680,7 @@ func TestNewAdaptiveTagValueSeriesIDCache_RejectsInvalidArguments(t *testing.T) 
 			c := NewAdaptiveTagValueSeriesIDCache(tt.initial, tt.max, tt.target, tt.cons, tt.minSamples, zap.New(core))
 			require.NotNil(t, c)
 			require.Equal(t, int64(0), c.maxCapacity, "fallback must be non-adaptive (maxCapacity == 0)")
-			require.Equal(t, tt.wantFallbackSize, atomic.LoadInt64(&c.capacity), "fallback capacity")
+			require.Equal(t, tt.wantFallbackSize, c.capacity.Load(), "fallback capacity")
 			entries := logs.All()
 			require.Len(t, entries, 1, "expected exactly one error log")
 			require.Contains(t, entries[0].Message, tt.wantLogSubstring)
@@ -942,11 +929,11 @@ func TestDecideShrink_ConservatismVariation(t *testing.T) {
 func newFullAdaptiveCache(t *testing.T, capacity, minSamples int, target float64) *TagValueSeriesIDCache {
 	t.Helper()
 	c := NewAdaptiveTagValueSeriesIDCache(2, 1024, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, minSamples, zap.NewNop())
-	atomic.StoreInt64(&c.capacity, int64(capacity))
+	c.capacity.Store(int64(capacity))
 	for i := 0; i < capacity; i++ {
 		c.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
 	}
-	require.Equal(t, int64(capacity), atomic.LoadInt64(&c.stats.Size), "setup occupancy")
+	require.Equal(t, int64(capacity), c.stats.Size.Load(), "setup occupancy")
 	return c
 }
 
@@ -973,8 +960,8 @@ func TestTagValueSeriesIDCache_ShrinkColdTail(t *testing.T) {
 		require.NotNil(t, getVal(cache, int(i%3)))
 	}
 
-	require.Equal(t, int64(5), atomic.LoadInt64(&cache.capacity), "capacity = size - min(coldTail, size/2) = 10-5")
-	require.Equal(t, int64(5), atomic.LoadInt64(&cache.stats.Size))
+	require.Equal(t, int64(5), cache.capacity.Load(), "capacity = size - min(coldTail, size/2) = 10-5")
+	require.Equal(t, int64(5), cache.stats.Size.Load())
 
 	// Warm {0,1,2} survive; the deepest untouched {3,4,5,6,7} are evicted;
 	// the most-recently-inserted cold {8,9} survive (they are above the LRU tail).
@@ -990,7 +977,7 @@ func TestTagValueSeriesIDCache_ShrinkSlack(t *testing.T) {
 	// Capacity 10 but only 4 entries (slack). A quiet, all-hit window trims
 	// capacity down to the occupancy with no eviction.
 	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 8, zap.NewNop())
-	atomic.StoreInt64(&cache.capacity, 10)
+	cache.capacity.Store(10)
 	for i := 0; i < 4; i++ {
 		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
 	}
@@ -1000,8 +987,8 @@ func TestTagValueSeriesIDCache_ShrinkSlack(t *testing.T) {
 		require.NotNil(t, getVal(cache, int(i%4)))
 	}
 
-	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "slack branch trims capacity to occupancy")
-	require.Equal(t, int64(4), atomic.LoadInt64(&cache.stats.Size), "no eviction in the slack branch")
+	require.Equal(t, int64(4), cache.capacity.Load(), "slack branch trims capacity to occupancy")
+	require.Equal(t, int64(4), cache.stats.Size.Load(), "no eviction in the slack branch")
 	for v := 0; v < 4; v++ {
 		require.True(t, existsVal(cache, v), "value %d must survive a slack trim", v)
 	}
@@ -1017,8 +1004,8 @@ func TestTagValueSeriesIDCache_NoShrinkWhenAllTouched(t *testing.T) {
 		require.NotNil(t, getVal(cache, int(i%10)))
 	}
 
-	require.Equal(t, int64(10), atomic.LoadInt64(&cache.capacity), "capacity must not shrink when the whole cache is in use")
-	require.Equal(t, int64(10), atomic.LoadInt64(&cache.stats.Size))
+	require.Equal(t, int64(10), cache.capacity.Load(), "capacity must not shrink when the whole cache is in use")
+	require.Equal(t, int64(10), cache.stats.Size.Load())
 }
 
 // TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped verifies that when the
@@ -1042,7 +1029,7 @@ func TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped(t *testing.T) {
 		samples = 8
 	)
 	cache := NewAdaptiveTagValueSeriesIDCache(2, 4096, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, samples, zap.NewNop())
-	atomic.StoreInt64(&cache.capacity, size)
+	cache.capacity.Store(size)
 
 	// 2-byte values give a unique key per i in [0, 65536); the single-byte
 	// values used by newFullAdaptiveCache would collide past 255.
@@ -1051,7 +1038,7 @@ func TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped(t *testing.T) {
 		keys[i] = []byte{byte(i >> 8), byte(i & 0xFF)}
 		cache.Put([]byte("m"), []byte("k"), keys[i], tsdb.NewSeriesIDSet(uint64(i)))
 	}
-	require.Equal(t, int64(size), atomic.LoadInt64(&cache.stats.Size), "setup occupancy")
+	require.Equal(t, int64(size), cache.stats.Size.Load(), "setup occupancy")
 
 	drive := func(w int64) {
 		for i := int64(0); i < w; i++ {
@@ -1062,18 +1049,18 @@ func TestTagValueSeriesIDCache_ShrinkRepeatsWhenCapped(t *testing.T) {
 	// Window 1: cap clamps the first shrink at maxShrinkEvictPerEvent.
 	drive(adaptiveWindowLen(size, samples, target))
 	afterFirst := int64(size - maxShrinkEvictPerEvent)
-	require.Equal(t, int64(maxShrinkEvictPerEvent), atomic.LoadInt64(&cache.stats.ShrinkEvictions),
+	require.Equal(t, int64(maxShrinkEvictPerEvent), cache.stats.ShrinkEvictions.Load(),
 		"first shrink should hit maxShrinkEvictPerEvent exactly")
-	require.Equal(t, afterFirst, atomic.LoadInt64(&cache.capacity),
+	require.Equal(t, afterFirst, cache.capacity.Load(),
 		"capacity reflects the capped shed")
 
 	// Window 2: same workload after the cooldown elapses; cap clamps again.
 	// ShrinkEvictions accumulates, so the second shrink is visible as a second
 	// 1024 increment.
 	drive(adaptiveWindowLen(afterFirst, samples, target))
-	require.Equal(t, int64(2*maxShrinkEvictPerEvent), atomic.LoadInt64(&cache.stats.ShrinkEvictions),
+	require.Equal(t, int64(2*maxShrinkEvictPerEvent), cache.stats.ShrinkEvictions.Load(),
 		"second shrink should add another maxShrinkEvictPerEvent — decay continues")
-	require.Equal(t, afterFirst-int64(maxShrinkEvictPerEvent), atomic.LoadInt64(&cache.capacity),
+	require.Equal(t, afterFirst-int64(maxShrinkEvictPerEvent), cache.capacity.Load(),
 		"capacity drops by the cap on each successive event")
 }
 
@@ -1114,11 +1101,11 @@ func TestTagValueSeriesIDCache_ShrinkAfterPutEvictsBoundary(t *testing.T) {
 		require.NotNil(t, getVal(cache, 4))
 	}
 
-	require.Equal(t, int64(5), atomic.LoadInt64(&cache.capacity),
+	require.Equal(t, int64(5), cache.capacity.Load(),
 		"capacity must not shrink: post Put-evict the cache is full-warm")
-	require.Equal(t, int64(0), atomic.LoadInt64(&cache.stats.ShrinkEvictions),
+	require.Equal(t, int64(0), cache.stats.ShrinkEvictions.Load(),
 		"no shrink trim should have run")
-	require.Equal(t, int64(1), atomic.LoadInt64(&cache.stats.Evictions),
+	require.Equal(t, int64(1), cache.stats.Evictions.Load(),
 		"the Put-induced eviction lands in Evictions, not ShrinkEvictions")
 
 	require.False(t, existsVal(cache, 0), "entry 0 was evicted by the Put")
@@ -1144,13 +1131,13 @@ func TestTagValueSeriesIDCache_ShrinkCooldown(t *testing.T) {
 	drive()
 	drive()
 	drive()
-	require.Equal(t, int64(10), atomic.LoadInt64(&cache.capacity), "shrink suppressed while cooling down")
+	require.Equal(t, int64(10), cache.capacity.Load(), "shrink suppressed while cooling down")
 
 	cache.Lock()
 	cache.cooldownGets = 0
 	cache.Unlock()
 	drive()
-	require.Equal(t, int64(5), atomic.LoadInt64(&cache.capacity), "shrink fires once the cooldown elapses")
+	require.Equal(t, int64(5), cache.capacity.Load(), "shrink fires once the cooldown elapses")
 }
 
 func TestTagValueSeriesIDCache_ShrinkBoundaryReTouch(t *testing.T) {
@@ -1158,7 +1145,7 @@ func TestTagValueSeriesIDCache_ShrinkBoundaryReTouch(t *testing.T) {
 	// predecessor, keeping warmCount equal to the true distinct-touched count.
 	// A large minSamples keeps the window open so we can inspect mid-window.
 	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 1000, zap.NewNop())
-	atomic.StoreInt64(&cache.capacity, 5)
+	cache.capacity.Store(5)
 	for i := 0; i < 5; i++ {
 		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
 	}
@@ -1182,7 +1169,7 @@ func TestTagValueSeriesIDCache_ShrinkWindowFirstGetCountsInRate(t *testing.T) {
 	// fails to block a spurious shrink.
 	const target = 0.95
 	cache := NewAdaptiveTagValueSeriesIDCache(2, 1024, target, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 8, zap.NewNop())
-	atomic.StoreInt64(&cache.capacity, 10)
+	cache.capacity.Store(10)
 	for i := 0; i < 4; i++ {
 		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
 	}
@@ -1202,7 +1189,7 @@ func TestTagValueSeriesIDCache_ShrinkWindowFirstGetCountsInRate(t *testing.T) {
 
 	// Pre-fix, the opening miss was excluded from missesW, so the window looked
 	// like 100% hit rate and the slack branch trimmed capacity to size (4).
-	require.Equal(t, int64(10), atomic.LoadInt64(&cache.capacity),
+	require.Equal(t, int64(10), cache.capacity.Load(),
 		"rate gate must block shrink when the window-opening miss is counted")
 }
 
@@ -1219,7 +1206,7 @@ func TestTagValueSeriesIDCache_ShrinkGrowCooldownStamp(t *testing.T) {
 	for i := 1; i <= 4; i++ { // drives one doubling (2 -> 4)
 		insert(i)
 	}
-	require.Equal(t, int64(4), atomic.LoadInt64(&cache.capacity), "precondition: grow occurred")
+	require.Equal(t, int64(4), cache.capacity.Load(), "precondition: grow occurred")
 	cache.Lock()
 	cd := cache.cooldownGets
 	cache.Unlock()
@@ -1247,16 +1234,16 @@ func TestTagValueSeriesIDCache_ShrinkResetsGrowWindow(t *testing.T) {
 	for i := int64(0); i < w; i++ {
 		require.NotNil(t, getVal(cache, int(i%3)))
 	}
-	require.Less(t, atomic.LoadInt64(&cache.capacity), int64(10),
+	require.Less(t, cache.capacity.Load(), int64(10),
 		"precondition: shrink should have fired")
 
 	cache.Lock()
 	defer cache.Unlock()
 	require.Equal(t, int64(0), cache.evictionsSinceCheck,
 		"evictionsSinceCheck must reset so the next forced eviction starts a fresh grow window")
-	require.Equal(t, atomic.LoadInt64(&cache.stats.Hits), cache.lastHits,
+	require.Equal(t, cache.stats.Hits.Load(), cache.lastHits,
 		"lastHits must snap to the current hit count after shrink")
-	require.Equal(t, atomic.LoadInt64(&cache.stats.Misses), cache.lastMisses,
+	require.Equal(t, cache.stats.Misses.Load(), cache.lastMisses,
 		"lastMisses must snap to the current miss count after shrink")
 }
 
@@ -1318,8 +1305,8 @@ func TestTagValueSeriesIDCache_Adaptive_Concurrent(t *testing.T) {
 	wg.Wait()
 	t.Logf("max concurrency: %d", maxConcurrency.Load())
 
-	finalCap := atomic.LoadInt64(&cache.capacity)
+	finalCap := cache.capacity.Load()
 	require.GreaterOrEqual(t, finalCap, int64(8), "capacity must never drop below the floor")
 	require.LessOrEqual(t, finalCap, int64(256), "capacity must never exceed the max")
-	require.Equal(t, int64(cache.evictor.Len()), atomic.LoadInt64(&cache.stats.Size), "size counter must track the evictor list")
+	require.Equal(t, int64(cache.evictor.Len()), cache.stats.Size.Load(), "size counter must track the evictor list")
 }
