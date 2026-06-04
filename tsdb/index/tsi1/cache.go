@@ -159,10 +159,12 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 // deviations below the at-target eviction mean at which the shrink eviction gate
 // sits; see the doc on SeriesIDSetCacheShrinkConservatism in tsdb.Config.
 //
-// If any argument is invalid, the error is logged and a fixed-size (non-adaptive)
-// cache from NewTagValueSeriesIDCache is returned in place of the adaptive one,
-// so misconfiguration degrades to a working cache rather than crashing the
-// process. The fallback uses initial when it is itself valid (>0), otherwise
+// Every argument is validated; each invalid one is logged separately (so a
+// misconfiguration with several bad values surfaces all of them at once rather
+// than one error per restart), and a fixed-size (non-adaptive) cache from
+// NewTagValueSeriesIDCache is returned in place of the adaptive one, so
+// misconfiguration degrades to a working cache rather than crashing the process.
+// The fallback uses initial when it is itself valid (>0), otherwise
 // tsdb.DefaultSeriesIDSetCacheSize. Invalid arguments are: initial <= 0; max <=
 // initial (an adaptive cache that cannot grow is a misconfiguration — use
 // NewTagValueSeriesIDCache directly for a fixed cache); target not in (0, 1)
@@ -173,40 +175,50 @@ func NewAdaptiveTagValueSeriesIDCache(initial, max int, target, shrinkConservati
 		logger = zap.NewNop()
 	}
 
-	// fallback builds the non-adaptive replacement: a fixed-size cache sized to
-	// initial when valid, otherwise tsdb.DefaultSeriesIDSetCacheSize, with the
-	// caller's logger attached so the error log line and the fallback share a
-	// destination. Safe to set the logger directly because the cache has not
-	// yet been shared with other goroutines.
-	fallback := func(reason string, fields ...zap.Field) *TagValueSeriesIDCache {
-		size := initial
-		if size <= 0 {
-			size = tsdb.DefaultSeriesIDSetCacheSize
-		}
-		logger.Error("NewAdaptiveTagValueSeriesIDCache: "+reason+"; falling back to fixed-size cache",
-			append(fields, zap.Int("fallback_size", size))...)
-		c := NewTagValueSeriesIDCache(size)
-		c.SetLogger(logger)
-		return c
-	}
+	// Validate every argument before deciding, logging each problem and setting
+	// useFallback, rather than returning on the first failure. A misconfiguration
+	// with several bad values then reports all of them in one pass.
+	const logPrefix = "NewAdaptiveTagValueSeriesIDCache: "
+	useFallback := false
 
 	if initial <= 0 {
-		return fallback("initial must be > 0", zap.Int("initial", initial))
+		logger.Error(logPrefix+"initial must be > 0", zap.Int("initial", initial))
+		useFallback = true
 	}
 	if max <= initial {
-		return fallback("max must be > initial", zap.Int("initial", initial), zap.Int("max", max))
+		logger.Error(logPrefix+"max must be > initial", zap.Int("initial", initial), zap.Int("max", max))
+		useFallback = true
 	}
 	// Positive range test so NaN (for which both `<` and `>` are false) is
 	// rejected rather than slipping through.
 	if !(target > 0 && target < 1) {
-		return fallback("target must be in (0, 1)", zap.Float64("target", target))
+		logger.Error(logPrefix+"target must be in (0, 1)", zap.Float64("target", target))
+		useFallback = true
 	}
 	// Same positive-form trick rejects NaN and ±Inf for the conservatism.
 	if !(shrinkConservatism >= 0 && shrinkConservatism < math.Inf(1)) {
-		return fallback("shrinkConservatism must be a finite value >= 0", zap.Float64("shrink_conservatism", shrinkConservatism))
+		logger.Error(logPrefix+"shrinkConservatism must be a finite value >= 0", zap.Float64("shrink_conservatism", shrinkConservatism))
+		useFallback = true
 	}
 	if minSamples < 0 {
-		return fallback("minSamples must be >= 0", zap.Int("min_samples", minSamples))
+		logger.Error(logPrefix+"minSamples must be >= 0", zap.Int("min_samples", minSamples))
+		useFallback = true
+	}
+
+	if useFallback {
+		// Build the non-adaptive replacement: a fixed-size cache sized to initial
+		// when valid, otherwise tsdb.DefaultSeriesIDSetCacheSize, with the caller's
+		// logger attached so the error log lines and the fallback share a
+		// destination. Safe to set the logger directly because the cache has not
+		// yet been shared with other goroutines.
+		size := initial
+		if size <= 0 {
+			size = tsdb.DefaultSeriesIDSetCacheSize
+		}
+		logger.Error(logPrefix+"falling back to fixed-size cache", zap.Int("fallback_size", size))
+		c := NewTagValueSeriesIDCache(size)
+		c.SetLogger(logger)
+		return c
 	}
 
 	cache := &TagValueSeriesIDCache{

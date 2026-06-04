@@ -682,10 +682,31 @@ func TestNewAdaptiveTagValueSeriesIDCache_RejectsInvalidArguments(t *testing.T) 
 			require.Equal(t, int64(0), c.maxCapacity, "fallback must be non-adaptive (maxCapacity == 0)")
 			require.Equal(t, tt.wantFallbackSize, c.capacity.Load(), "fallback capacity")
 			entries := logs.All()
-			require.Len(t, entries, 1, "expected exactly one error log")
+			require.Len(t, entries, 2, "expected the specific error plus the fallback log")
 			require.Contains(t, entries[0].Message, tt.wantLogSubstring)
+			require.Contains(t, entries[1].Message, "falling back to fixed-size cache")
 		})
 	}
+
+	// All invalid arguments are reported in a single construction: validation
+	// does not stop at the first failure. Every argument here is invalid, so each
+	// produces its own error log, followed by the fallback summary.
+	t.Run("all invalid arguments reported", func(t *testing.T) {
+		core, logs := observer.New(zap.ErrorLevel)
+		c := NewAdaptiveTagValueSeriesIDCache(-1, -2, math.NaN(), math.Inf(1), -3, zap.New(core))
+		require.NotNil(t, c)
+		require.Equal(t, int64(0), c.maxCapacity, "fallback must be non-adaptive (maxCapacity == 0)")
+		require.Equal(t, int64(tsdb.DefaultSeriesIDSetCacheSize), c.capacity.Load(), "fallback capacity")
+
+		entries := logs.All()
+		require.Len(t, entries, 6, "five argument errors plus the fallback summary")
+		require.Contains(t, entries[0].Message, "initial must be > 0")
+		require.Contains(t, entries[1].Message, "max must be > initial")
+		require.Contains(t, entries[2].Message, "target must be in (0, 1)")
+		require.Contains(t, entries[3].Message, "shrinkConservatism")
+		require.Contains(t, entries[4].Message, "minSamples must be >= 0")
+		require.Contains(t, entries[5].Message, "falling back to fixed-size cache")
+	})
 
 	// Valid conservatism boundary values (0 = median admit; small positive)
 	// must produce an adaptive cache and log nothing.
