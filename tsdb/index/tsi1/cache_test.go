@@ -1331,3 +1331,111 @@ func TestTagValueSeriesIDCache_Adaptive_Concurrent(t *testing.T) {
 	require.LessOrEqual(t, finalCap, int64(256), "capacity must never exceed the max")
 	require.Equal(t, int64(cache.evictor.Len()), cache.stats.Size.Load(), "size counter must track the evictor list")
 }
+
+// TestTagValueSeriesIDCache_AtFloor_SkipsShrinkBookkeeping verifies that while
+// the cache sits at its floor (capacity == minCapacity) a shrink can never fire,
+// so the read path skips all shrink window bookkeeping: it tracks no footprint
+// and starts no window. Regression guard for the floor gate — without it, the
+// first hit would start a window and set deepestTouched.
+func TestTagValueSeriesIDCache_AtFloor_SkipsShrinkBookkeeping(t *testing.T) {
+	const floor = 8
+	cache := NewAdaptiveTagValueSeriesIDCache(floor, 64, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, zap.NewNop())
+	require.Equal(t, int64(floor), cache.capacity.Load())
+	require.Equal(t, int64(floor), cache.minCapacity)
+
+	// Fill exactly to the floor (full, no eviction).
+	for i := 0; i < floor; i++ {
+		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
+	}
+	require.Equal(t, int64(floor), cache.stats.Size.Load())
+
+	// A handful of hits on a subset — fewer than one window. Without the gate this
+	// would already have a live window and a tracked footprint.
+	for i := 0; i < 3; i++ {
+		require.NotNil(t, getVal(cache, i%3))
+	}
+	cache.Lock()
+	window, gets, deepest := cache.shrinkWindowGets, cache.getsSinceShrinkCheck, cache.deepestTouched
+	cache.Unlock()
+	require.Zero(t, window, "no shrink window may start at the floor")
+	require.Zero(t, gets, "no window gets may accumulate at the floor")
+	require.Nil(t, deepest, "no footprint may be tracked at the floor")
+
+	// Over many more would-be windows, nothing is ever shed and capacity holds.
+	for i := 0; i < 500; i++ {
+		require.NotNil(t, getVal(cache, i%3))
+	}
+	require.Equal(t, int64(floor), cache.capacity.Load(), "capacity must stay at the floor")
+	require.Equal(t, int64(floor), cache.stats.Size.Load(), "nothing may be evicted at the floor")
+	require.Zero(t, cache.stats.ShrinkEvictions.Load(), "no shrink evictions at the floor")
+}
+
+// TestTagValueSeriesIDCache_FloorGateReopensAfterGrowth proves the floor gate is
+// not a one-way latch: growth from the floor is unaffected (it runs on the Put
+// path), and once capacity rises above the floor the read path resumes shrink
+// bookkeeping so the cache can shrink again.
+func TestTagValueSeriesIDCache_FloorGateReopensAfterGrowth(t *testing.T) {
+	const floor = 4
+	cache := NewAdaptiveTagValueSeriesIDCache(floor, 64, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, 4, zap.NewNop())
+	require.Equal(t, int64(floor), cache.capacity.Load())
+
+	// Get-miss then Put each distinct key, driving evictions that grow capacity.
+	insert := func(seq int) {
+		v := []byte{byte(seq)}
+		require.Nil(t, cache.Get([]byte("m"), []byte("k"), v))
+		cache.Put([]byte("m"), []byte("k"), v, tsdb.NewSeriesIDSet(uint64(seq)))
+	}
+	for i := 0; i < 60; i++ {
+		insert(i)
+	}
+	peak := cache.capacity.Load()
+	require.Greater(t, peak, int64(floor), "growth must not be blocked by the floor gate")
+
+	// Repeatedly hit a tiny, most-recently-inserted (still-resident) warm set.
+	// Once the post-grow cooldown drains and a pure-hit window completes, the cold
+	// tail is shed — which can only happen if the gate reopened above the floor.
+	warm := []int{57, 58, 59}
+	var shrank bool
+	for round := 0; round < 5000 && !shrank; round++ {
+		for _, v := range warm {
+			getVal(cache, v)
+		}
+		shrank = cache.capacity.Load() < peak && cache.stats.ShrinkEvictions.Load() > 0
+	}
+	require.True(t, shrank, "cache must shrink after growth (floor gate must reopen)")
+	require.GreaterOrEqual(t, cache.capacity.Load(), int64(floor), "must never shrink below the floor")
+}
+
+// benchmarkGetHit measures the cost of a cache hit with adaptive sizing enabled,
+// for a cache forced to `capacity` with floor `floor`. When capacity == floor the
+// floor gate skips the per-hit footprint tracking and the shrink window
+// machinery; when capacity > floor that bookkeeping runs. The working set is the
+// whole cache so the above-floor case never actually shrinks (warmCount == size),
+// keeping the two benchmarks an apples-to-apples comparison of the overhead the
+// gate removes.
+func benchmarkGetHit(b *testing.B, capacity, floor int) {
+	cache := NewAdaptiveTagValueSeriesIDCache(floor, 1<<20, 0.5, tsdb.DefaultSeriesIDSetCacheShrinkConservatism, tsdb.DefaultAdaptiveCacheMinSamples, zap.NewNop())
+	cache.capacity.Store(int64(capacity))
+	for i := 0; i < capacity; i++ {
+		cache.Put([]byte("m"), []byte("k"), []byte{byte(i)}, tsdb.NewSeriesIDSet(uint64(i)))
+	}
+	name, key := []byte("m"), []byte("k")
+	val := []byte{0}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		val[0] = byte(i % capacity)
+		cache.Get(name, key, val)
+	}
+}
+
+// At the floor (capacity == minCapacity): the shrink bookkeeping is skipped.
+func BenchmarkTagValueSeriesIDCache_GetHit_AtFloor(b *testing.B) {
+	benchmarkGetHit(b, 64, 64)
+}
+
+// Above the floor (capacity > minCapacity): the shrink bookkeeping runs.
+func BenchmarkTagValueSeriesIDCache_GetHit_AboveFloor(b *testing.B) {
+	benchmarkGetHit(b, 64, 2)
+}

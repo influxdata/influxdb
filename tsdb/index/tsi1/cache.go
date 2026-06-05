@@ -288,7 +288,9 @@ func (c *TagValueSeriesIDCache) get(name, key, value []byte) (*tsdb.SeriesIDSet,
 			if ele, ok := tkmap[string(value)]; ok {
 				// Track the LRU access footprint for the shrink policy before
 				// MoveToFront moves the element (the rule reads ele.Prev()).
-				if c.maxCapacity != 0 {
+				// Only bother when a shrink is actually reachable (capacity above
+				// the floor); at the floor a shrink can never fire, so skip it.
+				if c.maxCapacity != 0 && c.capacity.Load() > c.minCapacity {
 					c.trackTouchLocked(ele)
 				}
 				c.evictor.MoveToFront(ele) // This now becomes most recently used.
@@ -380,6 +382,10 @@ func (c *TagValueSeriesIDCache) innerLockingPut(name, key, value []byte, ss *tsd
 		return resizeEvent{}, false
 	}
 
+	// Update stats.Size after the element added and any evictions.
+	defer func() {
+		c.stats.Size.Store(int64(c.evictor.Len()))
+	}()
 	// Ensure our SeriesIDSet is go heap backed.
 	if ss != nil {
 		ss = ss.Clone()
@@ -392,7 +398,6 @@ func (c *TagValueSeriesIDCache) innerLockingPut(name, key, value []byte, ss *tsd
 		value:       valueStr,
 		SeriesIDSet: ss,
 	})
-	c.stats.Size.Add(1)
 
 	// Add the listElement to the set of items. The tuple cannot already
 	// exist here: the exists() check at the top of Put returns early if it
@@ -447,7 +452,7 @@ func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x uint64) {
 // since the last policy firing), it samples the windowed hit rate and may
 // grow the capacity. The optional resizeEvent return carries the snapshot
 // the caller should use to emit a log line after releasing the write lock;
-// the bool is true iff a resize occurred.
+// the bool is true iff a resize occurred. Does not update stats.Size; its caller must
 func (c *TagValueSeriesIDCache) checkEviction() (resizeEvent, bool) {
 	if int64(c.evictor.Len()) <= c.capacity.Load() {
 		return resizeEvent{}, false
@@ -472,11 +477,12 @@ func (c *TagValueSeriesIDCache) checkEviction() (resizeEvent, bool) {
 }
 
 // evictLRULocked removes the least-recently-used entry (the back of the
-// evictor list) from the eviction list, the cache maps, and the size counter.
+// evictor list) from the eviction list and the cache maps
 // Returns false if the cache is empty. Does NOT bump Evictions or
 // ShrinkEvictions — callers do that with the appropriate counter, since they
 // know whether the eviction was forced (Put under pressure) or voluntary
-// (shrink trim). Must be called under the write lock.
+// (shrink trim). Must be called under the write lock.  It does not
+// decrement Size; callers must do that.
 func (c *TagValueSeriesIDCache) evictLRULocked() bool {
 	e := c.evictor.Back() // Least recently used item.
 	if e == nil {
@@ -502,7 +508,6 @@ func (c *TagValueSeriesIDCache) evictLRULocked() bool {
 
 	c.evictor.Remove(e)               // Remove from evictor
 	delete(c.cache[name][key], value) // Remove from hashmap of items.
-	c.stats.Size.Add(-1)
 
 	// Check if there are no more tag values for the tag key.
 	if len(c.cache[name][key]) == 0 {
@@ -625,6 +630,19 @@ func (c *TagValueSeriesIDCache) checkShrink(hit bool) (resizeEvent, bool) {
 		return resizeEvent{}, false
 	}
 
+	// At the floor a shrink can never fire: decideShrinkPre's slack branch floors
+	// newCap at the current capacity, and decideColdTail's targetCap floors at
+	// capacity == size, so both no-op. Skip all window bookkeeping while at the
+	// floor. State is already clean here — a prior shrink-to-floor reset
+	// shrinkWindowGets and deepestTouched, and a freshly constructed cache starts
+	// at the floor with zero-valued state — so a fresh window simply starts on the
+	// next Get once a Put grows the cache back above the floor. The cooldown need
+	// not tick here: a grow resets it (maybeResizeLocked). Growth is driven from
+	// the Put/eviction path and is unaffected by this early return.
+	if c.capacity.Load() <= c.minCapacity {
+		return resizeEvent{}, false
+	}
+
 	// One Get elapsed; tick down the post-resize cooldown.
 	if c.cooldownGets > 0 {
 		c.cooldownGets--
@@ -709,6 +727,7 @@ func (c *TagValueSeriesIDCache) maybeShrinkLocked() (resizeEvent, bool) {
 		for evicted < evict && c.evictLRULocked() {
 			evicted++
 		}
+		c.stats.Size.Store(int64(c.evictor.Len()))
 		c.stats.ShrinkEvictions.Add(evicted)
 		// Derive the new capacity from what was actually evicted so the
 		// invariant size <= capacity holds even if the list emptied early.
@@ -813,7 +832,11 @@ func adaptiveWindowLen(n, minWindow int64, target float64) int64 {
 		return 0
 	}
 	// window = ceil( ln(1-target) / ln((n-1)/n) ); both logs are finite and negative.
-	wf := math.Ceil(math.Log(1-target) / math.Log(float64(n-1)/float64(n)))
+	// The denominator is ln(1 - 1/n); compute it with Log1p rather than
+	// Log(float64(n-1)/float64(n)) so the tiny 1/n term is not lost when the ratio
+	// rounds to a double near 1.0 (catastrophic for very large n). Log1p is also
+	// implemented in portable Go, so the result is identical on amd64 and arm64.
+	wf := math.Ceil(math.Log(1-target) / math.Log1p(-1.0/float64(n)))
 	if wf >= float64(math.MaxInt64) { // huge finite window (target very close to 1)
 		return math.MaxInt64
 	}
@@ -856,11 +879,21 @@ func atTargetEvictionGateLimit(gets int64, target, z float64) int64 {
 	m := float64(gets)
 	mu := m * (1 - target)
 	sigma := math.Sqrt(m * target * (1 - target))
-	limit := int64(mu - z*sigma)
-	if limit < 1 {
-		limit = 1
+	limit := mu - z*sigma
+	// Clamp in float space before converting. Converting an out-of-range float to
+	// int64 is implementation-defined in Go and differs by architecture: amd64
+	// (CVTTSD2SI) yields MinInt64 for any out-of-range value, but arm64 (FCVTZS)
+	// saturates, so a large-positive overflow becomes MaxInt64 — which would slip
+	// past a post-conversion `< 1` check and invert the fail-safe. Guarding the
+	// float first (the `!(limit >= 1)` form also rejects NaN and -Inf) keeps the value
+	// fed to int64() provably in [1, 2^63), so the result is identical on both.
+	if !(limit >= 1) {
+		return 1
+	} else if limit >= float64(math.MaxInt64) { // out-of-range high (only at unreachable gets)
+		return math.MaxInt64
+	} else {
+		return int64(limit)
 	}
-	return limit
 }
 
 // decideShrinkPre evaluates everything that does not require the access footprint:
