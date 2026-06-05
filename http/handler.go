@@ -104,9 +104,11 @@ func WithMetrics(reg *prom.Registry, exposed bool) HandlerOptFn {
 func WithStrictTransportSecurity(maxAge int) HandlerOptFn {
 	return func(opts *handlerOpts) {
 		opts.hstsEnabled = true
+		if maxAge < 0 {
+			maxAge = 0
+		}
 		opts.hstsMaxAge = maxAge
 	}
-}
 
 type AddHeader struct {
 	WriteHeader func(header http.Header)

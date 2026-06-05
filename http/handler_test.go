@@ -130,7 +130,7 @@ func TestHandler_StrictTransportSecurity(t *testing.T) {
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
-			got := rec.Header().Get("Strict-Transport-Security")
+			got := rec.Header().Get(StrictTransportSecurityHeader)
 			require.Equal(t, tt.wantHeader, got)
 			require.NotContains(t, got, "preload")
 		})
