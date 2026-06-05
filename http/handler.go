@@ -111,6 +111,19 @@ func WithStrictTransportSecurity(maxAge int) HandlerOptFn {
 	}
 }
 
+// serverHeaderWriter returns the WriteHeader function shared by the root handler
+// and the health/ready handler: it stamps build-info headers on every response,
+// plus the Strict-Transport-Security header when HSTS is enabled.
+func serverHeaderWriter(hstsEnabled bool, hstsMaxAge int) func(http.Header) {
+	return func(header http.Header) {
+		header.Add("X-Influxdb-Build", "OSS")
+		header.Add("X-Influxdb-Version", influxdb.GetBuildInfo().Version)
+		if hstsEnabled {
+			header.Set(StrictTransportSecurityHeader, fmt.Sprintf("max-age=%d; includeSubDomains", hstsMaxAge))
+		}
+	}
+}
+
 type AddHeader struct {
 	WriteHeader func(header http.Header)
 }
@@ -145,13 +158,7 @@ func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 
 	r := chi.NewRouter()
 	buildHeader := &AddHeader{
-		WriteHeader: func(header http.Header) {
-			header.Add("X-Influxdb-Build", "OSS")
-			header.Add("X-Influxdb-Version", influxdb.GetBuildInfo().Version)
-			if opt.hstsEnabled {
-				header.Set(StrictTransportSecurityHeader, fmt.Sprintf("max-age=%d; includeSubDomains", opt.hstsMaxAge))
-			}
-		},
+		WriteHeader: serverHeaderWriter(opt.hstsEnabled, opt.hstsMaxAge),
 	}
 	r.Use(buildHeader.Middleware)
 	// only gather metrics for system handlers
