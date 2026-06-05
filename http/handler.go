@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -24,6 +25,8 @@ const (
 	HealthPath = "/health"
 	// DebugPath exposes /debug/pprof for go debugging.
 	DebugPath = "/debug"
+	// StrictTransportSecurityHeader is the HTTP header used to enable HSTS.
+	StrictTransportSecurityHeader = "Strict-Transport-Security"
 )
 
 // Handler provides basic handling of metrics, health and debug endpoints.
@@ -49,6 +52,11 @@ type (
 		// so we can report HTTP metrics via telemetry.
 		metricsRegistry *prom.Registry
 		metricsExposed  bool
+
+		// hstsEnabled enables the Strict-Transport-Security header, with
+		// the given max-age in seconds.
+		hstsEnabled bool
+		hstsMaxAge  int
 	}
 
 	HandlerOptFn func(opts *handlerOpts)
@@ -89,6 +97,17 @@ func WithMetrics(reg *prom.Registry, exposed bool) HandlerOptFn {
 	}
 }
 
+// WithStrictTransportSecurity emits the Strict-Transport-Security (HSTS) header
+// on all responses, with the given max-age in seconds. It is opt-in via
+// --hardening-enabled. The header never includes "preload" since InfluxDB does
+// not own the domain it is hosted on.
+func WithStrictTransportSecurity(maxAge int) HandlerOptFn {
+	return func(opts *handlerOpts) {
+		opts.hstsEnabled = true
+		opts.hstsMaxAge = maxAge
+	}
+}
+
 type AddHeader struct {
 	WriteHeader func(header http.Header)
 }
@@ -126,6 +145,9 @@ func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 		WriteHeader: func(header http.Header) {
 			header.Add("X-Influxdb-Build", "OSS")
 			header.Add("X-Influxdb-Version", influxdb.GetBuildInfo().Version)
+			if opt.hstsEnabled {
+				header.Set(StrictTransportSecurityHeader, fmt.Sprintf("max-age=%d; includeSubDomains", opt.hstsMaxAge))
+			}
 		},
 	}
 	r.Use(buildHeader.Middleware)

@@ -90,3 +90,49 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		})
 	}
 }
+
+func TestHandler_StrictTransportSecurity(t *testing.T) {
+	tests := []struct {
+		name       string
+		enabled    bool
+		maxAge     int
+		wantHeader string
+	}{
+		{
+			name:       "absent when not enabled",
+			enabled:    false,
+			wantHeader: "",
+		},
+		{
+			name:       "default max-age",
+			enabled:    true,
+			maxAge:     31536000,
+			wantHeader: "max-age=31536000; includeSubDomains",
+		},
+		{
+			name:       "custom max-age",
+			enabled:    true,
+			maxAge:     3600,
+			wantHeader: "max-age=3600; includeSubDomains",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := []HandlerOptFn{
+				WithLog(zaptest.NewLogger(t)),
+				WithAPIHandler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})),
+			}
+			if tt.enabled {
+				opts = append(opts, WithStrictTransportSecurity(tt.maxAge))
+			}
+			h := NewRootHandler("test", opts...)
+
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+			got := rec.Header().Get("Strict-Transport-Security")
+			require.Equal(t, tt.wantHeader, got)
+			require.NotContains(t, got, "preload")
+		})
+	}
+}
