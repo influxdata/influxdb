@@ -109,6 +109,7 @@ func WithStrictTransportSecurity(maxAge int) HandlerOptFn {
 		}
 		opts.hstsMaxAge = maxAge
 	}
+}
 
 type AddHeader struct {
 	WriteHeader func(header http.Header)
