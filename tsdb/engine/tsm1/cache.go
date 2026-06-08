@@ -215,6 +215,9 @@ type allCacheMetrics struct {
 }
 
 type cacheMetrics struct {
+	// labels are retained so this shard's children can be deleted from the
+	// global vectors when the shard is permanently removed.
+	labels       prometheus.Labels
 	MemBytes     prometheus.Gauge
 	DiskBytes    prometheus.Gauge
 	LastSnapshot prometheus.Gauge
@@ -279,6 +282,7 @@ func CacheCollectors() []prometheus.Collector {
 func newCacheMetrics(tags tsdb.EngineTags) *cacheMetrics {
 	labels := tags.GetLabels()
 	return &cacheMetrics{
+		labels:       labels,
 		MemBytes:     globalCacheMetrics.MemBytes.With(labels),
 		DiskBytes:    globalCacheMetrics.DiskBytes.With(labels),
 		LastSnapshot: globalCacheMetrics.LastSnapshot.With(labels),
@@ -286,6 +290,18 @@ func newCacheMetrics(tags tsdb.EngineTags) *cacheMetrics {
 		WriteErr:     globalCacheMetrics.WriteErr.With(labels),
 		WriteDropped: globalCacheMetrics.WriteDropped.With(labels),
 	}
+}
+
+// remove deletes this shard's child series from the global cache vectors. It is
+// called when the shard is permanently removed so the series stop being
+// exported and their cardinality is reclaimed.
+func (m *cacheMetrics) remove() {
+	globalCacheMetrics.MemBytes.Delete(m.labels)
+	globalCacheMetrics.DiskBytes.Delete(m.labels)
+	globalCacheMetrics.LastSnapshot.Delete(m.labels)
+	globalCacheMetrics.Writes.Delete(m.labels)
+	globalCacheMetrics.WriteErr.Delete(m.labels)
+	globalCacheMetrics.WriteDropped.Delete(m.labels)
 }
 
 // init initializes the cache and allocates the underlying store.  Once initialized,

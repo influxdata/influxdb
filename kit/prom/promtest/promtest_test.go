@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -145,6 +146,42 @@ func TestMustFindMetric(t *testing.T) {
 	if !strings.Contains(logged, `"label1": "one"`) || !strings.Contains(logged, `"label2": "two"`) {
 		t.Fatalf("did not log the available label names. message: %s", logged)
 	}
+}
+
+func TestCountMetricsByLabel(t *testing.T) {
+	gv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "my",
+		Subsystem: "random",
+		Name:      "countbylabel",
+		Help:      "Just a random gauge vector.",
+	}, []string{"shared", "unique"})
+	// Two series share shared="x"; one has shared="y".
+	gv.WithLabelValues("x", "a").Set(1)
+	gv.WithLabelValues("x", "b").Set(1)
+	gv.WithLabelValues("y", "c").Set(1)
+
+	// A family that does not carry the shared label at all.
+	c := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "my",
+		Subsystem: "random",
+		Name:      "countbylabel_total",
+		Help:      "A counter without the shared label.",
+	})
+	c.Inc()
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(gv, c)
+
+	// Counts the matching series, grouped by family; the counter family is omitted.
+	require.Equal(t, map[string]int{"my_random_countbylabel": 2},
+		promtest.CountMetricsByLabel(t, reg, "shared", "x"))
+
+	// A label value present on exactly one series.
+	require.Equal(t, map[string]int{"my_random_countbylabel": 1},
+		promtest.CountMetricsByLabel(t, reg, "shared", "y"))
+
+	// No series carries this value: an empty (non-nil) map.
+	require.Empty(t, promtest.CountMetricsByLabel(t, reg, "shared", "missing"))
 }
 
 func TestMustGather(t *testing.T) {

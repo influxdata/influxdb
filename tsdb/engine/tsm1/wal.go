@@ -188,6 +188,9 @@ type allWALMetrics struct {
 }
 
 type walMetrics struct {
+	// labels are retained so this shard's children can be deleted from the
+	// global vectors when the shard is permanently removed.
+	labels prometheus.Labels
 	// size should never be updated directly, only through SetSize/AddSize
 	size prometheus.Gauge
 	// sizeAtomic should never be updated directly, only through SetSize/AddSize
@@ -241,10 +244,20 @@ func WALCollectors() []prometheus.Collector {
 func newWALMetrics(tags tsdb.EngineTags) *walMetrics {
 	labels := tags.GetLabels()
 	return &walMetrics{
+		labels:    labels,
 		size:      globalWALMetrics.size.With(labels),
 		writes:    globalWALMetrics.writes.With(labels),
 		writesErr: globalWALMetrics.writesErr.With(labels),
 	}
+}
+
+// remove deletes this shard's child series from the global WAL vectors. It is
+// called when the shard is permanently removed so the series stop being
+// exported and their cardinality is reclaimed.
+func (f *walMetrics) remove() {
+	globalWALMetrics.size.Delete(f.labels)
+	globalWALMetrics.writes.Delete(f.labels)
+	globalWALMetrics.writesErr.Delete(f.labels)
 }
 
 // Path returns the directory the log was initialized with.

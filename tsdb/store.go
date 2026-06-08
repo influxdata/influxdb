@@ -1122,8 +1122,9 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		}
 	}
 
-	// Close the shard.
-	if err := sh.Close(); err != nil {
+	// The shard is being permanently removed. Close it first so the engine's
+	// background compaction goroutines stop, then delete its Prometheus series.
+	if err := sh.CloseAndRemoveMetrics(); err != nil {
 		return err
 	}
 
@@ -1157,7 +1158,10 @@ func (s *Store) DeleteDatabase(name string) error {
 			return nil
 		}
 
-		return sh.Close()
+		// The shard is being permanently removed. Close it first so the
+		// engine's background compaction goroutines stop, then delete its
+		// Prometheus series.
+		return sh.CloseAndRemoveMetrics()
 	}); err != nil {
 		return err
 	}
@@ -1221,7 +1225,10 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 			return nil
 		}
 
-		return sh.Close()
+		// The shard is being permanently removed. Close it first so the
+		// engine's background compaction goroutines stop, then delete its
+		// Prometheus series.
+		return sh.CloseAndRemoveMetrics()
 	}); err != nil {
 		return err
 	}

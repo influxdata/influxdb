@@ -336,6 +336,9 @@ type allFileStoreMetrics struct {
 }
 
 type fileStoreMetrics struct {
+	// labels are retained so this shard's children can be deleted from the
+	// global vectors when the shard is permanently removed.
+	labels     prometheus.Labels
 	files      prometheus.Gauge
 	size       prometheus.Gauge
 	sizeAtomic int64
@@ -383,9 +386,18 @@ func FileStoreCollectors() []prometheus.Collector {
 func newFileStoreMetrics(tags tsdb.EngineTags) *fileStoreMetrics {
 	labels := tags.GetLabels()
 	return &fileStoreMetrics{
-		files: globalFileStoreMetrics.files.With(labels),
-		size:  globalFileStoreMetrics.size.With(labels),
+		labels: labels,
+		files:  globalFileStoreMetrics.files.With(labels),
+		size:   globalFileStoreMetrics.size.With(labels),
 	}
+}
+
+// remove deletes this shard's child series from the global file store vectors.
+// It is called when the shard is permanently removed so the series stop being
+// exported and their cardinality is reclaimed.
+func (f *fileStoreMetrics) remove() {
+	globalFileStoreMetrics.files.Delete(f.labels)
+	globalFileStoreMetrics.size.Delete(f.labels)
 }
 
 // Count returns the number of TSM files currently loaded.

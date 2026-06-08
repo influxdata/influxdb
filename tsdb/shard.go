@@ -284,6 +284,9 @@ type allShardMetrics struct {
 }
 
 type ShardMetrics struct {
+	// labels are retained so this shard's children can be deleted from the
+	// global vectors when the shard is permanently removed.
+	labels        prometheus.Labels
 	writes        prometheus.Observer
 	writesErr     prometheus.Observer
 	writesDropped prometheus.Counter
@@ -365,6 +368,7 @@ func ShardCollectors() []prometheus.Collector {
 func newShardMetrics(tags EngineTags) *ShardMetrics {
 	labels := tags.GetLabels()
 	return &ShardMetrics{
+		labels: labels,
 		writes: twoCounterObserver{
 			count: globalShardMetrics.writes.With(labels),
 			sum:   globalShardMetrics.writesSum.With(labels),
@@ -378,6 +382,20 @@ func newShardMetrics(tags EngineTags) *ShardMetrics {
 		diskSize:      globalShardMetrics.diskSize.With(labels),
 		series:        globalShardMetrics.series.With(labels),
 	}
+}
+
+// remove deletes this shard's child series from the global shard vectors. It is
+// called when the shard is permanently removed so the series stop being
+// exported and their cardinality is reclaimed.
+func (m *ShardMetrics) remove() {
+	globalShardMetrics.writes.Delete(m.labels)
+	globalShardMetrics.writesSum.Delete(m.labels)
+	globalShardMetrics.writesErr.Delete(m.labels)
+	globalShardMetrics.writesErrSum.Delete(m.labels)
+	globalShardMetrics.writesDropped.Delete(m.labels)
+	globalShardMetrics.fieldsCreated.Delete(m.labels)
+	globalShardMetrics.diskSize.Delete(m.labels)
+	globalShardMetrics.series.Delete(m.labels)
 }
 
 // ticker runs fn periodically, and stops when Stop() is called
@@ -545,6 +563,51 @@ func (s *Shard) closeAndWait(flush bool) error {
 // Close shuts down the shard's store.
 func (s *Shard) Close() error {
 	return s.closeAndWait(false)
+}
+
+// CloseAndRemoveMetrics permanently closes the shard and then deletes its
+// per-shard Prometheus child series from their global vectors, across all metric
+// families (shard, cache, WAL, file store, and compaction). Removal happens
+// after Close so the engine's background compaction goroutines — which re-create
+// their child series via With() on every tick — have fully exited and cannot
+// resurrect a removed series. It is intended to be called only when the shard is
+// being permanently removed (e.g. DeleteShard, DeleteDatabase,
+// DeleteRetentionPolicy); a transient close/reopen must use Close, which reuses
+// the same labels and preserves the metrics.
+func (s *Shard) CloseAndRemoveMetrics() error {
+	// Capture the engine reference before closeNoLock clears it, so the engine's
+	// metric families can be removed once its goroutines have stopped.
+	engine, err := func() (Engine, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		engine := s._engine
+		return engine, s.closeNoLock(false)
+	}()
+	// Make sure not to hold a lock while waiting for close to finish.
+	werr := s.closeWait()
+
+	// The shard's background goroutines have now exited, so deleting the metric
+	// series cannot race with an update that would re-create them.
+	s.removeMetrics(engine)
+
+	if err != nil {
+		return err
+	}
+	return werr
+}
+
+// removeMetrics deletes this shard's child series from every metric family. The
+// engine argument carries the cache, WAL, file store, and compaction families
+// and may be nil if the shard was never opened. It must only be called once the
+// shard's background goroutines have stopped, otherwise a concurrent update can
+// re-create a deleted series.
+func (s *Shard) removeMetrics(engine Engine) {
+	if s.stats != nil {
+		s.stats.remove()
+	}
+	if engine != nil {
+		engine.RemoveMetrics()
+	}
 }
 
 // closeNoLock closes the shard an removes reference to the shard from associated

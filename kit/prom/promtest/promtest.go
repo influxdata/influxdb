@@ -132,6 +132,31 @@ func findMetric(mfs []*dto.MetricFamily, name string, labels map[string]string) 
 	return fam, nil
 }
 
+// CountMetricsByLabel gathers from g and returns, keyed by metric family name,
+// the number of series in each family that carry the given label name=value.
+// Families with no matching series are omitted, so the returned map is empty
+// when nothing matches.
+//
+// This is useful for asserting that a whole set of series sharing one label
+// (e.g. all of a single shard's series, keyed by its unique "path" label) is
+// either present or fully removed across many metric families at once. Unlike
+// FindMetric, it matches on a single label rather than an exact full label set.
+func CountMetricsByLabel(tb testing.TB, g prometheus.Gatherer, label, value string) map[string]int {
+	tb.Helper()
+
+	out := make(map[string]int)
+	for _, mf := range MustGather(tb, g) {
+		for _, m := range mf.GetMetric() {
+			for _, lp := range m.GetLabel() {
+				if lp.GetName() == label && lp.GetValue() == value {
+					out[mf.GetName()]++
+				}
+			}
+		}
+	}
+	return out
+}
+
 // MustGather calls g.Gather and calls tb.Fatal if there was an error.
 func MustGather(tb testing.TB, g prometheus.Gatherer) []*dto.MetricFamily {
 	tb.Helper()

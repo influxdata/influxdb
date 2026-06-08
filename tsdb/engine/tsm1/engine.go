@@ -726,19 +726,60 @@ func (c *compactionCounter) countForLevel(l int) *int64 {
 
 // engineMetrics holds statistics across all instantiated engines
 type compactionMetrics struct {
-	Duration prometheus.ObserverVec
-	Active   *prometheus.GaugeVec
-	Queued   *prometheus.GaugeVec
-	Failed   *prometheus.CounterVec
+	// engineLabels are this engine's labels (without the per-level "level"
+	// label). They are retained so this shard's children can be deleted from
+	// the global vectors when the shard is permanently removed.
+	engineLabels prometheus.Labels
+	Duration     prometheus.ObserverVec
+	Active       *prometheus.GaugeVec
+	Queued       *prometheus.GaugeVec
+	Failed       *prometheus.CounterVec
 }
 
 func newEngineMetrics(tags tsdb.EngineTags) *compactionMetrics {
 	engineLabels := tags.GetLabels()
 	return &compactionMetrics{
-		Duration: globalCompactionMetrics.Duration.MustCurryWith(engineLabels),
-		Active:   globalCompactionMetrics.Active.MustCurryWith(engineLabels),
-		Failed:   globalCompactionMetrics.Failed.MustCurryWith(engineLabels),
-		Queued:   globalCompactionMetrics.Queued.MustCurryWith(engineLabels),
+		engineLabels: engineLabels,
+		Duration:     globalCompactionMetrics.Duration.MustCurryWith(engineLabels),
+		Active:       globalCompactionMetrics.Active.MustCurryWith(engineLabels),
+		Failed:       globalCompactionMetrics.Failed.MustCurryWith(engineLabels),
+		Queued:       globalCompactionMetrics.Queued.MustCurryWith(engineLabels),
+	}
+}
+
+// remove deletes this shard's compaction child series from the global vectors.
+// The global vectors carry an extra "level" label, so one shard owns several
+// children; DeletePartialMatch on the engine-label subset removes every level
+// variant. The curried vecs held on this struct do not support deletion, so the
+// underlying global vectors are used directly.
+func (m *compactionMetrics) remove() {
+	if hv, ok := globalCompactionMetrics.Duration.(*prometheus.HistogramVec); ok {
+		hv.DeletePartialMatch(m.engineLabels)
+	}
+	globalCompactionMetrics.Active.DeletePartialMatch(m.engineLabels)
+	globalCompactionMetrics.Queued.DeletePartialMatch(m.engineLabels)
+	globalCompactionMetrics.Failed.DeletePartialMatch(m.engineLabels)
+}
+
+// RemoveMetrics deletes all of this engine's per-shard Prometheus child series
+// (cache, WAL, file store, and compaction families) from their global vectors.
+// It must be called after Close has stopped the engine's background compaction
+// goroutines; those goroutines re-create their child series via With() on every
+// tick (e.g. PlanCompactions, compactCache), so removing earlier would race with
+// them and leak the resurrected series. It is invoked only when the shard is
+// permanently removed; a transient close/reopen must not call it.
+func (e *Engine) RemoveMetrics() {
+	if e.Cache != nil && e.Cache.stats != nil {
+		e.Cache.stats.remove()
+	}
+	if e.WAL != nil && e.WAL.stats != nil {
+		e.WAL.stats.remove()
+	}
+	if e.FileStore != nil && e.FileStore.stats != nil {
+		e.FileStore.stats.remove()
+	}
+	if e.Stats != nil {
+		e.Stats.remove()
 	}
 }
 
