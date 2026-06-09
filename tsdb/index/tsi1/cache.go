@@ -277,7 +277,7 @@ func (c *TagValueSeriesIDCache) Get(name, key, value []byte) *tsdb.SeriesIDSet {
 	}()
 
 	if shrank {
-		c.logShrink(event)
+		c.logResize(event)
 	}
 	return ss
 }
@@ -603,15 +603,28 @@ func decideResize(hits, misses, lastHits, lastMisses, capacity, maxCapacity, min
 	return newCap, gets, rate, true
 }
 
-// logResize emits a single INFO log line describing a capacity-growth
-// event. Called by Put after releasing the cache write lock. Reads
-// c.maxCapacity and c.targetHitRate directly — both are set at
-// construction and never mutated.
+// logResize emits a single INFO log line describing a capacity-change event,
+// either a grow (driven from Put) or a shrink (driven from Get). The direction
+// is taken from the event: newCap > oldCap is a grow, otherwise a shrink. Both
+// callers invoke this only after an actual capacity change, and grow strictly
+// increases capacity while shrink strictly decreases it, so the comparison is
+// unambiguous and selects only the log message. Every metric is logged on both
+// lines so the field set is uniform regardless of direction: evicted is 0 for a
+// grow, and min_capacity/max_capacity/target are the configured bounds in either
+// case. c.minCapacity, c.maxCapacity, and c.targetHitRate are read directly — all
+// set at construction and never mutated. Called after releasing the cache write
+// lock.
 func (c *TagValueSeriesIDCache) logResize(e resizeEvent) {
-	c.logger.Info(logMsgCacheCapacityIncreased,
+	msg := logMsgCacheCapacityIncreased
+	if e.newCap <= e.oldCap {
+		msg = logMsgCacheCapacityDecreased
+	}
+	c.logger.Info(msg,
 		zap.Int64("old_capacity", e.oldCap),
 		zap.Int64("new_capacity", e.newCap),
+		zap.Int64("min_capacity", c.minCapacity),
 		zap.Int64("max_capacity", c.maxCapacity),
+		zap.Int64("evicted", e.evicted),
 		zap.Float64("hit_rate", e.rate),
 		zap.Float64("target", c.targetHitRate),
 		zap.Int64("gets_window", e.gets),
@@ -770,19 +783,6 @@ func (c *TagValueSeriesIDCache) warmCountLocked() int64 {
 		}
 	}
 	return n
-}
-
-// logShrink emits a single INFO log line describing a capacity-shrink event.
-// Called by Get after releasing the cache write lock.
-func (c *TagValueSeriesIDCache) logShrink(e resizeEvent) {
-	c.logger.Info(logMsgCacheCapacityDecreased,
-		zap.Int64("old_capacity", e.oldCap),
-		zap.Int64("new_capacity", e.newCap),
-		zap.Int64("min_capacity", c.minCapacity),
-		zap.Int64("evicted", e.evicted),
-		zap.Float64("hit_rate", e.rate),
-		zap.Int64("gets_window", e.gets),
-	)
 }
 
 // adaptiveWindowLen returns how many Gets to observe before making an adaptive
