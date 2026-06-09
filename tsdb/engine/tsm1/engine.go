@@ -760,6 +760,7 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 	if e.WALEnabled {
 		statistics = append(statistics, e.WAL.Statistics(tags)...)
 	}
+	statistics = append(statistics, e.index.Statistics(tags)...)
 	return statistics
 }
 

@@ -49,6 +49,9 @@ func init() {
 			WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)),
 			WithMaximumLogFileAge(time.Duration(opt.Config.CompactFullWriteColdDuration)),
 			WithSeriesIDCacheSize(opt.Config.SeriesIDSetCacheSize),
+			WithSeriesIDCacheMaxSize(opt.Config.SeriesIDSetCacheMaxSize),
+			WithSeriesIDCacheTargetHitRate(opt.Config.SeriesIDSetCacheTargetHitRate),
+			WithSeriesIDCacheShrinkConservatism(opt.Config.SeriesIDSetCacheShrinkConservatism),
 		)
 		return idx
 	})
@@ -131,14 +134,44 @@ var WithSeriesIDCacheSize = func(sz int) IndexOption {
 	}
 }
 
+// WithSeriesIDCacheMaxSize sets the upper bound on adaptive growth of
+// the series id set cache. A value of 0 disables adaptive sizing. Must
+// be paired with WithSeriesIDCacheTargetHitRate.
+var WithSeriesIDCacheMaxSize = func(sz int) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheMaxSize = sz
+	}
+}
+
+// WithSeriesIDCacheTargetHitRate sets the target Get hit rate used to
+// drive adaptive cache growth. A value of 0 disables adaptive sizing.
+// Must be paired with WithSeriesIDCacheMaxSize.
+var WithSeriesIDCacheTargetHitRate = func(rate float64) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheTargetHitRate = rate
+	}
+}
+
+// WithSeriesIDCacheShrinkConservatism sets the number of standard deviations
+// below the at-target eviction mean at which the shrink eviction gate sits.
+// Higher values (>= 0.0) make the cache more reluctant to shrink. See tsdb.Config.
+var WithSeriesIDCacheShrinkConservatism = func(c float64) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheShrinkConservatism = c
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
 	partitions []*Partition
 	opened     bool
 
-	tagValueCache     *TagValueSeriesIDCache
-	tagValueCacheSize int
+	tagValueCache                   *TagValueSeriesIDCache
+	tagValueCacheSize               int
+	tagValueCacheMaxSize            int     // 0 = adaptive sizing disabled
+	tagValueCacheTargetHitRate      float64 // 0 = adaptive sizing disabled
+	tagValueCacheShrinkConservatism float64 // sigmas below the at-target eviction mean for the shrink gate; validated by Config to be >= 0.0
 
 	// The following may be set when initializing an Index.
 	path               string        // Root directory of the index partitions.
@@ -171,25 +204,37 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
-		tagValueCacheSize: tsdb.DefaultSeriesIDSetCacheSize,
-		maxLogFileSize:    tsdb.DefaultMaxIndexLogFileSize,
-		maxLogFileAge:     tsdb.DefaultCompactFullWriteColdDuration,
-		logger:            zap.NewNop(),
-		version:           Version,
-		sfile:             sfile,
-		database:          database,
-		mSketch:           hll.NewDefaultPlus(),
-		mTSketch:          hll.NewDefaultPlus(),
-		sSketch:           hll.NewDefaultPlus(),
-		sTSketch:          hll.NewDefaultPlus(),
-		PartitionN:        DefaultPartitionN,
+		tagValueCacheSize:               tsdb.DefaultSeriesIDSetCacheSize,
+		tagValueCacheShrinkConservatism: tsdb.DefaultSeriesIDSetCacheShrinkConservatism,
+		maxLogFileSize:                  tsdb.DefaultMaxIndexLogFileSize,
+		maxLogFileAge:                   tsdb.DefaultCompactFullWriteColdDuration,
+		logger:                          zap.NewNop(),
+		version:                         Version,
+		sfile:                           sfile,
+		database:                        database,
+		mSketch:                         hll.NewDefaultPlus(),
+		mTSketch:                        hll.NewDefaultPlus(),
+		sSketch:                         hll.NewDefaultPlus(),
+		sTSketch:                        hll.NewDefaultPlus(),
+		PartitionN:                      DefaultPartitionN,
 	}
 
 	for _, option := range options {
 		option(idx)
 	}
 
-	idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
+	if idx.tagValueCacheMaxSize > 0 && idx.tagValueCacheTargetHitRate > 0 {
+		idx.tagValueCache = NewAdaptiveTagValueSeriesIDCache(
+			idx.tagValueCacheSize,
+			idx.tagValueCacheMaxSize,
+			idx.tagValueCacheTargetHitRate,
+			idx.tagValueCacheShrinkConservatism,
+			tsdb.DefaultAdaptiveCacheMinSamples,
+			idx.logger,
+		)
+	} else {
+		idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
+	}
 	return idx
 }
 
@@ -226,6 +271,14 @@ func (i *Index) Database() string {
 	return i.database
 }
 
+// Statistics returns statistics for periodic monitoring.
+func (i *Index) Statistics(tags map[string]string) []models.Statistic {
+	if i.tagValueCache == nil {
+		return nil
+	}
+	return i.tagValueCache.Statistics(tags)
+}
+
 // WithLogger sets the logger on the index after it's been created.
 //
 // It's not safe to call WithLogger after the index has been opened, or before
@@ -234,6 +287,12 @@ func (i *Index) WithLogger(l *zap.Logger) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.logger = l.With(zap.String("index", "tsi"))
+	// The cache is constructed in NewIndex with the index's initial
+	// (no-op) logger; propagate the real logger so adaptive resize
+	// events are emitted to it.
+	if i.tagValueCache != nil {
+		i.tagValueCache.SetLogger(i.logger)
+	}
 }
 
 // Type returns the type of Index this is.

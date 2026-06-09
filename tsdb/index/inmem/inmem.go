@@ -117,6 +117,10 @@ func (i *Index) Type() string      { return IndexName }
 func (i *Index) Open() (err error) { return nil }
 func (i *Index) Close() error      { return nil }
 
+// Statistics returns statistics for periodic monitoring. The inmem index has
+// no caches of its own to report, so this is a no-op.
+func (i *Index) Statistics(tags map[string]string) []models.Statistic { return nil }
+
 func (i *Index) WithLogger(*zap.Logger) {}
 
 // Database returns the name of the database the index was initialized with.
