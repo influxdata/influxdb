@@ -8,8 +8,8 @@ import (
 	"sort"
 	"sync"
 	"time"
-	"sync"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"google.golang.org/protobuf/proto"
 )
@@ -556,6 +556,8 @@ func (s *{{$k.name}}IteratorScanner) ScanAt(ts int64, name string, tags Tags, m 
 		switch v.(type) {
 		case float64, int64, uint64, string, bool:
 			m[k.Val] = v
+		case DecodedDatePartKey:
+		    m[DatePartDimensionsString] = v
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -1043,10 +1045,11 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Next() (*{{$v.Name}}Point, erro
 
 // {{$k.name}}Reduce{{$v.Name}}Point stores the reduced data for a name/tag combination.
 type {{$k.name}}Reduce{{$v.Name}}Point struct {
-	Name       string
-	Tags       Tags
-	Aggregator {{$k.Name}}PointAggregator
-	Emitter    {{$v.Name}}PointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  {{$k.Name}}PointAggregator
+	Emitter     {{$v.Name}}PointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -1105,19 +1108,44 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &{{$k.name}}Reduce{{$v.Name}}Point{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+    // Check to see if we have any group bys that are not tags or time.
+    // If we have group by key entries, let's create separate iteratores for them. 
+    // If we don't have any, proceed as normal creating an iterator with the id map. 
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+      
+    			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &{{$k.name}}Reduce{{$v.Name}}Point{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.Aggregate{{$k.Name}}(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &{{$k.name}}Reduce{{$v.Name}}Point{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.Aggregate{{$k.Name}}(curr)
 		}
-		rp.Aggregator.Aggregate{{$k.Name}}(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -1153,6 +1181,24 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err == nil {
+					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+					// point's Aux via cloneAux, which already contains the raw int64
+					// date_part value(s) appended by the TSM iterator. Replace the
+					// last element in-place so Aux length stays consistent with the
+					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+					// nil Aux, so we append normally.
+					if n := len(points[i].Aux); n > 0 {
+						points[i].Aux[n-1] = dpVal
+					} else {
+						points[i].Aux = append(points[i].Aux, dpVal)
+					}
+				}
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -1369,7 +1415,7 @@ func new{{$k.Name}}FilterIterator(input {{$k.Name}}Iterator, cond influxql.Expr,
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}

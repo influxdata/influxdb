@@ -42,7 +42,7 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 
 		fieldKey := iter.FieldKey()
 		// Skip fields name "time", they are illegal.
-		if bytes.Equal(fieldKey, TimeBytes) {
+		if bytes.Equal(fieldKey, models.TimeBytes) {
 			if partialWriteError == nil {
 				partialWriteError = &PartialWriteError{
 					Reason: fmt.Sprintf(
