@@ -20,6 +20,7 @@ fn create_test_file(records: &[Record]) -> Bytes {
         catalog_uuid: 1337,
         sequence_number: 12345,
         record_count: records.len() as u32,
+        group_count: 0,
         payload_crc,
         payload_len: payload.len() as u64,
     };
@@ -160,6 +161,7 @@ fn truncated_record_header() {
         catalog_uuid: 1337,
         sequence_number: 12345,
         record_count: 2, // Claim 2 records
+        group_count: 0,
         payload_crc,
         payload_len: payload.len() as u64,
     };
@@ -185,6 +187,7 @@ fn build_raw_file(header_flags: u16, record_count: u32, payload: Vec<u8>) -> Byt
         catalog_uuid: 1337,
         sequence_number: 1,
         record_count,
+        group_count: 0,
         payload_crc,
         payload_len: payload.len() as u64,
     };
@@ -215,6 +218,47 @@ fn snapshot_payload_parses_like_log() {
     assert_eq!(parsed.len(), 2);
     assert_eq!(parsed[0].id(), 1);
     assert_eq!(parsed[1].id(), 2);
+}
+
+#[test]
+fn legacy_grouped_snapshot_skips_index_and_reads_records() {
+    // Regression for influxdb_pro#4026: snapshots written by the pre-#4026
+    // engine prefix the record payload with a group index of `group_count`
+    // 24-byte entries. The new flat reader must skip that index and return the
+    // records (already in application order) rather than rejecting the file.
+    let records = [
+        Record::new(1, RecordFlags::none(), 1, Bytes::from_static(b"alpha")),
+        Record::new(2, RecordFlags::none(), 2, Bytes::from_static(b"bravo")),
+    ];
+    let group_count = 2u32; // e.g. Global + one database
+    // Group-index bytes — opaque to the new reader, which only skips them.
+    let mut payload = vec![0u8; group_count as usize * 24];
+    for record in &records {
+        payload.extend_from_slice(&record.to_bytes());
+    }
+    let payload_crc = crc32fast::hash(&payload);
+    let header = Header {
+        format_version: FORMAT_VERSION,
+        flags: file_flags::SNAPSHOT,
+        catalog_uuid: 1337,
+        sequence_number: 7,
+        record_count: records.len() as u32,
+        group_count,
+        payload_crc,
+        payload_len: payload.len() as u64,
+    };
+    let mut file = Vec::new();
+    file.extend_from_slice(&header.to_bytes());
+    file.extend_from_slice(&payload);
+    let mut cursor = Cursor::new(Bytes::from(file));
+
+    let parsed = CatalogFile::read_from(&mut cursor).unwrap();
+    assert!(parsed.header.is_snapshot());
+    assert_eq!(parsed.records.len(), 2);
+    assert_eq!(parsed.records[0].id(), 1);
+    assert_eq!(parsed.records[1].id(), 2);
+    assert_eq!(&parsed.records[0].data[..], b"alpha");
+    assert_eq!(&parsed.records[1].data[..], b"bravo");
 }
 
 #[test]

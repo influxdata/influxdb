@@ -1334,6 +1334,268 @@ mod checkpointing {
 }
 
 // ---------------------------------------------------------------------------
+// Legacy grouped snapshot rewrite at startup
+// ---------------------------------------------------------------------------
+
+mod startup_snapshot_rewrite {
+    use std::io::Cursor;
+
+    use super::*;
+    use crate::format::records::{CreateDatabase, CreateTable, RegisterNode};
+    use crate::format::{CatalogFile, FeatureLevel, Header, MakeRecord, Record, file_flags};
+    use crate::object_store::CatalogFilePath;
+
+    /// Byte length of one legacy group-index entry.
+    const LEGACY_ENTRY_SIZE: usize = 24;
+
+    /// Encode one legacy group-index entry: group_type, group_key,
+    /// record_count, and byte_length as u32 LE, then byte_offset as u64 LE.
+    fn legacy_index_entry(
+        group_type: u32,
+        group_key: u32,
+        record_count: u32,
+        byte_length: u32,
+        byte_offset: u64,
+    ) -> [u8; LEGACY_ENTRY_SIZE] {
+        let mut entry = [0u8; LEGACY_ENTRY_SIZE];
+        entry[0..4].copy_from_slice(&group_type.to_le_bytes());
+        entry[4..8].copy_from_slice(&group_key.to_le_bytes());
+        entry[8..12].copy_from_slice(&record_count.to_le_bytes());
+        entry[12..16].copy_from_slice(&byte_length.to_le_bytes());
+        entry[16..24].copy_from_slice(&byte_offset.to_le_bytes());
+        entry
+    }
+
+    /// Hand-build a legacy multi-group snapshot file: header, then one
+    /// 24-byte index entry per (group, records) pair — Global first — then
+    /// the record bytes of every group concatenated in order.
+    fn build_legacy_grouped_snapshot(
+        sequence_number: u64,
+        groups: &[(u32, u32, &[Record])],
+    ) -> Vec<u8> {
+        let mut index = Vec::new();
+        let mut record_bytes = Vec::new();
+        let mut record_count = 0u32;
+        for (group_type, group_key, records) in groups {
+            let byte_offset = record_bytes.len() as u64;
+            for record in *records {
+                record_bytes.extend_from_slice(&record.to_bytes());
+            }
+            index.extend_from_slice(&legacy_index_entry(
+                *group_type,
+                *group_key,
+                records.len() as u32,
+                (record_bytes.len() as u64 - byte_offset) as u32,
+                byte_offset,
+            ));
+            record_count += records.len() as u32;
+        }
+        let payload: Vec<u8> = index.into_iter().chain(record_bytes).collect();
+        let header = Header {
+            format_version: Header::CURRENT_VERSION,
+            flags: file_flags::SNAPSHOT,
+            catalog_uuid: Uuid::nil().as_u128(),
+            sequence_number,
+            record_count,
+            group_count: groups.len() as u32,
+            payload_len: payload.len() as u64,
+            payload_crc: crc32fast::hash(&payload),
+        };
+        let mut file = Vec::with_capacity(Header::SIZE + payload.len());
+        file.extend_from_slice(&header.to_bytes());
+        file.extend_from_slice(&payload);
+        file
+    }
+
+    /// Hand-build an indexless flat snapshot file as written between
+    /// #4026 and the compat-entry writer: header with `group_count: 0`,
+    /// then the record bytes with no index.
+    fn build_flat_indexless_snapshot(sequence_number: u64, records: &[Record]) -> Vec<u8> {
+        let mut payload = Vec::new();
+        for record in records {
+            payload.extend_from_slice(&record.to_bytes());
+        }
+        let header = Header {
+            format_version: Header::CURRENT_VERSION,
+            flags: file_flags::SNAPSHOT,
+            catalog_uuid: Uuid::nil().as_u128(),
+            sequence_number,
+            record_count: records.len() as u32,
+            group_count: 0,
+            payload_len: payload.len() as u64,
+            payload_crc: crc32fast::hash(&payload),
+        };
+        let mut file = Vec::with_capacity(Header::SIZE + payload.len());
+        file.extend_from_slice(&header.to_bytes());
+        file.extend_from_slice(&payload);
+        file
+    }
+
+    /// Three records — register-node, create-database, create-table — used
+    /// to populate the hand-built snapshot fixtures.
+    fn sample_records() -> [Record; 3] {
+        let register = RegisterNode {
+            node_catalog_id: 1,
+            node_id: "node-a".to_string(),
+            instance_id: "inst-1".to_string(),
+            registered_time_ns: 1000,
+            core_count: 4,
+            mode: vec![crate::format::records::types::NodeMode::Core],
+            process_uuid: [0u8; 16],
+            conn_info: None,
+            cli_params: None,
+            row_delete_predicate_version: 0,
+            feature_level: FeatureLevel::ZERO,
+        }
+        .make_record(1);
+        let create_db = CreateDatabase {
+            database_id: 10,
+            database_name: "db-10".to_string(),
+            retention_period: crate::format::records::types::RetentionPeriod::Indefinite,
+        }
+        .make_record(2);
+        let create_table = CreateTable {
+            database_id: 10,
+            database_name: "db-10".to_string(),
+            table_name: "table-100".to_string(),
+            table_id: 100,
+            retention_period: crate::format::records::types::RetentionPeriod::Indefinite,
+            field_family_mode: crate::format::records::types::FieldFamilyMode::Auto,
+        }
+        .make_record(3);
+        [register, create_db, create_table]
+    }
+
+    async fn read_stored_snapshot(
+        store: &Arc<dyn object_store::ObjectStore>,
+        prefix: &str,
+    ) -> CatalogFile {
+        let bytes = store
+            .get(&CatalogFilePath::snapshot(prefix))
+            .await
+            .expect("snapshot object present")
+            .bytes()
+            .await
+            .unwrap();
+        let mut cursor = Cursor::new(bytes.as_ref());
+        CatalogFile::read_from(&mut cursor).expect("parse stored snapshot")
+    }
+
+    #[tokio::test]
+    async fn legacy_grouped_snapshot_rewritten_at_startup() {
+        let shared: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+
+        // Hand-build a legacy multi-group snapshot: Global group with a
+        // register-node and a create-database record, plus a per-database
+        // group holding the create-table record.
+        let [register, create_db, create_table] = sample_records();
+
+        let bytes = build_legacy_grouped_snapshot(
+            3,
+            &[
+                (0, 0, &[register, create_db]), // Global group
+                (1, 10, &[create_table]),       // Database group for db 10
+            ],
+        );
+        shared
+            .put(&CatalogFilePath::snapshot("p"), bytes.into())
+            .await
+            .unwrap();
+        assert_eq!(
+            read_stored_snapshot(&shared, "p").await.header.group_count,
+            2
+        );
+
+        let catalog = test_load_or_create("p", Arc::clone(&shared)).await.unwrap();
+
+        // The loaded state contains the db + table from the legacy file.
+        let db = catalog.db_schema("db-10").expect("db loaded");
+        assert!(db.tables.get_by_name("table-100").is_some());
+
+        // The stored snapshot was rewritten in the current single-group
+        // form, preserving record count and sequence.
+        let snapshot = read_stored_snapshot(&shared, "p").await;
+        assert_eq!(snapshot.header.group_count, 1);
+        assert_eq!(snapshot.header.sequence_number, 3);
+        assert_eq!(snapshot.record_count(), 3);
+    }
+
+    #[tokio::test]
+    async fn flat_indexless_snapshot_rewritten_at_startup() {
+        let shared: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+
+        // Hand-build a flat indexless snapshot (group_count == 0) as written
+        // between #4026 and the compat-entry writer. Pre-flat readers reject
+        // this layout, so startup must rewrite it even though this binary
+        // reads it fine.
+        let records = sample_records();
+        let bytes = build_flat_indexless_snapshot(3, &records);
+        shared
+            .put(&CatalogFilePath::snapshot("p"), bytes.into())
+            .await
+            .unwrap();
+        assert_eq!(
+            read_stored_snapshot(&shared, "p").await.header.group_count,
+            0
+        );
+
+        let catalog = test_load_or_create("p", Arc::clone(&shared)).await.unwrap();
+
+        // The loaded state contains the db + table from the flat file.
+        let db = catalog.db_schema("db-10").expect("db loaded");
+        assert!(db.tables.get_by_name("table-100").is_some());
+
+        // The stored snapshot was rewritten in the current single-group
+        // form, preserving record count and sequence.
+        let snapshot = read_stored_snapshot(&shared, "p").await;
+        assert_eq!(snapshot.header.group_count, 1);
+        assert_eq!(snapshot.header.sequence_number, 3);
+        assert_eq!(snapshot.record_count(), 3);
+    }
+
+    #[tokio::test]
+    async fn current_snapshot_not_rewritten_at_startup() {
+        let shared: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+        {
+            let catalog = test_load_or_create("p", Arc::clone(&shared)).await.unwrap();
+            catalog.create_database("db").await.unwrap();
+            catalog.force_checkpoint().await.unwrap();
+        }
+        let path = CatalogFilePath::snapshot("p");
+        let before = shared.head(&path).await.unwrap();
+        assert_eq!(
+            read_stored_snapshot(&shared, "p").await.header.group_count,
+            1
+        );
+
+        let reloaded = test_load_or_create("p", Arc::clone(&shared)).await.unwrap();
+        assert!(reloaded.db_schema("db").is_some());
+
+        // A single-group snapshot is already the target form; startup must
+        // not write it again.
+        let after = shared.head(&path).await.unwrap();
+        assert_eq!(before.e_tag, after.e_tag);
+        assert_eq!(before.last_modified, after.last_modified);
+    }
+
+    #[tokio::test]
+    async fn fresh_catalog_writes_only_initial_snapshot() {
+        let shared: Arc<dyn object_store::ObjectStore> = Arc::new(InMemory::new());
+        let catalog = test_load_or_create("p", Arc::clone(&shared)).await.unwrap();
+
+        // Pin the existing fresh-boot behavior: initialization writes an
+        // initial single-group snapshot at sequence 0 holding only the
+        // SetStorageMode record. No rewrite runs — the `_internal` database
+        // created after init lands in a log file, not the snapshot.
+        let snapshot = read_stored_snapshot(&shared, "p").await;
+        assert_eq!(snapshot.header.group_count, 1);
+        assert_eq!(snapshot.header.sequence_number, 0);
+        assert_eq!(snapshot.record_count(), 1);
+        assert!(catalog.db_schema("_internal").is_some());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // DDL CreateTable field families
 // ---------------------------------------------------------------------------
 
