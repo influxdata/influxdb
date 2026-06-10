@@ -70,6 +70,12 @@ type Config struct {
 
 	// TLS provides configuration options for all https endpoints.
 	TLS tlsconfig.Config `toml:"tls"`
+
+	// HardeningEnabled enables hardening options, such as restricting flux
+	// HTTP requests to non-private (public) addresses. It is disabled by
+	// default to preserve existing behavior. In the future this may gate
+	// additional security features.
+	HardeningEnabled bool `toml:"hardening-enabled"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -215,6 +221,7 @@ func (c *Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	return diagnostics.RowFromMap(map[string]interface{}{
 		"reporting-disabled": c.ReportingDisabled,
 		"bind-address":       c.BindAddress,
+		"hardening-enabled":  c.HardeningEnabled,
 	}), nil
 }
 
