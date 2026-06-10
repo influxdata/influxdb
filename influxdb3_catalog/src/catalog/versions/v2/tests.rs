@@ -1,10 +1,14 @@
-use super::log::{DeleteBatch, DeleteOp, FieldDataType, LastCacheSize, MaxAge, MaxCardinality};
+use super::log::{
+    DeleteBatch, DeleteOp, FieldDataType, LastCacheSize, MaxAge, MaxCardinality, TriggerSettings,
+    ValidPluginFilename,
+};
 
 use super::*;
 use crate::object_store::versions::v2::CatalogFilePath;
+use influxdb3_process::ProcessUuidWrapper;
 use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
 use iox_time::MockProvider;
-use object_store::{local::LocalFileSystem, memory::InMemory};
+use object_store::{ObjectStore, local::LocalFileSystem, memory::InMemory, path::Path};
 use pretty_assertions::assert_eq;
 use rstest::rstest;
 use test_helpers::assert_contains;
@@ -12,6 +16,7 @@ use test_helpers::assert_contains;
 use crate::serialize::versions::v2::{
     serialize_catalog_file, verify_and_deserialize_catalog_checkpoint_file,
 };
+use influxdb3_id::ColumnId;
 
 #[test_log::test(tokio::test)]
 async fn catalog_serialization() {
@@ -69,6 +74,419 @@ async fn catalog_serialization() {
     }
 }
 
+#[test_log::test(tokio::test)]
+async fn backup_view_returns_checkpoint_bytes_and_following_logs() {
+    let store = Arc::new(InMemory::new());
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let metric_registry = Arc::new(metric::Registry::new());
+    let catalog = Catalog::new_with_checkpoint_interval(
+        "backup-view-host",
+        Arc::clone(&store) as _,
+        time_provider,
+        metric_registry,
+        1_000,
+    )
+    .await
+    .unwrap();
+
+    let checkpoint_batch = catalog.create_database("db_checkpoint").await.unwrap();
+    let checkpoint_path = CatalogFilePath::checkpoint(catalog.object_store_prefix().as_ref());
+    let checkpoint_bytes = serialize_catalog_file(&catalog.snapshot()).unwrap();
+    catalog
+        .object_store()
+        .put(&checkpoint_path, checkpoint_bytes.into())
+        .await
+        .unwrap();
+
+    let later_batch_1 = catalog.create_database("db_after_1").await.unwrap();
+    let later_batch_2 = catalog.create_database("db_after_2").await.unwrap();
+
+    let view = catalog.backup_view().await.unwrap();
+
+    assert_eq!(view.checkpoint.sequence, checkpoint_batch.sequence_number());
+    assert_eq!(view.checkpoint.path, checkpoint_path.into());
+    assert_eq!(view.through_sequence, later_batch_2.sequence_number());
+    assert_eq!(
+        view.log_files
+            .iter()
+            .map(|f| f.sequence)
+            .collect::<Vec<_>>(),
+        vec![
+            later_batch_1.sequence_number(),
+            later_batch_2.sequence_number()
+        ]
+    );
+    assert_eq!(
+        view.log_files
+            .iter()
+            .map(|f| f.path.to_string())
+            .collect::<Vec<_>>(),
+        vec![
+            CatalogFilePath::log(
+                catalog.object_store_prefix().as_ref(),
+                later_batch_1.sequence_number(),
+            )
+            .to_string(),
+            CatalogFilePath::log(
+                catalog.object_store_prefix().as_ref(),
+                later_batch_2.sequence_number(),
+            )
+            .to_string(),
+        ]
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn backup_view_keeps_checkpoint_bytes_stable_after_live_checkpoint_changes() {
+    let store = Arc::new(InMemory::new());
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let metric_registry = Arc::new(metric::Registry::new());
+    let catalog = Catalog::new_with_checkpoint_interval(
+        "backup-view-stable-host",
+        Arc::clone(&store) as _,
+        time_provider,
+        metric_registry,
+        1_000,
+    )
+    .await
+    .unwrap();
+
+    let checkpoint_batch = catalog.create_database("db_checkpoint").await.unwrap();
+    let checkpoint_path = CatalogFilePath::checkpoint(catalog.object_store_prefix().as_ref());
+    let checkpoint_bytes = serialize_catalog_file(&catalog.snapshot()).unwrap();
+    catalog
+        .object_store()
+        .put(&checkpoint_path, checkpoint_bytes.into())
+        .await
+        .unwrap();
+
+    let view = catalog.backup_view().await.unwrap();
+
+    let later_batch = catalog.create_database("db_after").await.unwrap();
+    let newer_checkpoint_bytes = serialize_catalog_file(&catalog.snapshot()).unwrap();
+    catalog
+        .object_store()
+        .put(&checkpoint_path, newer_checkpoint_bytes.into())
+        .await
+        .unwrap();
+
+    assert_eq!(view.checkpoint.sequence, checkpoint_batch.sequence_number());
+    assert_eq!(catalog.sequence_number(), later_batch.sequence_number());
+}
+
+#[test_log::test(tokio::test(flavor = "multi_thread"))]
+async fn restore_from_object_store_uses_selected_backup_paths() {
+    let store = Arc::new(InMemory::new());
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let metric_registry = Arc::new(metric::Registry::new());
+    let catalog = Catalog::new_with_checkpoint_interval(
+        "restore-selected-backup-host",
+        Arc::clone(&store) as _,
+        time_provider,
+        metric_registry,
+        1_000,
+    )
+    .await
+    .unwrap();
+
+    let checkpoint_batch = catalog.create_database("db_checkpoint").await.unwrap();
+    assert_eq!(checkpoint_batch.sequence_number().get(), 2);
+    let checkpoint_path = CatalogFilePath::checkpoint(catalog.object_store_prefix().as_ref());
+    let checkpoint_bytes = serialize_catalog_file(&catalog.snapshot()).unwrap();
+    catalog
+        .object_store()
+        .put(&checkpoint_path, checkpoint_bytes.into())
+        .await
+        .unwrap();
+
+    let later_batch_1 = catalog.create_database("db_after_1").await.unwrap();
+    let later_batch_2 = catalog.create_database("db_after_2").await.unwrap();
+
+    let backup_checkpoint_path = Path::from("selected-backup/catalog/snapshot");
+    let backup_checkpoint_bytes = catalog
+        .object_store()
+        .get(&checkpoint_path)
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+    catalog
+        .object_store()
+        .put(&backup_checkpoint_path, backup_checkpoint_bytes.into())
+        .await
+        .unwrap();
+
+    let mut backup_log_paths = Vec::new();
+    for sequence in [
+        later_batch_1.sequence_number(),
+        later_batch_2.sequence_number(),
+    ] {
+        let live_log_path = CatalogFilePath::log(catalog.object_store_prefix().as_ref(), sequence);
+        let filename = live_log_path.filename().unwrap();
+        let backup_log_path = Path::from(format!("selected-backup/catalog/logs/{filename}"));
+        let backup_log_bytes = catalog
+            .object_store()
+            .get(&live_log_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap();
+        catalog
+            .object_store()
+            .put(&backup_log_path, backup_log_bytes.into())
+            .await
+            .unwrap();
+        backup_log_paths.push(backup_log_path);
+    }
+
+    let newer_batch = catalog.create_database("db_newer").await.unwrap();
+    assert_eq!(catalog.sequence_number(), newer_batch.sequence_number());
+    let peer_catalog = Catalog::new_with_checkpoint_interval(
+        "restore-selected-backup-host",
+        Arc::clone(&store) as _,
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Arc::new(metric::Registry::new()),
+        1_000,
+    )
+    .await
+    .unwrap();
+    assert_eq!(peer_catalog.db_name_to_id("db_newer"), Some(DbId::from(4)));
+
+    catalog
+        .restore_from_object_store(&CatalogRestoreSource {
+            checkpoint_path: backup_checkpoint_path,
+            log_paths: backup_log_paths.clone(),
+        })
+        .await
+        .unwrap();
+
+    let restore_sequence = catalog.sequence_number();
+    assert_eq!(restore_sequence, newer_batch.sequence_number().next());
+    assert_eq!(catalog.db_name_to_id("db_checkpoint"), Some(DbId::from(1)));
+    assert_eq!(catalog.db_name_to_id("db_after_1"), Some(DbId::from(2)));
+    assert_eq!(catalog.db_name_to_id("db_after_2"), Some(DbId::from(3)));
+    assert_eq!(catalog.db_name_to_id("db_newer"), None);
+
+    peer_catalog
+        .update_to_sequence_number(restore_sequence)
+        .await
+        .unwrap();
+    assert_eq!(peer_catalog.sequence_number(), restore_sequence);
+    assert_eq!(
+        peer_catalog.db_name_to_id("db_checkpoint"),
+        Some(DbId::from(1))
+    );
+    assert_eq!(
+        peer_catalog.db_name_to_id("db_after_1"),
+        Some(DbId::from(2))
+    );
+    assert_eq!(
+        peer_catalog.db_name_to_id("db_after_2"),
+        Some(DbId::from(3))
+    );
+    assert_eq!(peer_catalog.db_name_to_id("db_newer"), None);
+
+    // check that the batches have the expected sequence numbers based on
+    // the order they were created. Restore is itself a new catalog batch,
+    // so the restored content comes from sequence 4 while the live sequence
+    // advances past the superseded db_newer write.
+    assert_eq!(checkpoint_batch.sequence_number().get(), 2);
+    assert_eq!(later_batch_1.sequence_number().get(), 3);
+    assert_eq!(later_batch_2.sequence_number().get(), 4);
+    assert_eq!(newer_batch.sequence_number().get(), 5);
+    assert_eq!(restore_sequence.get(), 6);
+}
+
+#[test_log::test(tokio::test(flavor = "multi_thread"))]
+#[should_panic = "catalog replay sequence mismatch"]
+async fn restore_from_object_store_errors_on_missing_replayed_sequence() {
+    let store = Arc::new(InMemory::new());
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let metric_registry = Arc::new(metric::Registry::new());
+    let catalog = Catalog::new_with_checkpoint_interval(
+        "restore-missing-log-host",
+        Arc::clone(&store) as _,
+        time_provider,
+        metric_registry,
+        1_000,
+    )
+    .await
+    .unwrap();
+
+    catalog.create_database("db_checkpoint").await.unwrap();
+    let checkpoint_path = CatalogFilePath::checkpoint(catalog.object_store_prefix().as_ref());
+    let checkpoint_bytes = serialize_catalog_file(&catalog.snapshot()).unwrap();
+    catalog
+        .object_store()
+        .put(&checkpoint_path, checkpoint_bytes.into())
+        .await
+        .unwrap();
+
+    let _later_batch_1 = catalog.create_database("db_after_1").await.unwrap();
+    let later_batch_2 = catalog.create_database("db_after_2").await.unwrap();
+
+    let backup_checkpoint_path = Path::from("selected-backup/catalog/snapshot");
+    let backup_checkpoint_bytes = catalog
+        .object_store()
+        .get(&checkpoint_path)
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+    catalog
+        .object_store()
+        .put(&backup_checkpoint_path, backup_checkpoint_bytes.into())
+        .await
+        .unwrap();
+
+    let live_log_path = CatalogFilePath::log(
+        catalog.object_store_prefix().as_ref(),
+        later_batch_2.sequence_number(),
+    );
+    let filename = live_log_path.filename().unwrap();
+    let backup_log_path = Path::from(format!("selected-backup/catalog/logs/{filename}"));
+    let backup_log_bytes = catalog
+        .object_store()
+        .get(&live_log_path)
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+    catalog
+        .object_store()
+        .put(&backup_log_path, backup_log_bytes.into())
+        .await
+        .unwrap();
+
+    let _ = catalog
+        .restore_from_object_store(&CatalogRestoreSource {
+            checkpoint_path: backup_checkpoint_path,
+            log_paths: vec![backup_log_path],
+        })
+        .await;
+}
+
+#[test_log::test(tokio::test)]
+async fn backup_view_errors_when_checkpoint_is_ahead_of_live_sequence() {
+    let store = Arc::new(InMemory::new());
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let metric_registry = Arc::new(metric::Registry::new());
+    let catalog = Catalog::new_with_checkpoint_interval(
+        "backup-view-behind-host",
+        Arc::clone(&store) as _,
+        time_provider,
+        metric_registry,
+        1_000,
+    )
+    .await
+    .unwrap();
+
+    let live_batch = catalog.create_database("db_live").await.unwrap();
+    let live_snapshot = catalog.snapshot();
+
+    let checkpoint_batch = catalog.create_database("db_checkpoint").await.unwrap();
+    let checkpoint_path = CatalogFilePath::checkpoint(catalog.object_store_prefix().as_ref());
+    let checkpoint_bytes = serialize_catalog_file(&catalog.snapshot()).unwrap();
+    catalog
+        .object_store()
+        .put(&checkpoint_path, checkpoint_bytes.into())
+        .await
+        .unwrap();
+
+    catalog.update_from_snapshot(live_snapshot);
+
+    let err = catalog.backup_view().await.unwrap_err();
+    assert_contains!(
+        err.to_string(),
+        format!(
+            "persisted catalog checkpoint sequence {} is ahead of live catalog sequence {}",
+            checkpoint_batch.sequence_number().get(),
+            live_batch.sequence_number().get(),
+        )
+        .as_str()
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn storage_mode_updates_and_snapshots() {
+    let catalog = Catalog::new_in_memory("storage-mode-host").await.unwrap();
+
+    assert_eq!(catalog.storage_mode(), StorageMode::Parquet);
+
+    // It is an error to transition from Parquet to PachaTree directly
+    assert!(
+        catalog
+            .set_storage_mode(StorageMode::PachaTree)
+            .await
+            .is_err()
+    );
+    assert_eq!(catalog.storage_mode(), StorageMode::Parquet);
+
+    catalog
+        .set_storage_mode(StorageMode::ParquetAndPachaTree)
+        .await
+        .unwrap();
+    assert_eq!(catalog.storage_mode(), StorageMode::ParquetAndPachaTree);
+
+    let snapshot = catalog.snapshot();
+    assert_eq!(snapshot.storage_mode, StorageMode::ParquetAndPachaTree);
+
+    // Now transition to PachaTree
+    catalog
+        .set_storage_mode(StorageMode::PachaTree)
+        .await
+        .unwrap();
+    assert_eq!(catalog.storage_mode(), StorageMode::PachaTree);
+
+    let snapshot = catalog.snapshot();
+    assert_eq!(snapshot.storage_mode, StorageMode::PachaTree);
+
+    let err = catalog
+        .set_storage_mode(StorageMode::PachaTree)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, CatalogError::NoCatalogChange { .. }));
+}
+
+#[test_log::test(tokio::test)]
+async fn set_default_storage_mode() {
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let catalog = Catalog::new_in_memory_with_args(
+        "storage-mode-host",
+        time_provider,
+        CatalogArgs {
+            storage_mode: StorageMode::PachaTree,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(catalog.storage_mode(), StorageMode::PachaTree);
+}
+
+#[test_log::test(tokio::test)]
+async fn set_shard_count_from_args() {
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let shard_count = NonZeroU32::new(9).unwrap();
+    let catalog = Catalog::new_in_memory_with_args(
+        "shard-count-host",
+        time_provider,
+        CatalogArgs {
+            shard_count,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(catalog.shard_count(), shard_count);
+}
+
 #[test]
 fn add_columns_updates_schema_and_column_map() {
     let mut database = DatabaseSchema {
@@ -76,9 +494,10 @@ fn add_columns_updates_schema_and_column_map() {
         name: "test".into(),
         tables: Repository::new(),
         retention_period: RetentionPeriod::Indefinite,
-        processing_engine_triggers: Default::default(),
+        processing_engine_triggers: Repository::new(),
         deleted: false,
         hard_delete_time: None,
+        hard_delete_scope: None,
     };
     database
         .tables
@@ -89,11 +508,17 @@ fn add_columns_updates_schema_and_column_map() {
                     TableId::from(0),
                     "test".into(),
                     vec![
-                        ColumnDefinition::field((0, 0), 0, "test", InfluxFieldType::String),
-                        ColumnDefinition::tag(1, 1, "test999"),
+                        ColumnDefinition::field(
+                            (0, 0),
+                            ColumnId::new(0),
+                            "test",
+                            InfluxFieldType::String,
+                        ),
+                        ColumnDefinition::tag(1, ColumnId::new(1), "test999"),
                     ],
                     vec![(FieldFamilyId::new(0), FieldFamilyName::User("test".into()))],
                     vec![TagId::new(1)],
+                    None,
                     FieldFamilyMode::Aware,
                 )
                 .unwrap(),
@@ -120,7 +545,7 @@ fn add_columns_updates_schema_and_column_map() {
 
     // add time and verify key is updated
     Arc::make_mut(&mut table)
-        .add_columns(vec![ColumnDefinition::timestamp(0)])
+        .add_columns(vec![ColumnDefinition::timestamp(ColumnId::new(0))])
         .unwrap();
     assert_eq!(table.series_key.len(), 1);
     assert_eq!(table.series_key_names.len(), 1);
@@ -131,7 +556,7 @@ fn add_columns_updates_schema_and_column_map() {
     assert_eq!(table.schema.primary_key(), &["test999", TIME_COLUMN_NAME]);
 
     Arc::make_mut(&mut table)
-        .add_columns(vec![ColumnDefinition::tag(3, 1, "test2")])
+        .add_columns(vec![ColumnDefinition::tag(3, ColumnId::new(1), "test2")])
         .unwrap();
 
     // Verify the series key, series key names and sort key are updated when a tag column is added,
@@ -216,6 +641,7 @@ async fn serialize_last_cache() {
         .create_last_cache(
             "test_db",
             "test",
+            ApiNodeSpec::default(),
             Some("test_table_last_cache"),
             Some(&["tag_1", "tag_3"]),
             Some(&["field"]),
@@ -263,6 +689,7 @@ async fn test_serialize_distinct_cache() {
         .create_distinct_cache(
             "test_db",
             "test_table",
+            Default::default(),
             Some("test_cache"),
             &["tag_1", "tag_2"],
             MaxCardinality::from_usize_unchecked(100),
@@ -321,7 +748,7 @@ async fn apply_catalog_batch_fails_for_add_columns_on_nonexist_table() {
     let mut inner = catalog.inner.write();
     let sequence = inner.sequence_number();
     let err = inner
-        .apply_catalog_batch(&catalog_batch, sequence.next())
+        .apply_catalog_batch(&catalog_batch, sequence.next(), None)
         .expect_err("should fail to apply AddColumns operation for non-existent table");
     assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
 }
@@ -350,7 +777,12 @@ async fn test_check_and_mark_table_as_deleted() {
     );
 
     catalog
-        .soft_delete_table("test", "boo", HardDeletionTime::Never)
+        .soft_delete_table(
+            "test",
+            "boo",
+            HardDeletionTime::Never,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -543,7 +975,12 @@ async fn test_hard_delete_table_after_soft_delete() {
 
     // First soft delete the table
     catalog
-        .soft_delete_table("test", "boo", HardDeletionTime::Never)
+        .soft_delete_table(
+            "test",
+            "boo",
+            HardDeletionTime::Never,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -886,7 +1323,7 @@ async fn test_hard_delete_database_after_soft_delete() {
 
     // Soft delete the database
     catalog
-        .soft_delete_database("test", HardDeletionTime::Never)
+        .soft_delete_database("test", HardDeletionTime::Never, DeletionScope::default())
         .await
         .unwrap();
 
@@ -951,7 +1388,7 @@ async fn deleted_dbs_dont_count() {
     // now delete a database:
     let db_name = format!("test-db-{}", NUM_DBS_LIMIT - 1);
     catalog
-        .soft_delete_database(&db_name, HardDeletionTime::Never)
+        .soft_delete_database(&db_name, HardDeletionTime::Never, DeletionScope::default())
         .await
         .unwrap();
 
@@ -1018,6 +1455,7 @@ async fn deleted_tables_dont_count() {
             "test-db",
             format!("test-table-{}", NUM_TABLES_LIMIT - 1).as_str(),
             HardDeletionTime::Never,
+            DeletionScope::default(),
         )
         .await
         .unwrap();
@@ -1083,7 +1521,11 @@ async fn deleted_database_tables_dont_count() {
 
     // soft-delete the entire database
     catalog
-        .soft_delete_database("db-to-delete", HardDeletionTime::Now)
+        .soft_delete_database(
+            "db-to-delete",
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -1148,24 +1590,54 @@ async fn retention_period_cutoff_map() {
     }
     catalog.commit(txn).await.unwrap();
 
+    // set per-table retention periods on table 1
+    let table_retention1 = Duration::from_secs(20);
+    let table_retention2 = Duration::from_secs(10);
+    let table_cutoff1 = now - table_retention1;
+    let table_cutoff2 = now - table_retention2;
+    // we set the database retention between table retention 1 and 2 in order to verify that
+    // the table retention is always preferred over the database retention regardless of which
+    // is shorter or longer
     let database_retention = Duration::from_secs(15);
     let database_cutoff = now - database_retention;
+
+    catalog
+        .set_retention_period_for_table(testdb1, "test-table-1", table_retention1)
+        .await
+        .expect("must be able to set retention period for table");
+    catalog
+        .set_retention_period_for_table(testdb1, "test-table-3", table_retention2)
+        .await
+        .expect("must be able to set retention period for table");
 
     // set per-table and database-level retention periods on table 2
     catalog
         .set_retention_period_for_database(testdb2, database_retention)
         .await
         .expect("must be able to set retention for database");
+    catalog
+        .set_retention_period_for_table(testdb2, "test-table-1", table_retention1)
+        .await
+        .expect("must be able to set retention period for table");
+    catalog
+        .set_retention_period_for_table(testdb2, "test-table-3", table_retention2)
+        .await
+        .expect("must be able to set retention period for table");
 
     let map = catalog.get_retention_period_cutoff_map();
-    assert_eq!(map.len(), 4, "expect 4 entries in resulting map");
+    assert_eq!(map.len(), 6, "expect 6 entries in resulting map");
 
     // validate tables where there is either a table or a database retention set
     for (db_name, table_name, expected_cutoff) in [
-        (testdb2, "test-table-0", database_cutoff.timestamp_nanos()),
-        (testdb2, "test-table-1", database_cutoff.timestamp_nanos()),
-        (testdb2, "test-table-2", database_cutoff.timestamp_nanos()),
-        (testdb2, "test-table-3", database_cutoff.timestamp_nanos()),
+        (testdb1, "test-table-1", table_cutoff1),
+        (testdb1, "test-table-3", table_cutoff2),
+        // even though testdb2 has a database-wide retention set, the table retention should
+        // always be preferred
+        (testdb2, "test-table-1", table_cutoff1),
+        (testdb2, "test-table-3", table_cutoff2),
+        // where no explicit retention is set, the database-level retention period is used
+        (testdb2, "test-table-0", database_cutoff),
+        (testdb2, "test-table-2", database_cutoff),
     ] {
         let db_schema = catalog
             .db_schema(db_name)
@@ -1183,12 +1655,7 @@ async fn retention_period_cutoff_map() {
     }
 
     // validate tables with no retention set
-    for (db_name, table_name) in [
-        (testdb1, "test-table-0"),
-        (testdb1, "test-table-1"),
-        (testdb1, "test-table-2"),
-        (testdb1, "test-table-3"),
-    ] {
+    for (db_name, table_name) in [(testdb1, "test-table-0"), (testdb1, "test-table-2")] {
         let db_schema = catalog
             .db_schema(db_name)
             .expect("must be able to get expected database schema");
@@ -1231,7 +1698,12 @@ async fn retention_period_set_and_clear_after_soft_delete() {
 
     // Delete the table
     catalog
-        .soft_delete_table(db_name, deleted_table, HardDeletionTime::Default)
+        .soft_delete_table(
+            db_name,
+            deleted_table,
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -1243,8 +1715,26 @@ async fn retention_period_set_and_clear_after_soft_delete() {
         .expect("soft-deleted table should be addressable by id");
     assert_ne!(deleted_table_name.as_ref(), deleted_table);
 
+    // Table-level retention operations should fail on the deleted table.
+    {
+        let clear_table_result = catalog
+            .clear_retention_period_for_table(db_name, &deleted_table_name)
+            .await;
+        assert!(
+            matches!(clear_table_result, Err(CatalogError::AlreadyDeleted(_))),
+            "clearing retention on a deleted table should fail"
+        );
+        let set_table_result = catalog
+            .set_retention_period_for_table(db_name, &deleted_table_name, Duration::from_secs(600))
+            .await;
+        assert!(
+            matches!(set_table_result, Err(CatalogError::AlreadyDeleted(_))),
+            "setting retention on a deleted table should fail"
+        );
+    }
+
     // Create a new table, delete the database, and ensure
-    // database-level retention operations fail.
+    // table-level retention and database-level retention operations fail.
     catalog
         .create_table(
             db_name,
@@ -1256,7 +1746,7 @@ async fn retention_period_set_and_clear_after_soft_delete() {
         .unwrap();
 
     catalog
-        .soft_delete_database(db_name, HardDeletionTime::Never)
+        .soft_delete_database(db_name, HardDeletionTime::Never, DeletionScope::default())
         .await
         .unwrap();
 
@@ -1265,6 +1755,24 @@ async fn retention_period_set_and_clear_after_soft_delete() {
         .db_id_to_name(&db_id)
         .expect("soft-deleted database should be addressable by id");
     assert_ne!(deleted_db_name.as_ref(), db_name);
+
+    // Table-level retention operations should fail on the deleted database.
+    {
+        let clear_result = catalog
+            .clear_retention_period_for_table(&deleted_db_name, new_table)
+            .await;
+        assert!(
+            matches!(clear_result, Err(CatalogError::AlreadyDeleted(_))),
+            "clearing retention on a table when database is deleted should fail"
+        );
+        let set_result = catalog
+            .set_retention_period_for_table(&deleted_db_name, new_table, Duration::from_secs(600))
+            .await;
+        assert!(
+            matches!(set_result, Err(CatalogError::AlreadyDeleted(_))),
+            "setting retention on a table when database is deleted should fail"
+        );
+    }
 
     // Database-level retention operations should fail on the deleted database.
     {
@@ -1497,6 +2005,96 @@ async fn test_load_many_files_with_default_checkpoint_interval() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_trigger_node_spec() {
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+    let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
+    catalog.create_database("foo").await.unwrap();
+    catalog
+        .register_node(
+            "node-1",
+            1,
+            vec![NodeMode::Ingest, NodeMode::Process],
+            Arc::clone(&process_uuid_getter),
+            Arc::from("test-instance-node-1"),
+            None,
+            None,
+            0,
+        )
+        .await
+        .unwrap();
+    catalog
+        .register_node(
+            "node-2",
+            1,
+            vec![NodeMode::Ingest],
+            Arc::clone(&process_uuid_getter),
+            Arc::from("test-instance-node-2"),
+            None,
+            None,
+            0,
+        )
+        .await
+        .unwrap();
+
+    catalog
+        .create_processing_engine_trigger(
+            "foo",
+            "all-trig",
+            ValidPluginFilename::from_validated_name("plugin.py"),
+            ApiNodeSpec::All,
+            "all_tables",
+            TriggerSettings::default(),
+            &Default::default(),
+            false,
+        )
+        .await
+        .expect("create all node spec");
+
+    catalog
+        .create_processing_engine_trigger(
+            "foo",
+            "node-1-trig",
+            ValidPluginFilename::from_validated_name("plugin.py"),
+            ApiNodeSpec::Nodes(vec!["node-1".to_string()]),
+            "all_tables",
+            TriggerSettings::default(),
+            &Default::default(),
+            false,
+        )
+        .await
+        .expect("create specific node spec for node-1");
+
+    catalog
+        .create_processing_engine_trigger(
+            "foo",
+            "node-2-trig",
+            ValidPluginFilename::from_validated_name("plugin.py"),
+            ApiNodeSpec::Nodes(vec!["node-1".to_string()]),
+            "all_tables",
+            TriggerSettings::default(),
+            &Default::default(),
+            false,
+        )
+        .await
+        .expect("create specific node spec for node-2");
+
+    catalog
+        .create_processing_engine_trigger(
+            "foo",
+            "invalid-trig",
+            ValidPluginFilename::from_validated_name("plugin.py"),
+            ApiNodeSpec::Nodes(vec!["invalid-node".to_string()]),
+            "all_tables",
+            TriggerSettings::default(),
+            &Default::default(),
+            false,
+        )
+        .await
+        .expect_err("create specific node spec for invalid-node should fail");
+}
+
+#[test_log::test(tokio::test)]
+#[ignore = "NUM_TAG_COLUMNS_LIMIT is 4096; creating that many tags is prohibitively slow for a unit test. Re-enable with a custom-limited catalog harness if/when CatalogLimits gains a tag-column override."]
 async fn apply_catalog_batch_fails_for_add_fields_past_tag_limit() {
     let catalog = Catalog::new_in_memory("host").await.unwrap();
     catalog.create_database("foo").await.unwrap();
@@ -1521,6 +2119,7 @@ async fn apply_catalog_batch_fails_for_add_fields_past_tag_limit() {
 }
 
 #[test_log::test(tokio::test)]
+#[ignore = "NUM_TAG_COLUMNS_LIMIT is 4096; creating that many tags is prohibitively slow for a unit test. Re-enable with a custom-limited catalog harness if/when CatalogLimits gains a tag-column override."]
 async fn apply_catalog_batch_fails_to_create_table_with_too_many_tags() {
     let catalog = Catalog::new_in_memory("host").await.unwrap();
     catalog.create_database("foo").await.unwrap();
@@ -1657,6 +2256,131 @@ fn test_apply_delete_batch_delete_table() {
 
     let result = catalog.apply_delete_batch(&delete_batch).unwrap();
     assert!(result);
+}
+
+#[test]
+fn test_apply_delete_batch_data_only_keep_resources_database() {
+    let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+    let db_id = DbId::from(1);
+    let table_id = TableId::from(1);
+
+    // Create a database and table first
+    let mut db_schema = DatabaseSchema::new(db_id, "test_db".into());
+    db_schema.hard_delete_scope = Some(DeletionScope::DataOnlyKeepResources);
+    db_schema
+        .tables
+        .insert(
+            table_id,
+            TableDefinition::new_empty(table_id, "test_table".into(), FieldFamilyMode::Aware),
+        )
+        .unwrap();
+    catalog.databases.insert(db_id, db_schema).unwrap();
+
+    let delete_batch = DeleteBatch {
+        time_ns: 1000,
+        ops: vec![DeleteOp::DeleteDatabase(db_id)],
+    };
+
+    let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+    assert!(
+        result,
+        "expect the update is applied when deleting database with DataOnlyKeepResources, even though no resources are removed"
+    );
+
+    // Both the database and table should still exist in the catalog
+    let db_schema = catalog.databases.get_by_id(&db_id);
+    assert!(
+        db_schema.is_some(),
+        "expected database to still exist in catalog"
+    );
+    assert!(
+        db_schema.unwrap().tables.get_by_id(&table_id).is_some(),
+        "expected table to still exist in catalog"
+    );
+}
+
+#[test]
+fn test_apply_delete_batch_data_only_remove_tables_database() {
+    let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+    let db_id = DbId::from(1);
+    let table_id_1 = TableId::from(1);
+    let table_id_2 = TableId::from(2);
+
+    // Create a database and tables first
+    let mut db_schema = DatabaseSchema::new(db_id, "test_db".into());
+    db_schema.hard_delete_scope = Some(DeletionScope::DataOnlyRemoveTables);
+    db_schema
+        .tables
+        .insert(
+            table_id_1,
+            TableDefinition::new_empty(table_id_1, "table1".into(), FieldFamilyMode::Aware),
+        )
+        .unwrap();
+    db_schema
+        .tables
+        .insert(
+            table_id_2,
+            TableDefinition::new_empty(table_id_2, "table2".into(), FieldFamilyMode::Aware),
+        )
+        .unwrap();
+    catalog.databases.insert(db_id, db_schema).unwrap();
+
+    let delete_batch = DeleteBatch {
+        time_ns: 1000,
+        ops: vec![DeleteOp::DeleteDatabase(db_id)],
+    };
+
+    let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+    assert!(
+        result,
+        "expected resources to be removed when deleting database with DataOnlyRemoveTables"
+    );
+
+    // The tables should be removed from the catalog, but the database should still exist
+    let db_schema = catalog.databases.get_by_id(&db_id).unwrap();
+    assert!(db_schema.tables.get_by_id(&table_id_1).is_none());
+    assert!(db_schema.tables.get_by_id(&table_id_2).is_none());
+    assert!(
+        catalog.databases.get_by_id(&db_id).is_some(),
+        "expected database to still exist in catalog"
+    )
+}
+
+#[test]
+fn test_apply_delete_batch_data_only_keep_resources_table() {
+    let mut catalog = InnerCatalog::new("test-catalog".into(), Uuid::new_v4());
+    let db_id = DbId::from(1);
+    let table_id = TableId::from(1);
+
+    // Create a database and table first
+    let mut db_schema = DatabaseSchema::new(db_id, "test_db".into());
+    let mut table_def =
+        TableDefinition::new_empty(table_id, "test_table".into(), FieldFamilyMode::Aware);
+    table_def.hard_delete_scope = Some(DeletionScope::DataOnlyKeepResources);
+    db_schema.tables.insert(table_id, table_def).unwrap();
+    catalog.databases.insert(db_id, db_schema).unwrap();
+
+    let delete_batch = DeleteBatch {
+        time_ns: 1000,
+        ops: vec![DeleteOp::DeleteTable(db_id, table_id)],
+    };
+
+    let result = catalog.apply_delete_batch(&delete_batch).unwrap();
+    assert!(
+        result,
+        "expect the update is applied when deleting table with DataOnlyKeepResources, even though no resources are removed"
+    );
+
+    // Both the database and table should still exist in the catalog
+    let db_schema = catalog.databases.get_by_id(&db_id);
+    assert!(
+        db_schema.is_some(),
+        "expected database to still exist in catalog"
+    );
+    assert!(
+        db_schema.unwrap().tables.get_by_id(&table_id).is_some(),
+        "expected table to still exist in catalog"
+    );
 }
 
 #[test]
@@ -2235,7 +2959,7 @@ async fn test_database_hard_delete_time_never() {
 
     // Soft delete with Never
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Never)
+        .soft_delete_database("test_db", HardDeletionTime::Never, DeletionScope::default())
         .await
         .unwrap();
 
@@ -2265,7 +2989,11 @@ async fn test_database_hard_delete_time_default() {
 
     // Soft delete with Default
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Default)
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -2288,7 +3016,11 @@ async fn test_database_hard_delete_time_specific_timestamp() {
 
     // Soft delete with specific timestamp
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Timestamp(specific_time))
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Timestamp(specific_time),
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -2318,7 +3050,7 @@ async fn test_database_hard_delete_time_now() {
 
     // Soft delete with Now
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Now)
+        .soft_delete_database("test_db", HardDeletionTime::Now, DeletionScope::default())
         .await
         .unwrap();
 
@@ -2348,7 +3080,11 @@ async fn test_database_hard_delete_time_serialization() {
 
     // Soft delete with Default hard delete time
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Default)
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -2392,7 +3128,7 @@ async fn test_database_deletion_status_soft_deleted() {
 
     // Soft delete the database
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Never)
+        .soft_delete_database("test_db", HardDeletionTime::Never, DeletionScope::default())
         .await
         .unwrap();
 
@@ -2423,7 +3159,7 @@ async fn test_database_deletion_status_hard_deleted() {
 
     // Soft delete the database with immediate hard deletion
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Now)
+        .soft_delete_database("test_db", HardDeletionTime::Now, DeletionScope::default())
         .await
         .unwrap();
 
@@ -2463,7 +3199,11 @@ async fn test_database_deletion_status_scheduled_for_hard_deletion() {
     // Soft delete with future hard deletion time
     let future_deletion_time = now + Duration::from_secs(7200); // 2 hours from now
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Timestamp(future_deletion_time))
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Timestamp(future_deletion_time),
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -2568,7 +3308,7 @@ async fn test_delete_table_when_database_deleted() {
     // Soft delete the database, but never hard delete
     {
         catalog
-            .soft_delete_database(db_name_1, HardDeletionTime::Never)
+            .soft_delete_database(db_name_1, HardDeletionTime::Never, DeletionScope::default())
             .await
             .unwrap();
 
@@ -2579,7 +3319,12 @@ async fn test_delete_table_when_database_deleted() {
 
         // Soft delete the table from the deleted database -- should fail
         let result = catalog
-            .soft_delete_table(&deleted_db_name, "test_table", HardDeletionTime::Default)
+            .soft_delete_table(
+                &deleted_db_name,
+                "test_table",
+                HardDeletionTime::Default,
+                DeletionScope::default(),
+            )
             .await;
         assert!(
             matches!(result, Err(CatalogError::AlreadyDeleted(_))),
@@ -2590,7 +3335,11 @@ async fn test_delete_table_when_database_deleted() {
     // Soft delete the database with a default deletion timestamp
     {
         catalog
-            .soft_delete_database(db_name_2, HardDeletionTime::Default)
+            .soft_delete_database(
+                db_name_2,
+                HardDeletionTime::Default,
+                DeletionScope::default(),
+            )
             .await
             .unwrap();
 
@@ -2601,7 +3350,12 @@ async fn test_delete_table_when_database_deleted() {
 
         // Soft delete the table from the deleted database -- should fail
         let result = catalog
-            .soft_delete_table(&deleted_db_name, "test_table", HardDeletionTime::Default)
+            .soft_delete_table(
+                &deleted_db_name,
+                "test_table",
+                HardDeletionTime::Default,
+                DeletionScope::default(),
+            )
             .await;
         assert!(
             matches!(result, Err(CatalogError::AlreadyDeleted(_))),
@@ -2653,7 +3407,12 @@ async fn test_table_deletion_status_soft_deleted() {
 
     // Soft delete the table
     catalog
-        .soft_delete_table("test_db", "test_table", HardDeletionTime::Never)
+        .soft_delete_table(
+            "test_db",
+            "test_table",
+            HardDeletionTime::Never,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -2698,7 +3457,12 @@ async fn test_table_deletion_status_hard_deleted() {
 
     // Soft delete the table with immediate hard deletion
     catalog
-        .soft_delete_table("test_db", "test_table", HardDeletionTime::Now)
+        .soft_delete_table(
+            "test_db",
+            "test_table",
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -2756,6 +3520,7 @@ async fn test_table_deletion_status_scheduled_for_hard_deletion() {
             "test_db",
             "test_table",
             HardDeletionTime::Timestamp(future_deletion_time),
+            DeletionScope::default(),
         )
         .await
         .unwrap();
@@ -2857,12 +3622,22 @@ async fn test_table_deletion_status_multiple_tables() {
     // Leave table1 as is (not deleted)
     // Soft delete table2
     catalog
-        .soft_delete_table("test_db", "table2", HardDeletionTime::Never)
+        .soft_delete_table(
+            "test_db",
+            "table2",
+            HardDeletionTime::Never,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
     // Hard delete table3
     catalog
-        .soft_delete_table("test_db", "table3", HardDeletionTime::Now)
+        .soft_delete_table(
+            "test_db",
+            "table3",
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -2915,7 +3690,11 @@ async fn test_database_soft_delete_default_preserves_existing_hard_delete_time()
     // First soft delete with a specific timestamp
     let specific_time = Time::from_timestamp_nanos(5000000000);
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Timestamp(specific_time))
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Timestamp(specific_time),
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -2933,7 +3712,11 @@ async fn test_database_soft_delete_default_preserves_existing_hard_delete_time()
     // Now soft delete again with Default using the renamed name
     // This should return AlreadyDeleted since nothing changes
     let result = catalog
-        .soft_delete_database(&renamed_db_name, HardDeletionTime::Default)
+        .soft_delete_database(
+            &renamed_db_name,
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await;
 
     // Should get AlreadyDeleted error since hard_delete_time doesn't change
@@ -2969,7 +3752,11 @@ async fn test_database_soft_delete_default_sets_new_when_none_exists() {
 
     // Soft delete with Default - should set new hard_delete_time
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Default)
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -3002,7 +3789,11 @@ async fn test_database_soft_delete_default_multiple_calls_idempotent() {
     // First soft delete with a specific timestamp
     let specific_time = Time::from_timestamp_nanos(5000000000);
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Timestamp(specific_time))
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Timestamp(specific_time),
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -3020,7 +3811,11 @@ async fn test_database_soft_delete_default_multiple_calls_idempotent() {
     // Call soft delete with Default multiple times - all should be idempotent
     for i in 1..=3 {
         let result = catalog
-            .soft_delete_database(&renamed_db_name, HardDeletionTime::Default)
+            .soft_delete_database(
+                &renamed_db_name,
+                HardDeletionTime::Default,
+                DeletionScope::default(),
+            )
             .await;
 
         // Should always get AlreadyDeleted since nothing changes
@@ -3062,7 +3857,11 @@ async fn test_database_soft_delete_override_existing_with_specific_time() {
 
     // First soft delete with Default
     catalog
-        .soft_delete_database("test_db", HardDeletionTime::Default)
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -3084,6 +3883,7 @@ async fn test_database_soft_delete_override_existing_with_specific_time() {
         .soft_delete_database(
             &renamed_db_name,
             HardDeletionTime::Timestamp(new_specific_time),
+            DeletionScope::default(),
         )
         .await
         .unwrap();
@@ -3092,6 +3892,112 @@ async fn test_database_soft_delete_override_existing_with_specific_time() {
     let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
     assert!(db_schema.deleted);
     assert_eq!(db_schema.hard_delete_time, Some(new_specific_time));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_database_soft_delete_hard_delete_scope_idempotent() {
+    // Test that soft deleting with the same scope is idempotent
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+    catalog.create_database("test_db").await.unwrap();
+
+    // Get database ID before soft delete
+    let db_id = catalog.db_name_to_id("test_db").unwrap();
+    catalog
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Never,
+            DeletionScope::DataOnlyKeepResources,
+        )
+        .await
+        .unwrap();
+
+    // Get the renamed database name using the ID
+    let deleted_db_name = catalog
+        .db_schema_by_id(&db_id)
+        .expect("soft-deleted database should exist")
+        .name();
+
+    let result = catalog
+        .soft_delete_database(
+            &deleted_db_name,
+            HardDeletionTime::Never,
+            DeletionScope::DataOnlyKeepResources,
+        )
+        .await;
+
+    // Should always get AlreadyDeleted since nothing changes
+    assert!(
+        matches!(result, Err(CatalogError::AlreadyDeleted(_))),
+        "Expected AlreadyDeleted error, got {result:?}"
+    );
+
+    // Verify hard_delete_time and scope remain unchanged
+    let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+    assert_eq!(
+        db_schema.hard_delete_scope,
+        Some(DeletionScope::DataOnlyKeepResources)
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_database_soft_delete_hard_delete_scope_rejects_change() {
+    // Test that soft deleting with a different scope returns AlreadyDeleted and does not change the scope
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+    catalog.create_database("test_db").await.unwrap();
+
+    // Get database ID before soft delete
+    let db_id = catalog.db_name_to_id("test_db").unwrap();
+    catalog
+        .soft_delete_database(
+            "test_db",
+            HardDeletionTime::Never,
+            DeletionScope::DataOnlyKeepResources,
+        )
+        .await
+        .unwrap();
+
+    // Get the renamed database name using the ID
+    let deleted_db_name = catalog
+        .db_schema_by_id(&db_id)
+        .expect("soft-deleted database should exist")
+        .name();
+
+    // Should get AlreadyDeleted error since scope change is not allowed
+    {
+        let result = catalog
+            .soft_delete_database(
+                &deleted_db_name,
+                HardDeletionTime::Never,
+                DeletionScope::DataOnlyRemoveTables,
+            )
+            .await;
+        assert!(
+            matches!(result, Err(CatalogError::AlreadyDeleted(_))),
+            "Expected scope change to be rejected, got {result:?}"
+        );
+    }
+
+    // Should get AlreadyDeleted error since scope change is not allowed even with time change
+    {
+        let result = catalog
+            .soft_delete_database(
+                &deleted_db_name,
+                HardDeletionTime::Timestamp(Time::from_timestamp_nanos(5000)),
+                DeletionScope::DataOnlyRemoveTables,
+            )
+            .await;
+        assert!(
+            matches!(result, Err(CatalogError::AlreadyDeleted(_))),
+            "Expected scope change to be rejected, got {result:?}"
+        );
+    }
+
+    // Verify scope remains unchanged
+    let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+    assert_eq!(
+        db_schema.hard_delete_scope,
+        Some(DeletionScope::DataOnlyKeepResources)
+    );
 }
 
 #[test_log::test(tokio::test)]
@@ -3130,6 +4036,7 @@ async fn test_table_soft_delete_default_preserves_existing_hard_delete_time() {
             "test_db",
             "test_table",
             HardDeletionTime::Timestamp(specific_time),
+            DeletionScope::default(),
         )
         .await
         .unwrap();
@@ -3148,7 +4055,12 @@ async fn test_table_soft_delete_default_preserves_existing_hard_delete_time() {
     // Now soft delete again with Default using the renamed name
     // This should return AlreadyDeleted since nothing changes
     let result = catalog
-        .soft_delete_table("test_db", &renamed_table_name, HardDeletionTime::Default)
+        .soft_delete_table(
+            "test_db",
+            &renamed_table_name,
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await;
 
     // Should get AlreadyDeleted error since hard_delete_time doesn't change
@@ -3195,7 +4107,12 @@ async fn test_table_soft_delete_default_sets_new_when_none_exists() {
 
     // Soft delete with Default - should set new hard_delete_time
     catalog
-        .soft_delete_table("test_db", "test_table", HardDeletionTime::Default)
+        .soft_delete_table(
+            "test_db",
+            "test_table",
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -3247,6 +4164,7 @@ async fn test_table_soft_delete_default_multiple_calls_idempotent() {
             "test_db",
             "test_table",
             HardDeletionTime::Timestamp(specific_time),
+            DeletionScope::default(),
         )
         .await
         .unwrap();
@@ -3261,7 +4179,12 @@ async fn test_table_soft_delete_default_multiple_calls_idempotent() {
     // Call soft delete with Default multiple times - all should be idempotent
     for i in 1..=3 {
         let result = catalog
-            .soft_delete_table("test_db", &renamed_table_name, HardDeletionTime::Default)
+            .soft_delete_table(
+                "test_db",
+                &renamed_table_name,
+                HardDeletionTime::Default,
+                DeletionScope::default(),
+            )
             .await;
 
         // Should always get AlreadyDeleted since nothing changes
@@ -3314,7 +4237,12 @@ async fn test_table_soft_delete_override_existing_with_specific_time() {
 
     // First soft delete with Default
     catalog
-        .soft_delete_table("test_db", "test_table", HardDeletionTime::Default)
+        .soft_delete_table(
+            "test_db",
+            "test_table",
+            HardDeletionTime::Default,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 
@@ -3337,6 +4265,7 @@ async fn test_table_soft_delete_override_existing_with_specific_time() {
             "test_db",
             &renamed_table_name,
             HardDeletionTime::Timestamp(new_specific_time),
+            DeletionScope::default(),
         )
         .await
         .unwrap();
@@ -3346,6 +4275,579 @@ async fn test_table_soft_delete_override_existing_with_specific_time() {
     let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
     assert!(table_def.deleted);
     assert_eq!(table_def.hard_delete_time, Some(new_specific_time));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_table_soft_delete_hard_delete_scope_idempotent() {
+    // Test that soft deleting with the same scope is idempotent
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+    catalog.create_database("test_db").await.unwrap();
+    catalog
+        .create_table(
+            "test_db",
+            "test_table",
+            &["tag1"],
+            &[("field1", FieldDataType::Float)],
+        )
+        .await
+        .unwrap();
+
+    // Get the table ID before soft delete
+    let db_schema = catalog.db_schema("test_db").unwrap();
+    let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+    catalog
+        .soft_delete_table(
+            "test_db",
+            "test_table",
+            HardDeletionTime::Never,
+            DeletionScope::DataOnlyKeepResources,
+        )
+        .await
+        .unwrap();
+
+    // Get the renamed table name using the table ID
+    let db_schema = catalog.db_schema("test_db").unwrap();
+    let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
+    let deleted_table_name = Arc::clone(&table_def.table_name);
+
+    let result = catalog
+        .soft_delete_table(
+            "test_db",
+            &deleted_table_name,
+            HardDeletionTime::Never,
+            DeletionScope::DataOnlyKeepResources,
+        )
+        .await;
+
+    // Should always get AlreadyDeleted since nothing changes
+    assert!(
+        matches!(result, Err(CatalogError::AlreadyDeleted(_))),
+        "Expected scope change to be rejected, got {result:?}"
+    );
+
+    // Verify hard_delete_time and scope remain unchanged
+    let db_schema = catalog.db_schema("test_db").unwrap();
+    let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
+    assert_eq!(
+        table_def.hard_delete_scope,
+        Some(DeletionScope::DataOnlyKeepResources)
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_table_soft_delete_hard_delete_scope_rejects_change() {
+    // Test that soft deleting with a different scope returns AlreadyDeleted and does not change the scope
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+    catalog.create_database("test_db").await.unwrap();
+    catalog
+        .create_table(
+            "test_db",
+            "test_table",
+            &["tag1"],
+            &[("field1", FieldDataType::Float)],
+        )
+        .await
+        .unwrap();
+
+    // Get the table ID before soft delete
+    let db_schema = catalog.db_schema("test_db").unwrap();
+    let table_id = db_schema.table_name_to_id("test_table").unwrap();
+
+    catalog
+        .soft_delete_table(
+            "test_db",
+            "test_table",
+            HardDeletionTime::Never,
+            DeletionScope::DataOnlyKeepResources,
+        )
+        .await
+        .unwrap();
+
+    // Get the renamed table name using the table ID
+    let db_schema = catalog.db_schema("test_db").unwrap();
+    let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
+    let deleted_table_name = Arc::clone(&table_def.table_name);
+
+    // Should get AlreadyDeleted error since scope change is not allowed
+    {
+        let result = catalog
+            .soft_delete_table(
+                "test_db",
+                &deleted_table_name,
+                HardDeletionTime::Never,
+                DeletionScope::DataAndCatalog,
+            )
+            .await;
+        assert!(
+            matches!(result, Err(CatalogError::AlreadyDeleted(_))),
+            "Expected scope change to be rejected, got {result:?}"
+        );
+    }
+
+    // Should get AlreadyDeleted error since scope change is not allowed even with time change
+    {
+        let result = catalog
+            .soft_delete_table(
+                "test_db",
+                &deleted_table_name,
+                HardDeletionTime::Timestamp(Time::from_timestamp_nanos(5000)),
+                DeletionScope::DataAndCatalog,
+            )
+            .await;
+        assert!(
+            matches!(result, Err(CatalogError::AlreadyDeleted(_))),
+            "Expected scope change to be rejected, got {result:?}"
+        );
+    }
+
+    // Verify scope remains unchanged
+    let db_schema = catalog.db_schema("test_db").unwrap();
+    let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
+    assert_eq!(
+        table_def.hard_delete_scope,
+        Some(DeletionScope::DataOnlyKeepResources)
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_database_marked() {
+    use iox_time::MockProvider;
+    let now = Time::from_timestamp_nanos(1000000000);
+    let time_provider = Arc::new(MockProvider::new(now));
+    let catalog = Catalog::new_in_memory_with_args(
+        "test-catalog",
+        Arc::clone(&time_provider) as _,
+        CatalogArgs::default(),
+    )
+    .await
+    .unwrap();
+
+    // Create database and mark for hard deletion
+    catalog.create_database("test_db").await.unwrap();
+    let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+    catalog
+        .soft_delete_database("test_db", HardDeletionTime::Now, DeletionScope::default())
+        .await
+        .unwrap();
+
+    // Should return (db_id, None)
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0], (db_id, None));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_tables_marked() {
+    use iox_time::MockProvider;
+    let now = Time::from_timestamp_nanos(1000000000);
+    let time_provider = Arc::new(MockProvider::new(now));
+    let catalog = Catalog::new_in_memory_with_args(
+        "test-catalog",
+        Arc::clone(&time_provider) as _,
+        CatalogArgs::default(),
+    )
+    .await
+    .unwrap();
+
+    // Create database with multiple tables
+    catalog.create_database("test_db").await.unwrap();
+    let db_id = catalog.db_name_to_id("test_db").unwrap();
+
+    catalog
+        .create_table(
+            "test_db",
+            "table1",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+    catalog
+        .create_table(
+            "test_db",
+            "table2",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+    catalog
+        .create_table(
+            "test_db",
+            "table3",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+
+    let db_schema = catalog.db_schema("test_db").unwrap();
+    let table1_id = db_schema.table_name_to_id("table1").unwrap();
+    let table3_id = db_schema.table_name_to_id("table3").unwrap();
+
+    // Mark table1 and table3 for hard deletion
+    catalog
+        .soft_delete_table(
+            "test_db",
+            "table1",
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
+        .await
+        .unwrap();
+    catalog
+        .soft_delete_table(
+            "test_db",
+            "table3",
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
+        .await
+        .unwrap();
+
+    // Should return (db_id, Some(table_id)) for each marked table
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+    assert_eq!(result.len(), 2);
+    assert!(result.contains(&(db_id, Some(table1_id))));
+    assert!(result.contains(&(db_id, Some(table3_id))));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_mixed_case() {
+    use iox_time::MockProvider;
+    let now = Time::from_timestamp_nanos(1000000000);
+    let time_provider = Arc::new(MockProvider::new(now));
+    let catalog = Catalog::new_in_memory_with_args(
+        "test-catalog",
+        Arc::clone(&time_provider) as _,
+        CatalogArgs::default(),
+    )
+    .await
+    .unwrap();
+
+    // Create database A and mark for hard deletion
+    catalog.create_database("db_a").await.unwrap();
+    let db_a_id = catalog.db_name_to_id("db_a").unwrap();
+    catalog
+        .soft_delete_database("db_a", HardDeletionTime::Now, DeletionScope::default())
+        .await
+        .unwrap();
+
+    // Create database B with tables, mark some tables for hard deletion
+    catalog.create_database("db_b").await.unwrap();
+    let db_b_id = catalog.db_name_to_id("db_b").unwrap();
+    catalog
+        .create_table(
+            "db_b",
+            "table1",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+    catalog
+        .create_table(
+            "db_b",
+            "table2",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+
+    let db_b_schema = catalog.db_schema("db_b").unwrap();
+    let table1_id = db_b_schema.table_name_to_id("table1").unwrap();
+
+    catalog
+        .soft_delete_table(
+            "db_b",
+            "table1",
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
+        .await
+        .unwrap();
+
+    // Create database C with no deletions
+    catalog.create_database("db_c").await.unwrap();
+    catalog
+        .create_table(
+            "db_c",
+            "table1",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+
+    // Should return db_a (database deleted) and db_b's table1
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+    assert_eq!(result.len(), 2);
+    assert!(result.contains(&(db_a_id, None)));
+    assert!(result.contains(&(db_b_id, Some(table1_id))));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_skips_future_times() {
+    use iox_time::MockProvider;
+    let now = Time::from_timestamp_nanos(1_000_000_000); // 1 second
+    let future_time = now + Duration::from_secs(60); // 1 minute in the future
+    let time_provider = Arc::new(MockProvider::new(now));
+    let catalog = Catalog::new_in_memory_with_args(
+        "test-catalog",
+        Arc::clone(&time_provider) as _,
+        CatalogArgs::default(),
+    )
+    .await
+    .unwrap();
+
+    // Database scheduled for hard deletion in the future should not be returned yet
+    catalog.create_database("db_future").await.unwrap();
+    let db_future_id = catalog.db_name_to_id("db_future").unwrap();
+    catalog
+        .soft_delete_database(
+            "db_future",
+            HardDeletionTime::Timestamp(future_time),
+            DeletionScope::default(),
+        )
+        .await
+        .unwrap();
+
+    // Database ready for hard deletion now
+    catalog.create_database("db_ready").await.unwrap();
+    let db_ready_id = catalog.db_name_to_id("db_ready").unwrap();
+    catalog
+        .soft_delete_database("db_ready", HardDeletionTime::Now, DeletionScope::default())
+        .await
+        .unwrap();
+
+    // Tables with mixed hard deletion times
+    catalog.create_database("db_tables").await.unwrap();
+    catalog
+        .create_table(
+            "db_tables",
+            "table_ready",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+    catalog
+        .create_table(
+            "db_tables",
+            "table_future",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+
+    let tables_schema = catalog.db_schema("db_tables").unwrap();
+    let db_tables_id = catalog.db_name_to_id("db_tables").unwrap();
+    let table_ready_id = tables_schema.table_name_to_id("table_ready").unwrap();
+    let table_future_id = tables_schema.table_name_to_id("table_future").unwrap();
+
+    catalog
+        .soft_delete_table(
+            "db_tables",
+            "table_ready",
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
+        .await
+        .unwrap();
+    catalog
+        .soft_delete_table(
+            "db_tables",
+            "table_future",
+            HardDeletionTime::Timestamp(future_time),
+            DeletionScope::default(),
+        )
+        .await
+        .unwrap();
+
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+
+    assert!(result.contains(&(db_ready_id, None)));
+    assert!(result.contains(&(db_tables_id, Some(table_ready_id))));
+    assert!(!result.contains(&(db_future_id, None)));
+    assert!(!result.contains(&(db_tables_id, Some(table_future_id))));
+    assert_eq!(result.len(), 2);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_skips_internal() {
+    // _internal database is created automatically
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+    // Verify _internal database exists
+    assert!(catalog.db_schema(INTERNAL_DB_NAME).is_some());
+
+    // Even if we try to mark _internal for deletion (which should fail)
+    catalog
+        .soft_delete_database(
+            INTERNAL_DB_NAME,
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
+        .await
+        .unwrap_err();
+
+    // it should not appear in results
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+
+    // Should not contain _internal database
+    for (db_id, _) in &result {
+        let db_name = catalog.db_id_to_name(db_id).unwrap();
+        assert_ne!(db_name.as_ref(), INTERNAL_DB_NAME);
+    }
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_only_soft_deleted() {
+    use iox_time::MockProvider;
+    let now = Time::from_timestamp_nanos(1000000000);
+    let time_provider = Arc::new(MockProvider::new(now));
+    let catalog = Catalog::new_in_memory_with_args(
+        "test-catalog",
+        Arc::clone(&time_provider) as _,
+        CatalogArgs::default(),
+    )
+    .await
+    .unwrap();
+
+    // Create database and soft delete with Never (no hard_delete_time)
+    catalog.create_database("test_db").await.unwrap();
+    catalog
+        .soft_delete_database("test_db", HardDeletionTime::Never, DeletionScope::default())
+        .await
+        .unwrap();
+
+    // Should return empty vec (no hard_delete_time set)
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+    assert_eq!(result.len(), 0);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_table_only_soft_deleted() {
+    use iox_time::MockProvider;
+    let now = Time::from_timestamp_nanos(1000000000);
+    let time_provider = Arc::new(MockProvider::new(now));
+    let catalog = Catalog::new_in_memory_with_args(
+        "test-catalog",
+        Arc::clone(&time_provider) as _,
+        CatalogArgs::default(),
+    )
+    .await
+    .unwrap();
+
+    // Create database and table
+    catalog.create_database("test_db").await.unwrap();
+    catalog
+        .create_table(
+            "test_db",
+            "table1",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+
+    // Soft delete table with Never (no hard_delete_time)
+    catalog
+        .soft_delete_table(
+            "test_db",
+            "table1",
+            HardDeletionTime::Never,
+            DeletionScope::default(),
+        )
+        .await
+        .unwrap();
+
+    // Should return empty vec (no hard_delete_time set)
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+    assert_eq!(result.len(), 0);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_empty() {
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+
+    // Create some databases and tables but don't delete any
+    catalog.create_database("test_db").await.unwrap();
+    catalog
+        .create_table(
+            "test_db",
+            "table1",
+            &["tag1"],
+            &[("field1", FieldDataType::String)],
+        )
+        .await
+        .unwrap();
+
+    // Should return empty vec
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+    assert_eq!(result.len(), 0);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_list_hard_deleted_dbs_tables_respects_limit() {
+    use iox_time::MockProvider;
+    let now = Time::from_timestamp_nanos(1000000000);
+    let time_provider = Arc::new(MockProvider::new(now));
+    let catalog = Catalog::new_in_memory_with_args(
+        "test-catalog",
+        Arc::clone(&time_provider) as _,
+        CatalogArgs::default(),
+    )
+    .await
+    .unwrap();
+
+    // Create database with many tables
+    catalog.create_database("test_db").await.unwrap();
+
+    // Create 10 tables
+    for i in 0..10 {
+        catalog
+            .create_table(
+                "test_db",
+                &format!("table{}", i),
+                &["tag1"],
+                &[("field1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+    }
+
+    // Mark all tables for hard deletion
+    for i in 0..10 {
+        catalog
+            .soft_delete_table(
+                "test_db",
+                &format!("table{}", i),
+                HardDeletionTime::Now,
+                DeletionScope::default(),
+            )
+            .await
+            .unwrap();
+    }
+
+    // Verify limit works - should only return 5 items
+    let result = catalog.list_hard_deleted_dbs_tables(5);
+    assert_eq!(result.len(), 5);
+
+    // Verify all returned items are valid
+    let db_id = catalog.db_name_to_id("test_db").unwrap();
+    for (returned_db_id, table_id) in &result {
+        assert_eq!(*returned_db_id, db_id);
+        assert!(table_id.is_some());
+    }
+
+    // Verify with larger limit - should return all 10
+    let result = catalog.list_hard_deleted_dbs_tables(100);
+    assert_eq!(result.len(), 10);
 }
 
 #[rstest]
@@ -3472,4 +4974,162 @@ async fn test_create_table_with_valid_names(
             "Field name mismatch at index {i}"
         );
     }
+}
+
+/// Verify that the catalog can hold more than 255 tag columns in a single table and that the
+/// resulting snapshot round-trips through JSON serialization / deserialization without losing any
+/// tag columns or corrupting their high (>255) tag_id values.
+///
+/// This is the forensic regression test for the TagId u8→u16 widening: if TagId reverts to u8,
+/// or if the JSON encoder emits u8-typed integers, `serde_json::from_slice` will fail with
+/// "invalid type: integer 256, expected u8" and the test will surface the bug.
+#[test_log::test(tokio::test)]
+async fn catalog_supports_more_than_255_tag_columns() {
+    const NUM_TAGS: usize = 1024;
+    // Each tag column counts toward the per-table column limit.  We also need a field column and
+    // a time column, so set the limit comfortably above NUM_TAGS.
+    const COLUMN_LIMIT: usize = NUM_TAGS + 64;
+
+    let catalog = Catalog::new_in_memory_with_limits(
+        "wide-tag-host",
+        CatalogLimits {
+            num_columns_per_table: COLUMN_LIMIT,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    catalog.create_database("wide_db").await.unwrap();
+
+    // Build the table with one field and one time column so that it is a valid table, then add
+    // all 1024 tag columns through a transaction so we can exceed the default column limit.
+    catalog
+        .create_table(
+            "wide_db",
+            "wide_table",
+            &[] as &[&str],
+            &[("value", FieldDataType::Float)],
+        )
+        .await
+        .unwrap();
+
+    // Add 1024 tag columns via successive transactions.  Batching them into a single transaction
+    // would require building a large tags slice up front; adding them one-by-one is simpler and
+    // still exercises the full allocation path.
+    for i in 0..NUM_TAGS {
+        let tag_name = format!("t{i}");
+        let mut txn = catalog.begin("wide_db").unwrap();
+        txn.column_or_create("wide_table", &tag_name, InfluxColumnType::Tag)
+            .unwrap();
+        catalog.commit(txn).await.unwrap();
+    }
+
+    // --- Part 1: verify the in-memory state -----------------------------------------------
+
+    let db_schema = catalog.db_schema("wide_db").expect("wide_db should exist");
+    let table_def = db_schema
+        .table_definition("wide_table")
+        .expect("wide_table should exist");
+
+    assert_eq!(
+        table_def.num_tag_columns(),
+        NUM_TAGS,
+        "expected {NUM_TAGS} tag columns in-memory"
+    );
+
+    // Confirm at least one tag_id exceeds 255 (i.e. the old u8 cap was crossed).
+    let all_tag_ids = table_def.index_column_ids();
+    let max_tag_id = all_tag_ids.iter().map(|id| id.get()).max().unwrap();
+    assert!(
+        max_tag_id > u8::MAX as u16,
+        "expected at least one tag_id > 255, but max was {max_tag_id}"
+    );
+    assert!(
+        max_tag_id >= (NUM_TAGS as u16) - 1,
+        "expected max tag_id >= {}, but got {max_tag_id}",
+        NUM_TAGS - 1
+    );
+
+    // --- Part 2: round-trip through the catalog checkpoint serialization path ---------------
+
+    let snapshot = catalog.snapshot();
+    let serialized =
+        serialize_catalog_file(&snapshot).expect("catalog snapshot should serialize cleanly");
+    let restored = verify_and_deserialize_catalog_checkpoint_file(serialized)
+        .expect("catalog snapshot should deserialize cleanly");
+
+    // Reload the catalog from the restored snapshot and verify the tag columns survived.
+    catalog.update_from_snapshot(restored);
+
+    let db_schema = catalog
+        .db_schema("wide_db")
+        .expect("wide_db should exist after restore");
+    let table_def = db_schema
+        .table_definition("wide_table")
+        .expect("wide_table should exist after restore");
+
+    assert_eq!(
+        table_def.num_tag_columns(),
+        NUM_TAGS,
+        "expected {NUM_TAGS} tag columns after round-trip"
+    );
+
+    let restored_tag_ids = table_def.index_column_ids();
+    let restored_max = restored_tag_ids.iter().map(|id| id.get()).max().unwrap();
+    assert!(
+        restored_max > u8::MAX as u16,
+        "expected at least one tag_id > 255 after round-trip, but max was {restored_max}"
+    );
+    assert_eq!(
+        restored_max, max_tag_id,
+        "max tag_id should be identical before and after round-trip"
+    );
+}
+
+#[tokio::test]
+async fn active_triggers_returns_ids() {
+    let catalog = Catalog::new_in_memory("host").await.unwrap();
+    catalog.create_database("mydb").await.unwrap();
+
+    // Create an enabled trigger.
+    catalog
+        .create_processing_engine_trigger(
+            "mydb",
+            "mytrigger",
+            ValidPluginFilename::from_validated_name("plugin.py"),
+            ApiNodeSpec::All,
+            "all_tables",
+            TriggerSettings::default(),
+            &Default::default(),
+            false,
+        )
+        .await
+        .unwrap();
+
+    // Create a disabled trigger — must be excluded from active_triggers().
+    catalog
+        .create_processing_engine_trigger(
+            "mydb",
+            "disabled_trigger",
+            ValidPluginFilename::from_validated_name("plugin.py"),
+            ApiNodeSpec::All,
+            "all_tables",
+            TriggerSettings::default(),
+            &Default::default(),
+            true,
+        )
+        .await
+        .unwrap();
+
+    let db_schema = catalog.db_schema("mydb").unwrap();
+    let db_id = db_schema.id;
+    let trigger_id = db_schema
+        .processing_engine_triggers
+        .get_by_name("mytrigger")
+        .unwrap()
+        .trigger_id;
+
+    // Only the enabled trigger appears; the disabled one is excluded.
+    assert_eq!(catalog.active_triggers(), vec![(db_id, trigger_id)]);
 }

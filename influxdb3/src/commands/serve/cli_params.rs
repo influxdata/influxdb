@@ -108,6 +108,7 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "object-store-tls-ca",
     // Feature flags and modes
     "disable-authz",
+    "test-mode",
     // Telemetry
     "telemetry-endpoint",
     "disable-telemetry-upload",

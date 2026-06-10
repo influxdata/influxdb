@@ -67,6 +67,10 @@ pub struct WriteConfig {
     /// specification like `1 hour` in the past. If not specified, defaults to now.
     #[clap(long = "start", action)]
     pub start_time: Option<String>,
+
+    /// Gzip-compress write request bodies before sending.
+    #[clap(long = "gzip", default_value = "false")]
+    pub gzip: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -150,6 +154,7 @@ pub(crate) async fn run_write_load(
         writer_count,
         dry_run,
         start_time,
+        gzip,
         ..
     } = config;
 
@@ -194,7 +199,8 @@ pub(crate) async fn run_write_load(
             database_name.clone(),
             sampling_interval,
         )
-        .with_reporter(reporter);
+        .with_reporter(reporter)
+        .with_gzip(gzip);
         if let Some(start_time) = start_time {
             runner = runner.with_start_time(start_time);
         }

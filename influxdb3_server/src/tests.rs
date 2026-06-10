@@ -15,6 +15,7 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::DisabledManager;
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
+use influxdb3_processing_engine::write::InProcessWriteEndpoint;
 use influxdb3_query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
 use influxdb3_shutdown::ShutdownManager;
 use influxdb3_sys_events::SysEventStore;
@@ -171,7 +172,7 @@ async fn write_lp_tests() {
     assert_eq!(
         body,
         "{\
-            \"error\":\"parsing failed for write_lp endpoint\",\
+            \"error\":\"line protocol parsing error\",\
             \"data\":{\
                 \"error_message\":\"No fields were provided\",\
                 \"line_number\":1,\
@@ -1165,6 +1166,7 @@ async fn query_from_last_cache() {
         .create_last_cache(
             db_name,
             tbl_name,
+            influxdb3_catalog::catalog::ApiNodeSpec::All,
             None,
             None as Option<&[&str]>,
             None as Option<&[&str]>,
@@ -1409,11 +1411,14 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
             plugin_dir: None,
             virtual_env_location: None,
             package_manager: Arc::new(DisabledManager),
+            plugin_dir_only: false,
             plugin_repo: None,
         },
         write_buffer.catalog(),
         node_identifier_prefix,
-        Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>,
+        Arc::new(InProcessWriteEndpoint::new(
+            Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>
+        )),
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,
         sys_events_store,
@@ -1429,10 +1434,7 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
         &[&tokio_rustls::rustls::version::TLS13];
 
     // Start processing engine triggers
-    Arc::clone(&processing_engine)
-        .start_triggers()
-        .await
-        .expect("failed to start processing engine triggers");
+    Arc::clone(&processing_engine).start_triggers().await;
 
     write_buffer
         .wal()

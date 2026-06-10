@@ -62,6 +62,11 @@ impl From<super::NodeMode> for v2::NodeMode {
     fn from(value: super::NodeMode) -> Self {
         match value {
             super::NodeMode::Core => v2::NodeMode::Core,
+            super::NodeMode::Query => v2::NodeMode::Query,
+            super::NodeMode::Ingest => v2::NodeMode::Ingest,
+            super::NodeMode::Compact => v2::NodeMode::Compact,
+            super::NodeMode::Process => v2::NodeMode::Process,
+            super::NodeMode::All => v2::NodeMode::All,
         }
     }
 }
@@ -221,6 +226,7 @@ impl From<super::DistinctCacheDefinition> for v2::DistinctCacheDefinition {
             column_ids: value.column_ids,
             max_cardinality: value.max_cardinality.into(),
             max_age_seconds: value.max_age_seconds.into(),
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -259,6 +265,7 @@ impl From<super::LastCacheDefinition> for v2::LastCacheDefinition {
             value_columns: value.value_columns.into(),
             count: value.count.into(),
             ttl: value.ttl.into(),
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -306,11 +313,11 @@ impl From<super::TriggerDefinition> for v2::TriggerDefinition {
             trigger_name: value.trigger_name,
             plugin_filename: value.plugin_filename,
             database_name: value.database_name,
-            node_id: value.node_id,
             trigger: value.trigger.into(),
             trigger_settings: value.trigger_settings.into(),
             trigger_arguments: value.trigger_arguments,
             disabled: value.disabled,
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -373,6 +380,15 @@ impl From<super::TriggerIdentifier> for v2::TriggerIdentifier {
             db_name: value.db_name,
             trigger_id: value.trigger_id,
             trigger_name: value.trigger_name,
+        }
+    }
+}
+
+impl From<super::NodeSpec> for v2::NodeSpec {
+    fn from(value: super::NodeSpec) -> Self {
+        match value {
+            super::NodeSpec::All => v2::NodeSpec::All,
+            super::NodeSpec::Nodes(vec) => v2::NodeSpec::Nodes(vec),
         }
     }
 }

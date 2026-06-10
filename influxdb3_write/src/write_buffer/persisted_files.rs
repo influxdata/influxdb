@@ -262,7 +262,7 @@ impl PersistedFiles {
                 for file in files {
                     // remove files if their max time (aka newest timestamp) is less than (aka older
                     // than) the cutoff timestamp for the retention period
-                    if file.max_time < cutoff {
+                    if file.max_time < cutoff.timestamp_nanos() {
                         queue_for_removal(db_id, table_id, file);
                     }
                 }

@@ -68,10 +68,12 @@ async fn limits() -> Result<(), Error> {
         panic!("Write of new table did not succeed after deleting db with most tables");
     };
 
-    // Test that we can't add a row 500 columns long
+    // Test that we can't add a row 500 columns long. The v3 catalog counts
+    // tag + field columns against the per-table limit and exempts the timestamp
+    // column (v2 counted the timestamp), so 500 non-time columns is the cap.
     let mut lp_500 = String::from("cpu,host=foo,region=bar usage=2");
     let mut lp_501 = String::from("cpu,host=foo,region=bar usage=2");
-    for i in 5..=500 {
+    for i in 4..=500 {
         let column = format!(",column{i}=1");
         lp_500.push_str(&column);
         lp_501.push_str(&column);

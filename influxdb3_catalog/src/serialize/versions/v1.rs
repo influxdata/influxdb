@@ -237,4 +237,4 @@ pub fn serialize_catalog_file<T: Serialize + VersionedFileType>(file: &T) -> Res
 }
 
 #[cfg(test)]
-mod v1_tests;
+mod tests;

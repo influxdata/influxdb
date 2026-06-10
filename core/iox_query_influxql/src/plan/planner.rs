@@ -6127,6 +6127,24 @@ mod tests {
             assert_snapshot!(plan("SELECT f64_field FROM data WHERE foo !~ /^host/"));
         }
 
+        /// A WHERE clause mixing a time predicate with a boolean-field
+        /// comparison must preserve the boolean filter regardless of operand
+        /// order. Previously, when the time predicate appeared first the plan
+        /// collapsed to an empty result.
+        /// see https://github.com/influxdata/influxdb_iox/issues/14340
+        #[test]
+        fn test_where_clause_time_and_bool_field() {
+            // time predicate first (previously collapsed to an empty plan)
+            assert_snapshot!(plan(
+                "SELECT f64_field FROM data WHERE time < 1500000000000000000 AND bool_field = false"
+            ));
+            // boolean field first; must produce the same filter as the
+            // time-first form above
+            assert_snapshot!(plan(
+                "SELECT f64_field FROM data WHERE bool_field = false AND time < 1500000000000000000"
+            ));
+        }
+
         /// Tests for mathematical expressions in the WHERE clause
         #[test]
         fn test_where_clause_mathematical_expressions() {

@@ -2571,7 +2571,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.query("SELECT foo FROM not_here")
 "#,
-            expected_error: "error executing plugin: QueryError: error: error while planning query: Error during planning: table 'public.iox.not_here' not found executing query: SELECT foo FROM not_here",
+            expected_error: "error executing plugin: QueryError: error: error while planning query: Error during planning: table 'public.iox.not_here' not found executing query on foo: SELECT foo FROM not_here",
         },
     ];
 
@@ -3857,7 +3857,10 @@ async fn write_and_query_via_stdin() {
         .run_with_stdin("bar,tag1=1,tag2=2 field1=1,field2=2 0")
         .unwrap();
 
-    assert_eq!("success", result);
+    assert!(
+        result.is_empty(),
+        "expected no stdout under --quiet, got: {result}"
+    );
     debug!(result = ?result, "wrote data to database");
 
     // Query data
@@ -3868,6 +3871,36 @@ async fn write_and_query_via_stdin() {
         .unwrap();
 
     debug!(result = ?result, "queried data from database");
+    assert_eq!(
+        json!([{"field1":1.0,"field2":2.0,"tag1":"1","tag2":"2","time":"1970-01-01T00:00:00"}]),
+        result
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn write_and_query_via_stdin_gzip() {
+    // Exercises the CLI --gzip plumbing end-to-end: flag → influxdb3_client gzip
+    // path → server gzip decode → ingest.
+    let server = TestServer::spawn().await;
+    let db_name = "foo";
+
+    let result = server
+        .write(db_name)
+        .with_gzip(true)
+        .run_with_stdin("bar,tag1=1,tag2=2 field1=1,field2=2 0")
+        .unwrap();
+
+    assert!(
+        result.is_empty(),
+        "expected no stdout under --quiet, got: {result}"
+    );
+
+    let result = server
+        .query_sql(db_name)
+        .with_sql("SELECT * FROM bar")
+        .run()
+        .unwrap();
+
     assert_eq!(
         json!([{"field1":1.0,"field2":2.0,"tag1":"1","tag2":"2","time":"1970-01-01T00:00:00"}]),
         result
@@ -3886,7 +3919,10 @@ async fn write_and_query_via_file() {
         .run()
         .unwrap();
 
-    assert_eq!("success", result);
+    assert!(
+        result.is_empty(),
+        "expected no stdout under --quiet, got: {result}"
+    );
     debug!(result = ?result, "wrote data to database");
 
     // Query data via file
@@ -3915,7 +3951,10 @@ async fn write_and_query_via_string() {
         .run()
         .unwrap();
 
-    assert_eq!("success", result);
+    assert!(
+        result.is_empty(),
+        "expected no stdout under --quiet, got: {result}"
+    );
     debug!(result = ?result, "wrote data to database");
 
     // Query data directly

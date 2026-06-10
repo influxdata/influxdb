@@ -1124,6 +1124,7 @@ pub struct WriteQuery<'a> {
     line_protocol: Option<String>,
     input_file: Option<String>,
     precision: Option<String>,
+    gzip: bool,
 }
 
 impl TestServer {
@@ -1134,6 +1135,7 @@ impl TestServer {
             line_protocol: None,
             input_file: None,
             precision: None,
+            gzip: false,
         }
     }
 }
@@ -1154,17 +1156,29 @@ impl WriteQuery<'_> {
         self
     }
 
+    pub fn with_gzip(mut self, gzip: bool) -> Self {
+        self.gzip = gzip;
+        self
+    }
+
     pub fn run(self) -> Result<String> {
         let mut args = vec![
             "--database",
             &self.db_name,
             "--tls-ca",
             "../testing-certs/rootCA.pem",
+            // Suppress the throughput summary so tests don't depend on its
+            // timing-sensitive content.
+            "--quiet",
         ];
 
         if let Some(precision) = &self.precision {
             args.push("--precision");
             args.push(precision);
+        }
+
+        if self.gzip {
+            args.push("--gzip");
         }
 
         if let Some(file_path) = &self.input_file {
@@ -1189,11 +1203,18 @@ impl WriteQuery<'_> {
             &self.db_name,
             "--tls-ca",
             "../testing-certs/rootCA.pem",
+            // Suppress the throughput summary so tests don't depend on its
+            // timing-sensitive content.
+            "--quiet",
         ];
 
         if let Some(precision) = &self.precision {
             args.push("--precision");
             args.push(precision);
+        }
+
+        if self.gzip {
+            args.push("--gzip");
         }
 
         let input = stdin_input.into();

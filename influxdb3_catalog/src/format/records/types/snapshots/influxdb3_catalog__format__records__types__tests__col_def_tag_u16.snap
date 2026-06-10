@@ -1,0 +1,6 @@
+---
+source: influxdb3_catalog/src/format/records/types/tests.rs
+description: col_def_tag_u16
+expression: "hex :: encode(& encoded)"
+---
+010001010004686f7374

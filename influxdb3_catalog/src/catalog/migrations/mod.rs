@@ -1,5 +1,7 @@
 mod v2;
+pub(crate) mod v3;
 
+use crate::log::versions::v4::StorageMode;
 use crate::object_store::{ObjectStoreCatalogError, PersistCatalogResult, versions as ostore};
 use crate::serialize::versions::{v1 as serialize_v1, v2 as serialize_v2};
 use anyhow::Context;
@@ -38,8 +40,12 @@ pub(crate) async fn check_and_migrate_v1_to_v2(
     store: Arc<dyn ObjectStore>,
 ) -> Result<(), MigrationError> {
     {
-        let v2_store =
-            ostore::v2::ObjectStoreCatalog::new(Arc::clone(&prefix), u64::MAX, Arc::clone(&store));
+        let v2_store = ostore::v2::ObjectStoreCatalog::new(
+            Arc::clone(&prefix),
+            u64::MAX,
+            Arc::clone(&store),
+            StorageMode::default(),
+        );
 
         if v2_store.checkpoint_exists().await? {
             // There is already a v2 catalog present, so there is nothing to do.

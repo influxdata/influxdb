@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::str::Utf8Error;
 
 use clap::{Parser, ValueEnum};
-use secrecy::ExposeSecret;
 use std::fs;
 use std::io::{BufReader, IsTerminal, Read, stdin};
 use tokio::{
@@ -97,10 +96,9 @@ pub async fn command(config: Config) -> Result<()> {
         auth_token,
     } = config.influxdb3_config;
     let host_url = config.query_host_url.unwrap_or(host_url);
-    let mut client = influxdb3_client::Client::new(host_url, config.ca_cert, config.tls_no_verify)?;
-    if let Some(t) = auth_token {
-        client = client.with_auth_token(t.expose_secret());
-    }
+    let client = influxdb3_client::Client::new(host_url, config.ca_cert, config.tls_no_verify)?
+        .with_resolved_auth_token(auth_token.as_ref())
+        .await?;
 
     let query = if let Some(query) = config.query {
         query

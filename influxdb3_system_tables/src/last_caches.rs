@@ -4,10 +4,7 @@ use arrow::array::{GenericListBuilder, StringViewBuilder, UInt16Builder, UInt64B
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::{
-    catalog::DatabaseSchema,
-    log::{LastCacheDefinition, LastCacheValueColumnsDef},
-};
+use influxdb3_catalog::catalog::{DatabaseSchema, LastCacheDefinition, LastCacheValueColumnsDef};
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]

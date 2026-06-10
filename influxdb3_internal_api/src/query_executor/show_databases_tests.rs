@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use datafusion::{
     arrow::array::RecordBatch, assert_batches_eq, execution::SendableRecordBatchStream,
 };
@@ -11,7 +9,7 @@ use crate::query_executor::ShowDatabases;
 
 #[tokio::test]
 async fn test_show_databases() {
-    let catalog = Catalog::new_in_memory("test").await.map(Arc::new).unwrap();
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
     catalog.create_database("foo").await.unwrap();
     catalog.create_database("bar").await.unwrap();
     catalog.create_database("mop").await.unwrap();

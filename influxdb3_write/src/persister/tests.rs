@@ -3,6 +3,7 @@ use crate::{
     DatabaseTables, ParquetFile, ParquetFileId, PersistedSnapshot, PersistedSnapshotCheckpoint,
     PersistedSnapshotCheckpointVersion, PersistedSnapshotVersion,
 };
+use indexmap::IndexMap;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_id::{DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -10,6 +11,8 @@ use iox_time::{MockProvider, Time};
 use object_store::memory::InMemory;
 use pretty_assertions::assert_eq;
 use rstest::rstest;
+use rustc_hash::FxHasher;
+use std::hash::BuildHasherDefault;
 use {
     arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
     arrow::datatypes::Schema, chrono::Utc,
@@ -290,13 +293,23 @@ async fn load_snapshot_works_with_no_exising_snapshots() {
     assert!(snapshots.is_empty());
 }
 
+// Helper function to create SerdeVecMap with FxHasher from array
+type FxBuildHasher = BuildHasherDefault<FxHasher>;
+fn fx_serde_vec_map<K: std::hash::Hash + Eq, V, const N: usize>(
+    entries: [(K, V); N],
+) -> SerdeVecMap<K, V> {
+    let mut map = IndexMap::with_capacity_and_hasher(N, FxBuildHasher::default());
+    map.extend(entries);
+    SerdeVecMap::from(map)
+}
+
 #[test]
 fn persisted_snapshot_structure() {
-    let databases = [
+    let databases = fx_serde_vec_map([
         (
             DbId::new(0),
             DatabaseTables {
-                tables: [
+                tables: fx_serde_vec_map([
                     (
                         TableId::new(0),
                         vec![
@@ -311,14 +324,13 @@ fn persisted_snapshot_structure() {
                             ParquetFile::create_for_test("4.parquet"),
                         ],
                     ),
-                ]
-                .into(),
+                ]),
             },
         ),
         (
             DbId::new(1),
             DatabaseTables {
-                tables: [
+                tables: fx_serde_vec_map([
                     (
                         TableId::new(0),
                         vec![
@@ -333,12 +345,10 @@ fn persisted_snapshot_structure() {
                             ParquetFile::create_for_test("8.parquet"),
                         ],
                     ),
-                ]
-                .into(),
+                ]),
             },
         ),
-    ]
-    .into();
+    ]);
     let snapshot = PersistedSnapshotVersion::V1(PersistedSnapshot {
         node_id: "host".to_string(),
         next_file_id: ParquetFileId::new(),

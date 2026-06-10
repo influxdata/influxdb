@@ -1,20 +1,57 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
-/// Export version 1 of the catalog API
-pub use versions::v2::*;
+/// Export version 3 of the catalog API.
+pub use ::schema::{InfluxColumnType, InfluxFieldType};
 
+pub use versions::v3::backup::{
+    CatalogBackupView, CatalogCheckpointForBackup, CatalogLogFileForBackup, CatalogRestoreSource,
+};
+pub use versions::v3::catalog::{
+    ApiNodeSpec, Catalog, CatalogArgs, CatalogBuilder, Committed, CreateDatabaseOptions,
+    CreateTableOptions, HardDeletionTime,
+};
+pub use versions::v3::deletes::DeletionScope;
+pub use versions::v3::events::{
+    CatalogEvent, CatalogUpdate, CatalogUpdateMessage, CatalogUpdateReceiver,
+};
+pub use versions::v3::legacy;
+pub use versions::v3::schema;
+pub use versions::v3::schema::cache::{
+    CacheSource, DistinctCacheDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl,
+    LastCacheValueColumnsDef, MaxAge, MaxCardinality, RefreshInterval,
+};
+pub use versions::v3::schema::column::{
+    ColumnDefinition, ColumnSet, FieldColumn, FieldDataType, FieldFamilyDefinition,
+    FieldFamilyMode, FieldFamilyName, TagColumn, TimestampColumn,
+};
+pub use versions::v3::schema::database::DatabaseSchema;
+pub use versions::v3::schema::node::{NodeDefinition, NodeMode, NodeModes, NodeSpec, NodeState};
+pub use versions::v3::schema::retention::RetentionPeriod;
+pub use versions::v3::schema::storage::{GenerationConfig, StorageMode};
+pub use versions::v3::schema::table::TableDefinition;
+pub use versions::v3::schema::trigger::{
+    ErrorBehavior, PluginType, TriggerDefinition, TriggerSettings, TriggerSpecificationDefinition,
+    ValidPluginFilename,
+};
+pub use versions::v3::schema::user::{LoginIdentities, LoginIdentityUsernamePassword, UserInfo};
+pub use versions::v3::transaction::{
+    CatalogTransaction, DatabaseCatalogTransaction, Prompt, TableTransaction,
+};
+pub use versions::v3::usage::{
+    CatalogLimiter, CatalogLimits, CurrentCatalogUsage, MaximumColumnCountLimiter,
+};
+
+use ahash::RandomState as AHashBuilder;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
-use bimap::BiHashMap;
 use influxdb3_authz::TokenInfo;
-use influxdb3_id::{CatalogId, SerdeVecMap, TokenId};
+use influxdb3_id::TokenId;
 use iox_time::Time;
 use rand::RngCore;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use sha2::Sha512;
-use std::cmp::Ordering;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,6 +61,10 @@ mod key;
 pub(crate) mod migrations;
 pub mod versions;
 
+#[cfg(test)]
+mod tests;
+
+use crate::repository::Repository;
 use crate::resource::CatalogResource;
 use crate::{CatalogError, Result};
 
@@ -39,6 +80,9 @@ pub const CHUNK_ORDER_COLUMN_NAME: &str = "__chunk_order";
 pub const RESERVED_COLUMN_NAMES: &[&str] = &[TIME_COLUMN_NAME, CHUNK_ORDER_COLUMN_NAME];
 
 const DEFAULT_OPERATOR_TOKEN_NAME: &str = "_admin";
+
+// Type alias for BiHashMap with AHash for better performance and DoS resistance
+pub(crate) type BiHashMap<L, R> = bimap::BiHashMap<L, R, AHashBuilder, AHashBuilder>;
 
 /// Represents the deletion status of a database or table in the catalog
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -85,171 +129,6 @@ static CATALOG_WRITE_PERMIT: Mutex<CatalogSequenceNumber> =
 /// This is a mutex that, when a lock is acquired, holds the next catalog sequence number at the
 /// time that the permit was acquired.
 pub type CatalogWritePermit = MutexGuard<'static, CatalogSequenceNumber>;
-
-/// General purpose type for storing a collection of things in the catalog
-///
-/// Each item in the repository has a unique identifier and name. The repository tracks the next
-/// identifier that will be used for a new resource added to the repository, with the assumption
-/// that identifiers are monotonically increasing unsigned integers.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Repository<I: CatalogId, R: CatalogResource> {
-    /// Store for items in the repository
-    pub(crate) repo: SerdeVecMap<I, Arc<R>>,
-    /// Bi-directional map of identifiers to names in the repository
-    pub(crate) id_name_map: BiHashMap<I, Arc<str>>,
-    /// The next identifier that will be used when a new resource is added to the repository
-    pub(crate) next_id: I,
-}
-
-impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
-    pub fn new() -> Self {
-        Self {
-            repo: SerdeVecMap::new(),
-            id_name_map: BiHashMap::new(),
-            next_id: I::default(),
-        }
-    }
-
-    pub(crate) fn get_and_increment_next_id(&mut self) -> I {
-        let next_id = self.next_id;
-        self.next_id = self.next_id.next();
-        next_id
-    }
-
-    pub(crate) fn next_id(&self) -> I {
-        self.next_id
-    }
-
-    pub(crate) fn set_next_id(&mut self, id: I) {
-        self.next_id = id;
-    }
-
-    pub fn name_to_id(&self, name: &str) -> Option<I> {
-        self.id_name_map.get_by_right(name).copied()
-    }
-
-    pub fn id_to_name(&self, id: &I) -> Option<Arc<str>> {
-        self.id_name_map.get_by_left(id).cloned()
-    }
-
-    pub fn get_by_name(&self, name: &str) -> Option<Arc<R>> {
-        self.id_name_map
-            .get_by_right(name)
-            .and_then(|id| self.repo.get(id))
-            .cloned()
-    }
-
-    pub fn get_mut_by_name(&mut self, name: &str) -> Option<&mut Arc<R>> {
-        self.id_name_map
-            .get_by_right(name)
-            .and_then(|id| self.repo.get_mut(id))
-    }
-
-    pub fn get_by_id(&self, id: &I) -> Option<Arc<R>> {
-        self.repo.get(id).cloned()
-    }
-
-    pub fn get_mut_by_id(&mut self, id: &I) -> Option<&mut Arc<R>> {
-        self.repo.get_mut(id)
-    }
-
-    pub fn contains_id(&self, id: &I) -> bool {
-        self.repo.contains_key(id)
-    }
-
-    pub fn contains_name(&self, name: &str) -> bool {
-        self.id_name_map.contains_right(name)
-    }
-
-    pub fn len(&self) -> usize {
-        self.repo.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.repo.is_empty()
-    }
-
-    /// Check if a resource exists in the repository by `id`
-    ///
-    /// # Panics
-    ///
-    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
-    /// that would be a bad state for the repository to be in.
-    fn id_exists(&self, id: &I) -> bool {
-        let id_in_map = self.id_name_map.contains_left(id);
-        let id_in_repo = self.repo.contains_key(id);
-        assert_eq!(
-            id_in_map, id_in_repo,
-            "id map and repository are in an inconsistent state, \
-            in map: {id_in_map}, in repo: {id_in_repo}"
-        );
-        id_in_repo
-    }
-
-    /// Check if a resource exists in the repository by `id` and `name`
-    ///
-    /// # Panics
-    ///
-    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
-    /// that would be a bad state for the repository to be in.
-    fn id_and_name_exists(&self, id: &I, name: &str) -> bool {
-        let name_in_map = self.id_name_map.contains_right(name);
-        self.id_exists(id) && name_in_map
-    }
-
-    /// Insert a new resource to the repository
-    pub(crate) fn insert(&mut self, id: I, resource: impl Into<Arc<R>>) -> Result<()> {
-        let resource = resource.into();
-        if self.id_and_name_exists(&id, resource.name().as_ref()) {
-            return Err(CatalogError::AlreadyExists);
-        }
-        self.id_name_map.insert(id, resource.name());
-        self.repo.insert(id, resource);
-        self.next_id = match self.next_id.cmp(&id) {
-            // If id is has reached MAX, we can't increment it.
-            //
-            // Invariants of this data type prevent duplicate IDs, and consumers are expected
-            // to handle I::MAX gracefully to avoid runtime panics.
-            Ordering::Less | Ordering::Equal if id < I::MAX => id.next(),
-            _ => self.next_id,
-        };
-        Ok(())
-    }
-
-    /// Update an existing resource in the repository
-    pub(crate) fn update(&mut self, id: I, resource: impl Into<Arc<R>>) -> Result<()> {
-        let resource = resource.into();
-        if !self.id_exists(&id) {
-            return Err(CatalogError::NotFound(format!("catalog id: {}", id)));
-        }
-        self.id_name_map.insert(id, resource.name());
-        self.repo.insert(id, resource);
-        Ok(())
-    }
-
-    pub(crate) fn remove(&mut self, id: &I) {
-        self.id_name_map.remove_by_left(id);
-        self.repo.shift_remove(id);
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&I, &Arc<R>)> {
-        self.repo.iter()
-    }
-
-    pub fn id_iter(&self) -> impl Iterator<Item = &I> {
-        self.repo.keys()
-    }
-
-    pub fn resource_iter(&self) -> impl Iterator<Item = &Arc<R>> {
-        self.repo.values()
-    }
-}
-
-impl<I: CatalogId, R: CatalogResource> Default for Repository<I, R> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Trait for schema objects that can be marked as deleted.
 pub trait DeletedSchema: Sized {
@@ -345,6 +224,12 @@ impl TokenRepository {
         self.repo.get_and_increment_next_id()
     }
 
+    pub(crate) fn hash_to_id(&self, hash: Vec<u8>) -> Option<TokenId> {
+        self.hash_lookup_map
+            .get_by_right(&hash)
+            .map(|id| id.to_owned())
+    }
+
     pub(crate) fn hash_to_info(&self, hash: Vec<u8>) -> Option<Arc<TokenInfo>> {
         let id = self
             .hash_lookup_map
@@ -354,9 +239,10 @@ impl TokenRepository {
     }
 
     pub(crate) fn add_token(&mut self, token_id: TokenId, token_info: TokenInfo) -> Result<()> {
-        self.hash_lookup_map
-            .insert(token_id, token_info.hash.clone());
+        let token_info_hash = token_info.hash.clone();
         self.repo.insert(token_id, token_info)?;
+        // insert to hash_lookup_map second in case the repo insert fails
+        self.hash_lookup_map.insert(token_id, token_info_hash);
         Ok(())
     }
 
@@ -380,19 +266,26 @@ impl TokenRepository {
         Ok(())
     }
 
-    pub(crate) fn delete_token(&mut self, token_name: String) -> Result<()> {
+    pub(crate) fn delete_token(&mut self, token_name: String) -> Result<TokenId> {
         let token_id = self
             .repo
             .name_to_id(&token_name)
             .ok_or_else(|| CatalogError::NotFound(token_name))?;
         self.repo.remove(&token_id);
         self.hash_lookup_map.remove_by_left(&token_id);
+        Ok(token_id)
+    }
+
+    pub(crate) fn update_token(&mut self, token_id: TokenId, token_info: TokenInfo) -> Result<()> {
+        self.repo.update(token_id, Arc::new(token_info))?;
         Ok(())
     }
 }
 
 impl CatalogResource for TokenInfo {
     type Identifier = TokenId;
+
+    const CATEGORY: &'static str = "tokens";
 
     fn id(&self) -> Self::Identifier {
         self.id

@@ -26,6 +26,7 @@ pub(crate) const API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD: &str =
     "/api/v3/configure/database/retention_period";
 pub const API_METRICS: &str = "/metrics";
 pub const API_PING: &str = "/ping";
+pub use jemalloc_pprof_http::API_DEBUG_PPROF_HEAP;
 pub(crate) const API_V3_CONFIGURE_TOKEN: &str = "/api/v3/configure/token";
 pub(crate) const API_V3_CONFIGURE_ADMIN_TOKEN: &str = "/api/v3/configure/token/admin";
 pub(crate) const API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE: &str =
@@ -33,6 +34,7 @@ pub(crate) const API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE: &str =
 pub(crate) const API_V3_CONFIGURE_NAMED_ADMIN_TOKEN: &str = "/api/v3/configure/token/named_admin";
 pub(crate) const API_V3_TEST_WAL_ROUTE: &str = "/api/v3/plugin_test/wal";
 pub(crate) const API_V3_TEST_PLUGIN_ROUTE: &str = "/api/v3/plugin_test/schedule";
+pub(crate) const API_V3_TEST_TELEMETRY_SNAPSHOT: &str = "/api/v3/test/telemetry_snapshot";
 pub(crate) const API_V3_PLUGINS_FILES: &str = "/api/v3/plugins/files";
 pub(crate) const API_V3_PLUGINS_DIRECTORY: &str = "/api/v3/plugins/directory";
 

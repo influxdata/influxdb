@@ -3,7 +3,9 @@ use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use crate::adaptive_put::AdaptivePutExt;
 use backon::{ExponentialBuilder, Retryable};
+use bytes::Bytes;
 use futures::stream::{BoxStream, StreamExt};
 use object_store::{
     Error as ObjectStoreError, GetOptions, GetResult, ListResult, ObjectMeta, ObjectStore,
@@ -283,6 +285,37 @@ pub trait RetryableObjectStore: ObjectStore {
         retry_operation(retry_params, context_message, "put", path, None, || async {
             store.put(&path_clone, payload.clone()).await
         })
+        .await
+    }
+
+    async fn put_adaptive_with_default_retries(
+        &self,
+        path: &Path,
+        bytes: Bytes,
+        context_message: String,
+    ) -> Result<PutResult> {
+        self.put_adaptive_with_retries(path, bytes, context_message, get_default_retry_params())
+            .await
+    }
+
+    async fn put_adaptive_with_retries(
+        &self,
+        path: &Path,
+        bytes: Bytes,
+        context_message: String,
+        retry_params: RetryParams,
+    ) -> Result<PutResult> {
+        let path_clone = path.clone();
+        let store = self;
+
+        retry_operation(
+            retry_params,
+            context_message,
+            "put_adaptive",
+            path,
+            None,
+            || async { store.put_adaptive(&path_clone, bytes.clone()).await },
+        )
         .await
     }
 

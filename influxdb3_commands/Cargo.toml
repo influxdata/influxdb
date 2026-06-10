@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 # Local crates
+influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_clap_blocks = { path = "../influxdb3_clap_blocks" }
 influxdb3_server = { path = "../influxdb3_server" }
@@ -18,10 +19,19 @@ observability_deps = { path = "../core/observability_deps" }
 
 # crates.io
 anyhow.workspace = true
+chrono.workspace = true
 clap.workspace = true
+comfy-table.workspace = true
+futures.workspace = true
 hashbrown.workspace = true
+humantime.workspace = true
+object_store.workspace = true
 secrecy.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true

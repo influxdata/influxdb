@@ -10,7 +10,9 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
-use influxdb3_catalog::{CatalogError, catalog::Catalog, log::PluginType};
+use influxdb3_catalog::{
+    CatalogError, catalog::Catalog, catalog::CatalogLimits, catalog::PluginType,
+};
 use influxdb3_clap_blocks::plugins::{PackageManager, PluginTriggerType, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
     datafusion::IoxQueryDatafusionConfig, memory_size::MemorySizeMb,
@@ -20,12 +22,15 @@ use influxdb3_process::{
     INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_START_TIME, PROCESS_UUID_STR, ProcessUuidGetter,
     ProcessUuidWrapper,
 };
-use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::{
-    DisabledManager, DisabledPackageManager, PipManager, PythonEnvironmentManager, UVManager,
+    self, DisabledManager, DisabledPackageManager, PipManager, PythonEnvironmentManager,
+    list_installed_packages,
 };
+use influxdb3_processing_engine::plugin_telemetry::PluginTriggerInvocationRegistry;
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
-use influxdb3_processing_engine::virtualenv::find_python;
+use influxdb3_processing_engine::{
+    ProcessingEngineManagerImpl, ProcessingEngineManagerOptions, write::InProcessWriteEndpoint,
+};
 use influxdb3_query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
 use influxdb3_server::http::HttpApi;
 use influxdb3_server::{
@@ -34,7 +39,8 @@ use influxdb3_server::{
 use influxdb3_shutdown::{ShutdownManager, ShutdownToken, wait_for_signal};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::{
-    ProcessingEngineMetrics, ServeInvocationMethod,
+    MetricsError, PluginTriggerInvocation, PluginTriggerInvocationMetrics, ProcessingEngineMetrics,
+    PythonEnvironmentMetrics, ServeInvocationMethod, StorageEngineType,
     store::{CreateTelemetryStoreArgs, TelemetryStore},
 };
 use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -58,6 +64,7 @@ use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::{
     env,
@@ -65,7 +72,6 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use std::{path::PathBuf, process::Command};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
@@ -158,7 +164,7 @@ pub enum Error {
     NodeIdEnvVarMissing(String),
 
     #[error(
-        "Python environment initialization failed: {0}\nPlease ensure Python and either pip or uv package manager is installed"
+        "Python environment initialization failed: {0}\nPlease ensure Python and pip package manager is installed"
     )]
     PythonEnvironmentInitialization(
         #[source] influxdb3_processing_engine::environment::PluginEnvironmentError,
@@ -174,6 +180,12 @@ const DEPRECATED_ENV_VARS: &[(&str, &str)] = &[(
 )];
 
 const MIN_REPLAY_PRELOAD_CONCURRENCY: usize = 10; // the min number of files that will be held in memory
+
+// Core catalog limits. The shared catalog crate's `CatalogLimits` defaults are
+// Enterprise's; Core defines its own here so the two binaries can diverge.
+const CORE_NUM_DBS_LIMIT: usize = 5;
+const CORE_NUM_TABLES_LIMIT: usize = 2000;
+const CORE_NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
 fn wal_replay_concurrency_limit_default() -> String {
     std::cmp::max(num_cpus::get(), MIN_REPLAY_PRELOAD_CONCURRENCY).to_string()
 }
@@ -264,7 +276,7 @@ pub struct Config {
     #[clap(long = "without-auth", env = "INFLUXDB3_START_WITHOUT_AUTH", action)]
     pub without_auth: bool,
 
-    /// Disable authz for certain resources, allowed values are health,ping,metrics
+    /// Disable authz for certain resources, allowed values are health,ping,metrics,ready,pprof
     #[clap(long = "disable-authz", env = "INFLUXDB3_DISABLE_AUTHZ")]
     pub disable_authz: Option<DisableAuthzList>,
 
@@ -548,6 +560,10 @@ pub struct Config {
     )]
     #[arg(default_value_t = ServeInvocationMethod::Explicit)]
     pub serve_invocation_method: ServeInvocationMethod,
+
+    /// Enable hidden HTTP endpoints used only by integration tests.
+    #[clap(long = "test-mode", hide = true, default_value_t = false, action)]
+    pub test_mode: bool,
 
     /// Set the limit for number of parquet files allowed in a query. Defaults
     /// to 432 which is about 3 days worth of files using default settings.
@@ -951,6 +967,11 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         Arc::clone(&metrics),
         shutdown_manager.register("catalog"),
         Arc::clone(&process_uuid_getter),
+        CatalogLimits::new(
+            CORE_NUM_DBS_LIMIT,
+            CORE_NUM_TABLES_LIMIT,
+            CORE_NUM_COLUMNS_PER_TABLE_LIMIT,
+        ),
     )
     .await
     .map_err(Error::InitializeCatalog)?;
@@ -987,13 +1008,22 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     // Capture and filter CLI parameters
     let cli_params = cli_params::capture_cli_params(user_params);
 
+    // Reuse the existing node's instance id on restart; generate a fresh one
+    // for a brand-new node.
+    let instance_id = match catalog.node(&node_id) {
+        Some(node) => node.instance_id(),
+        None => Arc::from(uuid::Uuid::new_v4().to_string()),
+    };
     let _ = catalog
         .register_node(
             &node_id,
             num_cpus as u64,
-            vec![influxdb3_catalog::log::NodeMode::Core],
+            vec![influxdb3_catalog::catalog::NodeMode::Core],
             process_uuid_getter,
+            instance_id,
+            None,
             Some(cli_params),
+            0,
         )
         .await
         .map_err(Error::InitializeCatalog)?;
@@ -1023,7 +1053,9 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         .set_gen1_duration(config.gen1_duration.as_duration())
         .await
     {
-        Ok(_) | Err(CatalogError::AlreadyExists) => config.gen1_duration,
+        Ok(_) | Err(CatalogError::AlreadyExists | CatalogError::NoCatalogChange { .. }) => {
+            config.gen1_duration
+        }
         Err(CatalogError::CannotChangeGenerationDuration { .. }) => {
             let existing: Gen1Duration = catalog
                 .get_generation_duration(1)
@@ -1096,6 +1128,14 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     )
     .await;
 
+    let processing_engine_env =
+        setup_processing_engine_env_manager(&config.processing_engine_config);
+    let python_env_metrics = Some(setup_python_env_metrics(&processing_engine_env));
+    let plugin_trigger_invocation_registry = setup_plugin_trigger_invocation_registry();
+    let plugin_trigger_invocation_metrics = Some(setup_plugin_trigger_invocation_telemetry(
+        Arc::clone(&plugin_trigger_invocation_registry),
+    ));
+
     info!("setting up telemetry store");
     let telemetry_store = setup_telemetry_store(TelemetryStoreSetupArgs {
         object_store_config: &config.object_store_config,
@@ -1107,6 +1147,9 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         serve_invocation_method: config.serve_invocation_method,
         catalog_uuid: catalog.catalog_uuid().to_string(),
         processing_engine_metrics: Arc::clone(&catalog) as Arc<dyn ProcessingEngineMetrics>,
+        python_env_metrics,
+        plugin_trigger_invocation_metrics,
+        storage_engine: StorageEngineType::Parquet,
     })
     .await;
 
@@ -1154,14 +1197,17 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         None
     };
 
-    let processing_engine = ProcessingEngineManagerImpl::new(
-        setup_processing_engine_env_manager(&config.processing_engine_config),
+    let processing_engine = ProcessingEngineManagerImpl::new_with_options(
+        processing_engine_env,
         write_buffer.catalog(),
         node_id,
-        Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>,
+        Arc::new(InProcessWriteEndpoint::new(
+            Arc::clone(&write_buffer) as Arc<dyn influxdb3_write::Bufferer>
+        )),
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,
-        sys_events_store,
+        ProcessingEngineManagerOptions::new(sys_events_store)
+            .with_plugin_trigger_invocation_registry(Some(plugin_trigger_invocation_registry)),
     )
     .await
     .map_err(Error::PythonEnvironmentInitialization)?;
@@ -1173,10 +1219,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     let key_file = config.key_file;
 
     // Start processing engine triggers
-    Arc::clone(&processing_engine)
-        .start_triggers()
-        .await
-        .expect("failed to start processing engine triggers");
+    Arc::clone(&processing_engine).start_triggers().await;
 
     write_buffer
         .wal()
@@ -1191,16 +1234,30 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         ))
     };
 
-    let http = Arc::new(HttpApi::new(
-        common_state.clone(),
-        Arc::clone(&time_provider) as _,
-        Arc::clone(&write_buffer),
-        Arc::clone(&query_executor) as _,
-        Arc::clone(&processing_engine),
-        restricted_plugin_trigger_types(&config.processing_engine_config),
-        config.max_http_request_size,
-        Arc::clone(&authorizer),
-    ));
+    let http = Arc::new(if config.test_mode {
+        HttpApi::with_test_mode(
+            common_state.clone(),
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&write_buffer),
+            Arc::clone(&query_executor) as _,
+            Arc::clone(&processing_engine),
+            restricted_plugin_trigger_types(&config.processing_engine_config),
+            config.max_http_request_size,
+            Arc::clone(&authorizer),
+            true,
+        )
+    } else {
+        HttpApi::new(
+            common_state.clone(),
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&write_buffer),
+            Arc::clone(&query_executor) as _,
+            Arc::clone(&processing_engine),
+            restricted_plugin_trigger_types(&config.processing_engine_config),
+            config.max_http_request_size,
+            Arc::clone(&authorizer),
+        )
+    });
 
     // Only create recovery server if listener was created
     let admin_token_recovery_server = admin_token_recovery_listener.map(|listener| {
@@ -1385,18 +1442,99 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 pub(crate) fn setup_processing_engine_env_manager(
     config: &ProcessingEngineConfig,
 ) -> ProcessingEngineEnvironmentManager {
+    // The venv PipManager would use, when a plugin dir makes one possible.
+    let venv_path = config.plugin_dir.as_deref().map(|plugin_dir| {
+        environment::venv_path_for(plugin_dir, config.virtual_env_location.as_ref())
+    });
+
     let package_manager: Arc<dyn PythonEnvironmentManager> = match config.package_manager {
-        PackageManager::Discover => determine_package_manager(),
         PackageManager::Pip => Arc::new(PipManager),
-        PackageManager::UV => Arc::new(UVManager),
+        // Keep accepting the historical config value, but do not use uv.
+        PackageManager::UV => Arc::new(PipManager),
         PackageManager::Disabled => Arc::new(DisabledPackageManager),
+        // Discovery builds the one-per-process venv in the background and probes
+        // pip inside it. `ready()` blocks until the build finishes; a venv that
+        // cannot be built (or no plugin dir to build one in) means no pip.
+        PackageManager::Discover => match venv_path {
+            Some(path) => environment::init_venv(path)
+                .ready()
+                .map(|venv| venv.determine_package_manager())
+                .unwrap_or_else(|_| Arc::new(DisabledManager)),
+            None => Arc::new(DisabledManager),
+        },
     };
+
     ProcessingEngineEnvironmentManager {
         plugin_dir: config.plugin_dir.clone(),
         virtual_env_location: config.virtual_env_location.clone(),
         package_manager,
+        plugin_dir_only: false,
         plugin_repo: config.plugin_repo.clone(),
     }
+}
+
+#[derive(Debug)]
+struct PythonEnvironmentMetricsImpl {
+    has_python_environment: bool,
+}
+
+impl PythonEnvironmentMetricsImpl {
+    fn new(environment: &ProcessingEngineEnvironmentManager) -> Self {
+        Self {
+            has_python_environment: environment.plugin_dir.is_some(),
+        }
+    }
+}
+
+impl PythonEnvironmentMetrics for PythonEnvironmentMetricsImpl {
+    fn installed_packages(&self) -> std::result::Result<Vec<String>, MetricsError> {
+        if !self.has_python_environment {
+            return Ok(Vec::new());
+        }
+
+        list_installed_packages().map_err(|error| Box::new(error) as MetricsError)
+    }
+}
+
+pub(crate) fn setup_python_env_metrics(
+    environment: &ProcessingEngineEnvironmentManager,
+) -> Arc<dyn PythonEnvironmentMetrics> {
+    Arc::new(PythonEnvironmentMetricsImpl::new(environment))
+}
+
+#[derive(Debug)]
+struct PluginTriggerInvocationTelemetryImpl {
+    registry: Arc<PluginTriggerInvocationRegistry>,
+}
+
+impl PluginTriggerInvocationMetrics for PluginTriggerInvocationTelemetryImpl {
+    fn plugin_trigger_invocations(&self) -> Vec<PluginTriggerInvocation> {
+        self.registry
+            .snapshot()
+            .into_iter()
+            .map(|entry| PluginTriggerInvocation {
+                database_name: entry.database_name,
+                trigger_name: entry.trigger_name,
+                plugin_name: entry.plugin_name,
+                trigger_type: entry.trigger_type.to_owned(),
+                invocation_count: entry.invocation_count,
+            })
+            .collect()
+    }
+
+    fn reset_plugin_trigger_invocations(&self) {
+        self.registry.reset();
+    }
+}
+
+pub(crate) fn setup_plugin_trigger_invocation_registry() -> Arc<PluginTriggerInvocationRegistry> {
+    Arc::new(PluginTriggerInvocationRegistry::default())
+}
+
+pub(crate) fn setup_plugin_trigger_invocation_telemetry(
+    registry: Arc<PluginTriggerInvocationRegistry>,
+) -> Arc<dyn PluginTriggerInvocationMetrics> {
+    Arc::new(PluginTriggerInvocationTelemetryImpl { registry })
 }
 
 fn restricted_plugin_trigger_types(config: &ProcessingEngineConfig) -> Vec<PluginType> {
@@ -1409,30 +1547,6 @@ fn restricted_plugin_trigger_types(config: &ProcessingEngineConfig) -> Vec<Plugi
             PluginTriggerType::Request => PluginType::Request,
         })
         .collect()
-}
-
-fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
-    // Check for pip (highest preference)
-    let python_exe = find_python();
-    debug!("Running: {} -m pip --version", python_exe.display());
-
-    if let Ok(output) = Command::new(&python_exe)
-        .args(["-m", "pip", "--version"])
-        .output()
-        && output.status.success()
-    {
-        return Arc::new(PipManager);
-    }
-
-    // Check for uv second (ie, prefer python standalone pip)
-    if let Ok(output) = Command::new("uv").arg("--version").output()
-        && output.status.success()
-    {
-        return Arc::new(UVManager);
-    }
-
-    // If neither is available, return DisabledManager
-    Arc::new(DisabledManager)
 }
 
 async fn initialize_table_index_cache(
@@ -1498,6 +1612,9 @@ struct TelemetryStoreSetupArgs<'a> {
     catalog_uuid: String,
     serve_invocation_method: ServeInvocationMethod,
     processing_engine_metrics: Arc<dyn ProcessingEngineMetrics>,
+    python_env_metrics: Option<Arc<dyn PythonEnvironmentMetrics>>,
+    plugin_trigger_invocation_metrics: Option<Arc<dyn PluginTriggerInvocationMetrics>>,
+    storage_engine: StorageEngineType,
 }
 
 async fn setup_telemetry_store(
@@ -1511,6 +1628,9 @@ async fn setup_telemetry_store(
         catalog_uuid,
         serve_invocation_method,
         processing_engine_metrics,
+        python_env_metrics,
+        plugin_trigger_invocation_metrics,
+        storage_engine,
     }: TelemetryStoreSetupArgs<'_>,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
@@ -1520,28 +1640,28 @@ async fn setup_telemetry_store(
     let influx_version = format!("{influxdb_pkg_name}-{influxdb_pkg_version}");
     let obj_store_type = object_store_config.object_store;
     let storage_type = obj_store_type.as_str();
+    let args = CreateTelemetryStoreArgs {
+        instance_id,
+        os: Arc::from(os),
+        influx_version: Arc::from(influx_version),
+        storage_type: Arc::from(storage_type),
+        cores: num_cpus,
+        persisted_files: persisted_files.map(|p| p as _),
+        telemetry_endpoint: telemetry_endpoint.to_string(),
+        catalog_uuid,
+        serve_invocation_method,
+        processing_engine_metrics,
+        python_env_metrics,
+        plugin_trigger_invocation_metrics,
+        storage_engine,
+    };
 
     if disable_upload {
         debug!("Initializing TelemetryStore with upload disabled.");
-        TelemetryStore::new_without_background_runners(
-            persisted_files.map(|p| p as _),
-            processing_engine_metrics,
-        )
+        TelemetryStore::new_without_background_runners_from_args(args)
     } else {
         debug!("Initializing TelemetryStore with upload enabled for {telemetry_endpoint}.");
-        TelemetryStore::new(CreateTelemetryStoreArgs {
-            instance_id,
-            os: Arc::from(os),
-            influx_version: Arc::from(influx_version),
-            storage_type: Arc::from(storage_type),
-            cores: num_cpus,
-            persisted_files: persisted_files.map(|p| p as _),
-            telemetry_endpoint: telemetry_endpoint.to_string(),
-            catalog_uuid,
-            serve_invocation_method,
-            processing_engine_metrics,
-        })
-        .await
+        TelemetryStore::new(args).await
     }
 }
 
@@ -1565,6 +1685,19 @@ async fn background_buffer_checker(
 ))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+// Bake jemalloc heap-profiling defaults into the binary so an OOM/leak
+// investigation has data from process start; enabling profiling only at
+// triage time misses allocations made before the flip. The MALLOC_CONF
+// env var takes precedence at process init, so operators can override
+// (`MALLOC_CONF=prof:false` to disable entirely). The macro itself handles
+// the per-platform symbol naming (`malloc_conf` vs `_rjem_malloc_conf`).
+#[cfg(all(
+    feature = "jemalloc_replacing_malloc",
+    not(target_env = "msvc"),
+    not(feature = "disable_custom_global_allocator"),
+))]
+jemalloc_stats::install_default_malloc_conf_for_profiling!();
 
 use influxdb3_write::deleter::DeleteManagerArgs;
 #[cfg(tokio_unstable)]

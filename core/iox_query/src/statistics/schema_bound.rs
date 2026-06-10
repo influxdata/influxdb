@@ -2,11 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use arrow::datatypes::SchemaRef;
-use datafusion::common::stats::Precision;
-use datafusion::common::{ColumnStatistics, Statistics};
-use datafusion::scalar::ScalarValue;
+use datafusion::common::Statistics;
 
 use crate::QueryChunk;
+use crate::statistics::stats_utils::synthesize_absent_column_stats;
 
 pub(crate) struct SchemaBoundStatistics {
     schema: SchemaRef,
@@ -39,23 +38,13 @@ impl SchemaBoundStatistics {
         let chunk_stats = chunk.stats();
         let chunk_schema = chunk.schema();
 
-        // A vector of absent stats for all columns in the schema
+        // A vector of typed-null stats for all columns in the schema;
+        // entries for columns the chunk has are overwritten below.
         let mut schema_col_stats_for_chunk = self
             .schema
             .fields()
             .iter()
-            .map(|f| {
-                let null_val =
-                    ScalarValue::try_from(f.data_type()).expect("works for all IOx types");
-
-                ColumnStatistics {
-                    null_count: chunk_stats.num_rows,
-                    max_value: Precision::Exact(null_val.clone()),
-                    min_value: Precision::Exact(null_val),
-                    distinct_count: Precision::Absent,
-                    sum_value: Precision::Absent,
-                }
-            })
+            .map(|f| synthesize_absent_column_stats(f, chunk_stats.num_rows))
             .collect::<Vec<_>>();
 
         // Fill stats of columns in the chunk, or fallback values

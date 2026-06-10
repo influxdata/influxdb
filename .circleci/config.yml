@@ -146,10 +146,10 @@ parameters:
   # Consistent environment setup for Python Build Standalone
   PBS_DATE:
     type: string
-    default: "20260211"
+    default: "20260602"
   PBS_VERSION:
     type: string
-    default: "3.13.12"
+    default: "3.13.13"
 
 # Consistent Cargo environment configuration
 cargo_env: &cargo_env
@@ -271,6 +271,12 @@ jobs:
           command: cargo install cargo-deny --locked
       - run:
           name: cargo-deny Checks
+          # `--warn unsound` downgrades RustSec `informational = "unsound"`
+          # advisories to warnings. They flag API soundness concerns, not
+          # exploitable vulnerabilities, so we don't fail CI on them. The
+          # advisory-db maintainers themselves recommend ignoring
+          # informational=unsound reports for security checks:
+          # https://github.com/rustsec/advisory-db/issues/2572#issuecomment-3740573839
           command: cargo deny check -s --warn unsound
 
   doc:

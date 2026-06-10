@@ -144,7 +144,9 @@ const DO_GET_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 // Flight query observer (for enterprise SLL integration)
 mod observer;
 use observer::ObservedStream;
-pub use observer::{FlightQueryInfo, FlightQueryObservation, FlightQueryObserver, GrpcCode};
+pub use observer::{
+    FlightPlannedInfo, FlightQueryInfo, FlightQueryObservation, FlightQueryObserver, GrpcCode,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -935,11 +937,16 @@ impl Flight for FlightService {
         let query = request.query.clone();
         let jaeger_trace = external_span_ctx.format_jaeger();
 
-        // Notify observer (enterprise SLL) that a query is starting.
+        // Notify observer (enterprise SLL + load capture) that a query is starting.
+        // See `RunQuery::sanitized_text` for why we must not use the
+        // `Display` impl of `RunQuery` here — for non-statement FlightSQL
+        // commands, it embeds user-supplied catalog / schema / table names
+        // verbatim, which would leak into anonymized capture files.
         let observation = self.observer.as_ref().map(|obs| {
             obs.on_query_start(FlightQueryInfo {
                 database: database.clone(),
                 query_variant: request.query().variant().str(),
+                query_text: request.query().sanitized_text(),
             })
         });
 
@@ -981,24 +988,45 @@ impl Flight for FlightService {
             );
         }
 
+        // Snapshot planning-time signals from the query log entry once,
+        // so success and error paths can both surface them to the
+        // observer. Gated on `physical_plan_duration.is_some()` to
+        // honor the `on_planned` contract — the callback must not fire
+        // when planning failed before the physical plan was built.
+        let planned_info = log_entry.as_ref().and_then(|entry| {
+            let state = entry.state();
+            state
+                .physical_plan_duration
+                .is_some()
+                .then(|| FlightPlannedInfo {
+                    partitions_scanned: state.partitions,
+                })
+        });
+
         let md = QueryResponseMetadata { log_entry };
         let md_captured = md.clone();
         if let Some(trailers) = trailers {
             trailers.add_callback(move |trailers| md_captured.write_trailers(trailers));
         }
 
-        {
-            match (response, observation) {
-                (Ok(stream), Some(obs)) => Ok(Response::new(Box::pin(ObservedStream::new(
-                    stream, obs,
-                )) as _)),
-                (Ok(stream), None) => Ok(Response::new(Box::pin(stream) as _)),
-                (Err(status), Some(obs)) => {
-                    obs.error(status.code());
-                    Err(status)
+        match (response, observation) {
+            (Ok(stream), Some(mut obs)) => {
+                if let Some(info) = planned_info {
+                    obs.on_planned(info);
                 }
-                (Err(status), None) => Err(status),
+                Ok(Response::new(
+                    Box::pin(ObservedStream::new(stream, obs)) as _
+                ))
             }
+            (Ok(stream), None) => Ok(Response::new(Box::pin(stream) as _)),
+            (Err(status), Some(mut obs)) => {
+                if let Some(info) = planned_info {
+                    obs.on_planned(info);
+                }
+                obs.error(status.code());
+                Err(status)
+            }
+            (Err(status), None) => Err(status),
         }
     }
 

@@ -103,6 +103,16 @@ pub trait QueryChunk: Debug + Send + Sync + 'static {
 
     /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
     fn as_any(&self) -> &dyn Any;
+
+    /// Hook for `RecordBatchesExec` to emit a `bytes_scanned` metric on
+    /// behalf of this chunk. Only consumed by record-batch-backed
+    /// chunks; parquet chunks return 0 because their bytes are reported
+    /// by `ParquetExec` directly. Default 0 is the right answer for
+    /// any chunk that doesn't otherwise have a meaningful byte count to
+    /// surface here.
+    fn bytes_scanned(&self) -> u64 {
+        0
+    }
 }
 
 /// `QueryNamespace` is the main trait implemented by the IOx subsystems that store actual data.

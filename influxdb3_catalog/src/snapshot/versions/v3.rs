@@ -3,11 +3,13 @@
 /// log files.
 use crate::catalog::CatalogSequenceNumber;
 use crate::log::versions::v3::{
-    MaxAge, MaxCardinality, NodeMode, TriggerSettings, TriggerSpecificationDefinition,
+    MaxAge, MaxCardinality, NodeMode, NodeSpec, TriggerSettings, TriggerSpecificationDefinition,
 };
 use crate::serialize::VersionedFileType;
 use arrow::datatypes::DataType as ArrowDataType;
 use hashbrown::HashMap;
+use indexmap::IndexMap;
+use influxdb3_authz::SystemResourceIdentifier;
 use influxdb3_id::{
     CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId, TokenId,
     TriggerId,
@@ -66,6 +68,9 @@ pub(crate) struct PermissionSnapshot {
     pub resource_type: ResourceTypeSnapshot,
     pub resource_identifier: ResourceIdentifierSnapshot,
     pub actions: ActionsSnapshot,
+    /// Optional mapping of resource IDs to their metadata, used when resources are deleted
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub resource_names: Option<IndexMap<String, influxdb3_authz::ResourceMetadata>>,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -73,12 +78,14 @@ pub(crate) enum ResourceTypeSnapshot {
     Database,
     Token,
     Wildcard,
+    System,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum ResourceIdentifierSnapshot {
     Database(Vec<DbId>),
     Token(Vec<TokenId>),
+    System(Vec<SystemResourceIdentifier>),
     Wildcard,
 }
 
@@ -86,6 +93,7 @@ pub(crate) enum ResourceIdentifierSnapshot {
 pub(crate) enum ActionsSnapshot {
     Database(DatabaseActionsSnapshot),
     Token(CrudActionsSnapshot),
+    System(SystemActionsSnapshot),
     Wildcard,
 }
 
@@ -94,6 +102,9 @@ pub(crate) struct DatabaseActionsSnapshot(pub u16);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct CrudActionsSnapshot(pub u16);
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct SystemActionsSnapshot(pub u16);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct NodeSnapshot {
@@ -129,11 +140,10 @@ pub(crate) struct TableSnapshot {
     pub(crate) table_name: Arc<str>,
     pub(crate) key: Vec<ColumnId>,
     pub(crate) columns: RepositorySnapshot<ColumnId, ColumnDefinitionSnapshot>,
+    pub(crate) retention_period: Option<RetentionPeriodSnapshot>,
     pub(crate) last_caches: RepositorySnapshot<LastCacheId, LastCacheSnapshot>,
     pub(crate) distinct_caches: RepositorySnapshot<DistinctCacheId, DistinctCacheSnapshot>,
     pub(crate) deleted: bool,
-    // TODO(sgc): Remove `skip_serializing_if` when implementation is complete
-    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub(crate) hard_delete_time: Option<i64>,
 }
 
@@ -141,7 +151,7 @@ pub(crate) struct TableSnapshot {
 pub(crate) struct ProcessingEngineTriggerSnapshot {
     pub trigger_id: TriggerId,
     pub trigger_name: Arc<str>,
-    pub node_id: Arc<str>,
+    pub node_spec: NodeSpec,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
     pub trigger_specification: TriggerSpecificationDefinition,
@@ -168,6 +178,7 @@ pub(crate) struct ColumnDefinitionSnapshot {
 pub(crate) struct LastCacheSnapshot {
     pub(crate) table_id: TableId,
     pub(crate) table: Arc<str>,
+    pub(crate) node_spec: NodeSpec,
     pub(crate) id: LastCacheId,
     pub(crate) name: Arc<str>,
     pub(crate) keys: Vec<ColumnId>,
@@ -180,6 +191,7 @@ pub(crate) struct LastCacheSnapshot {
 pub(crate) struct DistinctCacheSnapshot {
     pub(crate) table_id: TableId,
     pub(crate) table: Arc<str>,
+    pub(crate) node_spec: NodeSpec,
     pub(crate) id: DistinctCacheId,
     pub(crate) name: Arc<str>,
     pub(crate) cols: Vec<ColumnId>,

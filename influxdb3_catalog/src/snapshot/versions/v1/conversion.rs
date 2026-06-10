@@ -155,6 +155,7 @@ impl From<super::LastCacheSnapshot> for v2::LastCacheSnapshot {
             vals: value.vals,
             n: value.n,
             ttl: value.ttl,
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -169,6 +170,7 @@ impl From<super::DistinctCacheSnapshot> for v2::DistinctCacheSnapshot {
             cols: value.cols,
             max_cardinality: value.max_cardinality.into(),
             max_age_seconds: value.max_age_seconds.into(),
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -178,7 +180,7 @@ impl From<super::ProcessingEngineTriggerSnapshot> for v2::ProcessingEngineTrigge
         Self {
             trigger_id: value.trigger_id,
             trigger_name: value.trigger_name,
-            node_id: value.node_id,
+            node_spec: value.node_spec.into(),
             plugin_filename: value.plugin_filename,
             database_name: value.database_name,
             trigger_specification: value.trigger_specification.into(),

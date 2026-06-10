@@ -2,11 +2,12 @@ mod conversion;
 
 use crate::catalog::CatalogSequenceNumber;
 use crate::log::versions::v2::{
-    MaxAge, MaxCardinality, NodeMode, TriggerSettings, TriggerSpecificationDefinition,
+    MaxAge, MaxCardinality, NodeMode, NodeSpec, TriggerSettings, TriggerSpecificationDefinition,
 };
 use crate::serialize::VersionedFileType;
 use arrow::datatypes::DataType as ArrowDataType;
 use hashbrown::HashMap;
+use influxdb3_authz::SystemResourceIdentifier;
 use influxdb3_id::{
     CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId, TokenId,
     TriggerId,
@@ -57,12 +58,14 @@ pub(crate) enum ResourceTypeSnapshot {
     Database,
     Token,
     Wildcard,
+    System,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum ResourceIdentifierSnapshot {
     Database(Vec<DbId>),
     Token(Vec<TokenId>),
+    System(Vec<SystemResourceIdentifier>),
     Wildcard,
 }
 
@@ -70,6 +73,7 @@ pub(crate) enum ResourceIdentifierSnapshot {
 pub(crate) enum ActionsSnapshot {
     Database(DatabaseActionsSnapshot),
     Token(CrudActionsSnapshot),
+    System(SystemActionsSnapshot),
     Wildcard,
 }
 
@@ -78,6 +82,9 @@ pub(crate) struct DatabaseActionsSnapshot(u16);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct CrudActionsSnapshot(u16);
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct SystemActionsSnapshot(u16);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct NodeSnapshot {
@@ -120,7 +127,7 @@ pub(crate) struct TableSnapshot {
 pub(crate) struct ProcessingEngineTriggerSnapshot {
     pub trigger_id: TriggerId,
     pub trigger_name: Arc<str>,
-    pub node_id: Arc<str>,
+    pub node_spec: NodeSpec,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
     pub trigger_specification: TriggerSpecificationDefinition,
@@ -147,6 +154,7 @@ pub(crate) struct ColumnDefinitionSnapshot {
 pub(crate) struct LastCacheSnapshot {
     pub(crate) table_id: TableId,
     pub(crate) table: Arc<str>,
+    pub(crate) node_spec: NodeSpec,
     pub(crate) id: LastCacheId,
     pub(crate) name: Arc<str>,
     pub(crate) keys: Vec<ColumnId>,
@@ -159,6 +167,7 @@ pub(crate) struct LastCacheSnapshot {
 pub(crate) struct DistinctCacheSnapshot {
     pub(crate) table_id: TableId,
     pub(crate) table: Arc<str>,
+    pub(crate) node_spec: NodeSpec,
     pub(crate) id: DistinctCacheId,
     pub(crate) name: Arc<str>,
     pub(crate) cols: Vec<ColumnId>,

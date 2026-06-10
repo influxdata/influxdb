@@ -358,6 +358,18 @@ impl From<FieldType> for FieldDataType {
     }
 }
 
+impl From<FieldType> for influxdb3_catalog::catalog::FieldDataType {
+    fn from(f: FieldType) -> Self {
+        match f {
+            FieldType::Utf8 => Self::String,
+            FieldType::Int64 => Self::Integer,
+            FieldType::UInt64 => Self::UInteger,
+            FieldType::Float64 => Self::Float,
+            FieldType::Bool => Self::Boolean,
+        }
+    }
+}
+
 /// Request definition for the `DELETE /api/v3/configure/table` API
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeleteTableRequest {

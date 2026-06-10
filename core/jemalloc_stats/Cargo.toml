@@ -7,14 +7,19 @@ license.workspace = true
 
 [dependencies]
 snafu = "0.9"
+tempfile.workspace = true
+thiserror.workspace = true
 tikv-jemalloc-ctl = { version = "0.5.4", features = ["use_std"] }
-tokio = { version = "1.52.0", features = ["rt", "sync", "time"] }
+tokio = { version = "1.52.0", features = ["fs", "rt", "sync", "time"] }
+tokio-util = { version = "0.7.13", features = ["io"] }
 
 [lints]
 workspace = true
 
 [dev-dependencies]
+futures.workspace = true
 tikv-jemallocator = { version = "0.5", features = [
     "unprefixed_malloc_on_supported_platforms",
+    "profiling",
 ] }
 tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }

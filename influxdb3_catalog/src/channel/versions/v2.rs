@@ -1,9 +1,11 @@
 use std::{
     ops::{Deref, DerefMut},
+    pin::Pin,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
+    task::{Context as TaskContext, Poll},
 };
 
 use anyhow::Context;
@@ -78,6 +80,20 @@ impl DerefMut for CatalogUpdateReceiver {
     }
 }
 
+impl futures::Stream for CatalogUpdateReceiver {
+    type Item = CatalogUpdateMessage;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
+        self.rx.poll_recv(cx)
+    }
+}
+
+impl Drop for CatalogUpdateReceiver {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 /// A message containing a set of `CatalogUpdate`s that can be handled by subscribers to the
 /// `Catalog`.
 ///
@@ -100,6 +116,13 @@ impl CatalogUpdateMessage {
     /// Iterate over the `CatalogBatch`s in the update
     pub fn batches(&self) -> impl Iterator<Item = &CatalogBatch> {
         self.update.batches()
+    }
+
+    /// Returns true when this update contains a restore.
+    pub fn is_restore(&self) -> bool {
+        self.update
+            .batches()
+            .any(|batch| batch.as_restore().is_some())
     }
 }
 
@@ -188,6 +211,14 @@ impl CatalogSubscriptions {
             .into_iter()
             .collect::<Result<Vec<()>, anyhow::Error>>()?;
         Ok(())
+    }
+
+    pub(crate) fn unsubscribe(&mut self, name: &str) {
+        self.subscriptions.remove(name);
+    }
+
+    pub(crate) fn prune_closed(&mut self) {
+        self.subscriptions.retain(|_, s| !s.is_stopped());
     }
 }
 

@@ -1,6 +1,7 @@
 use observability_deps::tracing::info;
 
 use crate::store::to_2_decimal_places;
+use crate::{MetricsError, PluginTriggerInvocation, PluginTriggerInvocationMetrics};
 
 use super::*;
 
@@ -19,6 +20,35 @@ impl ProcessingEngineMetrics for SampleMetrics {
     }
 }
 
+impl PythonEnvironmentMetrics for SampleMetrics {
+    fn installed_packages(&self) -> std::result::Result<Vec<String>, MetricsError> {
+        Ok(vec!["tablib".to_string()])
+    }
+}
+
+impl PluginTriggerInvocationMetrics for SampleMetrics {
+    fn plugin_trigger_invocations(&self) -> Vec<PluginTriggerInvocation> {
+        vec![PluginTriggerInvocation {
+            database_name: "foo".to_owned(),
+            trigger_name: "bar".to_owned(),
+            plugin_name: "baz".to_owned(),
+            trigger_type: "process_request".to_owned(),
+            invocation_count: 10,
+        }]
+    }
+
+    fn reset_plugin_trigger_invocations(&self) {}
+}
+
+#[derive(Debug)]
+struct FailingPythonEnvironmentMetrics;
+
+impl PythonEnvironmentMetrics for FailingPythonEnvironmentMetrics {
+    fn installed_packages(&self) -> std::result::Result<Vec<String>, MetricsError> {
+        Err("failed to list packages".into())
+    }
+}
+
 #[test_log::test(tokio::test)]
 async fn test_telemetry_store() {
     // create store
@@ -34,6 +64,9 @@ async fn test_telemetry_store() {
         catalog_uuid: "catalog_but_cluster_uuid".to_owned(),
         serve_invocation_method: ServeInvocationMethod::Tests,
         processing_engine_metrics: Arc::from(SampleMetrics) as Arc<dyn ProcessingEngineMetrics>,
+        python_env_metrics: Some(Arc::new(SampleMetrics)),
+        plugin_trigger_invocation_metrics: Some(Arc::new(SampleMetrics)),
+        storage_engine: StorageEngineType::Tests,
     })
     .await;
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -74,6 +107,17 @@ async fn test_telemetry_store() {
     assert_eq!(160, snapshot.wal_all_triggers_count);
     assert_eq!(200, snapshot.schedule_triggers_count);
     assert_eq!(250, snapshot.request_triggers_count);
+    assert_eq!(vec!["tablib".to_string()], snapshot.installed_packages);
+    assert_eq!(
+        vec![PluginTriggerInvocation {
+            database_name: "foo".to_owned(),
+            trigger_name: "bar".to_owned(),
+            plugin_name: "baz".to_owned(),
+            trigger_type: "process_request".to_owned(),
+            invocation_count: 10,
+        }],
+        snapshot.plugin_trigger_invocations
+    );
 
     // add some writes
     store.add_write_metrics(100, 100);
@@ -180,4 +224,27 @@ fn test_to_4_decimal_places() {
     let x = 25.486842105263158;
     let rounded = round_to_decimal_places(x, 4);
     assert_eq!(25.4868, rounded);
+}
+
+#[test]
+fn test_snapshot_defaults_installed_packages_when_python_metrics_fail() {
+    let store =
+        TelemetryStore::new_without_background_runners_from_args(CreateTelemetryStoreArgs {
+            instance_id: Arc::from("some-instance-id"),
+            os: Arc::from("Linux"),
+            influx_version: Arc::from("Core-v3.0"),
+            storage_type: Arc::from("Memory"),
+            cores: 10,
+            persisted_files: None,
+            telemetry_endpoint: "http://localhost/telemetry".to_owned(),
+            catalog_uuid: "catalog_but_cluster_uuid".to_owned(),
+            serve_invocation_method: ServeInvocationMethod::Tests,
+            processing_engine_metrics: Arc::new(SampleMetrics),
+            python_env_metrics: Some(Arc::new(FailingPythonEnvironmentMetrics)),
+            plugin_trigger_invocation_metrics: None,
+            storage_engine: StorageEngineType::Tests,
+        });
+
+    let snapshot = store.snapshot();
+    assert!(snapshot.installed_packages.is_empty());
 }

@@ -1,16 +1,36 @@
 use indexmap::{IndexMap, IndexSet};
 
-use super::{SerdeVecMap, SerdeVecSet};
+use super::{FxBuildHasher, SerdeVecMap, SerdeVecSet};
 
 #[test]
 fn serde_vec_map_with_json() {
-    let map = IndexMap::<u32, &str>::from_iter([(0, "foo"), (1, "bar"), (2, "baz")]);
+    // Create map directly with FxHasher
+    let mut map = IndexMap::<u32, &str, FxBuildHasher>::with_hasher(FxBuildHasher::default());
+    map.extend([(0, "foo"), (1, "bar"), (2, "baz")]);
     let serde_vec_map = SerdeVecMap::from(map);
     // test round-trip to JSON:
     let s = serde_json::to_string(&serde_vec_map).unwrap();
     assert_eq!(r#"[[0,"foo"],[1,"bar"],[2,"baz"]]"#, s);
     let d: SerdeVecMap<u32, &str> = serde_json::from_str(&s).unwrap();
     assert_eq!(d, serde_vec_map);
+}
+
+#[test]
+fn test_backward_compatibility_deserialize() {
+    // JSON from old version with default hasher - this is the actual format on disk
+    let old_json = r#"[[1,"db1"],[2,"db2"],[3,"db3"]]"#;
+
+    // Should deserialize into FxHash-based SerdeVecMap
+    let map: SerdeVecMap<u32, &str> = serde_json::from_str(old_json).unwrap();
+
+    // Verify data preserved
+    assert_eq!(map.get(&1), Some(&"db1"));
+    assert_eq!(map.get(&2), Some(&"db2"));
+    assert_eq!(map.get(&3), Some(&"db3"));
+
+    // Re-serialize - format should be identical
+    let new_json = serde_json::to_string(&map).unwrap();
+    assert_eq!(new_json, old_json);
 }
 
 #[test]

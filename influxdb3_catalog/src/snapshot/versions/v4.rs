@@ -2,13 +2,17 @@
 
 use crate::catalog::CatalogSequenceNumber;
 use crate::catalog::versions::v2::{
-    ColumnDefinition, FieldColumn, FieldFamilyMode, FieldFamilyName, TagColumn, TimestampColumn,
+    ColumnDefinition, DeletionScope, FieldColumn, FieldFamilyMode, FieldFamilyName, TagColumn,
+    TimestampColumn,
 };
 use crate::log::versions::v4::{
-    MaxAge, MaxCardinality, NodeMode, TriggerSettings, TriggerSpecificationDefinition,
+    CacheSource, MaxAge, MaxCardinality, NodeMode, NodeSpec, RefreshInterval, StorageMode,
+    TriggerSettings, TriggerSpecificationDefinition,
 };
 use crate::serialize::VersionedFileType;
 use hashbrown::HashMap;
+use indexmap::IndexMap;
+use influxdb3_authz::SystemResourceIdentifier;
 use influxdb3_id::{
     CatalogId, ColumnId, ColumnIdentifier, DbId, DistinctCacheId, FieldFamilyId, FieldIdentifier,
     LastCacheId, NodeId, SerdeVecMap, TableId, TagId, TokenId, TriggerId,
@@ -23,6 +27,8 @@ pub struct CatalogSnapshot {
     // NOTE(tjh): added as part of https://github.com/influxdata/influxdb_pro/issues/911
     #[serde(default)]
     pub(crate) generation_config: GenerationConfigSnapshot,
+    #[serde(default, skip_serializing_if = "StorageMode::is_default")]
+    pub(crate) storage_mode: StorageMode,
     pub(crate) nodes: RepositorySnapshot<NodeId, NodeSnapshot>,
     pub(crate) databases: RepositorySnapshot<DbId, DatabaseSnapshot>,
     pub(crate) sequence: CatalogSequenceNumber,
@@ -66,6 +72,9 @@ pub(crate) struct PermissionSnapshot {
     pub resource_type: ResourceTypeSnapshot,
     pub resource_identifier: ResourceIdentifierSnapshot,
     pub actions: ActionsSnapshot,
+    /// Optional mapping of resource IDs to their metadata, used when resources are deleted
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub resource_names: Option<IndexMap<String, influxdb3_authz::ResourceMetadata>>,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -73,12 +82,14 @@ pub(crate) enum ResourceTypeSnapshot {
     Database,
     Token,
     Wildcard,
+    System,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum ResourceIdentifierSnapshot {
     Database(Vec<DbId>),
     Token(Vec<TokenId>),
+    System(Vec<SystemResourceIdentifier>),
     Wildcard,
 }
 
@@ -86,6 +97,7 @@ pub(crate) enum ResourceIdentifierSnapshot {
 pub(crate) enum ActionsSnapshot {
     Database(DatabaseActionsSnapshot),
     Token(CrudActionsSnapshot),
+    System(SystemActionsSnapshot),
     Wildcard,
 }
 
@@ -107,7 +119,11 @@ pub(crate) struct NodeSnapshot {
     pub(crate) state: NodeStateSnapshot,
     pub(crate) core_count: u64,
     #[serde(default)]
+    pub(crate) conn_info: Option<Arc<str>>,
+    #[serde(default)]
     pub(crate) cli_params: Option<Arc<str>>,
+    #[serde(default)]
+    pub(crate) row_delete_predicate_version: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -126,6 +142,8 @@ pub(crate) struct DatabaseSnapshot {
         RepositorySnapshot<TriggerId, ProcessingEngineTriggerSnapshot>,
     pub(crate) deleted: bool,
     pub(crate) hard_delete_time: Option<i64>,
+    #[serde(default)]
+    pub(crate) hard_delete_scope: Option<DeletionScope>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -135,18 +153,21 @@ pub(crate) struct TableSnapshot {
     pub(crate) key: Vec<TagId>,
     pub(crate) columns: ColumnSetSnapshot,
     pub(crate) field_families: RepositorySnapshot<FieldFamilyId, FieldFamilySnapshot>,
+    pub(crate) retention_period: Option<RetentionPeriodSnapshot>,
     pub(crate) last_caches: RepositorySnapshot<LastCacheId, LastCacheSnapshot>,
     pub(crate) distinct_caches: RepositorySnapshot<DistinctCacheId, DistinctCacheSnapshot>,
     pub(crate) deleted: bool,
     pub(crate) hard_delete_time: Option<i64>,
     pub(crate) field_family_mode: FieldFamilyMode,
+    #[serde(default)]
+    pub(crate) hard_delete_scope: Option<DeletionScope>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ProcessingEngineTriggerSnapshot {
     pub trigger_id: TriggerId,
     pub trigger_name: Arc<str>,
-    pub node_id: Arc<str>,
+    pub node_spec: NodeSpec,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
     pub trigger_specification: TriggerSpecificationDefinition,
@@ -164,7 +185,7 @@ pub enum ColumnDefinitionSnapshot {
 }
 
 impl ColumnDefinitionSnapshot {
-    pub fn column_id(&self) -> ColumnId {
+    pub fn column_id(&self) -> Option<ColumnId> {
         match self {
             ColumnDefinitionSnapshot::Timestamp(v) => v.column_id,
             ColumnDefinitionSnapshot::Tag(v) => v.column_id,
@@ -187,7 +208,7 @@ impl From<ColumnDefinitionSnapshot> for ColumnDefinition {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TimestampColumnSnapshot {
-    pub(crate) column_id: ColumnId,
+    pub(crate) column_id: Option<ColumnId>,
     pub(crate) name: Arc<str>,
 }
 
@@ -203,7 +224,7 @@ impl From<TimestampColumnSnapshot> for TimestampColumn {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TagColumnSnapshot {
     pub id: TagId,
-    pub column_id: ColumnId,
+    pub column_id: Option<ColumnId>,
     pub name: Arc<str>,
 }
 
@@ -220,7 +241,7 @@ impl From<TagColumnSnapshot> for TagColumn {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FieldColumnSnapshot {
     pub id: FieldIdentifier,
-    pub column_id: ColumnId,
+    pub column_id: Option<ColumnId>,
     pub name: Arc<str>,
     pub data_type: FieldDataType,
 }
@@ -279,6 +300,7 @@ pub(crate) struct FieldFamilySnapshot {
 pub(crate) struct LastCacheSnapshot {
     pub(crate) table_id: TableId,
     pub(crate) table: Arc<str>,
+    pub(crate) node_spec: NodeSpec,
     pub(crate) id: LastCacheId,
     pub(crate) name: Arc<str>,
     pub(crate) keys: Vec<ColumnIdentifier>,
@@ -291,11 +313,21 @@ pub(crate) struct LastCacheSnapshot {
 pub(crate) struct DistinctCacheSnapshot {
     pub(crate) table_id: TableId,
     pub(crate) table: Arc<str>,
+    pub(crate) node_spec: NodeSpec,
     pub(crate) id: DistinctCacheId,
     pub(crate) name: Arc<str>,
     pub(crate) cols: Vec<ColumnIdentifier>,
     pub(crate) max_cardinality: MaxCardinality,
     pub(crate) max_age_seconds: MaxAge,
+    /// Source of the cache - User created or Auto-generated
+    #[serde(default)]
+    pub(crate) source: CacheSource,
+    /// Lookback window in seconds for the query we run to populate auto-generated caches
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) lookback_seconds: Option<u64>,
+    /// Background refresh configuration for auto-generated caches
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) refresh_interval: Option<RefreshInterval>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

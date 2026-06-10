@@ -1,10 +1,13 @@
 #![allow(unreachable_pub, dead_code, clippy::wrong_self_convention)]
 
-// Enterprise module removed during port
+pub(crate) mod enterprise;
 
+use std::fmt::Formatter;
 use std::{
     borrow::Cow,
     cmp::{Ord, PartialOrd},
+    collections::BTreeSet,
+    fmt,
     num::NonZeroUsize,
     ops::Deref,
     str::FromStr,
@@ -14,7 +17,7 @@ use std::{
 
 use anyhow::Context;
 use cron::Schedule;
-// Enterprise import removed - CreateTokenDetails
+use enterprise::CreateTokenDetails;
 use hashbrown::HashMap;
 use humantime::{format_duration, parse_duration};
 use influxdb3_id::{
@@ -25,9 +28,10 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::catalog::NodeDefinition;
 use crate::catalog::versions::v2::{
-    ColumnDefinition, FieldColumn, FieldFamilyDefinition, FieldFamilyMode, FieldFamilyName,
-    TagColumn, TimestampColumn,
+    ColumnDefinition, DeletionScope, FieldColumn, FieldFamilyDefinition, FieldFamilyMode,
+    FieldFamilyName, TagColumn, TimestampColumn,
 };
 use crate::{CatalogError, Result, catalog::CatalogSequenceNumber, serialize::VersionedFileType};
 
@@ -67,6 +71,33 @@ impl RetentionPeriod {
 
 #[cfg(test)]
 mod retention_period_tests;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageMode {
+    #[default]
+    Parquet,
+    PachaTree,
+    /// Migrating from Parquet to PachaTree storage mode
+    ParquetAndPachaTree,
+}
+
+impl StorageMode {
+    pub fn is_default(mode: &Self) -> bool {
+        matches!(mode, Self::Parquet)
+    }
+}
+
+impl fmt::Display for StorageMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            StorageMode::Parquet => f.write_str("Parquet"),
+            StorageMode::PachaTree => f.write_str("PachaTree"),
+            StorageMode::ParquetAndPachaTree => f.write_str("Parquet and PachaTree"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum CatalogBatch {
     Node(NodeBatch),
@@ -77,6 +108,10 @@ pub enum CatalogBatch {
     Delete(DeleteBatch),
     /// A batch for modifying catalog generation configuration
     Generation(GenerationBatch),
+    /// A batch for updating catalog storage mode
+    StorageMode(StorageModeBatch),
+    /// A batch for replacing the in-memory catalog with a restored snapshot.
+    Restore(RestoreBatch),
 }
 
 impl CatalogBatch {
@@ -116,6 +151,24 @@ impl CatalogBatch {
         Self::Generation(GenerationBatch { time_ns, ops })
     }
 
+    pub fn storage_mode(time_ns: i64, ops: Vec<StorageModeOp>) -> Self {
+        Self::StorageMode(StorageModeBatch { time_ns, ops })
+    }
+
+    pub fn restore(
+        time_ns: i64,
+        restore_id: impl Into<Arc<str>>,
+        checkpoint_path: impl Into<String>,
+        log_paths: Vec<String>,
+    ) -> Self {
+        Self::Restore(RestoreBatch {
+            time_ns,
+            restore_id: restore_id.into(),
+            checkpoint_path: checkpoint_path.into(),
+            log_paths,
+        })
+    }
+
     pub fn n_ops(&self) -> usize {
         match self {
             CatalogBatch::Node(node_batch) => node_batch.ops.len(),
@@ -123,6 +176,8 @@ impl CatalogBatch {
             CatalogBatch::Token(token_batch) => token_batch.ops.len(),
             CatalogBatch::Delete(delete_batch) => delete_batch.ops.len(),
             CatalogBatch::Generation(generation_batch) => generation_batch.ops.len(),
+            CatalogBatch::StorageMode(storage_mode_batch) => storage_mode_batch.ops.len(),
+            CatalogBatch::Restore(_) => 1,
         }
     }
 
@@ -133,10 +188,22 @@ impl CatalogBatch {
         }
     }
 
+    pub fn as_token(&self) -> Option<&TokenBatch> {
+        match self {
+            CatalogBatch::Token(token_batch) => Some(token_batch),
+            _ => None,
+        }
+    }
+
     pub fn as_delete(&self) -> Option<&DeleteBatch> {
         match self {
             CatalogBatch::Delete(delete_batch) => Some(delete_batch),
-            _ => None,
+            CatalogBatch::Node(_) => None,
+            CatalogBatch::Token(_) => None,
+            CatalogBatch::Database(_) => None,
+            CatalogBatch::Generation(_) => None,
+            CatalogBatch::StorageMode(_) => None,
+            CatalogBatch::Restore(_) => None,
         }
     }
 
@@ -147,6 +214,8 @@ impl CatalogBatch {
             CatalogBatch::Token(_) => None,
             CatalogBatch::Delete(_) => None,
             CatalogBatch::Generation(_) => None,
+            CatalogBatch::StorageMode(_) => None,
+            CatalogBatch::Restore(_) => None,
         }
     }
 
@@ -157,6 +226,8 @@ impl CatalogBatch {
             CatalogBatch::Token(_) => None,
             CatalogBatch::Delete(_) => None,
             CatalogBatch::Generation(_) => None,
+            CatalogBatch::StorageMode(_) => None,
+            CatalogBatch::Restore(_) => None,
         }
     }
 
@@ -167,6 +238,32 @@ impl CatalogBatch {
             CatalogBatch::Token(_) => None,
             CatalogBatch::Delete(_) => None,
             CatalogBatch::Generation(generation_batch) => Some(generation_batch),
+            CatalogBatch::StorageMode(_) => None,
+            CatalogBatch::Restore(_) => None,
+        }
+    }
+
+    pub fn as_storage_mode(&self) -> Option<&StorageModeBatch> {
+        match self {
+            CatalogBatch::StorageMode(storage_mode_batch) => Some(storage_mode_batch),
+            CatalogBatch::Node(_) => None,
+            CatalogBatch::Database(_) => None,
+            CatalogBatch::Token(_) => None,
+            CatalogBatch::Delete(_) => None,
+            CatalogBatch::Generation(_) => None,
+            CatalogBatch::Restore(_) => None,
+        }
+    }
+
+    pub fn as_restore(&self) -> Option<&RestoreBatch> {
+        match self {
+            CatalogBatch::Restore(restore_batch) => Some(restore_batch),
+            CatalogBatch::Node(_) => None,
+            CatalogBatch::Database(_) => None,
+            CatalogBatch::Token(_) => None,
+            CatalogBatch::Delete(_) => None,
+            CatalogBatch::Generation(_) => None,
+            CatalogBatch::StorageMode(_) => None,
         }
     }
 }
@@ -214,6 +311,25 @@ pub enum GenerationOp {
 pub struct SetGenerationDurationLog {
     pub level: u8,
     pub duration: Duration,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
+pub struct StorageModeBatch {
+    pub time_ns: i64,
+    pub ops: Vec<StorageModeOp>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RestoreBatch {
+    pub time_ns: i64,
+    pub restore_id: Arc<str>,
+    pub checkpoint_path: String,
+    pub log_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum StorageModeOp {
+    Set(StorageMode),
 }
 
 /// A catalog batch that has been processed by the catalog and given a sequence number.
@@ -323,7 +439,11 @@ pub struct RegisterNodeLog {
     pub mode: Vec<NodeMode>,
     pub process_uuid: Uuid,
     #[serde(default)]
+    pub conn_info: Option<String>,
+    #[serde(default)]
     pub cli_params: Option<String>,
+    #[serde(default)]
+    pub row_delete_predicate_version: usize,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -336,18 +456,45 @@ pub struct StopNodeLog {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum NodeMode {
     Core,
+    // Enterprise Only:
+    Query,
+    Ingest,
+    Compact,
+    Process,
+    All,
 }
 
 impl NodeMode {
     pub fn as_str(&self) -> &'static str {
         match self {
             NodeMode::Core => "core",
+            NodeMode::Query => "query",
+            NodeMode::Ingest => "ingest",
+            NodeMode::Compact => "compact",
+            NodeMode::Process => "process",
+            NodeMode::All => "all",
         }
     }
 }
+
 impl std::fmt::Display for NodeMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct NodeModes(pub(crate) BTreeSet<NodeMode>);
+
+impl From<Vec<NodeMode>> for NodeModes {
+    fn from(ns: Vec<NodeMode>) -> Self {
+        let mut s = BTreeSet::new();
+
+        for n in ns {
+            s.insert(n);
+        }
+
+        NodeModes(s)
     }
 }
 
@@ -364,6 +511,8 @@ pub struct SoftDeleteDatabaseLog {
     pub database_name: Arc<str>,
     pub deletion_time: i64,
     pub hard_deletion_time: Option<i64>,
+    #[serde(default)]
+    pub hard_delete_scope: Option<DeletionScope>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -374,6 +523,8 @@ pub struct SoftDeleteTableLog {
     pub table_name: Arc<str>,
     pub deletion_time: i64,
     pub hard_deletion_time: Option<i64>,
+    #[serde(default)]
+    pub hard_delete_scope: Option<DeletionScope>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -382,6 +533,7 @@ pub struct CreateTableLog {
     pub database_name: Arc<str>,
     pub table_name: Arc<str>,
     pub table_id: TableId,
+    pub retention_period: Option<Duration>,
     pub field_family_mode: FieldFamilyMode,
 }
 
@@ -389,6 +541,7 @@ pub struct CreateTableLog {
 pub struct SetRetentionPeriodLog {
     pub database_name: Arc<str>,
     pub database_id: DbId,
+    pub table: Option<(Arc<str>, TableId)>,
     pub retention_period: RetentionPeriod,
 }
 
@@ -396,6 +549,7 @@ pub struct SetRetentionPeriodLog {
 pub struct ClearRetentionPeriodLog {
     pub database_name: Arc<str>,
     pub database_id: DbId,
+    pub table: Option<(Arc<str>, TableId)>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -425,7 +579,7 @@ impl ColumnDefinitionLog {
         }
     }
 
-    pub fn column_id(&self) -> ColumnId {
+    pub fn column_id(&self) -> Option<ColumnId> {
         match self {
             ColumnDefinitionLog::Timestamp(log) => log.column_id,
             ColumnDefinitionLog::Tag(log) => log.column_id,
@@ -474,7 +628,7 @@ impl From<ColumnDefinition> for ColumnDefinitionLog {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TimestampColumnLog {
-    pub column_id: ColumnId,
+    pub column_id: Option<ColumnId>,
     pub name: Arc<str>,
 }
 
@@ -499,7 +653,7 @@ impl From<TimestampColumn> for TimestampColumnLog {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TagColumnLog {
     pub id: TagId,
-    pub column_id: ColumnId,
+    pub column_id: Option<ColumnId>,
     pub name: Arc<str>,
 }
 
@@ -526,7 +680,7 @@ impl From<TagColumn> for TagColumnLog {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldColumnLog {
     pub id: FieldIdentifier,
-    pub column_id: ColumnId,
+    pub column_id: Option<ColumnId>,
     pub name: Arc<str>,
     pub data_type: FieldDataType,
 }
@@ -560,6 +714,7 @@ pub enum FieldDataType {
     UInteger,
     Float,
     Boolean,
+    Binary,
 }
 
 impl From<FieldDataType> for InfluxFieldType {
@@ -570,6 +725,10 @@ impl From<FieldDataType> for InfluxFieldType {
             FieldDataType::UInteger => Self::UInteger,
             FieldDataType::Float => Self::Float,
             FieldDataType::Boolean => Self::Boolean,
+            FieldDataType::Binary => {
+                // TODO: Update when InfluxFieldType supports Binary
+                Self::String
+            }
         }
     }
 }
@@ -610,6 +769,13 @@ pub struct LastCacheDefinition {
     pub table: Arc<str>,
     /// The last cache id scoped to parent table
     pub id: LastCacheId,
+    /// Specify the node(s) which should have the cache enabled
+    ///
+    /// # Implementation Note
+    ///
+    /// This uses a default for cache definitions from core which do not specify a `node_spec`.
+    #[serde(default)]
+    pub node_spec: NodeSpec,
     /// Given name of the cache
     pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
@@ -620,6 +786,24 @@ pub struct LastCacheDefinition {
     pub count: LastCacheSize,
     /// The time-to-live (TTL) in seconds for entries in the cache
     pub ttl: LastCacheTtl,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeSpec {
+    #[default]
+    All,
+    // Enterprise-only
+    Nodes(Vec<NodeId>),
+}
+
+impl NodeSpec {
+    pub fn matches_node(&self, node: &NodeDefinition) -> bool {
+        match self {
+            Self::All => true,
+            Self::Nodes(v) => v.contains(&node.node_catalog_id),
+        }
+    }
 }
 
 /// A last cache will either store values for an explicit set of columns, or will accept all
@@ -781,6 +965,70 @@ pub struct DeleteLastCacheLog {
     pub name: Arc<str>,
 }
 
+/// Source of a distinct value cache - whether created by user or auto-generated
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(tag = "type", content = "content")]
+pub enum CacheSource {
+    /// Manually created by a user via API
+    #[default]
+    User,
+    /// Auto-generated from schema browsing queries
+    Auto,
+}
+
+const DEFAULT_REFRESH_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
+/// Configuration for background refresh of distinct value caches
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RefreshInterval(pub(crate) Duration);
+
+impl<'de> Deserialize<'de> for RefreshInterval {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let seconds = u64::deserialize(deserializer)?;
+        Ok(Self::from_secs(seconds))
+    }
+}
+
+impl Serialize for RefreshInterval {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.as_secs().serialize(serializer)
+    }
+}
+
+impl Default for RefreshInterval {
+    fn default() -> Self {
+        Self(DEFAULT_REFRESH_INTERVAL)
+    }
+}
+
+impl From<RefreshInterval> for Duration {
+    fn from(value: RefreshInterval) -> Self {
+        value.0
+    }
+}
+
+impl From<Duration> for RefreshInterval {
+    fn from(duration: Duration) -> Self {
+        Self(duration)
+    }
+}
+
+impl RefreshInterval {
+    pub fn from_secs(seconds: u64) -> Self {
+        Self(Duration::from_secs(seconds))
+    }
+
+    pub fn as_secs(&self) -> u64 {
+        self.0.as_secs()
+    }
+}
+
 /// Defines a distinct value cache in a given table and database
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DistinctCacheDefinition {
@@ -788,6 +1036,13 @@ pub struct DistinctCacheDefinition {
     pub table_id: TableId,
     /// The name of the associated table
     pub table_name: Arc<str>,
+    /// Specify the node(s) which should have the cache enabled
+    ///
+    /// # Implementation Note
+    ///
+    /// This uses a default for cache definitions from core which do not specify a `node_spec`.
+    #[serde(default)]
+    pub node_spec: NodeSpec,
     /// The cache id in the catalog scoped to its parent table
     pub cache_id: DistinctCacheId,
     /// The name of the cache, is unique within the associated table
@@ -798,6 +1053,32 @@ pub struct DistinctCacheDefinition {
     pub max_cardinality: MaxCardinality,
     /// The maximum age in seconds, similar to a time-to-live (TTL), for entries in the cache
     pub max_age_seconds: MaxAge,
+    /// Source of the cache - User created or Auto-generated
+    #[serde(default)]
+    pub source: CacheSource,
+    /// Lookback window in seconds for the query we run to populate auto-generated caches (e.g., 3600 = 1 hour)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lookback_seconds: Option<u64>,
+    /// Background refresh configuration for auto-generated caches
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_interval: Option<RefreshInterval>,
+}
+
+impl DistinctCacheDefinition {
+    /// Check if this is an auto-generated cache
+    pub fn is_auto_generated(&self) -> bool {
+        self.source == CacheSource::Auto
+    }
+
+    /// Get the reserved name for auto-generated caches
+    pub fn auto_cache_name() -> Arc<str> {
+        Arc::from("__auto__")
+    }
+
+    /// Check if cache name is reserved for auto-generation
+    pub fn is_reserved_name(name: &str) -> bool {
+        name == "__auto__"
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -942,7 +1223,13 @@ pub struct TriggerDefinition {
     pub trigger_name: Arc<str>,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
-    pub node_id: Arc<str>,
+    /// Specify the node(s) which operate this trigger
+    ///
+    /// # Implementation Note
+    ///
+    /// This uses a default for trigger definitions from core which do not specify a `node_spec`.
+    #[serde(default)]
+    pub node_spec: NodeSpec,
     pub trigger: TriggerSpecificationDefinition,
     pub trigger_settings: TriggerSettings,
     pub trigger_arguments: Option<HashMap<String, String>>,
@@ -1053,7 +1340,7 @@ impl TriggerSpecificationDefinition {
             }
             _ => Err(CatalogError::TriggerSpecificationParseError {
                 trigger_spec: spec_str.to_string(),
-                context: Some("expect one of the following prefixes: 'table:', 'all_tables:', 'cron:', 'every:', or 'request:'".to_string()),
+                context: Some("expect one of the following forms: 'table:<TABLE_NAME>', 'all_tables', 'cron:<CRON_EXPRESSION>', 'every:<DURATION>', or 'request:<PATH>'".to_string()),
             }),
         }
     }
@@ -1087,6 +1374,20 @@ impl TriggerSpecificationDefinition {
     }
 }
 
+impl FromStr for TriggerSpecificationDefinition {
+    type Err = CatalogError;
+
+    fn from_str(s: &str) -> Result<TriggerSpecificationDefinition> {
+        Self::from_string_rep(s)
+    }
+}
+
+impl std::fmt::Display for TriggerSpecificationDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.string_rep())
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct TokenBatch {
     pub time_ns: i64,
@@ -1102,6 +1403,7 @@ pub enum TokenCatalogOp {
     CreateAdminToken(CreateAdminTokenDetails),
     RegenerateAdminToken(RegenerateAdminTokenDetails),
     DeleteToken(DeleteTokenDetails),
+    CreateResourceScopedToken(CreateTokenDetails),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

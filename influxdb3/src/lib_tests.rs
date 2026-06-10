@@ -1,5 +1,94 @@
 use super::{apply_noise_reduction, expand_log_filter};
-use clap::Parser as _;
+use clap::{Arg, Parser as _, parser::ValueSource};
+
+#[test]
+fn user_provided_value_source_only_matches_cli_and_env() {
+    assert!(!super::user_provided_value_source(None));
+    assert!(!super::user_provided_value_source(Some(
+        ValueSource::DefaultValue
+    )));
+    assert!(super::user_provided_value_source(Some(
+        ValueSource::CommandLine
+    )));
+    assert!(super::user_provided_value_source(Some(
+        ValueSource::EnvVariable
+    )));
+}
+
+#[test]
+fn deprecated_serve_option_warning_requires_user_provided_value() {
+    let matches = clap::Command::new("serve")
+        .arg(
+            Arg::new("package_manager")
+                .long("package-manager")
+                .default_value("discover"),
+        )
+        .try_get_matches_from(["serve"])
+        .unwrap();
+
+    let warnings: Vec<_> =
+        super::deprecated_serve_option_warnings(&matches, super::DEPRECATED_SERVE_OPTIONS)
+            .collect();
+
+    assert!(warnings.is_empty());
+}
+
+#[test]
+fn deprecated_serve_option_warning_detects_cli_value() {
+    let matches = clap::Command::new("serve")
+        .arg(Arg::new("package_manager").long("package-manager"))
+        .try_get_matches_from(["serve", "--package-manager", "pip"])
+        .unwrap();
+
+    let warnings: Vec<_> =
+        super::deprecated_serve_option_warnings(&matches, super::DEPRECATED_SERVE_OPTIONS)
+            .collect();
+
+    assert_eq!(
+        warnings,
+        vec![
+            super::DEPRECATED_SERVE_OPTIONS
+                .iter()
+                .find(|option| option.arg_id == "package_manager")
+                .unwrap()
+                .message
+        ]
+    );
+}
+
+#[test]
+fn disabled_package_manager_warning_requires_user_provided_disabled_value() {
+    use influxdb3_clap_blocks::plugins::PackageManager;
+
+    assert_eq!(
+        super::disabled_package_manager_deprecation_warning(
+            PackageManager::Disabled,
+            Some(ValueSource::CommandLine),
+        ),
+        Some(super::PACKAGE_MANAGER_DISABLED_DEPRECATED_MESSAGE)
+    );
+    assert_eq!(
+        super::disabled_package_manager_deprecation_warning(
+            PackageManager::Disabled,
+            Some(ValueSource::EnvVariable),
+        ),
+        Some(super::PACKAGE_MANAGER_DISABLED_DEPRECATED_MESSAGE)
+    );
+    assert_eq!(
+        super::disabled_package_manager_deprecation_warning(
+            PackageManager::Disabled,
+            Some(ValueSource::DefaultValue),
+        ),
+        None
+    );
+    assert_eq!(
+        super::disabled_package_manager_deprecation_warning(
+            PackageManager::Pip,
+            Some(ValueSource::CommandLine)
+        ),
+        None
+    );
+}
 
 #[test]
 fn bare_debug_expands() {

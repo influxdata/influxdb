@@ -1,19 +1,22 @@
 //! Conversion of WAL data to Python format for plugin execution.
 //!
-//! This module provides the `ToPythonTableBatches` trait for converting
-//! parquet-based (`WriteBatch`) WAL flush data to Python table batches.
+//! This module provides the `ToPythonTableBatches` trait that unifies conversion of
+//! both parquet-based (`WriteBatch`) WAL
+//! flush data to Python table batches.
 
 use anyhow::Context;
+use hashbrown::HashMap;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
 use influxdb3_wal::{FieldData, WriteBatch};
 use pyo3::prelude::PyAnyMethods;
 use pyo3::types::{PyDict, PyList};
-use pyo3::{Bound, Py, PyAny, Python};
+use pyo3::{Bound, Py, PyAny, PyResult, Python};
 
 /// Trait for converting WAL data to Python table batches.
 ///
-/// This allows WAL flush data to be converted to the Python format for plugin execution.
+/// This allows both parquet-based (`WriteBatch`).
+/// WAL flush data to be converted to the same Python format for plugin execution.
 pub trait ToPythonTableBatches {
     /// Convert the data to Python table batches for the process_writes function.
     ///
@@ -113,4 +116,24 @@ impl ToPythonTableBatches for WriteBatch {
 
         PyList::new(py, table_batches).context("failed to create table_batches list")
     }
+}
+
+pub(crate) fn args_to_py_object<'py>(
+    py: Python<'py>,
+    args: &Option<HashMap<String, String>>,
+) -> PyResult<Option<Bound<'py, PyDict>>> {
+    args.as_ref()
+        .map(|args| map_to_py_object(py, args))
+        .transpose()
+}
+
+pub(crate) fn map_to_py_object<'py>(
+    py: Python<'py>,
+    map: &HashMap<String, String>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    for (key, value) in map {
+        dict.set_item(key, value)?;
+    }
+    Ok(dict)
 }

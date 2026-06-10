@@ -1,11 +1,14 @@
 //! Version 2 implementation of the Catalog that sits entirely in memory.
 
-use bimap::BiHashMap;
+use ahash::RandomState as AHashBuilder;
 use data_types::{Namespace, NamespaceId};
+use enterprise::EnterpriseCatalogAttrs;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_authz::{
-    CrudActions, DatabaseActions, Permission, ResourceIdentifier, TokenInfo, TokenProvider,
+    CrudActions, DatabaseActions, Permission, ResourceIdentifier, SystemActions, TokenInfo,
+    TokenProvider,
+    permissions::{PermissionDetailsSpec, TokenPermissions},
 };
 use influxdb3_id::{
     CatalogId, ColumnId, ColumnIdentifier, DbId, DistinctCacheId, FieldFamilyId, FieldId,
@@ -14,30 +17,36 @@ use influxdb3_id::{
 use influxdb3_process::ProcessUuidGetter;
 use influxdb3_shutdown::ShutdownToken;
 use influxdb3_telemetry::ProcessingEngineMetrics;
-use iox_time::{Time, TimeProvider};
+use iox_time::{MockProvider, Time, TimeProvider};
 use metric::Registry;
 use metrics::CatalogMetrics;
-use object_store::ObjectStore;
+use object_store::{ObjectStore, memory::InMemory, path::Path};
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use parking_lot::RwLock;
+use rustc_hash::FxHasher;
 use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
+use std::hash::BuildHasherDefault;
 use std::iter;
+use std::num::NonZeroU32;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
+use crate::Repository;
 use crate::catalog::{
     CATALOG_WRITE_PERMIT, CatalogSequenceNumber, CatalogWritePermit, DEFAULT_OPERATOR_TOKEN_NAME,
     DeletedSchema, DeletionStatus, INTERNAL_DB_NAME, INTERNAL_DB_RETENTION_PERIOD, IfNotDeleted,
-    RESERVED_COLUMN_NAMES, Repository, TIME_COLUMN_NAME, TokenRepository, create_token_and_hash,
+    RESERVED_COLUMN_NAMES, TIME_COLUMN_NAME, TokenRepository, create_token_and_hash,
     make_new_name_using_deleted_time,
 };
 
+pub(crate) mod enterprise;
 mod resource;
 
 #[cfg(test)]
@@ -61,24 +70,203 @@ use crate::object_store::versions::v2::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
 pub(crate) use crate::snapshot::versions::v4 as snapshot;
 use crate::{CatalogError, Result};
+
+pub use crate::catalog::versions::v2::enterprise::MaximumColumnCountLimiter;
+pub use log::StorageMode;
+
+// Type alias for BiHashMap with AHash for better performance and DoS resistance
+type BiHashMap<L, R> = bimap::BiHashMap<L, R, AHashBuilder, AHashBuilder>;
 use log::{
     AddColumnsLog, CatalogBatch, ClearRetentionPeriodLog, CreateAdminTokenDetails,
     CreateDatabaseLog, CreateTableLog, DatabaseBatch, DatabaseCatalogOp, DeleteBatch,
     DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteOp, DeleteTriggerLog,
     DistinctCacheDefinition, FieldFamilyDefinitionLog, GenerationBatch, GenerationOp,
-    LastCacheDefinition, NodeBatch, NodeCatalogOp, NodeMode, OrderedCatalogBatch,
+    LastCacheDefinition, NodeBatch, NodeCatalogOp, NodeMode, NodeSpec, OrderedCatalogBatch,
     RegenerateAdminTokenDetails, RegisterNodeLog, RetentionPeriod, SetRetentionPeriodLog,
-    SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog, TokenBatch, TokenCatalogOp,
-    TriggerDefinition, TriggerIdentifier, TriggerSpecificationDefinition,
+    SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog, StorageModeBatch, StorageModeOp,
+    TokenBatch, TokenCatalogOp, TriggerDefinition, TriggerIdentifier,
+    TriggerSpecificationDefinition,
 };
 use snapshot::CatalogSnapshot;
 
-/// Limit for the number of tag columns on a table
-pub(crate) const NUM_TAG_COLUMNS_LIMIT: usize = TagId::MAX.get() as usize + 1;
+/// Soft cap on tag columns per table. The underlying `TagId` is `u16` so the structural
+/// limit is 65535, but we cap to a sane value here to prevent runaway schemas. This cap
+/// is independent of `NUM_COLUMNS_PER_TABLE_LIMIT`, which gates total column count
+/// (tags + fields + timestamp); when both are configured, the lower one wins for tags.
+pub(crate) const NUM_TAG_COLUMNS_LIMIT: usize = 4096;
 /// Limit for the number of fields in a field family.
 pub(crate) const NUM_FIELDS_PER_FAMILY_LIMIT: usize = 100;
+/// Limit for the number of field families in a table.
+pub(crate) const NUM_FIELD_FAMILIES_LIMIT: usize = FieldFamilyId::MAX.get() as usize;
+
+#[derive(Clone, Copy, Debug)]
+pub struct CurrentCatalogUsageInner {
+    // Current number of databases
+    total_db_count: usize,
+    // Maximum count of tables among all available databases
+    total_table_count: usize,
+    // Maximum count of columns among all available databases/tables
+    total_column_count: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct CurrentCatalogUsage {
+    inner: Arc<RwLock<CurrentCatalogUsageInner>>,
+}
+
+impl CurrentCatalogUsage {
+    fn new(total_db_count: usize, total_table_count: usize, total_column_count: usize) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(CurrentCatalogUsageInner {
+                total_db_count,
+                total_table_count,
+                total_column_count,
+            })),
+        }
+    }
+    fn total_db_count(&self) -> usize {
+        self.inner.read().total_db_count
+    }
+
+    fn total_table_count(&self) -> usize {
+        self.inner.read().total_table_count
+    }
+
+    fn total_column_count(&self) -> usize {
+        self.inner.read().total_column_count
+    }
+
+    fn operation_observer(&self, catalog: Arc<Catalog>, mut recv: CatalogUpdateReceiver) {
+        let clone = self.clone();
+        tokio::spawn(async move {
+            while let Some(update) = recv.recv().await {
+                for batch in update.batches() {
+                    clone.handle_batch(&catalog, batch);
+                }
+            }
+        });
+    }
+
+    fn handle_batch(&self, catalog: &Arc<Catalog>, batch: &CatalogBatch) {
+        match batch {
+            CatalogBatch::Database(database_batch) => {
+                for op in &database_batch.ops {
+                    match op {
+                        DatabaseCatalogOp::AddColumns(log) => {
+                            self.inner.write().total_column_count += log.column_definitions.len();
+                        }
+                        DatabaseCatalogOp::CreateDatabase(_) => {
+                            self.inner.write().total_db_count += 1;
+                        }
+                        DatabaseCatalogOp::CreateTable(_) => {
+                            self.inner.write().total_table_count += 1;
+                        }
+                        DatabaseCatalogOp::SoftDeleteDatabase(SoftDeleteDatabaseLog {
+                            database_id,
+                            ..
+                        }) => {
+                            let mut g = self.inner.write();
+                            let Some(db_schema) = catalog.db_schema_by_id(database_id) else {
+                                continue;
+                            };
+                            for table in db_schema.tables() {
+                                g.total_column_count =
+                                    g.total_column_count.saturating_sub(table.num_columns());
+                                g.total_table_count = g.total_table_count.saturating_sub(1);
+                            }
+                            g.total_db_count = g.total_db_count.saturating_sub(1);
+                        }
+                        DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
+                            database_id,
+                            table_id,
+                            ..
+                        }) => {
+                            let mut g = self.inner.write();
+                            let Some(db_schema) = catalog.db_schema_by_id(database_id) else {
+                                continue;
+                            };
+
+                            let Some(table_def) = db_schema.table_definition_by_id(table_id) else {
+                                continue;
+                            };
+
+                            g.total_column_count =
+                                g.total_column_count.saturating_sub(table_def.num_columns());
+                            g.total_table_count = g.total_table_count.saturating_sub(1);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            CatalogBatch::Delete(delete_batch) => {
+                for op in &delete_batch.ops {
+                    match op {
+                        DeleteOp::DeleteDatabase(db_id) => {
+                            let mut g = self.inner.write();
+                            let Some(db_schema) = catalog.db_schema_by_id(db_id) else {
+                                continue;
+                            };
+
+                            if db_schema.deleted {
+                                // Already deleted, so no need to update counts
+                                continue;
+                            }
+
+                            for table in db_schema.tables() {
+                                g.total_column_count =
+                                    g.total_column_count.saturating_sub(table.num_columns());
+                                g.total_table_count = g.total_table_count.saturating_sub(1);
+                            }
+                            g.total_db_count = g.total_db_count.saturating_sub(1);
+                        }
+                        DeleteOp::DeleteTable(db_id, table_id) => {
+                            let mut g = self.inner.write();
+                            let Some(db_schema) = catalog.db_schema_by_id(db_id) else {
+                                continue;
+                            };
+
+                            let Some(table_def) = db_schema.table_definition_by_id(table_id) else {
+                                continue;
+                            };
+
+                            if table_def.deleted {
+                                // Already deleted, so no need to update counts
+                                continue;
+                            }
+
+                            g.total_column_count =
+                                g.total_column_count.saturating_sub(table_def.num_columns());
+                            g.total_table_count = g.total_table_count.saturating_sub(1);
+                        }
+                    }
+                }
+            }
+            CatalogBatch::StorageMode(_) => {}
+            CatalogBatch::Restore(_) => {
+                let restored_usage = catalog.inner.read().current_usage();
+                let mut usage = self.inner.write();
+                *usage = *restored_usage.inner.read();
+            }
+            _ => {}
+        }
+    }
+}
+
+pub trait CatalogLimiter: Send + Sync + 'static {
+    // Return the number of allowed dbs. Intended to determine if database limits have been reached
+    // yet when creating new databases.
+    fn database_count_limit(&self, current: &CurrentCatalogUsage) -> usize;
+
+    // Return the number of allowed tables. Intended to determine if database limits have been
+    // reached yet when creating new tables.
+    fn table_count_limit(&self, current: &CurrentCatalogUsage) -> usize;
+
+    // Return the number of columns available to be created.
+    fn column_per_table_limit(&self, current: &CurrentCatalogUsage) -> usize;
+}
 
 pub struct Catalog {
+    enterprise: EnterpriseCatalogAttrs,
     // The Catalog stores a reference to the metric registry so that other components in the
     // system that are initialized from/with the catalog can easily access it as needed
     metric_registry: Arc<Registry>,
@@ -90,8 +278,62 @@ pub struct Catalog {
     metrics: Arc<CatalogMetrics>,
     /// In-memory representation of the catalog
     pub(crate) inner: RwLock<InnerCatalog>,
-    limits: CatalogLimits,
+    limits: Arc<dyn CatalogLimiter>,
+    usage: CurrentCatalogUsage,
     args: CatalogArgs,
+}
+
+/// The in-memory representation of the catalog, which is loaded from and
+/// persisted to object store as a checkpoint and log files.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogBackupView {
+    /// The starting checkpoint for the backup, which includes the sequence
+    /// number and the path to the checkpoint's most recent snapshot. The
+    /// checkpoint's sequence number represents a stable view of the catalog at
+    /// that point in time.
+    pub checkpoint: CatalogCheckpointForBackup,
+    /// The sequence number up to which the backup should include log files.
+    /// This represents the upper bound of the sequence numbers of the log files
+    /// that should be included in the backup.
+    pub through_sequence: CatalogSequenceNumber,
+    /// The log files that should be included in the backup.
+    pub log_files: Vec<CatalogLogFileForBackup>,
+}
+
+/// Explicit object-store paths describing a catalog backup image that should
+/// be loaded into memory.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogRestoreSource {
+    /// The checkpoint file to use as the restore starting point.
+    pub checkpoint_path: Path,
+    /// The sequenced log files to replay after the checkpoint.
+    pub log_paths: Vec<Path>,
+}
+
+/// The checkpoint information needed for backup, including the sequence number
+/// and the path to the checkpoint's most recent snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogCheckpointForBackup {
+    /// The sequence number of the checkpoint, which represents a stable view of the
+    /// catalog at the point in time when the checkpoint was taken.
+    pub sequence: CatalogSequenceNumber,
+    /// The path to the checkpoint's most recent snapshot.
+    pub path: Path,
+}
+
+/// The log file information needed for backup, including the sequence number of
+/// the log file and the path to the log file. The log files returned are those
+/// that have sequence numbers between the checkpoint sequence and the provided
+/// through_sequence, inclusive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogLogFileForBackup {
+    /// The sequence number of the log file, which represents the order of the
+    /// log file in relation to the checkpoint and other log files. Log files
+    /// with sequence numbers greater than the checkpoint sequence and less than
+    /// or equal to the through_sequence should be included in the backup.
+    pub sequence: CatalogSequenceNumber,
+    /// The path to the log file in object store.
+    pub path: Path,
 }
 
 /// Custom implementation of `Debug` for the `Catalog` type to avoid serializing the object store
@@ -120,12 +362,15 @@ const CATALOG_CHECKPOINT_INTERVAL: u64 = 100;
 #[derive(Clone, Copy, Debug)]
 pub struct CatalogArgs {
     pub default_hard_delete_duration: Duration,
+    pub storage_mode: StorageMode,
+    pub shard_count: NonZeroU32,
 }
 
 impl CatalogArgs {
     pub fn new(default_hard_delete_duration: Duration) -> Self {
         Self {
             default_hard_delete_duration,
+            ..Default::default()
         }
     }
 }
@@ -134,6 +379,8 @@ impl Default for CatalogArgs {
     fn default() -> Self {
         Self {
             default_hard_delete_duration: Catalog::DEFAULT_HARD_DELETE_DURATION,
+            storage_mode: StorageMode::Parquet,
+            shard_count: NonZeroU32::MIN,
         }
     }
 }
@@ -155,13 +402,27 @@ impl Default for CatalogLimits {
     }
 }
 
+impl CatalogLimiter for CatalogLimits {
+    fn database_count_limit(&self, _current: &CurrentCatalogUsage) -> usize {
+        self.num_dbs
+    }
+
+    fn table_count_limit(&self, _current: &CurrentCatalogUsage) -> usize {
+        self.num_tables
+    }
+
+    fn column_per_table_limit(&self, _current: &CurrentCatalogUsage) -> usize {
+        self.num_columns_per_table
+    }
+}
+
 impl Catalog {
-    /// Limit for the number of Databases that InfluxDB 3 Core can have
-    pub const NUM_DBS_LIMIT: usize = 5;
-    /// Limit for the number of columns per table that InfluxDB 3 Core can have
+    /// Limit for the number of Databases that InfluxDB 3 Enterprise can have
+    pub const NUM_DBS_LIMIT: usize = 100;
+    /// Limit for the number of columns per table that InfluxDB 3 Enterprise can have
     pub const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
-    /// Limit for the number of tables across all DBs that InfluxDB 3 Core can have
-    pub const NUM_TABLES_LIMIT: usize = 2000;
+    /// Limit for the number of tables across all DBs that InfluxDB 3 Enterprise can have
+    pub const NUM_TABLES_LIMIT: usize = 4000;
     /// Default duration for hard deletion of soft-deleted databases and tables
     pub const DEFAULT_HARD_DELETE_DURATION: Duration = Duration::from_secs(60 * 60 * 72); // 72 hours
 
@@ -170,7 +431,7 @@ impl Catalog {
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<Registry>,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         Self::new_with_args(
             node_id,
             store,
@@ -189,26 +450,39 @@ impl Catalog {
         metric_registry: Arc<Registry>,
         args: CatalogArgs,
         limits: CatalogLimits,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         let node_id = node_id.into();
-        let store =
-            ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
+        let store = ObjectStoreCatalog::new(
+            Arc::clone(&node_id),
+            CATALOG_CHECKPOINT_INTERVAL,
+            store,
+            args.storage_mode,
+        );
         let subscriptions = Default::default();
+        let last_catalog_check_time = RwLock::new(time_provider.now());
         let metrics = Arc::new(CatalogMetrics::new(&metric_registry));
         let catalog = store
             .load_or_create_catalog()
             .await
             .map(RwLock::new)
-            .map(|inner| Self {
-                metric_registry,
-                state: parking_lot::Mutex::new(CatalogState::Active),
-                subscriptions,
-                time_provider,
-                store,
-                metrics,
-                inner,
-                limits,
-                args,
+            .map(|inner| {
+                let usage = inner.read().current_usage();
+                Self {
+                    enterprise: EnterpriseCatalogAttrs {
+                        current_node_id: None,
+                        last_catalog_check_time,
+                    },
+                    metric_registry,
+                    state: parking_lot::Mutex::new(CatalogState::Active),
+                    subscriptions,
+                    time_provider,
+                    store,
+                    metrics,
+                    inner,
+                    limits: Arc::new(limits),
+                    usage,
+                    args,
+                }
             })?;
 
         create_internal_db(&catalog).await;
@@ -217,6 +491,11 @@ impl Catalog {
             catalog
                 .subscribe_to_updates("catalog_operation_metrics")
                 .await,
+        );
+        let catalog = Arc::new(catalog);
+        catalog.usage.operation_observer(
+            Arc::clone(&catalog),
+            catalog.subscribe_to_updates("catalog_usage_tracker").await,
         );
 
         Ok(catalog)
@@ -232,7 +511,7 @@ impl Catalog {
     ) -> Result<Arc<Self>> {
         let node_id = node_id.into();
         let catalog =
-            Arc::new(Self::new(Arc::clone(&node_id), store, time_provider, metric_registry).await?);
+            Self::new(Arc::clone(&node_id), store, time_provider, metric_registry).await?;
         let catalog_cloned = Arc::clone(&catalog);
         tokio::spawn(async move {
             shutdown_token.wait_for_shutdown().await;
@@ -258,6 +537,11 @@ impl Catalog {
         Arc::clone(&self.metric_registry)
     }
 
+    /// Returns the target number of compaction shards per window.
+    pub fn shard_count(&self) -> NonZeroU32 {
+        self.args.shard_count
+    }
+
     pub fn time_provider(&self) -> Arc<dyn TimeProvider> {
         Arc::clone(&self.time_provider)
     }
@@ -266,16 +550,16 @@ impl Catalog {
         *self.state.lock() = CatalogState::Shutdown;
     }
 
-    fn num_dbs_limit(&self) -> usize {
-        self.limits.num_dbs
+    fn num_dbs_limit(&self, current: &CurrentCatalogUsage) -> usize {
+        self.limits.database_count_limit(current)
     }
 
-    fn num_tables_limit(&self) -> usize {
-        self.limits.num_tables
+    fn num_tables_limit(&self, current: &CurrentCatalogUsage) -> usize {
+        self.limits.table_count_limit(current)
     }
 
-    fn num_columns_per_table_limit(&self) -> usize {
-        self.limits.num_columns_per_table
+    fn num_columns_per_table_limit(&self, current: &CurrentCatalogUsage) -> usize {
+        self.limits.column_per_table_limit(current)
     }
 
     fn default_hard_delete_duration(&self) -> Duration {
@@ -294,8 +578,74 @@ impl Catalog {
         self.subscriptions.write().await.subscribe(name)
     }
 
+    pub async fn unsubscribe_from_updates(&self, name: &str) {
+        self.subscriptions.write().await.unsubscribe(name)
+    }
+
+    pub async fn prune_subscriptions(&self) {
+        self.subscriptions.write().await.prune_closed()
+    }
+
     pub fn object_store(&self) -> Arc<dyn ObjectStore> {
         self.store.object_store()
+    }
+
+    /// Read the checkpoint bytes and its decoded sequence together so the backup flow gets a
+    /// stable checkpoint image. Returning only the live checkpoint path would let a later
+    /// overwrite race the backup and break manifest consistency.
+    pub async fn backup_view(&self) -> Result<CatalogBackupView> {
+        let checkpoint = self.store.checkpoint_for_backup().await?;
+        // Capture the upper bound immediately after reading the checkpoint. The returned bytes plus
+        // this sequence window are intended to describe one atomic backup view.
+        let through_sequence = self.sequence_number();
+
+        if through_sequence < checkpoint.sequence {
+            return Err(CatalogError::BackupCheckpointAhead {
+                checkpoint_sequence: checkpoint.sequence.get(),
+                live_sequence: through_sequence.get(),
+            });
+        }
+
+        let log_files = self
+            .store
+            .log_files_for_backup(checkpoint.sequence, through_sequence)
+            .await?;
+
+        Ok(CatalogBackupView {
+            checkpoint,
+            through_sequence,
+            log_files,
+        })
+    }
+
+    /// Reload the catalog from the selected object-store checkpoint and log
+    /// files, then coordinate the restore through a sequenced catalog log
+    /// entry. Applying that entry atomically replaces each process's in-memory
+    /// catalog with the restored snapshot.
+    pub async fn restore_from_object_store(
+        &self,
+        restore_source: &CatalogRestoreSource,
+    ) -> Result<()> {
+        let checkpoint_path = restore_source.checkpoint_path.to_string();
+        let log_paths = restore_source
+            .log_paths
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        let restore_id: Arc<str> = Arc::from(Uuid::new_v4().to_string());
+
+        self.catalog_update_with_retry(|| {
+            let time_ns = self.time_provider.now().timestamp_nanos();
+            Ok(CatalogBatch::restore(
+                time_ns,
+                Arc::clone(&restore_id),
+                checkpoint_path.clone(),
+                log_paths.clone(),
+            ))
+        })
+        .await?;
+
+        Ok(())
     }
 
     pub fn snapshot(&self) -> CatalogSnapshot {
@@ -355,9 +705,10 @@ impl Catalog {
         let catalog_batch = self
             .inner
             .write()
-            .apply_catalog_batch(batch.batch(), batch.sequence_number())
+            .apply_catalog_batch(batch.batch(), batch.sequence_number(), Some(&self.store))
             .expect("ordered catalog batch should succeed when applied")
             .expect("ordered catalog batch should contain changes");
+        self.update_last_check_time();
         catalog_batch.into_batch()
     }
 
@@ -365,8 +716,21 @@ impl Catalog {
         self.inner.read().nodes.get_by_name(node_id)
     }
 
+    pub fn node_by_id(&self, node_id: &NodeId) -> Option<Arc<NodeDefinition>> {
+        self.inner.read().nodes.get_by_id(node_id)
+    }
+
     pub fn list_nodes(&self) -> Vec<Arc<NodeDefinition>> {
         self.inner.read().nodes.resource_iter().cloned().collect()
+    }
+
+    pub fn minimum_supported_row_delete_predicate_version(&self) -> Option<usize> {
+        self.inner
+            .read()
+            .nodes
+            .resource_iter()
+            .map(|def| def.row_delete_predicate_version())
+            .min()
     }
 
     pub fn next_db_id(&self) -> DbId {
@@ -384,8 +748,8 @@ impl Catalog {
             None => {
                 let mut inner = self.inner.write();
 
-                if inner.database_count() >= self.num_dbs_limit() {
-                    return Err(CatalogError::TooManyDbs(self.num_dbs_limit()));
+                if inner.database_count() >= self.num_dbs_limit(&self.usage) {
+                    return Err(CatalogError::TooManyDbs(self.num_dbs_limit(&self.usage)));
                 }
 
                 info!(database_name = db_name, "creating new database");
@@ -443,6 +807,75 @@ impl Catalog {
             .collect()
     }
 
+    /// List IDs of databases and tables that are marked for hard deletion.
+    ///
+    /// Returns a vector of tuples where:
+    /// - `(DbId, None)` indicates the database itself is marked for hard deletion
+    /// - `(DbId, Some(TableId))` indicates a specific table within the database is marked for hard deletion
+    ///
+    /// Skips the `_internal` database.
+    ///
+    /// # Arguments
+    /// * `limit` - Maximum number of results to return
+    pub fn list_hard_deleted_dbs_tables(&self, limit: usize) -> Vec<(DbId, Option<TableId>)> {
+        let mut result = Vec::new();
+        let mut db_count = 0;
+        let mut table_count = 0;
+        let now = self.time_provider.now();
+
+        let inner = self.inner.read();
+        for db in inner.databases.resource_iter() {
+            if result.len() >= limit {
+                break;
+            }
+
+            // Skip _internal database
+            if db.name.as_ref() == INTERNAL_DB_NAME {
+                continue;
+            }
+
+            if db.deleted {
+                if db
+                    .hard_delete_time
+                    .is_some_and(|hard_delete_time| hard_delete_time <= now)
+                {
+                    // Database itself is marked for hard deletion
+                    result.push((db.id, None));
+                    db_count += 1;
+                }
+                continue;
+            }
+
+            // Check individual tables
+            for table in db.tables.resource_iter() {
+                if result.len() >= limit {
+                    break;
+                }
+
+                if table.deleted
+                    && table
+                        .hard_delete_time
+                        .is_some_and(|hard_delete_time| hard_delete_time <= now)
+                {
+                    result.push((db.id, Some(table.table_id)));
+                    table_count += 1;
+                }
+            }
+        }
+
+        // Only log if we found any hard deleted databases or tables
+        if db_count > 0 || table_count > 0 {
+            info!(
+                db_count = db_count,
+                table_count = table_count,
+                limit = limit,
+                "listed hard deleted databases, tables, and max limit of results",
+            );
+        }
+
+        result
+    }
+
     /// Returns the deletion status of a database by its ID.
     ///
     /// If the database exists as is not marked for deletion, `None` is returned.
@@ -480,21 +913,21 @@ impl Catalog {
         self.inner.read().db_exists(db_id)
     }
 
-    /// Get active triggers by database and trigger name
-    // NOTE: this could be id-based in future
-    pub fn active_triggers(&self) -> Vec<(Arc<str>, Arc<str>)> {
+    /// Get active (non-disabled) triggers by (database id, trigger id).
+    pub fn active_triggers(&self) -> Vec<(DbId, TriggerId)> {
         let inner = self.inner.read();
         inner
             .databases
             .resource_iter()
             .flat_map(|db| {
+                let db_id = db.id;
                 db.processing_engine_triggers
                     .resource_iter()
                     .filter_map(move |trigger| {
                         if trigger.disabled {
                             None
                         } else {
-                            Some((Arc::clone(&db.name), Arc::clone(&trigger.trigger_name)))
+                            Some((db_id, trigger.trigger_id))
                         }
                     })
             })
@@ -677,8 +1110,27 @@ impl Catalog {
         Ok(())
     }
 
+    /// Create a token with permissions using a pre-computed hash
+    pub async fn create_token_with_permission_and_hash(
+        &self,
+        all_permissions: Vec<PermissionDetailsSpec>,
+        token_name: String,
+        hash: Vec<u8>,
+        expiry_millis: Option<i64>,
+    ) -> Result<()> {
+        enterprise::create_token_with_permission_and_hash(
+            self,
+            all_permissions,
+            token_name,
+            hash,
+            expiry_millis,
+        )
+        .await
+    }
+
     // Return a map of all retention periods indexed by their combined database & table IDs.
-    pub fn get_retention_period_cutoff_map(&self) -> BTreeMap<(DbId, TableId), i64> {
+    pub fn get_retention_period_cutoff_map(&self) -> BTreeMap<(DbId, TableId), Time> {
+        let now = self.time_provider().now();
         self.list_db_schema()
             .into_iter()
             .flat_map(|db_schema| {
@@ -688,8 +1140,32 @@ impl Catalog {
                         let db_id = db_schema.id();
                         let table_id = table_def.id();
                         db_schema
-                            .get_retention_period_cutoff_ts_nanos(self.time_provider())
+                            .get_retention_period_cutoff_ts_nanos(now, &table_id)
                             .map(|cutoff| ((db_id, table_id), cutoff))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// Like `get_retention_period_cutoff_map`, but also returns the retention
+    /// period (in nanoseconds) alongside each cutoff. The compactor needs both
+    /// values to compute `next_expiration` when rewriting files.
+    ///
+    /// Returns: `BTreeMap<(DbId, TableId), (cutoff: Time, period_nanos: i64)>`
+    pub fn get_retention_cutoff_and_period_map(&self) -> BTreeMap<(DbId, TableId), (Time, i64)> {
+        let now = self.time_provider().now();
+        self.list_db_schema()
+            .into_iter()
+            .flat_map(|db_schema| {
+                db_schema
+                    .tables()
+                    .filter_map(|table_def| {
+                        let db_id = db_schema.id();
+                        let table_id = table_def.id();
+                        let (cutoff, period) =
+                            db_schema.get_retention_cutoff_and_period(now, &table_id)?;
+                        Some(((db_id, table_id), (cutoff, period.as_nanos() as i64)))
                     })
                     .collect::<Vec<_>>()
             })
@@ -713,6 +1189,14 @@ impl Catalog {
             .collect()
     }
 
+    pub fn generation_config(&self) -> GenerationConfig {
+        self.inner.read().generation_config.clone()
+    }
+
+    pub fn storage_mode(&self) -> StorageMode {
+        self.inner.read().storage_mode
+    }
+
     pub fn list_namespaces(&self) -> Vec<Namespace> {
         self.inner
             .read()
@@ -720,6 +1204,78 @@ impl Catalog {
             .resource_iter()
             .map(|db| db.as_namespace())
             .collect()
+    }
+
+    #[cfg(feature = "test_helpers")]
+    pub fn test_only_insert_fake_running_node(
+        &self,
+        node_id: Arc<str>,
+        node_catalog_id: NodeId,
+        instance_id: Arc<str>,
+        mode: Vec<NodeMode>,
+        core_count: u64,
+        row_delete_predicate_version: usize,
+    ) {
+        self.inner
+            .write()
+            .nodes
+            .insert(
+                node_catalog_id,
+                NodeDefinition {
+                    node_id,
+                    node_catalog_id,
+                    instance_id,
+                    mode,
+                    core_count,
+                    state: NodeState::Running {
+                        registered_time_ns: 0,
+                    },
+                    conn_info: None,
+                    cli_params: None,
+                    row_delete_predicate_version,
+                },
+            )
+            .unwrap();
+    }
+
+    #[cfg(feature = "test_helpers")]
+    pub fn test_only_insert_new_table_with_columns<const N: usize>(
+        &self,
+        table_name: &'static str,
+        table_id: TableId,
+        db_name: &'static str,
+        db_id: DbId,
+        columns: [ColumnDefinition; N],
+    ) {
+        use crate::{
+            Repository,
+            catalog::versions::v2::{FieldFamilyMode, TableDefinition},
+            log::versions::v4::RetentionPeriod,
+        };
+
+        let mut tables = Repository::new();
+        let mut table_def =
+            TableDefinition::new_empty(table_id, table_name.into(), FieldFamilyMode::Auto);
+        table_def.add_columns(columns.to_vec()).unwrap();
+        tables.insert(table_id, table_def).unwrap();
+
+        self.inner
+            .write()
+            .databases
+            .insert(
+                db_id,
+                DatabaseSchema {
+                    id: db_id,
+                    name: db_name.into(),
+                    tables,
+                    retention_period: RetentionPeriod::Indefinite,
+                    processing_engine_triggers: Repository::default(),
+                    deleted: false,
+                    hard_delete_time: None,
+                    hard_delete_scope: None,
+                },
+            )
+            .unwrap();
     }
 }
 
@@ -749,13 +1305,58 @@ async fn create_internal_db(catalog: &Catalog) {
     };
 }
 
+#[derive(Debug, Default)]
+pub struct CatalogBuilder {
+    catalog_id: Arc<str>,
+    object_store: Option<Arc<dyn ObjectStore>>,
+    time_provider: Option<Arc<dyn TimeProvider>>,
+    metric_registry: Option<Arc<Registry>>,
+}
+
+impl CatalogBuilder {
+    pub fn catalog_id(mut self, catalog_id: impl Into<Arc<str>>) -> Self {
+        self.catalog_id = catalog_id.into();
+        self
+    }
+
+    pub fn object_store(mut self, object_store: Arc<dyn ObjectStore>) -> Self {
+        self.object_store.replace(object_store);
+        self
+    }
+
+    pub fn time_provider(mut self, time_provider: Arc<dyn TimeProvider>) -> Self {
+        self.time_provider.replace(time_provider);
+        self
+    }
+
+    pub fn metric_registry(mut self, registry: Arc<Registry>) -> Self {
+        self.metric_registry.replace(registry);
+        self
+    }
+
+    pub async fn build(self) -> Result<Arc<Catalog>> {
+        let store = self
+            .object_store
+            .unwrap_or_else(|| Arc::new(InMemory::new()));
+        let time_provider = self
+            .time_provider
+            .unwrap_or_else(|| Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))));
+        let metric_registry = self.metric_registry.unwrap_or_default();
+        Catalog::new(self.catalog_id, store, time_provider, metric_registry).await
+    }
+}
+
 impl Catalog {
+    pub fn builder_testing(catalog_id: impl Into<Arc<str>>) -> CatalogBuilder {
+        CatalogBuilder::default().catalog_id(catalog_id)
+    }
+
     /// Create new `Catalog` that uses an in-memory object store.
     ///
     /// # Note
     ///
     /// This is intended as a convenience constructor for testing
-    pub async fn new_in_memory(catalog_id: impl Into<Arc<str>>) -> Result<Self> {
+    pub async fn new_in_memory(catalog_id: impl Into<Arc<str>>) -> Result<Arc<Self>> {
         use iox_time::MockProvider;
         use object_store::memory::InMemory;
 
@@ -768,7 +1369,7 @@ impl Catalog {
     pub async fn new_in_memory_with_limits(
         catalog_id: impl Into<Arc<str>>,
         limits: CatalogLimits,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         use iox_time::MockProvider;
 
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -791,7 +1392,7 @@ impl Catalog {
         catalog_id: impl Into<Arc<str>>,
         time_provider: Arc<dyn TimeProvider>,
         args: CatalogArgs,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         Self::new_in_memory_with_args_limits(catalog_id, time_provider, args, Default::default())
             .await
     }
@@ -807,7 +1408,7 @@ impl Catalog {
         time_provider: Arc<dyn TimeProvider>,
         args: CatalogArgs,
         limits: CatalogLimits,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         use object_store::memory::InMemory;
 
         let store = Arc::new(InMemory::new());
@@ -832,7 +1433,7 @@ impl Catalog {
         catalog_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         let metric_registry = Default::default();
         Self::new(catalog_id.into(), store, time_provider, metric_registry).await
     }
@@ -849,11 +1450,21 @@ impl Catalog {
         metric_registry: Arc<Registry>,
         checkpoint_interval: u64,
     ) -> Result<Self> {
-        let store = ObjectStoreCatalog::new(catalog_id, checkpoint_interval, store);
+        let store = ObjectStoreCatalog::new(
+            catalog_id,
+            checkpoint_interval,
+            store,
+            StorageMode::default(),
+        );
         let inner = store.load_or_create_catalog().await?;
         let subscriptions = Default::default();
 
+        let usage = inner.current_usage();
         let catalog = Self {
+            enterprise: EnterpriseCatalogAttrs {
+                current_node_id: None,
+                last_catalog_check_time: RwLock::new(time_provider.now()),
+            },
             state: parking_lot::Mutex::new(CatalogState::Active),
             subscriptions,
             time_provider,
@@ -861,7 +1472,8 @@ impl Catalog {
             metrics: Arc::new(CatalogMetrics::new(&metric_registry)),
             metric_registry,
             inner: RwLock::new(inner),
-            limits: Default::default(),
+            limits: Arc::new(CatalogLimits::default()),
+            usage,
             args: Default::default(),
         };
 
@@ -883,6 +1495,63 @@ impl ProcessingEngineMetrics for Catalog {
     }
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiNodeSpec {
+    #[default]
+    All,
+    // Enterprise-only
+    Nodes(Vec<String>),
+}
+
+impl FromStr for ApiNodeSpec {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(Self::All),
+            s if s.starts_with("nodes") => {
+                let (_, node_str) = s
+                    .split_once(":")
+                    .ok_or(anyhow::Error::msg("unsupported node spec format"))?;
+                let node_ids = node_str.split(",").map(|s| s.to_string()).collect();
+                Ok(Self::Nodes(node_ids))
+            }
+            _ => Err(anyhow::Error::msg("unsupported node spec format")),
+        }
+    }
+}
+
+impl std::fmt::Display for ApiNodeSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiNodeSpec::All => write!(f, "all"),
+            ApiNodeSpec::Nodes(vec) => write!(f, "nodes:{}", vec.join(",")),
+        }
+    }
+}
+
+impl TryFrom<(ApiNodeSpec, &Catalog)> for NodeSpec {
+    type Error = CatalogError;
+
+    fn try_from((ans, catalog): (ApiNodeSpec, &Catalog)) -> Result<Self> {
+        match ans {
+            ApiNodeSpec::All => Ok(Self::All),
+            ApiNodeSpec::Nodes(specs) => Ok(Self::Nodes(
+                specs
+                    .into_iter()
+                    .map(|ns| {
+                        catalog
+                            .node(&ns)
+                            .map(|n| n.node_catalog_id())
+                            .ok_or(CatalogError::InvalidNodeName(ns.to_string()))
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct InnerCatalog {
     /// A unique monotonically increasing sequence to differentiate the catalog state as it changes
@@ -892,6 +1561,8 @@ pub struct InnerCatalog {
     pub(crate) catalog_id: Arc<str>,
     /// The `catalog_uuid` is a unique identifier to distinguish catalog instantiations
     pub(crate) catalog_uuid: Uuid,
+    /// Global storage mode selected for the deployment
+    pub(crate) storage_mode: StorageMode,
     /// Global generation settings to configure the layout of persisted parquet files
     pub(crate) generation_config: GenerationConfig,
     /// Collection of nodes in the catalog
@@ -900,6 +1571,12 @@ pub struct InnerCatalog {
     pub(crate) databases: Repository<DbId, DatabaseSchema>,
     /// Collection of tokens in the catalog
     pub(crate) tokens: TokenRepository,
+    /// This is a resource to token map used for authz
+    /// in memory representation of perms
+    pub(crate) token_permissions: TokenPermissions,
+    /// `true` if the catalog was loaded and an [`UpgradedLog`][crate::log::UpgradedLog]
+    /// entry was encountered in the log stream, i.e., a v3 migration has started.
+    pub(crate) has_upgraded: bool,
 }
 
 impl InnerCatalog {
@@ -908,13 +1585,16 @@ impl InnerCatalog {
             sequence: CatalogSequenceNumber::new(0),
             catalog_id,
             catalog_uuid,
+            storage_mode: StorageMode::default(),
             nodes: Repository::default(),
             databases: Repository::default(),
             tokens: TokenRepository::default(),
+            token_permissions: TokenPermissions::new(),
             // TODO(tjh): using default here will result in an empty config; some type state could
             // help us prevent starting a catalog that avoids this case, but we also need to keep
             // backward compatibility so, just defaulting this for now...
             generation_config: Default::default(),
+            has_upgraded: false,
         }
     }
 
@@ -932,10 +1612,34 @@ impl InnerCatalog {
 
     pub fn table_count(&self) -> usize {
         self.databases
-            .iter()
-            .filter(|(_, db)| !db.deleted)
-            .map(|(_, db)| db.table_count())
+            .resource_iter()
+            .filter(|db| !db.deleted)
+            .map(|db| db.table_count())
             .sum()
+    }
+
+    /// Computes the current catalog usage statistics.
+    pub(crate) fn current_usage(&self) -> CurrentCatalogUsage {
+        let total_db_count = self.database_count();
+
+        let mut total_table_count = 0;
+        let mut total_column_count = 0;
+
+        for db in self.databases.resource_iter() {
+            if !db.deleted && db.name().as_ref() != INTERNAL_DB_NAME {
+                let table_count = db.table_count();
+                total_table_count += table_count;
+
+                for table in db.tables.resource_iter() {
+                    if !table.deleted {
+                        let column_count = table.num_columns();
+                        total_column_count += column_count;
+                    }
+                }
+            }
+        }
+
+        CurrentCatalogUsage::new(total_db_count, total_table_count, total_column_count)
     }
 
     /// Verifies _and_ applies the `CatalogBatch` to the catalog.
@@ -943,6 +1647,7 @@ impl InnerCatalog {
         &mut self,
         catalog_batch: &CatalogBatch,
         sequence: CatalogSequenceNumber,
+        store: Option<&ObjectStoreCatalog>,
     ) -> Result<Option<OrderedCatalogBatch>> {
         debug!(
             n_ops = catalog_batch.n_ops(),
@@ -957,6 +1662,13 @@ impl InnerCatalog {
             CatalogBatch::Delete(delete_batch) => self.apply_delete_batch(delete_batch)?,
             CatalogBatch::Generation(generation_batch) => {
                 self.apply_generation_batch(generation_batch)?
+            }
+            CatalogBatch::StorageMode(storage_mode_batch) => {
+                self.apply_storage_mode_batch(storage_mode_batch)?
+            }
+            CatalogBatch::Restore(restore_batch) => {
+                let store = store.ok_or(CatalogError::MissingObjectStoreForRestore)?;
+                self.apply_restore_batch(restore_batch, sequence, store)?
             }
         };
 
@@ -976,19 +1688,26 @@ impl InnerCatalog {
                     registered_time_ns,
                     core_count,
                     mode,
+                    conn_info,
                     cli_params,
+                    row_delete_predicate_version,
                     ..
                 }) => {
                     if let Some(mut node) = self.nodes.get_by_name(node_id) {
-                        if &node.instance_id != instance_id {
+                        // Allow re-registration of stopped nodes with different instance_id
+                        if !matches!(node.state, NodeState::Stopped { .. })
+                            && &node.instance_id != instance_id
+                        {
                             return Err(CatalogError::InvalidNodeRegistration);
                         }
                         let n = Arc::make_mut(&mut node);
+                        n.instance_id = Arc::clone(instance_id);
                         n.mode = mode.clone();
                         n.core_count = *core_count;
                         n.state = NodeState::Running {
                             registered_time_ns: *registered_time_ns,
                         };
+                        n.conn_info = conn_info.as_ref().map(|s| Arc::from(s.as_str()));
                         n.cli_params = cli_params.as_ref().map(|s| Arc::from(s.as_str()));
                         self.nodes
                             .update(node_batch.node_catalog_id, node)
@@ -1003,7 +1722,9 @@ impl InnerCatalog {
                             state: NodeState::Running {
                                 registered_time_ns: *registered_time_ns,
                             },
+                            conn_info: conn_info.as_ref().map(|s| Arc::from(s.as_str())),
                             cli_params: cli_params.as_ref().map(|s| Arc::from(s.as_str())),
+                            row_delete_predicate_version: *row_delete_predicate_version,
                         });
                         self.nodes
                             .insert(node_batch.node_catalog_id, new_node)
@@ -1037,6 +1758,45 @@ impl InnerCatalog {
         Ok(updated)
     }
 
+    fn apply_restore_batch(
+        &mut self,
+        restore_batch: &log::RestoreBatch,
+        sequence: CatalogSequenceNumber,
+        store: &ObjectStoreCatalog,
+    ) -> Result<bool> {
+        let checkpoint_path = Path::parse(&restore_batch.checkpoint_path).map_err(|_| {
+            CatalogError::unexpected(format!(
+                "invalid checkpoint path: {}",
+                restore_batch.checkpoint_path
+            ))
+        })?;
+        let log_paths = restore_batch
+            .log_paths
+            .iter()
+            .map(Path::parse)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| CatalogError::unexpected(format!("invalid log path: {}", e)))?;
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+
+            match rt.block_on(store.load_catalog_from_paths(&checkpoint_path, &log_paths))? {
+                Some(restored) => {
+                    let mut restored = InnerCatalog::from_snapshot(restored.snapshot());
+                    restored.sequence = sequence;
+                    *self = restored;
+                    Ok(true)
+                }
+                None => {
+                    warn!(
+                        "no snapshot found at checkpoint path {} for restore id {}, cannot apply restore batch",
+                        &restore_batch.checkpoint_path, restore_batch.restore_id
+                    );
+                    Ok(false)
+                }
+            }
+        })
+    }
+
     fn apply_token_batch(&mut self, token_batch: &TokenBatch) -> Result<bool> {
         let mut is_updated = false;
         for op in &token_batch.ops {
@@ -1054,6 +1814,7 @@ impl InnerCatalog {
                         resource_type: ResourceType::Wildcard,
                         resource_identifier: ResourceIdentifier::Wildcard,
                         actions: Actions::Wildcard,
+                        resource_names: None,
                     }]);
                     // add the admin token itself
                     self.tokens
@@ -1068,18 +1829,70 @@ impl InnerCatalog {
                     )?;
                     true
                 }
-                TokenCatalogOp::DeleteToken(delete_token_details) => {
-                    self.tokens
-                        .delete_token(delete_token_details.token_name.to_owned())?;
-                    true
-                }
+                _ => false,
             };
         }
+
+        // enterprise specific variants are handled here
+        is_updated |= self.apply_token_batch_enterprise(token_batch)?;
 
         Ok(is_updated)
     }
 
     fn apply_database_batch(&mut self, database_batch: &DatabaseBatch) -> Result<bool> {
+        // Check if this batch contains a soft delete operation
+        let has_soft_delete = database_batch
+            .ops
+            .iter()
+            .any(|op| matches!(op, DatabaseCatalogOp::SoftDeleteDatabase(_)));
+
+        // If we're soft-deleting, capture the original database name in tokens before it gets renamed
+        if has_soft_delete && let Some(db) = self.databases.get_by_id(&database_batch.database_id) {
+            let db_id = db.id;
+            let db_name = Arc::clone(&db.name);
+
+            // Update tokens that reference this database to capture the original name
+            let token_ids: Vec<_> = self.tokens.repo().id_iter().copied().collect();
+            for token_id in token_ids {
+                if let Some(token_info) = self.tokens.repo().get_by_id(&token_id) {
+                    let mut needs_update = false;
+                    let mut updated_token = Arc::clone(&token_info);
+                    let mutable_token = Arc::make_mut(&mut updated_token);
+
+                    for permission in &mut mutable_token.permissions {
+                        if let influxdb3_authz::ResourceIdentifier::Database(db_ids) =
+                            &permission.resource_identifier
+                            && db_ids.contains(&db_id)
+                        {
+                            // Initialize resource_names if it doesn't exist
+                            if permission.resource_names.is_none() {
+                                permission.resource_names = Some(IndexMap::new());
+                            }
+
+                            // Capture the database name with deletion metadata
+                            if let Some(ref mut resource_names) = permission.resource_names {
+                                resource_names.entry(db_id.to_string()).or_insert_with(|| {
+                                    influxdb3_authz::ResourceMetadata {
+                                        name: db_name.to_string(),
+                                        deleted: true,
+                                    }
+                                });
+                                needs_update = true;
+                            }
+                        }
+                    }
+
+                    if needs_update {
+                        // Update the token in the repository
+                        self.tokens
+                            .update_token(token_id, (*updated_token).clone())
+                            .expect("token to be updated");
+                    }
+                }
+            }
+        }
+
+        // Now proceed with the normal database batch processing
         if let Some(db) = self.databases.get_by_id(&database_batch.database_id) {
             let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(&db, database_batch)?
             else {
@@ -1102,20 +1915,115 @@ impl InnerCatalog {
         for op in &delete_batch.ops {
             match op {
                 DeleteOp::DeleteDatabase(db_id) => {
-                    // Remove the database from schema
-                    if self.databases.get_by_id(db_id).is_some() {
-                        self.databases.remove(db_id);
-                        updated = true;
+                    let Some(mut db_schema) = self.databases.get_by_id(db_id) else {
+                        continue;
+                    };
+
+                    let scope = DeletionScope::from_option(db_schema.hard_delete_scope);
+                    match scope {
+                        DeletionScope::DataAndCatalog => {
+                            // Capture database name in tokens before deletion
+                            let db_name = Arc::clone(&db_schema.name);
+
+                            // Update tokens that reference this database
+                            let token_ids: Vec<_> = self.tokens.repo().id_iter().copied().collect();
+                            for token_id in token_ids {
+                                if let Some(token_info) = self.tokens.repo().get_by_id(&token_id) {
+                                    let mut needs_update = false;
+                                    let mut updated_token = Arc::clone(&token_info);
+                                    let mutable_token = Arc::make_mut(&mut updated_token);
+
+                                    for permission in &mut mutable_token.permissions {
+                                        if let influxdb3_authz::ResourceIdentifier::Database(db_ids) =
+                                            &permission.resource_identifier
+                                            && db_ids.contains(db_id)
+                                        {
+                                            // Initialize resource_names if it doesn't exist
+                                            if permission.resource_names.is_none() {
+                                                permission.resource_names = Some(IndexMap::new());
+                                            }
+
+                                            // Capture the database name with deletion metadata
+                                            if let Some(ref mut resource_names) =
+                                                permission.resource_names
+                                            {
+                                                resource_names
+                                                    .entry(db_id.to_string())
+                                                    .or_insert_with(|| {
+                                                        influxdb3_authz::ResourceMetadata {
+                                                            name: db_name.to_string(),
+                                                            deleted: true,
+                                                        }
+                                                    });
+                                                needs_update = true;
+                                            }
+                                        }
+                                    }
+
+                                    if needs_update {
+                                        // Update the token in the repository
+                                        let _ = self
+                                            .tokens
+                                            .update_token(token_id, (*updated_token).clone());
+                                    }
+                                }
+                            }
+
+                            // Now remove the database from schema
+                            self.databases.remove(db_id);
+                            updated = true;
+                        }
+                        DeletionScope::DataOnlyRemoveTables => {
+                            // Remove all tables from this database schema
+                            let db_schema_mut = Arc::make_mut(&mut db_schema);
+
+                            let table_ids: Vec<TableId> =
+                                db_schema_mut.tables.id_iter().copied().collect();
+                            for table_id in table_ids {
+                                db_schema_mut.tables.remove(&table_id);
+                            }
+
+                            self.databases.update(*db_id, db_schema)?;
+                            updated = true;
+                        }
+                        DeletionScope::DataOnlyKeepResources => {
+                            // No action needed in catalog, but still treated as an update
+                            // so ordered delete batches don't get dropped, i.e.,
+                            // apply_ordered_catalog_batch's "must contain changes" expectation is met,
+                            // and downstream components can still react to the delete operation even
+                            // if it doesn't result in catalog mutations.
+                            updated = true;
+                        }
                     }
                 }
                 DeleteOp::DeleteTable(db_id, table_id) => {
-                    // Remove the table from the database schema
-                    if let Some(mut db_schema) = self.databases.get_by_id(db_id)
-                        && db_schema.tables.get_by_id(table_id).is_some()
-                    {
-                        Arc::make_mut(&mut db_schema).tables.remove(table_id);
-                        self.databases.update(*db_id, db_schema)?;
-                        updated = true;
+                    let Some(mut db_schema) = self.databases.get_by_id(db_id) else {
+                        continue;
+                    };
+                    let Some(table_def) = db_schema.tables.get_by_id(table_id) else {
+                        continue;
+                    };
+                    let scope = DeletionScope::from_option(table_def.hard_delete_scope);
+
+                    match scope {
+                        DeletionScope::DataAndCatalog => {
+                            // Remove the table from the database schema
+                            Arc::make_mut(&mut db_schema).tables.remove(table_id);
+                            self.databases.update(*db_id, db_schema)?;
+                            updated = true;
+                        }
+                        DeletionScope::DataOnlyKeepResources
+                        | DeletionScope::DataOnlyRemoveTables => {
+                            // Table does not have the `DeletionScope::DataOnlyRemoveTables` option,
+                            // but explicitly mention it here for completeness.
+
+                            // No action needed in catalog, but still treated as an update
+                            // so ordered delete batches don't get dropped, i.e.,
+                            // apply_ordered_catalog_batch's "must contain changes" expectation is met,
+                            // and downstream components can still react to the delete operation even
+                            // if it doesn't result in catalog mutations.
+                            updated = true;
+                        }
                     }
                 }
             }
@@ -1131,6 +2039,21 @@ impl InnerCatalog {
                     updated |= self
                         .generation_config
                         .set_duration(log.level, log.duration)?;
+                }
+            }
+        }
+        Ok(updated)
+    }
+
+    fn apply_storage_mode_batch(&mut self, storage_mode_batch: &StorageModeBatch) -> Result<bool> {
+        let mut updated = false;
+        for op in &storage_mode_batch.ops {
+            match op {
+                StorageModeOp::Set(mode) => {
+                    if self.storage_mode != *mode {
+                        self.storage_mode = *mode;
+                        updated = true;
+                    }
                 }
             }
         }
@@ -1166,6 +2089,24 @@ impl InnerCatalog {
                     )
                 },
             )
+    }
+
+    /// Check if the given `level` already has a duration configuration; if it does and the existing
+    /// value is the same as `duration`, returns `AlreadyExists`; if the values differ, returns
+    /// `CannotChangeGenerationDuration`.
+    fn check_generation_duration(&self, level: u8, duration: Duration) -> Result<()> {
+        if let Some(existing) = self.generation_config.duration_for_level(level) {
+            if duration != existing {
+                return Err(CatalogError::CannotChangeGenerationDuration {
+                    level,
+                    existing: existing.into(),
+                    attempted: duration.into(),
+                });
+            } else {
+                return Err(CatalogError::AlreadyExists);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -1225,8 +2166,15 @@ pub struct NodeDefinition {
     pub(crate) core_count: u64,
     /// The state of the node
     pub(crate) state: NodeState,
-    /// CLI parameters provided when the node was registered
+    /// Connection information for this node (format: host:port)
+    /// Used by other nodes in the cluster to connect to this node
+    pub(crate) conn_info: Option<Arc<str>>,
+    /// CLI parameters used to start this node (non-sensitive params only, JSON format)
     pub(crate) cli_params: Option<Arc<str>>,
+
+    /// The 'version' of the row delete predicate support. This should be equal to
+    /// `influxdb3_row_delete::predicate::Predicate::version()`. See that method for more details.
+    pub(crate) row_delete_predicate_version: usize,
 }
 
 impl NodeDefinition {
@@ -1261,8 +2209,22 @@ impl NodeDefinition {
         self.state
     }
 
+    pub fn is_ingest(&self) -> bool {
+        self.mode
+            .iter()
+            .any(|mode| matches!(mode, NodeMode::All | NodeMode::Ingest))
+    }
+
+    pub fn conn_info(&self) -> Option<Arc<str>> {
+        self.conn_info.clone()
+    }
+
     pub fn cli_params(&self) -> Option<Arc<str>> {
         self.cli_params.clone()
+    }
+
+    pub fn row_delete_predicate_version(&self) -> usize {
+        self.row_delete_predicate_version
     }
 }
 
@@ -1271,7 +2233,7 @@ impl NodeDefinition {
 pub enum NodeState {
     /// A node is set to `Running` when first started and registered into the catalog
     Running { registered_time_ns: i64 },
-    /// A node is set to `Stopped` during graceful shutdown
+    /// A node is set to `Stopped` during graceful shutdown or permanent removal
     Stopped { stopped_time_ns: i64 },
 }
 
@@ -1308,6 +2270,8 @@ pub struct DatabaseSchema {
     pub deleted: bool,
     /// The time when the database is scheduled to be hard deleted.
     pub hard_delete_time: Option<Time>,
+    /// The scope of the hard delete request, if any.
+    pub hard_delete_scope: Option<DeletionScope>,
 }
 
 impl DatabaseSchema {
@@ -1320,6 +2284,7 @@ impl DatabaseSchema {
             processing_engine_triggers: Repository::new(),
             deleted: false,
             hard_delete_time: None,
+            hard_delete_scope: None,
         }
     }
 
@@ -1374,7 +2339,8 @@ impl DatabaseSchema {
         table_id: TableId,
         table_def: Arc<TableDefinition>,
     ) -> Result<()> {
-        self.tables.update(table_id, table_def)
+        self.tables.update(table_id, table_def)?;
+        Ok(())
     }
 
     /// Insert a [`TableDefinition`] to the `tables` map and also update the `table_map` and
@@ -1471,19 +2437,57 @@ impl DatabaseSchema {
     }
 
     // Return the oldest allowable timestamp for the given table according to the
-    // currently-available set of retention policies. This is returned as a number of nanoseconds
-    // since the Unix Epoch.
+    // currently-available set of retention policies.
     pub fn get_retention_period_cutoff_ts_nanos(
         &self,
-        time_provider: Arc<dyn TimeProvider>,
-    ) -> Option<i64> {
-        let retention_period = match self.retention_period {
-            RetentionPeriod::Duration(d) => Some(d.as_nanos() as u64),
+        now: Time,
+        table_id: &TableId,
+    ) -> Option<Time> {
+        let table_value =
+            self.table_definition_by_id(table_id)
+                .and_then(|def| match def.retention_period {
+                    RetentionPeriod::Duration(d) => Some(d),
+                    RetentionPeriod::Indefinite => None,
+                });
+        let db_value = match self.retention_period {
+            RetentionPeriod::Duration(d) => Some(d),
             RetentionPeriod::Indefinite => None,
-        }?;
+        };
+        let retention_period = match (db_value, table_value) {
+            (_, Some(table)) => table,
+            (Some(db), None) => db,
+            (None, None) => return None,
+        };
 
-        let now = time_provider.now().timestamp_nanos();
-        Some(now - retention_period as i64)
+        now.checked_sub(retention_period)
+    }
+
+    /// Returns both the retention cutoff timestamp and the retention period
+    /// duration for a table. The compactor needs both to compute
+    /// `next_expiration` after rewriting files.
+    pub fn get_retention_cutoff_and_period(
+        &self,
+        now: Time,
+        table_id: &TableId,
+    ) -> Option<(Time, Duration)> {
+        let table_value =
+            self.table_definition_by_id(table_id)
+                .and_then(|def| match def.retention_period {
+                    RetentionPeriod::Duration(d) => Some(d),
+                    RetentionPeriod::Indefinite => None,
+                });
+        let db_value = match self.retention_period {
+            RetentionPeriod::Duration(d) => Some(d),
+            RetentionPeriod::Indefinite => None,
+        };
+        let retention_period = match (db_value, table_value) {
+            (_, Some(table)) => table,
+            (Some(db), None) => db,
+            (None, None) => return None,
+        };
+
+        now.checked_sub(retention_period)
+            .map(|cutoff| (cutoff, retention_period))
     }
 
     /// Returns the deletion status of a table by its table ID
@@ -1633,12 +2637,13 @@ impl UpdateDatabaseSchema for CreateTableLog {
 /// Mark a table as soft-deleted within a database schema.
 ///
 /// Sets `deleted = true`, renames the table with a deletion timestamp suffix,
-/// and sets the `hard_delete_time`.
+/// and sets the `hard_delete_time` and `hard_delete_scope`.
 fn soft_delete_table(
     schema: &mut DatabaseSchema,
     table_id: TableId,
     deletion_time: Time,
     hard_delete_time: Option<Time>,
+    hard_delete_scope: Option<DeletionScope>,
 ) {
     let Some(mut table) = schema.tables.get_by_id(&table_id) else {
         return;
@@ -1650,6 +2655,7 @@ fn soft_delete_table(
         table_def.deleted = true;
     }
     table_def.hard_delete_time = hard_delete_time;
+    table_def.hard_delete_scope = hard_delete_scope;
     if let Err(e) = schema.tables.update(table_id, table) {
         warn!(%table_id, %e, "failed to update table during soft delete");
     }
@@ -1670,8 +2676,9 @@ impl UpdateDatabaseSchema for SoftDeleteDatabaseLog {
             owned.deleted = true;
         }
         owned.hard_delete_time = hard_delete_time;
+        owned.hard_delete_scope = self.hard_delete_scope;
         // Cascade soft-delete to all tables in the database so they no longer count against
-        // the table limits.
+        // the global table limit.
         let table_ids: Vec<_> = owned
             .tables
             .iter()
@@ -1679,7 +2686,13 @@ impl UpdateDatabaseSchema for SoftDeleteDatabaseLog {
             .map(|(id, _)| *id)
             .collect();
         for table_id in table_ids {
-            soft_delete_table(owned, table_id, deletion_time, hard_delete_time);
+            soft_delete_table(
+                owned,
+                table_id,
+                deletion_time,
+                hard_delete_time,
+                self.hard_delete_scope,
+            );
         }
         // Disable all triggers so they are marked as disabled in the catalog
         let trigger_ids: Vec<_> = owned
@@ -1713,7 +2726,13 @@ impl UpdateDatabaseSchema for SoftDeleteTableLog {
         let owned = schema.to_mut();
         let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
         let hard_delete_time = self.hard_deletion_time.map(Time::from_timestamp_nanos);
-        soft_delete_table(owned, self.table_id, deletion_time, hard_delete_time);
+        soft_delete_table(
+            owned,
+            self.table_id,
+            deletion_time,
+            hard_delete_time,
+            self.hard_delete_scope,
+        );
         Ok(schema)
     }
 }
@@ -1724,8 +2743,25 @@ impl UpdateDatabaseSchema for SetRetentionPeriodLog {
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         let mut_schema = schema.to_mut();
-        mut_schema.retention_period = self.retention_period;
-        Ok(schema)
+        if let Some((table_name, table_id)) = &self.table {
+            if let Some(mut table_to_update) = mut_schema.tables.get_by_id(table_id) {
+                let new_table_def = Arc::make_mut(&mut table_to_update);
+                new_table_def.retention_period = self.retention_period;
+                mut_schema
+                    .tables
+                    .update(new_table_def.table_id, table_to_update)
+                    .expect("the table must exist");
+                Ok(schema)
+            } else {
+                Err(CatalogError::TableNotFound {
+                    db_name: Arc::clone(&self.database_name),
+                    table_name: Arc::clone(table_name),
+                })
+            }
+        } else {
+            mut_schema.retention_period = self.retention_period;
+            Ok(schema)
+        }
     }
 }
 
@@ -1735,8 +2771,25 @@ impl UpdateDatabaseSchema for ClearRetentionPeriodLog {
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         let mut_schema = schema.to_mut();
-        mut_schema.retention_period = RetentionPeriod::Indefinite;
-        Ok(schema)
+        if let Some((table_name, table_id)) = &self.table {
+            if let Some(mut table_to_update) = mut_schema.tables.get_by_id(table_id) {
+                let new_table_def = Arc::make_mut(&mut table_to_update);
+                new_table_def.retention_period = RetentionPeriod::Indefinite;
+                mut_schema
+                    .tables
+                    .update(new_table_def.table_id, table_to_update)
+                    .expect("the table must exist");
+                Ok(schema)
+            } else {
+                Err(CatalogError::TableNotFound {
+                    db_name: Arc::clone(&self.database_name),
+                    table_name: Arc::clone(table_name),
+                })
+            }
+        } else {
+            mut_schema.retention_period = RetentionPeriod::Indefinite;
+            Ok(schema)
+        }
     }
 }
 
@@ -1861,10 +2914,12 @@ impl UpdateDatabaseSchema for DeleteTriggerLog {
     }
 }
 
+type FxBuildHasher = BuildHasherDefault<FxHasher>;
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ColumnSet {
     /// Store for items in the repository
-    pub(crate) repo: IndexMap<ColumnIdentifier, ColumnDefinition>,
+    pub(crate) repo: IndexMap<ColumnIdentifier, ColumnDefinition, FxBuildHasher>,
     /// Bi-directional map of identifiers to names in the repository
     pub(crate) id_name_map: BiHashMap<ColumnIdentifier, Arc<str>>,
     /// Bi-directional map of identifiers to ordinal column IDs in the repository
@@ -1876,9 +2931,15 @@ pub struct ColumnSet {
 impl ColumnSet {
     pub fn new() -> Self {
         Self {
-            repo: IndexMap::new(),
-            id_name_map: BiHashMap::new(),
-            id_ord_id_map: BiHashMap::new(),
+            repo: IndexMap::with_hasher(FxBuildHasher::default()),
+            id_name_map: bimap::BiHashMap::with_hashers(
+                AHashBuilder::default(),
+                AHashBuilder::default(),
+            ),
+            id_ord_id_map: bimap::BiHashMap::with_hashers(
+                AHashBuilder::default(),
+                AHashBuilder::default(),
+            ),
             next_id: 0.into(),
         }
     }
@@ -1887,6 +2948,14 @@ impl ColumnSet {
         let next_id = self.next_id;
         self.next_id = self.next_id.next();
         next_id
+    }
+
+    pub fn try_get_and_increment_next_id(&mut self) -> Option<ColumnId> {
+        if self.next_id < ColumnId::MAX {
+            Some(self.get_and_increment_next_id())
+        } else {
+            None
+        }
     }
 
     pub fn get_by_name(&self, name: &str) -> Option<&ColumnDefinition> {
@@ -1949,29 +3018,40 @@ impl ColumnSet {
     ///
     /// # Panics
     ///
-    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
-    /// that would be a bad state for the repository to be in.
+    /// This panics if the `id` is in the name map but not in the repository (or vice-versa), or
+    /// if the `id` is in the ord-id map but not in the repository.
     fn id_exists(&self, id: &ColumnIdentifier) -> bool {
         let id_in_name_map = self.id_name_map.contains_left(id);
-        let id_in_col_id_map = self.id_ord_id_map.contains_left(id);
+        let id_in_ord_id_map = self.id_ord_id_map.contains_left(id);
         let id_in_repo = self.repo.contains_key(id);
+        // Columns without a legacy ord_id are not in id_ord_id_map, so only
+        // assert that name_map and repo agree. When the column IS in
+        // id_ord_id_map, all three must agree.
         assert!(
-            (id_in_name_map == id_in_col_id_map) && (id_in_col_id_map == id_in_repo),
-            "name, col_id and repository are in an inconsistent state, \
-            name map: {id_in_name_map}, col_id map: {id_in_col_id_map}, in repo: {id_in_repo}"
+            id_in_name_map == id_in_repo,
+            "name and repository are in an inconsistent state, \
+            name map: {id_in_name_map}, in repo: {id_in_repo}"
+        );
+        assert!(
+            !id_in_ord_id_map || id_in_repo,
+            "col_id map contains id not present in repository"
         );
         id_in_repo
     }
 
-    /// Check if a [ColumnDefinition] exists in the repository by `id`, `column_id` and `name`
+    /// Check if a [ColumnDefinition] exists in the repository by `id`, `name`, and (when
+    /// present) `ord_id`.
     ///
     /// # Panics
     ///
-    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
-    /// that would be a bad state for the repository to be in.
+    /// This panics if the `id` is in the name map but not in the repository (or vice-versa), or
+    /// if the `id` is in the ord-id map but not in the repository.
     fn definition_exists(&self, v: &ColumnDefinition) -> bool {
         let name_in_map = self.id_name_map.contains_right(v.name().as_ref());
-        let ord_id_in_map = self.id_ord_id_map.contains_right(&v.ord_id());
+        let ord_id_in_map = v
+            .ord_id()
+            .map(|ord_id| self.id_ord_id_map.contains_right(&ord_id))
+            .unwrap_or(true);
         self.id_exists(&v.id()) && name_in_map && ord_id_in_map
     }
 
@@ -1984,12 +3064,17 @@ impl ColumnSet {
         let id = resource.id();
         let ord_id = resource.ord_id();
         self.id_name_map.insert(id, resource.name());
-        self.id_ord_id_map.insert(id, ord_id);
+        if let Some(ord_id) = ord_id {
+            self.id_ord_id_map.insert(id, ord_id);
+        }
         self.repo.insert(id, resource);
-        self.next_id = match self.next_id.cmp(&ord_id) {
-            Ordering::Less | Ordering::Equal => ord_id.next(),
-            Ordering::Greater => self.next_id,
-        };
+        if let Some(ord_id) = ord_id {
+            self.next_id = match self.next_id.cmp(&ord_id) {
+                Ordering::Less | Ordering::Equal if ord_id < ColumnId::MAX => ord_id.next(),
+                Ordering::Less | Ordering::Equal => ColumnId::MAX,
+                Ordering::Greater => self.next_id,
+            };
+        }
         Ok(())
     }
 
@@ -2035,7 +3120,7 @@ pub struct TableDefinition {
     /// The timestamp column for the table, if it exists
     timestamp_column: Option<Arc<TimestampColumn>>,
     /// Tag columns for the table
-    tag_columns: Repository<TagId, TagColumn>,
+    pub tag_columns: Repository<TagId, TagColumn>,
     /// Field family definitions for the table
     pub field_families: Repository<FieldFamilyId, FieldFamilyDefinition>,
     field_count: usize,
@@ -2055,6 +3140,8 @@ pub struct TableDefinition {
     /// table. The series key is determined as the order of tags provided when the table is
     /// first created, either by a write of line protocol, or by an explicit table creation.
     pub sort_key: SortKey,
+    /// Retention period for the table.
+    pub retention_period: RetentionPeriod,
     /// Last cache definitions for the table
     pub last_caches: Repository<LastCacheId, LastCacheDefinition>,
     /// Distinct cache definitions for the table
@@ -2063,6 +3150,8 @@ pub struct TableDefinition {
     pub deleted: bool,
     /// The time when the table is scheduled to be hard deleted.
     pub hard_delete_time: Option<Time>,
+    /// The scope of the hard delete request, if any.
+    pub hard_delete_scope: Option<DeletionScope>,
     pub field_family_mode: FieldFamilyMode,
 }
 
@@ -2079,6 +3168,7 @@ impl TableDefinition {
             vec![],
             vec![],
             vec![],
+            None,
             field_family_mode,
         )
         .expect("empty table should create without error")
@@ -2093,14 +3183,17 @@ impl TableDefinition {
         column_defs: Vec<ColumnDefinition>,
         field_family_defs: Vec<(FieldFamilyId, FieldFamilyName)>,
         series_key: Vec<TagId>,
+        retention_period: Option<Duration>,
         field_family_mode: FieldFamilyMode,
     ) -> Result<Self> {
         let mut field_families = Repository::new();
         let mut auto_field_family = None;
         let mut next_auto_field_family_name = 0;
         for (id, name) in field_family_defs {
+            // Track the highest auto field family so subsequent field additions reuse it
+            // rather than creating duplicates. Uses >= because Auto(0) is a valid first value.
             if let FieldFamilyName::Auto(v) = name
-                && v > next_auto_field_family_name
+                && v >= next_auto_field_family_name
             {
                 // It is not possible for the next auto ID overflow, because there is a
                 // limit of u16::MAX field families per table, and the auto ID starts at 0.
@@ -2112,6 +3205,11 @@ impl TableDefinition {
                 .insert(id, FieldFamilyDefinition::new(id, name))
                 .expect("field family definition should not exist");
         }
+
+        let retention_period = match retention_period {
+            Some(duration) => RetentionPeriod::Duration(duration),
+            None => RetentionPeriod::Indefinite,
+        };
 
         // Create an empty schema.
         let mut schema_builder = SchemaBuilder::with_capacity(column_defs.len());
@@ -2132,10 +3230,12 @@ impl TableDefinition {
             series_key: vec![],
             series_key_names: vec![],
             sort_key: SortKey::empty(),
+            retention_period,
             last_caches: Repository::new(),
             distinct_caches: Repository::new(),
             deleted: false,
             hard_delete_time: None,
+            hard_delete_scope: None,
             field_family_mode,
         };
 
@@ -2184,6 +3284,7 @@ impl TableDefinition {
             vec![],
             vec![],
             vec![],
+            table_definition.retention_period,
             table_definition.field_family_mode,
         )
         .expect("tables defined from ops should not exceed column limits")
@@ -2225,6 +3326,19 @@ impl TableDefinition {
         if !new_families.is_empty() {
             let table = table.to_mut();
             for def in new_families {
+                // When applying field families from a catalog batch (e.g. after commit or
+                // during catalog replay), we must track auto_field_family so that subsequent
+                // writes add new fields to the existing auto family instead of creating
+                // duplicates. Without this, the table loses its auto_field_family reference
+                // after every commit, causing new fields to be placed in separate families
+                // and breaking queries that project only the newer fields (#2582).
+                if let FieldFamilyName::Auto(v) = &def.name
+                    && *v >= table.next_auto_field_family_name
+                {
+                    table.next_auto_field_family_name =
+                        v.checked_add(1).expect("field family ID overflowed");
+                    table.auto_field_family = Some(def.id);
+                }
                 table.field_families.insert(def.id, def)?;
             }
         }
@@ -2396,6 +3510,22 @@ impl TableDefinition {
 
     pub fn num_field_families(&self) -> usize {
         self.field_families.len()
+    }
+
+    /// Returns the field columns for the specified field family, if it exists.
+    pub fn fields_by_family(
+        &self,
+        id: impl Into<FieldFamilyId>,
+    ) -> Option<&Repository<FieldId, FieldColumn>> {
+        self.field_families
+            .get_ref_by_id(&id.into())
+            .map(|def| &def.fields)
+    }
+
+    pub fn field_family_id_by_field_name(&self, name: impl AsRef<str>) -> Option<FieldFamilyId> {
+        self.columns
+            .get_by_name(name.as_ref())
+            .map(|def| def.as_field().map(|f| f.id.0))?
     }
 
     pub fn field_type_by_name(&self, name: impl AsRef<str>) -> Option<InfluxColumnType> {
@@ -2589,29 +3719,67 @@ pub enum ColumnDefinition {
     Field(Arc<FieldColumn>),
 }
 
+pub trait IntoLegacyColumnId {
+    fn into_legacy_column_id(self) -> Option<ColumnId>;
+}
+
+impl IntoLegacyColumnId for ColumnId {
+    fn into_legacy_column_id(self) -> Option<ColumnId> {
+        Some(self)
+    }
+}
+
+impl IntoLegacyColumnId for u16 {
+    fn into_legacy_column_id(self) -> Option<ColumnId> {
+        Some(self.into())
+    }
+}
+
+impl IntoLegacyColumnId for Option<ColumnId> {
+    fn into_legacy_column_id(self) -> Option<ColumnId> {
+        self
+    }
+}
+
 impl ColumnDefinition {
-    pub fn timestamp(column_id: impl Into<ColumnId>) -> Self {
+    pub fn timestamp(column_id: impl IntoLegacyColumnId) -> Self {
         Self::Timestamp(Arc::new(TimestampColumn {
-            column_id: column_id.into(),
+            column_id: column_id.into_legacy_column_id(),
             name: TIME_COLUMN_NAME.into(),
         }))
     }
 
     pub fn tag(
         id: impl Into<TagId>,
-        column_id: impl Into<ColumnId>,
+        column_id: impl IntoLegacyColumnId,
         name: impl Into<Arc<str>>,
     ) -> Self {
-        Self::Tag(Arc::new(TagColumn::new(id, column_id, name)))
+        Self::Tag(Arc::new(TagColumn::new(
+            id,
+            column_id.into_legacy_column_id(),
+            name,
+        )))
     }
 
     pub fn field(
         id: impl Into<FieldIdentifier>,
-        column_id: impl Into<ColumnId>,
+        column_id: impl IntoLegacyColumnId,
         name: impl Into<Arc<str>>,
         data_type: InfluxFieldType,
     ) -> Self {
-        Self::Field(Arc::new(FieldColumn::new(id, column_id, name, data_type)))
+        Self::Field(Arc::new(FieldColumn::new(
+            id,
+            column_id.into_legacy_column_id(),
+            name,
+            data_type,
+        )))
+    }
+
+    pub fn as_field(&self) -> Option<&FieldColumn> {
+        match self {
+            Self::Field(v) => Some(v),
+            _ => None,
+        }
     }
 }
 
@@ -2625,8 +3793,8 @@ impl ColumnDefinition {
         }
     }
 
-    /// Return the column ordinal ID.
-    pub fn ord_id(&self) -> ColumnId {
+    /// Return the legacy column ordinal ID when one is assigned.
+    pub fn ord_id(&self) -> Option<ColumnId> {
         match self {
             Self::Timestamp(v) => v.column_id,
             Self::Tag(v) => v.column_id,
@@ -2660,12 +3828,12 @@ impl ColumnDefinition {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TimestampColumn {
-    pub column_id: ColumnId,
+    pub column_id: Option<ColumnId>,
     pub name: Arc<str>,
 }
 
 impl TimestampColumn {
-    pub fn new(column_id: impl Into<ColumnId>, name: impl Into<Arc<str>>) -> Self {
+    pub fn new(column_id: impl Into<Option<ColumnId>>, name: impl Into<Arc<str>>) -> Self {
         Self {
             column_id: column_id.into(),
             name: name.into(),
@@ -2682,14 +3850,14 @@ impl From<Arc<TimestampColumn>> for ColumnDefinition {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TagColumn {
     pub id: TagId,
-    pub column_id: ColumnId,
+    pub column_id: Option<ColumnId>,
     pub name: Arc<str>,
 }
 
 impl TagColumn {
     pub fn new(
         id: impl Into<TagId>,
-        column_id: impl Into<ColumnId>,
+        column_id: impl Into<Option<ColumnId>>,
         name: impl Into<Arc<str>>,
     ) -> Self {
         Self {
@@ -2709,7 +3877,7 @@ impl From<Arc<TagColumn>> for ColumnDefinition {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct FieldColumn {
     pub id: FieldIdentifier,
-    pub column_id: ColumnId,
+    pub column_id: Option<ColumnId>,
     pub name: Arc<str>,
     pub data_type: InfluxFieldType,
 }
@@ -2717,7 +3885,7 @@ pub struct FieldColumn {
 impl FieldColumn {
     pub fn new(
         id: impl Into<FieldIdentifier>,
-        column_id: impl Into<ColumnId>,
+        column_id: impl Into<Option<ColumnId>>,
         name: impl Into<Arc<str>>,
         data_type: InfluxFieldType,
     ) -> Self {
@@ -2824,11 +3992,8 @@ where
             repo.insert(id, Arc::new(R::from_snapshot(res)))
                 .expect("catalog should contain no duplicates");
         }
-        Self {
-            id_name_map: repo.id_name_map,
-            repo: repo.repo,
-            next_id: snap.next_id,
-        }
+        repo.next_id = snap.next_id;
+        repo
     }
 }
 
@@ -2837,6 +4002,7 @@ impl Snapshot for InnerCatalog {
 
     fn snapshot(&self) -> Self::Serialized {
         Self::Serialized {
+            storage_mode: self.storage_mode,
             nodes: self.nodes.snapshot(),
             databases: self.databases.snapshot(),
             tokens: self.tokens.repo().snapshot(),
@@ -2848,22 +4014,28 @@ impl Snapshot for InnerCatalog {
     }
 
     fn from_snapshot(snap: Self::Serialized) -> Self {
+        let token_permissions = hydrate_token_permissions(&snap.tokens);
         let repository: Repository<TokenId, TokenInfo> = Repository::from_snapshot(snap.tokens);
-        let mut hash_lookup_map = BiHashMap::new();
+        let mut hash_lookup_map =
+            bimap::BiHashMap::with_hashers(AHashBuilder::default(), AHashBuilder::default());
         repository.repo.iter().for_each(|(id, info)| {
             // this clone should maybe be switched to arc?
             hash_lookup_map.insert(*id, info.hash.clone());
         });
 
         let token_info_repo = TokenRepository::new(repository, hash_lookup_map);
+
         Self {
             sequence: snap.sequence,
             catalog_id: snap.catalog_id,
             catalog_uuid: snap.catalog_uuid,
+            storage_mode: snap.storage_mode,
             nodes: Repository::from_snapshot(snap.nodes),
             databases: Repository::from_snapshot(snap.databases),
             tokens: token_info_repo,
+            token_permissions,
             generation_config: GenerationConfig::from_snapshot(snap.generation_config),
+            has_upgraded: false,
         }
     }
 }
@@ -2899,7 +4071,9 @@ impl Snapshot for NodeDefinition {
             mode: self.mode.clone(),
             state: self.state.snapshot(),
             core_count: self.core_count,
+            conn_info: self.conn_info.clone(),
             cli_params: self.cli_params.clone(),
+            row_delete_predicate_version: self.row_delete_predicate_version,
         }
     }
 
@@ -2911,7 +4085,9 @@ impl Snapshot for NodeDefinition {
             mode: snap.mode,
             core_count: snap.core_count,
             state: NodeState::from_snapshot(snap.state),
+            conn_info: snap.conn_info,
             cli_params: snap.cli_params,
+            row_delete_predicate_version: snap.row_delete_predicate_version,
         }
     }
 }
@@ -2928,6 +4104,7 @@ impl Snapshot for DatabaseSchema {
             processing_engine_triggers: self.processing_engine_triggers.snapshot(),
             deleted: self.deleted,
             hard_delete_time: self.hard_delete_time.as_ref().map(Time::timestamp_nanos),
+            hard_delete_scope: self.hard_delete_scope,
         }
     }
 
@@ -2943,6 +4120,7 @@ impl Snapshot for DatabaseSchema {
             processing_engine_triggers: Repository::from_snapshot(snap.processing_engine_triggers),
             deleted: snap.deleted,
             hard_delete_time: snap.hard_delete_time.map(Time::from_timestamp_nanos),
+            hard_delete_scope: snap.hard_delete_scope,
         }
     }
 }
@@ -2963,11 +4141,13 @@ impl Snapshot for TableDefinition {
             key: self.series_key.clone(),
             columns: self.columns.snapshot(),
             field_families: self.field_families.snapshot(),
+            retention_period: Some(self.retention_period.snapshot()),
             last_caches: self.last_caches.snapshot(),
             distinct_caches: self.distinct_caches.snapshot(),
             deleted: self.deleted,
             hard_delete_time: self.hard_delete_time.as_ref().map(Time::timestamp_nanos),
             field_family_mode: self.field_family_mode,
+            hard_delete_scope: self.hard_delete_scope,
         }
     }
 
@@ -2985,6 +4165,11 @@ impl Snapshot for TableDefinition {
                 .map(|s| (s.id, s.name.clone()))
                 .collect(),
             snap.key,
+            match snap.retention_period {
+                Some(RetentionPeriodSnapshot::Indefinite) => None,
+                Some(RetentionPeriodSnapshot::Duration(duration)) => Some(duration),
+                None => None,
+            },
             snap.field_family_mode,
         )
         .expect("serialized table definition from catalog should be valid");
@@ -3003,11 +4188,13 @@ impl Snapshot for TableDefinition {
             next_auto_field_family_name: table_def.next_auto_field_family_name,
             series_key: table_def.series_key,
             series_key_names: table_def.series_key_names,
+            retention_period: table_def.retention_period,
             sort_key: table_def.sort_key,
             last_caches: Repository::from_snapshot(snap.last_caches),
             distinct_caches: Repository::from_snapshot(snap.distinct_caches),
             deleted: snap.deleted,
             hard_delete_time: snap.hard_delete_time.map(Time::from_timestamp_nanos),
+            hard_delete_scope: snap.hard_delete_scope,
             field_family_mode: table_def.field_family_mode,
         }
     }
@@ -3169,7 +4356,7 @@ impl Snapshot for TriggerDefinition {
         ProcessingEngineTriggerSnapshot {
             trigger_id: self.trigger_id,
             trigger_name: Arc::clone(&self.trigger_name),
-            node_id: Arc::clone(&self.node_id),
+            node_spec: self.node_spec.clone(),
             plugin_filename: self.plugin_filename.clone(),
             database_name: Arc::clone(&self.database_name),
             trigger_specification: self.trigger.clone(),
@@ -3183,7 +4370,7 @@ impl Snapshot for TriggerDefinition {
         Self {
             trigger_id: snap.trigger_id,
             trigger_name: snap.trigger_name,
-            node_id: snap.node_id,
+            node_spec: snap.node_spec,
             plugin_filename: snap.plugin_filename,
             database_name: snap.database_name,
             trigger: snap.trigger_specification,
@@ -3201,6 +4388,7 @@ impl Snapshot for LastCacheDefinition {
         LastCacheSnapshot {
             table_id: self.table_id,
             table: Arc::clone(&self.table),
+            node_spec: self.node_spec.clone(),
             id: self.id,
             name: Arc::clone(&self.name),
             keys: self.key_columns.to_vec(),
@@ -3217,6 +4405,7 @@ impl Snapshot for LastCacheDefinition {
         Self {
             table_id: snap.table_id,
             table: snap.table,
+            node_spec: snap.node_spec,
             id: snap.id,
             name: snap.name,
             key_columns: snap.keys,
@@ -3239,11 +4428,15 @@ impl Snapshot for DistinctCacheDefinition {
         DistinctCacheSnapshot {
             table_id: self.table_id,
             table: Arc::clone(&self.table_name),
+            node_spec: self.node_spec.clone(),
             id: self.cache_id,
             name: Arc::clone(&self.cache_name),
             cols: self.column_ids.clone(),
             max_cardinality: self.max_cardinality,
             max_age_seconds: self.max_age_seconds,
+            source: self.source,
+            lookback_seconds: self.lookback_seconds,
+            refresh_interval: self.refresh_interval,
         }
     }
 
@@ -3251,11 +4444,15 @@ impl Snapshot for DistinctCacheDefinition {
         Self {
             table_id: snap.table_id,
             table_name: snap.table,
+            node_spec: snap.node_spec,
             cache_id: snap.id,
             cache_name: snap.name,
             column_ids: snap.cols,
             max_cardinality: snap.max_cardinality,
             max_age_seconds: snap.max_age_seconds,
+            source: snap.source,
+            lookback_seconds: snap.lookback_seconds,
+            refresh_interval: snap.refresh_interval,
         }
     }
 }
@@ -3263,9 +4460,9 @@ impl Snapshot for DistinctCacheDefinition {
 use crate::snapshot::versions::v4::{
     ActionsSnapshot, CrudActionsSnapshot, DatabaseActionsSnapshot, NodeStateSnapshot,
     PermissionSnapshot, RepositorySnapshot, ResourceIdentifierSnapshot, ResourceTypeSnapshot,
-    TokenInfoSnapshot,
+    SystemActionsSnapshot, TokenInfoSnapshot,
 };
-// Enterprise import removed - hydrate_token_permissions
+use enterprise::hydrate_token_permissions;
 use influxdb3_authz::{Actions, ResourceType};
 
 impl Snapshot for TokenInfo {
@@ -3318,6 +4515,7 @@ impl Snapshot for Permission {
             resource_type: self.resource_type.snapshot(),
             resource_identifier: self.resource_identifier.snapshot(),
             actions: self.actions.snapshot(),
+            resource_names: self.resource_names.clone(),
         }
     }
 
@@ -3326,6 +4524,7 @@ impl Snapshot for Permission {
             resource_type: ResourceType::from_snapshot(snap.resource_type),
             resource_identifier: ResourceIdentifier::from_snapshot(snap.resource_identifier),
             actions: Actions::from_snapshot(snap.actions),
+            resource_names: snap.resource_names,
         }
     }
 }
@@ -3339,6 +4538,7 @@ impl Snapshot for Actions {
                 ActionsSnapshot::Database(database_actions.snapshot())
             }
             Actions::Token(crud_actions) => ActionsSnapshot::Token(crud_actions.snapshot()),
+            Actions::System(system_actions) => ActionsSnapshot::System(system_actions.snapshot()),
             Actions::Wildcard => ActionsSnapshot::Wildcard,
         }
     }
@@ -3352,6 +4552,9 @@ impl Snapshot for Actions {
                 Actions::Token(CrudActions::from_snapshot(crud_actions))
             }
             ActionsSnapshot::Wildcard => Actions::Wildcard,
+            ActionsSnapshot::System(system_actions_snapshot) => {
+                Actions::System(SystemActions::from_snapshot(system_actions_snapshot))
+            }
         }
     }
 }
@@ -3364,6 +4567,7 @@ impl Snapshot for ResourceType {
             ResourceType::Database => ResourceTypeSnapshot::Database,
             ResourceType::Token => ResourceTypeSnapshot::Token,
             ResourceType::Wildcard => ResourceTypeSnapshot::Wildcard,
+            ResourceType::System => ResourceTypeSnapshot::System,
         }
     }
 
@@ -3372,6 +4576,7 @@ impl Snapshot for ResourceType {
             ResourceTypeSnapshot::Database => ResourceType::Database,
             ResourceTypeSnapshot::Token => ResourceType::Token,
             ResourceTypeSnapshot::Wildcard => ResourceType::Wildcard,
+            ResourceTypeSnapshot::System => ResourceType::System,
         }
     }
 }
@@ -3388,6 +4593,9 @@ impl Snapshot for ResourceIdentifier {
                 ResourceIdentifierSnapshot::Token(token_id.clone())
             }
             ResourceIdentifier::Wildcard => ResourceIdentifierSnapshot::Wildcard,
+            ResourceIdentifier::System(system_resource_identifiers) => {
+                ResourceIdentifierSnapshot::System(system_resource_identifiers.clone())
+            }
         }
     }
 
@@ -3395,6 +4603,9 @@ impl Snapshot for ResourceIdentifier {
         match snap {
             ResourceIdentifierSnapshot::Database(db_id) => ResourceIdentifier::Database(db_id),
             ResourceIdentifierSnapshot::Token(token_id) => ResourceIdentifier::Token(token_id),
+            ResourceIdentifierSnapshot::System(system_resource_identifiers) => {
+                ResourceIdentifier::System(system_resource_identifiers)
+            }
             ResourceIdentifierSnapshot::Wildcard => ResourceIdentifier::Wildcard,
         }
     }
@@ -3404,7 +4615,7 @@ impl Snapshot for DatabaseActions {
     type Serialized = DatabaseActionsSnapshot;
 
     fn snapshot(&self) -> Self::Serialized {
-        DatabaseActionsSnapshot(u16::MAX)
+        DatabaseActionsSnapshot(self.to_bitmap())
     }
 
     fn from_snapshot(snap: Self::Serialized) -> Self {
@@ -3416,7 +4627,19 @@ impl Snapshot for CrudActions {
     type Serialized = CrudActionsSnapshot;
 
     fn snapshot(&self) -> Self::Serialized {
-        CrudActionsSnapshot(u16::MAX)
+        CrudActionsSnapshot(self.to_bitmap())
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        snap.0.into()
+    }
+}
+
+impl Snapshot for SystemActions {
+    type Serialized = SystemActionsSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        SystemActionsSnapshot(self.to_bitmap())
     }
 
     fn from_snapshot(snap: Self::Serialized) -> Self {
@@ -3444,6 +4667,44 @@ impl Snapshot for NodeState {
                 Self::Running { registered_time_ns }
             }
             NodeStateSnapshot::Stopped { stopped_time_ns } => Self::Stopped { stopped_time_ns },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DeletionScope {
+    /// Remove database data and all catalog resources
+    #[default]
+    DataAndCatalog,
+    /// Remove database data and table-level catalog resources, but keep database-level catalog resources
+    DataOnlyRemoveTables,
+    /// Remove database data, but keep database-level and table-level resources
+    DataOnlyKeepResources,
+}
+
+impl DeletionScope {
+    #[allow(dead_code)]
+    /// Returns `None` if the scope is `DataAndCatalog`, otherwise `Some(scope)`.
+    fn as_option(self) -> Option<Self> {
+        match self {
+            Self::DataAndCatalog => None,
+            scope => Some(scope),
+        }
+    }
+
+    /// Returns the provided scope or the default `DataAndCatalog` if `None`.
+    pub fn from_option(scope: Option<Self>) -> Self {
+        scope.unwrap_or(Self::DataAndCatalog)
+    }
+}
+
+impl std::fmt::Display for DeletionScope {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeletionScope::DataAndCatalog => write!(f, "data_and_catalog"),
+            DeletionScope::DataOnlyRemoveTables => write!(f, "data_only_remove_tables"),
+            DeletionScope::DataOnlyKeepResources => write!(f, "data_only_keep_resources"),
         }
     }
 }

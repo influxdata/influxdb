@@ -3,7 +3,6 @@ use anyhow::Context;
 use hashbrown::HashMap;
 use influxdb3_client::Client;
 use influxdb3_types::http::{SchedulePluginTestRequest, WalPluginTestRequest};
-use secrecy::ExposeSecret;
 use std::{error::Error, path::PathBuf};
 
 #[derive(Debug, clap::Parser)]
@@ -13,7 +12,7 @@ pub struct Config {
 }
 
 impl Config {
-    fn get_client(&self) -> Result<Client, Box<dyn Error>> {
+    async fn get_client(&self) -> Result<Client, Box<dyn Error>> {
         let (host_url, auth_token, ca_cert, tls_no_verify) = match &self.cmd {
             SubCommand::WalPlugin(WalPluginConfig {
                 ca_cert,
@@ -38,10 +37,9 @@ impl Config {
                 ..
             }) => (host_url, auth_token, ca_cert, tls_no_verify),
         };
-        let mut client = Client::new(host_url.clone(), ca_cert.clone(), *tls_no_verify)?;
-        if let Some(token) = &auth_token {
-            client = client.with_auth_token(token.expose_secret());
-        }
+        let client = Client::new(host_url.clone(), ca_cert.clone(), *tls_no_verify)?
+            .with_resolved_auth_token(auth_token.as_ref())
+            .await?;
         Ok(client)
     }
 }
@@ -110,7 +108,7 @@ pub struct SchedulePluginConfig {
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
-    let client = config.get_client()?;
+    let client = config.get_client().await?;
 
     match config.cmd {
         SubCommand::WalPlugin(plugin_config) => {

@@ -18,10 +18,7 @@ use arrow::{
 };
 use indexmap::{IndexMap, IndexSet};
 use influxdb3_catalog::catalog::legacy;
-use influxdb3_catalog::{
-    catalog::{TIME_COLUMN_NAME, TableDefinition},
-    log::{LastCacheSize, LastCacheTtl},
-};
+use influxdb3_catalog::catalog::{LastCacheSize, LastCacheTtl, TIME_COLUMN_NAME, TableDefinition};
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{Field, FieldData, Row};
 use iox_time::Time;

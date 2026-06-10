@@ -145,5 +145,23 @@ fn get_memory_limit() -> usize {
     limit
 }
 
+/// Format a byte count as a human-readable string using suffixes:
+/// `512B`, `1.50KiB`, `8.00MiB`, `1.50GiB`. Picks the largest unit where the
+/// value is ≥ 1.
+pub fn format_bytes(bytes: usize) -> String {
+    const GIB: usize = 1024 * 1024 * 1024;
+    const MIB: usize = 1024 * 1024;
+    const KIB: usize = 1024;
+    if bytes >= GIB {
+        format!("{:.2}GiB", bytes as f64 / GIB as f64)
+    } else if bytes >= MIB {
+        format!("{:.2}MiB", bytes as f64 / MIB as f64)
+    } else if bytes >= KIB {
+        format!("{:.2}KiB", bytes as f64 / KIB as f64)
+    } else {
+        format!("{bytes}B")
+    }
+}
+
 #[cfg(test)]
 mod tests;

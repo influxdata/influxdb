@@ -10,6 +10,9 @@ pub struct ProcessingEngineConfig {
     pub plugin_dir: Option<PathBuf>,
     #[clap(long = "virtual-env-location", env = "VIRTUAL_ENV")]
     pub virtual_env_location: Option<PathBuf>,
+    /// Deprecated. Python and pip are bundled with InfluxDB; this option does not
+    /// need to be set because pip is always used for environment setup. `disabled`
+    /// only keeps blocking plugin package install API calls for compatibility.
     #[clap(
         long = "package-manager",
         env = "INFLUXDB3_PACKAGE_MANAGER",

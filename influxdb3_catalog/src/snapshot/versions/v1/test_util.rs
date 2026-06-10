@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     catalog::CatalogSequenceNumber,
-    log::versions::v1::{ErrorBehavior, MaxAge, MaxCardinality},
+    log::versions::v1::{ErrorBehavior, MaxAge, MaxCardinality, NodeSpec},
 };
 
 use super::{
@@ -117,7 +117,7 @@ impl Generate for ProcessingEngineTriggerSnapshot {
         Self {
             trigger_id: TriggerId::new(0),
             trigger_name: "test-trigger".into(),
-            node_id: "test-node".into(),
+            node_spec: Generate::generate(),
             plugin_filename: "plugin.py".into(),
             database_name: "test-db".into(),
             trigger_specification: Generate::generate(),
@@ -214,6 +214,7 @@ impl Generate for LastCacheSnapshot {
             vals: Some(vec![ColumnId::new(2), ColumnId::new(3)]),
             n: 2,
             ttl: 3600,
+            node_spec: Generate::generate(),
         }
     }
 }
@@ -228,6 +229,19 @@ impl Generate for DistinctCacheSnapshot {
             cols: vec![ColumnId::new(0), ColumnId::new(1)],
             max_cardinality: MaxCardinality::default(),
             max_age_seconds: MaxAge::default(),
+            node_spec: Generate::generate(),
+        }
+    }
+}
+
+static NODE_SPEC_GENERATOR: AtomicU8 = AtomicU8::new(0);
+
+impl Generate for NodeSpec {
+    fn generate() -> Self {
+        let g = NODE_SPEC_GENERATOR.fetch_add(1, Ordering::AcqRel);
+        match g % 2 {
+            1 => NodeSpec::All,
+            _ => NodeSpec::Nodes(vec![NodeId::new(0), NodeId::new(1)]),
         }
     }
 }

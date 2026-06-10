@@ -1,15 +1,17 @@
 use bytes::Bytes;
+use flate2::{Compression, write::GzEncoder};
 use hashbrown::HashMap;
 use influxdb3_catalog::log::{OrderedCatalogBatch, TriggerSettings};
-use iox_query_params::StatementParam;
+use iox_query_params::{StatementParam, StatementParams};
 use reqwest::{
     Body, Certificate, IntoUrl, Method, StatusCode,
-    header::{CONTENT_TYPE, HeaderMap, HeaderValue},
+    header::{CONTENT_ENCODING, CONTENT_TYPE, HeaderMap, HeaderValue},
     tls::Version,
 };
 use secrecy::{ExposeSecret, Secret};
 use serde::{Serialize, de::DeserializeOwned};
 use std::error::Error as _;
+use std::io::Write as _;
 use std::{fmt::Display, num::NonZeroUsize, path::PathBuf, string::FromUtf8Error, time::Duration};
 use url::Url;
 
@@ -51,7 +53,12 @@ pub enum Error {
     Text(#[source] reqwest::Error),
 
     #[error("server responded with error [{code}]: {message}")]
-    ApiError { code: StatusCode, message: String },
+    ApiError {
+        code: StatusCode,
+        message: String,
+        /// Machine-readable error code from JSON error responses, if present.
+        error_code: Option<String>,
+    },
 
     #[error("failed to send {method} {url} request: {}", reqwest_description(.source))]
     RequestSend {
@@ -66,6 +73,24 @@ pub enum Error {
 
     #[error("io error: {0}")]
     IO(#[from] std::io::Error),
+}
+
+/// Try to parse a JSON error response body with `error_code` and `message` fields.
+/// Returns `(message, error_code)`. If JSON parsing fails, treats the body as plain text.
+pub(crate) fn parse_error_body(body: &str) -> (String, Option<String>) {
+    #[derive(serde::Deserialize)]
+    struct JsonError {
+        #[serde(default)]
+        error_code: Option<String>,
+        #[serde(default)]
+        message: Option<String>,
+    }
+    if let Ok(parsed) = serde_json::from_str::<JsonError>(body) {
+        let message = parsed.message.unwrap_or_else(|| body.to_string());
+        (message, parsed.error_code)
+    } else {
+        (body.to_string(), None)
+    }
 }
 
 fn reqwest_description(e: &reqwest::Error) -> String {
@@ -169,6 +194,42 @@ impl Client {
         self
     }
 
+    /// OSS has no stored-credentials concept; this only applies an explicit token flag,
+    /// matching the Enterprise signature so shared command source compiles against both.
+    pub async fn with_resolved_auth_token(
+        mut self,
+        token_flag: Option<&Secret<String>>,
+    ) -> Result<Self> {
+        if let Some(t) = token_flag {
+            self.auth_token = Some(Secret::new(t.expose_secret().clone()));
+        }
+        Ok(self)
+    }
+
+    /// Whether this client has an auth token set.
+    pub fn is_authenticated(&self) -> bool {
+        self.auth_token.is_some()
+    }
+
+    /// Return the base URL this client is bound to.
+    pub fn base_url(&self) -> &Url {
+        &self.base_url
+    }
+
+    /// Return a short label identifying the node this client targets.
+    ///
+    /// Uses URL authority (`host:port`) when available, falling back to the full
+    /// URL string. Intended for tagging reports with the ingester/querier that
+    /// served a given request.
+    pub fn node_label(&self) -> String {
+        let authority = self.base_url.authority();
+        if authority.is_empty() {
+            self.base_url.as_str().to_string()
+        } else {
+            authority.to_string()
+        }
+    }
+
     /// Compose a request to the `/api/v3/write_lp` API
     ///
     /// # Example
@@ -198,6 +259,7 @@ impl Client {
                 accept_partial: None,
                 no_sync: None,
             },
+            gzip: false,
             body: NoBody,
         }
     }
@@ -268,7 +330,12 @@ impl Client {
         }
     }
 
-    /// Compose a request to the `POST /api/v3/configure/last_cache` API
+    /// Compose a request to the v1-compatible `GET /query` endpoint (InfluxQL).
+    ///
+    /// This is the endpoint that InfluxDB 1.x clients use. The database, query,
+    /// and any parameters are passed as URL query parameters. Parameters are
+    /// serialized as a URL-encoded JSON string in the `params` field, matching
+    /// the convention used by the InfluxDB 1.x v1 HTTP API.
     ///
     /// # Example
     /// ```no_run
@@ -276,11 +343,42 @@ impl Client {
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// let client = Client::new("http://localhost:8181", None, false)?;
+    /// let response_bytes = client
+    ///     .v1_query_influxql("db_name", "SELECT * FROM foo WHERE host = $host")
+    ///     .with_param("host", "s1")
+    ///     .send()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn v1_query_influxql<D: Into<String>, Q: Into<String>>(
+        &self,
+        db: D,
+        query: Q,
+    ) -> V1QueryRequestBuilder<'_> {
+        V1QueryRequestBuilder {
+            client: self,
+            db: db.into(),
+            query: query.into(),
+            format: None,
+            params: None,
+        }
+    }
+
+    /// Compose a request to the `POST /api/v3/configure/last_cache` API
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # use influxdb3_catalog::log::versions::v4::{LastCacheTtl, LastCacheSize};
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let client = Client::new("http://localhost:8181", None, false)?;
     /// let resp = client
     ///     .api_v3_configure_last_cache_create("db_name", "table_name")
-    ///     .ttl(120)
+    ///     .ttl(LastCacheTtl::from_secs(120))
     ///     .name("cache_name")
-    ///     .count(5)
+    ///     .count(LastCacheSize::new(5).unwrap())
     ///     .key_columns(["col1", "col2"])
     ///     .send()
     ///     .await
@@ -833,9 +931,13 @@ impl Client {
         if resp.status().is_success() {
             resp.json().await.map_err(Error::Json)
         } else {
+            let code = resp.status();
+            let body = resp.text().await.map_err(Error::Text)?;
+            let (message, error_code) = parse_error_body(&body);
             Err(Error::ApiError {
-                code: resp.status(),
-                message: resp.text().await.map_err(Error::Text)?,
+                code,
+                message,
+                error_code,
             })
         }
     }
@@ -949,6 +1051,24 @@ impl Client {
     where
         Q: Serialize + Send + Sync,
     {
+        let (bytes, _headers) = self
+            .send_get_bytes_with_headers(method, url_path, body, query, headers)
+            .await?;
+        Ok(bytes)
+    }
+
+    /// Like [`Self::send_get_bytes`] but also returns the response headers.
+    async fn send_get_bytes_with_headers<Q>(
+        &self,
+        method: Method,
+        url_path: &str,
+        body: Option<Body>,
+        query: Option<Q>,
+        headers: Option<HeaderMap>,
+    ) -> Result<(Bytes, HeaderMap)>
+    where
+        Q: Serialize + Send + Sync,
+    {
         let url = self.base_url.join(url_path)?;
         let mut req = self.http_client.request(method.clone(), url.clone());
         if let Some(token) = &self.auth_token {
@@ -968,14 +1088,20 @@ impl Client {
             .await
             .map_err(|src| Error::request_send(method, url, src))?;
         let status = resp.status();
+        let resp_headers = resp.headers().clone();
         let content = resp.bytes().await.map_err(Error::Bytes)?;
 
         match status {
-            s if s.is_success() => Ok(content),
-            code => Err(Error::ApiError {
-                code,
-                message: String::from_utf8(content.to_vec()).map_err(Error::InvalidUtf8)?,
-            }),
+            s if s.is_success() => Ok((content, resp_headers)),
+            code => {
+                let body = String::from_utf8(content.to_vec()).map_err(Error::InvalidUtf8)?;
+                let (message, error_code) = parse_error_body(&body);
+                Err(Error::ApiError {
+                    code,
+                    message,
+                    error_code,
+                })
+            }
         }
     }
 
@@ -1014,10 +1140,15 @@ impl Client {
                 Ok(Some(content))
             }
             StatusCode::NO_CONTENT => Ok(None),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
+            code => {
+                let body = resp.text().await.map_err(Error::Text)?;
+                let (message, error_code) = parse_error_body(&body);
+                Err(Error::ApiError {
+                    code,
+                    message,
+                    error_code,
+                })
+            }
         }
     }
 
@@ -1053,9 +1184,13 @@ impl Client {
         if status.is_success() {
             resp.json().await.map_err(Error::Json)
         } else {
+            let code = resp.status();
+            let body = resp.text().await.map_err(Error::Text)?;
+            let (message, error_code) = parse_error_body(&body);
             Err(Error::ApiError {
-                code: resp.status(),
-                message: resp.text().await.map_err(Error::Text)?,
+                code,
+                message,
+                error_code,
             })
         }
     }
@@ -1068,6 +1203,7 @@ impl Client {
 pub struct WriteRequestBuilder<'c, B> {
     client: &'c Client,
     params: WriteParams,
+    gzip: bool,
     body: B,
 }
 
@@ -1084,9 +1220,16 @@ impl<B> WriteRequestBuilder<'_, B> {
         self
     }
 
-    /// Set the `no_sync` parameter
+    /// Set the `no_sync` parameter to skip WAL durability ACK
     pub fn no_sync(mut self, set_to: bool) -> Self {
         self.params.no_sync = Some(set_to);
+        self
+    }
+
+    /// When `true`, the request body is gzip-compressed and sent with a
+    /// `Content-Encoding: gzip` header. The server transparently decodes it.
+    pub fn with_gzip(mut self, set_to: bool) -> Self {
+        self.gzip = set_to;
         self
     }
 }
@@ -1094,29 +1237,41 @@ impl<B> WriteRequestBuilder<'_, B> {
 impl<'c> WriteRequestBuilder<'c, NoBody> {
     /// Set the body of the request to the `/api/v3/write_lp` API
     ///
-    /// This essentially wraps `reqwest`'s [`body`][reqwest::RequestBuilder::body]
-    /// method, and puts the responsibility on the caller for now.
-    pub fn body<T: Into<Body>>(self, body: T) -> WriteRequestBuilder<'c, Body> {
+    /// The body is materialized as [`Bytes`] so it can be transformed (e.g.
+    /// gzip-compressed via [`with_gzip`](Self::with_gzip)) prior to sending.
+    pub fn body<T: Into<Bytes>>(self, body: T) -> WriteRequestBuilder<'c, Bytes> {
         WriteRequestBuilder {
             client: self.client,
             params: self.params,
+            gzip: self.gzip,
             body: body.into(),
         }
     }
 }
 
-impl WriteRequestBuilder<'_, Body> {
+impl WriteRequestBuilder<'_, Bytes> {
     /// Send the request to the server
     pub async fn send(self) -> Result<()> {
+        let (body, headers) = if self.gzip {
+            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(&self.body)?;
+            let compressed = encoder.finish()?;
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+            (Body::from(compressed), Some(headers))
+        } else {
+            (Body::from(self.body), None)
+        };
+
         // ignore the returned value since we don't expect a response body
         let _bytes = self
             .client
             .send_get_bytes(
                 Method::POST,
                 "/api/v3/write_lp",
-                Some(self.body),
+                Some(body),
                 Some(self.params),
-                None,
+                headers,
             )
             .await?;
 
@@ -1269,6 +1424,114 @@ impl QueryRequestBuilder<'_> {
         };
         self.client
             .send_json_get_bytes(Method::POST, url, Some(self.request), None::<()>, None)
+            .await
+    }
+}
+
+/// Used to compose a request to the v1-compatible `GET /query` endpoint.
+///
+/// Produced by [`Client::v1_query_influxql`].
+#[derive(Debug)]
+pub struct V1QueryRequestBuilder<'c> {
+    client: &'c Client,
+    db: String,
+    query: String,
+    format: Option<QueryFormat>,
+    params: Option<StatementParams>,
+}
+
+impl V1QueryRequestBuilder<'_> {
+    /// Specify the response format, e.g. `json` or `csv`.
+    pub fn format(mut self, format: QueryFormat) -> Self {
+        self.format = Some(format);
+        self
+    }
+
+    /// Set a query parameter value with the given `name`.
+    pub fn with_param<S: Into<String>, P: Into<StatementParam>>(
+        mut self,
+        name: S,
+        param: P,
+    ) -> Self {
+        self.params
+            .get_or_insert_with(Default::default)
+            .insert(name.into(), param.into());
+        self
+    }
+
+    /// Set query parameters from the given collection of pairs.
+    pub fn with_params_from<S, P, C>(mut self, params: C) -> Result<Self>
+    where
+        S: Into<String>,
+        P: TryInto<StatementParam, Error = iox_query_params::Error>,
+        C: IntoIterator<Item = (S, P)>,
+    {
+        for (name, param) in params.into_iter() {
+            let name = name.into();
+            let param = param
+                .try_into()
+                .map_err(|source| Error::ConvertQueryParam {
+                    name: name.clone(),
+                    source,
+                })?;
+            self.params
+                .get_or_insert_with(Default::default)
+                .insert(name, param);
+        }
+        Ok(self)
+    }
+
+    /// Try to set a query parameter value with the given `name`.
+    pub fn with_try_param<S, P>(mut self, name: S, param: P) -> Result<Self>
+    where
+        S: Into<String>,
+        P: TryInto<StatementParam, Error = iox_query_params::Error>,
+    {
+        let name = name.into();
+        let param = param
+            .try_into()
+            .map_err(|source| Error::ConvertQueryParam {
+                name: name.clone(),
+                source,
+            })?;
+        self.params
+            .get_or_insert_with(Default::default)
+            .insert(name, param);
+        Ok(self)
+    }
+
+    /// Send the request to the v1 `/query` endpoint.
+    pub async fn send(self) -> Result<Bytes> {
+        #[derive(Serialize)]
+        struct V1QueryString<'a> {
+            db: &'a str,
+            q: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            format: Option<QueryFormat>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            params: Option<String>,
+        }
+
+        let params = self
+            .params
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(Error::RequestSerialization)?;
+
+        self.client
+            .send_get_bytes(
+                Method::GET,
+                "/query",
+                None::<Body>,
+                Some(V1QueryString {
+                    db: &self.db,
+                    q: &self.query,
+                    format: self.format,
+                    params,
+                }),
+                None,
+            )
             .await
     }
 }
