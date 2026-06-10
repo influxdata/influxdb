@@ -14,7 +14,7 @@
 //! | 0x10   | 16   | `[u8; 16]` | catalog_uuid    | Unique catalog instance ID                      |
 //! | 0x20   | 8    | `u64`      | sequence_number | Catalog sequence for this file                  |
 //! | 0x28   | 4    | `u32`      | record_count    | Total number of records in payload               |
-//! | 0x2C   | 4    | N/A        | reserved        | Zeros                                           |
+//! | 0x2C   | 4    | `u32`      | group_count     | Group-index entry count: `0` for logs, `1` for current snapshots (compat entry), per-group pre-#4026 |
 //! | 0x30   | 8    | `u64`      | payload_len     | Byte length of payload                           |
 //! | 0x38   | 4    | `u32`      | payload_crc     | CRC32 of the payload bytes                       |
 //! | 0x3C   | 4    | N/A        | reserved        | Zeros                                           |
@@ -49,6 +49,14 @@ pub struct Header {
     pub sequence_number: u64,
     /// Number of records in the file.
     pub record_count: u32,
+    /// Group-index entry count at offset 0x2C.
+    ///
+    /// Snapshots prefix their record payload with a group index of
+    /// `group_count` fixed-size entries — one per group in files written
+    /// before influxdb_pro#4026, a single backward-compatibility entry in
+    /// snapshots written since. The records that follow are in application
+    /// order, so the reader skips the index. Logs set this to `0`.
+    pub group_count: u32,
     /// Length of the record payload in bytes.
     pub payload_len: u64,
     /// CRC32 of the record payload.
@@ -110,10 +118,13 @@ impl Header {
         let catalog_uuid = reader.get_u128_le();
         let sequence_number = reader.get_u64_le();
         let record_count = reader.get_u32_le();
-        let reserved = reader.get_u32_le();
-        if reserved != 0 {
+        // 0x2C holds the legacy group-index entry count. Pre-#4026 snapshots
+        // set it nonzero; logs and post-#4026 files set it to 0. Only a
+        // snapshot may carry a group index — reject a nonzero count on a log.
+        let group_count = reader.get_u32_le();
+        if group_count != 0 && flags & file_flags::SNAPSHOT == 0 {
             return Err(FormatError::InvalidHeader {
-                reason: "reserved field at 0x2C is nonzero",
+                reason: "log file has nonzero group_count at 0x2C",
             });
         }
         let payload_len = reader.get_u64_le();
@@ -126,6 +137,7 @@ impl Header {
             catalog_uuid,
             sequence_number,
             record_count,
+            group_count,
             payload_len,
             payload_crc,
         })
@@ -149,7 +161,8 @@ impl Header {
         buf[0x20..0x28].copy_from_slice(&self.sequence_number.to_le_bytes());
         // Record count (0x28)
         buf[0x28..0x2C].copy_from_slice(&self.record_count.to_le_bytes());
-        // Reserved (0x2C) — already zero
+        // Group count (0x2C) — 0 for logs, 1 for snapshots (compat entry)
+        buf[0x2C..0x30].copy_from_slice(&self.group_count.to_le_bytes());
         // Payload length (0x30)
         buf[0x30..0x38].copy_from_slice(&self.payload_len.to_le_bytes());
         // Payload CRC (0x38)

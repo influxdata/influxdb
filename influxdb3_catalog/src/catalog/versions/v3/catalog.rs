@@ -127,7 +127,7 @@ use crate::format::records::types::ResourceIdentifier as WireResourceIdentifier;
 use crate::format::records::types::ResourceType as WireResourceType;
 use crate::format::records::types::RetentionPeriod as WireRetentionPeriod;
 use crate::object_store::PersistCatalogResult;
-use crate::object_store::versions::v3::ObjectStoreCatalog;
+use crate::object_store::versions::v3::{CatalogLoad, ObjectStoreCatalog};
 use crate::resource::CatalogResource;
 use crate::{CatalogError, Result};
 use influxdb3_wal::CatalogSnapshotObserver;
@@ -609,7 +609,7 @@ impl Catalog {
         };
         let catalog_id: Arc<str> = catalog_id.into();
         let store = ObjectStoreCatalog::new(catalog_id, store, StorageMode::default());
-        let inner = store.load_or_create_catalog().await?;
+        let inner = store.load_or_create_catalog().await?.inner;
         Ok(Self::from_parts(
             inner,
             store,
@@ -690,7 +690,10 @@ impl Catalog {
 
         let store = ObjectStoreCatalog::new(catalog_id, store, args.storage_mode)
             .with_catalog_snapshot_observer(catalog_snapshot_observer);
-        let inner = store.load_or_create_catalog().await?;
+        let CatalogLoad {
+            inner,
+            snapshot_needs_rewrite,
+        } = store.load_or_create_catalog().await?;
 
         let local = derive_feature_level();
         let committed = inner.committed_feature_level;
@@ -714,6 +717,25 @@ impl Catalog {
             CheckpointPolicy::default(),
             limits,
         );
+
+        // Snapshots in a non-current layout — legacy multi-group, or the
+        // indexless flat form that pre-flat readers reject — still load, but
+        // the file itself should not linger on object store: rewrite it in
+        // the current single-group format now rather than waiting for the
+        // next organic checkpoint. `force_checkpoint` snapshots the live
+        // state, so any log files replayed on top of the snapshot are folded
+        // in as well. Failure is non-fatal — startup proceeds and the next
+        // checkpoint retires the file instead.
+        if snapshot_needs_rewrite {
+            match catalog.force_checkpoint().await {
+                Ok(()) => info!("rewrote catalog snapshot in current format"),
+                Err(error) => warn!(
+                    ?error,
+                    "failed to rewrite non-current catalog snapshot at startup; \
+                     it will be retired by the next checkpoint"
+                ),
+            }
+        }
 
         // Mirror v2: ensure the `_internal` system database exists. v2
         // calls `create_internal_db` from every public constructor; v3
@@ -3531,13 +3553,14 @@ async fn promote_core_catalog_to_cluster_prefix(
         Arc::clone(&store),
         storage_mode,
     );
-    if let Some(mut inner) = v3_core
+    if let Some(load) = v3_core
         .load_catalog()
         .await
         .map_err(|e| CatalogError::Internal {
             details: format!("loading v3 core catalog from {current_node_id}: {e}"),
         })?
     {
+        let mut inner = load.inner;
         inner.catalog_id = Arc::clone(&cluster_id);
         let _ = v3_cluster
             .initialize_snapshot(inner.create_snapshot())
