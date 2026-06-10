@@ -1,0 +1,23 @@
+[package]
+name = "jemalloc_pprof_http"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+hyper.workspace = true
+iox_http_util = { path = "../iox_http_util" }
+jemalloc_stats = { path = "../jemalloc_stats" }
+thiserror.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+tikv-jemallocator = { version = "0.5", features = [
+    "unprefixed_malloc_on_supported_platforms",
+    "profiling",
+] }
+tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }

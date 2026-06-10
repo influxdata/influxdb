@@ -734,9 +734,11 @@ impl QueryTable {
             .map_err(|error| DataFusionError::External(Box::new(error)))?;
 
         let catalog = self.write_buffer.catalog();
+        let table_id = self.table_def.table_id;
+        let now = catalog.time_provider().now();
         let retention_period_cutoff = match self
             .db_schema
-            .get_retention_period_cutoff_ts_nanos(catalog.time_provider())
+            .get_retention_period_cutoff_ts_nanos(now, &table_id)
         {
             Some(time) => time,
             None => {
@@ -752,8 +754,8 @@ impl QueryTable {
 
         buffer_filter.time_lower_bound_ns = buffer_filter
             .time_lower_bound_ns
-            .map(|lb| lb.max(retention_period_cutoff))
-            .or(Some(retention_period_cutoff));
+            .map(|lb| lb.max(retention_period_cutoff.timestamp_nanos()))
+            .or(Some(retention_period_cutoff.timestamp_nanos()));
 
         self.write_buffer.get_table_chunks(
             Arc::clone(&self.db_schema),

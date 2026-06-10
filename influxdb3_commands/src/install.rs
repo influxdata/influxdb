@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use influxdb3_clap_blocks::plugins::ProcessingEngineConfig;
 use influxdb3_client::Client;
-use secrecy::{ExposeSecret, Secret};
+use secrecy::Secret;
 use url::Url;
 
 #[derive(Debug, clap::Parser)]
@@ -63,14 +63,13 @@ pub struct PackageConfig {
 
 impl PackageConfig {
     async fn run_command(&self) -> Result<(), anyhow::Error> {
-        let mut client = Client::new(
+        let client = Client::new(
             self.host_url.clone(),
             self.ca_cert.clone(),
             self.tls_no_verify,
-        )?;
-        if let Some(token) = &self.auth_token {
-            client = client.with_auth_token(token.expose_secret());
-        }
+        )?
+        .with_resolved_auth_token(self.auth_token.as_ref())
+        .await?;
         if let Some(requirements_path) = &self.requirements {
             client
                 .api_v3_configure_processing_engine_trigger_install_requirements(requirements_path)

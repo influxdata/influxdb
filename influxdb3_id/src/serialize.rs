@@ -1,4 +1,5 @@
 use std::{
+    hash::BuildHasherDefault,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
@@ -8,6 +9,9 @@ use indexmap::{
     map::{IntoIter, Iter, IterMut},
     set::{IntoIter as SetIntoIter, Iter as SetIter},
 };
+use rustc_hash::FxHasher;
+
+type FxBuildHasher = BuildHasherDefault<FxHasher>;
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{self, SeqAccess, Visitor},
@@ -30,18 +34,21 @@ use serde::{
 /// contiguous vector, iterating over its members is faster than a `HashMap`. This is beneficial for
 /// WAL serialization.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SerdeVecMap<K: Eq + std::hash::Hash, V>(IndexMap<K, V>);
+pub struct SerdeVecMap<K: Eq + std::hash::Hash, V>(IndexMap<K, V, FxBuildHasher>);
 
 impl<K, V> SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
     pub fn new() -> Self {
-        Self::default()
+        Self(IndexMap::with_hasher(FxBuildHasher::default()))
     }
 
     pub fn with_capacity(size: usize) -> Self {
-        Self(IndexMap::with_capacity(size))
+        Self(IndexMap::with_capacity_and_hasher(
+            size,
+            FxBuildHasher::default(),
+        ))
     }
 }
 
@@ -50,17 +57,16 @@ where
     K: Eq + std::hash::Hash,
 {
     fn default() -> Self {
-        Self(Default::default())
+        Self(IndexMap::with_hasher(FxBuildHasher::default()))
     }
 }
 
-impl<K, V, T> From<T> for SerdeVecMap<K, V>
+impl<K, V> From<IndexMap<K, V, FxBuildHasher>> for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
-    T: Into<IndexMap<K, V>>,
 {
-    fn from(value: T) -> Self {
-        Self(value.into())
+    fn from(value: IndexMap<K, V, FxBuildHasher>) -> Self {
+        Self(value)
     }
 }
 
@@ -108,7 +114,9 @@ where
     K: Eq + std::hash::Hash,
 {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
-        Self(iter.into_iter().collect())
+        let mut map = IndexMap::with_hasher(FxBuildHasher::default());
+        map.extend(iter);
+        Self(map)
     }
 }
 
@@ -116,7 +124,7 @@ impl<K, V> Deref for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
-    type Target = IndexMap<K, V>;
+    type Target = IndexMap<K, V, FxBuildHasher>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -127,7 +135,7 @@ impl<K, V> DerefMut for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+    fn deref_mut(&mut self) -> &mut IndexMap<K, V, FxBuildHasher> {
         &mut self.0
     }
 }
@@ -159,7 +167,7 @@ where
         D: Deserializer<'de>,
     {
         let v = deserializer.deserialize_seq(VecVisitor::new())?;
-        let mut map = IndexMap::with_capacity(v.len());
+        let mut map = IndexMap::with_capacity_and_hasher(v.len(), FxBuildHasher::default());
         for (k, v) in v.into_iter() {
             if map.insert(k, v).is_some() {
                 return Err(de::Error::custom("duplicate key found"));

@@ -1,6 +1,5 @@
 use crate::common::InfluxDb3Config;
 use influxdb3_client::Client;
-use secrecy::ExposeSecret;
 use std::{error::Error, path::PathBuf};
 
 #[derive(Debug, clap::Parser)]
@@ -10,7 +9,7 @@ pub struct Config {
 }
 
 impl Config {
-    fn get_client(&self) -> Result<Client, Box<dyn Error>> {
+    async fn get_client(&self) -> Result<Client, Box<dyn Error>> {
         let (host_url, auth_token, ca_cert, tls_no_verify) = match &self.cmd {
             SubCommand::Trigger(TriggerConfig {
                 ca_cert,
@@ -24,10 +23,9 @@ impl Config {
                 ..
             }) => (host_url, auth_token, ca_cert, tls_no_verify),
         };
-        let mut client = Client::new(host_url.clone(), ca_cert.clone(), *tls_no_verify)?;
-        if let Some(token) = &auth_token {
-            client = client.with_auth_token(token.expose_secret());
-        }
+        let client = Client::new(host_url.clone(), ca_cert.clone(), *tls_no_verify)?
+            .with_resolved_auth_token(auth_token.as_ref())
+            .await?;
         Ok(client)
     }
 }
@@ -57,7 +55,7 @@ struct TriggerConfig {
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
-    let client = config.get_client()?;
+    let client = config.get_client().await?;
     match config.cmd {
         SubCommand::Trigger(TriggerConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },

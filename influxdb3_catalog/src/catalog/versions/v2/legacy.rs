@@ -48,13 +48,13 @@ impl TableDefinition {
     }
 
     pub fn num_columns(&self) -> usize {
-        self.inner.num_columns()
+        self.inner.columns.id_ord_id_map.len()
     }
 
     pub fn column_definition(&self, name: impl AsRef<str>) -> Option<ColumnDefinition> {
         self.inner
             .column_definition(name.as_ref())
-            .map(ColumnDefinition::from)
+            .and_then(|def| ColumnDefinition::try_from(def).ok())
     }
 
     pub fn index_column_ids(&self) -> Vec<ColumnId> {
@@ -62,7 +62,7 @@ impl TableDefinition {
             .tag_columns
             .repo
             .values()
-            .map(|tc| tc.column_id)
+            .filter_map(|tc| tc.column_id)
             .collect()
     }
 
@@ -70,7 +70,7 @@ impl TableDefinition {
         self.inner
             .columns
             .get_by_ord_id(column_id)
-            .map(ColumnDefinition::from)
+            .and_then(|def| ColumnDefinition::try_from(def).ok())
     }
 
     pub fn column_name_to_id(&self, column_name: impl AsRef<str>) -> Option<ColumnId> {
@@ -97,7 +97,7 @@ impl TableDefinition {
             self.inner
                 .columns
                 .get_by_id(id)
-                .map(|c| c.ord_id_ref())
+                .and_then(|c| c.ord_id_ref())
                 .unwrap()
         })
     }
@@ -110,7 +110,7 @@ pub struct SeriesKey(Arc<super::TableDefinition>, OnceCell<Vec<ColumnId>>);
 
 impl SeriesKey {
     pub fn len(&self) -> usize {
-        self.0.series_key.len()
+        self.get_series_key().len()
     }
 
     pub fn iter(&self) -> core::slice::Iter<'_, ColumnId> {
@@ -118,7 +118,7 @@ impl SeriesKey {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.series_key.is_empty()
+        self.get_series_key().is_empty()
     }
 
     fn get_series_key(&self) -> &Vec<ColumnId> {
@@ -126,7 +126,12 @@ impl SeriesKey {
             self.0
                 .series_key
                 .iter()
-                .map(|id| self.0.tag_columns.get_by_id(id).unwrap().column_id)
+                .filter_map(|id| {
+                    self.0
+                        .tag_columns
+                        .get_by_id(id)
+                        .and_then(|col| col.column_id)
+                })
                 .collect()
         })
     }
@@ -147,11 +152,17 @@ pub struct ColumnSet(Arc<super::TableDefinition>);
 
 impl ColumnSet {
     pub fn get_by_id(&self, id: &ColumnId) -> Option<ColumnDefinition> {
-        self.0.columns.get_by_ord_id(id).map(ColumnDefinition::from)
+        self.0
+            .columns
+            .get_by_ord_id(id)
+            .and_then(|def| ColumnDefinition::try_from(def).ok())
     }
 
     pub fn get_by_name(&self, name: &str) -> Option<ColumnDefinition> {
-        self.0.columns.get_by_name(name).map(ColumnDefinition::from)
+        self.0
+            .columns
+            .get_by_name(name)
+            .and_then(|def| ColumnDefinition::try_from(def).ok())
     }
 
     pub fn name_to_id(&self, column_name: impl AsRef<str>) -> Option<ColumnId> {
@@ -159,15 +170,19 @@ impl ColumnSet {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&ColumnId, ColumnDefinition)> {
+        self.0.columns.repo.values().filter_map(|def| {
+            let ord_id = def.ord_id_ref()?;
+            let def = ColumnDefinition::try_from(def).ok()?;
+            Some((ord_id, def))
+        })
+    }
+
+    pub fn resource_iter(&self) -> impl Iterator<Item = ColumnDefinition> {
         self.0
             .columns
             .repo
             .values()
-            .map(|def| (def.ord_id_ref(), def.into()))
-    }
-
-    pub fn resource_iter(&self) -> impl Iterator<Item = ColumnDefinition> {
-        self.0.columns.repo.values().map(Into::into)
+            .filter_map(|def| ColumnDefinition::try_from(def).ok())
     }
 }
 
@@ -186,6 +201,8 @@ pub struct ColumnDefinition {
 impl CatalogResource for ColumnDefinition {
     type Identifier = ColumnId;
 
+    const CATEGORY: &'static str = "columns";
+
     fn id(&self) -> Self::Identifier {
         self.id
     }
@@ -195,33 +212,37 @@ impl CatalogResource for ColumnDefinition {
     }
 }
 
-impl From<super::ColumnDefinition> for ColumnDefinition {
-    fn from(value: super::ColumnDefinition) -> Self {
-        (&value).into()
+impl TryFrom<super::ColumnDefinition> for ColumnDefinition {
+    type Error = ();
+
+    fn try_from(value: super::ColumnDefinition) -> Result<Self, Self::Error> {
+        (&value).try_into()
     }
 }
 
-impl From<&super::ColumnDefinition> for ColumnDefinition {
-    fn from(value: &super::ColumnDefinition) -> Self {
+impl TryFrom<&super::ColumnDefinition> for ColumnDefinition {
+    type Error = ();
+
+    fn try_from(value: &super::ColumnDefinition) -> Result<Self, Self::Error> {
         match value {
-            super::ColumnDefinition::Timestamp(c) => Self {
-                id: c.column_id,
+            super::ColumnDefinition::Timestamp(c) => Ok(Self {
+                id: c.column_id.ok_or(())?,
                 name: Arc::clone(&c.name),
                 data_type: InfluxColumnType::Timestamp,
                 nullable: false,
-            },
-            super::ColumnDefinition::Tag(c) => Self {
-                id: c.column_id,
+            }),
+            super::ColumnDefinition::Tag(c) => Ok(Self {
+                id: c.column_id.ok_or(())?,
                 name: Arc::clone(&c.name),
                 data_type: InfluxColumnType::Tag,
                 nullable: true,
-            },
-            super::ColumnDefinition::Field(c) => Self {
-                id: c.column_id,
+            }),
+            super::ColumnDefinition::Field(c) => Ok(Self {
+                id: c.column_id.ok_or(())?,
                 name: Arc::clone(&c.name),
                 data_type: InfluxColumnType::Field(c.data_type),
                 nullable: true,
-            },
+            }),
         }
     }
 }
@@ -238,12 +259,12 @@ impl super::DatabaseSchema {
 }
 
 impl super::ColumnDefinition {
-    /// Return a reference the column ordinal ID.
-    fn ord_id_ref(&self) -> &ColumnId {
+    /// Return a reference the column ordinal ID when one is assigned.
+    fn ord_id_ref(&self) -> Option<&ColumnId> {
         match self {
-            Self::Timestamp(v) => &v.column_id,
-            Self::Tag(v) => &v.column_id,
-            Self::Field(v) => &v.column_id,
+            Self::Timestamp(v) => v.column_id.as_ref(),
+            Self::Tag(v) => v.column_id.as_ref(),
+            Self::Field(v) => v.column_id.as_ref(),
         }
     }
 }

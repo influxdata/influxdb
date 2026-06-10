@@ -29,6 +29,7 @@ use trogging::{
 
 pub mod commands {
     pub use influxdb3_commands::common;
+    pub use influxdb3_commands::debug;
     pub use influxdb3_commands::disable;
     pub use influxdb3_commands::enable;
     pub use influxdb3_commands::helpers;
@@ -47,6 +48,21 @@ pub mod commands {
 enum ReturnCode {
     Failure = 1,
 }
+
+#[derive(Debug, Clone, Copy)]
+struct DeprecatedServeOption {
+    arg_id: &'static str,
+    message: &'static str,
+}
+
+const PACKAGE_MANAGER_ARG_ID: &str = "package_manager";
+const PACKAGE_MANAGER_DEPRECATED_MESSAGE: &str = "--package-manager is deprecated and will be removed in a future release. Python and pip are bundled with InfluxDB; remove this option because pip is always used.";
+const PACKAGE_MANAGER_DISABLED_DEPRECATED_MESSAGE: &str = "--package-manager disabled is deprecated and will be removed in a future release. Python and pip are bundled with InfluxDB and pip is always used for environment setup; disabled only blocks plugin package install API calls for compatibility.";
+
+const DEPRECATED_SERVE_OPTIONS: &[DeprecatedServeOption] = &[DeprecatedServeOption {
+    arg_id: PACKAGE_MANAGER_ARG_ID,
+    message: PACKAGE_MANAGER_DEPRECATED_MESSAGE,
+}];
 
 #[derive(Debug, clap::Parser)]
 #[clap(
@@ -122,6 +138,9 @@ enum Command {
 
     /// Install packages for the processing engine
     Install(commands::install::Config),
+
+    /// Diagnostic and support tooling
+    Debug(commands::debug::Config),
 
     /// List resources on the InfluxDB 3 Core server
     Show(commands::show::Config),
@@ -306,6 +325,8 @@ fn serve_main(
     matches: &clap::ArgMatches,
     runtime_config: TokioIoConfig,
 ) -> Result<(), std::io::Error> {
+    warn_deprecated_serve_options(&serve_config, matches);
+
     // Extract user-provided parameters only for serve command
     let user_params = extract_user_params(matches);
 
@@ -332,6 +353,59 @@ fn serve_main(
         std::process::exit(ReturnCode::Failure as _)
     }
     Ok(())
+}
+
+fn warn_deprecated_serve_options(
+    serve_config: &commands::serve::Config,
+    matches: &clap::ArgMatches,
+) {
+    let Some(("serve", serve_matches)) = matches.subcommand() else {
+        return;
+    };
+
+    for warning in deprecated_serve_option_warnings(serve_matches, DEPRECATED_SERVE_OPTIONS) {
+        influxdb3_startup::early_logging::warn("influxdb3", warning);
+    }
+
+    if let Some(warning) = disabled_package_manager_deprecation_warning(
+        serve_config.processing_engine_config.package_manager,
+        serve_matches.value_source(PACKAGE_MANAGER_ARG_ID),
+    ) {
+        influxdb3_startup::early_logging::warn("influxdb3", warning);
+    }
+}
+
+fn deprecated_serve_option_warnings<'a>(
+    serve_matches: &'a clap::ArgMatches,
+    deprecated_options: &'a [DeprecatedServeOption],
+) -> impl Iterator<Item = &'static str> + 'a {
+    deprecated_options.iter().filter_map(|option| {
+        user_provided_value_source(serve_matches.value_source(option.arg_id))
+            .then_some(option.message)
+    })
+}
+
+fn user_provided_value_source(source: Option<ValueSource>) -> bool {
+    matches!(
+        source,
+        Some(ValueSource::CommandLine) | Some(ValueSource::EnvVariable)
+    )
+}
+
+fn disabled_package_manager_deprecation_warning(
+    package_manager: influxdb3_clap_blocks::plugins::PackageManager,
+    source: Option<ValueSource>,
+) -> Option<&'static str> {
+    if user_provided_value_source(source)
+        && matches!(
+            package_manager,
+            influxdb3_clap_blocks::plugins::PackageManager::Disabled
+        )
+    {
+        Some(PACKAGE_MANAGER_DISABLED_DEPRECATED_MESSAGE)
+    } else {
+        None
+    }
 }
 
 fn non_serve_main(
@@ -373,6 +447,12 @@ fn non_serve_main(
             Some(Command::Install(config)) => {
                 if let Err(e) = commands::install::command(config).await {
                     eprintln!("Install command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Debug(config)) => {
+                if let Err(e) = commands::debug::command(config).await {
+                    eprintln!("Debug command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -426,6 +506,7 @@ fn maybe_print_help() {
         Query,
         Serve,
         Install,
+        Debug,
         Show,
         Test,
         Write,
@@ -453,6 +534,7 @@ fn maybe_print_help() {
                 "query" => command = Some(SubCommand::Query),
                 "serve" => command = Some(SubCommand::Serve),
                 "install" => command = Some(SubCommand::Install),
+                "debug" => command = Some(SubCommand::Debug),
                 "show" => command = Some(SubCommand::Show),
                 "test" => command = Some(SubCommand::Test),
                 "write" => command = Some(SubCommand::Write),
@@ -762,7 +844,7 @@ fn extract_user_params(matches: &clap::ArgMatches) -> HashMap<String, String> {
 
         // Only include arguments that were explicitly provided by the user
         let source = serve_matches.value_source(id_str);
-        if source == Some(ValueSource::CommandLine) || source == Some(ValueSource::EnvVariable) {
+        if user_provided_value_source(source) {
             // Get display name (prefer long, then short, then id)
             let display_name = arg
                 .get_long()

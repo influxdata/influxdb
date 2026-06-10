@@ -62,10 +62,18 @@ ignore = [
     # Guest realloc validation (single-component host-guest interaction; low risk given UDFs are disabled):
     "RUSTSEC-2026-0091", # GHSA-394w-hwhg-8vgm: OOB write from unvalidated guest realloc
     #
-    # Panic when allocating a table that is larger than host address space.
-    # The UDF/WASM parts are currently unused in production.
-    "RUSTSEC-2026-0114",
-    # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=42.0.2)
+    # Guest-controllable panic (unreachable when UDFs are disabled):
+    "RUSTSEC-2026-0114", # panic when allocating a wasm table exceeding host address space
+    #
+    # wasmtime-wasi 41.0.4 WASI path_open(TRUNCATE) bypasses FilePerms::WRITE host
+    # restriction (https://rustsec.org/advisories/RUSTSEC-2026-0149). Same transitive
+    # path via datafusion-udf-wasm; only reachable if a Wasm UDF is loaded with WASI
+    # filesystem preopens granted, and UDFs are disabled by default
+    # (udfs_enabled = false). Fix requires wasmtime-wasi >=44.0.2, which needs an
+    # upstream datafusion-udf-wasm bump.
+    "RUSTSEC-2026-0149",
+    #
+    # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=43.0.2 <44.0.0 or >=44.0.1)
 ]
 git-fetch-with-cli = true
 

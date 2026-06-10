@@ -383,8 +383,9 @@ macro_rules! object_store_config_inner {
                 /// * s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
                 ///   possibly `--aws-default-region`.
                 /// * google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
-                /// * azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
-                ///   and `--azure-storage-access-key`.
+                /// * azure: Microsoft Azure blob storage. Must also set `--bucket` and
+                ///   `--azure-storage-account`. Authentication uses `--azure-storage-access-key` when
+                ///   provided, otherwise Azure Workload Identity or Managed Identity.
                 #[clap(
                     value_enum,
                     id = gen_name!($prefix, "object-store"),
@@ -409,8 +410,9 @@ macro_rules! object_store_config_inner {
                 ///
                 /// If using Azure for the object store, set this item to the name of a
                 /// container you've created in the associated storage account, under
-                /// Blob Service > Containers. Must also set `--azure-storage-account` and
-                /// `--azure-storage-access-key`.
+                /// Blob Service > Containers. Must also set `--azure-storage-account`.
+                /// Authentication uses `--azure-storage-access-key` when provided,
+                /// otherwise Azure Workload Identity or Managed Identity.
                 #[clap(
                     id = gen_name!($prefix, "bucket"),
                     long = gen_name!($prefix, "bucket"),
@@ -583,8 +585,7 @@ macro_rules! object_store_config_inner {
                 /// When using Microsoft Azure as the object store, set this to the
                 /// name you see when going to All Services > Storage accounts > `[name]`.
                 ///
-                /// Must also set `--object-store=azure`, `--bucket`, and
-                /// `--azure-storage-access-key`.
+                /// Must also set `--object-store=azure` and `--bucket`.
                 #[clap(
                     id = gen_name!($prefix, "azure-storage-account"),
                     long = gen_name!($prefix, "azure-storage-account"),
@@ -596,8 +597,9 @@ macro_rules! object_store_config_inner {
                 /// When using Microsoft Azure as the object store, set this to one of the
                 /// Key values in the Storage account's Settings > Access keys.
                 ///
-                /// Must also set `--object-store=azure`, `--bucket`, and
-                /// `--azure-storage-account`.
+                /// If omitted, authentication falls back to Azure Workload Identity
+                /// (`AZURE_CLIENT_ID` + `AZURE_TENANT_ID` + `AZURE_FEDERATED_TOKEN_FILE`),
+                /// then to IMDS-based Managed Identity.
                 ///
                 /// Prefer the environment variable over the command line flag in shared
                 /// environments.
@@ -613,9 +615,6 @@ macro_rules! object_store_config_inner {
                 /// When using Microsoft Azure blob storage, you can set a custom endpoint.
                 ///
                 /// Useful for local development with Azure storage emulators like Azurite.
-                ///
-                /// Must also set `--object-store=azure`, `--bucket`, `--azure-storage-account`,
-                /// and `--azure-storage-access-key`.
                 #[clap(
                     id = gen_name!($prefix, "azure-endpoint"),
                     long = gen_name!($prefix, "azure-endpoint"),
@@ -982,7 +981,7 @@ macro_rules! object_store_config_inner {
                     info!(bucket=?self.bucket, account=?self.azure_storage_account,
                           endpoint=?self.azure_endpoint, object_store_type="Azure", "Object Store");
 
-                    let mut builder = MicrosoftAzureBuilder::new().with_client_options(self.client_options()?);
+                    let mut builder = MicrosoftAzureBuilder::from_env().with_client_options(self.client_options()?);
 
                     if let Some(bucket) = &self.bucket {
                         builder = builder.with_container_name(bucket);

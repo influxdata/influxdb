@@ -55,6 +55,7 @@ members = [
     "core/iox_system_tables",
     "core/iox_time",
     "core/iox_v1_query_api",
+    "core/jemalloc_pprof_http",
     "core/jemalloc_stats",
     "core/linear_buffer",
     "core/logfmt",
@@ -126,12 +127,13 @@ exclude = [
 #
 # For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
 # stripping the `-oss`.
-version = "3.10.0-oss-nightly"
+version = "3.10.0-nightly"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+ahash = "0.8"
 anyhow = "1.0"
 arrow = { version = "57.1.0", features = ["prettyprint", "chrono-tz"] }
 arrow-array = "57.1.0"
@@ -185,6 +187,7 @@ hyper = {version = "1"}
 hyper-util = {version = "0.1", features=["server-graceful"]}
 insta = { version = "1.46.3", features = ["json", "redactions", "yaml"] }
 indexmap = { version = "2.11.0" }
+inventory = "0.3"
 itertools = "0.13.0"
 libc = { version = "0.2" }
 mime = "0.3.17"
@@ -205,12 +208,13 @@ prost = "0.14"
 prost-build = "0.14"
 prost-types = "0.14"
 proptest = { version = "1", default-features = false, features = ["std"] }
-pyo3 = { version = "0.27.2", features = ["experimental-async"]}
+pyo3 = { version = "0.28", features = ["experimental-async"]}
 rand = "0.8.5"
 rcgen = "0.13.2"
 regex = "1.11.1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
 rstest = "0.26"
+rustc-hash = "2.0"
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103.13", default-features = false, features = ["ring", "std"] }
 secrecy = "0.8.0"
@@ -231,7 +235,7 @@ sysinfo = "<0.38"
 tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
-tokio = { version = "1.45", features = ["full"] }
+tokio = { version = "1.52.2", features = ["full"] }
 tokio-rustls = { version = "0.25", default-features = false, features = ["ring", "tls12"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 tonic = { version = "0.14", features = ["tls-native-roots"] }
@@ -249,9 +253,27 @@ unicode-segmentation = "1.11.0"
 url = "2.5.0"
 urlencoding = "1.1"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
+walkdir = "2"
 num = { version = "0.4.3" }
 
 smallvec = { version = "1.15.1", features = ["union"] }
+
+# core crates
+# Technically we could depend on them via path, but this makes syncing `ent` and `oss` code easier
+datafusion_util = { path = "core/datafusion_util" }
+iox_http_util = { path = "core/iox_http_util" }
+iox_query = { path = "core/iox_query" }
+iox_query_params = { path = "core/iox_query_params" }
+iox_time = { path = "core/iox_time" }
+metric = { path = "core/metric" }
+observability_deps = { path = "core/observability_deps" }
+parquet_file = { path = "core/parquet_file" }
+
+# OSS crates
+# Technically we could depend on them via path, but this makes syncing `ent` and `oss` code easier
+influxdb3_types_oss = { package = "influxdb3_types", path = "influxdb3_types" }
+influxdb3_shutdown = { path = "influxdb3_shutdown" }
+influxdb3_sys_events = { path = "influxdb3_sys_events" }
 
 # Datafusion UDF WASM hosting for the iox_query_udf crate:
 datafusion-udf-wasm-host = { git = "https://github.com/influxdata/datafusion-udf-wasm.git", rev = "89ab4ae6312c3a44859ddd43d9df4d4300d3086a", default-features = false }

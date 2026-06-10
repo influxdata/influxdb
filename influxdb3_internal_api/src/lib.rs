@@ -2,3 +2,4 @@
 //! to get around circular dependency issues.
 
 pub mod query_executor;
+pub mod sll;

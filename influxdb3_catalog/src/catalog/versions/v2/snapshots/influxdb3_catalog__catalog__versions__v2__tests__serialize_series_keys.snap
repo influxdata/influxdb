@@ -1,5 +1,6 @@
 ---
 source: influxdb3_catalog/src/catalog/versions/v2/tests.rs
+assertion_line: 618
 description: catalog serialization to help catch breaking changes
 expression: snapshot
 ---
@@ -33,7 +34,8 @@ expression: snapshot
             "next_id": 0
           },
           "deleted": false,
-          "hard_delete_time": null
+          "hard_delete_time": null,
+          "hard_delete_scope": null
         }
       ],
       [
@@ -110,6 +112,7 @@ expression: snapshot
                     ],
                     "next_id": 1
                   },
+                  "retention_period": "Indefinite",
                   "last_caches": {
                     "repo": [],
                     "next_id": 0
@@ -120,7 +123,8 @@ expression: snapshot
                   },
                   "deleted": false,
                   "hard_delete_time": null,
-                  "field_family_mode": "aware"
+                  "field_family_mode": "aware",
+                  "hard_delete_scope": null
                 }
               ]
             ],
@@ -132,7 +136,8 @@ expression: snapshot
             "next_id": 0
           },
           "deleted": false,
-          "hard_delete_time": null
+          "hard_delete_time": null,
+          "hard_delete_scope": null
         }
       ]
     ],

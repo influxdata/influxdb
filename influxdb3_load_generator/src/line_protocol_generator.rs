@@ -583,6 +583,7 @@ pub struct GeneratorRunner {
     reporter: Option<Arc<WriteReporter>>,
     start_time: Option<DateTime<Local>>,
     end_time: Option<DateTime<Local>>,
+    gzip: bool,
 }
 
 impl GeneratorRunner {
@@ -600,6 +601,7 @@ impl GeneratorRunner {
             reporter: None,
             start_time: None,
             end_time: None,
+            gzip: false,
         }
     }
 
@@ -615,6 +617,11 @@ impl GeneratorRunner {
 
     pub fn with_end_time(mut self, end_time: DateTime<Local>) -> Self {
         self.end_time = Some(end_time);
+        self
+    }
+
+    pub fn with_gzip(mut self, gzip: bool) -> Self {
+        self.gzip = gzip;
         self
     }
 
@@ -705,6 +712,7 @@ impl GeneratorRunner {
             .api_v3_write_lp(self.database_name.clone())
             .precision(Precision::Nanosecond)
             .accept_partial(false)
+            .with_gzip(self.gzip)
             .body(buffer)
             .send()
             .await;

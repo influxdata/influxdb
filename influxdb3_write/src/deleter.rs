@@ -1,14 +1,10 @@
 use crate::async_collections;
 use influxdb3_catalog::CatalogError;
-use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::channel::CatalogUpdateReceiver;
-use influxdb3_catalog::log::{
-    CatalogBatch, DatabaseCatalogOp, SoftDeleteDatabaseLog, SoftDeleteTableLog,
-};
+use influxdb3_catalog::catalog::{Catalog, CatalogEvent, CatalogUpdateReceiver};
 use influxdb3_catalog::resource::CatalogResource;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_shutdown::ShutdownToken;
-use iox_time::{Time, TimeProvider};
+use iox_time::TimeProvider;
 use observability_deps::tracing::{error, info};
 use std::sync::Arc;
 
@@ -232,23 +228,19 @@ fn background_catalog_update(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(catalog_update) = subscription.recv().await {
-            for batch in catalog_update
-                .batches()
-                .filter_map(CatalogBatch::as_database)
-            {
-                for op in batch.ops.iter() {
-                    match op {
-                        DatabaseCatalogOp::SoftDeleteDatabase(SoftDeleteDatabaseLog {
-                            database_id,
-                            hard_deletion_time: Some(hard_delete_time),
-                            ..
-                        }) => {
-                            let time = Time::from_timestamp_nanos(*hard_delete_time);
+            for event in catalog_update.events() {
+                match event {
+                    CatalogEvent::DatabaseSoftDeleted { db_id } => {
+                        let hard_delete_time = manager
+                            .catalog
+                            .db_schema_by_id(db_id)
+                            .and_then(|db| db.hard_delete_time);
+                        if let Some(time) = hard_delete_time {
                             if let Some(object_deleter) = manager.object_deleter.as_ref() {
                                 manager.tasks.push(
                                     time,
                                     Task::NotifyDeleteDatabase {
-                                        db_id: *database_id,
+                                        db_id: *db_id,
                                         object_deleter: Arc::clone(object_deleter),
                                     },
                                 );
@@ -256,23 +248,24 @@ fn background_catalog_update(
                             manager.tasks.push(
                                 time + manager.delete_grace_period,
                                 Task::DeleteDatabase {
-                                    db_id: *database_id,
+                                    db_id: *db_id,
                                     catalog: Arc::clone(&manager.catalog),
                                 },
                             );
                         }
-                        DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
-                            database_id,
-                            table_id,
-                            hard_deletion_time: Some(hard_deletion_time),
-                            ..
-                        }) => {
-                            let time = Time::from_timestamp_nanos(*hard_deletion_time);
+                    }
+                    CatalogEvent::TableSoftDeleted { db_id, table_id } => {
+                        let hard_delete_time = manager
+                            .catalog
+                            .db_schema_by_id(db_id)
+                            .and_then(|db| db.table_definition_by_id(table_id))
+                            .and_then(|table| table.hard_delete_time);
+                        if let Some(time) = hard_delete_time {
                             if let Some(object_deleter) = manager.object_deleter.as_ref() {
                                 manager.tasks.push(
                                     time,
                                     Task::NotifyDeleteTable {
-                                        db_id: *database_id,
+                                        db_id: *db_id,
                                         table_id: *table_id,
                                         object_deleter: Arc::clone(object_deleter),
                                     },
@@ -281,14 +274,14 @@ fn background_catalog_update(
                             manager.tasks.push(
                                 time + manager.delete_grace_period,
                                 Task::DeleteTable {
-                                    db_id: *database_id,
+                                    db_id: *db_id,
                                     table_id: *table_id,
                                     catalog: Arc::clone(&manager.catalog),
                                 },
                             );
                         }
-                        _ => (),
                     }
+                    _ => (),
                 }
             }
         }

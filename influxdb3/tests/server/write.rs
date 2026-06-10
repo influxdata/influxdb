@@ -398,7 +398,7 @@ async fn writes_with_different_schema_should_fail() {
             error,
             influxdb3_client::Error::ApiError {
                 code: StatusCode::BAD_REQUEST,
-                message: _
+                ..
             }
         ),
         "the request should have failed with an API Error"
@@ -423,10 +423,11 @@ async fn duplicate_field_names_should_fail() {
     // is duplicated.
     assert!(
         matches!(
-            error,
+            &error,
             influxdb3_client::Error::ApiError {
                 code: StatusCode::BAD_REQUEST,
                 message,
+                ..
             } if message.contains("multiple instances of 'usage' field found"),
         ),
         "the request should have failed with an API Error for duplicate field names"

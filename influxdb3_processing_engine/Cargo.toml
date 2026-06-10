@@ -6,21 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-# core deps
-data_types = { path = "../core/data_types" }
-iox_http_util = { path = "../core/iox_http_util" }
-iox_time = { path = "../core/iox_time" }
-observability_deps = { path = "../core/observability_deps" }
-# local deps
-influxdb3_catalog = { path = "../influxdb3_catalog" }
-influxdb3_id = { path = "../influxdb3_id" }
-influxdb3_internal_api = { path = "../influxdb3_internal_api" }
-influxdb3_py_api = { path = "../influxdb3_py_api" }
-influxdb3_sys_events = { path = "../influxdb3_sys_events"}
-influxdb3_types = { path = "../influxdb3_types" }
-influxdb3_wal = { path = "../influxdb3_wal" }
-influxdb3_write = { path = "../influxdb3_write" }
-# crates.io deps
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
@@ -30,25 +15,33 @@ futures-util.workspace = true
 hashbrown.workspace = true
 humantime.workspace = true
 hyper.workspace = true
+influxdb3_catalog = { path = "../influxdb3_catalog" }
+influxdb3_id = { path = "../influxdb3_id" }
+influxdb3_internal_api = { path = "../influxdb3_internal_api" }
+influxdb3_py_api = { path = "../influxdb3_py_api" }
+influxdb3_sys_events.workspace = true
+influxdb3_types = { path = "../influxdb3_types" }
+influxdb3_wal = { path = "../influxdb3_wal" }
+influxdb3_write = { path = "../influxdb3_write" }
+iox_http_util.workspace = true
+iox_time.workspace = true
+observability_deps.workspace = true
 parking_lot.workspace = true
 pyo3.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-walkdir = "2"
+walkdir.workspace = true
 
 [dev-dependencies]
-# core deps
-iox_query = { path = "../core/iox_query" }
-parquet_file = { path = "../core/parquet_file" }
-metric = { path = "../core/metric" }
-datafusion_util = { path = "../core/datafusion_util" }
-# local deps
+datafusion_util.workspace = true
 influxdb3_cache = { path = "../influxdb3_cache" }
-influxdb3_shutdown = { path = "../influxdb3_shutdown"}
-# crates.io deps
+influxdb3_shutdown.workspace = true
+iox_query.workspace = true
+metric.workspace = true
 object_store.workspace = true
+parquet_file.workspace = true
 proptest = "1.0"
 tempfile.workspace = true
 test-log.workspace = true

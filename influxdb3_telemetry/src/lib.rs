@@ -5,6 +5,9 @@ mod sender;
 mod stats;
 pub mod store;
 
+pub use sender::TelemetryPayload;
+
+use serde::{Serialize, Serializer};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
@@ -28,6 +31,53 @@ pub trait ParquetMetrics: Send + Sync + std::fmt::Debug + 'static {
 
 pub trait ProcessingEngineMetrics: Send + Sync + std::fmt::Debug + 'static {
     fn num_triggers(&self) -> (u64, u64, u64, u64);
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PluginTriggerInvocation {
+    pub database_name: String,
+    pub trigger_name: String,
+    pub plugin_name: String,
+    pub trigger_type: String,
+    pub invocation_count: u64,
+}
+
+pub trait PluginTriggerInvocationMetrics: Send + Sync + std::fmt::Debug + 'static {
+    fn plugin_trigger_invocations(&self) -> Vec<PluginTriggerInvocation>;
+    fn reset_plugin_trigger_invocations(&self);
+}
+
+pub type MetricsError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+pub trait PythonEnvironmentMetrics: Send + Sync + std::fmt::Debug + 'static {
+    fn installed_packages(&self) -> std::result::Result<Vec<String>, MetricsError>;
+}
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+pub enum StorageEngineType {
+    #[default]
+    Parquet,
+    /// Used when telemetry upload is disabled or in test contexts.
+    Tests,
+}
+
+impl StorageEngineType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            StorageEngineType::Parquet => "parquet",
+            StorageEngineType::Tests => "tests",
+        }
+    }
+}
+
+fn serialize_storage_engine_type<S>(
+    storage_engine_type: &StorageEngineType,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(storage_engine_type.as_str())
 }
 
 #[derive(Debug, Copy, Clone)]

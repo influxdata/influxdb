@@ -102,6 +102,12 @@ async fn verify_upgraded_log_exists(
 async fn test_successful_v1_to_v2_migration() {
     let store = Arc::new(InMemory::new());
     let prefix = Arc::from("test");
+    let object_store_catalog = crate::object_store::versions::v2::ObjectStoreCatalog::new(
+        Arc::clone(&prefix),
+        50,
+        Arc::clone(&store) as Arc<dyn ObjectStore>,
+        StorageMode::ParquetAndPachaTree,
+    );
 
     // Setup: Create and write v1 catalog
     let v1_catalog = create_test_v1_catalog().await;
@@ -124,7 +130,7 @@ async fn test_successful_v1_to_v2_migration() {
     );
 
     // Verify: Can load v2 catalog
-    let v2_catalog = serialize_v2::load_catalog(Arc::clone(&prefix), store as Arc<dyn ObjectStore>)
+    let v2_catalog = serialize_v2::load_catalog(Arc::clone(&prefix), &object_store_catalog)
         .await
         .expect("load v2 catalog")
         .expect("v2 catalog should exist");
@@ -348,6 +354,12 @@ async fn test_race_condition_v2_checkpoint_already_exists() {
 async fn test_migration_with_complex_catalog() {
     let store = Arc::new(InMemory::new());
     let prefix = Arc::from("test");
+    let object_store_catalog = crate::object_store::versions::v2::ObjectStoreCatalog::new(
+        Arc::clone(&prefix),
+        50,
+        Arc::clone(&store) as Arc<dyn ObjectStore>,
+        StorageMode::ParquetAndPachaTree,
+    );
 
     // Setup: Create complex v1 catalog
     let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(1000)));
@@ -399,7 +411,7 @@ async fn test_migration_with_complex_catalog() {
     assert!(result.is_ok());
 
     // Verify: v2 catalog has all data
-    let v2_catalog = serialize_v2::load_catalog(Arc::clone(&prefix), store as Arc<dyn ObjectStore>)
+    let v2_catalog = serialize_v2::load_catalog(Arc::clone(&prefix), &object_store_catalog)
         .await
         .expect("load v2 catalog")
         .expect("v2 catalog should exist");

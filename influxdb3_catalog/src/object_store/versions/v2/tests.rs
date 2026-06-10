@@ -1,13 +1,19 @@
 use std::sync::Arc;
 
+use crate::catalog::CatalogSequenceNumber;
 use object_store::local::LocalFileSystem;
 
-use super::ObjectStoreCatalog;
+use super::{ObjectStoreCatalog, StorageMode};
 
 #[test_log::test(tokio::test)]
 async fn load_or_create_catalog_new_catalog() {
     let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let store = ObjectStoreCatalog::new("test_host", 10, Arc::new(local_disk));
+    let store = ObjectStoreCatalog::new(
+        "test_host",
+        10,
+        Arc::new(local_disk),
+        StorageMode::default(),
+    );
     let _ = store.load_or_create_catalog().await.unwrap();
     assert!(store.load_catalog().await.unwrap().is_some());
 }
@@ -15,7 +21,12 @@ async fn load_or_create_catalog_new_catalog() {
 #[test_log::test(tokio::test)]
 async fn load_or_create_catalog_existing_catalog() {
     let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let store = ObjectStoreCatalog::new("test_host", 10, Arc::new(local_disk));
+    let store = ObjectStoreCatalog::new(
+        "test_host",
+        10,
+        Arc::new(local_disk),
+        StorageMode::default(),
+    );
     let expected = store.load_or_create_catalog().await.unwrap().catalog_id;
 
     // initialize again to ensure it uses the same as above
@@ -23,6 +34,53 @@ async fn load_or_create_catalog_existing_catalog() {
 
     // check the instance ids match
     assert_eq!(expected, actual);
+}
+
+#[test_log::test(tokio::test)]
+async fn checkpoint_for_backup_reads_checkpoint_sequence_and_bytes() {
+    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+    let store = ObjectStoreCatalog::new(
+        "test_host",
+        10,
+        Arc::new(local_disk),
+        StorageMode::default(),
+    );
+
+    let catalog = store.load_or_create_catalog().await.unwrap();
+    let checkpoint = store.checkpoint_for_backup().await.unwrap();
+
+    assert_eq!(checkpoint.sequence, CatalogSequenceNumber::new(0));
+    assert_eq!(checkpoint.path, "test_host/catalog/v2/snapshot".into());
+    assert_eq!(catalog.sequence_number(), CatalogSequenceNumber::new(0));
+}
+
+#[tokio::test]
+async fn log_files_for_backup_returns_exact_sequence_range() {
+    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+    let store = ObjectStoreCatalog::new(
+        "test_host",
+        10,
+        Arc::new(local_disk),
+        StorageMode::default(),
+    );
+
+    let files = store
+        .log_files_for_backup(CatalogSequenceNumber::new(3), CatalogSequenceNumber::new(6))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        files.iter().map(|f| f.sequence.get()).collect::<Vec<_>>(),
+        vec![4, 5, 6]
+    );
+    assert_eq!(
+        files.iter().map(|f| f.path.to_string()).collect::<Vec<_>>(),
+        vec![
+            "test_host/catalog/v2/logs/00000000000000000004.catalog",
+            "test_host/catalog/v2/logs/00000000000000000005.catalog",
+            "test_host/catalog/v2/logs/00000000000000000006.catalog",
+        ]
+    );
 }
 
 // TODO: more test cases

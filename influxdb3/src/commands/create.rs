@@ -290,7 +290,7 @@ pub struct TriggerConfig {
     /// When the trigger should fire
     #[clap(long = "trigger-spec",
           value_parser = TriggerSpecificationDefinition::from_string_rep,
-          help = "The plugin file must be for the given trigger type of wal, schedule, or request. Trigger specification format:\nFor wal_rows use: 'table:<TABLE_NAME>' or 'all_tables'\nFor scheduled use: 'cron:<CRON_EXPRESSION>' or 'every:<duration e.g. 10m>'\nFor request use: 'path:<PATH>' e.g. path:foo will be at /api/v3/engine/foo")]
+          help = "The plugin file must be for the given trigger type of wal, schedule, or request. Trigger specification format:\nFor wal_rows use: 'table:<TABLE_NAME>' or 'all_tables'\nFor scheduled use: 'cron:<CRON_EXPRESSION>' or 'every:<duration e.g. 10m>'\nFor request use: 'request:<PATH>' e.g. request:foo will be at /api/v3/engine/foo")]
     trigger_specification: TriggerSpecificationDefinition,
     /// Comma separated list of key/value pairs to use as trigger arguments. Example: key1=val1,key2=val2
     #[clap(long = "trigger-arguments", value_delimiter = ',')]

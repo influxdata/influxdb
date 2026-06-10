@@ -7,7 +7,8 @@ use num::Float;
 use observability_deps::tracing::{debug, warn};
 
 use crate::{
-    ParquetMetrics, ProcessingEngineMetrics, ServeInvocationMethod,
+    ParquetMetrics, PluginTriggerInvocationMetrics, ProcessingEngineMetrics,
+    PythonEnvironmentMetrics, ServeInvocationMethod, StorageEngineType,
     bucket::EventsBucket,
     metrics::{Cpu, Memory, Queries, Writes},
     sampler::sample_metrics,
@@ -26,6 +27,9 @@ pub struct CreateTelemetryStoreArgs {
     pub catalog_uuid: String,
     pub serve_invocation_method: ServeInvocationMethod,
     pub processing_engine_metrics: Arc<dyn ProcessingEngineMetrics>,
+    pub python_env_metrics: Option<Arc<dyn PythonEnvironmentMetrics>>,
+    pub plugin_trigger_invocation_metrics: Option<Arc<dyn PluginTriggerInvocationMetrics>>,
+    pub storage_engine: StorageEngineType,
 }
 
 /// This store is responsible for holding all the stats which will be sent in the background
@@ -44,6 +48,8 @@ pub struct CreateTelemetryStoreArgs {
 pub struct TelemetryStore {
     inner: parking_lot::Mutex<TelemetryStoreInner>,
     processing_engine_metrics: Arc<dyn ProcessingEngineMetrics>,
+    python_env_metrics: Option<Arc<dyn PythonEnvironmentMetrics>>,
+    plugin_trigger_invocation_metrics: Option<Arc<dyn PluginTriggerInvocationMetrics>>,
     persisted_files: Option<Arc<dyn ParquetMetrics>>,
 }
 
@@ -51,7 +57,27 @@ const SAMPLER_INTERVAL_SECS: u64 = 60;
 const MAIN_SENDER_INTERVAL_SECS: u64 = 60 * 60;
 
 impl TelemetryStore {
-    pub async fn new(
+    pub async fn new(args: CreateTelemetryStoreArgs) -> Arc<Self> {
+        let telemetry_endpoint = args.telemetry_endpoint.clone();
+        let store = Self::new_without_background_runners_from_args(args);
+
+        if !cfg!(test) {
+            sample_metrics(
+                Arc::clone(&store),
+                Duration::from_secs(SAMPLER_INTERVAL_SECS),
+            )
+            .await;
+            send_telemetry_in_background(
+                telemetry_endpoint,
+                Arc::clone(&store),
+                Duration::from_secs(MAIN_SENDER_INTERVAL_SECS),
+            )
+            .await;
+        }
+        store
+    }
+
+    pub fn new_without_background_runners_from_args(
         CreateTelemetryStoreArgs {
             instance_id,
             os,
@@ -59,10 +85,13 @@ impl TelemetryStore {
             storage_type,
             cores,
             persisted_files,
-            telemetry_endpoint,
+            telemetry_endpoint: _,
             catalog_uuid,
             serve_invocation_method,
             processing_engine_metrics,
+            python_env_metrics,
+            plugin_trigger_invocation_metrics,
+            storage_engine,
         }: CreateTelemetryStoreArgs,
     ) -> Arc<Self> {
         debug!(
@@ -81,27 +110,15 @@ impl TelemetryStore {
             cores,
             catalog_uuid,
             serve_invocation_method,
+            storage_engine,
         );
-        let store = Arc::new(TelemetryStore {
+        Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
             processing_engine_metrics,
+            python_env_metrics,
+            plugin_trigger_invocation_metrics,
             persisted_files,
-        });
-
-        if !cfg!(test) {
-            sample_metrics(
-                Arc::clone(&store),
-                Duration::from_secs(SAMPLER_INTERVAL_SECS),
-            )
-            .await;
-            send_telemetry_in_background(
-                telemetry_endpoint,
-                Arc::clone(&store),
-                Duration::from_secs(MAIN_SENDER_INTERVAL_SECS),
-            )
-            .await;
-        }
-        store
+        })
     }
 
     pub fn new_without_background_runners(
@@ -114,19 +131,20 @@ impl TelemetryStore {
         let storage_type = Arc::from("Memory");
         let cores = 10;
         let sample_catalog_uuid = "catalog_uuid".to_owned();
-        let inner = TelemetryStoreInner::new(
+        Self::new_without_background_runners_from_args(CreateTelemetryStoreArgs {
             instance_id,
             os,
             influx_version,
             storage_type,
             cores,
-            sample_catalog_uuid,
-            ServeInvocationMethod::Tests,
-        );
-        Arc::new(TelemetryStore {
-            inner: parking_lot::Mutex::new(inner),
             persisted_files,
+            telemetry_endpoint: String::new(),
+            catalog_uuid: sample_catalog_uuid,
+            serve_invocation_method: ServeInvocationMethod::Tests,
             processing_engine_metrics,
+            python_env_metrics: None,
+            plugin_trigger_invocation_metrics: None,
+            storage_engine: StorageEngineType::Tests,
         })
     }
 
@@ -160,13 +178,20 @@ impl TelemetryStore {
     }
 
     pub(crate) fn reset_metrics_1h(&self) {
-        let mut inner_store = self.inner.lock();
-        inner_store.reset_metrics_1h();
+        {
+            let mut inner_store = self.inner.lock();
+            inner_store.reset_metrics_1h();
+        }
+        if let Some(plugin_trigger_invocation_metrics) = &self.plugin_trigger_invocation_metrics {
+            plugin_trigger_invocation_metrics.reset_plugin_trigger_invocations();
+        }
     }
 
-    pub(crate) fn snapshot(&self) -> TelemetryPayload {
-        let inner_store = self.inner.lock();
-        let mut payload = inner_store.snapshot();
+    pub fn snapshot(&self) -> TelemetryPayload {
+        let mut payload = {
+            let inner_store = self.inner.lock();
+            inner_store.snapshot()
+        };
         if let Some(persisted_files) = &self.persisted_files {
             let (file_count, size_mb, row_count) = persisted_files.get_metrics();
             payload.parquet_file_count = file_count;
@@ -179,6 +204,21 @@ impl TelemetryStore {
         payload.wal_all_triggers_count = all_wal_count;
         payload.schedule_triggers_count = schedule_count;
         payload.request_triggers_count = request_count;
+        payload.plugin_trigger_invocations = self
+            .plugin_trigger_invocation_metrics
+            .as_ref()
+            .map(|metrics| metrics.plugin_trigger_invocations())
+            .unwrap_or_default();
+        payload.installed_packages = match &self.python_env_metrics {
+            Some(metrics) => match metrics.installed_packages() {
+                Ok(packages) => packages,
+                Err(error) => {
+                    warn!(?error, "failed to collect Python package telemetry");
+                    Vec::new()
+                }
+            },
+            None => Vec::new(),
+        };
         payload
     }
 }
@@ -191,6 +231,7 @@ struct TelemetryStoreInner {
     storage_type: Arc<str>,
     start_timer: Instant,
     serve_invocation_method: ServeInvocationMethod,
+    storage_engine: StorageEngineType,
     cores: usize,
     cpu: Cpu,
     catalog_uuid: String,
@@ -210,6 +251,7 @@ struct TelemetryStoreInner {
 }
 
 impl TelemetryStoreInner {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         instance_id: Arc<str>,
         os: Arc<str>,
@@ -218,6 +260,7 @@ impl TelemetryStoreInner {
         cores: usize,
         catalog_uuid: String,
         serve_invocation_method: ServeInvocationMethod,
+        storage_engine: StorageEngineType,
     ) -> Self {
         TelemetryStoreInner {
             os,
@@ -228,6 +271,7 @@ impl TelemetryStoreInner {
             catalog_uuid,
             start_timer: Instant::now(),
             serve_invocation_method,
+            storage_engine,
             cpu: Cpu::default(),
             memory: Memory::default(),
             per_minute_events_bucket: EventsBucket::new(),
@@ -250,6 +294,7 @@ impl TelemetryStoreInner {
             storage_type: Arc::clone(&self.storage_type),
             cores: self.cores,
             product_type: "Core",
+            storage_engine_type: self.storage_engine,
             // cluster_uuid == catalog_uuid
             cluster_uuid: Arc::from(self.catalog_uuid.as_str()),
             uptime_secs: self.start_timer.elapsed().as_secs(),
@@ -298,6 +343,8 @@ impl TelemetryStoreInner {
             wal_all_triggers_count: 0,
             schedule_triggers_count: 0,
             request_triggers_count: 0,
+            plugin_trigger_invocations: Vec::new(),
+            installed_packages: Vec::new(),
         }
     }
 

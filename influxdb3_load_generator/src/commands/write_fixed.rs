@@ -13,10 +13,12 @@ use std::{
 };
 
 use clap::Parser;
+use flate2::{Compression, write::GzEncoder};
 use futures::future::join_all;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
-use reqwest::header::{AUTHORIZATION, HeaderMap};
+use reqwest::header::{AUTHORIZATION, CONTENT_ENCODING, HeaderMap, HeaderValue};
 use secrecy::{ExposeSecret, Secret};
+use std::io::Write as _;
 use url::Url;
 
 #[derive(Debug, Parser)]
@@ -67,6 +69,10 @@ pub(crate) struct WriteConstrainedConfig {
         default_value = "1"
     )]
     pub num_databases: u64,
+
+    /// Gzip-compress write request bodies before sending.
+    #[clap(long = "gzip", default_value = "false")]
+    pub gzip: bool,
 }
 
 /// The idea here is to generate data based on throughput required shared across multiple writers.
@@ -151,6 +157,7 @@ impl<'a> Iterator for CustomDbIter<'a> {
 pub async fn command(config: WriteFixedConfig) -> Result<(), Infallible> {
     let max_size = config.write.tput_mebibytes_per_sec;
     let num_writers = config.write.writer_count;
+    let gzip = config.write.gzip;
     let (data_points, total_size) = generate_data_points(max_size, num_writers);
     let mut headers = HeaderMap::new();
     if let Some(auth_token) = config.auth_token {
@@ -186,11 +193,17 @@ pub async fn command(config: WriteFixedConfig) -> Result<(), Infallible> {
         for data in &data_points {
             total_lines += data.len();
             let db_name = db_iter.next().unwrap();
-            let fut = client
-                .post(&write_uri)
-                .query(&[("db", &db_name)])
-                .body(data.join("\n"))
-                .send();
+            let body = data.join("\n");
+            let mut req = client.post(&write_uri).query(&[("db", &db_name)]);
+            let body_bytes: Vec<u8> = if gzip {
+                req = req.header(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+                let mut enc = GzEncoder::new(Vec::new(), Compression::default());
+                enc.write_all(body.as_bytes()).unwrap();
+                enc.finish().unwrap()
+            } else {
+                body.into_bytes()
+            };
+            let fut = req.body(body_bytes).send();
             futs.push(fut);
         }
         let start = Instant::now();

@@ -5,8 +5,11 @@
 
 pub mod create;
 pub mod object_store;
+pub mod observer;
 pub mod serialize;
 mod snapshot_tracker;
+
+pub use observer::{CatalogSnapshotObserver, NoopCatalogSnapshotObserver};
 
 use async_trait::async_trait;
 use data_types::Timestamp;
@@ -16,10 +19,12 @@ use influxdb_line_protocol::FieldValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::Time;
+use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::hash::BuildHasherDefault;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -294,7 +299,7 @@ impl WriteBatch {
         catalog_sequence: u64,
         database_id: DbId,
         database_name: Arc<str>,
-        table_chunks: IndexMap<TableId, TableChunks>,
+        table_chunks: IndexMap<TableId, TableChunks, BuildHasherDefault<FxHasher>>,
     ) -> Self {
         // find the min and max times across the table chunks
         let (min_time_ns, max_time_ns) = table_chunks.values().fold(

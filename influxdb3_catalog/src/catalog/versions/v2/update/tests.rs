@@ -1,17 +1,21 @@
 use crate::CatalogError;
-use crate::catalog::versions::v2::{Catalog, CreateTableOptions};
-use crate::log::versions::v4::FieldDataType;
+use crate::catalog::versions::v2::update::CreateTableColumns;
+use crate::catalog::versions::v2::update::create_table_columns;
+use crate::catalog::versions::v2::{
+    Catalog, CatalogArgs, CatalogLimits, CreateTableOptions, FieldFamilyDefinition,
+    FieldFamilyMode, FieldFamilyName, NUM_FIELD_FAMILIES_LIMIT, NUM_FIELDS_PER_FAMILY_LIMIT,
+};
+use crate::log::versions::v4::{FieldDataType, StorageMode};
+use influxdb3_id::{CatalogId, ColumnId, FieldFamilyId};
 use iox_time::{MockProvider, Time};
+use object_store::memory::InMemory;
 use schema::{InfluxColumnType, InfluxFieldType};
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Tests which focus on testing the expected behaviour when creating a new table.
 mod create_table {
     use super::*;
-    use crate::catalog::versions::v2::{
-        CatalogLimits, FieldFamilyMode, NUM_FIELDS_PER_FAMILY_LIMIT,
-    };
-    use object_store::memory::InMemory;
 
     #[tokio::test]
     async fn all_auto_defined_field_families() {
@@ -44,6 +48,7 @@ mod create_table {
                         ("bool", FieldDataType::Boolean),
                     ],
                     CreateTableOptions {
+                        retention_period: Some(Duration::from_nanos(600)),
                         ..Default::default()
                     },
                 )
@@ -123,6 +128,7 @@ mod create_table {
                     &["tag"],
                     &fields,
                     CreateTableOptions {
+                        retention_period: Some(Duration::from_nanos(600)),
                         ..Default::default()
                     },
                 )
@@ -268,6 +274,130 @@ mod create_table {
             InfluxColumnType::Field(InfluxFieldType::Integer),
         );
         assert!(matches!(result, Err(CatalogError::TooManyColumns(3))));
+    }
+
+    #[tokio::test]
+    async fn pacha_tree_columns_continue_after_legacy_ordinals_exhaust() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(10000)));
+        let catalog = Catalog::new_in_memory_with_args_limits(
+            "test",
+            time_provider,
+            CatalogArgs {
+                storage_mode: StorageMode::PachaTree,
+                ..Default::default()
+            },
+            CatalogLimits {
+                num_columns_per_table: ColumnId::MAX.get() as usize + 8,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let mut txn = catalog.begin("test_db").unwrap();
+        let table_tx = txn.table_tx_or_create("test_table").unwrap();
+        table_tx.add_time().unwrap();
+        table_tx.table.columns.next_id = ColumnId::new(u16::MAX - 1);
+
+        let edge = table_tx.add_field("edge", InfluxFieldType::Float).unwrap();
+        let overflow = table_tx
+            .add_field("overflow", InfluxFieldType::Integer)
+            .unwrap();
+        let after = table_tx
+            .add_field("after", InfluxFieldType::String)
+            .unwrap();
+
+        assert_eq!(edge.column_id, Some(ColumnId::new(u16::MAX - 1)));
+        assert_eq!(overflow.column_id, None);
+        assert_eq!(after.column_id, None);
+
+        catalog.commit(txn).await.unwrap();
+
+        let db = catalog.db_schema("test_db").expect("db should exist");
+        let table = db
+            .tables
+            .get_by_name("test_table")
+            .expect("table should exist");
+
+        assert_eq!(
+            table.column_definition("edge").unwrap().ord_id(),
+            Some(ColumnId::new(u16::MAX - 1))
+        );
+        assert_eq!(table.column_definition("overflow").unwrap().ord_id(), None);
+        assert_eq!(table.column_definition("after").unwrap().ord_id(), None);
+        assert_eq!(table.num_field_columns(), 3);
+    }
+
+    #[tokio::test]
+    async fn hybrid_tables_reject_new_columns_after_legacy_ordinals_exhaust() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(10000)));
+        let catalog = Catalog::new_in_memory_with_args_limits(
+            "test",
+            time_provider,
+            CatalogArgs {
+                storage_mode: StorageMode::ParquetAndPachaTree,
+                ..Default::default()
+            },
+            CatalogLimits {
+                num_columns_per_table: ColumnId::MAX.get() as usize + 8,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let mut txn = catalog.begin("test_db").unwrap();
+        let table_tx = txn.table_tx_or_create("test_table").unwrap();
+        table_tx.add_time().unwrap();
+        table_tx.table.columns.next_id = ColumnId::MAX;
+
+        let result = table_tx.add_field("overflow", InfluxFieldType::Integer);
+        assert!(matches!(
+            result,
+            Err(CatalogError::LegacyColumnIdsExhausted {
+                storage_mode: StorageMode::ParquetAndPachaTree,
+                ..
+            })
+        ));
+        assert!(table_tx.table.column_definition("overflow").is_none());
+    }
+
+    #[tokio::test]
+    async fn field_family_limit_returns_error_before_id_overflow() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(10000)));
+        let catalog = Catalog::new_in_memory_with_args(
+            "test",
+            time_provider,
+            CatalogArgs {
+                storage_mode: StorageMode::PachaTree,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let mut txn = catalog.begin("test_db").unwrap();
+        let table_tx = txn.table_tx_or_create("test_table").unwrap();
+        for i in 0..NUM_FIELD_FAMILIES_LIMIT {
+            let id = FieldFamilyId::new(i as u16);
+            table_tx
+                .table
+                .field_families
+                .insert(
+                    id,
+                    Arc::new(FieldFamilyDefinition::new(
+                        id,
+                        FieldFamilyName::Auto(i as u16),
+                    )),
+                )
+                .unwrap();
+        }
+
+        let result = table_tx.add_field("overflow::field", InfluxFieldType::Float);
+        assert!(matches!(
+            result,
+            Err(CatalogError::TooManyFieldFamilies(NUM_FIELD_FAMILIES_LIMIT))
+        ));
     }
 
     #[tokio::test]
@@ -444,6 +574,7 @@ mod create_table {
                         ("ff3::bool", FieldDataType::Boolean),
                     ],
                     CreateTableOptions {
+                        retention_period: Some(Duration::from_nanos(600)),
                         ..Default::default()
                     },
                 )
@@ -521,6 +652,7 @@ mod create_table {
                         ("ff3::bool", FieldDataType::Boolean),
                     ],
                     CreateTableOptions {
+                        retention_period: Some(Duration::from_nanos(600)),
                         field_family_mode: FieldFamilyMode::Auto,
                     },
                 )
@@ -565,9 +697,6 @@ mod create_table {
 /// Focus on testing the expected behaviour when updating an existing table.
 mod update_table {
     use super::*;
-    use crate::catalog::versions::v2::update::create_table_columns;
-    use crate::catalog::versions::v2::{CatalogArgs, CatalogLimits, FieldFamilyMode};
-    use object_store::memory::InMemory;
 
     #[tokio::test]
     async fn test_add_tags_to_existing_table() {
@@ -990,6 +1119,7 @@ mod update_table {
                         ("humidity", FieldDataType::Float),
                     ],
                     CreateTableOptions {
+                        retention_period: Some(Duration::from_secs(86400)), // 1 day
                         ..Default::default()
                     },
                 )
@@ -1148,6 +1278,7 @@ mod update_table {
             txn.create_table(
                 "test_table",
                 create_table_columns::none(),
+                None,
                 FieldFamilyMode::Auto,
             )
             .unwrap();
@@ -1183,10 +1314,7 @@ mod update_table {
 /// Reproducer for issue <https://github.com/influxdata/influxdb/issues/26776>
 #[tokio::test]
 async fn test_field_family_arc_ref_count_bug() {
-    use super::CreateTableColumns;
-    use crate::catalog::versions::v2::FieldFamilyMode;
-
-    let catalog = Arc::new(Catalog::new_in_memory("test-catalog").await.unwrap());
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
     {
         let mut txn = catalog.begin("test_db").unwrap();
         txn.create_table(
@@ -1195,6 +1323,7 @@ async fn test_field_family_arc_ref_count_bug() {
                 tags: &["tag"],
                 fields: &[("ff::a", FieldDataType::Integer)],
             }),
+            None,
             FieldFamilyMode::Aware,
         )
         .unwrap();
@@ -1207,5 +1336,418 @@ async fn test_field_family_arc_ref_count_bug() {
         let _col_def = ttx
             .add_field("ff::b", InfluxFieldType::Float)
             .expect("add field");
+    }
+}
+
+mod create_auto_distinct_cache {
+    use super::*;
+    use crate::log::versions::v4::{
+        DistinctCacheDefinition, MaxAge, MaxCardinality, RefreshInterval,
+    };
+    use influxdb3_id::{DbId, TableId, TagId};
+
+    async fn setup_catalog_with_table() -> (Arc<Catalog>, DbId, TableId, TagId) {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(10000)));
+        let store = Arc::new(InMemory::new());
+        let catalog = Catalog::new_with_store("test", store, time_provider)
+            .await
+            .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table_opts(
+                "test_db",
+                "test_table",
+                &["tag1", "tag2"],
+                &[("field1", FieldDataType::Float)],
+                CreateTableOptions::default(),
+            )
+            .await
+            .unwrap();
+
+        let db = catalog.db_schema("test_db").unwrap();
+        let db_id = db.id;
+        let table = db.tables.get_by_name("test_table").unwrap();
+        let table_id = table.table_id;
+        let tag_id = table.tag_columns.get_by_name("tag1").unwrap().id;
+
+        (catalog, db_id, table_id, tag_id)
+    }
+
+    #[tokio::test]
+    async fn creates_cache_with_single_tag() {
+        let (catalog, db_id, table_id, tag_id) = setup_catalog_with_table().await;
+
+        let result = catalog
+            .create_auto_distinct_cache(
+                db_id,
+                table_id,
+                &[tag_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await;
+
+        assert!(result.is_ok());
+
+        // Verify the cache was created
+        let db = catalog.db_schema("test_db").unwrap();
+        let table = db.tables.get_by_name("test_table").unwrap();
+        let cache_name = DistinctCacheDefinition::auto_cache_name();
+        assert!(table.distinct_caches.contains_name(&cache_name));
+    }
+
+    #[tokio::test]
+    async fn creates_cache_with_multiple_tags() {
+        let (catalog, db_id, table_id, _) = setup_catalog_with_table().await;
+
+        let db = catalog.db_schema("test_db").unwrap();
+        let table = db.tables.get_by_name("test_table").unwrap();
+        let tag1_id = table.tag_columns.get_by_name("tag1").unwrap().id;
+        let tag2_id = table.tag_columns.get_by_name("tag2").unwrap().id;
+
+        let result = catalog
+            .create_auto_distinct_cache(
+                db_id,
+                table_id,
+                &[tag1_id, tag2_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await;
+
+        assert!(result.is_ok());
+
+        // Verify the cache was created
+        let db = catalog.db_schema("test_db").unwrap();
+        let table = db.tables.get_by_name("test_table").unwrap();
+        let cache_name = DistinctCacheDefinition::auto_cache_name();
+        assert!(table.distinct_caches.contains_name(&cache_name));
+    }
+
+    #[tokio::test]
+    async fn fails_with_empty_tag_ids() {
+        let (catalog, db_id, table_id, _) = setup_catalog_with_table().await;
+
+        let result = catalog
+            .create_auto_distinct_cache(
+                db_id,
+                table_id,
+                &[],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(CatalogError::InvalidConfiguration { message })
+                if message.as_ref() == "no tag columns provided when creating auto distinct cache"
+        ));
+    }
+
+    #[tokio::test]
+    async fn fails_with_invalid_tag_id() {
+        let (catalog, db_id, table_id, _) = setup_catalog_with_table().await;
+
+        let invalid_tag_id = TagId::new(255);
+
+        let result = catalog
+            .create_auto_distinct_cache(
+                db_id,
+                table_id,
+                &[invalid_tag_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(CatalogError::InvalidConfiguration { message })
+                if message.as_ref().contains("invalid tag id provided")
+        ));
+    }
+
+    #[tokio::test]
+    async fn fails_when_database_not_found() {
+        let (catalog, _, table_id, tag_id) = setup_catalog_with_table().await;
+
+        let invalid_db_id = DbId::new(999999);
+
+        let result = catalog
+            .create_auto_distinct_cache(
+                invalid_db_id,
+                table_id,
+                &[tag_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await;
+
+        assert!(matches!(result, Err(CatalogError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn fails_when_table_not_found() {
+        let (catalog, db_id, _, tag_id) = setup_catalog_with_table().await;
+
+        let invalid_table_id = TableId::new(999999);
+
+        let result = catalog
+            .create_auto_distinct_cache(
+                db_id,
+                invalid_table_id,
+                &[tag_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await;
+
+        assert!(matches!(result, Err(CatalogError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn fails_when_auto_cache_already_exists() {
+        let (catalog, db_id, table_id, tag_id) = setup_catalog_with_table().await;
+
+        // Create the first auto cache
+        catalog
+            .create_auto_distinct_cache(
+                db_id,
+                table_id,
+                &[tag_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await
+            .unwrap();
+
+        // Try to create another auto cache - should fail
+        let result = catalog
+            .create_auto_distinct_cache(
+                db_id,
+                table_id,
+                &[tag_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await;
+
+        assert!(matches!(result, Err(CatalogError::AlreadyExists)));
+    }
+
+    #[tokio::test]
+    async fn can_create_after_deleting_previous() {
+        let (catalog, db_id, table_id, tag_id) = setup_catalog_with_table().await;
+
+        // Create first auto cache
+        catalog
+            .create_auto_distinct_cache(
+                db_id,
+                table_id,
+                &[tag_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                3600,
+                RefreshInterval::default(),
+            )
+            .await
+            .unwrap();
+
+        // Delete it
+        catalog
+            .delete_auto_distinct_cache(db_id, table_id)
+            .await
+            .unwrap();
+
+        // Verify it's gone
+        let db = catalog.db_schema("test_db").unwrap();
+        let table = db.tables.get_by_name("test_table").unwrap();
+        let cache_name = DistinctCacheDefinition::auto_cache_name();
+        assert!(!table.distinct_caches.contains_name(&cache_name));
+
+        // Should be able to create a new one
+        let result = catalog
+            .create_auto_distinct_cache(
+                db_id,
+                table_id,
+                &[tag_id],
+                MaxCardinality::default(),
+                MaxAge::default(),
+                7200,
+                RefreshInterval::default(),
+            )
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn persists_and_reloads_correctly() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(10000)));
+        let store = Arc::new(InMemory::new());
+        let db_id;
+        let table_id;
+        let tag_id;
+
+        // Create catalog, table, and auto cache
+        {
+            let catalog = Arc::new(
+                Catalog::new_with_store(
+                    "test",
+                    Arc::clone(&store) as _,
+                    Arc::clone(&time_provider) as _,
+                )
+                .await
+                .unwrap(),
+            );
+
+            catalog.create_database("test_db").await.unwrap();
+            catalog
+                .create_table_opts(
+                    "test_db",
+                    "test_table",
+                    &["region", "host"],
+                    &[("value", FieldDataType::Float)],
+                    CreateTableOptions::default(),
+                )
+                .await
+                .unwrap();
+
+            let db = catalog.db_schema("test_db").unwrap();
+            db_id = db.id;
+            let table = db.tables.get_by_name("test_table").unwrap();
+            table_id = table.table_id;
+            tag_id = table.tag_columns.get_by_name("region").unwrap().id;
+
+            catalog
+                .create_auto_distinct_cache(
+                    db_id,
+                    table_id,
+                    &[tag_id],
+                    MaxCardinality::default(),
+                    MaxAge::default(),
+                    3600,
+                    RefreshInterval::default(),
+                )
+                .await
+                .unwrap();
+
+            // Verify cache exists
+            let db = catalog.db_schema("test_db").unwrap();
+            let table = db.tables.get_by_name("test_table").unwrap();
+            let cache_name = DistinctCacheDefinition::auto_cache_name();
+            assert!(table.distinct_caches.contains_name(&cache_name));
+        }
+
+        // Reload catalog from object store and verify cache still exists
+        {
+            let catalog = Arc::new(
+                Catalog::new_with_store(
+                    "test",
+                    Arc::clone(&store) as _,
+                    Arc::clone(&time_provider) as _,
+                )
+                .await
+                .unwrap(),
+            );
+
+            let db = catalog.db_schema("test_db").expect("test_db should exist");
+            let table = db
+                .tables
+                .get_by_name("test_table")
+                .expect("test_table should exist");
+
+            let cache_name = DistinctCacheDefinition::auto_cache_name();
+            assert!(
+                table.distinct_caches.contains_name(&cache_name),
+                "auto cache should persist after reload"
+            );
+        }
+    }
+}
+
+mod delete_auto_distinct_cache {
+    use super::*;
+    use influxdb3_id::{DbId, TableId};
+
+    async fn setup_catalog_with_table() -> (Arc<Catalog>, DbId, TableId) {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(10000)));
+        let store = Arc::new(InMemory::new());
+        let catalog = Catalog::new_with_store("test", store, time_provider)
+            .await
+            .unwrap();
+
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table_opts(
+                "test_db",
+                "test_table",
+                &["tag1", "tag2"],
+                &[("field1", FieldDataType::Float)],
+                CreateTableOptions::default(),
+            )
+            .await
+            .unwrap();
+
+        let db = catalog.db_schema("test_db").unwrap();
+        let db_id = db.id;
+        let table = db.tables.get_by_name("test_table").unwrap();
+        let table_id = table.table_id;
+
+        (catalog, db_id, table_id)
+    }
+
+    #[tokio::test]
+    async fn fails_when_database_not_found() {
+        let (catalog, _, table_id) = setup_catalog_with_table().await;
+
+        let invalid_db_id = DbId::new(999999);
+
+        let result = catalog
+            .delete_auto_distinct_cache(invalid_db_id, table_id)
+            .await;
+
+        assert!(matches!(result, Err(CatalogError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn fails_when_table_not_found() {
+        let (catalog, db_id, _) = setup_catalog_with_table().await;
+
+        let invalid_table_id = TableId::new(999999);
+
+        let result = catalog
+            .delete_auto_distinct_cache(db_id, invalid_table_id)
+            .await;
+
+        assert!(matches!(result, Err(CatalogError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn fails_when_auto_cache_not_found() {
+        let (catalog, db_id, table_id) = setup_catalog_with_table().await;
+
+        // Table exists but has no auto cache
+        let result = catalog.delete_auto_distinct_cache(db_id, table_id).await;
+
+        assert!(matches!(result, Err(CatalogError::NotFound(_))));
     }
 }

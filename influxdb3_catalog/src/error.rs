@@ -1,15 +1,27 @@
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use enterprise::EnterpriseCatalogError;
 use humantime::Duration;
 use schema::InfluxColumnType;
 
-use crate::{channel::SubscriptionError, object_store::ObjectStoreCatalogError};
+pub(crate) mod enterprise;
+
+use crate::{
+    channel::SubscriptionError, format::FeatureLevel, format::FormatError,
+    log::versions::v4::StorageMode, object_store::ObjectStoreCatalogError,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
+    #[error(transparent)]
+    Enterprise(#[from] EnterpriseCatalogError),
+
     #[error("object store error: {0:?}")]
     ObjectStore(#[from] ObjectStoreCatalogError),
+
+    #[error("catalog format error: {0}")]
+    Format(#[from] FormatError),
 
     #[error("attempted to create a resource that already exists")]
     AlreadyExists,
@@ -19,6 +31,22 @@ pub enum CatalogError {
 
     #[error("attempted to modify resource that was already deleted: {0}")]
     AlreadyDeleted(String),
+
+    /// Request is idempotent: no catalog state would change.
+    #[error("no catalog changes to apply: {details}")]
+    NoCatalogChange { details: String },
+
+    /// Request is invalid.
+    #[error("catalog internal error: {details}")]
+    Internal { details: String },
+
+    #[error(
+        "persisted catalog checkpoint sequence {checkpoint_sequence} is ahead of live catalog sequence {live_sequence}"
+    )]
+    BackupCheckpointAhead {
+        checkpoint_sequence: u64,
+        live_sequence: u64,
+    },
 
     #[error("invalid configuration provided: {message}")]
     InvalidConfiguration { message: Box<str> },
@@ -48,6 +76,12 @@ pub enum CatalogError {
     #[error("invalid node registration")]
     InvalidNodeRegistration,
 
+    #[error("invalid node name ({0})")]
+    InvalidNodeName(String),
+
+    #[error("invalid node spec: {0}")]
+    InvalidNodeSpec(#[source] anyhow::Error),
+
     #[error("Update to schema would exceed number of columns per table limit of {0} columns")]
     TooManyColumns(usize),
 
@@ -66,6 +100,17 @@ pub enum CatalogError {
         "Update to schema would exceed the field limit ({limit}) for field family '{field_family}'"
     )]
     TooManyFields { field_family: String, limit: usize },
+
+    #[error("Update to schema would exceed the field family limit of {0}")]
+    TooManyFieldFamilies(usize),
+
+    #[error(
+        "table '{table_name}' in storage mode {storage_mode:?} cannot allocate more legacy column IDs"
+    )]
+    LegacyColumnIdsExhausted {
+        table_name: Arc<str>,
+        storage_mode: StorageMode,
+    },
 
     #[error("Database not found {}", db_name)]
     DatabaseNotFound { db_name: Arc<str> },
@@ -172,6 +217,9 @@ pub enum CatalogError {
     #[error("invalid error behavior {0}")]
     InvalidErrorBehavior(String),
 
+    #[error("cannot parse token permission, {0}")]
+    CannotParsePermissionForToken(String),
+
     #[error("token name already exists, {0}")]
     TokenNameAlreadyExists(String),
 
@@ -181,8 +229,37 @@ pub enum CatalogError {
     #[error("cannot delete internal db")]
     CannotDeleteInternalDatabase,
 
+    #[error("cannot modify internal db")]
+    CannotModifyInternalDatabase,
+
     #[error("tried to stop a node ({node_id}) that is already stopped")]
     NodeAlreadyStopped { node_id: Arc<str> },
+
+    #[error(
+        "node '{node_id}' is not fully stopped (current state: {current_state}); run \"stop node\" first"
+    )]
+    NodeNotFullyStopped {
+        node_id: Arc<str>,
+        current_state: &'static str,
+    },
+
+    #[error("node '{node_id}' has compact mode and cannot be removed")]
+    NodeModeNotRemovable { node_id: Arc<str> },
+
+    #[error("invalid stop ack for node '{node_id}' (current state: {current_state})")]
+    InvalidStopAck {
+        node_id: Arc<str>,
+        current_state: &'static str,
+    },
+
+    #[error("invalid unregister for node '{node_id}' (current state: {current_state})")]
+    InvalidUnregister {
+        node_id: Arc<str>,
+        current_state: &'static str,
+    },
+
+    #[error("idempotent no-op")]
+    IdempotentNoOp,
 
     #[error("cannot delete operator token")]
     CannotDeleteOperatorToken,
@@ -202,6 +279,32 @@ pub enum CatalogError {
         name: Arc<str>,
         existing: InfluxColumnType,
     },
+
+    #[error(
+        "record id {record_id} exceeds the cluster's committed feature level (core={}, enterprise={}); \
+        the cluster must finish upgrading before this operation is available",
+        committed.core,
+        committed.enterprise,
+    )]
+    RecordExceedsCommittedFeatureLevel {
+        record_id: u16,
+        committed: FeatureLevel,
+    },
+
+    #[error(
+        "this node's feature level (core={}, enterprise={}) is below the cluster's committed level (core={}, enterprise={}); upgrade required",
+        local.core,
+        local.enterprise,
+        committed.core,
+        committed.enterprise,
+    )]
+    NodeBelowCommittedFeatureLevel {
+        committed: FeatureLevel,
+        local: FeatureLevel,
+    },
+
+    #[error("missing object store for restore operation")]
+    MissingObjectStoreForRestore,
 }
 
 impl CatalogError {

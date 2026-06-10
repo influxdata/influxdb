@@ -211,16 +211,14 @@ impl TestService {
         let object_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let metrics = Arc::new(Registry::new());
-        let catalog = Arc::new(
-            Catalog::new(
-                node_id,
-                Arc::clone(&object_store) as _,
-                Arc::clone(&time_provider) as _,
-                Arc::clone(&metrics),
-            )
-            .await
-            .unwrap(),
-        );
+        let catalog = Catalog::new(
+            node_id,
+            Arc::clone(&object_store) as _,
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&metrics),
+        )
+        .await
+        .unwrap();
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store) as _, StorageId::from("influxdb3"));
         let exec = Arc::new(Executor::new_with_config_and_executor(

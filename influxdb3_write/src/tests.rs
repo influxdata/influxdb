@@ -3,9 +3,8 @@ use datafusion::{
     logical_expr::{BinaryExpr, Operator, expr::ScalarFunction},
     prelude::{Expr, cast, col, date_trunc, lit},
 };
-use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
+use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, FieldDataType};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
-use influxdb3_types::http::FieldDataType;
 use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 use query_functions::tz::TZ_UDF;
 use std::sync::Arc;

@@ -23,6 +23,29 @@ pub struct FlightQueryInfo {
     pub database: String,
     /// Query variant: `"sql"`, `"influxql"`, or `"flightsql"`.
     pub query_variant: &'static str,
+    /// The sanitized query text. For SQL / InfluxQL it is the raw query
+    /// string; for a FlightSQL `CommandStatementQuery` it is the embedded
+    /// SQL only; for every other FlightSQL command variant it is the fixed
+    /// string `<flightsql:unknown>` so that client-supplied catalog /
+    /// schema / table identifiers never reach downstream consumers.
+    ///
+    pub query_text: String,
+}
+
+/// Planning-time signals delivered to the observer after the physical
+/// plan has been built (and before stream consumption begins).
+///
+/// Caller contract: `on_planned` must only fire if the
+/// `QueryLogEntry` has reached the `PhysicallyPlanned` state — i.e.
+/// `state.physical_plan_duration.is_some()`. Observers may rely on
+/// this and treat the absence of the callback as "planning never
+/// completed."
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FlightPlannedInfo {
+    /// Number of parquet-backed partitions reported by upstream
+    /// `QueryLogEntryState::partitions`. `None` on PachaTree paths or
+    /// when the plan didn't surface a parquet partition count.
+    pub partitions_scanned: Option<u64>,
 }
 
 /// Handle for a single in-flight query observation.
@@ -32,6 +55,13 @@ pub struct FlightQueryInfo {
 /// `success()` or `error()` being called, the `Drop` impl should treat it
 /// as a cancellation.
 pub trait FlightQueryObservation: Send + 'static {
+    /// Physical planning completed (the underlying `QueryLogEntry`
+    /// reached the `PhysicallyPlanned` state). Will not fire on
+    /// queries that fail during logical / physical planning. Default
+    /// implementation is a no-op so adding fields to
+    /// [`FlightPlannedInfo`] stays non-breaking for downstream
+    /// observers.
+    fn on_planned(&mut self, _info: FlightPlannedInfo) {}
     /// The query stream completed successfully.
     fn success(self: Box<Self>);
     /// The query failed with an error.

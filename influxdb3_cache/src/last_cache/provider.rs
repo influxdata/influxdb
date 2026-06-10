@@ -3,18 +3,12 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::{array::RecordBatch, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 
 use influxdb3_catalog::catalog::legacy;
-use influxdb3_catalog::{
-    catalog::Catalog,
-    catalog::IfNotDeleted,
-    channel::CatalogUpdateReceiver,
-    log::{
-        CatalogBatch, DatabaseCatalogOp, DeleteLastCacheLog, LastCacheDefinition,
-        LastCacheValueColumnsDef, SoftDeleteTableLog,
-    },
+use influxdb3_catalog::catalog::{
+    Catalog, CatalogEvent, CatalogUpdateReceiver, IfNotDeleted, LastCacheValueColumnsDef,
 };
 use influxdb3_id::{DbId, LastCacheId, TableId};
 use influxdb3_wal::{WalContents, WalOp};
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, error};
 use parking_lot::RwLock;
 
 use super::{
@@ -170,24 +164,45 @@ impl LastCacheProvider {
         Ok(())
     }
 
-    pub fn create_cache_from_definition(&self, db_id: DbId, log: &LastCacheDefinition) {
-        let table_def = self
-            .catalog
-            .db_schema_by_id(&db_id)
-            .and_then(|db| db.table_definition_by_id(&log.table_id))
-            .expect("db and table id should be valid when creating last cache from log");
+    pub fn create_cache_from_definition(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        cache_id: LastCacheId,
+    ) {
+        let Some(db_schema) = self.catalog.db_schema_by_id(&db_id) else {
+            error!(?db_id, "database not found creating last cache; skipping");
+            return;
+        };
+        let Some(table_def) = db_schema.table_definition_by_id(&table_id) else {
+            error!(
+                ?db_id,
+                ?table_id,
+                "table not found creating last cache; skipping"
+            );
+            return;
+        };
+        let Some(cache_def) = table_def.last_caches.get_by_id(&cache_id) else {
+            error!(
+                ?db_id,
+                ?table_id,
+                ?cache_id,
+                "last cache definition not found; skipping"
+            );
+            return;
+        };
         let legacy_def = legacy::TableDefinition::new(Arc::clone(&table_def));
-        let last_cache = LastCache::new(CreateLastCacheArgs {
+        let last_cache = match LastCache::new(CreateLastCacheArgs {
             table_def,
-            count: log.count,
-            ttl: log.ttl,
+            count: cache_def.count,
+            ttl: cache_def.ttl,
             key_columns: super::cache::LastCacheKeyColumnsArg::Explicit(
                 legacy_def
-                    .ids_to_column_ids(&log.key_columns)
+                    .ids_to_column_ids(&cache_def.key_columns)
                     .copied()
                     .collect(),
             ),
-            value_columns: match &log.value_columns {
+            value_columns: match &cache_def.value_columns {
                 LastCacheValueColumnsDef::Explicit { columns } => {
                     LastCacheValueColumnsArg::Explicit(
                         legacy_def.ids_to_column_ids(columns).copied().collect(),
@@ -195,16 +210,27 @@ impl LastCacheProvider {
                 }
                 LastCacheValueColumnsDef::AllNonKeyColumns => LastCacheValueColumnsArg::AcceptNew,
             },
-        })
-        .expect("last cache defined in WAL should be valid");
+        }) {
+            Ok(cache) => cache,
+            Err(error) => {
+                error!(
+                    ?db_id,
+                    ?table_id,
+                    ?cache_id,
+                    %error,
+                    "unable to create last cache from catalog definition",
+                );
+                return;
+            }
+        };
 
         self.cache_map
             .write()
             .entry(db_id)
             .or_default()
-            .entry(log.table_id)
+            .entry(table_id)
             .or_default()
-            .insert(log.id, last_cache);
+            .insert(cache_id, last_cache);
     }
 
     /// Delete a cache from the provider
@@ -362,34 +388,33 @@ pub fn background_catalog_update(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(catalog_update) = subscription.recv().await {
-            for batch in catalog_update
-                .batches()
-                .filter_map(CatalogBatch::as_database)
-            {
-                for op in batch.ops.iter() {
-                    match op {
-                        DatabaseCatalogOp::SoftDeleteDatabase(_) => {
-                            provider.delete_caches_for_db(&batch.database_id);
-                        }
-                        DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
-                            table_id, ..
-                        }) => {
-                            provider.delete_caches_for_table(&batch.database_id, table_id);
-                        }
-                        DatabaseCatalogOp::CreateLastCache(log) => {
-                            provider.create_cache_from_definition(batch.database_id, log);
-                        }
-                        DatabaseCatalogOp::DeleteLastCache(DeleteLastCacheLog {
-                            table_id,
-                            id,
-                            ..
-                        }) => {
-                            // This only errors when the cache isn't there, so we ignore the
-                            // error...
-                            let _ = provider.delete_cache(&batch.database_id, table_id, id);
-                        }
-                        _ => (),
+            for event in catalog_update.events() {
+                match event {
+                    CatalogEvent::DatabaseSoftDeleted { db_id }
+                    | CatalogEvent::DatabaseHardDeleted { db_id } => {
+                        provider.delete_caches_for_db(db_id);
                     }
+                    CatalogEvent::TableSoftDeleted { db_id, table_id }
+                    | CatalogEvent::TableHardDeleted { db_id, table_id } => {
+                        provider.delete_caches_for_table(db_id, table_id);
+                    }
+                    CatalogEvent::LastCacheCreated {
+                        db_id,
+                        table_id,
+                        cache_id,
+                    } => {
+                        provider.create_cache_from_definition(*db_id, *table_id, *cache_id);
+                    }
+                    CatalogEvent::LastCacheDeleted {
+                        db_id,
+                        table_id,
+                        cache_id,
+                    } => {
+                        // This only errors when the cache isn't there, so we ignore the
+                        // error...
+                        let _ = provider.delete_cache(db_id, table_id, cache_id);
+                    }
+                    _ => (),
                 }
             }
         }

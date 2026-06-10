@@ -6,7 +6,7 @@ use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::log::RetentionPeriod;
+use influxdb3_catalog::catalog::RetentionPeriod;
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]

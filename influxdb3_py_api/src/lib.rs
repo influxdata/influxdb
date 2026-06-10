@@ -1,26 +1,7 @@
-#[derive(Debug, thiserror::Error)]
-pub enum ExecutePluginError {
-    #[error(
-        "the process_writes function is not present in the plugin. Should be defined as: process_writes(influxdb3_local, table_batches, args=None)"
-    )]
-    MissingProcessWritesFunction,
-
-    #[error(
-        "the process_request function is not present in the plugin. Should be defined as: process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None) -> Tuple[str, Optional[Dict[str, str]]]"
-    )]
-    MissingProcessRequestFunction,
-
-    #[error(
-        "the process_scheduled_call function is not present in the plugin. Should be defined as: process_scheduled_call(influxdb3_local, call_time, args=None)"
-    )]
-    MissingProcessScheduledCallFunction,
-
-    #[error("{0}")]
-    PluginError(#[from] anyhow::Error),
-}
-
+pub mod cache;
+pub mod error;
+mod line_builder;
 pub mod logging;
 pub mod py_conversion;
 pub mod system_py;
-
-pub use py_conversion::ToPythonTableBatches;
+pub mod write;

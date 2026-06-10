@@ -77,8 +77,8 @@ impl RetentionPeriodHandler {
         );
 
         // Process each database and table with a retention policy
-        for ((db_id, table_id), cutoff_time_ns) in cutoff_map {
-            self.enforce_retention_for_table(db_id, table_id, cutoff_time_ns)
+        for ((db_id, table_id), cutoff_time) in cutoff_map {
+            self.enforce_retention_for_table(db_id, table_id, cutoff_time.timestamp_nanos())
                 .await;
         }
     }

@@ -2,8 +2,8 @@ use mockito::Server;
 use reqwest::Url;
 use std::sync::Arc;
 
-use crate::ServeInvocationMethod;
 use crate::sender::{TelemetryPayload, TelemetrySender};
+use crate::{ServeInvocationMethod, StorageEngineType};
 
 #[test_log::test(tokio::test)]
 async fn test_sending_telemetry() {
@@ -47,6 +47,7 @@ fn create_sample_payload() -> TelemetryPayload {
         instance_id: Arc::from("sample-str"),
         cores: 10,
         product_type: "OSS",
+        storage_engine_type: StorageEngineType::Tests,
         cluster_uuid: Arc::from("cluster_uuid"),
         serve_invocation_method: ServeInvocationMethod::Tests.as_u64(),
         cpu_utilization_percent_min_1m: 100.0,
@@ -79,5 +80,7 @@ fn create_sample_payload() -> TelemetryPayload {
         wal_all_triggers_count: 100,
         schedule_triggers_count: 150,
         request_triggers_count: 155,
+        plugin_trigger_invocations: Vec::new(),
+        installed_packages: vec!["tablib".to_string()],
     }
 }

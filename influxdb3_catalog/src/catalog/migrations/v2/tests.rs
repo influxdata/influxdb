@@ -1,5 +1,5 @@
 use super::*;
-use crate::catalog::versions::v1::{self};
+use crate::catalog::versions::v1::{self, ApiNodeSpec};
 use crate::catalog::versions::v2::FieldFamilyName;
 use crate::log::versions::v3::FieldDataType;
 use iox_time::Time;
@@ -69,6 +69,8 @@ async fn test_migrate_preserves_catalog_uuid() {
 mod tokens {
     use super::*;
     use crate::catalog::DEFAULT_OPERATOR_TOKEN_NAME;
+    use influxdb3_authz::AccessRequest;
+    use influxdb3_authz::permissions::PermissionDetailsSpec;
 
     #[tokio::test]
     async fn all_token_types() {
@@ -77,6 +79,18 @@ mod tokens {
         v1_catalog.create_database("foo").await.unwrap();
 
         v1_catalog.create_admin_token(false).await.unwrap();
+        v1_catalog
+            .create_token_with_permission(
+                vec![PermissionDetailsSpec {
+                    resource_type: "db".into(),
+                    resource_identifier: vec!["foo".into()],
+                    actions: vec!["read".into(), "write".into()],
+                }],
+                "my_token".into(),
+                Some(1000),
+            )
+            .await
+            .unwrap();
 
         v1_catalog
             .create_named_admin_token_with_permission("my_admin".into(), Some(500))
@@ -96,6 +110,49 @@ mod tokens {
                 .unwrap();
             let v2_token = v2_catalog.tokens.repo().get_by_id(&v1_token.id).unwrap();
             pretty_assertions::assert_eq!(v1_token, v2_token);
+
+            assert!(
+                v1_catalog
+                    .inner
+                    .read()
+                    .token_permissions
+                    .is_allowed_access(&v1_token.id, AccessRequest::Admin)
+                    .unwrap()
+            );
+            assert!(
+                v2_catalog
+                    .token_permissions
+                    .is_allowed_access(&v2_token.id, AccessRequest::Admin)
+                    .unwrap()
+            );
+        }
+
+        // Verify my_token
+        {
+            let v1_token = v1_catalog
+                .inner
+                .read()
+                .tokens
+                .repo()
+                .get_by_name("my_token")
+                .unwrap();
+            let v2_token = v2_catalog.tokens.repo().get_by_id(&v1_token.id).unwrap();
+            pretty_assertions::assert_eq!(v1_token, v2_token);
+
+            assert!(
+                v1_catalog
+                    .inner
+                    .read()
+                    .token_permissions
+                    .is_allowed_access(&v1_token.id, AccessRequest::Admin)
+                    .is_none()
+            );
+            assert!(
+                v2_catalog
+                    .token_permissions
+                    .is_allowed_access(&v2_token.id, AccessRequest::Admin)
+                    .is_none()
+            );
         }
 
         // Verify my_admin
@@ -109,6 +166,21 @@ mod tokens {
                 .unwrap();
             let v2_token = v2_catalog.tokens.repo().get_by_id(&v1_token.id).unwrap();
             pretty_assertions::assert_eq!(v1_token, v2_token);
+
+            assert!(
+                v1_catalog
+                    .inner
+                    .read()
+                    .token_permissions
+                    .is_allowed_access(&v1_token.id, AccessRequest::Admin)
+                    .unwrap()
+            );
+            assert!(
+                v2_catalog
+                    .token_permissions
+                    .is_allowed_access(&v2_token.id, AccessRequest::Admin)
+                    .unwrap()
+            );
         }
     }
 }
@@ -428,7 +500,7 @@ mod table {
                 .columns
                 .resource_iter()
                 // Return the columns in their original creation order.
-                .sorted_by_key(|a| a.ord_id())
+                .sorted_by_key(|a| a.ord_id().expect("migrated v1 columns have ord ids"))
                 .map(|col| col.name().to_string())
                 .collect();
 
@@ -465,6 +537,7 @@ mod table {
                 .create_last_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("my_cache"),
                     Some(&["tag1"]),             // key columns
                     Some(&["field1", "field3"]), // value columns
@@ -536,6 +609,7 @@ mod table {
                 .create_last_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("all_fields_cache"),
                     Some(&["tag1", "tag2"]), // key columns
                     None as Option<&[&str]>, // None means AllNonKeyColumns
@@ -597,6 +671,7 @@ mod table {
                 .create_last_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("cache1"),
                     Some(&["tag1"]),
                     Some(&["field1", "field2"]),
@@ -610,6 +685,7 @@ mod table {
                 .create_last_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("cache2"),
                     Some(&["tag2", "tag3"]),
                     None as Option<&[&str]>, // AllNonKeyColumns
@@ -623,6 +699,7 @@ mod table {
                 .create_last_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("cache3"),
                     Some(&["tag1", "tag2", "tag3"]),
                     Some(&["field4"]),
@@ -670,12 +747,140 @@ mod table {
             assert_eq!(v2_cache3.key_columns.len(), 3);
             assert_matches!(&v2_cache3.value_columns, lognext::LastCacheValueColumnsDef::Explicit { columns } if columns.len() == 1);
         }
+
+        #[tokio::test]
+        async fn with_node_specifications() {
+            let v1_catalog = create_v1_catalog().await;
+            let process_uuid_getter: Arc<dyn influxdb3_process::ProcessUuidGetter> =
+                Arc::new(influxdb3_process::ProcessUuidWrapper::new());
+
+            // Register nodes
+            v1_catalog
+                .register_node(
+                    "node-1",
+                    1,
+                    vec![crate::log::versions::v3::NodeMode::Ingest],
+                    Arc::clone(&process_uuid_getter),
+                    Arc::from("test-instance-node-1"),
+                )
+                .await
+                .unwrap();
+            v1_catalog
+                .register_node(
+                    "node-2",
+                    1,
+                    vec![crate::log::versions::v3::NodeMode::Ingest],
+                    Arc::clone(&process_uuid_getter),
+                    Arc::from("test-instance-node-2"),
+                )
+                .await
+                .unwrap();
+
+            // Create database and table
+            v1_catalog.create_database("test_db").await.unwrap();
+            create_test_table!(v1_catalog, "test_db", "test_table",
+                tags: ["tag1", "tag2"],
+                fields: [
+                    ("field1", Integer),
+                    ("field2", Float),
+                ]
+            );
+
+            // Create last cache for all nodes
+            v1_catalog
+                .create_last_cache(
+                    "test_db",
+                    "test_table",
+                    ApiNodeSpec::All,
+                    Some("all_nodes_cache"),
+                    Some(&["tag1"]),
+                    Some(&["field1"]),
+                    LastCacheSize::new(20).unwrap(),
+                    LastCacheTtl::from_secs(3600),
+                )
+                .await
+                .unwrap();
+
+            // Create last cache for specific nodes
+            v1_catalog
+                .create_last_cache(
+                    "test_db",
+                    "test_table",
+                    ApiNodeSpec::Nodes(vec!["node-1".to_string()]),
+                    Some("node1_cache"),
+                    Some(&["tag2"]),
+                    Some(&["field2"]),
+                    LastCacheSize::new(10).unwrap(),
+                    LastCacheTtl::from_secs(1800),
+                )
+                .await
+                .unwrap();
+
+            // Create last cache for multiple specific nodes
+            v1_catalog
+                .create_last_cache(
+                    "test_db",
+                    "test_table",
+                    ApiNodeSpec::Nodes(vec!["node-1".to_string(), "node-2".to_string()]),
+                    Some("multi_node_cache"),
+                    Some(&["tag1", "tag2"]),
+                    None as Option<&[&str]>, // AllNonKeyColumns
+                    LastCacheSize::new(5).unwrap(),
+                    LastCacheTtl::from_secs(3600),
+                )
+                .await
+                .unwrap();
+
+            let db_id = v1_catalog.db_name_to_id("test_db").unwrap();
+            let v1_db_schema = v1_catalog.db_schema_by_id(&db_id).unwrap();
+            let table_id = v1_db_schema.table_name_to_id("test_table").unwrap();
+
+            // Get node IDs for verification
+            let v1_node1_id = v1_catalog
+                .inner
+                .read()
+                .nodes
+                .get_by_name("node-1")
+                .map(|n| n.node_catalog_id)
+                .unwrap();
+            let v1_node2_id = v1_catalog
+                .inner
+                .read()
+                .nodes
+                .get_by_name("node-2")
+                .map(|n| n.node_catalog_id)
+                .unwrap();
+
+            let v2_inner = migrate(&v1_catalog.inner.read()).unwrap();
+
+            // Verify all last caches were migrated
+            let v2_db = v2_inner.databases.get_by_id(&db_id).unwrap();
+            let v2_table = v2_db.tables.get_by_id(&table_id).unwrap();
+
+            assert_eq!(v2_table.last_caches.len(), 3);
+
+            // Verify all nodes cache
+            let v2_all_nodes_cache = v2_table.last_caches.get_by_name("all_nodes_cache").unwrap();
+            assert_matches!(v2_all_nodes_cache.node_spec, lognext::NodeSpec::All);
+
+            // Verify single node cache
+            let v2_node1_cache = v2_table.last_caches.get_by_name("node1_cache").unwrap();
+            assert_matches!(&v2_node1_cache.node_spec, lognext::NodeSpec::Nodes(nodes) if nodes == &vec![v1_node1_id]);
+
+            // Verify multi-node cache
+            let v2_multi_node_cache = v2_table
+                .last_caches
+                .get_by_name("multi_node_cache")
+                .unwrap();
+            assert_matches!(&v2_multi_node_cache.node_spec, lognext::NodeSpec::Nodes(nodes) if nodes == &vec![v1_node1_id, v1_node2_id]);
+        }
     }
 
     /// Verify table distinct caches are migrated
     mod distinct_cache {
         use super::*;
         use crate::log::versions::{v3, v4};
+        use pretty_assertions::assert_matches;
 
         #[tokio::test]
         async fn basic_distinct_cache() {
@@ -696,6 +901,7 @@ mod table {
                 .create_distinct_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("my_distinct_cache"),
                     &["tag1", "tag2"],
                     v3::MaxCardinality::from_usize_unchecked(1000),
@@ -761,6 +967,7 @@ mod table {
                 .create_distinct_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("cache1"),
                     &["tag1"],
                     v3::MaxCardinality::from_usize_unchecked(100),
@@ -773,6 +980,7 @@ mod table {
                 .create_distinct_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("cache2"),
                     &["tag2", "tag3"],
                     v3::MaxCardinality::from_usize_unchecked(5000),
@@ -785,6 +993,7 @@ mod table {
                 .create_distinct_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("cache3"),
                     &["tag1", "tag2", "tag3", "tag4"],
                     v3::MaxCardinality::from_usize_unchecked(10000),
@@ -861,6 +1070,7 @@ mod table {
                 .create_distinct_cache(
                     "test_db",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("complex_mapping_cache"),
                     &["tag3", "tag1", "tag5"], // Non-sequential tag order
                     v3::MaxCardinality::from_usize_unchecked(50000),
@@ -895,6 +1105,130 @@ mod table {
             assert_eq!(v2_cache.column_ids[1], v2_tag1_col.id());
             assert_eq!(v2_cache.column_ids[2], v2_tag5_col.id());
         }
+
+        #[tokio::test]
+        async fn with_node_specifications() {
+            let v1_catalog = create_v1_catalog().await;
+            let process_uuid_getter: Arc<dyn influxdb3_process::ProcessUuidGetter> =
+                Arc::new(influxdb3_process::ProcessUuidWrapper::new());
+
+            // Register nodes
+            v1_catalog
+                .register_node(
+                    "node-1",
+                    1,
+                    vec![crate::log::versions::v3::NodeMode::Ingest],
+                    Arc::clone(&process_uuid_getter),
+                    Arc::from("test-instance-node-1"),
+                )
+                .await
+                .unwrap();
+            v1_catalog
+                .register_node(
+                    "node-2",
+                    1,
+                    vec![crate::log::versions::v3::NodeMode::Ingest],
+                    Arc::clone(&process_uuid_getter),
+                    Arc::from("test-instance-node-2"),
+                )
+                .await
+                .unwrap();
+
+            // Create database and table
+            v1_catalog.create_database("test_db").await.unwrap();
+            create_test_table!(v1_catalog, "test_db", "test_table",
+                tags: ["tag1", "tag2"],
+                fields: [("field1", Integer)]
+            );
+
+            // Create distinct cache for all nodes
+            v1_catalog
+                .create_distinct_cache(
+                    "test_db",
+                    "test_table",
+                    ApiNodeSpec::All,
+                    Some("all_nodes_cache"),
+                    &["tag1"],
+                    v3::MaxCardinality::from_usize_unchecked(200),
+                    v3::MaxAge::from_secs(3600),
+                )
+                .await
+                .unwrap();
+
+            // Create distinct cache for specific nodes
+            v1_catalog
+                .create_distinct_cache(
+                    "test_db",
+                    "test_table",
+                    ApiNodeSpec::Nodes(vec!["node-1".to_string()]),
+                    Some("node1_cache"),
+                    &["tag2"],
+                    v3::MaxCardinality::from_usize_unchecked(100),
+                    v3::MaxAge::from_secs(1800),
+                )
+                .await
+                .unwrap();
+
+            // Create distinct cache for multiple specific nodes
+            v1_catalog
+                .create_distinct_cache(
+                    "test_db",
+                    "test_table",
+                    ApiNodeSpec::Nodes(vec!["node-1".to_string(), "node-2".to_string()]),
+                    Some("multi_node_cache"),
+                    &["tag1", "tag2"],
+                    v3::MaxCardinality::from_usize_unchecked(500),
+                    v3::MaxAge::from_secs(7200),
+                )
+                .await
+                .unwrap();
+
+            let db_id = v1_catalog.db_name_to_id("test_db").unwrap();
+            let v1_db_schema = v1_catalog.db_schema_by_id(&db_id).unwrap();
+            let table_id = v1_db_schema.table_name_to_id("test_table").unwrap();
+
+            // Get node IDs for verification
+            let v1_node1_id = v1_catalog
+                .inner
+                .read()
+                .nodes
+                .get_by_name("node-1")
+                .map(|n| n.node_catalog_id)
+                .unwrap();
+            let v1_node2_id = v1_catalog
+                .inner
+                .read()
+                .nodes
+                .get_by_name("node-2")
+                .map(|n| n.node_catalog_id)
+                .unwrap();
+
+            let v2_inner = migrate(&v1_catalog.inner.read()).unwrap();
+
+            // Verify all distinct caches were migrated
+            let v2_db = v2_inner.databases.get_by_id(&db_id).unwrap();
+            let v2_table = v2_db.tables.get_by_id(&table_id).unwrap();
+
+            assert_eq!(v2_table.distinct_caches.len(), 3);
+
+            // Verify all nodes cache
+            let v2_all_nodes_cache = v2_table
+                .distinct_caches
+                .get_by_name("all_nodes_cache")
+                .unwrap();
+            assert_matches!(&v2_all_nodes_cache.node_spec, lognext::NodeSpec::All);
+
+            // Verify single node cache
+            let v2_node1_cache = v2_table.distinct_caches.get_by_name("node1_cache").unwrap();
+            assert_matches!(&v2_node1_cache.node_spec, lognext::NodeSpec::Nodes(nodes) if nodes == &vec![v1_node1_id]);
+
+            // Verify multi-node cache
+            let v2_multi_node_cache = v2_table
+                .distinct_caches
+                .get_by_name("multi_node_cache")
+                .unwrap();
+            assert_matches!(&v2_multi_node_cache.node_spec, lognext::NodeSpec::Nodes(nodes) if nodes == &vec![v1_node1_id, v1_node2_id]);
+        }
     }
 }
 
@@ -925,7 +1259,7 @@ mod processing_engine_triggers {
                     "test_db",
                     name,
                     ValidPluginFilename::from_validated_name(&format!("{name}.wasm")),
-                    "test-node".into(),
+                    ApiNodeSpec::All,
                     spec,
                     TriggerSettings::default(),
                     &None,
@@ -984,7 +1318,7 @@ mod processing_engine_triggers {
                 "test_db",
                 "configured_trigger",
                 ValidPluginFilename::from_validated_name("configured.wasm"),
-                "test-node".into(),
+                ApiNodeSpec::All,
                 "all_tables",
                 TriggerSettings {
                     run_async: true,
@@ -1014,11 +1348,140 @@ mod processing_engine_triggers {
     }
 }
 
+/// Tests related to node migration
+mod nodes {
+    use super::*;
+    use crate::log::versions::v3::NodeMode;
+
+    #[tokio::test]
+    async fn migrate_registered_nodes() {
+        let v1_catalog = create_v1_catalog().await;
+        let process_uuid_getter: Arc<dyn influxdb3_process::ProcessUuidGetter> =
+            Arc::new(influxdb3_process::ProcessUuidWrapper::new());
+
+        // Register nodes
+        v1_catalog
+            .register_node(
+                "node-1",
+                1,
+                vec![NodeMode::Ingest],
+                Arc::clone(&process_uuid_getter),
+                Arc::from("test-instance-node-1"),
+            )
+            .await
+            .unwrap();
+        v1_catalog
+            .register_node(
+                "node-2",
+                2,
+                vec![NodeMode::Ingest, NodeMode::Query],
+                Arc::clone(&process_uuid_getter),
+                Arc::from("test-instance-node-2"),
+            )
+            .await
+            .unwrap();
+        v1_catalog
+            .register_node(
+                "node-3",
+                4,
+                vec![NodeMode::Compact],
+                Arc::clone(&process_uuid_getter),
+                Arc::from("test-instance-node-3"),
+            )
+            .await
+            .unwrap();
+
+        let v2_inner = migrate(&v1_catalog.inner.read()).unwrap();
+
+        // Verify all nodes were migrated
+        let v1_inner = v1_catalog.inner.read();
+        assert_eq!(v2_inner.nodes.len(), v1_inner.nodes.len());
+
+        // Verify each node by name
+        for v1_node in v1_inner.nodes.resource_iter() {
+            let v2_node = v2_inner
+                .nodes
+                .get_by_id(&v1_node.node_catalog_id)
+                .expect("node should exist in v2 catalog");
+
+            assert_eq!(v2_node.node_catalog_id, v1_node.node_catalog_id);
+            assert_eq!(v2_node.instance_id, v1_node.instance_id);
+            assert_eq!(v2_node.mode.len(), v1_node.mode.len());
+            assert_eq!(v2_node.core_count, v1_node.core_count);
+            // Check state matches by variant
+            match (&v2_node.state, &v1_node.state) {
+                (
+                    v2::NodeState::Running {
+                        registered_time_ns: v2_time,
+                    },
+                    v1::NodeState::Running {
+                        registered_time_ns: v1_time,
+                    },
+                )
+                | (
+                    v2::NodeState::Stopped {
+                        stopped_time_ns: v2_time,
+                    },
+                    v1::NodeState::Stopped {
+                        stopped_time_ns: v1_time,
+                    },
+                ) => assert_eq!(v2_time, v1_time),
+                _ => panic!("Node states don't match"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn migrate_nodes_with_different_states() {
+        let v1_catalog = create_v1_catalog().await;
+        let process_uuid_getter: Arc<dyn influxdb3_process::ProcessUuidGetter> =
+            Arc::new(influxdb3_process::ProcessUuidWrapper::new());
+
+        // Register running node
+        v1_catalog
+            .register_node(
+                "running-node",
+                2,
+                vec![NodeMode::Ingest],
+                Arc::clone(&process_uuid_getter),
+                Arc::from("test-instance-running"),
+            )
+            .await
+            .unwrap();
+
+        // Register and stop a node
+        v1_catalog
+            .register_node(
+                "stopped-node",
+                4,
+                vec![NodeMode::Query],
+                Arc::clone(&process_uuid_getter),
+                Arc::from("test-instance-stopped"),
+            )
+            .await
+            .unwrap();
+        v1_catalog
+            .update_node_state_stopped("stopped-node", Arc::clone(&process_uuid_getter))
+            .await
+            .unwrap();
+
+        let v2_inner = migrate(&v1_catalog.inner.read()).unwrap();
+
+        // Verify nodes with different states
+        let running_node = v2_inner.nodes.get_by_name("running-node").unwrap();
+        assert!(running_node.is_running());
+
+        let stopped_node = v2_inner.nodes.get_by_name("stopped-node").unwrap();
+        assert!(!stopped_node.is_running());
+    }
+}
+
 mod catalog_snapshot {
     use super::*;
     use crate::catalog::versions::v1::HardDeletionTime;
     use crate::log::versions::v3;
     use crate::log::versions::v3::{LastCacheSize, LastCacheTtl, NodeMode};
+    use influxdb3_authz::permissions::PermissionDetailsSpec;
 
     #[tokio::test]
     async fn verify_snapshot() {
@@ -1028,6 +1491,18 @@ mod catalog_snapshot {
 
         {
             v1_catalog.create_admin_token(false).await.unwrap();
+            v1_catalog
+                .create_token_with_permission(
+                    vec![PermissionDetailsSpec {
+                        resource_type: "db".into(),
+                        resource_identifier: vec!["db_1".into()],
+                        actions: vec!["read".into(), "write".into()],
+                    }],
+                    "my_token".into(),
+                    Some(1000),
+                )
+                .await
+                .unwrap();
 
             v1_catalog
                 .create_named_admin_token_with_permission("my_admin".into(), Some(500))
@@ -1044,7 +1519,7 @@ mod catalog_snapshot {
                 .register_node(
                     "node-1",
                     1,
-                    vec![NodeMode::Core],
+                    vec![NodeMode::Ingest],
                     Arc::clone(&process_uuid_getter),
                     Arc::from("test-instance-node-1"),
                 )
@@ -1069,6 +1544,7 @@ mod catalog_snapshot {
                 .create_last_cache(
                     "db_1",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("all_fields_cache"),
                     Some(&["tag1", "tag2"]), // key columns
                     None as Option<&[&str]>, // None means AllNonKeyColumns
@@ -1083,6 +1559,7 @@ mod catalog_snapshot {
                 .create_distinct_cache(
                     "db_1",
                     "test_table",
+                    ApiNodeSpec::default(),
                     Some("my_distinct_cache"),
                     &["tag1", "tag2"],
                     v3::MaxCardinality::from_usize_unchecked(1000),

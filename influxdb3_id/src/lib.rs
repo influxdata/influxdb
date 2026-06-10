@@ -10,12 +10,18 @@ use std::sync::atomic::{AtomicU64, Ordering};
 mod serialize;
 pub use serialize::{SerdeVecMap, SerdeVecSet};
 
+#[derive(Debug, thiserror::Error)]
+#[error("unable to parse as integer: {0}")]
+pub struct IdParsingError(#[from] ParseIntError);
+
 pub trait CatalogId: Default + Hash + Eq + Copy + Ord + Serialize + Display {
     type Integer;
 
     const MAX: Self;
 
     fn next(&self) -> Self;
+
+    fn checked_next(&self) -> Option<Self>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -36,6 +42,10 @@ macro_rules! catalog_identifier_type {
 
             fn next(&self) -> Self {
                 Self::new(self.0.checked_add(1).expect("incrementing id overflow"))
+            }
+
+            fn checked_next(&self) -> Option<Self> {
+                self.0.checked_add(1).map(Self::new)
             }
         }
 
@@ -83,12 +93,14 @@ catalog_identifier_type!(DbId, u32);
 catalog_identifier_type!(TableId, u32);
 catalog_identifier_type!(TriggerId, u32);
 catalog_identifier_type!(ColumnId, u16);
-catalog_identifier_type!(TagId, u8);
+catalog_identifier_type!(TagId, u16);
 catalog_identifier_type!(FieldFamilyId, u16);
 catalog_identifier_type!(FieldId, u16);
 catalog_identifier_type!(LastCacheId, u16);
 catalog_identifier_type!(DistinctCacheId, u16);
 catalog_identifier_type!(TokenId, u64);
+catalog_identifier_type!(UserId, u64);
+catalog_identifier_type!(RoleId, u64);
 
 /// The next file id to be used when persisting `ParquetFile`s
 pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);

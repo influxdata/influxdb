@@ -1,8 +1,19 @@
+use std::io::Write as _;
+
 use influxdb3_types::http::{LastCacheSize, LastCacheTtl};
 use mockito::{Matcher, Server};
 use serde_json::json;
 
 use crate::{Client, Precision, QueryFormat};
+
+/// Produce the gzip encoding the client is expected to put on the wire for the
+/// given input. Stays in sync with `WriteRequestBuilder::send` (default
+/// compression level), so tests can byte-match the request body.
+fn expected_gzip(input: &[u8]) -> Vec<u8> {
+    let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    enc.write_all(input).unwrap();
+    enc.finish().unwrap()
+}
 
 #[tokio::test]
 async fn api_v3_write_lp() {
@@ -37,6 +48,64 @@ async fn api_v3_write_lp() {
         .send()
         .await
         .expect("send write_lp request");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn api_v3_write_lp_gzip_sends_compressed_bytes() {
+    // Asserts the body on the wire is the actual gzip-encoded payload, not
+    // raw LP with a misleading header. A no-op `with_gzip(true)` would fail
+    // both the binary body match and the header match below.
+    let db = "stats";
+    let body = "cpu,host=s1 usage=0.5\ncpu,host=s1,region=us-west usage=0.7";
+
+    let mut mock_server = Server::new_async().await;
+    let mock = mock_server
+        .mock("POST", "/api/v3/write_lp")
+        .match_header("content-encoding", "gzip")
+        .match_query(Matcher::UrlEncoded("db".into(), db.into()))
+        .match_body(expected_gzip(body.as_bytes()))
+        .with_status(200)
+        .create_async()
+        .await;
+
+    let client = Client::new(mock_server.url(), None, false).expect("create client");
+
+    client
+        .api_v3_write_lp(db)
+        .with_gzip(true)
+        .body(body)
+        .send()
+        .await
+        .expect("send gzipped write_lp request");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn api_v3_write_lp_no_gzip_omits_header() {
+    let db = "stats";
+    let body = "cpu,host=s1 usage=0.5";
+
+    let mut mock_server = Server::new_async().await;
+    let mock = mock_server
+        .mock("POST", "/api/v3/write_lp")
+        .match_header("content-encoding", Matcher::Missing)
+        .match_query(Matcher::UrlEncoded("db".into(), db.into()))
+        .match_body(body)
+        .with_status(200)
+        .create_async()
+        .await;
+
+    let client = Client::new(mock_server.url(), None, false).expect("create client");
+
+    client
+        .api_v3_write_lp(db)
+        .body(body)
+        .send()
+        .await
+        .expect("send uncompressed write_lp request");
 
     mock.assert_async().await;
 }
@@ -237,6 +306,74 @@ async fn api_v3_query_influxql_with_params_from() {
     mock.assert_async().await;
 
     r.expect("sent request successfully");
+}
+
+#[tokio::test]
+async fn v1_query_influxql_with_format() {
+    let db = "stats";
+    let query = "SELECT * FROM foo";
+    let body = "time,val\n1990-07-23T06:00:00Z,1\n";
+
+    let mut mock_server = Server::new_async().await;
+    let mock = mock_server
+        .mock("GET", "/query")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("db".into(), db.into()),
+            Matcher::UrlEncoded("q".into(), query.into()),
+            Matcher::UrlEncoded("format".into(), "csv".into()),
+        ]))
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+
+    let client = Client::new(mock_server.url(), None, false).expect("create client");
+
+    let response = client
+        .v1_query_influxql(db, query)
+        .format(QueryFormat::Csv)
+        .send()
+        .await
+        .expect("send request to server");
+
+    assert_eq!(&response, body);
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn v1_query_influxql_with_params() {
+    let db = "stats";
+    let query = "SELECT * FROM foo WHERE host = $host";
+    let body = "time,val\n1990-07-23T06:00:00Z,1\n";
+
+    // params are sent as a URL-encoded JSON object string in the `params` field.
+    // Use a single key to avoid HashMap ordering nondeterminism.
+    let expected_params = serde_json::json!({ "host": "s1" }).to_string();
+
+    let mut mock_server = Server::new_async().await;
+    let mock = mock_server
+        .mock("GET", "/query")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("db".into(), db.into()),
+            Matcher::UrlEncoded("q".into(), query.into()),
+            Matcher::UrlEncoded("params".into(), expected_params),
+        ]))
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+
+    let client = Client::new(mock_server.url(), None, false).expect("create client");
+
+    let response = client
+        .v1_query_influxql(db, query)
+        .with_param("host", "s1")
+        .send()
+        .await
+        .expect("send request to server");
+
+    assert_eq!(&response, body);
+    mock.assert_async().await;
 }
 
 // NOTE(trevor): these tests are flaky since we need to fabricate the mock response, considering

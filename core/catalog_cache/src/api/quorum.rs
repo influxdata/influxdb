@@ -174,14 +174,15 @@ impl QuorumCatalogCache {
                         }
                         Ok(Some(l))
                     }
-                    // In this situation, one of the remote peers is unreachable (specifically,
-                    // they're going through a rollout, since 503s are what we get during rollouts),
-                    // and we can't agree with the only responding peer about what the value should
-                    // actually be. In this case, we could keep retrying the unreachable peer until
-                    // we get a response, but that's basically always going to take longer than just
-                    // pulling from the catalog itself. Especially if we're in a rollout situation
-                    // where one of the caches is down - we know that we're already in a degraded
-                    // state, so we should just take the quickest path to get things moving.
+                    // In this situation, one of the remote peers is unreachable - either by
+                    // returning HTTP 503 or by failing at the transport layer (connect timeout,
+                    // connection reset, broken pipe, request timeout) - and we can't agree with
+                    // the only responding peer about what the value should actually be. In this
+                    // case, we could keep retrying the unreachable peer until we get a response,
+                    // but that's basically always going to take longer than just pulling from the
+                    // catalog itself. Especially if we're in a rollout situation where one of the
+                    // caches is down - we know that we're already in a degraded state, so we
+                    // should just take the quickest path to get things moving.
                     //
                     // So we just return `None` here, which tells the callers that we don't know
                     // what the value is, and that we should pull it from our source of truth and
@@ -196,7 +197,10 @@ impl QuorumCatalogCache {
                     | (_, Err(ClientError::Get { source }), _)
                         if source
                             .status()
-                            .is_some_and(|c| c == StatusCode::SERVICE_UNAVAILABLE) =>
+                            .is_some_and(|c| c == StatusCode::SERVICE_UNAVAILABLE)
+                            || source.is_connect()
+                            || source.is_timeout()
+                            || source.is_request() =>
                     {
                         Ok(None)
                     }
@@ -527,19 +531,20 @@ mod tests {
         let r = quorum.get(k1).await.unwrap().unwrap();
         assert_eq!(r, v1);
 
-        // Cannot get quorum as lost single node and local disagrees with replica 1
-        let err = quorum.get(k2).await.unwrap_err();
-        assert!(matches!(err, Error::Quorum { .. }), "{err}");
+        // Lost replica 2 (transport error) and local disagrees with replica 1: fast-fail to
+        // None so the caller refetches from source-of-truth.
+        let r = quorum.get(k2).await.unwrap();
+        assert_eq!(r, None);
 
         // Can establish quorum following write
         quorum.put(k2, v2.clone()).await.unwrap();
         let r = quorum.get(k2).await.unwrap().unwrap();
         assert_eq!(r, v2);
 
-        // Still cannot establish quorum
+        // Replica 1 no longer has k2 and replica 2 is still unreachable: fast-fail to None.
         r1.cache().delete(k2);
-        let err = quorum.get(k2).await.unwrap_err();
-        assert!(matches!(err, Error::Quorum { .. }), "{err}");
+        let r = quorum.get(k2).await.unwrap();
+        assert_eq!(r, None);
 
         // k2 is now no longer present anywhere, can establish quorum
         local.delete(k2);
@@ -549,9 +554,9 @@ mod tests {
         // Simulate loss of replica 1 (in addition to replica 2)
         r1.shutdown().await;
 
-        // Can no longer get quorum for anything
-        let err = quorum.get(k1).await.unwrap_err();
-        assert!(matches!(err, Error::Quorum { .. }), "{err}");
+        // Both replicas unreachable: fast-fail to None on transport errors.
+        let r = quorum.get(k1).await.unwrap();
+        assert_eq!(r, None);
     }
 
     #[tokio::test]
@@ -830,12 +835,10 @@ mod tests {
             "Unexpected error message: Failed to communicate with any remote replica: Put Reqwest error: {err:?}"
         );
 
-        // Get should also fail with a Quorum error
-        let err = quorum.get(key).await.unwrap_err();
-        assert!(
-            matches!(err, Error::Quorum { .. }),
-            "Expected Quorum error, got: {err}"
-        );
+        // Get fast-fails to None: both peers are unreachable at the transport layer, so the
+        // caller is told to refetch from source-of-truth rather than burn the deadline retrying.
+        let r = quorum.get(key).await.unwrap();
+        assert_eq!(r, None);
     }
 
     #[test]
@@ -989,6 +992,43 @@ mod tests {
         assert_eq!(res, None);
 
         bad_remote.shutdown().await;
+        good_remote.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn one_catalog_unreachable_causes_new_snapshot() {
+        // Transport-level failure should fast-fail to Ok(None) like a 503.
+        let metric_registry = Arc::new(metric::Registry::new());
+        let local = Arc::new(CatalogCache::default());
+        let good_remote = TestCacheServer::bind_ephemeral(&metric_registry).await;
+        let bad_remote = CatalogCacheClient::builder(
+            "http://non-exist-iox-shared-catalog-bad:9090"
+                .parse()
+                .unwrap(),
+            Arc::clone(&metric_registry),
+        )
+        .build()
+        .expect("Failed to create client with invalid address");
+
+        let replicas = Arc::new([good_remote.client(), bad_remote]);
+        let quorum = QuorumCatalogCache::new(Arc::clone(&local), Arc::clone(&replicas));
+
+        let key = CacheKey::Table(1);
+        let v0 = CacheValue::new("v0".into(), 0);
+
+        good_remote.cache().insert(key, v0.clone()).unwrap();
+
+        // local = None, good = Some(v0), bad = transport error (DNS/connect).
+        let res = tokio::time::timeout(
+            // Regression guard: a retry loop would hang here.
+            std::time::Duration::from_secs(5),
+            quorum.get(key),
+        )
+        .await
+        .expect("quorum.get must not hang against an unreachable peer")
+        .unwrap();
+        assert_eq!(res, None);
+
         good_remote.shutdown().await;
     }
 }

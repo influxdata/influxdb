@@ -42,6 +42,7 @@ mod ping;
 mod plugin_restriction;
 mod query;
 mod system_tables;
+mod telemetry;
 mod write;
 
 pub trait ConfigProvider: Send + Sync + 'static {
@@ -108,6 +109,7 @@ pub struct TestConfig {
     disable_log_filter_noise_reduction: bool,
     process_env_vars: Vec<(String, String)>,
     enable_recovery_endpoint: bool,
+    test_mode: bool,
     admin_token_file: Option<String>,
     permission_tokens_file: Option<String>,
     object_store_tls_allow_insecure: bool,
@@ -140,6 +142,11 @@ impl TestConfig {
     /// Enable the admin token recovery endpoint
     pub fn with_recovery_endpoint(mut self) -> Self {
         self.enable_recovery_endpoint = true;
+        self
+    }
+
+    pub fn with_test_mode(mut self) -> Self {
+        self.test_mode = true;
         self
     }
 
@@ -267,6 +274,9 @@ impl ConfigProvider for TestConfig {
         let mut args = vec![];
         if !self.auth {
             args.append(&mut vec!["--without-auth".to_string()]);
+        }
+        if self.test_mode {
+            args.push("--test-mode".to_string());
         }
 
         if let Some(plugin_dir) = &self.plugin_dir {
@@ -1055,6 +1065,25 @@ impl TestServer {
             .send()
             .await
             .expect("failed to send request to delete distinct cache")
+    }
+
+    pub async fn telemetry_snapshot_response(&self) -> Response {
+        self.http_client
+            .get(format!(
+                "{base}/api/v3/test/telemetry_snapshot",
+                base = self.client_addr()
+            ))
+            .send()
+            .await
+            .expect("failed to send request for telemetry snapshot")
+    }
+
+    pub async fn telemetry_snapshot(&self) -> serde_json::Value {
+        self.telemetry_snapshot_response()
+            .await
+            .json()
+            .await
+            .expect("telemetry snapshot response must be json")
     }
 }
 

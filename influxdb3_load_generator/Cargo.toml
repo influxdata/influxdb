@@ -22,6 +22,7 @@ chrono.workspace = true
 clap.workspace = true
 csv.workspace = true
 dotenvy.workspace = true
+flate2.workspace = true
 humantime.workspace = true
 parking_lot.workspace = true
 rand.workspace = true

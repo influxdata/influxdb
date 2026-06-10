@@ -103,7 +103,15 @@ fn fetch_artifact(name: &str, checksum: &str) -> PathBuf {
 
 /// Download file to path.
 fn download(url: &str, path: &Path) -> Result<(), std::io::Error> {
-    let response = ureq::get(url).call().map_err(std::io::Error::other)?;
+    let agent = ureq::Agent::config_builder()
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
+        .build()
+        .new_agent();
+    let response = agent.get(url).call().map_err(std::io::Error::other)?;
     let mut data = response.into_body().into_reader();
     let mut file = File::create(path)?;
     std::io::copy(&mut data, &mut file)?;

@@ -1,3 +1,4 @@
+pub mod enterprise;
 pub mod versions;
 
 use crate::serialize::VersionedFileType;

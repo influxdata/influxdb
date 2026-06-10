@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use datafusion::{
     arrow::array::RecordBatch, assert_batches_eq, execution::SendableRecordBatchStream,
@@ -11,7 +11,7 @@ use crate::query_executor::ShowRetentionPolicies;
 
 #[tokio::test]
 async fn test_show_retention_policies() {
-    let catalog = Catalog::new_in_memory("test").await.map(Arc::new).unwrap();
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
     let days = |n_days: u64| Duration::from_secs(n_days * 24 * 60 * 60);
     catalog
         .create_database_opts(

@@ -79,7 +79,7 @@ async fn test_create_admin_token_allowed_once() {
         .unwrap();
     assert_contains!(
         &result,
-        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\" }"
+        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\""
     );
 }
 
@@ -94,7 +94,7 @@ async fn test_regenerate_admin_token() {
     // already has admin token, so it cannot be created again
     assert_contains!(
         &result,
-        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\" }"
+        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\""
     );
 
     // regenerating token is allowed
@@ -246,7 +246,7 @@ async fn test_delete_token() {
         .unwrap();
     assert_contains!(
         &result,
-        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\" }"
+        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, _admin\""
     );
 }
 
@@ -342,7 +342,7 @@ async fn test_create_named_admin_token_only_once() {
         .unwrap();
     assert_contains!(
         &result,
-        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, foo_admin\" }"
+        "Failed to create token, error: ApiError { code: 409, message: \"token name already exists, foo_admin\""
     );
 }
 

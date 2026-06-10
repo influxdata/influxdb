@@ -17,16 +17,14 @@ impl TestWriter {
 
     pub(crate) async fn new() -> Self {
         Self {
-            catalog: Arc::new(
-                Catalog::new(
-                    "test-host",
-                    Arc::new(InMemory::new()),
-                    Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-                    Default::default(),
-                )
-                .await
-                .unwrap(),
-            ),
+            catalog: Catalog::new(
+                "test-host",
+                Arc::new(InMemory::new()),
+                Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+                Default::default(),
+            )
+            .await
+            .unwrap(),
         }
     }
 

@@ -27,13 +27,16 @@ use influxdb_influxql_parser::select::GroupByClause;
 use influxdb_influxql_parser::statement::Statement;
 use influxdb3_authz::{
     AccessRequest, AuthProvider, AuthenticatorError, NoAuthAuthenticator,
-    ResourceAuthorizationError,
+    ResourceAuthorizationError, Subject,
 };
 use influxdb3_cache::distinct_cache;
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::CatalogError;
-use influxdb3_catalog::catalog::HardDeletionTime;
-use influxdb3_catalog::log::{FieldDataType, PluginType, TriggerSpecificationDefinition};
+use influxdb3_catalog::catalog::{
+    ApiNodeSpec, CatalogSequenceNumber, DeletionScope, FieldDataType, HardDeletionTime, PluginType,
+    TriggerSpecificationDefinition,
+};
+use influxdb3_catalog::log::{CatalogBatch, DatabaseBatch, DatabaseCatalogOp, OrderedCatalogBatch};
 use influxdb3_id::TokenId;
 use influxdb3_internal_api::query_executor::{
     QueryExecutor, QueryExecutorError, ShowDatabases, ShowRetentionPolicies,
@@ -343,6 +346,9 @@ pub enum Error {
     #[error("Operation with object store failed: {0}")]
     ObjectStore(#[from] object_store::Error),
 
+    #[error("heap dump failed: {0}")]
+    HeapPprof(#[from] jemalloc_pprof_http::Error),
+
     #[error(transparent)]
     Catalog(#[from] CatalogError),
 
@@ -650,7 +656,9 @@ fn datafusion_error_status_code(err: &DataFusionError) -> StatusCode {
 impl IntoResponse for CatalogError {
     fn into_response(self) -> Response {
         let resp_or_code: Either<Response, StatusCode> = match self {
-            Self::NotFound(_) => Either::Right(StatusCode::NOT_FOUND),
+            Self::NotFound(_) | Self::DatabaseNotFound { .. } | Self::TableNotFound { .. } => {
+                Either::Right(StatusCode::NOT_FOUND)
+            }
             Self::AlreadyExists | Self::AlreadyDeleted(_) => Either::Right(StatusCode::CONFLICT),
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
@@ -741,7 +749,7 @@ impl IntoResponse for Error {
                 .unwrap(),
             Self::WriteBuffer(WriteBufferError::ParseError(err)) => {
                 let err = ErrorMessage {
-                    error: "parsing failed for write_lp endpoint".into(),
+                    error: "line protocol parsing error".into(),
                     data: Some(err),
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
@@ -975,6 +983,7 @@ impl IntoResponse for Error {
             | Self::Io(_)
             | Self::Query(_)
             | Self::ObjectStore(_)
+            | Self::HeapPprof(_)
             | Self::PythonPluginsNotEnabled
             | Self::Plugin(_)
             | Self::ProcessingEngine(_) => ResponseBuilder::new()
@@ -998,6 +1007,7 @@ pub struct HttpApi {
     max_request_bytes: usize,
     authorizer: Arc<dyn AuthProvider>,
     legacy_write_param_unifier: SingleTenantRequestUnifier,
+    test_mode_enabled: bool,
 }
 
 impl HttpApi {
@@ -1011,6 +1021,31 @@ impl HttpApi {
         allowed_plugin_trigger_types: Vec<PluginType>,
         max_request_bytes: usize,
         authorizer: Arc<dyn AuthProvider>,
+    ) -> Self {
+        Self::with_test_mode(
+            common_state,
+            time_provider,
+            write_buffer,
+            query_executor,
+            processing_engine,
+            allowed_plugin_trigger_types,
+            max_request_bytes,
+            authorizer,
+            false,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_test_mode(
+        common_state: CommonServerState,
+        time_provider: Arc<dyn TimeProvider>,
+        write_buffer: Arc<dyn WriteBuffer>,
+        query_executor: Arc<dyn QueryExecutor>,
+        processing_engine: Arc<ProcessingEngineManagerImpl>,
+        allowed_plugin_trigger_types: Vec<PluginType>,
+        max_request_bytes: usize,
+        authorizer: Arc<dyn AuthProvider>,
+        test_mode_enabled: bool,
     ) -> Self {
         // there is a global authentication setup, passing in auth provider just does the same
         // check twice. So, instead we pass in a NoAuthAuthenticator to avoid authenticating twice.
@@ -1026,6 +1061,7 @@ impl HttpApi {
             legacy_write_param_unifier,
             processing_engine,
             allowed_plugin_trigger_types,
+            test_mode_enabled,
         }
     }
 }
@@ -1093,10 +1129,7 @@ impl HttpApi {
         let token_request: CreateNamedAdminTokenRequest = self.read_body_json(req).await?;
         let catalog = self.write_buffer.catalog();
         let (token_info, token) = catalog
-            .create_named_admin_token_with_permission(
-                token_request.token_name,
-                token_request.expiry_secs,
-            )
+            .create_named_admin_token(token_request.token_name, token_request.expiry_secs)
             .await?;
 
         let response = CreateTokenWithPermissionsResponse::from_token_info(token_info, token);
@@ -1126,6 +1159,7 @@ impl HttpApi {
     }
 
     async fn query_sql(&self, req: Request) -> Result<Response> {
+        let span_ctx = req.extensions().get::<SpanContext>().cloned();
         let QueryRequest {
             database,
             query_str,
@@ -1134,10 +1168,6 @@ impl HttpApi {
         } = self.extract_query_request::<String>(req).await?;
 
         info!(%database, %query_str, ?format, "handling query_sql");
-
-        let span_ctx = Some(SpanContext::new_with_optional_collector(
-            self.common_state.trace_collector(),
-        ));
 
         let stream = self
             .query_executor
@@ -1152,6 +1182,7 @@ impl HttpApi {
     }
 
     async fn query_influxql(&self, req: Request) -> Result<Response> {
+        let span_ctx = req.extensions().get::<SpanContext>().cloned();
         let QueryRequest {
             database,
             query_str,
@@ -1161,7 +1192,7 @@ impl HttpApi {
 
         info!(?database, %query_str, ?format, "handling query_influxql");
         let (stream, _) = self
-            .query_influxql_inner(database, &query_str, params)
+            .query_influxql_inner(database, &query_str, params, span_ctx)
             .await?;
 
         ResponseBuilder::new()
@@ -1214,6 +1245,10 @@ impl HttpApi {
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")
             .body(bytes_to_response_body(body))?)
+    }
+
+    async fn handle_pprof_heap(&self, _req: Request) -> Result<Response> {
+        Ok(jemalloc_pprof_http::pprof_heap_response().await?)
     }
 
     /// Parse the request's body into raw bytes, applying the configured size
@@ -1363,15 +1398,15 @@ impl HttpApi {
         })
     }
 
-    /// Inner function for performing InfluxQL queries
-    ///
-    /// This is used by both the `/api/v3/query_influxql` and `/api/v1/query`
-    /// APIs.
+    /// Inner function for performing InfluxQL queries via the
+    /// `/api/v3/query_influxql` endpoint. The `/api/v1/query` endpoint goes
+    /// through `iox_v1_query_api::V1HttpHandler`.
     async fn query_influxql_inner(
         &self,
         database: Option<String>,
         query_str: &str,
         params: Option<StatementParams>,
+        span_ctx: Option<SpanContext>,
     ) -> Result<(SendableRecordBatchStream, Option<GroupByClause>)> {
         let mut statements = rewrite::parse_statements(query_str)?;
 
@@ -1400,10 +1435,6 @@ impl HttpApi {
             Statement::Select(select_statement) => select_statement.group_by.clone(),
             _ => None,
         };
-
-        let span_ctx = Some(SpanContext::new_with_optional_collector(
-            self.common_state.trace_collector(),
-        ));
 
         let stream = if statement.is_show_databases() {
             self.query_executor.show_databases(true)?
@@ -1444,23 +1475,62 @@ impl HttpApi {
         match self
             .write_buffer
             .catalog()
-            .create_distinct_cache(
+            .create_distinct_cache_committed(
                 &db,
                 &table,
+                ApiNodeSpec::All,
                 name.as_deref(),
-                &columns,
-                max_cardinality,
-                max_age,
+                &columns.iter().map(String::as_str).collect::<Vec<_>>(),
+                max_cardinality.into(),
+                max_age.into(),
             )
             .await
         {
-            Ok(batch) => ResponseBuilder::new()
-                .status(StatusCode::CREATED)
-                .header(CONTENT_TYPE, "application/json")
-                .body(bytes_to_response_body(serde_json::to_vec(&batch)?))
-                .map_err(Into::into),
+            Ok(committed) => {
+                let op = DatabaseCatalogOp::CreateDistinctCache(
+                    influxdb3_catalog::log::DistinctCacheDefinition::from(
+                        committed.output.as_ref(),
+                    ),
+                );
+                let body = self.legacy_cache_create_response(
+                    &db,
+                    op,
+                    committed.sequence,
+                    committed.time_ns,
+                )?;
+                ResponseBuilder::new()
+                    .status(StatusCode::CREATED)
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(bytes_to_response_body(body))
+                    .map_err(Into::into)
+            }
             Err(error) => Err(error.into()),
         }
+    }
+
+    /// Build a v2-shaped (`OrderedCatalogBatch`) JSON response for a cache-create
+    /// operation, preserving the wire contract clients deserialize.
+    fn legacy_cache_create_response(
+        &self,
+        db_name: &str,
+        op: DatabaseCatalogOp,
+        sequence: CatalogSequenceNumber,
+        time_ns: i64,
+    ) -> Result<Vec<u8>> {
+        let catalog = self.write_buffer.catalog();
+        let db = catalog
+            .db_schema(db_name)
+            .ok_or_else(|| CatalogError::NotFound(db_name.to_string()))?;
+        let batch = OrderedCatalogBatch::new(
+            CatalogBatch::Database(DatabaseBatch {
+                time_ns,
+                database_id: db.id,
+                database_name: Arc::clone(&db.name),
+                ops: vec![op],
+            }),
+            sequence,
+        );
+        Ok(serde_json::to_vec(&batch)?)
     }
 
     /// Delete a distinct value cache entry with the given [`DistinctCacheDeleteRequest`] parameters
@@ -1499,22 +1569,34 @@ impl HttpApi {
         match self
             .write_buffer
             .catalog()
-            .create_last_cache(
+            .create_last_cache_committed(
                 &db,
                 &table,
+                ApiNodeSpec::All,
                 name.as_deref(),
                 key_columns.as_deref(),
                 value_columns.as_deref(),
-                count,
-                ttl,
+                count.into(),
+                ttl.into(),
             )
             .await
         {
-            Ok(batch) => ResponseBuilder::new()
-                .status(StatusCode::CREATED)
-                .header(CONTENT_TYPE, "application/json")
-                .body(bytes_to_response_body(serde_json::to_vec(&batch)?))
-                .map_err(Into::into),
+            Ok(committed) => {
+                let op = DatabaseCatalogOp::CreateLastCache(
+                    influxdb3_catalog::log::LastCacheDefinition::from(committed.output.as_ref()),
+                );
+                let body = self.legacy_cache_create_response(
+                    &db,
+                    op,
+                    committed.sequence,
+                    committed.time_ns,
+                )?;
+                ResponseBuilder::new()
+                    .status(StatusCode::CREATED)
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(bytes_to_response_body(body))
+                    .map_err(Into::into)
+            }
             Err(error) => Err(error.into()),
         }
     }
@@ -1569,10 +1651,10 @@ impl HttpApi {
             .create_processing_engine_trigger(
                 &db,
                 &trigger_name,
-                self.processing_engine.node_id(),
                 plugin_filename,
+                ApiNodeSpec::All,
                 &trigger_specification,
-                trigger_settings,
+                trigger_settings.into(),
                 &trigger_arguments,
                 disabled,
             )
@@ -1746,6 +1828,22 @@ impl HttpApi {
             .body(bytes_to_response_body(body))?)
     }
 
+    async fn test_telemetry_snapshot(&self, _req: Request) -> Result<Response> {
+        if !self.test_mode_enabled {
+            return Ok(ResponseBuilder::new()
+                .status(StatusCode::NOT_FOUND)
+                .body(bytes_to_response_body(Bytes::from("Not found")))?);
+        }
+
+        let payload = self.common_state.telemetry_store.snapshot();
+        let body = serde_json::to_vec(&payload)?;
+
+        Ok(ResponseBuilder::new()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, "application/json")
+            .body(bytes_to_response_body(Bytes::from(body)))?)
+    }
+
     async fn processing_engine_request_plugin(
         &self,
         trigger_path: &str,
@@ -1845,7 +1943,7 @@ impl HttpApi {
 
         self.write_buffer
             .catalog()
-            .soft_delete_database(&delete_req.db, hard_delete_time)
+            .soft_delete_database(&delete_req.db, hard_delete_time, DeletionScope::default())
             .await?;
         Ok(Response::new(empty_response_body()))
     }
@@ -1893,7 +1991,12 @@ impl HttpApi {
 
         self.write_buffer
             .catalog()
-            .soft_delete_table(&delete_req.db, &delete_req.table, hard_delete_time)
+            .soft_delete_table(
+                &delete_req.db,
+                &delete_req.table,
+                hard_delete_time,
+                DeletionScope::default(),
+            )
             .await?;
         Ok(ResponseBuilder::new()
             .status(StatusCode::OK)
@@ -1996,7 +2099,7 @@ impl HttpApi {
             .ok_or(Error::Unauthenticated)?;
 
         self.authorizer
-            .authorize_action(&token_id, AccessRequest::Admin)
+            .authorize_action(Some(&Subject::Token(token_id)), AccessRequest::Admin)
             .await
             .map_err(|_| Error::ResourceAuthorization(ResourceAuthorizationError::Unauthorized))?;
 
@@ -2665,7 +2768,6 @@ async fn perform_routing(
             let handler = V1HttpHandler::new(
                 Arc::clone(&http_server.query_executor) as _,
                 Some(http_server.authorizer.upcast()),
-                http_server.common_state.trace_collector(),
                 INFLUXDB3_VERSION.to_string(),
             )
             .with_show_databases(ShowDatabases::new(Arc::clone(
@@ -2682,6 +2784,9 @@ async fn perform_routing(
         (Method::GET, all_paths::API_V3_HEALTH | all_paths::API_V1_HEALTH) => http_server.health(),
         (Method::GET | Method::POST, all_paths::API_PING) => http_server.ping(),
         (Method::GET, all_paths::API_METRICS) => http_server.handle_metrics(),
+        (Method::GET | Method::POST, all_paths::API_DEBUG_PPROF_HEAP) => {
+            http_server.handle_pprof_heap(req).await
+        }
         (Method::GET | Method::POST, path) if path.starts_with(all_paths::API_V3_ENGINE) => {
             let path = path.strip_prefix(all_paths::API_V3_ENGINE).unwrap();
             http_server
@@ -2741,6 +2846,9 @@ async fn perform_routing(
             http_server
                 .test_processing_engine_schedule_plugin(req)
                 .await
+        }
+        (Method::GET, all_paths::API_V3_TEST_TELEMETRY_SNAPSHOT) => {
+            http_server.test_telemetry_snapshot(req).await
         }
         (Method::POST, all_paths::API_V3_CONFIGURE_DATABASE_RETENTION_PERIOD) => {
             http_server.set_retention_period_for_database(req).await

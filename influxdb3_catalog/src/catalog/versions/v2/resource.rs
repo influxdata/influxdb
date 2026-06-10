@@ -15,6 +15,8 @@ use crate::resource::CatalogResource;
 impl CatalogResource for NodeDefinition {
     type Identifier = NodeId;
 
+    const CATEGORY: &'static str = "nodes";
+
     fn id(&self) -> Self::Identifier {
         self.node_catalog_id
     }
@@ -26,6 +28,8 @@ impl CatalogResource for NodeDefinition {
 
 impl CatalogResource for DatabaseSchema {
     type Identifier = DbId;
+
+    const CATEGORY: &'static str = "databases";
 
     fn id(&self) -> Self::Identifier {
         self.id
@@ -39,6 +43,8 @@ impl CatalogResource for DatabaseSchema {
 impl CatalogResource for TableDefinition {
     type Identifier = TableId;
 
+    const CATEGORY: &'static str = "tables";
+
     fn id(&self) -> Self::Identifier {
         self.table_id
     }
@@ -51,6 +57,8 @@ impl CatalogResource for TableDefinition {
 impl CatalogResource for TriggerDefinition {
     type Identifier = TriggerId;
 
+    const CATEGORY: &'static str = "processing_engine_triggers";
+
     fn id(&self) -> Self::Identifier {
         self.trigger_id
     }
@@ -62,6 +70,8 @@ impl CatalogResource for TriggerDefinition {
 
 impl CatalogResource for FieldFamilyDefinition {
     type Identifier = FieldFamilyId;
+
+    const CATEGORY: &'static str = "field_families";
 
     fn id(&self) -> Self::Identifier {
         self.id
@@ -78,6 +88,8 @@ impl CatalogResource for FieldFamilyDefinition {
 impl CatalogResource for ColumnDefinition {
     type Identifier = ColumnIdentifier;
 
+    const CATEGORY: &'static str = "columns";
+
     fn id(&self) -> Self::Identifier {
         self.id()
     }
@@ -89,6 +101,8 @@ impl CatalogResource for ColumnDefinition {
 
 impl CatalogResource for TagColumn {
     type Identifier = TagId;
+
+    const CATEGORY: &'static str = "tag_columns";
 
     fn id(&self) -> Self::Identifier {
         self.id
@@ -102,6 +116,8 @@ impl CatalogResource for TagColumn {
 impl CatalogResource for FieldColumn {
     type Identifier = FieldIdentifier;
 
+    const CATEGORY: &'static str = "fields";
+
     fn id(&self) -> Self::Identifier {
         self.id
     }
@@ -114,6 +130,8 @@ impl CatalogResource for FieldColumn {
 impl CatalogResource for LastCacheDefinition {
     type Identifier = LastCacheId;
 
+    const CATEGORY: &'static str = "last_caches";
+
     fn id(&self) -> Self::Identifier {
         self.id
     }
@@ -125,6 +143,8 @@ impl CatalogResource for LastCacheDefinition {
 
 impl CatalogResource for DistinctCacheDefinition {
     type Identifier = DistinctCacheId;
+
+    const CATEGORY: &'static str = "distinct_caches";
 
     fn id(&self) -> Self::Identifier {
         self.cache_id

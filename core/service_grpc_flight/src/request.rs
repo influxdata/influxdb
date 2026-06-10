@@ -147,6 +147,31 @@ impl RunQuery {
             Self::FlightSQL(_) => QueryVariant::FlightSql,
         }
     }
+
+    /// Returns a sanitized textual form of the query suitable for downstream
+    /// capture / logging consumers that must not see raw catalog / schema /
+    /// table names supplied by the client.
+    ///
+    /// - For SQL and InfluxQL, returns the raw query string — these are
+    ///   handled by downstream anonymizers.
+    /// - For FlightSQL `CommandStatementQuery`, returns only the embedded
+    ///   SQL text (without the surrounding `CommandStatementQuery ` marker),
+    ///   so downstream SQL parsers see valid SQL.
+    /// - For every other FlightSQL command variant, returns a fixed
+    ///   placeholder `<flightsql:unknown>`. The `Display` impl for these
+    ///   commands embeds the user-supplied `catalog`, `db_schema`, `table`,
+    ///   and filter-pattern fields verbatim, which is unsafe to forward to
+    ///   anonymizers / capture files: those values are never parsed and
+    ///   would otherwise leak. The variant identity is already reported
+    ///   separately via `variant()`.
+    pub(crate) fn sanitized_text(&self) -> String {
+        match self {
+            Self::Sql(s) => s.clone(),
+            Self::InfluxQL(s) => s.clone(),
+            Self::FlightSQL(FlightSQLCommand::CommandStatementQuery(cmd)) => cmd.query.clone(),
+            Self::FlightSQL(_) => "<flightsql:unknown>".to_string(),
+        }
+    }
 }
 
 impl Display for RunQuery {
@@ -1020,6 +1045,93 @@ mod tests {
         let roundtripped = IoxGetRequest::try_decode(ticket).expect("decode failed");
 
         assert_eq!(request, roundtripped)
+    }
+
+    mod sanitized_text {
+        use super::*;
+        use arrow_flight::sql::{
+            CommandGetCrossReference, CommandGetTables, CommandStatementQuery,
+        };
+
+        #[test]
+        fn sql_returns_raw_query() {
+            let q = RunQuery::Sql("SELECT * FROM foo WHERE x = 'PII'".to_string());
+            assert_eq!(q.sanitized_text(), "SELECT * FROM foo WHERE x = 'PII'");
+        }
+
+        #[test]
+        fn influxql_returns_raw_query() {
+            let q = RunQuery::InfluxQL("SHOW TAG VALUES FROM m WITH KEY = host".to_string());
+            assert_eq!(q.sanitized_text(), "SHOW TAG VALUES FROM m WITH KEY = host");
+        }
+
+        #[test]
+        fn flightsql_statement_query_returns_inner_sql() {
+            // Downstream SQL anonymizers must see just the SQL, not the
+            // surrounding `CommandStatementQuery ` marker.
+            let cmd = FlightSQLCommand::CommandStatementQuery(CommandStatementQuery {
+                query: "SELECT 1".to_string(),
+                transaction_id: None,
+            });
+            let q = RunQuery::FlightSQL(cmd);
+            assert_eq!(q.sanitized_text(), "SELECT 1");
+        }
+
+        #[test]
+        fn flightsql_get_cross_reference_does_not_leak_catalog_or_table_names() {
+            // The Display impl for CommandGetCrossReference embeds these
+            // user-supplied values verbatim — sanitized_text must NOT
+            // forward them. Tests for this were written against the
+            // specific leak reported in the code review.
+            let cmd = FlightSQLCommand::CommandGetCrossReference(CommandGetCrossReference {
+                pk_catalog: Some("prod-catalog-pii".into()),
+                pk_db_schema: Some("prod-schema-pii".into()),
+                pk_table: "prod-table-pii".into(),
+                fk_catalog: Some("fk-catalog-pii".into()),
+                fk_db_schema: Some("fk-schema-pii".into()),
+                fk_table: "fk-table-pii".into(),
+            });
+            let q = RunQuery::FlightSQL(cmd);
+            let text = q.sanitized_text();
+            assert_eq!(text, "<flightsql:unknown>");
+            for secret in [
+                "prod-catalog-pii",
+                "prod-schema-pii",
+                "prod-table-pii",
+                "fk-catalog-pii",
+                "fk-schema-pii",
+                "fk-table-pii",
+            ] {
+                assert!(
+                    !text.contains(secret),
+                    "sanitized_text leaked {secret}: {text}"
+                );
+            }
+        }
+
+        #[test]
+        fn flightsql_get_tables_does_not_leak_filter_patterns() {
+            let cmd = FlightSQLCommand::CommandGetTables(CommandGetTables {
+                catalog: Some("secret-catalog".into()),
+                db_schema_filter_pattern: Some("secret-schema-pattern".into()),
+                table_name_filter_pattern: Some("secret-table-pattern".into()),
+                table_types: vec!["TABLE".into()],
+                include_schema: false,
+            });
+            let q = RunQuery::FlightSQL(cmd);
+            let text = q.sanitized_text();
+            assert_eq!(text, "<flightsql:unknown>");
+            for secret in [
+                "secret-catalog",
+                "secret-schema-pattern",
+                "secret-table-pattern",
+            ] {
+                assert!(
+                    !text.contains(secret),
+                    "sanitized_text leaked {secret}: {text}"
+                );
+            }
+        }
     }
 
     fn make_any_wrapped_proto_ticket(read_info: &proto::ReadInfo) -> Ticket {

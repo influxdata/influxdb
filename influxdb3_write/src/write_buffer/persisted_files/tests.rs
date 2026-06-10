@@ -177,6 +177,7 @@ fn test_get_files_with_filters() {
             vec![ColumnDefinition::timestamp(0)],
             vec![],
             vec![],
+            None,
             FieldFamilyMode::Aware,
         )
         .unwrap(),
@@ -264,7 +265,7 @@ async fn test_remove_files_for_deletion_deleted_database() {
         .unwrap();
 
     // Create a mock catalog that returns no retention periods
-    let catalog = Arc::new(Catalog::new_in_memory("test").await.unwrap());
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
 
     let removed = persisted_files.remove_files_for_deletion(catalog);
 
@@ -320,7 +321,7 @@ async fn test_remove_files_for_deletion_deleted_tables() {
         .await
         .unwrap();
 
-    let catalog = Arc::new(Catalog::new_in_memory("test").await.unwrap());
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
 
     let removed = persisted_files.remove_files_for_deletion(catalog);
 
@@ -365,7 +366,7 @@ async fn test_remove_files_for_deletion_clears_deleted_data() {
         assert_eq!(inner.deleted_data.len(), 1);
     }
 
-    let catalog = Arc::new(Catalog::new_in_memory("test").await.unwrap());
+    let catalog = Catalog::new_in_memory("test").await.unwrap();
 
     persisted_files.remove_files_for_deletion(catalog);
 

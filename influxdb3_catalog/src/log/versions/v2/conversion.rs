@@ -1,3 +1,7 @@
+use influxdb3_authz::permissions::{
+    AUTHZ_CREATE_DB_ACTION, AUTHZ_DB_RESOURCE_TYPE, AUTHZ_WILDCARD, AUTHZ_WRITE_DB_ACTION,
+};
+
 use crate::log::versions::{v2, v3};
 
 impl From<v2::OrderedCatalogBatch> for v3::OrderedCatalogBatch {
@@ -42,6 +46,29 @@ impl From<v2::TokenCatalogOp> for v3::TokenCatalogOp {
             v2::TokenCatalogOp::DeleteToken(delete_token_details) => {
                 v3::TokenCatalogOp::DeleteToken(delete_token_details.into())
             }
+            v2::TokenCatalogOp::CreateDatabaseToken(mut create_database_token_details) => {
+                append_create_if_v2_write_action(&mut create_database_token_details.permissions);
+                v3::TokenCatalogOp::CreateDatabaseToken(create_database_token_details)
+            }
+            v2::TokenCatalogOp::CreateResourceScopedToken(mut create_token_details) => {
+                append_create_if_v2_write_action(&mut create_token_details.permissions);
+                v3::TokenCatalogOp::CreateResourceScopedToken(create_token_details.into())
+            }
+        }
+    }
+}
+
+fn append_create_if_v2_write_action(v2_permissions: &mut Vec<v2::enterprise::PermissionDetails>) {
+    let wildcard = AUTHZ_WILDCARD.to_owned();
+    let create_action = AUTHZ_CREATE_DB_ACTION.to_owned();
+    let write_action = AUTHZ_WRITE_DB_ACTION.to_owned();
+    for v2_permission in v2_permissions {
+        if v2_permission.resource_type.as_str() == AUTHZ_DB_RESOURCE_TYPE
+            && v2_permission.resource_identifier.contains(&wildcard)
+            && v2_permission.actions.contains(&write_action)
+            && !v2_permission.actions.contains(&create_action)
+        {
+            v2_permission.actions.push(create_action.to_owned());
         }
     }
 }
@@ -73,6 +100,51 @@ impl From<v2::DeleteTokenDetails> for v3::DeleteTokenDetails {
     fn from(value: v2::DeleteTokenDetails) -> Self {
         Self {
             token_name: value.token_name,
+        }
+    }
+}
+
+// todo: enterprise conversions should go in it's own module
+impl From<v2::CreateDatabaseTokenDetails> for v3::enterprise::CreateDatabaseTokenDetails {
+    fn from(value: v2::CreateDatabaseTokenDetails) -> Self {
+        Self {
+            token_id: value.token_id,
+            name: value.name,
+            hash: value.hash,
+            created_at: value.created_at,
+            expiry: value.expiry,
+            permissions: value.permissions.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<v2::CreateDatabaseTokenDetails> for v3::enterprise::CreateTokenDetails {
+    fn from(value: v2::CreateDatabaseTokenDetails) -> Self {
+        let v3_db_token_details: v3::enterprise::CreateDatabaseTokenDetails = value.into();
+        // this is a v3 -> v3 conversion so it's not in explicit conversion
+        v3_db_token_details.into()
+    }
+}
+
+impl From<v2::enterprise::PermissionDetails> for v3::enterprise::PermissionDetails {
+    fn from(value: v2::enterprise::PermissionDetails) -> Self {
+        Self {
+            resource_type: value.resource_type,
+            resource_identifier: value.resource_identifier,
+            actions: value.actions,
+        }
+    }
+}
+
+impl From<v2::CreateTokenDetails> for v3::enterprise::CreateTokenDetails {
+    fn from(value: v2::CreateTokenDetails) -> Self {
+        Self {
+            token_id: value.token_id,
+            name: value.name,
+            hash: value.hash,
+            created_at: value.created_at,
+            expiry: value.expiry,
+            permissions: value.permissions.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -128,6 +200,11 @@ impl From<v2::NodeMode> for v3::NodeMode {
     fn from(value: v2::NodeMode) -> Self {
         match value {
             v2::NodeMode::Core => v3::NodeMode::Core,
+            v2::NodeMode::Query => v3::NodeMode::Query,
+            v2::NodeMode::Ingest => v3::NodeMode::Ingest,
+            v2::NodeMode::Compact => v3::NodeMode::Compact,
+            v2::NodeMode::Process => v3::NodeMode::Process,
+            v2::NodeMode::All => v3::NodeMode::All,
         }
     }
 }
@@ -223,6 +300,7 @@ impl From<v2::CreateTableLog> for v3::CreateTableLog {
                 .map(Into::into)
                 .collect(),
             key: value.key,
+            retention_period: None,
         }
     }
 }
@@ -290,6 +368,7 @@ impl From<v2::DistinctCacheDefinition> for v3::DistinctCacheDefinition {
             column_ids: value.column_ids,
             max_cardinality: value.max_cardinality.into(),
             max_age_seconds: value.max_age_seconds.into(),
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -328,6 +407,7 @@ impl From<v2::LastCacheDefinition> for v3::LastCacheDefinition {
             value_columns: value.value_columns.into(),
             count: value.count.into(),
             ttl: value.ttl.into(),
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -375,11 +455,11 @@ impl From<v2::TriggerDefinition> for v3::TriggerDefinition {
             trigger_name: value.trigger_name,
             plugin_filename: value.plugin_filename,
             database_name: value.database_name,
-            node_id: value.node_id,
             trigger: value.trigger.into(),
             trigger_settings: value.trigger_settings.into(),
             trigger_arguments: value.trigger_arguments,
             disabled: value.disabled,
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -445,3 +525,15 @@ impl From<v2::TriggerIdentifier> for v3::TriggerIdentifier {
         }
     }
 }
+
+impl From<v2::NodeSpec> for v3::NodeSpec {
+    fn from(value: v2::NodeSpec) -> Self {
+        match value {
+            v2::NodeSpec::All => v3::NodeSpec::All,
+            v2::NodeSpec::Nodes(vec) => v3::NodeSpec::Nodes(vec),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

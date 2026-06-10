@@ -4,7 +4,10 @@ use influxdb3_id::TokenId;
 use iox_time::{MockProvider, Time};
 use sha2::Digest;
 
-use crate::{AuthProvider, AuthenticatorError, TokenAuthenticator, TokenInfo, TokenProvider};
+use crate::{
+    Actions, AuthProvider, AuthenticatorError, Permission, ResourceIdentifier, ResourceType,
+    TokenAuthenticator, TokenInfo, TokenProvider,
+};
 
 #[derive(Debug)]
 struct MockTokenProvider {
@@ -46,6 +49,46 @@ impl TokenProvider for MockTokenProvider {
             None
         }
     }
+}
+
+fn token_info(permissions: Vec<Permission>) -> TokenInfo {
+    let mut token = TokenInfo::new(
+        TokenId::from(0),
+        "a-token".into(),
+        vec![],
+        1000,
+        Some(i64::MAX),
+    );
+    token.set_permissions(permissions);
+    token
+}
+
+#[test]
+fn admin_token_is_admin() {
+    // The `*:*:*` permission shape, as stored for admin tokens.
+    let token = token_info(vec![Permission {
+        resource_type: ResourceType::Wildcard,
+        resource_identifier: ResourceIdentifier::Wildcard,
+        actions: Actions::Wildcard,
+        resource_names: None,
+    }]);
+    assert!(token.is_admin());
+}
+
+#[test]
+fn resource_scoped_token_is_not_admin() {
+    // A non-wildcard resource type is never an admin token, even if the other
+    // dimensions are wildcards.
+    let scoped = token_info(vec![Permission {
+        resource_type: ResourceType::Database,
+        resource_identifier: ResourceIdentifier::Wildcard,
+        actions: Actions::Wildcard,
+        resource_names: None,
+    }]);
+    assert!(!scoped.is_admin());
+
+    // A token with no permissions is not an admin token.
+    assert!(!token_info(vec![]).is_admin());
 }
 
 #[test_log::test(tokio::test)]

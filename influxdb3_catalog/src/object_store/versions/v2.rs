@@ -9,13 +9,19 @@ use object_store::path::Path as ObjPath;
 use observability_deps::tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::catalog::versions::v2::{InnerCatalog, Snapshot, log::OrderedCatalogBatch};
+use crate::catalog::versions::v2::{
+    CatalogCheckpointForBackup, CatalogLogFileForBackup, InnerCatalog, Snapshot,
+    log::OrderedCatalogBatch,
+};
+use crate::log::versions::v4::StorageMode;
+use crate::object_store::ObjectStoreCatalogError;
 use crate::snapshot::versions::v4::CatalogSnapshot;
 use crate::{
     catalog::CatalogSequenceNumber,
     object_store::{CATALOG_LOG_FILE_EXTENSION, PersistCatalogResult, Result},
     serialize::versions::v2::{
-        load_catalog, serialize_catalog_file, verify_and_deserialize_catalog_file,
+        load_catalog, load_catalog_from_paths, serialize_catalog_file,
+        verify_and_deserialize_catalog_checkpoint_file, verify_and_deserialize_catalog_file,
     },
 };
 
@@ -25,6 +31,7 @@ pub struct ObjectStoreCatalog {
     /// PUT a checkpoint file to the object store every `checkpoint_interval` sequenced log files
     pub(crate) checkpoint_interval: u64,
     pub(crate) store: Arc<dyn ObjectStore>,
+    pub(crate) storage_mode: StorageMode,
 }
 
 impl ObjectStoreCatalog {
@@ -32,11 +39,13 @@ impl ObjectStoreCatalog {
         prefix: impl Into<Arc<str>>,
         checkpoint_interval: u64,
         store: Arc<dyn ObjectStore>,
+        storage_mode: StorageMode,
     ) -> Self {
         Self {
             prefix: prefix.into(),
             checkpoint_interval,
             store,
+            storage_mode,
         }
     }
 
@@ -52,7 +61,8 @@ impl ObjectStoreCatalog {
             None => {
                 let catalog_uuid = Uuid::new_v4();
                 info!(catalog_uuid = ?catalog_uuid, "catalog not found, creating a new one");
-                let new_catalog = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
+                let mut new_catalog = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
+                new_catalog.storage_mode = self.storage_mode;
                 match self
                     .persist_catalog_checkpoint(&new_catalog.snapshot())
                     .await?
@@ -72,9 +82,20 @@ impl ObjectStoreCatalog {
 
     /// Loads all catalog files from object store to build the catalog
     pub async fn load_catalog(&self) -> Result<Option<InnerCatalog>> {
-        load_catalog(Arc::clone(&self.prefix), Arc::clone(&self.store))
+        load_catalog(Arc::clone(&self.prefix), self)
             .await
             .context("failed to load catalog")
+            .map_err(Into::into)
+    }
+
+    pub async fn load_catalog_from_paths(
+        &self,
+        checkpoint_path: &ObjPath,
+        log_paths: &[ObjPath],
+    ) -> Result<Option<InnerCatalog>> {
+        load_catalog_from_paths(checkpoint_path, log_paths, self)
+            .await
+            .context("failed to load catalog from selected object store paths")
             .map_err(Into::into)
     }
 
@@ -105,6 +126,53 @@ impl ObjectStoreCatalog {
         }
     }
 
+    pub(crate) async fn checkpoint_for_backup(&self) -> Result<CatalogCheckpointForBackup> {
+        let path = CatalogFilePath::checkpoint(&self.prefix);
+        let bytes = self
+            .store
+            .get(&path)
+            .await
+            .context("failed to fetch catalog checkpoint for backup")?
+            .bytes()
+            .await
+            .context("failed to read catalog checkpoint bytes for backup")?;
+        let snapshot = verify_and_deserialize_catalog_checkpoint_file(bytes.clone())
+            .context("failed to decode catalog checkpoint for backup")?;
+
+        Ok(CatalogCheckpointForBackup {
+            sequence: snapshot.sequence_number(),
+            path: path.into(),
+        })
+    }
+
+    /// Get the list of log files that are after the `after` (`after + 1`)
+    /// sequence and up to and including the `through` sequence. This is used in
+    /// the backup flow to determine which log files to include in the backup
+    /// after selecting the checkpoint.
+    pub(crate) async fn log_files_for_backup(
+        &self,
+        after: CatalogSequenceNumber,
+        through: CatalogSequenceNumber,
+    ) -> Result<Vec<CatalogLogFileForBackup>> {
+        if after > through {
+            return Err(ObjectStoreCatalogError::unexpected(format!(
+                "invalid log file range for backup: after sequence {} is not less than through sequence {}",
+                after.get(),
+                through.get(),
+            )));
+        }
+
+        Ok(((after.get() + 1)..=through.get())
+            .map(|sequence| {
+                let sequence = CatalogSequenceNumber::new(sequence);
+                CatalogLogFileForBackup {
+                    sequence,
+                    path: CatalogFilePath::log(&self.prefix, sequence).into(),
+                }
+            })
+            .collect())
+    }
+
     pub(crate) async fn persist_catalog_sequenced_log(
         &self,
         batch: &OrderedCatalogBatch,
@@ -113,6 +181,23 @@ impl ObjectStoreCatalog {
 
         let content = serialize_catalog_file(batch).context("failed to serialize catalog batch")?;
 
+        self.catalog_update_if_not_exists(catalog_path, content)
+            .await
+    }
+
+    /// Persist an `UpgradedLog` marker as the v2 log file at `sequence_number`, terminating
+    /// any further v2 mutations.
+    ///
+    /// # Note
+    ///
+    /// This is a "v2" method but is only called by v3 code.
+    pub(crate) async fn persist_upgrade_log(
+        &self,
+        sequence_number: CatalogSequenceNumber,
+    ) -> Result<PersistCatalogResult> {
+        let catalog_path = CatalogFilePath::log(&self.prefix, sequence_number);
+        let content = serialize_catalog_file(&crate::log::UpgradedLog)
+            .context("failed to serialize upgrade log")?;
         self.catalog_update_if_not_exists(catalog_path, content)
             .await
     }

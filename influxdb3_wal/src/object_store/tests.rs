@@ -7,8 +7,20 @@ use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, TableId};
 use iox_time::{MockProvider, Time};
 use object_store::memory::InMemory;
+use rustc_hash::FxHasher;
 use std::any::Any;
+use std::hash::BuildHasherDefault;
 use tokio::sync::oneshot::Receiver;
+
+// Helper function to create IndexMap with FxHasher for tests
+type FxBuildHasher = BuildHasherDefault<FxHasher>;
+fn fx_index_map<K: std::hash::Hash + Eq, V, const N: usize>(
+    entries: [(K, V); N],
+) -> IndexMap<K, V, FxBuildHasher> {
+    let mut map = IndexMap::with_capacity_and_hasher(N, FxBuildHasher::default());
+    map.extend(entries);
+    map
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn write_flush_delete_and_load() {
@@ -43,7 +55,7 @@ async fn write_flush_delete_and_load() {
         catalog_sequence: 0,
         database_id: DbId::from(0),
         database_name: Arc::clone(&db_name),
-        table_chunks: IndexMap::from([(
+        table_chunks: fx_index_map([(
             TableId::from(0),
             TableChunks {
                 min_time: 1,
@@ -93,7 +105,7 @@ async fn write_flush_delete_and_load() {
         catalog_sequence: 0,
         database_id: DbId::from(0),
         database_name: Arc::clone(&db_name),
-        table_chunks: IndexMap::from([(
+        table_chunks: fx_index_map([(
             TableId::from(0),
             TableChunks {
                 min_time: 12,
@@ -133,7 +145,7 @@ async fn write_flush_delete_and_load() {
             catalog_sequence: 0,
             database_id: DbId::from(0),
             database_name: "db1".into(),
-            table_chunks: IndexMap::from([(
+            table_chunks: fx_index_map([(
                 TableId::from(0),
                 TableChunks {
                     min_time: 1,
@@ -202,7 +214,7 @@ async fn write_flush_delete_and_load() {
             catalog_sequence: 0,
             database_id: DbId::from(0),
             database_name: "db1".into(),
-            table_chunks: IndexMap::from([(
+            table_chunks: fx_index_map([(
                 TableId::from(0),
                 TableChunks {
                     min_time: 12,
@@ -293,7 +305,7 @@ async fn write_flush_delete_and_load() {
         catalog_sequence: 0,
         database_id: DbId::from(0),
         database_name: Arc::clone(&db_name),
-        table_chunks: IndexMap::from([(
+        table_chunks: fx_index_map([(
             TableId::from(0),
             TableChunks {
                 min_time: 26,
@@ -341,7 +353,7 @@ async fn write_flush_delete_and_load() {
             catalog_sequence: 0,
             database_id: DbId::from(0),
             database_name: "db1".into(),
-            table_chunks: IndexMap::from([(
+            table_chunks: fx_index_map([(
                 TableId::from(0),
                 TableChunks {
                     min_time: 26,
@@ -513,7 +525,7 @@ async fn test_flush_buffer_contents() {
             catalog_sequence: 0,
             database_id: DbId::from(0),
             database_name: "db1".into(),
-            table_chunks: IndexMap::from([(
+            table_chunks: fx_index_map([(
                 TableId::from(0),
                 TableChunks {
                     min_time: 26,
@@ -572,7 +584,7 @@ async fn test_flush_buffer_contents() {
             catalog_sequence: 0,
             database_id: DbId::from(0),
             database_name: "db1".into(),
-            table_chunks: IndexMap::from([(
+            table_chunks: fx_index_map([(
                 TableId::from(0),
                 TableChunks {
                     min_time: 26,

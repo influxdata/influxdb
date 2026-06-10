@@ -1,4 +1,5 @@
 pub mod common;
+pub mod debug;
 pub mod disable;
 pub mod enable;
 pub mod helpers;
