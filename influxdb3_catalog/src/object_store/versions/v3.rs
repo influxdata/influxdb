@@ -30,6 +30,19 @@ use crate::object_store::{
 
 const CATALOG_VERSION_PATH: &str = "catalog/v3";
 
+/// An [`InnerCatalog`] reconstructed from the object store, along with
+/// metadata about the snapshot file it was loaded from.
+#[derive(Debug)]
+pub(crate) struct CatalogLoad {
+    pub(crate) inner: InnerCatalog,
+    /// True when the snapshot file is not in the current single-entry form:
+    /// either the legacy multi-group layout (`group_count > 1`) or the
+    /// indexless flat layout (`group_count == 0`) that pre-flat readers
+    /// reject. Such a file should be rewritten in the current format at
+    /// startup.
+    pub(crate) snapshot_needs_rewrite: bool,
+}
+
 /// Maximum number of in-flight log file fetches during catalog load.
 ///
 /// `load_catalog` may need to replay every log file persisted since the last
@@ -118,7 +131,7 @@ impl ObjectStoreCatalog {
     ///
     /// Returns `Ok(None)` if no snapshot exists — i.e. no catalog has been
     /// initialized at this prefix.
-    pub(crate) async fn load_catalog(&self) -> Result<Option<InnerCatalog>> {
+    pub(crate) async fn load_catalog(&self) -> Result<Option<CatalogLoad>> {
         // `Ok(None)` (no snapshot exists at this prefix) is silent; a real
         // object-store / decode error during startup load fires the SLL
         // error variant so operators see the failure rather than a silent
@@ -131,6 +144,12 @@ impl ObjectStoreCatalog {
             return Ok(None);
         };
         let snapshot_sequence = snapshot.sequence_number();
+        // Exactly one group is the current writer's form, which every
+        // reader vintage accepts. Anything else gets rewritten at startup:
+        // the legacy multi-group layout (group_count > 1), and the indexless
+        // flat layout (group_count == 0) whose files pre-flat readers
+        // reject.
+        let snapshot_needs_rewrite = snapshot.header.group_count != 1;
         let catalog_uuid = Uuid::from_u128(snapshot.header.catalog_uuid);
         let mut inner = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
         // Snapshots normally do not contain restore records, but pre-load
@@ -223,7 +242,10 @@ impl ObjectStoreCatalog {
             })?;
         }
 
-        Ok(Some(inner))
+        Ok(Some(CatalogLoad {
+            inner,
+            snapshot_needs_rewrite,
+        }))
     }
 
     /// Load an existing catalog, or initialize a fresh one by writing an
@@ -234,9 +256,9 @@ impl ObjectStoreCatalog {
     /// The initial snapshot carries a single [`SetStorageMode`] record so
     /// the storage mode configured on this `ObjectStoreCatalog` survives
     /// future reloads.
-    pub(crate) async fn load_or_create_catalog(&self) -> Result<InnerCatalog> {
-        if let Some(inner) = self.load_catalog().await? {
-            return Ok(inner);
+    pub(crate) async fn load_or_create_catalog(&self) -> Result<CatalogLoad> {
+        if let Some(load) = self.load_catalog().await? {
+            return Ok(load);
         }
 
         let catalog_uuid = Uuid::new_v4();
@@ -261,7 +283,10 @@ impl ObjectStoreCatalog {
         })?;
         let initial_snapshot = inner.create_snapshot();
         match self.initialize_snapshot(initial_snapshot).await? {
-            PersistCatalogResult::Success => Ok(inner),
+            PersistCatalogResult::Success => Ok(CatalogLoad {
+                inner,
+                snapshot_needs_rewrite: false,
+            }),
             PersistCatalogResult::AlreadyExists => self.load_catalog().await?.ok_or_else(|| {
                 ObjectStoreCatalogError::unexpected(
                     "initial snapshot existed but load_catalog returned None",

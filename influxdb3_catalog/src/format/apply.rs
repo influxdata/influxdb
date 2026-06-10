@@ -45,6 +45,7 @@ use crate::format::records::RestoreCatalog;
 use crate::object_store::versions::v3::ObjectStoreCatalog;
 use crate::repository::RepositoryError;
 
+use super::reader::LEGACY_GROUP_INDEX_ENTRY_SIZE;
 use super::{
     CatalogFile, Decode, FormatError, Header, REGISTRY, Record, file_flags, record_ids,
     validate_record_flags,
@@ -75,6 +76,7 @@ fn make_file_bytes(
     sequence_number: u64,
     payload: Vec<u8>,
     record_count: u32,
+    group_count: u32,
     flags: u16,
 ) -> Bytes {
     let payload_crc = crc32fast::hash(&payload);
@@ -84,6 +86,7 @@ fn make_file_bytes(
         catalog_uuid: catalog_uuid.as_u128(),
         sequence_number,
         record_count,
+        group_count,
         payload_len: payload.len() as u64,
         payload_crc,
     };
@@ -110,13 +113,21 @@ pub fn serialize_log_file(catalog_uuid: Uuid, sequence_number: u64, records: &[R
         sequence_number,
         serialize_records(records),
         u32::try_from(records.len()).expect("record count overflow"),
+        0,
         file_flags::NONE,
     )
 }
 
-/// Serialize a snapshot file: header (SNAPSHOT flag set) followed by all
-/// records concatenated in slice (application) order — the same payload
-/// shape as a log file.
+/// Serialize a snapshot file: header (SNAPSHOT flag set), one
+/// backward-compatibility group-index entry, then all records concatenated
+/// in slice (application) order.
+///
+/// The index entry declares a single Global group spanning every record.
+/// Readers deployed before the flat layout require a snapshot's group index
+/// to be present, start with a Global group, and account for every record;
+/// this one entry keeps snapshots written here readable on those binaries —
+/// and correctly ordered, since flattening a single group is the identity.
+/// Current readers skip the entry (see `read_records`).
 ///
 /// Each record is written verbatim, preserving its original per-record
 /// sequence — snapshots collect records across many log sequences and that
@@ -126,11 +137,27 @@ pub fn serialize_snapshot_file(
     sequence_number: u64,
     records: &[Record],
 ) -> Bytes {
+    let record_bytes = serialize_records(records);
+    let record_count = u32::try_from(records.len()).expect("record count overflow");
+    let byte_length = u32::try_from(record_bytes.len()).expect("record bytes overflow");
+
+    // The legacy `GroupIndexEntry` wire layout: group_type and group_key
+    // (Global = 0, 0), record_count and byte_length as u32 LE, then
+    // byte_offset as u64 LE.
+    let mut payload = Vec::with_capacity(LEGACY_GROUP_INDEX_ENTRY_SIZE + record_bytes.len());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    payload.extend_from_slice(&record_count.to_le_bytes());
+    payload.extend_from_slice(&byte_length.to_le_bytes());
+    payload.extend_from_slice(&0u64.to_le_bytes());
+    payload.extend_from_slice(&record_bytes);
+
     make_file_bytes(
         catalog_uuid,
         sequence_number,
-        serialize_records(records),
-        u32::try_from(records.len()).expect("record count overflow"),
+        payload,
+        record_count,
+        1,
         file_flags::SNAPSHOT,
     )
 }
