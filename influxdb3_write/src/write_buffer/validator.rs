@@ -14,7 +14,9 @@ use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{Field, FieldData, Gen1Duration, Row, TableChunks, WriteBatch};
 use iox_time::Time;
 use observability_deps::tracing::trace;
+use rustc_hash::FxHasher;
 use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
+use std::hash::BuildHasherDefault;
 
 use super::Error;
 
@@ -218,7 +220,8 @@ fn validate_and_qualify_v1_line(
                     error_message: error.to_string(),
                 })?;
             fields.push(Field::new(
-                col.ord_id(),
+                col.ord_id()
+                    .expect("parquet write paths require legacy column ids"),
                 FieldData::Tag(tag_val.to_string()),
             ));
             index_count += 1;
@@ -243,7 +246,8 @@ fn validate_and_qualify_v1_line(
                 line_number: line_number + 1,
                 error_message: error.to_string(),
             })?
-            .ord_id();
+            .ord_id()
+            .expect("parquet write paths require legacy column ids");
         if !column_ids.insert(col_id) {
             return Err(WriteLineError {
                 original_line: line.to_string(),
@@ -264,7 +268,8 @@ fn validate_and_qualify_v1_line(
             line_number: line_number + 1,
             error_message: error.to_string(),
         })?
-        .ord_id();
+        .ord_id()
+        .expect("parquet write paths require legacy column ids");
     let timestamp_ns = precision
         .to_nanos(line.timestamp, ingest_time.timestamp_nanos())
         .map_err(|error| WriteLineError {
@@ -359,7 +364,8 @@ impl WriteValidator<CatalogChangesCommitted> {
     /// map to the `Gen1Duration`. This function should be infallible, because
     /// the schema for incoming writes has been fully validated.
     pub fn convert_lines_to_buffer(self, gen1_duration: Gen1Duration) -> ValidatedLines {
-        let mut table_chunks = IndexMap::new();
+        type FxBuildHasher = BuildHasherDefault<FxHasher>;
+        let mut table_chunks = IndexMap::with_hasher(FxBuildHasher::default());
         let line_count = self.state.lines.len();
         let mut field_count = 0;
         let mut index_count = 0;
@@ -391,7 +397,7 @@ impl WriteValidator<CatalogChangesCommitted> {
 
 fn convert_qualified_line(
     line: QualifiedLine,
-    table_chunk_map: &mut IndexMap<TableId, TableChunks>,
+    table_chunk_map: &mut IndexMap<TableId, TableChunks, BuildHasherDefault<FxHasher>>,
     gen1_duration: Gen1Duration,
 ) {
     // Add the row into the correct chunk in the table

@@ -273,7 +273,7 @@ mod tests {
         assert!(cache.insert(CacheKey::Table(0), v4.clone()).unwrap());
 
         let mut values: Vec<_> = cache.list().collect();
-        values.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+        values.sort_unstable_by_key(|(a, _)| *a);
 
         assert_eq!(
             values,

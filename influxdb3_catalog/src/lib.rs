@@ -185,13 +185,27 @@
 
 pub mod catalog;
 pub mod channel;
+pub mod enterprise;
 pub mod error;
+pub mod format;
 pub mod id;
 pub mod log;
 pub mod object_store;
+pub mod repository;
 pub mod resource;
 pub mod serialize;
 pub mod snapshot;
 
+// Re-export the WAL sequence type so catalog API consumers can construct
+// the value type that `ack_stop_node`, `NodeState::Stopped`, etc. expect
+// without depending on `oss/influxdb3_wal` directly. ent/-side callers
+// (HTTP handlers, the buffer crate) link against `ent/influxdb3_wal`,
+// which exposes the same struct shape but as a distinct type per Rust's
+// type system; this re-export gives them a canonical name for the
+// catalog-side variant. Drop the re-export when the two WAL crates are
+// consolidated.
+pub use influxdb3_wal::SnapshotSequenceNumber;
+
 pub use error::CatalogError;
+pub use repository::{Repository, RepositoryError};
 pub(crate) type Result<T, E = CatalogError> = std::result::Result<T, E>;

@@ -98,9 +98,15 @@ pub(crate) struct RegisterNodeLog {
     pub mode: Vec<NodeMode>,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
 pub(crate) enum NodeMode {
     Core,
+    // Enterprise Only:
+    Query,
+    Ingest,
+    Compact,
+    Process,
+    All,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -171,6 +177,8 @@ pub(crate) struct LastCacheDefinition {
     pub table: Arc<str>,
     /// The last cache id scoped to parent table
     pub id: LastCacheId,
+    /// Specify the node(s) which should have the cache enabled
+    pub node_spec: NodeSpec,
     /// Given name of the cache
     pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
@@ -181,6 +189,15 @@ pub(crate) struct LastCacheDefinition {
     pub count: LastCacheSize,
     /// The time-to-live (TTL) in seconds for entries in the cache
     pub ttl: LastCacheTtl,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeSpec {
+    #[default]
+    All,
+    // Enterprise-only
+    Nodes(Vec<NodeId>),
 }
 
 /// A last cache will either store values for an explicit set of columns, or will accept all
@@ -352,6 +369,8 @@ pub(crate) struct DistinctCacheDefinition {
     pub table_id: TableId,
     /// The name of the associated table
     pub table_name: Arc<str>,
+    /// Specify the node(s) which should have the cache enabled
+    pub node_spec: NodeSpec,
     /// The cache id in the catalog scoped to its parent table
     pub cache_id: DistinctCacheId,
     /// The name of the cache, is unique within the associated table
@@ -463,7 +482,7 @@ pub(crate) struct TriggerDefinition {
     pub trigger_name: Arc<str>,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
-    pub node_id: Arc<str>,
+    pub node_spec: NodeSpec,
     pub trigger: TriggerSpecificationDefinition,
     pub trigger_settings: TriggerSettings,
     pub trigger_arguments: Option<HashMap<String, String>>,

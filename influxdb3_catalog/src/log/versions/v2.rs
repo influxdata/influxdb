@@ -1,4 +1,5 @@
 mod conversion;
+pub(crate) mod enterprise;
 
 use std::{
     cmp::{Ord, PartialOrd},
@@ -11,6 +12,7 @@ use std::{
 
 use anyhow::Context;
 use cron::Schedule;
+use enterprise::CreateTokenDetails;
 use hashbrown::HashMap;
 use humantime::{format_duration, parse_duration};
 use influxdb_line_protocol::FieldValue;
@@ -21,7 +23,10 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{CatalogError, Result, catalog::CatalogSequenceNumber, serialize::VersionedFileType};
+use crate::{
+    CatalogError, Result, catalog::CatalogSequenceNumber, catalog::versions::v2::NodeDefinition,
+    log::versions::v2::enterprise::CreateDatabaseTokenDetails, serialize::VersionedFileType,
+};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum CatalogBatch {
@@ -226,16 +231,33 @@ pub struct StopNodeLog {
     pub process_uuid: Uuid,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum NodeMode {
     Core,
+    // Enterprise Only:
+    Query,
+    Ingest,
+    Compact,
+    Process,
+    All,
+}
+
+impl NodeMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NodeMode::Core => "core",
+            NodeMode::Query => "query",
+            NodeMode::Ingest => "ingest",
+            NodeMode::Compact => "compact",
+            NodeMode::Process => "process",
+            NodeMode::All => "all",
+        }
+    }
 }
 
 impl std::fmt::Display for NodeMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NodeMode::Core => write!(f, "core"),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -301,7 +323,7 @@ impl FieldDefinition {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum FieldDataType {
     String,
     Integer,
@@ -362,6 +384,13 @@ pub struct LastCacheDefinition {
     pub table: Arc<str>,
     /// The last cache id scoped to parent table
     pub id: LastCacheId,
+    /// Specify the node(s) which should have the cache enabled
+    ///
+    /// # Implementation Note
+    ///
+    /// This uses a default for cache definitions from core which do not specify a `node_spec`.
+    #[serde(default)]
+    pub node_spec: NodeSpec,
     /// Given name of the cache
     pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
@@ -372,6 +401,24 @@ pub struct LastCacheDefinition {
     pub count: LastCacheSize,
     /// The time-to-live (TTL) in seconds for entries in the cache
     pub ttl: LastCacheTtl,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeSpec {
+    #[default]
+    All,
+    // Enterprise-only
+    Nodes(Vec<NodeId>),
+}
+
+impl NodeSpec {
+    pub fn matches_node(&self, node: &NodeDefinition) -> bool {
+        match self {
+            Self::All => true,
+            Self::Nodes(v) => v.contains(&node.node_catalog_id),
+        }
+    }
 }
 
 /// A last cache will either store values for an explicit set of columns, or will accept all
@@ -540,6 +587,13 @@ pub struct DistinctCacheDefinition {
     pub table_id: TableId,
     /// The name of the associated table
     pub table_name: Arc<str>,
+    /// Specify the node(s) which should have the cache enabled
+    ///
+    /// # Implementation Note
+    ///
+    /// This uses a default for cache definitions from core which do not specify a `node_spec`.
+    #[serde(default)]
+    pub node_spec: NodeSpec,
     /// The cache id in the catalog scoped to its parent table
     pub cache_id: DistinctCacheId,
     /// The name of the cache, is unique within the associated table
@@ -677,7 +731,13 @@ pub struct TriggerDefinition {
     pub trigger_name: Arc<str>,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
-    pub node_id: Arc<str>,
+    /// Specify the node(s) which operate this trigger
+    ///
+    /// # Implementation Note
+    ///
+    /// This uses a default for trigger definitions from core which do not specify a `node_spec`.
+    #[serde(default)]
+    pub node_spec: NodeSpec,
     pub trigger: TriggerSpecificationDefinition,
     pub trigger_settings: TriggerSettings,
     pub trigger_arguments: Option<HashMap<String, String>>,
@@ -788,7 +848,7 @@ impl TriggerSpecificationDefinition {
             }
             _ => Err(CatalogError::TriggerSpecificationParseError {
                 trigger_spec: spec_str.to_string(),
-                context: Some("expect one of the following prefixes: 'table:', 'all_tables:', 'cron:', 'every:', or 'request:'".to_string()),
+                context: Some("expect one of the following forms: 'table:<TABLE_NAME>', 'all_tables', 'cron:<CRON_EXPRESSION>', 'every:<DURATION>', or 'request:<PATH>'".to_string()),
             }),
         }
     }
@@ -822,6 +882,20 @@ impl TriggerSpecificationDefinition {
     }
 }
 
+impl FromStr for TriggerSpecificationDefinition {
+    type Err = CatalogError;
+
+    fn from_str(s: &str) -> Result<TriggerSpecificationDefinition> {
+        Self::from_string_rep(s)
+    }
+}
+
+impl std::fmt::Display for TriggerSpecificationDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.string_rep())
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct TokenBatch {
     pub time_ns: i64,
@@ -837,6 +911,12 @@ pub enum TokenCatalogOp {
     CreateAdminToken(CreateAdminTokenDetails),
     RegenerateAdminToken(RegenerateAdminTokenDetails),
     DeleteToken(DeleteTokenDetails),
+    // Below are enterprise specific
+    // The `CreateDatabaseToken` variant is left in place for backward compatibility, and
+    // only used when deserializing, was replaced by the `CreateResourceScopedToken`
+    // variant.
+    CreateDatabaseToken(CreateDatabaseTokenDetails),
+    CreateResourceScopedToken(CreateTokenDetails),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

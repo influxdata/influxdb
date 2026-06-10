@@ -18,7 +18,7 @@ Examples
 {}
   --node-id <NODE_ID>              Node identifier used as prefix in object store file paths
                                     [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
-  --object-store <OBJECT_STORE>    Which object storage to use.
+  --object-store <OBJECT_STORE>    Which object storage to use. If not specified, defaults to file.
                                     [env: INFLUXDB3_OBJECT_STORE=]
                                     [possible values: memory, memory-throttled, file, s3, google, azure]
 
@@ -41,9 +41,9 @@ Examples
                                     [env: INFLUXDB3_TLS_MINIMUM_VERSION=]
   --without-auth                   Run InfluxDB 3 server without authorization
   --disable-authz <RESOURCES>      Optionally disable authz by passing in a comma separated
-                                   list of resources. Valid values are health, ping, and metrics.
-                                   To disable auth for multiple resources pass in a list, eg.
-                                   `--disable-authz health,ping`
+                                   list of resources. Valid values are health, ping, metrics,
+                                   ready, and pprof. To disable auth for multiple resources pass
+                                   in a list, eg. `--disable-authz health,ping`
   --admin-token-file <FILE>        File containing offline admin tokens
                                     [env: INFLUXDB3_ADMIN_TOKEN_FILE=]
 
@@ -70,7 +70,7 @@ Examples
   --plugin-dir <DIR>               Location of plugins [env: INFLUXDB3_PLUGIN_DIR=]
   --virtual-env-location <PATH>    Location of your virtual environment
                                     [env: VIRTUAL_ENV=]
-  --package-manager <MANAGER>      Python package manager  
+  --package-manager <MANAGER>      Deprecated. Python and pip are bundled with InfluxDB; this option does not need to be set
                                     [possible values: discover, pip, uv, disabled] [default: discover]
                                     [env: INFLUXDB3_PACKAGE_MANAGER=]
   --restrict-plugin-triggers-to <TYPE>...

@@ -4,7 +4,7 @@ use metric::{Attributes, Metric, Registry, U64Counter};
 
 use super::log::{
     CatalogBatch, ClearRetentionPeriodLog, DatabaseCatalogOp, DeleteOp, GenerationOp,
-    NodeCatalogOp, SetRetentionPeriodLog, TokenCatalogOp,
+    NodeCatalogOp, RestoreBatch, SetRetentionPeriodLog, StorageModeOp, TokenCatalogOp,
 };
 use crate::channel::versions::v2::CatalogUpdateReceiver;
 
@@ -67,6 +67,14 @@ impl CatalogMetrics {
                                 metrics.catalog_operations.record(op);
                             }
                         }
+                        CatalogBatch::StorageMode(storage_mode_batch) => {
+                            for op in &storage_mode_batch.ops {
+                                metrics.catalog_operations.record(op);
+                            }
+                        }
+                        CatalogBatch::Restore(restore_batch) => {
+                            metrics.catalog_operations.record(restore_batch);
+                        }
                     }
                 }
             }
@@ -113,6 +121,7 @@ impl AsMetricStr for TokenCatalogOp {
             TokenCatalogOp::CreateAdminToken(_) => "create_admin_token",
             TokenCatalogOp::RegenerateAdminToken(_) => "regenerate_admin_token",
             TokenCatalogOp::DeleteToken(_) => "delete_token",
+            TokenCatalogOp::CreateResourceScopedToken(_) => "create_resource_scoped_token",
         }
     }
 }
@@ -133,11 +142,19 @@ impl AsMetricStr for DatabaseCatalogOp {
             DatabaseCatalogOp::DeleteTrigger(_) => "delete_trigger",
             DatabaseCatalogOp::EnableTrigger(_) => "enable_trigger",
             DatabaseCatalogOp::DisableTrigger(_) => "disable_trigger",
-            DatabaseCatalogOp::SetRetentionPeriod(SetRetentionPeriodLog { .. }) => {
-                "set_retention_period_db"
+            DatabaseCatalogOp::SetRetentionPeriod(SetRetentionPeriodLog { table, .. }) => {
+                if table.is_some() {
+                    "set_retention_period_table"
+                } else {
+                    "set_retention_period_db"
+                }
             }
-            DatabaseCatalogOp::ClearRetentionPeriod(ClearRetentionPeriodLog { .. }) => {
-                "clear_retention_period_db"
+            DatabaseCatalogOp::ClearRetentionPeriod(ClearRetentionPeriodLog { table, .. }) => {
+                if table.is_some() {
+                    "clear_retention_period_table"
+                } else {
+                    "clear_retention_period_db"
+                }
             }
         }
     }
@@ -157,6 +174,20 @@ impl AsMetricStr for GenerationOp {
         match self {
             GenerationOp::SetGenerationDuration(_) => "set_generation_duration",
         }
+    }
+}
+
+impl AsMetricStr for StorageModeOp {
+    fn as_metric_str(&self) -> &'static str {
+        match self {
+            StorageModeOp::Set(_) => "set_storage_mode",
+        }
+    }
+}
+
+impl AsMetricStr for RestoreBatch {
+    fn as_metric_str(&self) -> &'static str {
+        "restore"
     }
 }
 

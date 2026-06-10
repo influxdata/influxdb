@@ -1,5 +1,6 @@
 ---
 source: influxdb3_catalog/src/catalog/versions/v2/update/tests.rs
+assertion_line: 688
 expression: catalog.snapshot()
 ---
 {
@@ -32,7 +33,8 @@ expression: catalog.snapshot()
             "next_id": 0
           },
           "deleted": false,
-          "hard_delete_time": null
+          "hard_delete_time": null,
+          "hard_delete_scope": null
         }
       ],
       [
@@ -164,6 +166,12 @@ expression: catalog.snapshot()
                     ],
                     "next_id": 1
                   },
+                  "retention_period": {
+                    "Duration": {
+                      "secs": 0,
+                      "nanos": 600
+                    }
+                  },
                   "last_caches": {
                     "repo": [],
                     "next_id": 0
@@ -174,7 +182,8 @@ expression: catalog.snapshot()
                   },
                   "deleted": false,
                   "hard_delete_time": null,
-                  "field_family_mode": "auto"
+                  "field_family_mode": "auto",
+                  "hard_delete_scope": null
                 }
               ]
             ],
@@ -186,7 +195,8 @@ expression: catalog.snapshot()
             "next_id": 0
           },
           "deleted": false,
-          "hard_delete_time": null
+          "hard_delete_time": null,
+          "hard_delete_scope": null
         }
       ]
     ],

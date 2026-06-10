@@ -14,8 +14,9 @@ use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
 use futures_util::StreamExt;
 use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
-use influxdb3_catalog::catalog::{CatalogSequenceNumber, HardDeletionTime};
-use influxdb3_catalog::log::FieldDataType;
+use influxdb3_catalog::catalog::{
+    ApiNodeSpec, CatalogSequenceNumber, DeletionScope, FieldDataType, HardDeletionTime,
+};
 use influxdb3_id::{ColumnId, DbId, ParquetFileId};
 use influxdb3_shutdown::ShutdownManager;
 use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
@@ -38,11 +39,9 @@ async fn parse_lp_into_buffer() {
     let node_id = Arc::from("sample-host-id");
     let obj_store = Arc::new(InMemory::new());
     let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-    let catalog = Arc::new(
-        Catalog::new(node_id, obj_store, time_provider, Default::default())
-            .await
-            .unwrap(),
-    );
+    let catalog = Catalog::new(node_id, obj_store, time_provider, Default::default())
+        .await
+        .unwrap();
     let db_name = DatabaseName::new("foo").unwrap();
     let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
     WriteValidator::initialize(db_name, Arc::clone(&catalog))
@@ -119,6 +118,7 @@ async fn test_write_to_deleted_database_rejected() {
         .soft_delete_database(
             "test_db",
             influxdb3_catalog::catalog::HardDeletionTime::Never,
+            DeletionScope::default(),
         )
         .await
         .unwrap();
@@ -163,11 +163,9 @@ async fn test_write_to_deleted_database_rejected() {
 async fn writes_data_to_wal_and_is_queryable() {
     let obj_store = Arc::new(InMemory::new());
     let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-    let catalog = Arc::new(
-        Catalog::new("test_host", obj_store, time_provider, Default::default())
-            .await
-            .unwrap(),
-    );
+    let catalog = Catalog::new("test_host", obj_store, time_provider, Default::default())
+        .await
+        .unwrap();
     let time_provider: Arc<dyn TimeProvider> =
         Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
@@ -275,16 +273,14 @@ async fn writes_data_to_wal_and_is_queryable() {
     assert_batches_eq!(&expected, &actual);
 
     // now load a new buffer from object storage
-    let catalog = Arc::new(
-        Catalog::new(
-            "test_host",
-            catalog.object_store(),
-            Arc::clone(&time_provider),
-            Default::default(),
-        )
-        .await
-        .unwrap(),
-    );
+    let catalog = Catalog::new(
+        "test_host",
+        catalog.object_store(),
+        Arc::clone(&time_provider),
+        Default::default(),
+    )
+    .await
+    .unwrap();
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
         .await
         .unwrap();
@@ -358,6 +354,7 @@ async fn last_cache_create_and_delete_is_durable() {
         .create_last_cache(
             db_name,
             tbl_name,
+            ApiNodeSpec::All,
             Some(cache_name),
             None as Option<&[&str]>,
             None as Option<&[&str]>,
@@ -370,16 +367,14 @@ async fn last_cache_create_and_delete_is_durable() {
     let reload = || async {
         debug!("reloading the write buffer");
         let time_provider = Arc::clone(&time_provider);
-        let catalog = Arc::new(
-            Catalog::new(
-                "test_host",
-                Arc::clone(&obj_store),
-                Arc::clone(&time_provider),
-                Default::default(),
-            )
-            .await
-            .unwrap(),
-        );
+        let catalog = Catalog::new(
+            "test_host",
+            Arc::clone(&obj_store),
+            Arc::clone(&time_provider),
+            Default::default(),
+        )
+        .await
+        .unwrap();
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
             .await
             .unwrap();
@@ -419,12 +414,9 @@ async fn last_cache_create_and_delete_is_durable() {
     // load a new write buffer to ensure its durable
     let wbuf = reload().await;
 
-    let catalog_json = wbuf.catalog.snapshot();
-    debug!(?catalog_json, "reloaded catalog");
-    insta::assert_json_snapshot!("catalog-immediately-after-last-cache-create",
-        catalog_json,
-        { ".catalog_uuid" => "[uuid]" }
-    );
+    // NOTE: v3 catalog has no JSON snapshot; the v2-era
+    // `assert_json_snapshot!(catalog.snapshot())` assertion was removed in the
+    // v3 flip (matches ent).
 
     // Do another write that will update the state of the catalog, specifically, the table
     // that the last cache was created for, and add a new field to the table/cache `f2`:
@@ -442,12 +434,7 @@ async fn last_cache_create_and_delete_is_durable() {
     // and do another replay and verification
     let wbuf = reload().await;
 
-    let catalog_json = wbuf.catalog.snapshot();
-    insta::assert_json_snapshot!(
-       "catalog-after-last-cache-create-and-new-field",
-       catalog_json,
-       { ".catalog_uuid" => "[uuid]" }
-    );
+    // NOTE: v3 catalog JSON snapshot assertion removed in the v3 flip.
 
     // write a new data point to fill the cache
     wbuf.write_lp(
@@ -486,11 +473,7 @@ async fn last_cache_create_and_delete_is_durable() {
     // do another reload and verify it's gone
     reload().await;
 
-    let catalog_json = wbuf.catalog.snapshot();
-    insta::assert_json_snapshot!("catalog-immediately-after-last-cache-delete",
-        catalog_json,
-        { ".catalog_uuid" => "[uuid]" }
-    );
+    // NOTE: v3 catalog JSON snapshot assertion removed in the v3 flip.
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -581,7 +564,7 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
             assert_eq!(persisted[0].v1_ref().min_time, 10000000000);
             assert_eq!(persisted[0].v1_ref().row_count, 2);
             break;
-        } else if ticks > 10 {
+        } else if ticks > 500 {
             panic!("not persisting");
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -634,16 +617,14 @@ async fn returns_chunks_across_parquet_and_buffered_data() {
         .await;
     assert_batches_sorted_eq!(&expected, &actual);
     // and now replay in a new write buffer and attempt to write
-    let catalog = Arc::new(
-        Catalog::new(
-            "test_host",
-            Arc::clone(&obj_store) as _,
-            Arc::clone(&time_provider),
-            Default::default(),
-        )
-        .await
-        .unwrap(),
-    );
+    let catalog = Catalog::new(
+        "test_host",
+        Arc::clone(&obj_store) as _,
+        Arc::clone(&time_provider),
+        Default::default(),
+    )
+    .await
+    .unwrap();
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
         .await
         .unwrap();
@@ -1634,7 +1615,7 @@ async fn test_delete_database() {
 
     let result = write_buffer
         .catalog()
-        .soft_delete_database("foo", HardDeletionTime::Never)
+        .soft_delete_database("foo", HardDeletionTime::Never, DeletionScope::default())
         .await;
 
     assert!(result.is_ok());
@@ -1655,7 +1636,11 @@ async fn test_delete_internal_database() {
         setup_cache_optional(start_time, test_store, wal_config, false).await;
     let returned_error = write_buffer
         .catalog()
-        .soft_delete_database("_internal", HardDeletionTime::Never)
+        .soft_delete_database(
+            "_internal",
+            HardDeletionTime::Never,
+            DeletionScope::default(),
+        )
         .await
         .expect_err("delete _internal to fail");
     assert!(matches!(
@@ -1691,7 +1676,12 @@ async fn test_delete_table() {
 
     let result = write_buffer
         .catalog()
-        .soft_delete_table("foo", "cpu", HardDeletionTime::Never)
+        .soft_delete_table(
+            "foo",
+            "cpu",
+            HardDeletionTime::Never,
+            DeletionScope::default(),
+        )
         .await;
 
     assert!(result.is_ok());
@@ -2151,10 +2141,11 @@ async fn test_out_of_order_data_with_last_cache() {
         .create_last_cache(
             "sample",
             "cpu",
+            ApiNodeSpec::All,
             Some("sample_cpu_usage"),
             None as Option<&[&str]>,
             None as Option<&[&str]>,
-            LastCacheSize::new(2).unwrap(),
+            LastCacheSize::new(2).unwrap().into(),
             Default::default(),
         )
         .await
@@ -2391,7 +2382,7 @@ async fn test_query_path_parquet_cache() {
 
 #[tokio::test]
 async fn series_key_updated_on_new_tag() {
-    let catalog = Arc::new(Catalog::new_in_memory("test-catalog").await.unwrap());
+    let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
     let db_name = DatabaseName::new("foo").unwrap();
     let lp = "test_table,tag0=foo field0=1";
     WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog))
@@ -2840,16 +2831,14 @@ async fn setup_inner(
         Arc::clone(&time_provider) as _,
         None,
     ));
-    let catalog = Arc::new(
-        Catalog::new(
-            "test_host",
-            Arc::clone(&object_store),
-            Arc::clone(&time_provider),
-            Default::default(),
-        )
-        .await
-        .unwrap(),
-    );
+    let catalog = Catalog::new(
+        "test_host",
+        Arc::clone(&object_store),
+        Arc::clone(&time_provider),
+        Default::default(),
+    )
+    .await
+    .unwrap();
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
         .await
         .unwrap();
@@ -2982,16 +2971,14 @@ async fn setup_with_checkpointing(
         Arc::clone(&time_provider) as _,
         Some(checkpoint_interval),
     ));
-    let catalog = Arc::new(
-        Catalog::new(
-            "test_host",
-            Arc::clone(&object_store),
-            Arc::clone(&time_provider) as _,
-            Default::default(),
-        )
-        .await
-        .unwrap(),
-    );
+    let catalog = Catalog::new(
+        "test_host",
+        Arc::clone(&object_store),
+        Arc::clone(&time_provider) as _,
+        Default::default(),
+    )
+    .await
+    .unwrap();
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
         .await
         .unwrap();

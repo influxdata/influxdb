@@ -3,38 +3,43 @@ use std::ops::Add;
 use std::sync::Arc;
 
 use super::{
-    CATALOG_WRITE_PERMIT, Catalog, CatalogSequenceNumber, CatalogWritePermit, ColumnDefinition,
-    DatabaseSchema, FieldColumn, FieldFamilyDefinition, FieldFamilyMode, FieldFamilyName,
-    NUM_FIELDS_PER_FAMILY_LIMIT, NUM_TAG_COLUMNS_LIMIT, NodeState, TableDefinition, TagColumn,
-    TimestampColumn,
+    ApiNodeSpec, CATALOG_WRITE_PERMIT, Catalog, CatalogSequenceNumber, CatalogWritePermit,
+    ColumnDefinition, DatabaseSchema, DeletionScope, FieldColumn, FieldFamilyDefinition,
+    FieldFamilyMode, FieldFamilyName, NUM_FIELD_FAMILIES_LIMIT, NUM_FIELDS_PER_FAMILY_LIMIT,
+    NUM_TAG_COLUMNS_LIMIT, NodeState, TableDefinition, TagColumn, TimestampColumn,
 };
 use crate::catalog::versions::v2::field::{
     FieldName, parse_field_name_auto, parse_field_name_aware,
 };
 use crate::catalog::{TIME_COLUMN_NAME, key};
+use crate::error::enterprise::EnterpriseCatalogError;
 use crate::log::versions::v4::ColumnDefinitionLog;
 use crate::resource::CatalogResource;
 use crate::{
     CatalogError, Result,
     catalog::{DEFAULT_OPERATOR_TOKEN_NAME, INTERNAL_DB_NAME},
+    error,
     log::versions::v4::{
-        AddColumnsLog, CatalogBatch, ClearRetentionPeriodLog, CreateDatabaseLog, CreateTableLog,
-        DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteOp,
+        AddColumnsLog, CacheSource, CatalogBatch, ClearRetentionPeriodLog, CreateDatabaseLog,
+        CreateTableLog, DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteOp,
         DeleteTokenDetails, DeleteTriggerLog, DistinctCacheDefinition, FieldDataType,
         FieldFamilyDefinitionLog, GenerationOp, LastCacheDefinition, LastCacheSize, LastCacheTtl,
-        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
-        OrderedCatalogBatch, RegisterNodeLog, RetentionPeriod, SetGenerationDurationLog,
-        SetRetentionPeriodLog, SoftDeleteDatabaseLog, SoftDeleteTableLog, StopNodeLog, TokenBatch,
-        TokenCatalogOp, TriggerDefinition, TriggerIdentifier, TriggerSettings,
-        TriggerSpecificationDefinition, ValidPluginFilename,
+        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode, NodeModes,
+        NodeSpec, OrderedCatalogBatch, RefreshInterval, RegisterNodeLog, RetentionPeriod,
+        SetGenerationDurationLog, SetRetentionPeriodLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
+        StopNodeLog, StorageMode, StorageModeOp, TokenBatch, TokenCatalogOp, TriggerDefinition,
+        TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
 };
-use bimap::BiHashMap;
+use ahash::RandomState as AHashBuilder;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
+
+// Type alias for BiHashMap with AHash for better performance and DoS resistance
+type BiHashMap<L, R> = bimap::BiHashMap<L, R, AHashBuilder, AHashBuilder>;
 use influxdb3_id::{
-    CatalogId, ColumnIdentifier, DbId, FieldFamilyId, FieldIdentifier, TableId, TagId,
+    CatalogId, ColumnId, ColumnIdentifier, DbId, FieldFamilyId, FieldIdentifier, TableId, TagId,
 };
 use influxdb3_process::ProcessUuidGetter;
 use iox_time::{Time, TimeProvider};
@@ -43,6 +48,7 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use std::time::Duration;
 use uuid::Uuid;
 
+mod enterprise;
 #[derive(Clone, Copy, Debug)]
 pub enum HardDeletionTime {
     /// The object will never be hard deleted.
@@ -99,6 +105,7 @@ impl CreateDatabaseOptions {
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct CreateTableOptions {
+    pub retention_period: Option<Duration>,
     pub field_family_mode: FieldFamilyMode,
 }
 
@@ -110,17 +117,18 @@ impl Catalog {
             Some(database_schema) => Ok(DatabaseCatalogTransaction {
                 catalog_sequence: inner.sequence_number(),
                 current_table_count: inner.table_count(),
-                table_limit: self.num_tables_limit(),
+                table_limit: self.num_tables_limit(&self.usage),
+                storage_mode: inner.storage_mode,
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 database_schema: Arc::clone(&database_schema),
                 tables: Repo::new(),
                 next_table_id: database_schema.tables.next_id,
                 ops: vec![],
-                columns_per_table_limit: self.num_columns_per_table_limit(),
+                columns_per_table_limit: self.num_columns_per_table_limit(&self.usage),
             }),
             None => {
-                if inner.database_count() >= self.num_dbs_limit() {
-                    return Err(CatalogError::TooManyDbs(self.num_dbs_limit()));
+                if inner.database_count() >= self.num_dbs_limit(&self.usage) {
+                    return Err(CatalogError::TooManyDbs(self.num_dbs_limit(&self.usage)));
                 }
                 drop(inner);
                 let mut inner = self.inner.write();
@@ -141,13 +149,14 @@ impl Catalog {
                 Ok(DatabaseCatalogTransaction {
                     catalog_sequence: inner.sequence_number(),
                     current_table_count: inner.table_count(),
-                    table_limit: self.num_tables_limit(),
+                    table_limit: self.num_tables_limit(&self.usage),
+                    storage_mode: inner.storage_mode,
                     time_ns,
                     database_schema,
                     tables: Repo::new(),
                     next_table_id: 0.into(),
                     ops,
-                    columns_per_table_limit: self.num_columns_per_table_limit(),
+                    columns_per_table_limit: self.num_columns_per_table_limit(&self.usage),
                 })
             }
         }
@@ -186,17 +195,7 @@ impl Catalog {
         info!(duration_ns = duration.as_nanos(), "set gen1 duration");
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
-            if let Some(existing) = self.get_generation_duration(1) {
-                if duration != existing {
-                    return Err(CatalogError::CannotChangeGenerationDuration {
-                        level: 1,
-                        existing: existing.into(),
-                        attempted: duration.into(),
-                    });
-                } else {
-                    return Err(CatalogError::AlreadyExists);
-                }
-            }
+            self.inner.read().check_generation_duration(1, duration)?;
             Ok(CatalogBatch::generation(
                 time_ns,
                 vec![GenerationOp::SetGenerationDuration(
@@ -207,20 +206,83 @@ impl Catalog {
         .await
     }
 
+    pub async fn set_storage_mode(&self, storage_mode: StorageMode) -> Result<OrderedCatalogBatch> {
+        info!(?storage_mode, "set storage mode");
+        self.catalog_update_with_retry(|| {
+            let time_ns = self.time_provider.now().timestamp_nanos();
+            match (self.inner.read().storage_mode, storage_mode) {
+                (StorageMode::Parquet, StorageMode::ParquetAndPachaTree)
+                | (StorageMode::ParquetAndPachaTree, StorageMode::PachaTree) => Ok(
+                    CatalogBatch::storage_mode(time_ns, vec![StorageModeOp::Set(storage_mode)]),
+                ),
+                (from, to) if from == to => Err(CatalogError::NoCatalogChange {
+                    details: format!("storage mode is already {to:?}"),
+                }),
+                (from, to) => Err(CatalogError::Internal {
+                    details: format!("invalid storage mode transition from {from} to {to}"),
+                }),
+            }
+        })
+        .await
+    }
+
+    /// Set storage mode to Parquet for the CLI downgrade command.
+    ///
+    /// Normal storage mode transitions only allow forward progression:
+    /// `Parquet -> ParquetAndPachaTree -> PachaTree`. This method allows
+    /// reverting directly to Parquet from any state, which is necessary
+    /// when rolling back an upgrade.
+    ///
+    /// # Safety
+    ///
+    /// This should only be called by the `downgrade-to-parquet` CLI command
+    /// after verifying all cluster nodes are stopped. Calling this while
+    /// nodes are running will cause data inconsistencies.
+    pub async fn downgrade_storage_mode_to_parquet(&self) -> Result<OrderedCatalogBatch> {
+        info!("downgrade storage mode to parquet");
+        self.catalog_update_with_retry(|| {
+            let time_ns = self.time_provider.now().timestamp_nanos();
+            let current = self.inner.read().storage_mode;
+            if current == StorageMode::Parquet {
+                return Err(CatalogError::NoCatalogChange {
+                    details: "storage mode is already Parquet".to_string(),
+                });
+            }
+            Ok(CatalogBatch::storage_mode(
+                time_ns,
+                vec![StorageModeOp::Set(StorageMode::Parquet)],
+            ))
+        })
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub async fn register_node(
         &self,
         node_id: &str,
         core_count: u64,
         mode: Vec<NodeMode>,
         process_uuid_getter: Arc<dyn ProcessUuidGetter>,
+        instance_id: Arc<str>,
+        conn_info: Option<String>,
         cli_params: Option<String>,
+        row_delete_predicate_version: usize,
     ) -> Result<OrderedCatalogBatch> {
-        info!(node_id, core_count, mode = ?mode, cli_params = ?cli_params, "register node");
+        info!(
+            node_id,
+            core_count,
+            mode = ?mode,
+            conn_info = conn_info.as_deref().unwrap_or("<none>"),
+            "register node"
+        );
         let process_uuid = *process_uuid_getter.get_process_uuid();
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
             let (node_catalog_id, node_id, instance_id) = if let Some(node) = self.node(node_id) {
-                if let NodeState::Running { .. } = node.state {
+                // Allow re-registration of stopped nodes
+                if let NodeState::Stopped { .. } = node.state {
+                    info!(node_id, "Re-registering previously stopped node");
+                } else if let NodeState::Running { .. } = node.state {
                     // If the node is in the catalog as `Running`, that could mean that a previous
                     // process that started the node did not stop gracefully. We just log this here
                     // and do not fail the operation. It is assumed that this catalog update will be
@@ -238,7 +300,6 @@ impl Catalog {
                     Arc::clone(&node.instance_id),
                 )
             } else {
-                let instance_id = Arc::<str>::from(Uuid::new_v4().to_string().as_str());
                 info!(
                     node_id,
                     instance_id = instance_id.as_ref(),
@@ -246,7 +307,7 @@ impl Catalog {
                 );
                 let mut inner = self.inner.write();
                 let node_catalog_id = inner.nodes.get_and_increment_next_id();
-                (node_catalog_id, node_id.into(), instance_id)
+                (node_catalog_id, node_id.into(), Arc::clone(&instance_id))
             };
             Ok(CatalogBatch::node(
                 time_ns,
@@ -259,7 +320,9 @@ impl Catalog {
                     core_count,
                     mode: mode.clone(),
                     process_uuid,
+                    conn_info: conn_info.clone(),
                     cli_params: cli_params.clone(),
+                    row_delete_predicate_version,
                 })],
             ))
         })
@@ -301,6 +364,33 @@ impl Catalog {
         .await
     }
 
+    /// Administratively stop a node in the cluster (permanent removal)
+    pub async fn stop_node(&self, node_id: &str) -> Result<OrderedCatalogBatch> {
+        info!(node_id, "administratively stopping node in catalog");
+        self.catalog_update_with_retry(|| {
+            let time_ns = self.time_provider.now().timestamp_nanos();
+            let Some(node) = self.node(node_id) else {
+                return Err(crate::CatalogError::NotFound(node_id.to_string()));
+            };
+            if !node.is_running() {
+                return Err(crate::CatalogError::NodeAlreadyStopped {
+                    node_id: Arc::clone(&node.node_id),
+                });
+            }
+            Ok(CatalogBatch::node(
+                time_ns,
+                node.node_catalog_id,
+                Arc::clone(&node.node_id),
+                vec![NodeCatalogOp::StopNode(StopNodeLog {
+                    node_id: Arc::clone(&node.node_id),
+                    stopped_time_ns: time_ns,
+                    process_uuid: Uuid::nil(), // Use nil UUID for administrative stops
+                })],
+            ))
+        })
+        .await
+    }
+
     pub async fn create_database(&self, name: &str) -> Result<OrderedCatalogBatch> {
         self.create_database_opts(name, CreateDatabaseOptions::default())
             .await
@@ -330,6 +420,7 @@ impl Catalog {
         &self,
         db_name: &str,
         hard_delete_time: HardDeletionTime,
+        hard_delete_scope: DeletionScope,
     ) -> Result<OrderedCatalogBatch> {
         self.catalog_update_with_retry(|| {
             if db_name == INTERNAL_DB_NAME {
@@ -348,10 +439,18 @@ impl Catalog {
                 hard_delete_time.as_time(&self.time_provider, self.default_hard_delete_duration())
             };
 
-            let hard_delete_changed = db.hard_delete_time != resolved_hard_delete_time;
-            if db.deleted && !hard_delete_changed {
+            let hard_delete_time_changed = db.hard_delete_time != resolved_hard_delete_time;
+            if db.deleted && !hard_delete_time_changed {
                 return Err(CatalogError::AlreadyDeleted(db_name.to_string()));
             }
+
+            // If the database is already deleted, we do not allow changing the hard delete scope,
+            // as that could lead to confusion about what data/resource is expected to be deleted.
+            let hard_delete_scope = hard_delete_scope.as_option();
+            if db.deleted && (hard_delete_scope != db.hard_delete_scope) {
+                return Err(CatalogError::AlreadyDeleted(db_name.to_string()));
+            }
+
             let deletion_time = self.time_provider.now().timestamp_nanos();
             let database_id = db.id;
             Ok(CatalogBatch::database(
@@ -364,6 +463,7 @@ impl Catalog {
                         database_name: db.name(),
                         deletion_time,
                         hard_deletion_time: resolved_hard_delete_time.map(|t|t.timestamp_nanos()),
+                        hard_delete_scope,
                     },
                 )],
             ))
@@ -414,6 +514,7 @@ impl Catalog {
             txn.create_table(
                 table_name,
                 Some(CreateTableColumns { tags, fields }),
+                options.retention_period,
                 options.field_family_mode,
             )?;
             Ok(txn.into())
@@ -426,6 +527,7 @@ impl Catalog {
         db_name: &str,
         table_name: &str,
         hard_delete_time: HardDeletionTime,
+        hard_delete_scope: DeletionScope,
     ) -> Result<OrderedCatalogBatch> {
         self.catalog_update_with_retry(|| {
             let db = self.active_db(db_name)?;
@@ -441,10 +543,18 @@ impl Catalog {
                 hard_delete_time.as_time(&self.time_provider, self.default_hard_delete_duration())
             };
 
-            let hard_delete_changed = tbl_def.hard_delete_time != resolved_hard_delete_time;
-            if tbl_def.deleted && !hard_delete_changed {
+            let hard_delete_time_changed = tbl_def.hard_delete_time != resolved_hard_delete_time;
+            if tbl_def.deleted && !hard_delete_time_changed {
                 return Err(CatalogError::AlreadyDeleted(table_name.to_string()));
             }
+
+            // If the table is already deleted, we do not allow changing the hard delete scope,
+            // as that could lead to confusion about what data/resource is expected to be deleted.
+            let hard_delete_scope = hard_delete_scope.as_option();
+            if tbl_def.deleted && (hard_delete_scope != tbl_def.hard_delete_scope) {
+                return Err(CatalogError::AlreadyDeleted(table_name.to_string()));
+            }
+
             let deletion_time = self.time_provider.now().timestamp_nanos();
             Ok(CatalogBatch::database(
                 deletion_time,
@@ -457,6 +567,7 @@ impl Catalog {
                     table_name: Arc::clone(&tbl_def.table_name),
                     deletion_time,
                     hard_deletion_time: resolved_hard_delete_time.map(|t|t.timestamp_nanos()),
+                    hard_delete_scope,
                 })],
             ))
         })
@@ -494,7 +605,7 @@ impl Catalog {
                 return Err(CatalogError::NotFound(format!("database id: {}", db_id)));
             };
             let Some(_table_def) = db.table_definition_by_id(table_id) else {
-                return Err(CatalogError::NotFound(format!("database id: {}", table_id)));
+                return Err(CatalogError::NotFound(format!("table id: {}", db_id)));
             };
 
             let deletion_time = self.time_provider.now().timestamp_nanos();
@@ -542,6 +653,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
+        node_spec: ApiNodeSpec,
         cache_name: Option<&str>,
         columns: &[impl AsRef<str> + Send + Sync],
         max_cardinality: MaxCardinality,
@@ -609,11 +721,15 @@ impl Catalog {
                     DistinctCacheDefinition {
                         table_id: tbl.table_id,
                         table_name: Arc::clone(&tbl.table_name),
+                        node_spec: NodeSpec::try_from((node_spec.clone(), self))?,
                         cache_id,
                         cache_name,
                         column_ids,
                         max_cardinality,
                         max_age_seconds,
+                        source: CacheSource::default(), // Default to User-created
+                        lookback_seconds: None,
+                        refresh_interval: None,
                     },
                 )],
             ))
@@ -655,11 +771,137 @@ impl Catalog {
         .await
     }
 
+    /// Delete the auto-generated distinct cache for a table.
+    ///
+    /// This is used when expanding an auto cache - the old one is deleted
+    /// and a new one with more columns is created.
+    pub async fn delete_auto_distinct_cache(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+    ) -> Result<OrderedCatalogBatch> {
+        info!(%db_id, %table_id, "delete auto distinct cache");
+        self.catalog_update_with_retry(|| {
+            let Some(db) = self.db_schema_by_id(&db_id) else {
+                return Err(CatalogError::NotFound(format!("database id {db_id}")));
+            };
+            let Some(tbl) = db.table_definition_by_id(&table_id) else {
+                return Err(CatalogError::NotFound(format!("table id {table_id}")));
+            };
+            let cache_name = DistinctCacheDefinition::auto_cache_name();
+            let Some(cache) = tbl.distinct_caches.get_by_name(&cache_name) else {
+                return Err(CatalogError::NotFound(format!(
+                    "auto cache for table {table_id}"
+                )));
+            };
+            Ok(CatalogBatch::database(
+                self.time_provider.now().timestamp_nanos(),
+                db.id,
+                db.name(),
+                vec![DatabaseCatalogOp::DeleteDistinctCache(
+                    DeleteDistinctCacheLog {
+                        table_id: tbl.table_id,
+                        table_name: Arc::clone(&tbl.table_name),
+                        cache_id: cache.cache_id,
+                        cache_name: Arc::clone(&cache.cache_name),
+                    },
+                )],
+            ))
+        })
+        .await
+    }
+
+    /// Create an auto-generated distinct value cache.
+    ///
+    /// This is used by the cache generator to create caches automatically
+    /// when users query for distinct tag values. Unlike user-created caches,
+    /// auto-generated caches:
+    /// - Use the reserved name `__auto__`
+    /// - Have `CacheSource::Auto` to distinguish them from user-created caches
+    /// - Include `lookback_seconds` for the query time window
+    /// - Include `refresh_interval` for periodic refresh
+    ///
+    /// Only one auto-generated cache per table is allowed.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_auto_distinct_cache(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        tag_ids: &[TagId],
+        max_cardinality: MaxCardinality,
+        max_age_seconds: MaxAge,
+        lookback_seconds: u64,
+        refresh_interval: RefreshInterval,
+    ) -> Result<OrderedCatalogBatch> {
+        info!(%db_id, %table_id, tags = ?tag_ids, "create auto distinct cache");
+        self.catalog_update_with_retry(|| {
+            let Some(db) = self.db_schema_by_id(&db_id) else {
+                return Err(CatalogError::NotFound(format!("database id {db_id}")));
+            };
+            let Some(mut tbl) = db.table_definition_by_id(&table_id) else {
+                return Err(CatalogError::NotFound(format!("table id {table_id}")));
+            };
+
+            if tag_ids.is_empty() {
+                return Err(CatalogError::invalid_configuration(
+                    "no tag columns provided when creating auto distinct cache",
+                ));
+            }
+
+            // Check for existing auto cache
+            let cache_name = DistinctCacheDefinition::auto_cache_name();
+            if tbl.distinct_caches.contains_name(&cache_name) {
+                return Err(CatalogError::AlreadyExists);
+            }
+
+            // Validate all tags exist and build column identifiers
+            let column_ids: Vec<ColumnIdentifier> = tag_ids
+                .iter()
+                .map(|tag_id| {
+                    if tbl.tag_columns.get_by_id(tag_id).is_some() {
+                        Ok(ColumnIdentifier::Tag(*tag_id))
+                    } else {
+                        Err(CatalogError::invalid_configuration(
+                            format!("invalid tag id provided: {tag_id}").as_str(),
+                        ))
+                    }
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            let cache_id = Arc::make_mut(&mut tbl)
+                .distinct_caches
+                .get_and_increment_next_id();
+
+            Ok(CatalogBatch::database(
+                self.time_provider.now().timestamp_nanos(),
+                db.id,
+                db.name(),
+                vec![DatabaseCatalogOp::CreateDistinctCache(
+                    DistinctCacheDefinition {
+                        table_id: tbl.table_id,
+                        table_name: Arc::clone(&tbl.table_name),
+                        node_spec: NodeSpec::All,
+                        cache_id,
+                        cache_name,
+                        column_ids,
+                        max_cardinality,
+                        max_age_seconds,
+                        source: CacheSource::Auto,
+                        lookback_seconds: Some(lookback_seconds),
+                        refresh_interval: Some(refresh_interval),
+                    },
+                )],
+            ))
+        })
+        .await
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn create_last_cache(
         &self,
         db_name: &str,
         table_name: &str,
+        node_spec: ApiNodeSpec,
         cache_name: Option<&str>,
         key_columns: Option<&[impl AsRef<str> + Send + Sync]>,
         value_columns: Option<&[impl AsRef<str> + Send + Sync]>,
@@ -763,6 +1005,7 @@ impl Catalog {
                     table_id: tbl.table_id,
                     table: Arc::clone(&tbl.table_name),
                     id: cache_id,
+                    node_spec: NodeSpec::try_from((node_spec.clone(), self))?,
                     name: cache_name,
                     key_columns: key_ids,
                     value_columns,
@@ -812,8 +1055,8 @@ impl Catalog {
         &self,
         db_name: &str,
         trigger_name: &str,
-        node_id: Arc<str>,
         plugin_filename: ValidPluginFilename<'_>,
+        node_spec: ApiNodeSpec,
         trigger_specification: &str,
         trigger_settings: TriggerSettings,
         trigger_arguments: &Option<HashMap<String, String>>,
@@ -828,9 +1071,30 @@ impl Catalog {
             if db.processing_engine_triggers.contains_name(trigger_name) {
                 return Err(CatalogError::AlreadyExists);
             }
+
+            /************* Enterprise-specific handling for the different node types *************/
+
+            // if node ids are explicitly identified, make sure they all have the right mode.
+            if let ApiNodeSpec::Nodes(nodes) = &node_spec {
+                let inner = self.inner.read();
+                for node_name in nodes {
+                    let Some(node) = inner.nodes.get_by_name(node_name.as_str()) else {
+                        return Err(CatalogError::InvalidNodeName(node_name.clone()));
+                    };
+                    if !NodeModes::from(node.modes().clone()).is_processor() {
+                        return Err(EnterpriseCatalogError::InvalidNodeMode {
+                            expected: error::enterprise::NodeMode::Process,
+                        })?;
+                    }
+                }
+            }
+
+            /*********** End Enterprise-specific handling for the different node types ***********/
+
             let trigger_id = Arc::make_mut(&mut db)
                 .processing_engine_triggers
                 .get_and_increment_next_id();
+
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
                 db.id,
@@ -840,8 +1104,8 @@ impl Catalog {
                     trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.to_string(),
                     database_name: Arc::clone(&db.name),
-                    node_id: Arc::clone(&node_id),
-                    trigger,
+                    node_spec: NodeSpec::try_from((node_spec.clone(), self))?,
+                    trigger: trigger.clone(),
                     trigger_settings,
                     trigger_arguments: trigger_arguments.clone(),
                     disabled,
@@ -990,6 +1254,7 @@ impl Catalog {
                     SetRetentionPeriodLog {
                         database_name: db.name(),
                         database_id: db.id,
+                        table: None,
                         retention_period: RetentionPeriod::Duration(duration),
                     },
                 )],
@@ -1014,6 +1279,7 @@ impl Catalog {
                     ClearRetentionPeriodLog {
                         database_name: db.name(),
                         database_id: db.id,
+                        table: None,
                     },
                 )],
             ))
@@ -1223,6 +1489,7 @@ pub struct TableTransaction {
     field_family_definitions: Vec<FieldFamilyDefinitionLog>,
     /// Maximum number of columns allowed in this table.
     column_limit: usize,
+    storage_mode: StorageMode,
 }
 
 impl TableTransaction {
@@ -1230,6 +1497,7 @@ impl TableTransaction {
         table: TableDefinition,
         database_schema: Arc<DatabaseSchema>,
         column_limit: usize,
+        storage_mode: StorageMode,
     ) -> Self {
         Self {
             table,
@@ -1237,6 +1505,7 @@ impl TableTransaction {
             column_definitions: vec![],
             field_family_definitions: vec![],
             column_limit,
+            storage_mode,
         }
     }
 
@@ -1263,6 +1532,8 @@ impl From<TableTransaction> for AddColumnsLog {
 impl CatalogResource for TableTransaction {
     type Identifier = TableId;
 
+    const CATEGORY: &'static str = "tables";
+
     fn id(&self) -> Self::Identifier {
         self.table.table_id
     }
@@ -1283,6 +1554,30 @@ impl TableTransaction {
             Err(CatalogError::TooManyColumns(self.column_limit))
         } else {
             Ok(())
+        }
+    }
+
+    #[inline]
+    fn check_field_family_limit(&self) -> Result<()> {
+        if self.table.field_families.len() >= NUM_FIELD_FAMILIES_LIMIT {
+            Err(CatalogError::TooManyFieldFamilies(NUM_FIELD_FAMILIES_LIMIT))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn next_legacy_column_id(&mut self) -> Result<Option<ColumnId>> {
+        match self.storage_mode {
+            StorageMode::PachaTree => Ok(self.table.columns.try_get_and_increment_next_id()),
+            StorageMode::Parquet | StorageMode::ParquetAndPachaTree => self
+                .table
+                .columns
+                .try_get_and_increment_next_id()
+                .map(Some)
+                .ok_or_else(|| CatalogError::LegacyColumnIdsExhausted {
+                    table_name: Arc::clone(&self.table.table_name),
+                    storage_mode: self.storage_mode,
+                }),
         }
     }
 
@@ -1337,26 +1632,23 @@ impl TableTransaction {
         }
 
         self.check_columns_limit()?;
+        self.table.check_name(tag.as_ref())?;
 
-        let table_def = &mut self.table;
-
-        table_def.check_name(tag.as_ref())?;
-
-        let id = table_def.tag_columns.next_id();
+        let id = self.table.tag_columns.next_id();
         // Only increment if id is less than MAX.
         if id < TagId::MAX {
-            table_def.tag_columns.set_next_id(id.next())
+            self.table.tag_columns.set_next_id(id.next())
         }
-        let col_id = table_def.columns.get_and_increment_next_id();
+        let col_id = self.next_legacy_column_id()?;
         let tag_col = Arc::new(TagColumn::new(id, col_id, tag.as_ref()));
 
-        table_def
+        self.table
             .tag_columns
             .insert(id, Arc::clone(&tag_col))
             .expect("no duplicate tag");
 
         let col_def = ColumnDefinition::Tag(Arc::clone(&tag_col));
-        table_def
+        self.table
             .columns
             .insert(col_def.clone())
             .expect("no duplicate column");
@@ -1373,7 +1665,7 @@ impl TableTransaction {
                 existing: InfluxColumnType::Timestamp,
             });
         }
-        let col_id = self.table.columns.get_and_increment_next_id();
+        let col_id = self.next_legacy_column_id()?;
         let time_col = Arc::new(TimestampColumn::new(col_id, TIME_COLUMN_NAME));
         self.table.timestamp_column = Some(Arc::clone(&time_col));
         let col_def = ColumnDefinition::Timestamp(Arc::clone(&time_col));
@@ -1403,7 +1695,7 @@ impl TableTransaction {
         };
 
         let ff_id = match parse_field_name(name.as_ref()) {
-            FieldName::Unqualified(_) => self.next_auto_family_id(),
+            FieldName::Unqualified(_) => self.next_auto_family_id()?,
             FieldName::Qualified(family_name, _) => {
                 if let Some(ffd) = self.table.field_families.get_by_name(family_name) {
                     if ffd.fields.len() >= NUM_FIELDS_PER_FAMILY_LIMIT {
@@ -1414,6 +1706,7 @@ impl TableTransaction {
                     }
                     ffd.id
                 } else {
+                    self.check_field_family_limit()?;
                     // create a new field family
                     let id = self.table.field_families.get_and_increment_next_id();
                     let name = FieldFamilyName::User(family_name.into());
@@ -1432,21 +1725,24 @@ impl TableTransaction {
             }
         };
 
-        let ffd_arc = self
-            .table
-            .field_families
-            .get_mut_by_id(&ff_id)
-            .expect("field family name exists");
+        let col_id = self.next_legacy_column_id()?;
+        let field_col = {
+            let ffd_arc = self
+                .table
+                .field_families
+                .get_mut_by_id(&ff_id)
+                .expect("field family name exists");
 
-        // Use `Arc::make_mut` because `TableTransaction`s are created via cloning `TableDefinition`
-        let ffd = Arc::make_mut(ffd_arc);
-
-        let id = FieldIdentifier::new(ffd.id, ffd.fields.get_and_increment_next_id());
-        let col_id = self.table.columns.get_and_increment_next_id();
-        let field_col = Arc::new(FieldColumn::new(id, col_id, name.as_ref(), data_type));
-        ffd.fields
-            .insert(id.1, Arc::clone(&field_col))
-            .expect("field does not exist");
+            // Use `Arc::make_mut` because `TableTransaction`s are created via cloning
+            // `TableDefinition`s.
+            let ffd = Arc::make_mut(ffd_arc);
+            let id = FieldIdentifier::new(ffd.id, ffd.fields.get_and_increment_next_id());
+            let field_col = Arc::new(FieldColumn::new(id, col_id, name.as_ref(), data_type));
+            ffd.fields
+                .insert(id.1, Arc::clone(&field_col))
+                .expect("field does not exist");
+            field_col
+        };
         self.table.field_count += 1;
 
         let col_def = ColumnDefinition::Field(Arc::clone(&field_col));
@@ -1460,7 +1756,7 @@ impl TableTransaction {
         Ok(field_col)
     }
 
-    fn next_auto_family_id(&mut self) -> FieldFamilyId {
+    fn next_auto_family_id(&mut self) -> Result<FieldFamilyId> {
         // Check if the current field family still has available slots.
         if let Some(id) = self.table.auto_field_family.as_ref() {
             let ffd = self
@@ -1470,10 +1766,11 @@ impl TableTransaction {
                 .expect("auto field family exists");
 
             if ffd.fields.len() < NUM_FIELDS_PER_FAMILY_LIMIT {
-                return *id;
+                return Ok(*id);
             }
         }
 
+        self.check_field_family_limit()?;
         let id = self.table.field_families.get_and_increment_next_id();
         self.table.auto_field_family = Some(id);
         let auto_id = self.table.next_auto_field_family_name;
@@ -1490,7 +1787,7 @@ impl TableTransaction {
         self.field_family_definitions
             .push(FieldFamilyDefinitionLog { id, name });
 
-        id
+        Ok(id)
     }
 }
 
@@ -1500,6 +1797,7 @@ pub struct DatabaseCatalogTransaction {
     current_table_count: usize,
     table_limit: usize,
     columns_per_table_limit: usize,
+    storage_mode: StorageMode,
     time_ns: i64,
     database_schema: Arc<DatabaseSchema>,
     /// A collection of created or modified tables for the current transaction.
@@ -1551,7 +1849,7 @@ impl DatabaseCatalogTransaction {
     pub fn apply_to_inner(&self, inner: &mut super::InnerCatalog) -> Result<Arc<DatabaseSchema>> {
         let (catalog_batch, sequence) = self.clone().catalog_batch();
         inner
-            .apply_catalog_batch(&catalog_batch, sequence)
+            .apply_catalog_batch(&catalog_batch, sequence, None)
             .map(|_| {
                 inner
                     .databases
@@ -1592,6 +1890,7 @@ impl DatabaseCatalogTransaction {
                 def.as_ref().clone(),
                 Arc::clone(&self.database_schema),
                 self.columns_per_table_limit,
+                self.storage_mode,
             );
             self.tables
                 .insert(tx.table.table_id, tx)
@@ -1608,6 +1907,7 @@ impl DatabaseCatalogTransaction {
             None => self.create_table(
                 table_name,
                 create_table_columns::none(),
+                None,
                 FieldFamilyMode::Aware,
             ),
         }
@@ -1649,6 +1949,7 @@ impl DatabaseCatalogTransaction {
         &mut self,
         table_name: &str,
         columns: Option<CreateTableColumns<'_, T, F>>,
+        retention_period: Option<Duration>,
         field_family_mode: FieldFamilyMode,
     ) -> Result<TableId>
     where
@@ -1692,6 +1993,7 @@ impl DatabaseCatalogTransaction {
                 database_name: Arc::clone(&self.database_schema.name),
                 table_name: table_name.into(),
                 table_id,
+                retention_period,
                 field_family_mode,
             }));
 
@@ -1699,6 +2001,7 @@ impl DatabaseCatalogTransaction {
             TableDefinition::new_empty(table_id, table_name.into(), field_family_mode),
             Arc::clone(&self.database_schema),
             self.columns_per_table_limit,
+            self.storage_mode,
         );
 
         if let Some(CreateTableColumns { tags, fields }) = columns {
@@ -1772,7 +2075,10 @@ impl<K: Hash + Eq + Copy + Ord, V: CatalogResource> Repo<K, V> {
     pub(crate) fn new() -> Self {
         Self {
             repo: IndexMap::new(),
-            id_name_map: BiHashMap::new(),
+            id_name_map: bimap::BiHashMap::with_hashers(
+                AHashBuilder::default(),
+                AHashBuilder::default(),
+            ),
         }
     }
 

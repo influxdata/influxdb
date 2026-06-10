@@ -83,3 +83,17 @@ fn assert_mb_gt_zero(s: &'static str) {
     let parsed: MemorySizeMb = s.parse().unwrap();
     assert!(parsed.as_num_bytes() > 0);
 }
+
+#[test]
+fn format_bytes_picks_binary_prefix() {
+    assert_eq!(format_bytes(0), "0B");
+    assert_eq!(format_bytes(512), "512B");
+    assert_eq!(format_bytes(1023), "1023B");
+    assert_eq!(format_bytes(1024), "1.00KiB");
+    assert_eq!(format_bytes(1536), "1.50KiB");
+    assert_eq!(format_bytes(8 * 1024 * 1024), "8.00MiB");
+    assert_eq!(
+        format_bytes((1.5 * 1024.0 * 1024.0 * 1024.0) as usize),
+        "1.50GiB"
+    );
+}

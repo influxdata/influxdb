@@ -168,6 +168,7 @@ pub enum Error {
     #[snafu(display("Failed to resolve address: {}", address))]
     ResolutionError { address: String },
 
+    #[snafu(display("I/O error: {source}"))]
     #[snafu(context(false))]
     IOError { source: std::io::Error },
 }

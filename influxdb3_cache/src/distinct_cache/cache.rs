@@ -12,10 +12,7 @@ use arrow::{
 };
 use indexmap::IndexMap;
 use influxdb3_catalog::catalog::legacy;
-use influxdb3_catalog::{
-    catalog::TableDefinition,
-    log::{MaxAge, MaxCardinality},
-};
+use influxdb3_catalog::catalog::{MaxAge, MaxCardinality, TableDefinition};
 use influxdb3_id::{ColumnId, ColumnIdentifier};
 use influxdb3_wal::{FieldData, Row};
 use iox_time::TimeProvider;

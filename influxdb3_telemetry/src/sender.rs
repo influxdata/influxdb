@@ -4,8 +4,10 @@ use observability_deps::tracing::debug;
 use reqwest::{IntoUrl, Url};
 use serde::Serialize;
 
-use crate::store::TelemetryStore;
-use crate::{Result, TelemetryError};
+use crate::{
+    PluginTriggerInvocation, Result, StorageEngineType, TelemetryError,
+    serialize_storage_engine_type, store::TelemetryStore,
+};
 
 pub(crate) struct TelemetrySender {
     client: reqwest::Client,
@@ -40,15 +42,19 @@ impl TelemetrySender {
 }
 
 /// This is the actual payload that is sent to the telemetry
-/// server
+/// server.
+///
+/// If you change the field names, the json payload will change too.
 #[derive(Serialize, Debug)]
-pub(crate) struct TelemetryPayload {
+pub struct TelemetryPayload {
     pub os: Arc<str>,
     pub version: Arc<str>,
     pub storage_type: Arc<str>,
     pub instance_id: Arc<str>,
     pub cores: usize,
     pub product_type: &'static str,
+    #[serde(serialize_with = "serialize_storage_engine_type")]
+    pub storage_engine_type: StorageEngineType,
     pub uptime_secs: u64,
     // this is the same as catalog_uuid
     // we call it as catalog_uuid everywhere but we save it as cluster_uuid in telemetry as it's
@@ -94,6 +100,8 @@ pub(crate) struct TelemetryPayload {
     pub wal_all_triggers_count: u64,
     pub schedule_triggers_count: u64,
     pub request_triggers_count: u64,
+    pub plugin_trigger_invocations: Vec<PluginTriggerInvocation>,
+    pub installed_packages: Vec<String>,
 }
 
 /// This function runs in the background and if any call fails

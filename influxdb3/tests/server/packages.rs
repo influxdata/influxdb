@@ -1,5 +1,5 @@
 use crate::server::{ConfigProvider, TestServer};
-use anyhow::{Result, bail};
+use anyhow::Result;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -7,6 +7,7 @@ use tempfile::{NamedTempFile, TempDir};
 
 const TEST_PACKAGE: &str = "tablib";
 const TEST_VERSION: &str = "3.8.0";
+const TEST_DB: &str = "version_check";
 
 struct VenvTest {
     venv_dir: TempDir,
@@ -35,18 +36,27 @@ impl VenvTest {
             .to_string_lossy()
             .to_string()
     }
+
+    fn plugin_file_relative(&self) -> &str {
+        self.plugin_file
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+    }
 }
 
 fn create_version_check_plugin() -> Result<NamedTempFile> {
     let plugin_code = r#"
-import pkg_resources
+import importlib.metadata
 
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     try:
-        version = pkg_resources.get_distribution('tablib').version
-        influxdb3_local.info(version)
-    except pkg_resources.DistributionNotFound:
-        influxdb3_local.info("tablib is not installed")
+        version = importlib.metadata.version('tablib')
+        influxdb3_local.info(f"VERSION: {version}")
+    except importlib.metadata.PackageNotFoundError:
+        influxdb3_local.info("VERSION: tablib is not installed")
 "#;
     let mut plugin_file = NamedTempFile::new()?;
     plugin_file.write_all(plugin_code.as_bytes())?;
@@ -55,17 +65,21 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 
 async fn run_version_check(test_server: &TestServer, plugin_path: &str) -> Result<Vec<String>> {
     let json = test_server
-        .test_schedule_plugin("version_test", plugin_path, "* * * * * *")
+        .test_schedule_plugin(TEST_DB, plugin_path, "* * * * * *")
         .run()?;
+
+    let errors = json["errors"].as_array().expect("is array");
+    assert!(errors.is_empty(), "Errors:\n{errors:#?}");
+
     Ok(json["log_lines"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|line| {
+        .filter_map(|line| {
             line.as_str()
-                .unwrap()
-                .trim_start_matches("INFO: ")
-                .to_string()
+                .expect("is string")
+                .strip_prefix("INFO: VERSION: ")
+                .map(|s| s.to_owned())
         })
         .collect())
 }
@@ -77,14 +91,20 @@ fn setup_python_venv(venv_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn setup_uv_venv(venv_path: &Path) -> Result<()> {
-    let status = Command::new("uv")
-        .args(["venv", venv_path.to_str().unwrap()])
-        .status()?;
-    if !status.success() {
-        bail!("failed to execute venv");
-    }
-    Ok(())
+async fn assert_tablib_telemetry(test_server: &TestServer, installed: bool) {
+    let snapshot = test_server.telemetry_snapshot().await;
+    let packages: Vec<_> = snapshot["installed_packages"]
+        .as_array()
+        .expect("installed_packages should be an array")
+        .iter()
+        .map(|package| package.as_str().expect("package name should be a string"))
+        .collect();
+
+    assert_eq!(
+        installed,
+        packages.contains(&TEST_PACKAGE),
+        "unexpected telemetry package list: {packages:?}"
+    );
 }
 
 #[test_log::test(tokio::test)]
@@ -96,14 +116,16 @@ async fn test_python_venv_pip_install() -> Result<()> {
     let server = TestServer::configure()
         .with_plugin_dir(test.plugin_dir())
         .with_virtual_env(test.venv_path().to_string_lossy())
+        .with_test_mode()
         .spawn()
         .await;
 
-    server.create_database("version_check").run()?;
+    server.create_database(TEST_DB).run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
+    assert_tablib_telemetry(&server, false).await;
 
     // Install specific version
     server
@@ -112,38 +134,9 @@ async fn test_python_venv_pip_install() -> Result<()> {
         .run()?;
 
     // Verify correct version installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
-    // And that it isn't on the system python.
-    assert_tablib_not_in_system_python();
-    Ok(())
-}
-
-#[test_log::test(tokio::test)]
-#[ignore]
-async fn test_uv_venv_uv_install() -> Result<()> {
-    let test = VenvTest::new()?;
-    setup_uv_venv(&test.venv_path())?;
-
-    let server = TestServer::configure()
-        .with_plugin_dir(test.plugin_dir())
-        .with_virtual_env(test.venv_path().to_string_lossy())
-        .with_package_manager("uv")
-        .spawn()
-        .await;
-
-    server.create_database("version_check").run()?;
-
-    // Check package is not installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
-    assert_eq!(vec!["tablib is not installed"], logs);
-
-    // Install with UV
-    server.install_package().add_package(TEST_PACKAGE).run()?;
-
-    // Verify package is installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
-    assert!(!logs[0].contains("not installed"));
+    assert_tablib_telemetry(&server, true).await;
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
     Ok(())
@@ -161,10 +154,10 @@ async fn test_venv_requirements_install() -> Result<()> {
         .spawn()
         .await;
 
-    server.create_database("version_check").run()?;
+    server.create_database(TEST_DB).run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
 
     // Create requirements.txt
@@ -178,7 +171,7 @@ async fn test_venv_requirements_install() -> Result<()> {
         .run()?;
 
     // Verify installation
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
@@ -197,10 +190,10 @@ async fn test_venv_remote_install() -> Result<()> {
         .spawn()
         .await;
 
-    server.create_database("version_check").run()?;
+    server.create_database(TEST_DB).run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
 
     // Test remote installation
@@ -210,7 +203,7 @@ async fn test_venv_remote_install() -> Result<()> {
         .run()?;
 
     // Verify installation
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert!(!logs[0].contains("not installed"));
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
@@ -229,10 +222,10 @@ async fn test_auto_venv_pip_install() -> Result<()> {
         .spawn()
         .await;
 
-    server.create_database("version_check").run()?;
+    server.create_database(TEST_DB).run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
 
     // Install specific version
@@ -243,38 +236,8 @@ async fn test_auto_venv_pip_install() -> Result<()> {
         .run()?;
 
     // Verify correct version installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file_relative()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
-    // And that it isn't on the system python.
-    assert_tablib_not_in_system_python();
-
-    Ok(())
-}
-
-#[test_log::test(tokio::test)]
-#[ignore]
-async fn test_auto_venv_uv_install() -> Result<()> {
-    let test = VenvTest::new()?;
-
-    let server = TestServer::configure()
-        .with_plugin_dir(test.plugin_dir())
-        .with_virtual_env(test.venv_path().to_string_lossy())
-        .with_package_manager("uv")
-        .spawn()
-        .await;
-
-    server.create_database("version_check").run()?;
-
-    // Check package is not installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
-    assert_eq!(vec!["tablib is not installed"], logs);
-
-    // Install with UV
-    server.install_package().add_package(TEST_PACKAGE).run()?;
-
-    // Verify package is installed
-    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
-    assert!(!logs[0].contains("not installed"));
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
 

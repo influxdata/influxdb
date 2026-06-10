@@ -1,12 +1,15 @@
 pub(crate) mod versions;
 
 use anyhow::anyhow;
-pub use versions::v2::*;
+pub use versions::v3::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObjectStoreCatalogError {
     #[error("object store error: {0:?}")]
     ObjectStore(#[from] object_store::Error),
+
+    #[error("catalog file format error: {0}")]
+    Format(#[from] crate::format::FormatError),
 
     #[error("unexpected error: {0:?}")]
     Unexpected(#[from] anyhow::Error),

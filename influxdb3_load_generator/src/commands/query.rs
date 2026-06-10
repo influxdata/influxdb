@@ -157,7 +157,7 @@ async fn run_querier(
             let response_time = start_request.elapsed().as_millis() as u64;
             let (status, rows) = match res {
                 Ok(b) => (200, count_rows(b, querier.format)),
-                Err(influxdb3_client::Error::ApiError { code, message: _ }) => (code.as_u16(), 0),
+                Err(influxdb3_client::Error::ApiError { code, .. }) => (code.as_u16(), 0),
                 Err(other_error) => {
                     panic!("unexpected error while performing query: {other_error}")
                 }

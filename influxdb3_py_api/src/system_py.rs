@@ -2,9 +2,12 @@
 // in functions in this module.
 #![allow(clippy::useless_conversion)]
 
-use crate::ExecutePluginError;
-use crate::logging::{LogLevel, ProcessingEngineLog};
-use crate::system_py::CacheId::{Global, GlobalTest, Trigger, TriggerTest};
+use crate::cache::PyCache;
+use crate::error::ExecutePluginError;
+use crate::line_builder::setup_line_builder;
+use crate::logging::{LogLevel, LogLine, PluginLogger};
+use crate::py_conversion::{ToPythonTableBatches, args_to_py_object, map_to_py_object};
+use crate::write::{WriteAccumulator, WriteEndpoint};
 use anyhow::{anyhow, bail};
 use arrow_array::types::Int32Type;
 use arrow_array::{
@@ -15,30 +18,28 @@ use arrow_schema::DataType;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use humantime::format_duration;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
 use influxdb3_internal_api::query_executor::QueryExecutor;
-use influxdb3_sys_events::SysEventStore;
 use influxdb3_types::DatabaseName;
-use influxdb3_write::{Bufferer, Precision};
 use iox_query_params::StatementParams;
-use iox_time::{Time, TimeProvider};
+use iox_time::Time;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
-use pyo3::exceptions::{PyException, PyValueError};
+use pyo3::exceptions::{PyAttributeError, PyException, PyModuleNotFoundError, PyValueError};
 use pyo3::prelude::{PyAnyMethods, PyModule};
+use pyo3::sync::MutexExt;
 use pyo3::types::{PyBytes, PyDateTime, PyDict, PyList, PyString, PyTuple};
 use pyo3::{
-    Bound, IntoPyObject, Py, PyAny, PyResult, Python, create_exception, pyclass, pymethods,
+    Bound, IntoPyObject, Py, PyAny, PyErr, PyResult, Python, create_exception, pyclass, pymethods,
     pymodule,
 };
-use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::path::Path;
-use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::sync::{Arc, LazyLock};
+use std::time::{Instant, SystemTime};
 
 create_exception!(influxdb3_py_api, QueryError, PyException);
 
@@ -52,54 +53,10 @@ create_exception!(influxdb3_py_api, QueryError, PyException);
 struct PyPluginCallApi {
     db_schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
-    write_buffer: Arc<dyn Bufferer>,
-    write_accumulator: Arc<Mutex<WriteAccumulator>>,
+    write_endpoint: Arc<dyn WriteEndpoint>,
+    write_accumulator: Arc<WriteAccumulator>,
     logger: Arc<PluginLogger>,
     py_cache: PyCache,
-}
-
-/// Accumulates batched write operations during plugin execution.
-///
-/// See [PluginReturnState].
-#[derive(Debug, Default)]
-struct WriteAccumulator {
-    /// Line protocol to write back to the database owning the trigger.
-    write_back_lines: Vec<String>,
-    /// Line protocol to write to other databases, keyed by database name.
-    write_db_lines: HashMap<String, Vec<String>>,
-}
-
-#[derive(Debug)]
-pub enum CacheType {
-    TestCache(String),
-    Trigger {
-        database: String,
-        trigger_name: String,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub struct ProcessingEngineLogger {
-    sys_event_store: Arc<SysEventStore>,
-    trigger_name: Arc<str>,
-}
-
-impl ProcessingEngineLogger {
-    pub fn new(sys_event_store: Arc<SysEventStore>, trigger_name: impl Into<Arc<str>>) -> Self {
-        Self {
-            sys_event_store,
-            trigger_name: trigger_name.into(),
-        }
-    }
-
-    pub fn log(&self, log_level: LogLevel, log_line: impl Into<String>) {
-        self.sys_event_store.record(ProcessingEngineLog::new(
-            self.sys_event_store.time_provider().now(),
-            log_level,
-            Arc::clone(&self.trigger_name),
-            log_line.into(),
-        ))
-    }
 }
 
 /// Accumulated state returned from plugin execution.
@@ -110,93 +67,8 @@ impl ProcessingEngineLogger {
 pub struct PluginReturnState {
     /// Log messages emitted during plugin execution.
     pub log_lines: Vec<LogLine>,
-    /// Line protocol to write back to the database owning the trigger.
-    pub write_back_lines: Vec<String>,
-    /// Line protocol to write to other databases, keyed by database name.
+    /// Line protocol to write to databases, keyed by database name.
     pub write_db_lines: HashMap<String, Vec<String>>,
-}
-
-/// Logger abstraction for plugin execution.
-///
-/// In production mode, logs are written to the sys_event_store only.
-/// In dry run mode, logs are accumulated for the response (no sys_event_store writes).
-/// Tracing macros (info!, warn!, error!) are called in PyPluginCallApi methods for both modes.
-#[derive(Debug)]
-pub enum PluginLogger {
-    /// Production mode: logs to sys_event_store only
-    Production(ProcessingEngineLogger),
-    /// Dry run mode: accumulates log_lines only.
-    /// Note: Mutex is required for Send+Sync bounds (PyO3's #[macro@pyclass] requires Send),
-    /// not for actual concurrent access - execution is single-threaded within the GIL.
-    // todo(pjb): potential memory issue - unbounded log accumulation
-    DryRun { log_lines: Mutex<Vec<LogLine>> },
-}
-
-impl PluginLogger {
-    /// Create a production logger that writes to sys_event_store.
-    pub fn production(logger: ProcessingEngineLogger) -> Self {
-        Self::Production(logger)
-    }
-
-    /// Create a dry run logger that accumulates log lines in memory.
-    pub fn dry_run() -> Self {
-        Self::DryRun {
-            log_lines: Mutex::new(Vec::new()),
-        }
-    }
-
-    /// Log a message at the specified level.
-    ///
-    /// In production mode, writes to the sys_event_store for persistence.
-    /// In dry run mode, accumulates the log line for later retrieval via `take_log_lines()`.
-    pub fn log(&self, level: LogLevel, line: String) {
-        match self {
-            Self::Production(logger) => {
-                logger.log(level, line);
-            }
-            Self::DryRun { log_lines } => {
-                let log_line = match level {
-                    LogLevel::Info => LogLine::Info(line),
-                    LogLevel::Warn => LogLine::Warn(line),
-                    LogLevel::Error => LogLine::Error(line),
-                };
-                log_lines.lock().push(log_line);
-            }
-        }
-    }
-
-    /// Take and return accumulated log lines.
-    ///
-    /// Returns an empty Vec for production loggers.
-    /// Returns and clears the accumulated log lines for dry run loggers.
-    pub fn take_log_lines(&self) -> Vec<LogLine> {
-        match self {
-            Self::Production(_) => Vec::new(),
-            Self::DryRun { log_lines } => std::mem::take(&mut *log_lines.lock()),
-        }
-    }
-}
-
-pub enum LogLine {
-    Info(String),
-    Warn(String),
-    Error(String),
-}
-
-impl std::fmt::Display for LogLine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LogLine::Info(s) => write!(f, "INFO: {s}"),
-            LogLine::Warn(s) => write!(f, "WARN: {s}"),
-            LogLine::Error(s) => write!(f, "ERROR: {s}"),
-        }
-    }
-}
-
-impl std::fmt::Debug for LogLine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
-    }
 }
 
 #[pymethods]
@@ -238,15 +110,7 @@ impl PyPluginCallApi {
     ///
     /// Legacy api that batches writes and writes them at the end of plugin execution.
     fn write(&self, line_builder: &Bound<'_, PyAny>) -> PyResult<()> {
-        let line = line_builder.getattr("build")?.call0()?;
-        let line_str = line.extract::<String>()?;
-
-        self.write_accumulator
-            .lock()
-            .write_back_lines
-            .push(line_str);
-
-        Ok(())
+        self.write_to_db(&self.db_schema.name, line_builder)
     }
 
     /// Write line protocol to a specified database.
@@ -256,12 +120,7 @@ impl PyPluginCallApi {
         let line = line_builder.getattr("build")?.call0()?;
         let line_str = line.extract::<String>()?;
 
-        self.write_accumulator
-            .lock()
-            .write_db_lines
-            .entry(db_name.to_string())
-            .or_default()
-            .push(line_str);
+        self.write_accumulator.push(db_name.to_owned(), line_str);
 
         Ok(())
     }
@@ -295,7 +154,7 @@ impl PyPluginCallApi {
         let line = line_builder.getattr("build")?.call0()?;
         let line_str = line.extract::<String>()?;
 
-        let write_buffer = Arc::clone(&self.write_buffer);
+        let write_endpoint = Arc::clone(&self.write_endpoint);
         let db_name = db_name.to_string();
 
         let ingest_time_nanos = SystemTime::now()
@@ -305,35 +164,36 @@ impl PyPluginCallApi {
 
         py.detach(|| {
             tokio::task::block_in_place(|| {
-                let database_name = DatabaseName::new(db_name.clone())
+                let db_name_validated = DatabaseName::new(db_name.clone())
                     .map_err(|e| format!("invalid database name: {e}"))?;
                 let ingest_time = Time::from_timestamp_nanos(ingest_time_nanos);
 
                 tokio::runtime::Handle::current()
-                    .block_on(write_buffer.write_lp(
-                        database_name,
+                    .block_on(write_endpoint.write_lp(
+                        db_name_validated,
                         &line_str,
                         ingest_time,
-                        false,
-                        Precision::Nanosecond,
                         no_sync,
                     ))
-                    .map(|_| ())
                     .map_err(|e| format!("{e}"))
             })
         })
         .map_err(|e| PyException::new_err(format!("error writing line protocol to {db_name}: {e}")))
     }
 
-    #[pyo3(signature = (query, args=None))]
+    #[pyo3(signature = (query, args=None, database=None))]
     fn query(
         &self,
         py: Python<'_>,
         query: String,
         args: Option<std::collections::HashMap<String, String>>,
+        database: Option<String>,
     ) -> PyResult<Py<PyList>> {
         let query_executor = Arc::clone(&self.query_executor);
-        let db_schema_name = Arc::clone(&self.db_schema.name);
+        let db_name = database.unwrap_or_else(|| self.db_schema.name.as_ref().to_string());
+
+        let db_name_validated = DatabaseName::new(db_name.clone())
+            .map_err(|e| QueryError::new_err(format!("invalid database name provided: {e}")))?;
 
         let params = args.map(|args| {
             let mut params = StatementParams::new();
@@ -348,13 +208,13 @@ impl PyPluginCallApi {
                 tokio::runtime::Handle::current().block_on(async {
                     let _permit = query_executor.acquire_execution_semaphore(None).await;
                     let res = query_executor
-                        .query_sql(db_schema_name.as_ref(), &query, params, None, None)
+                        .query_sql(db_name_validated.as_str(), &query, params, None, None)
                         .await
-                        .map_err(|e| format!("error: {e} executing query: {query}"))?;
+                        .map_err(|e| format!("error: {e} executing query on {db_name}: {query}"))?;
 
                     res.try_collect::<Vec<RecordBatch>>()
                         .await
-                        .map_err(|e| format!("error: {e} executing query: {query}"))
+                        .map_err(|e| format!("error: {e} executing query on {db_name}: {query}"))
                 })
             })
         });
@@ -457,10 +317,7 @@ impl PyPluginCallApi {
     #[getter]
     fn cache(&self, py: Python<'_>) -> PyResult<PyCache> {
         let py_cache = self.py_cache.clone();
-        let cache_store = Arc::clone(&py_cache.cache_store);
-        py.detach(|| {
-            cache_store.lock().cleanup();
-        });
+        py_cache.cleanup(py);
         Ok(py_cache)
     }
 }
@@ -484,170 +341,6 @@ const PROCESS_SCHEDULED_CALL_SITE: &str = "process_scheduled_call";
 
 const PROCESS_REQUEST_CALL_SITE: &str = "process_request";
 
-use crate::py_conversion::ToPythonTableBatches;
-
-const LINE_BUILDER_CODE: &str = r#"
-from typing import Optional
-from collections import OrderedDict
-
-class InfluxDBError(Exception):
-    """Base exception for InfluxDB-related errors"""
-    pass
-
-class InvalidMeasurementError(InfluxDBError):
-    """Raised when measurement name is invalid"""
-    pass
-
-class InvalidKeyError(InfluxDBError):
-    """Raised when a tag or field key is invalid"""
-    pass
-
-class InvalidLineError(InfluxDBError):
-    """Raised when a line protocol string is invalid"""
-    pass
-
-class LineBuilder:
-    def __init__(self, measurement: str):
-        if ' ' in measurement:
-            raise InvalidMeasurementError("Measurement name cannot contain spaces")
-        self.measurement = measurement
-        self.tags: OrderedDict[str, str] = OrderedDict()
-        self.fields: OrderedDict[str, str] = OrderedDict()
-        self._timestamp_ns: Optional[int] = None
-
-    def _validate_key(self, key: str, key_type: str) -> None:
-        """Validate that a key does not contain spaces, commas, or equals signs."""
-        if not key:
-            raise InvalidKeyError(f"{key_type} key cannot be empty")
-        if ' ' in key:
-            raise InvalidKeyError(f"{key_type} key '{key}' cannot contain spaces")
-        if ',' in key:
-            raise InvalidKeyError(f"{key_type} key '{key}' cannot contain commas")
-        if '=' in key:
-            raise InvalidKeyError(f"{key_type} key '{key}' cannot contain equals signs")
-
-    def _escape_measurement(self, value: str) -> str:
-        """Escape characters in measurement names according to line protocol."""
-        return value.replace(',', '\\,').replace(' ', '\\ ')
-
-    def _escape_tag_value(self, value: str) -> str:
-        """Escape characters in tag values according to line protocol."""
-        return value.replace('\\', '\\\\').replace(',', '\\,').replace('=', '\\=').replace(' ', '\\ ')
-
-    def _escape_field_key(self, value: str) -> str:
-        """Escape characters in field keys according to line protocol."""
-        return value.replace('\\', '\\\\').replace(',', '\\,').replace('=', '\\=').replace(' ', '\\ ')
-
-    def tag(self, key: str, value: str) -> 'LineBuilder':
-        """Add a tag to the line protocol."""
-        self._validate_key(key, "tag")
-        self.tags[key] = str(value)
-        return self
-
-    def uint64_field(self, key: str, value: int) -> 'LineBuilder':
-        """Add an unsigned integer field to the line protocol."""
-        self._validate_key(key, "field")
-        if value < 0:
-            raise ValueError(f"uint64 field '{key}' cannot be negative")
-        self.fields[key] = f"{value}u"
-        return self
-
-    def int64_field(self, key: str, value: int) -> 'LineBuilder':
-        """Add an integer field to the line protocol."""
-        self._validate_key(key, "field")
-        self.fields[key] = f"{value}i"
-        return self
-
-    def float64_field(self, key: str, value: float) -> 'LineBuilder':
-        """Add a float field to the line protocol."""
-        self._validate_key(key, "field")
-        # Check if value has no decimal component
-        self.fields[key] = f"{int(value)}.0" if value % 1 == 0 else str(value)
-        return self
-
-    def string_field(self, key: str, value: str) -> 'LineBuilder':
-        """Add a string field to the line protocol."""
-        self._validate_key(key, "field")
-        # Escape quotes and backslashes in string values
-        escaped_value = value.replace('\\', '\\\\').replace('"', '\\"')
-        self.fields[key] = f'"{escaped_value}"'
-        return self
-
-    def bool_field(self, key: str, value: bool) -> 'LineBuilder':
-        """Add a boolean field to the line protocol."""
-        self._validate_key(key, "field")
-        self.fields[key] = 't' if value else 'f'
-        return self
-
-    def time_ns(self, timestamp_ns: int) -> 'LineBuilder':
-        """Set the timestamp in nanoseconds."""
-        self._timestamp_ns = timestamp_ns
-        return self
-
-    def build(self) -> str:
-        """Build the line protocol string."""
-        # Start with measurement name (escape commas and spaces)
-        line = self._escape_measurement(self.measurement)
-
-        # Add tags if present
-        if self.tags:
-            tags_str = ','.join(
-                f"{key}={self._escape_tag_value(value)}"
-                for key, value in self.tags.items()
-            )
-            line += f",{tags_str}"
-
-        # Add fields (required)
-        if not self.fields:
-            raise InvalidLineError(f"At least one field is required: {line}")
-
-        fields_str = ','.join(
-            f"{self._escape_field_key(key)}={value}"
-            for key, value in self.fields.items()
-        )
-        line += f" {fields_str}"
-
-        # Add timestamp if present
-        if self._timestamp_ns is not None:
-            line += f" {self._timestamp_ns}"
-
-        return line"#;
-
-fn args_to_py_object<'py>(
-    py: Python<'py>,
-    args: &Option<HashMap<String, String>>,
-) -> Option<Bound<'py, PyDict>> {
-    args.as_ref().map(|args| map_to_py_object(py, args))
-}
-
-fn map_to_py_object<'py>(py: Python<'py>, map: &HashMap<String, String>) -> Bound<'py, PyDict> {
-    let dict = PyDict::new(py);
-    for (key, value) in map {
-        dict.set_item(key, value).unwrap();
-    }
-    dict
-}
-
-/// Sets up the LineBuilder class in Python's environment for access by all plugins.
-///
-/// Executes the LineBuilder code in `__main__` and adds it to builtins so it's accessible
-/// from both single-file plugins and multi-file plugins.
-fn setup_line_builder(py: Python<'_>) -> Result<(), anyhow::Error> {
-    // specifically use globals = None which defaults to __main__ so LineBuilder is
-    // accessible to all plugins
-    py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
-        .map_err(|e| anyhow::Error::new(e).context("failed to eval the LineBuilder API code"))?;
-
-    // Make LineBuilder available to all modules by adding it to builtins.
-    // This ensures multi-file plugins can access it without explicit imports.
-    let builtins = py.import("builtins")?;
-    let main_module = py.import("__main__")?;
-    let line_builder = main_module.getattr("LineBuilder")?;
-    builtins.setattr("LineBuilder", line_builder)?;
-
-    Ok(())
-}
-
 /// Loads a Python function from either a multi-file plugin module or single-file plugin code.
 ///
 /// For multi-file plugins (when `plugin_root` is `Some`), imports the module and retrieves
@@ -661,17 +354,36 @@ fn load_plugin_function<'py>(
     missing_fn_error: ExecutePluginError,
 ) -> Result<Bound<'py, PyAny>, ExecutePluginError> {
     if let Some(root_path) = plugin_root {
-        load_function_from_module(py, root_path, call_site).map_err(|_| missing_fn_error)
+        load_function_from_module(py, root_path, call_site, missing_fn_error)
     } else {
         // Create isolated globals for this plugin execution. Without this, single-file
         // plugins would share __main__'s namespace and could overwrite each other's
         // function definitions during concurrent execution.
         let globals = PyDict::new(py);
-        py.run(&CString::new(code).unwrap(), Some(&globals), None)
+        let code = CString::new(code)
+            .map_err(|e| anyhow::Error::new(e).context("plugin code contains null bytes"))?;
+        let call_site = CString::new(call_site)
+            .map_err(|e| anyhow::Error::new(e).context("call site contains null bytes"))?;
+        py.run(&code, Some(&globals), None)
             .map_err(anyhow::Error::from)?;
-        py.eval(&CString::new(call_site).unwrap(), Some(&globals), None)
+        py.eval(&call_site, Some(&globals), None)
             .map_err(|_| missing_fn_error)
     }
+}
+
+/// Serializes temporary `sys.path` mutation during multi-file plugin imports.
+static SYS_PATH_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+/// True when `err` is a `ModuleNotFoundError` for `module_name` itself, so no
+/// plugin code has run and re-importing is side-effect free.
+fn is_module_not_found(py: Python<'_>, err: &PyErr, module_name: &str) -> bool {
+    err.is_instance_of::<PyModuleNotFoundError>(py)
+        && err
+            .value(py)
+            .getattr("name")
+            .ok()
+            .and_then(|name| name.extract::<String>().ok())
+            .is_some_and(|name| name == module_name)
 }
 
 /// Loads a Python function from a multi-file plugin module.
@@ -682,7 +394,8 @@ fn load_function_from_module<'py>(
     py: Python<'py>,
     plugin_root: &Path,
     function_name: &str,
-) -> Result<Bound<'py, PyAny>, anyhow::Error> {
+    missing_fn_error: ExecutePluginError,
+) -> Result<Bound<'py, PyAny>, ExecutePluginError> {
     let parent_dir = plugin_root
         .parent()
         .ok_or_else(|| anyhow!("Plugin root has no parent directory"))?;
@@ -691,56 +404,75 @@ fn load_function_from_module<'py>(
         .and_then(|n| n.to_str())
         .ok_or_else(|| anyhow!("Invalid plugin directory name"))?;
 
-    let sys = py.import("sys")?;
-    let sys_path = sys.getattr("path")?;
+    let sys = py.import("sys").map_err(anyhow::Error::from)?;
+    let sys_path = sys.getattr("path").map_err(anyhow::Error::from)?;
 
     let parent_dir_str = parent_dir
         .to_str()
         .ok_or_else(|| anyhow!("Invalid UTF-8 in parent directory path"))?;
 
+    // Acquire while attached to the Python runtime; `lock_py_attached` detaches
+    // internally if the lock is contended, avoiding a GIL/lock deadlock.
+    let _sys_path_guard = SYS_PATH_LOCK.lock_py_attached(py);
+
     // Add parent directory to sys.path
-    sys_path.call_method1("insert", (0, parent_dir_str))?;
+    sys_path
+        .call_method1("insert", (0, parent_dir_str))
+        .map_err(anyhow::Error::from)?;
 
-    // Attempt to import the module and get the function
-    // Cleanup happens regardless of success or failure
-    let import_result = py
-        .import(module_name)
-        .and_then(|module| module.getattr(function_name));
+    // A plugin dir added after FileFinder cached the parent is invisible until
+    // import caches are invalidated; retry once.
+    let import_result = match py.import(module_name) {
+        Err(e) if is_module_not_found(py, &e, module_name) => {
+            let _ = py
+                .import("importlib")
+                .and_then(|m| m.call_method0("invalidate_caches"));
+            py.import(module_name)
+        }
+        result => result,
+    };
 
-    // Always cleanup sys.path, even if import failed
-    // Ignore cleanup errors as they don't affect the import result
+    // Always cleanup sys.path, even if import failed. The getattr lookup below
+    // operates on the imported module object and no longer needs sys.path.
     let _ = sys_path.call_method1("pop", (0,));
 
-    // Convert PyErr to anyhow error with helpful context
-    import_result.map_err(|e| {
-        // Check if error is about missing function or import failure
-        let error_str = e.to_string();
-        if error_str.contains("has no attribute") {
-            anyhow!(
-                "Plugin module '{}' does not contain function '{}'. \
-                 Multi-file plugins must define this function in __init__.py",
-                module_name,
-                function_name
-            )
+    // Any import failure is the real load error and must not be masked.
+    let module = import_result.map_err(|e| {
+        ExecutePluginError::PluginError(anyhow!(
+            "Failed to import plugin module '{}': {}\n\
+             Hint: Check for syntax errors or missing dependencies in Python files.",
+            module_name,
+            e
+        ))
+    })?;
+
+    module.getattr(function_name).map_err(|e| {
+        // Only a missing attribute on the imported module means the entry-point
+        // function is absent; surface anything else as the real cause.
+        if e.is_instance_of::<PyAttributeError>(py) {
+            missing_fn_error
         } else {
-            anyhow!(
-                "Failed to import plugin module '{}': {}\n\
-                 Hint: Check for syntax errors or missing dependencies in Python files.",
+            ExecutePluginError::PluginError(anyhow!(
+                "Failed to load function '{}' from plugin module '{}': {}",
+                function_name,
                 module_name,
                 e
-            )
+            ))
         }
     })
 }
 
 /// Execute a WAL flush trigger plugin with data that implements `ToPythonTableBatches`.
+///
+/// This unified function handles both parquet-based (`WriteBatch`) and Pacha-based
+/// (`Vec<WalFlushTableData>`) WAL flush triggers.
 #[allow(clippy::too_many_arguments)]
 pub fn execute_wal_flush_trigger<T: ToPythonTableBatches>(
     code: &str,
     wal_data: &T,
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
-    write_buffer: Arc<dyn Bufferer>,
+    write_endpoint: Arc<dyn WriteEndpoint>,
     logger: PluginLogger,
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
@@ -754,7 +486,7 @@ pub fn execute_wal_flush_trigger<T: ToPythonTableBatches>(
     let start_time = Instant::now();
 
     let logger = Arc::new(logger);
-    let write_accumulator: Arc<Mutex<WriteAccumulator>> = Default::default();
+    let write_accumulator: Arc<WriteAccumulator> = Default::default();
 
     Python::attach(|py| {
         setup_line_builder(py)?;
@@ -762,7 +494,7 @@ pub fn execute_wal_flush_trigger<T: ToPythonTableBatches>(
         let local_api = PyPluginCallApi {
             db_schema: schema,
             query_executor,
-            write_buffer,
+            write_endpoint,
             write_accumulator: Arc::clone(&write_accumulator),
             logger: Arc::clone(&logger),
             py_cache,
@@ -770,7 +502,7 @@ pub fn execute_wal_flush_trigger<T: ToPythonTableBatches>(
         .into_pyobject(py)
         .map_err(anyhow::Error::from)?;
 
-        let args = args_to_py_object(py, args);
+        let args = args_to_py_object(py, args).map_err(anyhow::Error::from)?;
 
         let py_func = load_plugin_function(
             py,
@@ -795,11 +527,9 @@ pub fn execute_wal_flush_trigger<T: ToPythonTableBatches>(
         ),
     );
 
-    let writes = std::mem::take(&mut *write_accumulator.lock());
     Ok(PluginReturnState {
         log_lines: logger.take_log_lines(),
-        write_back_lines: writes.write_back_lines,
-        write_db_lines: writes.write_db_lines,
+        write_db_lines: write_accumulator.flush(),
     })
 }
 
@@ -809,7 +539,7 @@ pub fn execute_schedule_trigger(
     schedule_time: DateTime<Utc>,
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
-    write_buffer: Arc<dyn Bufferer>,
+    write_endpoint: Arc<dyn WriteEndpoint>,
     logger: PluginLogger,
     args: &Option<HashMap<String, String>>,
     py_cache: PyCache,
@@ -822,14 +552,14 @@ pub fn execute_schedule_trigger(
     let start_time = Instant::now();
 
     let logger = Arc::new(logger);
-    let write_accumulator: Arc<Mutex<WriteAccumulator>> = Default::default();
+    let write_accumulator: Arc<WriteAccumulator> = Default::default();
 
     Python::attach(|py| {
         setup_line_builder(py)?;
         let local_api = PyPluginCallApi {
             db_schema: schema,
             query_executor,
-            write_buffer,
+            write_endpoint,
             write_accumulator: Arc::clone(&write_accumulator),
             logger: Arc::clone(&logger),
             py_cache,
@@ -846,7 +576,7 @@ pub fn execute_schedule_trigger(
             })?;
 
         // turn args into an optional dict to pass into python
-        let args = args_to_py_object(py, args);
+        let args = args_to_py_object(py, args).map_err(anyhow::Error::from)?;
 
         let py_func = load_plugin_function(
             py,
@@ -871,11 +601,9 @@ pub fn execute_schedule_trigger(
         ),
     );
 
-    let writes = std::mem::take(&mut *write_accumulator.lock());
     Ok(PluginReturnState {
         log_lines: logger.take_log_lines(),
-        write_back_lines: writes.write_back_lines,
-        write_db_lines: writes.write_db_lines,
+        write_db_lines: write_accumulator.flush(),
     })
 }
 
@@ -884,7 +612,7 @@ pub fn execute_request_trigger(
     code: &str,
     db_schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
-    write_buffer: Arc<dyn Bufferer>,
+    write_endpoint: Arc<dyn WriteEndpoint>,
     logger: PluginLogger,
     args: &Option<HashMap<String, String>>,
     query_params: HashMap<String, String>,
@@ -900,14 +628,14 @@ pub fn execute_request_trigger(
     let start_time = Instant::now();
 
     let logger = Arc::new(logger);
-    let write_accumulator: Arc<Mutex<WriteAccumulator>> = Default::default();
+    let write_accumulator: Arc<WriteAccumulator> = Default::default();
 
     let (response_code, response_headers, response_body) = Python::attach(|py| {
         setup_line_builder(py)?;
         let local_api = PyPluginCallApi {
             db_schema,
             query_executor,
-            write_buffer,
+            write_endpoint,
             write_accumulator: Arc::clone(&write_accumulator),
             logger: Arc::clone(&logger),
             py_cache,
@@ -916,10 +644,10 @@ pub fn execute_request_trigger(
         .map_err(anyhow::Error::from)?;
 
         // turn args into an optional dict to pass into python
-        let args = args_to_py_object(py, args);
+        let args = args_to_py_object(py, args).map_err(anyhow::Error::from)?;
 
-        let query_params = map_to_py_object(py, &query_params);
-        let request_params = map_to_py_object(py, &request_headers);
+        let query_params = map_to_py_object(py, &query_params).map_err(anyhow::Error::from)?;
+        let request_params = map_to_py_object(py, &request_headers).map_err(anyhow::Error::from)?;
 
         let py_func = load_plugin_function(
             py,
@@ -949,11 +677,9 @@ pub fn execute_request_trigger(
         ),
     );
 
-    let writes = std::mem::take(&mut *write_accumulator.lock());
     let plugin_state = PluginReturnState {
         log_lines: logger.take_log_lines(),
-        write_back_lines: writes.write_back_lines,
-        write_db_lines: writes.write_db_lines,
+        write_db_lines: write_accumulator.flush(),
     };
 
     Ok((response_code, response_headers, response_body, plugin_state))
@@ -1099,304 +825,6 @@ fn process_response_part(
     headers.insert("Content-Type".to_string(), "text/plain".to_string());
 
     Ok((response_str, headers))
-}
-
-// Cache entry with optional expiration
-#[derive(Debug)]
-pub struct CacheEntry {
-    value: Py<PyAny>,         // Python object reference with proper reference counting
-    expires_at: Option<Time>, // Expiration time if any
-}
-
-impl CacheEntry {
-    fn new(value: Py<PyAny>, ttl: Option<f64>, time_provider: Arc<dyn TimeProvider>) -> Self {
-        let expires_at = ttl.map(|seconds| time_provider.now() + Duration::from_secs_f64(seconds));
-        Self { value, expires_at }
-    }
-}
-
-// Cache store that manages namespaced caches
-#[derive(Debug)]
-pub struct CacheStore {
-    // Map of namespace -> (key -> cache entry)
-    namespaces: HashMap<CacheId, ExpiringCache>,
-    time_provider: Arc<dyn TimeProvider>,
-    last_cleanup: Time,
-    cleanup_interval: Duration,
-}
-
-#[derive(Debug)]
-pub struct ExpiringCache {
-    entries: HashMap<String, CacheEntry>,
-    expirations: BTreeMap<Time, HashSet<String>>,
-    default_ttl: Option<Duration>,
-    time_provider: Arc<dyn TimeProvider>,
-}
-
-impl ExpiringCache {
-    fn new(time_provider: Arc<dyn TimeProvider>, default_ttl: Option<Duration>) -> Self {
-        Self {
-            entries: HashMap::default(),
-            expirations: BTreeMap::default(),
-            default_ttl,
-            time_provider,
-        }
-    }
-
-    fn insert(&mut self, key: String, mut entry: CacheEntry) {
-        // this is for test call caches, which should expire.
-        if let Some(default_ttl) = self.default_ttl
-            && entry.expires_at.is_none()
-        {
-            entry.expires_at = Some(self.time_provider.now() + default_ttl);
-        }
-        // if key has a ttl, record its expiration.
-        let expiration = entry.expires_at;
-        // if this was an overwrite, remove from expirations
-        if let Some(old_entry) = self.entries.insert(key.clone(), entry)
-            && let Some(old_expiration) = old_entry.expires_at
-        {
-            self.expirations
-                .get_mut(&old_expiration)
-                .unwrap()
-                .remove(&key);
-        }
-        if let Some(expiration) = expiration {
-            self.expirations.entry(expiration).or_default().insert(key);
-        }
-    }
-
-    fn get(&mut self, key: &str, py: Python<'_>) -> Option<Py<PyAny>> {
-        let entry = self.entries.get(key)?;
-        if let Some(expiration) = entry.expires_at
-            && expiration <= self.time_provider.now()
-        {
-            self.remove(key);
-            return None;
-        }
-        Some(entry.value.clone_ref(py))
-    }
-
-    fn remove(&mut self, key: &str) -> bool {
-        if let Some(entry) = self.entries.remove(key) {
-            if let Some(expiration) = entry.expires_at {
-                self.expirations.get_mut(&expiration).unwrap().remove(key);
-            }
-            return true;
-        }
-        false
-    }
-
-    fn cleanup(&mut self) {
-        let now = self.time_provider.now();
-        if self.expirations.is_empty() || *self.expirations.first_key_value().unwrap().0 > now {
-            return;
-        }
-        let mut unexpired_expirations = self.expirations.split_off(&now);
-        for (_, keys) in self.expirations.iter() {
-            for key in keys {
-                self.entries.remove(key);
-            }
-        }
-        std::mem::swap(&mut self.expirations, &mut unexpired_expirations);
-    }
-
-    fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-}
-
-#[pyclass]
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
-enum CacheId {
-    Global(),
-    GlobalTest(String),
-    Trigger {
-        database: String,
-        trigger_name: String,
-    },
-    TriggerTest(String),
-}
-
-impl CacheId {
-    fn default_expiration(&self) -> Option<Duration> {
-        match self {
-            Global() | Trigger { .. } => None,
-            // for tests, keep values around for 30 minutes.
-            GlobalTest(_) | TriggerTest(_) => Some(Duration::from_secs(30 * 60)),
-        }
-    }
-}
-
-impl CacheStore {
-    pub fn new(time_provider: Arc<dyn TimeProvider>, cleanup_interval: Duration) -> Self {
-        let last_cleanup = time_provider.now();
-        Self {
-            namespaces: HashMap::new(),
-            time_provider,
-            cleanup_interval,
-            last_cleanup,
-        }
-    }
-
-    fn should_run_cleanup(&self) -> bool {
-        self.time_provider
-            .now()
-            .checked_duration_since(self.last_cleanup)
-            .unwrap_or_default()
-            >= self.cleanup_interval
-    }
-
-    fn cleanup(&mut self) {
-        if !self.should_run_cleanup() {
-            return;
-        }
-        for cache in self.namespaces.values_mut() {
-            cache.cleanup();
-        }
-
-        self.namespaces.retain(|_, cache| !cache.is_empty());
-    }
-
-    fn put(&mut self, cache_id: &CacheId, key: &str, value: Py<PyAny>, ttl: Option<f64>) {
-        let entry = CacheEntry::new(value, ttl, Arc::clone(&self.time_provider));
-        if let Some(cache) = self.namespaces.get_mut(cache_id) {
-            cache.insert(key.to_string(), entry);
-            return;
-        }
-        self.namespaces
-            .entry(cache_id.clone())
-            .or_insert_with(|| {
-                ExpiringCache::new(
-                    Arc::clone(&self.time_provider),
-                    cache_id.default_expiration(),
-                )
-            })
-            .insert(key.to_string(), entry);
-    }
-
-    fn get(&mut self, cache_id: &CacheId, py: Python<'_>, key: &str) -> Option<Py<PyAny>> {
-        let cache = self.namespaces.get_mut(cache_id)?;
-
-        cache.get(key, py)
-    }
-
-    fn delete(&mut self, cache_id: &CacheId, key: &str) -> bool {
-        if let Some(cache) = self.namespaces.get_mut(cache_id) {
-            cache.remove(key)
-        } else {
-            false
-        }
-    }
-    pub fn drop_trigger_cache(&mut self, database: String, trigger_name: String) -> bool {
-        self.namespaces
-            .remove(&Trigger {
-                database,
-                trigger_name,
-            })
-            .is_some()
-    }
-
-    pub fn drop_all_trigger_caches_for_db(&mut self, database: &str) {
-        self.namespaces
-            .retain(|id, _| !matches!(id, CacheId::Trigger { database: db, .. } if db == database));
-    }
-}
-
-// Python class for Cache
-#[pyclass]
-#[derive(Debug, Clone)]
-pub struct PyCache {
-    global_cache_id: CacheId,
-    local_cache_id: CacheId,
-    cache_store: Arc<Mutex<CacheStore>>,
-}
-
-impl PyCache {
-    fn cache_id(&self, use_global: Option<bool>) -> &CacheId {
-        if use_global.unwrap_or_default() {
-            &self.global_cache_id
-        } else {
-            &self.local_cache_id
-        }
-    }
-    pub fn new_test_cache(cache_store: Arc<Mutex<CacheStore>>, test_name: String) -> Self {
-        Self {
-            global_cache_id: GlobalTest(test_name.clone()),
-            local_cache_id: TriggerTest(test_name),
-            cache_store,
-        }
-    }
-
-    pub fn new_trigger_cache(
-        cache_store: Arc<Mutex<CacheStore>>,
-        database: String,
-        trigger_name: String,
-    ) -> Self {
-        Self {
-            global_cache_id: Global(),
-            local_cache_id: Trigger {
-                database,
-                trigger_name,
-            },
-            cache_store,
-        }
-    }
-}
-
-#[pymethods]
-impl PyCache {
-    #[pyo3(signature = (key, value, ttl=None, use_global=None))]
-    fn put(
-        &self,
-        key: String,
-        value: Py<PyAny>,
-        ttl: Option<f64>,
-        use_global: Option<bool>,
-    ) -> PyResult<()> {
-        let cache_id = self.cache_id(use_global);
-        self.cache_store.lock().put(cache_id, &key, value, ttl);
-
-        Ok(())
-    }
-
-    #[pyo3(signature = (key, default=None, use_global=None))]
-    fn get(
-        &self,
-        key: String,
-        default: Option<Py<PyAny>>,
-        use_global: Option<bool>,
-    ) -> PyResult<Py<PyAny>> {
-        Python::attach(|py| {
-            let cache_id = self.cache_id(use_global);
-            let result = self.cache_store.lock().get(cache_id, py, &key);
-
-            match result {
-                Some(value) => {
-                    // Return the retrieved Python object
-                    Ok(value)
-                }
-                None => {
-                    // Return the default value if provided
-                    if let Some(default_value) = default {
-                        Ok(default_value)
-                    } else {
-                        // Return None if no default was provided
-                        let x = py.None();
-                        Ok(x)
-                    }
-                }
-            }
-        })
-    }
-
-    #[pyo3(signature = (key, use_global=None))]
-    fn delete(&self, key: String, use_global: Option<bool>) -> PyResult<bool> {
-        let cache_id = self.cache_id(use_global);
-        let result = self.cache_store.lock().delete(cache_id, &key);
-
-        Ok(result)
-    }
 }
 
 // Module initialization

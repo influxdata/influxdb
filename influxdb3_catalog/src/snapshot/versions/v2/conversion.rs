@@ -1,3 +1,4 @@
+use influxdb3_authz::DatabaseActions;
 use influxdb3_id::CatalogId;
 
 use crate::snapshot::versions::v3;
@@ -61,11 +62,34 @@ impl From<super::TokenInfoSnapshot> for v3::TokenInfoSnapshot {
 
 impl From<super::PermissionSnapshot> for v3::PermissionSnapshot {
     fn from(value: super::PermissionSnapshot) -> Self {
-        Self {
+        let mut v3_permissions_snapshot = Self {
             resource_type: value.resource_type.into(),
             resource_identifier: value.resource_identifier.into(),
             actions: value.actions.into(),
+            resource_names: None, // v2 doesn't have resource_names
+        };
+
+        if matches!(
+            v3_permissions_snapshot.resource_type,
+            v3::ResourceTypeSnapshot::Database
+        ) && matches!(
+            v3_permissions_snapshot.resource_identifier,
+            v3::ResourceIdentifierSnapshot::Wildcard
+        ) && let v3::ActionsSnapshot::Database(database_actions_snapshot) =
+            v3_permissions_snapshot.actions
+        {
+            let mut db_actions = DatabaseActions::from(database_actions_snapshot.0);
+            // only add create if it's WRITE, if it contains CREATE already it sets the same
+            // permission bit
+            if db_actions.contains(DatabaseActions::WRITE) {
+                db_actions |= DatabaseActions::from(DatabaseActions::CREATE);
+            }
+
+            v3_permissions_snapshot.actions =
+                v3::ActionsSnapshot::Database(v3::DatabaseActionsSnapshot(db_actions.as_u16()));
         }
+
+        v3_permissions_snapshot
     }
 }
 
@@ -75,6 +99,7 @@ impl From<super::ResourceTypeSnapshot> for v3::ResourceTypeSnapshot {
             super::ResourceTypeSnapshot::Database => v3::ResourceTypeSnapshot::Database,
             super::ResourceTypeSnapshot::Token => v3::ResourceTypeSnapshot::Token,
             super::ResourceTypeSnapshot::Wildcard => v3::ResourceTypeSnapshot::Wildcard,
+            super::ResourceTypeSnapshot::System => v3::ResourceTypeSnapshot::System,
         }
     }
 }
@@ -87,6 +112,9 @@ impl From<super::ResourceIdentifierSnapshot> for v3::ResourceIdentifierSnapshot 
             }
             super::ResourceIdentifierSnapshot::Token(token_ids) => {
                 v3::ResourceIdentifierSnapshot::Token(token_ids)
+            }
+            super::ResourceIdentifierSnapshot::System(system_resource_identifiers) => {
+                v3::ResourceIdentifierSnapshot::System(system_resource_identifiers)
             }
             super::ResourceIdentifierSnapshot::Wildcard => v3::ResourceIdentifierSnapshot::Wildcard,
         }
@@ -102,6 +130,9 @@ impl From<super::ActionsSnapshot> for v3::ActionsSnapshot {
             super::ActionsSnapshot::Token(crud_actions_snapshot) => {
                 v3::ActionsSnapshot::Token(crud_actions_snapshot.into())
             }
+            super::ActionsSnapshot::System(system_actions_snapshot) => {
+                v3::ActionsSnapshot::System(system_actions_snapshot.into())
+            }
             super::ActionsSnapshot::Wildcard => v3::ActionsSnapshot::Wildcard,
         }
     }
@@ -116,6 +147,12 @@ impl From<super::DatabaseActionsSnapshot> for v3::DatabaseActionsSnapshot {
 impl From<super::CrudActionsSnapshot> for v3::CrudActionsSnapshot {
     fn from(value: super::CrudActionsSnapshot) -> Self {
         v3::CrudActionsSnapshot(value.0)
+    }
+}
+
+impl From<super::SystemActionsSnapshot> for v3::SystemActionsSnapshot {
+    fn from(value: super::SystemActionsSnapshot) -> Self {
+        v3::SystemActionsSnapshot(value.0)
     }
 }
 
@@ -153,6 +190,7 @@ impl From<super::TableSnapshot> for v3::TableSnapshot {
             table_name: value.table_name,
             key: value.key,
             columns: value.columns.into(),
+            retention_period: None,
             last_caches: value.last_caches.into(),
             distinct_caches: value.distinct_caches.into(),
             deleted: value.deleted,
@@ -236,6 +274,7 @@ impl From<super::LastCacheSnapshot> for v3::LastCacheSnapshot {
             vals: value.vals,
             n: value.n,
             ttl: value.ttl,
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -250,6 +289,7 @@ impl From<super::DistinctCacheSnapshot> for v3::DistinctCacheSnapshot {
             cols: value.cols,
             max_cardinality: value.max_cardinality.into(),
             max_age_seconds: value.max_age_seconds.into(),
+            node_spec: value.node_spec.into(),
         }
     }
 }
@@ -259,9 +299,9 @@ impl From<super::ProcessingEngineTriggerSnapshot> for v3::ProcessingEngineTrigge
         Self {
             trigger_id: value.trigger_id,
             trigger_name: value.trigger_name,
+            node_spec: value.node_spec.into(),
             plugin_filename: value.plugin_filename,
             database_name: value.database_name,
-            node_id: value.node_id,
             trigger_specification: value.trigger_specification.into(),
             trigger_settings: value.trigger_settings.into(),
             trigger_arguments: value.trigger_arguments,
@@ -269,3 +309,6 @@ impl From<super::ProcessingEngineTriggerSnapshot> for v3::ProcessingEngineTrigge
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

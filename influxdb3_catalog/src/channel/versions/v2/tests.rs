@@ -1,16 +1,26 @@
+use influxdb3_shutdown::CancellationToken;
 use observability_deps::tracing::debug;
 
-use crate::{CatalogError, catalog::Catalog, log::FieldDataType};
+use crate::{CatalogError, catalog::versions::v2::Catalog, log::FieldDataType};
 
 #[test_log::test(tokio::test)]
 async fn test_catalog_update_sub() {
     let catalog = Catalog::new_in_memory("cats").await.unwrap();
     let mut sub = catalog.subscribe_to_updates("test_sub").await;
+    let cancel = CancellationToken::new();
+    let cloned = cancel.clone();
     let handle = tokio::spawn(async move {
         let mut n_updates = 0;
-        while let Some(update) = sub.recv().await {
-            debug!(?update, "got an update");
-            n_updates += 1;
+        loop {
+            tokio::select! {
+                update = sub.recv() => {
+                    debug!(?update, "got an update");
+                    n_updates += 1;
+                }
+                _ = cloned.cancelled() => {
+                    break;
+                }
+            }
         }
         n_updates
     });
@@ -21,8 +31,7 @@ async fn test_catalog_update_sub() {
         .await
         .unwrap();
 
-    // drop the catalog so the channel closes and the handle above doesn't hang...
-    drop(catalog);
+    cancel.cancel();
 
     let n_updates = handle.await.unwrap();
     assert_eq!(2, n_updates);

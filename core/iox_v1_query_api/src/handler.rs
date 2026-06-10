@@ -31,7 +31,7 @@ use mime::Mime;
 use multer::Multipart;
 use serde::Deserialize;
 use serde_json::ser::{CompactFormatter, PrettyFormatter};
-use trace::{TraceCollector, ctx::SpanContext, span::SpanExt};
+use trace::{ctx::SpanContext, span::SpanExt};
 use trace_http::{
     ctx::{RequestLogContext, RequestLogContextExt},
     query_variant::QueryVariant,
@@ -107,7 +107,6 @@ impl ExtractedV1Request {
 pub struct V1HttpHandler {
     database: Arc<dyn QueryDatabase>,
     authz: Option<Arc<dyn Authorizer>>,
-    trace_collector: Option<Arc<dyn TraceCollector>>,
     iox_version: String,
     show_databases: Option<Arc<dyn InfluxQlShowDatabases>>,
     show_retention_policies: Option<Arc<dyn InfluxQlShowRetentionPolicies>>,
@@ -117,13 +116,11 @@ impl V1HttpHandler {
     pub fn new(
         database: Arc<dyn QueryDatabase>,
         authz: Option<Arc<dyn Authorizer>>,
-        trace_collector: Option<Arc<dyn TraceCollector>>,
         iox_version: String,
     ) -> Self {
         Self {
             database,
             authz,
-            trace_collector,
             iox_version,
             show_databases: None,
             show_retention_policies: None,
@@ -187,9 +184,7 @@ impl V1HttpHandler {
         &self,
         mut req: Request,
     ) -> Result<ExtractedV1Request, HttpError> {
-        let span_ctx = Some(SpanContext::new_with_optional_collector(
-            self.trace_collector.as_ref().map(Arc::clone),
-        ));
+        let span_ctx = req.extensions().get::<SpanContext>().cloned();
 
         // Go ahead and get the token before we consume the body,
         // but we can't use it until later once we know the database.
@@ -876,8 +871,8 @@ mod tests {
         db.db_or_create("foo").await;
         db.db_or_create("bar").await;
         let show_databases = Arc::new(MockShowDatabases::new(["foo", "bar"]));
-        let handler = V1HttpHandler::new(db, None, None, "test".to_string())
-            .with_show_databases(show_databases);
+        let handler =
+            V1HttpHandler::new(db, None, "test".to_string()).with_show_databases(show_databases);
         let req = RequestBuilder::new()
             .method("GET")
             .uri("http://foo.bar/query?q=show%20databases")
@@ -896,7 +891,7 @@ mod tests {
     #[tokio::test]
     async fn test_show_databases_with_no_impl() {
         let db: Arc<dyn QueryDatabase> = Arc::new(TestDatabaseStore::default());
-        let handler = V1HttpHandler::new(db, None, None, "test".to_string());
+        let handler = V1HttpHandler::new(db, None, "test".to_string());
         let req = RequestBuilder::new()
             .method("GET")
             .uri("http://foo.bar/query?q=show%20databases")
@@ -923,9 +918,8 @@ mod tests {
             // The show databases has databases foo, bar, and mop, but only foo and bar will be returned
             // due to the mock authorizer...
             let show_databases = Arc::new(MockShowDatabases::new(["foo", "bar", "mop"]));
-            let handler =
-                V1HttpHandler::new(Arc::clone(&db) as _, Some(authz), None, "test".to_string())
-                    .with_show_databases(show_databases);
+            let handler = V1HttpHandler::new(Arc::clone(&db) as _, Some(authz), "test".to_string())
+                .with_show_databases(show_databases);
             let req = RequestBuilder::new()
                 .method("GET")
                 .uri("http://foo.bar/query?q=show%20databases")
@@ -945,7 +939,7 @@ mod tests {
             // The show databases has databases foo, bar, and mop, but only foo and bar will be returned
             // due to the mock authorizer...
             let show_databases = Arc::new(MockShowDatabases::new(["foo", "bar", "mop"]));
-            let handler = V1HttpHandler::new(db, Some(authz), None, "test".to_string())
+            let handler = V1HttpHandler::new(db, Some(authz), "test".to_string())
                 .with_show_databases(show_databases);
             let req = RequestBuilder::new()
                 .method("GET")
@@ -975,7 +969,7 @@ mod tests {
                     MockRetentionPolicy::new("short").with_duration(Duration::from_secs(100)),
                 ),
         );
-        let handler = V1HttpHandler::new(db, None, None, "test".to_string())
+        let handler = V1HttpHandler::new(db, None, "test".to_string())
             .with_show_retention_policies(show_retention_policies);
         // on foo db:
         {
@@ -1033,7 +1027,7 @@ mod tests {
     #[tokio::test]
     async fn test_show_retention_policies_with_no_impl() {
         let db: Arc<dyn QueryDatabase> = Arc::new(TestDatabaseStore::default());
-        let handler = V1HttpHandler::new(db, None, None, "test".to_string());
+        let handler = V1HttpHandler::new(db, None, "test".to_string());
         let req = RequestBuilder::new()
             .method("GET")
             .uri("http://foo.bar/query?db=foo&q=show%20retention%20policies")
@@ -1055,7 +1049,7 @@ mod tests {
     /// implementations are inert.
     fn handler_for_extract_tests() -> V1HttpHandler {
         let db: Arc<dyn QueryDatabase> = Arc::new(TestDatabaseStore::default());
-        V1HttpHandler::new(db, None, None, "test".to_string())
+        V1HttpHandler::new(db, None, "test".to_string())
     }
 
     #[tokio::test]

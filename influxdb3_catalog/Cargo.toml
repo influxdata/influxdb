@@ -21,8 +21,10 @@ influxdb3_process = { path = "../influxdb3_process" }
 influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
+object_store_utils = { path = "../object_store_utils" }
 
 # crates.io dependencies
+ahash.workspace = true
 anyhow.workspace = true
 arrow.workspace = true
 backon.workspace = true
@@ -40,10 +42,12 @@ hashbrown.workspace = true
 hex.workspace = true
 humantime.workspace = true
 indexmap.workspace = true
+inventory.workspace = true
 itertools.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 rand.workspace = true
+rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
@@ -51,6 +55,9 @@ sha2.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 uuid.workspace = true
+
+[features]
+test_helpers = []
 
 [dev-dependencies]
 # core deps
@@ -60,10 +67,15 @@ test_helpers = { path = "../core/test_helpers" }
 influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 
 # crates.io deps
+criterion.workspace = true
 insta.workspace = true
 pretty_assertions.workspace = true
 rstest.workspace = true
 test-log.workspace = true
+
+[[bench]]
+name = "column_or_create"
+harness = false
 
 [lints]
 workspace = true

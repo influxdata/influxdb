@@ -14,7 +14,7 @@
 use crate::{
     catalog::CatalogSequenceNumber,
     log::versions::v1::{
-        MaxAge, MaxCardinality, NodeMode, TriggerSettings, TriggerSpecificationDefinition,
+        MaxAge, MaxCardinality, NodeMode, NodeSpec, TriggerSettings, TriggerSpecificationDefinition,
     },
     serialize::VersionedFileType,
 };
@@ -90,7 +90,7 @@ pub(crate) struct TableSnapshot {
 pub(crate) struct ProcessingEngineTriggerSnapshot {
     trigger_id: TriggerId,
     trigger_name: Arc<str>,
-    node_id: Arc<str>,
+    node_spec: NodeSpec,
     plugin_filename: String,
     database_name: Arc<str>,
     trigger_specification: TriggerSpecificationDefinition,
@@ -117,6 +117,7 @@ pub(crate) struct ColumnDefinitionSnapshot {
 pub(crate) struct LastCacheSnapshot {
     table_id: TableId,
     table: Arc<str>,
+    node_spec: NodeSpec,
     id: LastCacheId,
     name: Arc<str>,
     keys: Vec<ColumnId>,
@@ -129,6 +130,7 @@ pub(crate) struct LastCacheSnapshot {
 pub(crate) struct DistinctCacheSnapshot {
     table_id: TableId,
     table: Arc<str>,
+    node_spec: NodeSpec,
     id: DistinctCacheId,
     name: Arc<str>,
     cols: Vec<ColumnId>,

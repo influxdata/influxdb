@@ -124,7 +124,10 @@ async fn test_catalog_operation_counter() {
             4,
             vec![NodeMode::Core],
             Arc::clone(&process_uuid_getter),
+            Arc::from("test-instance-node2"),
             None,
+            None,
+            0,
         )
         .await
         .unwrap();

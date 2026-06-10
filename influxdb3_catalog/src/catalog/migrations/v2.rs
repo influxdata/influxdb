@@ -1,5 +1,6 @@
 //! Migration from [v1::InnerCatalog] to [v2::InnerCatalog].
 
+use crate::Repository;
 use crate::catalog::versions::v2::update::TableTransaction;
 use crate::catalog::versions::v2::{
     DatabaseSchema, FieldFamilyMode, InnerCatalog, NUM_FIELDS_PER_FAMILY_LIMIT, Snapshot,
@@ -8,7 +9,9 @@ use crate::catalog::versions::v2::{
 use crate::catalog::versions::{v1, v2};
 use crate::log::versions::v3 as logprev;
 use crate::log::versions::v4 as lognext;
-use crate::log::versions::v4::{AddColumnsLog, DistinctCacheDefinition, LastCacheDefinition};
+use crate::log::versions::v4::{
+    AddColumnsLog, DistinctCacheDefinition, LastCacheDefinition, StorageMode,
+};
 use hashbrown::HashMap;
 use hashbrown::hash_map::Entry;
 use itertools::Itertools;
@@ -27,17 +30,19 @@ pub(super) fn migrate(from: &v1::InnerCatalog) -> crate::Result<v2::InnerCatalog
 
     // 1. Migrate tokens and token permissions
     v2_inner.tokens = from.tokens.clone();
+    v2_inner.token_permissions = from.token_permissions.clone();
 
     // 2. Migrate databases
     for (db_id, v1_db) in from.databases.iter() {
         let db_schema = DatabaseSchema {
             id: v1_db.id,
             name: Arc::clone(&v1_db.name),
-            tables: Default::default(),
+            tables: Repository::new(),
             retention_period: v1_db.retention_period.into(),
-            processing_engine_triggers: Default::default(),
+            processing_engine_triggers: Repository::new(),
             deleted: v1_db.deleted,
             hard_delete_time: v1_db.hard_delete_time,
+            hard_delete_scope: None, // New field in v2, default to None
         };
 
         v2_inner
@@ -109,7 +114,9 @@ fn migrate_nodes(from: &v1::InnerCatalog, v2_inner: &mut InnerCatalog) {
                     v2::NodeState::Stopped { stopped_time_ns }
                 }
             },
-            cli_params: None, // v1 catalog doesn't have cli_params
+            conn_info: None, // v1 nodes didn't have conn_info
+            cli_params: None,
+            row_delete_predicate_version: 0, // v1 nodes don't do row deletes
         };
         v2_inner
             .nodes
@@ -154,6 +161,7 @@ fn migrate_last_caches(v1_table: &Arc<v1::TableDefinition>, table_def: &mut Tabl
             table_id: table_def.table_id,
             table: Arc::clone(&table_def.table_name),
             id: v1_def.id,
+            node_spec: v1_def.node_spec.clone().into(),
             name: Arc::clone(&v1_def.name),
             key_columns,
             value_columns,
@@ -177,10 +185,14 @@ fn migrate_distinct_caches(v1_table: &Arc<v1::TableDefinition>, table_def: &mut 
             table_id: table_def.table_id,
             table_name: Arc::clone(&table_def.table_name),
             cache_id: v1_def.cache_id,
+            node_spec: v1_def.node_spec.clone().into(),
             cache_name: Arc::clone(&v1_def.cache_name),
             column_ids,
             max_cardinality: v1_def.max_cardinality.into(),
             max_age_seconds: v1_def.max_age_seconds.into(),
+            source: lognext::CacheSource::default(), // Default to User-created
+            lookback_seconds: None,
+            refresh_interval: None,
         };
 
         table_def
@@ -206,6 +218,7 @@ fn migrate_table(
         ),
         Arc::clone(db_schema),
         usize::MAX,
+        StorageMode::Parquet,
     );
 
     // We can expect all columns can be added without failure:
@@ -240,6 +253,7 @@ fn migrate_table(
         vec![],
         vec![],
         vec![],
+        v1_table.retention_period.into(),
         field_family_mode,
     )?;
     table_def.deleted = v1_table.deleted;

@@ -17,6 +17,7 @@ influxdb3_id = { path = "../influxdb3_id" }
 # crates.io deps
 async-trait.workspace = true
 hashbrown.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
 serde.workspace = true
 sha2.workspace = true
 thiserror.workspace = true

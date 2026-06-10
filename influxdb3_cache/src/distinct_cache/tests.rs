@@ -1,7 +1,7 @@
 use arrow::array::AsArray;
 use datafusion::{assert_batches_eq, assert_batches_sorted_eq, prelude::SessionContext};
 use indexmap::IndexMap;
-use influxdb3_catalog::log::{FieldDataType, MaxAge, MaxCardinality};
+use influxdb3_catalog::catalog::{ApiNodeSpec, FieldDataType, MaxAge, MaxCardinality};
 use influxdb3_id::{ColumnId, ColumnIdentifier};
 use iox_time::{MockProvider, Time, TimeProvider};
 use observability_deps::tracing::debug;
@@ -51,7 +51,7 @@ cpu,host=n usage=300
         .into_iter()
         .map(|name| {
             let col = table_def.column_definition(name).unwrap();
-            (col.id(), col.ord_id())
+            (col.id(), col.ord_id().expect("column has legacy ord id"))
         })
         .collect::<(Vec<_>, Vec<_>)>();
     let region_col_id = ord_ids[0];
@@ -449,6 +449,7 @@ async fn test_datafusion_distinct_cache_udtf() {
         .create_distinct_cache(
             TestWriter::DB_NAME,
             "cpu",
+            ApiNodeSpec::All,
             None,
             &["region", "host"],
             MaxCardinality::default(),
@@ -892,6 +893,7 @@ async fn test_projection_pushdown_indexing() {
         .create_distinct_cache(
             TestWriter::DB_NAME,
             "wind_data",
+            ApiNodeSpec::All,
             None,
             &["country", "county", "city"],
             MaxCardinality::default(),
@@ -965,6 +967,7 @@ async fn test_row_with_nulls_not_ignored() {
     cat.create_distinct_cache(
         TestWriter::DB_NAME,
         "bar",
+        ApiNodeSpec::All,
         Some("cache_money"),
         &["t1", "t2", "t3"],
         Default::default(),
@@ -1048,6 +1051,7 @@ async fn test_distinct_with_where_clause_bug() {
         .create_distinct_cache(
             TestWriter::DB_NAME,
             "bar",
+            ApiNodeSpec::All,
             Some("foo"),
             &["t1", "t2", "t3"],
             Default::default(),

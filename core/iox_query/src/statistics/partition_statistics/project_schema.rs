@@ -10,7 +10,10 @@ use datafusion::{
 use itertools::Itertools;
 
 use crate::{
-    CHUNK_ORDER_FIELD, chunk_order_field, statistics::partition_statistics::util::pretty_fmt_fields,
+    CHUNK_ORDER_FIELD, chunk_order_field,
+    statistics::{
+        partition_statistics::util::pretty_fmt_fields, stats_utils::synthesize_absent_column_stats,
+    },
 };
 
 /// Takes in a datasource schema and statistics, and projects the scan schema on top.
@@ -34,14 +37,14 @@ pub(crate) fn project_schema_onto_datasrc_statistics(
                 if *field == *CHUNK_ORDER_FIELD {
                     return Ok(ColumnStatistics::new_unknown());
                 } else {
-                    // (c) adding an empty column (e.g. different parquet files could have slightly different schema).
-                    return Ok(ColumnStatistics {
-                        null_count: src_statistics.num_rows,
-                        max_value: Precision::Exact(ScalarValue::Null),
-                        min_value: Precision::Exact(ScalarValue::Null),
-                        distinct_count: Precision::Absent,
-                        sum_value: Precision::Absent,
-                    });
+                    // (c) column present in project_schema but absent
+                    // from this src — synthesize a typed-null stats
+                    // entry. See
+                    // <https://github.com/influxdata/EAR/issues/6894>.
+                    return Ok(synthesize_absent_column_stats(
+                        field,
+                        src_statistics.num_rows,
+                    ));
                 }
             };
 
@@ -513,14 +516,17 @@ mod tests {
         ));
 
         /* Test: works for datasource projection */
-        // ** SPECIAL FOR DATASRC = fills in nulls for aliases missing in filegroup schema **
+        // ** SPECIAL FOR DATASRC = fills in typed nulls for aliases missing in filegroup schema **
         let actual =
             project_schema_onto_datasrc_statistics(&src_stats, &src_schema, &project_schema)
                 .expect("ok");
+        // Synthesized columns get a typed null based on the project
+        // schema's field type. `build_schema` declares all columns as
+        // Int64, so the synthesized null is `Int64(None)`.
         let datasrc_null_columns = ColumnStatistics {
             null_count: expected_stats.num_rows,
-            max_value: Precision::Exact(ScalarValue::Null),
-            min_value: Precision::Exact(ScalarValue::Null),
+            max_value: Precision::Exact(ScalarValue::Int64(None)),
+            min_value: Precision::Exact(ScalarValue::Int64(None)),
             distinct_count: Precision::Absent,
             sum_value: Precision::Absent,
         };
@@ -539,7 +545,7 @@ mod tests {
         );
         assert_eq!(
             actual.column_statistics[1], datasrc_null_columns,
-            "aliased column should have NULL min/max"
+            "aliased column should have typed NULL min/max"
         );
 
         /* Test: errors for chunk order projection */

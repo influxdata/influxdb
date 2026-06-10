@@ -4,9 +4,8 @@ use arrow::array::AsArray;
 use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
 use datafusion::prelude::SessionContext;
 use indexmap::IndexMap;
-use influxdb3_catalog::{
-    catalog::Catalog,
-    log::{FieldDataType, LastCacheSize, LastCacheTtl},
+use influxdb3_catalog::catalog::{
+    ApiNodeSpec, Catalog, FieldDataType, LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef,
 };
 use influxdb3_id::ColumnId;
 use iox_time::{MockProvider, Time};
@@ -1116,16 +1115,14 @@ async fn new_field_ordering() {
 async fn catalog_initialization() {
     let obj_store = Arc::new(InMemory::new());
     let node_id = Arc::from("sample-host-id");
-    let catalog = Arc::new(
-        Catalog::new(
-            node_id,
-            Arc::clone(&obj_store) as _,
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-            Default::default(),
-        )
-        .await
-        .unwrap(),
-    );
+    let catalog = Catalog::new(
+        node_id,
+        Arc::clone(&obj_store) as _,
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+        Default::default(),
+    )
+    .await
+    .unwrap();
     let db_name = "test_db";
     catalog.create_database(db_name).await.unwrap();
     catalog
@@ -1141,6 +1138,7 @@ async fn catalog_initialization() {
         .create_last_cache(
             db_name,
             "test_table_1",
+            ApiNodeSpec::All,
             Some("test_cache_1"),
             Some(&["t1"]),
             None as Option<&[&str]>,
@@ -1162,6 +1160,7 @@ async fn catalog_initialization() {
         .create_last_cache(
             db_name,
             "test_table_2",
+            ApiNodeSpec::All,
             Some("test_cache_2"),
             Some(&["t1"]),
             Some(&["f1", "time"]),
@@ -1174,6 +1173,7 @@ async fn catalog_initialization() {
         .create_last_cache(
             db_name,
             "test_table_2",
+            ApiNodeSpec::All,
             Some("test_cache_3"),
             Option::<&[&str]>::Some(&[]),
             Some(&["f2", "time"]),
@@ -1187,11 +1187,50 @@ async fn catalog_initialization() {
     let provider = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
         .await
         .expect("create last cache provider from catalog");
-    // There should be a total of 3 caches:
+    // The provider should see all three caches we created above.
     assert_eq!(3, provider.size());
-    insta::assert_json_snapshot!(catalog.snapshot(), {
-        ".catalog_uuid" => "[uuid]"
-    });
+
+    // Verify the catalog state directly: each table has the expected
+    // last-cache definitions persisted by the catalog, with the same config
+    // (key/value columns, size, ttl) that was supplied at create time.
+    let db = catalog.db_schema(db_name).unwrap();
+    let tbl1 = db.table_definition("test_table_1").unwrap();
+    let tbl1_caches: Vec<_> = tbl1.last_caches.resource_iter().collect();
+    assert_eq!(tbl1_caches.len(), 1);
+    let c1 = &tbl1_caches[0];
+    assert_eq!(c1.name.as_ref(), "test_cache_1");
+    assert_eq!(c1.count, LastCacheSize::new(1).unwrap());
+    assert_eq!(c1.ttl, LastCacheTtl::from_secs(600));
+    assert_eq!(c1.key_columns.len(), 1); // ["t1"]
+    // No explicit value columns were given, so all non-key columns are used.
+    assert!(matches!(
+        c1.value_columns,
+        LastCacheValueColumnsDef::AllNonKeyColumns
+    ));
+
+    let tbl2 = db.table_definition("test_table_2").unwrap();
+    let mut tbl2_caches: Vec<_> = tbl2.last_caches.resource_iter().collect();
+    assert_eq!(tbl2_caches.len(), 2);
+    tbl2_caches.sort_by(|a, b| a.name.cmp(&b.name));
+    let (c2, c3) = (&tbl2_caches[0], &tbl2_caches[1]);
+
+    assert_eq!(c2.name.as_ref(), "test_cache_2");
+    assert_eq!(c2.count, LastCacheSize::new(5).unwrap());
+    assert_eq!(c2.ttl, LastCacheTtl::from_secs(60));
+    assert_eq!(c2.key_columns.len(), 1); // ["t1"]
+    let LastCacheValueColumnsDef::Explicit { columns } = &c2.value_columns else {
+        panic!("test_cache_2 should have explicit value columns");
+    };
+    assert_eq!(columns.len(), 2); // ["f1", "time"]
+
+    assert_eq!(c3.name.as_ref(), "test_cache_3");
+    assert_eq!(c3.count, LastCacheSize::new(100).unwrap());
+    assert_eq!(c3.ttl, LastCacheTtl::from_secs(500));
+    assert_eq!(c3.key_columns.len(), 0); // []
+    let LastCacheValueColumnsDef::Explicit { columns } = &c3.value_columns else {
+        panic!("test_cache_3 should have explicit value columns");
+    };
+    assert_eq!(columns.len(), 2); // ["f2", "time"]
 }
 
 /// This test sets up a [`LastCacheProvider`], creates a [`LastCache`] using the `region` and
@@ -1222,6 +1261,7 @@ async fn datafusion_udtf_predicate_conversion() {
         .create_last_cache(
             TestWriter::DB_NAME,
             "cpu",
+            ApiNodeSpec::All,
             None,
             Option::<&[&str]>::None,
             Option::<&[&str]>::None,
@@ -1474,6 +1514,7 @@ async fn test_non_specified_key_val_cols() {
         .create_last_cache(
             TestWriter::DB_NAME,
             "cpu",
+            ApiNodeSpec::All,
             None,
             Option::<&[&str]>::None,
             Some(&["usage"]),

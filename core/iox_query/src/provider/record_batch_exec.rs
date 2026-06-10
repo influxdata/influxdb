@@ -19,7 +19,7 @@ use datafusion::{
         DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, PlanProperties,
         SendableRecordBatchStream, Statistics,
         expressions::{Column, PhysicalSortExpr},
-        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
+        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet},
     },
     scalar::ScalarValue,
 };
@@ -188,6 +188,15 @@ impl ExecutionPlan for RecordBatchesExec {
         let schema = self.schema();
 
         let chunk = &self.chunks[partition];
+
+        // SLL `bytes_scanned` source: emit a per-partition count for any
+        // chunk that reports on-disk bytes (in-memory chunks return 0).
+        let bytes = chunk.bytes_scanned();
+        if bytes > 0 {
+            MetricBuilder::new(&self.metrics)
+                .counter("bytes_scanned", partition)
+                .add(bytes as usize);
+        }
 
         let stream = match chunk.data() {
             crate::QueryChunkData::RecordBatches(stream) => stream,

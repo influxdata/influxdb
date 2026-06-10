@@ -18,7 +18,7 @@ futures.workspace = true
 num.workspace = true
 parking_lot.workspace = true
 reqwest.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["rc"] }
 serde_json.workspace = true
 sysinfo.workspace = true
 thiserror.workspace = true
@@ -29,4 +29,3 @@ test-log.workspace = true
 proptest.workspace = true
 mockito.workspace = true
 mockall.workspace = true
-

@@ -45,7 +45,7 @@ pub(crate) fn tag_def(
 ) -> ColumnDefinitionLog {
     ColumnDefinitionLog::Tag(TagColumnLog {
         id: id.into(),
-        column_id: column_id.into(),
+        column_id: Some(column_id.into()),
         name: name.into(),
     })
 }

@@ -294,8 +294,22 @@ pub fn split_cond(
                 }
                 node @ CE::Binary(ConditionalBinary {
                     op: Eq | NotEq | Gt | GtEq | Lt | LtEq | EqRegex | NotEqRegex,
-                    ..
+                    lhs,
+                    rhs,
                 }) => {
+                    // The comparison `node` already contains its operands. A
+                    // bare boolean literal operand (e.g. the `false` in
+                    // `"b0" = false`) was independently pushed by the
+                    // boolean-literal arm below; drop those stray pushes so the
+                    // And/Or combiner does not mistake them for separate
+                    // top-level conditions (#14340).
+                    for operand in [lhs, rhs] {
+                        if matches!(operand.as_ref(), CE::Expr(e)
+                            if matches!(e.as_ref(), Expr::Literal(Literal::Boolean(_))))
+                        {
+                            stack.pop();
+                        }
+                    }
                     stack.push(Some(node.clone()));
                 }
                 node @ CE::Expr(expr)
@@ -903,6 +917,23 @@ mod test {
         let (cond, tr) = split_exprs("true OR time > 0").unwrap();
         assert_eq!(cond.unwrap().to_string(), "true");
         assert_eq!(tr, range!(lower = 1));
+
+        // boolean field filter must be preserved regardless of operand order
+        // relative to a time predicate.
+        // see https://github.com/influxdata/influxdb_iox/issues/14340
+        let (cond, tr) = split_exprs("time < now() AND \"b0\" = false").unwrap();
+        assert_eq!(cond.unwrap().to_string(), "b0 = false");
+        assert_eq!(tr, range!(upper ex = 1672531200000000000));
+
+        // regression lock: the reverse operand order must yield identical results
+        let (cond, tr) = split_exprs("\"b0\" = false AND time < now()").unwrap();
+        assert_eq!(cond.unwrap().to_string(), "b0 = false");
+        assert_eq!(tr, range!(upper ex = 1672531200000000000));
+
+        // multiple boolean field filters are all preserved
+        let (cond, tr) = split_exprs("time < now() AND \"b0\" = false AND \"b1\" = false").unwrap();
+        assert_eq!(cond.unwrap().to_string(), "b0 = false AND b1 = false");
+        assert_eq!(tr, range!(upper ex = 1672531200000000000));
 
         // fallible
         assert_error!(split_exprs("time > '2004-04-09T'"), ExprError::Expression(ref s) if s == "invalid expression \"'2004-04-09T'\": '2004-04-09T' is not a valid timestamp");

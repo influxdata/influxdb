@@ -5,18 +5,11 @@ use super::{
     cache::{CreateDistinctCacheArgs, DistinctCache},
 };
 use arrow::datatypes::SchemaRef;
-use influxdb3_catalog::catalog::IfNotDeleted;
-use influxdb3_catalog::{
-    catalog::Catalog,
-    channel::CatalogUpdateReceiver,
-    log::{
-        CatalogBatch, DatabaseCatalogOp, DeleteDistinctCacheLog, DistinctCacheDefinition,
-        SoftDeleteTableLog,
-    },
-};
+use influxdb3_catalog::catalog::{Catalog, CatalogEvent, CatalogUpdateReceiver, IfNotDeleted};
 use influxdb3_id::{DbId, DistinctCacheId, TableId};
 use influxdb3_wal::{WalContents, WalOp};
 use iox_time::TimeProvider;
+use observability_deps::tracing::error;
 use parking_lot::RwLock;
 
 #[derive(Debug, thiserror::Error)]
@@ -161,31 +154,60 @@ impl DistinctCacheProvider {
         Ok(())
     }
 
-    /// Create a new cache given the database schema and WAL definition. This is useful during WAL
-    /// replay.
-    pub fn create_from_catalog(&self, db_id: DbId, definition: &DistinctCacheDefinition) {
-        let table_def = self
-            .catalog
-            .db_schema_by_id(&db_id)
-            .and_then(|db| db.table_definition_by_id(&definition.table_id))
-            .expect("db and table id should be valid in distinct cache log");
-        let distinct_cache = DistinctCache::new(
+    /// Create a cache by looking up its definition in the catalog by id.
+    pub fn create_from_catalog(&self, db_id: DbId, table_id: TableId, cache_id: DistinctCacheId) {
+        let Some(db_schema) = self.catalog.db_schema_by_id(&db_id) else {
+            error!(
+                ?db_id,
+                "database not found creating distinct cache; skipping"
+            );
+            return;
+        };
+        let Some(table_def) = db_schema.table_definition_by_id(&table_id) else {
+            error!(
+                ?db_id,
+                ?table_id,
+                "table not found creating distinct cache; skipping"
+            );
+            return;
+        };
+        let Some(cache_def) = table_def.distinct_caches.get_by_id(&cache_id) else {
+            error!(
+                ?db_id,
+                ?table_id,
+                ?cache_id,
+                "distinct cache definition not found; skipping"
+            );
+            return;
+        };
+        let distinct_cache = match DistinctCache::new(
             Arc::clone(&self.time_provider),
             CreateDistinctCacheArgs {
                 table_def,
-                max_cardinality: definition.max_cardinality,
-                max_age: definition.max_age_seconds,
-                column_ids: definition.column_ids.to_vec(),
+                max_cardinality: cache_def.max_cardinality,
+                max_age: cache_def.max_age_seconds,
+                column_ids: cache_def.column_ids.to_vec(),
             },
-        )
-        .expect("definition should be valid coming from the WAL");
+        ) {
+            Ok(cache) => cache,
+            Err(error) => {
+                error!(
+                    ?db_id,
+                    ?table_id,
+                    ?cache_id,
+                    %error,
+                    "unable to create distinct cache from catalog definition",
+                );
+                return;
+            }
+        };
         self.cache_map
             .write()
             .entry(db_id)
             .or_default()
-            .entry(definition.table_id)
+            .entry(table_id)
             .or_default()
-            .insert(definition.cache_id, distinct_cache);
+            .insert(cache_id, distinct_cache);
     }
 
     /// Delete a cache from the provider
@@ -279,36 +301,33 @@ pub fn background_catalog_update(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(catalog_update) = subscription.recv().await {
-            for batch in catalog_update
-                .batches()
-                .filter_map(CatalogBatch::as_database)
-            {
-                for op in batch.ops.iter() {
-                    match op {
-                        DatabaseCatalogOp::SoftDeleteDatabase(_) => {
-                            provider.delete_caches_for_db(&batch.database_id);
-                        }
-                        DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
-                            database_id,
-                            table_id,
-                            ..
-                        }) => {
-                            provider.delete_caches_for_db_and_table(database_id, table_id);
-                        }
-                        DatabaseCatalogOp::CreateDistinctCache(log) => {
-                            provider.create_from_catalog(batch.database_id, log);
-                        }
-                        DatabaseCatalogOp::DeleteDistinctCache(DeleteDistinctCacheLog {
-                            table_id,
-                            cache_id,
-                            ..
-                        }) => {
-                            // This only errors when the cache isn't there, so we ignore the
-                            // error...
-                            let _ = provider.delete_cache(&batch.database_id, table_id, cache_id);
-                        }
-                        _ => (),
+            for event in catalog_update.events() {
+                match event {
+                    CatalogEvent::DatabaseSoftDeleted { db_id }
+                    | CatalogEvent::DatabaseHardDeleted { db_id } => {
+                        provider.delete_caches_for_db(db_id);
                     }
+                    CatalogEvent::TableSoftDeleted { db_id, table_id }
+                    | CatalogEvent::TableHardDeleted { db_id, table_id } => {
+                        provider.delete_caches_for_db_and_table(db_id, table_id);
+                    }
+                    CatalogEvent::DistinctCacheCreated {
+                        db_id,
+                        table_id,
+                        cache_id,
+                    } => {
+                        provider.create_from_catalog(*db_id, *table_id, *cache_id);
+                    }
+                    CatalogEvent::DistinctCacheDeleted {
+                        db_id,
+                        table_id,
+                        cache_id,
+                    } => {
+                        // This only errors when the cache isn't there, so we ignore the
+                        // error...
+                        let _ = provider.delete_cache(db_id, table_id, cache_id);
+                    }
+                    _ => (),
                 }
             }
         }

@@ -4,6 +4,16 @@ use crate::log::versions::v3;
 use crate::log::versions::v4;
 use std::time::Duration;
 
+impl From<v3::NodeSpec> for v4::NodeSpec {
+    fn from(value: v3::NodeSpec) -> Self {
+        use v3::NodeSpec::*;
+        match value {
+            All => Self::All,
+            Nodes(ids) => Self::Nodes(ids),
+        }
+    }
+}
+
 impl From<v3::RetentionPeriod> for v4::RetentionPeriod {
     fn from(value: v3::RetentionPeriod) -> Self {
         use v3::RetentionPeriod::*;
@@ -55,7 +65,7 @@ impl From<v3::TriggerDefinition> for v4::TriggerDefinition {
             trigger_name: value.trigger_name,
             plugin_filename: value.plugin_filename,
             database_name: value.database_name,
-            node_id: value.node_id,
+            node_spec: value.node_spec.into(),
             trigger: value.trigger.into(),
             trigger_settings: value.trigger_settings.into(),
             trigger_arguments: value.trigger_arguments,
@@ -102,6 +112,11 @@ impl From<v3::NodeMode> for v4::NodeMode {
         use v3::NodeMode::*;
         match value {
             Core => Self::Core,
+            Query => Self::Query,
+            Ingest => Self::Ingest,
+            Compact => Self::Compact,
+            Process => Self::Process,
+            All => Self::All,
         }
     }
 }

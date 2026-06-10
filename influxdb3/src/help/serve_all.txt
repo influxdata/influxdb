@@ -51,9 +51,9 @@ Examples:
                                                  [env: INFLUXDB3_TLS_MINIMUM_VERSION=]
   --without-auth                               Run InfluxDB 3 server without authorization
   --disable-authz <RESOURCES>                  Optionally disable authz by passing in a comma separated
-                                               list of resources. Valid values are health, ping, and metrics.
-                                               To disable auth for multiple resources pass in a list, eg.
-                                               `--disable-authz health,ping`
+                                               list of resources. Valid values are health, ping, metrics,
+                                               ready, and pprof. To disable auth for multiple resources
+                                               pass in a list, eg. `--disable-authz health,ping`
   --admin-token-recovery-http-bind <ADDR>      Enable admin token recovery endpoint. Use flag alone for default
                                                address (127.0.0.1:8182) or with value for custom address.
                                                WARNING: This endpoint allows unauthenticated admin token regeneration!
@@ -148,7 +148,7 @@ Examples:
                                                  [env: INFLUXDB3_PLUGIN_DIR=]
   --virtual-env-location <PATH>                Location of your virtual environment
                                                  [env: VIRTUAL_ENV=]
-  --package-manager <MANAGER>                  Package manager for Processing Engine
+  --package-manager <MANAGER>                  Deprecated. Python and pip are bundled with InfluxDB; this option does not need to be set
                                                  [possible values: discover, pip, uv, disabled] [default: discover]
                                                  [env: INFLUXDB3_PACKAGE_MANAGER=]
   --plugin-repo <URL>                          URL of plugin repository

@@ -291,9 +291,14 @@ async fn snapshot_skips_deleted_table() {
     let table2_id = db_schema.table_name_to_id("table2").unwrap();
 
     // Soft delete the second table
-    use influxdb3_catalog::catalog::HardDeletionTime;
+    use influxdb3_catalog::catalog::{DeletionScope, HardDeletionTime};
     catalog
-        .soft_delete_table(TestWriter::DB_NAME, "table2", HardDeletionTime::Now)
+        .soft_delete_table(
+            TestWriter::DB_NAME,
+            "table2",
+            HardDeletionTime::Now,
+            DeletionScope::default(),
+        )
         .await
         .unwrap();
 

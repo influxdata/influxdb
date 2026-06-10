@@ -1,7 +1,6 @@
 use super::*;
 use datafusion::assert_batches_eq;
-use influxdb3_catalog::catalog::{Catalog, InfluxFieldType};
-use influxdb3_catalog::log::FieldDataType;
+use influxdb3_catalog::catalog::{Catalog, FieldDataType, InfluxFieldType};
 
 #[test]
 fn test_influxdb_schema_schema() {

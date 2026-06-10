@@ -1,0 +1,71 @@
+---
+source: influxdb3_catalog/src/catalog/versions/v2/enterprise/tests.rs
+assertion_line: 44
+expression: catalog.snapshot()
+---
+{
+  "generation_config": {
+    "generation_durations": []
+  },
+  "nodes": {
+    "repo": [
+      [
+        0,
+        {
+          "node_id": "node",
+          "node_catalog_id": 0,
+          "instance_id": "[uuid]",
+          "mode": [
+            "Ingest"
+          ],
+          "state": {
+            "Running": {
+              "registered_time_ns": 0
+            }
+          },
+          "core_count": 2,
+          "conn_info": null,
+          "cli_params": null,
+          "row_delete_predicate_version": 0
+        }
+      ]
+    ],
+    "next_id": 1
+  },
+  "databases": {
+    "repo": [
+      [
+        0,
+        {
+          "id": 0,
+          "name": "_internal",
+          "tables": {
+            "repo": [],
+            "next_id": 0
+          },
+          "retention_period": {
+            "Duration": {
+              "secs": 604800,
+              "nanos": 0
+            }
+          },
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false,
+          "hard_delete_time": null,
+          "hard_delete_scope": null
+        }
+      ]
+    ],
+    "next_id": 1
+  },
+  "sequence": 2,
+  "tokens": {
+    "repo": [],
+    "next_id": 0
+  },
+  "catalog_id": "cluster",
+  "catalog_uuid": "[uuid]"
+}

@@ -1,5 +1,6 @@
 ---
 source: influxdb3_catalog/src/catalog/migrations/v2/tests.rs
+assertion_line: 1641
 expression: v2_catalog.snapshot()
 ---
 {
@@ -15,7 +16,7 @@ expression: v2_catalog.snapshot()
           "node_catalog_id": 0,
           "instance_id": "[uuid]",
           "mode": [
-            "Core"
+            "Ingest"
           ],
           "state": {
             "Running": {
@@ -23,7 +24,9 @@ expression: v2_catalog.snapshot()
             }
           },
           "core_count": 1,
-          "cli_params": null
+          "conn_info": null,
+          "cli_params": null,
+          "row_delete_predicate_version": 0
         }
       ]
     ],
@@ -51,7 +54,8 @@ expression: v2_catalog.snapshot()
             "next_id": 0
           },
           "deleted": false,
-          "hard_delete_time": null
+          "hard_delete_time": null,
+          "hard_delete_scope": null
         }
       ],
       [
@@ -170,6 +174,7 @@ expression: v2_catalog.snapshot()
                     ],
                     "next_id": 2
                   },
+                  "retention_period": "Indefinite",
                   "last_caches": {
                     "repo": [
                       [
@@ -177,6 +182,7 @@ expression: v2_catalog.snapshot()
                         {
                           "table_id": 0,
                           "table": "test_table",
+                          "node_spec": "all",
                           "id": 0,
                           "name": "all_fields_cache",
                           "keys": [
@@ -202,6 +208,7 @@ expression: v2_catalog.snapshot()
                         {
                           "table_id": 0,
                           "table": "test_table",
+                          "node_spec": "all",
                           "id": 0,
                           "name": "my_distinct_cache",
                           "cols": [
@@ -213,7 +220,10 @@ expression: v2_catalog.snapshot()
                             }
                           ],
                           "max_cardinality": 1000,
-                          "max_age_seconds": 3600
+                          "max_age_seconds": 3600,
+                          "source": {
+                            "type": "User"
+                          }
                         }
                       ]
                     ],
@@ -221,7 +231,8 @@ expression: v2_catalog.snapshot()
                   },
                   "deleted": false,
                   "hard_delete_time": null,
-                  "field_family_mode": "aware"
+                  "field_family_mode": "aware",
+                  "hard_delete_scope": null
                 }
               ],
               [
@@ -313,6 +324,7 @@ expression: v2_catalog.snapshot()
                     ],
                     "next_id": 1
                   },
+                  "retention_period": "Indefinite",
                   "last_caches": {
                     "repo": [],
                     "next_id": 0
@@ -323,7 +335,8 @@ expression: v2_catalog.snapshot()
                   },
                   "deleted": false,
                   "hard_delete_time": null,
-                  "field_family_mode": "aware"
+                  "field_family_mode": "aware",
+                  "hard_delete_scope": null
                 }
               ]
             ],
@@ -335,7 +348,8 @@ expression: v2_catalog.snapshot()
             "next_id": 0
           },
           "deleted": false,
-          "hard_delete_time": null
+          "hard_delete_time": null,
+          "hard_delete_scope": null
         }
       ],
       [
@@ -435,6 +449,7 @@ expression: v2_catalog.snapshot()
                     ],
                     "next_id": 2
                   },
+                  "retention_period": "Indefinite",
                   "last_caches": {
                     "repo": [],
                     "next_id": 0
@@ -445,7 +460,8 @@ expression: v2_catalog.snapshot()
                   },
                   "deleted": true,
                   "hard_delete_time": 1000,
-                  "field_family_mode": "aware"
+                  "field_family_mode": "aware",
+                  "hard_delete_scope": null
                 }
               ],
               [
@@ -538,6 +554,7 @@ expression: v2_catalog.snapshot()
                     ],
                     "next_id": 2
                   },
+                  "retention_period": "Indefinite",
                   "last_caches": {
                     "repo": [],
                     "next_id": 0
@@ -548,7 +565,8 @@ expression: v2_catalog.snapshot()
                   },
                   "deleted": false,
                   "hard_delete_time": null,
-                  "field_family_mode": "aware"
+                  "field_family_mode": "aware",
+                  "hard_delete_scope": null
                 }
               ]
             ],
@@ -560,13 +578,14 @@ expression: v2_catalog.snapshot()
             "next_id": 0
           },
           "deleted": false,
-          "hard_delete_time": null
+          "hard_delete_time": null,
+          "hard_delete_scope": null
         }
       ]
     ],
     "next_id": 3
   },
-  "sequence": 21,
+  "sequence": 22,
   "tokens": {
     "repo": [
       [
@@ -594,6 +613,39 @@ expression: v2_catalog.snapshot()
         1,
         {
           "id": 1,
+          "name": "my_token",
+          "hash": "[hash]",
+          "created_at": 0,
+          "description": null,
+          "created_by": null,
+          "expiry": 1000000,
+          "updated_by": null,
+          "updated_at": null,
+          "permissions": [
+            {
+              "resource_type": "Database",
+              "resource_identifier": {
+                "Database": [
+                  1
+                ]
+              },
+              "actions": {
+                "Database": 48
+              },
+              "resource_names": {
+                "1": {
+                  "name": "db_1",
+                  "deleted": false
+                }
+              }
+            }
+          ]
+        }
+      ],
+      [
+        2,
+        {
+          "id": 2,
           "name": "my_admin",
           "hash": "[hash]",
           "created_at": 0,
@@ -612,7 +664,7 @@ expression: v2_catalog.snapshot()
         }
       ]
     ],
-    "next_id": 2
+    "next_id": 3
   },
   "catalog_id": "test-catalog",
   "catalog_uuid": "[uuid]"

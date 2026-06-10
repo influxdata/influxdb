@@ -28,6 +28,7 @@ hashbrown.workspace = true
 indexmap.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
+rustc-hash.workspace = true
 serde.workspace = true
 serde_with.workspace = true
 thiserror.workspace = true
