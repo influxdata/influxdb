@@ -264,24 +264,27 @@ fn sample_create_table(database_id: u32, table_id: u32, sequence: u64) -> Record
 }
 
 #[test]
-fn serialize_snapshot_empty_catalog_writes_empty_payload() {
-    // An empty catalog snapshots to a header-only file: SNAPSHOT flag set,
-    // zero records, empty payload.
+fn serialize_snapshot_empty_catalog_writes_compat_entry_only() {
+    // An empty catalog snapshots to a header plus the single
+    // backward-compatibility group-index entry: SNAPSHOT flag set, zero
+    // records, all-zero entry (Global, zero records, zero bytes).
     let catalog = test_catalog();
     let bytes = catalog.create_snapshot();
     let mut cursor = Cursor::new(bytes.as_ref());
     let header = Header::read_from(&mut cursor).expect("valid header");
     assert_eq!(header.flags & file_flags::SNAPSHOT, file_flags::SNAPSHOT);
     assert_eq!(header.record_count, 0);
-    assert_eq!(header.payload_len, 0);
-    assert_eq!(bytes.len(), Header::SIZE);
+    assert_eq!(header.group_count, 1);
+    assert_eq!(header.payload_len, 24);
+    assert_eq!(bytes.len(), Header::SIZE + 24);
+    assert_eq!(&bytes.as_ref()[Header::SIZE..], &[0u8; 24]);
 }
 
 #[test]
-fn create_snapshot_byte_layout_is_flat() {
+fn create_snapshot_byte_layout_compat_entry_then_flat_records() {
     // Apply records spanning several databases, then inspect the snapshot
-    // bytes: records begin directly at the payload start (no index), in
-    // application order, with original sequences preserved.
+    // bytes: one Global group-index entry spanning all records, then the
+    // records in application order with original sequences preserved.
     let mut catalog = test_catalog();
 
     let r_node = sample_register_node().make_record(1);
@@ -305,16 +308,29 @@ fn create_snapshot_byte_layout_is_flat() {
 
     assert_eq!(header.flags & file_flags::SNAPSHOT, file_flags::SNAPSHOT);
     assert_eq!(header.record_count, 5);
+    assert_eq!(header.group_count, 1);
 
-    // payload_len covers exactly the concatenated records.
+    // payload_len covers the compat index entry plus the concatenated
+    // records.
     let records_len: u64 = input
         .iter()
         .map(|r| (RECORD_HEADER_SIZE + r.data.len()) as u64)
         .sum();
-    assert_eq!(header.payload_len, records_len);
+    assert_eq!(header.payload_len, 24 + records_len);
 
-    // The first record's header begins at the payload start, verbatim.
-    let first = &bytes.as_ref()[Header::SIZE..Header::SIZE + RECORD_HEADER_SIZE];
+    // The compat entry declares one Global group spanning every record.
+    let entry = &bytes.as_ref()[Header::SIZE..Header::SIZE + 24];
+    assert_eq!(u32::from_le_bytes(entry[0..4].try_into().unwrap()), 0); // group_type Global
+    assert_eq!(u32::from_le_bytes(entry[4..8].try_into().unwrap()), 0); // group_key
+    assert_eq!(u32::from_le_bytes(entry[8..12].try_into().unwrap()), 5); // record_count
+    assert_eq!(
+        u32::from_le_bytes(entry[12..16].try_into().unwrap()) as u64,
+        records_len,
+    );
+    assert_eq!(u64::from_le_bytes(entry[16..24].try_into().unwrap()), 0); // byte_offset
+
+    // The first record's header begins right after the entry, verbatim.
+    let first = &bytes.as_ref()[Header::SIZE + 24..Header::SIZE + 24 + RECORD_HEADER_SIZE];
     assert_eq!(
         u16::from_le_bytes(first[0..2].try_into().unwrap()),
         input[0].id(),

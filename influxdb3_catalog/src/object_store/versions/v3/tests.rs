@@ -140,7 +140,9 @@ async fn load_catalog_returns_none_for_empty_store() {
 async fn load_or_create_initializes_fresh_catalog() {
     let store =
         ObjectStoreCatalog::new("prefix", Arc::new(InMemory::new()), StorageMode::PachaTree);
-    let inner = store.load_or_create_catalog().await.unwrap();
+    let load = store.load_or_create_catalog().await.unwrap();
+    assert!(!load.snapshot_needs_rewrite);
+    let inner = load.inner;
 
     assert_eq!(inner.sequence_number(), CatalogSequenceNumber::new(0));
     assert_ne!(inner.catalog_uuid, Uuid::nil());
@@ -166,8 +168,8 @@ async fn load_or_create_initializes_fresh_catalog() {
 #[tokio::test]
 async fn load_or_create_is_idempotent() {
     let store = test_store();
-    let first = store.load_or_create_catalog().await.unwrap();
-    let second = store.load_or_create_catalog().await.unwrap();
+    let first = store.load_or_create_catalog().await.unwrap().inner;
+    let second = store.load_or_create_catalog().await.unwrap().inner;
     assert_eq!(first.catalog_uuid, second.catalog_uuid);
 }
 
@@ -184,8 +186,8 @@ async fn load_or_create_resolves_concurrent_init() {
         cat_a.load_or_create_catalog(),
         cat_b.load_or_create_catalog()
     );
-    let a = a.unwrap();
-    let b = b.unwrap();
+    let a = a.unwrap().inner;
+    let b = b.unwrap().inner;
     assert_eq!(a.catalog_uuid, b.catalog_uuid);
 }
 
@@ -224,7 +226,9 @@ async fn load_catalog_replays_snapshot_and_logs() {
         .await
         .unwrap();
 
-    let inner = store.load_catalog().await.unwrap().expect("load");
+    let load = store.load_catalog().await.unwrap().expect("load");
+    assert!(!load.snapshot_needs_rewrite);
+    let inner = load.inner;
     assert_eq!(inner.sequence_number(), CatalogSequenceNumber::new(2));
     assert_eq!(inner.ordered_records.len(), 3); // snapshot + 2 log records
 }
