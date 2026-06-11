@@ -1,0 +1,20 @@
+[worker.oci]
+  enabled = true
+  numCPU = 11
+  maxParallelism = 2
+ 
+  # Garbage collection settings
+  gc = true
+  gckeepstorage = 22528  # 22GB in MB
+ 
+  [[worker.oci.gcpolicy]]
+    keepBytes = 23622320128  # 22GB in bytes
+    keepDuration = 604800    # 7 days in seconds
+ 
+[worker.containerd]
+  enabled = true
+ 
+# Resource limits
+[grpc]
+  maxRecvMsgSize = 104857600   # 100MB
+  maxSendMsgSize = 104857600   # 100MB
