@@ -86,7 +86,7 @@ struct SpreadAccumulator {
 impl SpreadAccumulator {
     fn new(data_type: DataType) -> Result<Self> {
         let min = ScalarValue::try_from(&data_type)?;
-        let max = ScalarValue::new_zero(&data_type)?;
+        let max = ScalarValue::try_from(&data_type)?;
         Ok(Self {
             data_type,
             min,
@@ -122,7 +122,7 @@ impl SpreadAccumulator {
     }
 
     fn maybe_set_max(&mut self, v: ScalarValue) {
-        if v > self.max {
+        if self.max.is_null() || v > self.max {
             self.max = v
         }
     }
@@ -159,5 +159,44 @@ impl Accumulator for SpreadAccumulator {
         self.update(Arc::clone(&states[1]), Update::Max)?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::Float64Array;
+
+    fn spread_of(values: &[f64]) -> ScalarValue {
+        let mut acc = SpreadAccumulator::new(DataType::Float64).unwrap();
+        let array: ArrayRef = Arc::new(Float64Array::from_iter_values(values.iter().copied()));
+        acc.update_batch(&[array]).unwrap();
+        acc.evaluate().unwrap()
+    }
+
+    #[test]
+    fn all_negative_values_yield_zero_spread() {
+        // Regression test for https://github.com/influxdata/influxdb/issues/27384:
+        // when every observed value is negative, the initial `max` of 0 was never
+        // overwritten, so spread evaluated to `0 - min` instead of `max - min`.
+        assert_eq!(
+            spread_of(&[-3.6, -3.6, -3.6]),
+            ScalarValue::Float64(Some(0.0))
+        );
+        assert_eq!(spread_of(&[-5.0, -1.0]), ScalarValue::Float64(Some(4.0)));
+    }
+
+    #[test]
+    fn single_negative_value_yields_zero_spread() {
+        assert_eq!(spread_of(&[-3.6]), ScalarValue::Float64(Some(0.0)));
+    }
+
+    #[test]
+    fn mixed_values_yield_correct_spread() {
+        assert_eq!(
+            spread_of(&[-2.0, 0.0, 3.0]),
+            ScalarValue::Float64(Some(5.0))
+        );
+        assert_eq!(spread_of(&[1.0, 2.0, 3.0]), ScalarValue::Float64(Some(2.0)));
     }
 }
