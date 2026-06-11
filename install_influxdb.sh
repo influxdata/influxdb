@@ -1437,6 +1437,14 @@ else
     STARTUP_CHOICE=${STARTUP_CHOICE:-1}
 
     case "$STARTUP_CHOICE" in
+        3)
+            # Skip startup
+            START_SERVICE="n"
+            ;;
+        2)
+            # Custom Configuration - existing detailed flow
+            START_SERVICE="y"
+            ;;
         1|*)
             # Quick Start - use defaults and check for existing license
             if [ "$STARTUP_CHOICE" != "1" ]; then
@@ -1445,14 +1453,6 @@ else
             setup_quick_start_defaults enterprise
             setup_license_for_quick_start
             START_SERVICE="y"
-            ;;
-        2)
-            # Custom Configuration - existing detailed flow
-            START_SERVICE="y"
-            ;;
-        3)
-            # Skip startup
-            START_SERVICE="n"
             ;;
     esac
 
