@@ -79,6 +79,12 @@ type Engine interface {
 	IsIdle() (bool, string)
 	Free() error
 
+	// RemoveMetrics deletes the engine's per-shard Prometheus child series from
+	// their global vectors. It must be called after Close, so the engine's
+	// background goroutines (which re-create their series on each tick) have
+	// stopped, and only when the shard is being permanently removed.
+	RemoveMetrics()
+
 	Reindex() error
 
 	io.WriterTo
