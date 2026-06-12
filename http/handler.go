@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -24,6 +25,8 @@ const (
 	HealthPath = "/health"
 	// DebugPath exposes /debug/pprof for go debugging.
 	DebugPath = "/debug"
+	// StrictTransportSecurityHeader is the HTTP header used to enable HSTS.
+	StrictTransportSecurityHeader = "Strict-Transport-Security"
 )
 
 // Handler provides basic handling of metrics, health and debug endpoints.
@@ -49,6 +52,11 @@ type (
 		// so we can report HTTP metrics via telemetry.
 		metricsRegistry *prom.Registry
 		metricsExposed  bool
+
+		// hstsEnabled enables the Strict-Transport-Security header, with
+		// the given max-age in seconds.
+		hstsEnabled bool
+		hstsMaxAge  int
 	}
 
 	HandlerOptFn func(opts *handlerOpts)
@@ -89,6 +97,33 @@ func WithMetrics(reg *prom.Registry, exposed bool) HandlerOptFn {
 	}
 }
 
+// WithStrictTransportSecurity emits the Strict-Transport-Security (HSTS) header
+// on all responses, with the given max-age in seconds. It is opt-in via
+// --hardening-enabled. The header never includes "preload" since InfluxDB does
+// not own the domain it is hosted on.
+func WithStrictTransportSecurity(maxAge int) HandlerOptFn {
+	return func(opts *handlerOpts) {
+		opts.hstsEnabled = true
+		if maxAge < 0 {
+			maxAge = 0
+		}
+		opts.hstsMaxAge = maxAge
+	}
+}
+
+// serverHeaderWriter returns the WriteHeader function shared by the root handler
+// and the health/ready handler: it stamps build-info headers on every response,
+// plus the Strict-Transport-Security header when HSTS is enabled.
+func serverHeaderWriter(hstsEnabled bool, hstsMaxAge int) func(http.Header) {
+	return func(header http.Header) {
+		header.Add("X-Influxdb-Build", "OSS")
+		header.Add("X-Influxdb-Version", influxdb.GetBuildInfo().Version)
+		if hstsEnabled {
+			header.Set(StrictTransportSecurityHeader, fmt.Sprintf("max-age=%d; includeSubDomains", hstsMaxAge))
+		}
+	}
+}
+
 type AddHeader struct {
 	WriteHeader func(header http.Header)
 }
@@ -123,10 +158,7 @@ func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 
 	r := chi.NewRouter()
 	buildHeader := &AddHeader{
-		WriteHeader: func(header http.Header) {
-			header.Add("X-Influxdb-Build", "OSS")
-			header.Add("X-Influxdb-Version", influxdb.GetBuildInfo().Version)
-		},
+		WriteHeader: serverHeaderWriter(opt.hstsEnabled, opt.hstsMaxAge),
 	}
 	r.Use(buildHeader.Middleware)
 	// only gather metrics for system handlers
