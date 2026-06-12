@@ -208,7 +208,7 @@ prost = "0.14"
 prost-build = "0.14"
 prost-types = "0.14"
 proptest = { version = "1", default-features = false, features = ["std"] }
-pyo3 = { version = "0.28", features = ["experimental-async"]}
+pyo3 = { version = "0.29", features = ["experimental-async"]}
 rand = "0.8.5"
 rcgen = "0.13.2"
 regex = "1.11.1"
