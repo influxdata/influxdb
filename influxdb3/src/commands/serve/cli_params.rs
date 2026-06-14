@@ -81,8 +81,8 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "traces-exporter-jaeger-agent-port",
     "traces-exporter-jaeger-service-name",
     "traces-exporter-jaeger-trace-context-header-name",
-    "traces-jaeger-debug-name",
-    "traces-jaeger-tags",
+    "traces-exporter-jaeger-debug-name",
+    "traces-exporter-jaeger-tags",
     "traces-jaeger-max-msgs-per-second",
     // DataFusion parameters
     "datafusion-config",
