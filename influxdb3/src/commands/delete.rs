@@ -126,7 +126,7 @@ pub struct DatabaseConfig {
     #[clap(long = "hard-delete", value_name = "WHEN")]
     pub hard_delete: Option<String>,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -152,7 +152,7 @@ pub struct LastCacheConfig {
     #[clap(required = true)]
     cache_name: String,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -174,7 +174,7 @@ pub struct DistinctCacheConfig {
     #[clap(required = true)]
     cache_name: String,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -196,7 +196,7 @@ pub struct TableConfig {
     #[clap(long = "hard-delete", value_name = "WHEN")]
     hard_delete: Option<String>,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -222,7 +222,7 @@ pub struct TriggerConfig {
     #[clap(required = true)]
     trigger_name: String,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -250,7 +250,7 @@ pub struct TokenConfig {
     #[clap(long = "token-name")]
     pub token_name: String,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 

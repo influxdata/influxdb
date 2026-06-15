@@ -74,7 +74,7 @@ pub struct Config {
     /// The query string to execute
     query: Option<String>,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 

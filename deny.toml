@@ -74,6 +74,18 @@ ignore = [
     "RUSTSEC-2026-0149",
     #
     # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=43.0.2 <44.0.0 or >=44.0.1)
+    #
+    # pyo3 0.24-0.28 out-of-bounds read in Iterator::nth/nth_back on
+    # PyList/PyTuple iterators; fix is only in pyo3 0.29 (API-breaking bump,
+    # tracked in influxdb_pro#4072). Not reachable here: no nth/nth_back calls
+    # in our pyo3-consuming crates, and the overflow needs a Rust-side n near
+    # usize::MAX, which our embedding never produces.
+    "RUSTSEC-2026-0176",
+    #
+    # pyo3 0.15-0.29 unsoundness bug. Possible data race in functions supplied
+    # to PyCFunction::new_closure, or PyCFunction::new_closure_bound.
+    # Neither of these methods are used in this code.
+    "RUSTSEC-2026-0177",
 ]
 git-fetch-with-cli = true
 
