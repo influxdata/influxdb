@@ -234,7 +234,7 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
-			query.DatePartValuer{},
+			query.DatePartValuer{Location: opt.Location},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -286,7 +286,7 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
 			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).UTC()
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
@@ -742,7 +742,7 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
-			query.DatePartValuer{},
+			query.DatePartValuer{Location: opt.Location},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -794,7 +794,7 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
 			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).UTC()
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
@@ -1250,7 +1250,7 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
-			query.DatePartValuer{},
+			query.DatePartValuer{Location: opt.Location},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -1302,7 +1302,7 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
 			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).UTC()
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
@@ -1758,7 +1758,7 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
-			query.DatePartValuer{},
+			query.DatePartValuer{Location: opt.Location},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -1810,7 +1810,7 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
 			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).UTC()
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
@@ -2266,7 +2266,7 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
-			query.DatePartValuer{},
+			query.DatePartValuer{Location: opt.Location},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -2318,7 +2318,7 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
 			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).UTC()
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {

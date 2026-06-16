@@ -207,6 +207,18 @@ func ValidateDatePart(args []influxql.Expr) error {
 
 type DatePartValuer struct {
 	Valuer influxql.MapValuer
+	// Location is the timezone in which calendar fields are computed.
+	// A nil Location is treated as UTC (see LocationOrUTC).
+	Location *time.Location
+}
+
+// LocationOrUTC returns loc, or time.UTC when loc is nil. Shared with the TSM
+// iterator so date_part extraction defaults consistently.
+func LocationOrUTC(loc *time.Location) *time.Location {
+	if loc == nil {
+		return time.UTC
+	}
+	return loc
 }
 
 var _ influxql.CallValuer = DatePartValuer{}
@@ -222,7 +234,7 @@ func (v DatePartValuer) Value(key string) (interface{}, bool) {
 	return v.Valuer.Value(key)
 }
 
-func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) {
+func (v DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) {
 	if name != DatePartString {
 		return nil, false
 	}
@@ -245,7 +257,7 @@ func (DatePartValuer) Call(name string, args []interface{}) (interface{}, bool) 
 		return nil, false
 	}
 
-	timestamp := time.Unix(0, timestampRaw).UTC()
+	timestamp := time.Unix(0, timestampRaw).In(LocationOrUTC(v.Location))
 	return ExtractDatePartExpr(timestamp, expr)
 }
 

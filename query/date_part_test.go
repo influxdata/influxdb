@@ -216,6 +216,27 @@ func TestDatePartValuer_Call(t *testing.T) {
 			ok:       true,
 		},
 		{
+			name:     "millisecond",
+			funcName: "date_part",
+			args:     []interface{}{"millisecond", testTimestamp},
+			expected: int64(123), // 123456789ns / 1e6
+			ok:       true,
+		},
+		{
+			name:     "microsecond",
+			funcName: "date_part",
+			args:     []interface{}{"microsecond", testTimestamp},
+			expected: int64(123456), // 123456789ns / 1e3
+			ok:       true,
+		},
+		{
+			name:     "nanosecond",
+			funcName: "date_part",
+			args:     []interface{}{"nanosecond", testTimestamp},
+			expected: int64(123456789),
+			ok:       true,
+		},
+		{
 			name:     "epoch",
 			funcName: "date_part",
 			args:     []interface{}{"epoch", testTimestamp},
@@ -240,7 +261,7 @@ func TestDatePartValuer_Call(t *testing.T) {
 			name:     "week",
 			funcName: "date_part",
 			args:     []interface{}{"week", testTimestamp},
-			expected: int64(3), // Approximate
+			expected: int64(3), // 2024-01-15 is in ISO week 3 (week 1 = Jan 1-7)
 			ok:       true,
 		},
 		{
@@ -325,6 +346,59 @@ func TestDatePartValuer_Call_Sunday(t *testing.T) {
 	})
 }
 
+func TestDatePartValuer_Call_ISOWeekBoundary(t *testing.T) {
+	valuer := query.DatePartValuer{}
+
+	// 2023-01-01 is a Sunday that falls in ISO week 52 of 2022.
+	// This is the classic ISO-week footgun: date_part('week') follows
+	// ISOWeek() while date_part('year') follows the calendar year, so they
+	// disagree across the year boundary.
+	jan1 := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	week, ok := valuer.Call("date_part", []interface{}{"week", jan1.UnixNano()})
+	require.True(t, ok)
+	require.Equal(t, int64(52), week, "2023-01-01 is in ISO week 52 of the prior year")
+
+	year, ok := valuer.Call("date_part", []interface{}{"year", jan1.UnixNano()})
+	require.True(t, ok)
+	require.Equal(t, int64(2023), year, "year follows the calendar year, not the ISO week-year")
+
+	// 2021-01-01 is a Friday that falls in ISO week 53 of 2020.
+	week53 := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
+	week, ok = valuer.Call("date_part", []interface{}{"week", week53.UnixNano()})
+	require.True(t, ok)
+	require.Equal(t, int64(53), week, "2021-01-01 is in ISO week 53 of the prior year")
+}
+
+func TestDatePartValuer_Call_PreEpoch(t *testing.T) {
+	valuer := query.DatePartValuer{}
+
+	// One hour before the Unix epoch: 1969-12-31 23:00:00 UTC (a Wednesday).
+	preEpoch := time.Date(1969, 12, 31, 23, 0, 0, 0, time.UTC)
+	ts := preEpoch.UnixNano()
+
+	tests := []struct {
+		part     string
+		expected int64
+	}{
+		{"epoch", -3600}, // one hour before epoch
+		{"year", 1969},
+		{"month", 12},
+		{"day", 31},
+		{"hour", 23},
+		{"dow", 3},    // Wednesday
+		{"isodow", 2}, // Wednesday is 2 in this implementation (Monday=0)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.part, func(t *testing.T) {
+			result, ok := valuer.Call("date_part", []interface{}{tt.part, ts})
+			require.True(t, ok)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestDatePartValuer_Value(t *testing.T) {
 	now := time.Now().UnixNano()
 	mapValuer := influxql.MapValuer{}
@@ -396,6 +470,44 @@ func TestDatePartGrouper_DecodeEntry(t *testing.T) {
 	require.Equal(t, int64(7), dpk.Val)
 }
 
+func TestDatePartGrouper_ResolveKeys_AuxShorterThanDims(t *testing.T) {
+	// Two dimensions but only one raw value and no DecodedDatePartKey present:
+	// ResolveKeys cannot map values to dims, so it returns (nil, nil).
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "year", Expr: query.Year},
+		{Name: "month", Expr: query.Month},
+	})
+
+	entries, err := g.ResolveKeys([]interface{}{int64(3)}, "", false)
+	require.NoError(t, err)
+	require.Nil(t, entries)
+}
+
+func TestDatePartGrouper_ResolveKeys_UnexpectedAuxType(t *testing.T) {
+	// A first-level aux value that is neither int64 nor DecodedDatePartKey
+	// must surface an error rather than silently mis-grouping.
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "month", Expr: query.Month},
+	})
+
+	entries, err := g.ResolveKeys([]interface{}{"not an int"}, "", false)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unexpected aux value type")
+	require.Nil(t, entries)
+}
+
+func TestDatePartGrouper_DecodeEntry_ShortKey(t *testing.T) {
+	// A key shorter than the 9-byte encoding (1 byte expr + 8 byte value)
+	// must be rejected rather than read out of bounds.
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "month", Expr: query.Month},
+	})
+
+	_, err := g.DecodeEntry("short")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "encoded key too short")
+}
+
 func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
 		{Name: "year", Expr: query.Year},
@@ -411,4 +523,60 @@ func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
 		_, err := g.DecodeEntry(e.EncodedKey)
 		require.NoError(t, err)
 	}
+}
+
+func TestDatePartValuer_Call_Timezone(t *testing.T) {
+	ny, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+
+	// 2023-07-01T03:30:00Z is EDT (UTC-4) → local 2023-06-30 23:30.
+	ts := time.Date(2023, 7, 1, 3, 30, 0, 0, time.UTC).UnixNano()
+
+	utc := query.DatePartValuer{} // nil Location → UTC
+	local := query.DatePartValuer{Location: ny}
+
+	hUTC, ok := utc.Call("date_part", []interface{}{"hour", ts})
+	require.True(t, ok)
+	require.Equal(t, int64(3), hUTC, "UTC hour")
+
+	hNY, ok := local.Call("date_part", []interface{}{"hour", ts})
+	require.True(t, ok)
+	require.Equal(t, int64(23), hNY, "New York local hour (previous day)")
+
+	dNY, ok := local.Call("date_part", []interface{}{"day", ts})
+	require.True(t, ok)
+	require.Equal(t, int64(30), dNY, "New York local day rolls back to June 30")
+
+	// epoch is an absolute instant — identical regardless of zone.
+	eUTC, _ := utc.Call("date_part", []interface{}{"epoch", ts})
+	eNY, _ := local.Call("date_part", []interface{}{"epoch", ts})
+	require.Equal(t, eUTC, eNY, "epoch must be zone-independent")
+	require.Equal(t, time.Date(2023, 7, 1, 3, 30, 0, 0, time.UTC).Unix(), eNY)
+}
+
+func TestDatePartValuer_Call_DST(t *testing.T) {
+	ny, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+	v := query.DatePartValuer{Location: ny}
+
+	// Spring forward: 2023-03-12 02:00 EST → 03:00 EDT (transition at 07:00Z).
+	// 07:30Z is EDT (UTC-4) → 03:30 local. (Naive EST would give hour 2.)
+	spring := time.Date(2023, 3, 12, 7, 30, 0, 0, time.UTC).UnixNano()
+	h, ok := v.Call("date_part", []interface{}{"hour", spring})
+	require.True(t, ok)
+	require.Equal(t, int64(3), h, "spring-forward: DST offset applied")
+
+	// Fall back: 2023-11-05 02:00 EDT → 01:00 EST (transition at 06:00Z).
+	// 07:30Z is EST (UTC-5) → 02:30 local. (Naive EDT would give hour 3.)
+	fall := time.Date(2023, 11, 5, 7, 30, 0, 0, time.UTC).UnixNano()
+	h, ok = v.Call("date_part", []interface{}{"hour", fall})
+	require.True(t, ok)
+	require.Equal(t, int64(2), h, "fall-back: standard time resumed")
+}
+
+func TestLocationOrUTC(t *testing.T) {
+	require.Equal(t, time.UTC, query.LocationOrUTC(nil))
+	ny, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+	require.Equal(t, ny, query.LocationOrUTC(ny))
 }

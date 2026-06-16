@@ -8635,6 +8635,79 @@ func TestServer_Query_DatePart(t *testing.T) {
 	}
 }
 
+func TestServer_Query_DatePart_Timezone(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		// Spring-forward boundary (NY): 07:30Z is EDT → 03:30 local.
+		fmt.Sprintf(`cpu value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-03-12T07:30:00Z").UnixNano()),
+		// Fall-back boundary (NY): 07:30Z is EST → 02:30 local.
+		fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-11-05T07:30:00Z").UnixNano()),
+		// Cross-day in NY: 03:30Z EDT → previous local day 23:30.
+		fmt.Sprintf(`cpu value=3 %d`, mustParseTime(time.RFC3339Nano, "2023-07-01T03:30:00Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    `date_part hour as column with tz()`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value, date_part('hour', time) AS h FROM db0.rp0.cpu tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","h"],"values":[["2023-03-12T03:30:00-04:00",1,3],["2023-06-30T23:30:00-04:00",3,23],["2023-11-05T02:30:00-05:00",2,2]]}]}]}`,
+		},
+		&Query{
+			name:    `GROUP BY date_part day with tz() across DST`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY date_part('day', time) tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["day"],"columns":["time","count","day"],"values":[["1969-12-31T19:00:00-05:00",1,5],["1969-12-31T19:00:00-05:00",1,12],["1969-12-31T19:00:00-05:00",1,30]]}]}]}`,
+		},
+		&Query{
+			// epoch is an absolute instant: its value must be identical with or
+			// without tz(). This locks in that the engine path leaves it
+			// zone-independent even when a timezone is applied.
+			name:    `date_part epoch is zone-independent under tz()`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value, date_part('epoch', time) AS e FROM db0.rp0.cpu tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","e"],"values":[["2023-03-12T03:30:00-04:00",1,1678606200],["2023-06-30T23:30:00-04:00",3,1688182200],["2023-11-05T02:30:00-05:00",2,1699169400]]}]}]}`,
+		},
+		&Query{
+			// date_part in WHERE must filter on local time: 02:30 EST (fall-back
+			// point) has local hour 2, while its UTC hour is 7. Matching hour=2
+			// proves the WHERE filter honors tz().
+			name:    `WHERE date_part hour filters on local time with tz()`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM db0.rp0.cpu WHERE date_part('hour', time) = 2 tz('America/New_York')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2023-11-05T02:30:00-05:00",2]]}]}]}`,
+		},
+	}...)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				err := test.init(s)
+				require.NoError(t, err, "init error")
+				initialized = true
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
+	}
+}
+
 func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())

@@ -180,7 +180,7 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 		valuer: influxql.ValuerEval{
 			Valuer: influxql.MultiValuer(
 				MathValuer{},
-				DatePartValuer{Valuer: mapValuer},
+				DatePartValuer{Valuer: mapValuer, Location: loc},
 				mapValuer,
 			),
 			IntegerFloatDivision: true,

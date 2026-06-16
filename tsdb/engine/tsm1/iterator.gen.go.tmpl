@@ -232,7 +232,7 @@ func new{{.Name}}Iterator(name string, tags query.Tags, opt query.IteratorOption
 	itr.valuer = influxql.ValuerEval{
 		Valuer: influxql.MultiValuer(
 			query.MathValuer{},
-			query.DatePartValuer{},
+			query.DatePartValuer{Location: opt.Location},
 			influxql.MapValuer(itr.m),
 		),
 	}
@@ -284,7 +284,7 @@ func (itr *{{.name}}Iterator) Next() (*query.{{.Name}}Point, error) {
 		// than appending, keeping Aux length consistent with scanner keys.
 		if len(itr.opt.DatePartDimensions) > 0 {
 			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).UTC()
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
