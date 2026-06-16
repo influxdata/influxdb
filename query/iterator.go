@@ -698,7 +698,11 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 				return opt, fmt.Errorf("invalid date part expression: %s", d.Args[0].String())
 			}
 			opt.DatePartDimensions = append(opt.DatePartDimensions, DatePartDimension{
-				Name: arg.Val,
+				// Store the canonical part name (e.g. "dow"), not the raw user
+				// literal (e.g. "DOW"). Downstream grouping-key decoding uses
+				// DatePartExpr.String(), so the column name must match it or the
+				// grouped column never gets populated.
+				Name: expr.String(),
 				Expr: expr,
 			})
 		}

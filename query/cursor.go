@@ -241,6 +241,18 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 						row.Values[i] = dpd.Val
 						continue
 					}
+					// An explicit SELECT date_part('part', time) whose part matches
+					// the active grouping dimension must report the grouped value,
+					// not date_part evaluated against the bucket's representative
+					// timestamp (which would be the same for every group).
+					if call, ok := expr.(*influxql.Call); ok && call.Name == DatePartString && len(call.Args) == DatePartArgCount {
+						if partArg, ok := call.Args[0].(*influxql.StringLiteral); ok {
+							if part, ok := ParseDatePartExpr(partArg.Val); ok && part == dpd.Expr {
+								row.Values[i] = dpd.Val
+								continue
+							}
+						}
+					}
 				}
 			}
 		}

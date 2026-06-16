@@ -496,16 +496,19 @@ func TestDatePartGrouper_ResolveKeys_UnexpectedAuxType(t *testing.T) {
 	require.Nil(t, entries)
 }
 
-func TestDatePartGrouper_DecodeEntry_ShortKey(t *testing.T) {
-	// A key shorter than the 9-byte encoding (1 byte expr + 8 byte value)
-	// must be rejected rather than read out of bounds.
+func TestDatePartGrouper_DecodeEntry_InvalidLength(t *testing.T) {
+	// The encoding is exactly 9 bytes (1 byte expr + 8 byte value). Both shorter
+	// and longer keys must be rejected rather than read out of bounds or silently
+	// truncated.
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
 		{Name: "month", Expr: query.Month},
 	})
 
-	_, err := g.DecodeEntry("short")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "encoded key too short")
+	for _, key := range []string{"short", "this key is far too long"} {
+		_, err := g.DecodeEntry(key)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must be exactly 9 bytes")
+	}
 }
 
 func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {

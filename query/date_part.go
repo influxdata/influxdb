@@ -317,8 +317,8 @@ func encodeKey(expr DatePartExpr, val int64) string {
 
 // decodeKey decodes a 9-byte encoded key back into a DecodedDatePartKey.
 func decodeKey(encodedKey string) (DecodedDatePartKey, error) {
-	if len(encodedKey) < 9 {
-		return DecodedDatePartKey{}, errors.New("date_part: encoded key too short")
+	if len(encodedKey) != 9 {
+		return DecodedDatePartKey{}, fmt.Errorf("date_part: encoded key must be exactly 9 bytes, got %d", len(encodedKey))
 	}
 	return DecodedDatePartKey{
 		Expr: DatePartExpr(encodedKey[0]),

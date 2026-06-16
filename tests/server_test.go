@@ -8394,6 +8394,23 @@ func TestServer_Query_DatePart(t *testing.T) {
 			params: url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			// Regression: part names are case-insensitive, so GROUP BY date_part('DOW', ...)
+			// must normalize to the canonical "dow" and populate the grouped column
+			// identically to the lowercase form (previously the column stayed null).
+			name:    `GROUP BY DOW uppercase normalizes to dow`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('DOW', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["dow"],"columns":["time","count","dow"],"values":[` +
+				`["2023-01-01T00:00:00Z",3,0],` +
+				`["2023-01-01T00:00:00Z",7,1],` +
+				`["2023-01-01T00:00:00Z",2,2],` +
+				`["2023-01-01T00:00:00Z",2,3],` +
+				`["2023-01-01T00:00:00Z",2,4],` +
+				`["2023-01-01T00:00:00Z",1,5],` +
+				`["2023-01-01T00:00:00Z",2,6]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    `GROUP BY hour with MAX`,
 			command: `SELECT MAX(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('hour', time)`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["hour"],"columns":["time","max","hour"],"values":[` +
@@ -9043,9 +9060,10 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
-		// date_part in both SELECT and GROUP BY with tag
-		// NOTE: The explicit SELECT date_part shows incorrect values (always first group's value)
-		// when combined with GROUP BY date_part + tag.
+		// date_part in both SELECT and GROUP BY with tag: an explicit
+		// SELECT date_part('year', time) that matches the GROUP BY date_part
+		// dimension reports the grouped value, so the date_part and year columns
+		// agree per group.
 		&Query{
 			name:    `SELECT date_part with GROUP BY host and year`,
 			command: `SELECT COUNT(value), date_part('year', time) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('year', time)`,
@@ -9054,10 +9072,10 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 				`["2023-01-01T00:00:00Z",6,2023,2023]` +
 				`]},` +
 				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":["year"],"columns":["time","count","date_part","year"],"values":[` +
-				`["2023-01-01T00:00:00Z",6,2023,2024]` +
+				`["2023-01-01T00:00:00Z",6,2024,2024]` +
 				`]},` +
 				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":["year"],"columns":["time","count","date_part","year"],"values":[` +
-				`["2023-01-01T00:00:00Z",7,2023,2025]` +
+				`["2023-01-01T00:00:00Z",7,2025,2025]` +
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
