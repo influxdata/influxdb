@@ -7,6 +7,8 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
+
+	"github.com/influxdata/influxdb/pkg/file"
 )
 
 // mmap implementation for Windows
@@ -129,5 +131,64 @@ func madviseDontNeed(b []byte) error { return nil }
 
 func madvise(b []byte, advice int) error {
 	// Not implemented
+	return nil
+}
+
+// rename moves the backing file to path, used by FileStore.replace when the
+// file is still referenced (InUse) by in-flight readers.
+//
+// LIMITATION: Windows cannot rename or delete a file that has an open handle or
+// an active mapping, so the mapping must be unmapped and the descriptor closed
+// before the rename, then remapped afterward. Unlike the Unix implementation
+// (see mmap_unix.go), this cannot preserve the original mapping. In-flight
+// readers that hold raw slices into the old mapping (for example the index keys
+// returned by KeyAt, which alias m.b) without holding the FileStore lock will
+// read freed memory and may fault. This is a pre-existing limitation of the
+// Windows mmap path and was not introduced by the fast/slow lock split; it is
+// documented here so the divergence from Unix is explicit. A correct Windows
+// fix would have to drain references before unmapping, which would block the
+// writer (holding both FileStore mutexes) for the lifetime of the slowest
+// reader and defeat the purger design.
+func (m *mmapAccessor) rename(path string) error {
+	m.incAccess()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	err := munmap(m.b)
+	if err != nil {
+		return err
+	}
+
+	if err := m.f.Close(); err != nil {
+		return err
+	}
+
+	if err := file.RenameFile(m.f.Name(), path); err != nil {
+		return err
+	}
+
+	m.f, err = os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	if _, err := m.f.Seek(0, 0); err != nil {
+		return err
+	}
+
+	stat, err := m.f.Stat()
+	if err != nil {
+		return err
+	}
+
+	m.b, err = mmap(m.f, 0, int(stat.Size()))
+	if err != nil {
+		return err
+	}
+
+	if m.mmapWillNeed {
+		return madviseWillNeed(m.b)
+	}
 	return nil
 }
