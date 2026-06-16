@@ -935,10 +935,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		return nil
 	}
 
-	f.slowMu.RLock()
-	maxTime := f.lastModified
-	f.slowMu.RUnlock()
-
+	maxTime := f.LastModified()
+	
 	updated := make([]TSMFile, 0, len(newFiles))
 	tsmTmpExt := fmt.Sprintf("%s.%s", TSMFileExtension, TmpTSMFileExtension)
 

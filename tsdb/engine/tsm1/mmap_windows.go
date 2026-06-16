@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"errors"
+	"io"
 	"os"
 	"reflect"
 	"sync"
@@ -173,7 +174,7 @@ func (m *mmapAccessor) rename(path string) error {
 		return err
 	}
 
-	if _, err := m.f.Seek(0, 0); err != nil {
+	if _, err := m.f.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
 

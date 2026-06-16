@@ -1573,14 +1573,6 @@ func (m *mmapAccessor) incAccess() {
 	atomic.AddUint64(&m.accessCount, 1)
 }
 
-// rename moves the backing file aside, used by FileStore.replace when the file
-// is still referenced by in-flight readers. Its implementation is
-// platform-specific (see mmap_unix.go and mmap_windows.go) because in-flight
-// readers hold raw slices into the memory mapping: the index keys returned by
-// KeyAt alias m.b. On Unix the mapping survives the rename, so those readers
-// stay valid; on Windows the mapping must be released to rename, which cannot
-// preserve them. See the per-platform implementations for details.
-
 func (m *mmapAccessor) read(key []byte, timestamp int64) ([]Value, error) {
 	entry := m.index.Entry(key, timestamp)
 	if entry == nil {
