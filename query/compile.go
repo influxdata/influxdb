@@ -188,6 +188,9 @@ func (c *compiledStatement) compile(stmt *influxql.SelectStatement) error {
 	if err := c.validateFields(); err != nil {
 		return err
 	}
+	if err := c.validateDatePartSelectFields(stmt); err != nil {
+		return err
+	}
 
 	// Look through the sources and compile each of the subqueries (if they exist).
 	// We do this after compiling the outside because subqueries may require
@@ -1052,6 +1055,61 @@ func (c *compiledStatement) validateFields() error {
 					}
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// validateDatePartSelectFields rejects an explicit date_part('part', time) in the
+// SELECT list whose part is not one of the GROUP BY date_part dimensions, when the
+// query groups by date_part. Under such grouping the emitted row's timestamp is the
+// bucket's representative time (not a per-row time), so a non-grouped date_part has
+// no well-defined value for the group and would silently return misleading data.
+//
+// Queries without a date_part GROUP BY are unaffected: raw queries evaluate
+// date_part against each point's real timestamp, and GROUP BY time() buckets carry a
+// meaningful timestamp, both of which are correct.
+func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectStatement) error {
+	groupByParts := make(map[DatePartExpr]struct{})
+	for _, d := range stmt.Dimensions {
+		call, ok := d.Expr.(*influxql.Call)
+		if !ok || call.Name != DatePartString || len(call.Args) != DatePartArgCount {
+			continue
+		}
+		if lit, ok := call.Args[0].(*influxql.StringLiteral); ok {
+			if part, ok := ParseDatePartExpr(lit.Val); ok {
+				groupByParts[part] = struct{}{}
+			}
+		}
+	}
+	if len(groupByParts) == 0 {
+		return nil
+	}
+
+	var badPart string
+	for _, f := range stmt.Fields {
+		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+			if badPart != "" {
+				return
+			}
+			call, ok := n.(*influxql.Call)
+			if !ok || call.Name != DatePartString || len(call.Args) != DatePartArgCount {
+				return
+			}
+			lit, ok := call.Args[0].(*influxql.StringLiteral)
+			if !ok {
+				return
+			}
+			part, ok := ParseDatePartExpr(lit.Val)
+			if !ok {
+				return
+			}
+			if _, ok := groupByParts[part]; !ok {
+				badPart = part.String()
+			}
+		})
+		if badPart != "" {
+			return fmt.Errorf("date_part: SELECT date_part('%s', time) requires '%s' to be a GROUP BY date_part dimension", badPart, badPart)
 		}
 	}
 	return nil

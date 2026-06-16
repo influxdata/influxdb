@@ -120,6 +120,9 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT first(value), date_part('dow', time) FROM cpu`,
 		`SELECT last(value), date_part('dow', time) FROM cpu`,
 		`SELECT max(value), date_part('dow', time) FROM cpu`,
+		// SELECT date_part matching a GROUP BY date_part dimension is allowed (maps to the grouped value)
+		`SELECT count(value), date_part('year', time) FROM cpu GROUP BY date_part('year', time)`,
+		`SELECT count(value), date_part('year', time), date_part('month', time) FROM cpu GROUP BY date_part('year', time), date_part('month', time)`,
 		// date_part in subqueries
 		`SELECT max(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM cpu)`,
 		`SELECT mean(value) FROM (SELECT value FROM cpu WHERE date_part('dow', time) = 1)`,
@@ -390,6 +393,8 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT value, first(value), last(value), date_part('dow', time) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
 		// date_part subquery validation - cannot be sole field
 		{s: `SELECT date_part('dow', value) FROM (SELECT value FROM cpu)`, err: `date_part: second argument must be time VarRef`},
+		// A SELECT date_part that does not match a GROUP BY date_part dimension is undefined per group and rejected.
+		{s: `SELECT count(value), date_part('month', time) FROM cpu GROUP BY date_part('year', time)`, err: `date_part: SELECT date_part('month', time) requires 'month' to be a GROUP BY date_part dimension`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)
