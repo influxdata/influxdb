@@ -1108,9 +1108,9 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-    // Check to see if we have any group bys that are not tags or time.
-    // If we have group by key entries, let's create separate iteratores for them. 
-    // If we don't have any, proceed as normal creating an iterator with the id map. 
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
 		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
 			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
 			if err != nil {
