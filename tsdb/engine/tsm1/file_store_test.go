@@ -3204,8 +3204,13 @@ func BenchmarkFileStore_FastLaneContention(b *testing.B) {
 	for _, v := range victims {
 		b.Run(v.name, func(b *testing.B) {
 			// Fresh FileStore per sub-benchmark so churned files do not accumulate
-			// across runs.
+			// across runs. Register cleanup right after creation so the dir is
+			// removed even if a require below aborts the sub-benchmark early.
+			// b.Cleanup runs after the benchmark, so it does not affect timing, and
+			// it runs after the explicit fs.Close() below, preserving owner-before-
+			// storage teardown ordering.
 			dir := MustTempDir()
+			b.Cleanup(func() { assert.NoError(b, os.RemoveAll(dir)) })
 			data := []keyValues{{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}}}
 			_, err := newFileDir(dir, data...)
 			require.NoError(b, err)
@@ -3216,8 +3221,12 @@ func BenchmarkFileStore_FastLaneContention(b *testing.B) {
 			}
 			require.NoError(b, fs.Open())
 
-			// Throwaway files for the Replace writer to churn.
+			// Throwaway files for the Replace writer to churn. Register cleanup
+			// immediately so the dir is removed even if the sub-benchmark exits
+			// early. Registered after dir's cleanup, so under LIFO it runs first
+			// (churn before dir), matching the original teardown order.
 			churn := MustTempDir()
+			b.Cleanup(func() { assert.NoError(b, os.RemoveAll(churn)) })
 
 			// Start the contended environment once and run it for the whole
 			// sub-benchmark; only the victim loop below is timed.
@@ -3275,13 +3284,12 @@ func BenchmarkFileStore_FastLaneContention(b *testing.B) {
 			}
 			b.StopTimer()
 
-			// Stop and join the contention goroutines, then close the FileStore
-			// before deleting its backing directories (owner before storage).
+			// Stop and join the contention goroutines, then close the FileStore.
+			// The temp-dir removals are registered as b.Cleanup above, so they run
+			// after this explicit Close (owner before storage).
 			close(done)
 			wg.Wait()
 			assert.NoError(b, fs.Close())
-			assert.NoError(b, os.RemoveAll(churn))
-			assert.NoError(b, os.RemoveAll(dir))
 		})
 	}
 }
@@ -3316,7 +3324,10 @@ func TestFileStore_ConcurrentLocking(t *testing.T) {
 
 	fs := tsm1.NewFileStore(dir)
 	require.NoError(t, fs.Replace(nil, files))
-	defer func() { require.NoError(t, fs.Close()) }()
+	// Use assert (not require) in this cleanup: require's FailNow during teardown
+	// could short-circuit the temp-dir RemoveAll defers above and obscure the
+	// original failure. assert lets teardown finish deterministically.
+	defer func() { assert.NoError(t, fs.Close()) }()
 
 	var concurrency, maxConcurrency atomic.Int64
 	bump := func() {
