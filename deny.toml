@@ -73,6 +73,9 @@ ignore = [
     # upstream datafusion-udf-wasm bump.
     "RUSTSEC-2026-0149",
     #
+    # Another wasmtime advisory:
+    "RUSTSEC-2026-0182",
+    #
     # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=43.0.2 <44.0.0 or >=44.0.1)
     #
     # pyo3 0.24-0.28 out-of-bounds read in Iterator::nth/nth_back on
