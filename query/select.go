@@ -957,16 +957,13 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 				return v
 			}
 			if n.Name == DatePartString {
-				// Special handling for date_part manually symbolize the time argument
+				// Rewrite the date_part time argument to the date_part_time
+				// reference, which is resolved from the evaluation map at scan time.
 				if len(n.Args) >= DatePartArgCount {
 					if timeRef, ok := n.Args[1].(*influxql.VarRef); ok && timeRef.Val == models.TimeString {
-						timeKey := timeRef.String()
-						if _, exists := v.symbols[timeKey]; !exists {
-							v.symbols[timeKey] = influxql.VarRef{
-								Val:  DatePartTimeString,
-								Type: influxql.Time,
-							}
-							v.refs[timeRef] = struct{}{}
+						v.table[timeRef] = influxql.VarRef{
+							Val:  DatePartTimeString,
+							Type: influxql.Time,
 						}
 					}
 				}
