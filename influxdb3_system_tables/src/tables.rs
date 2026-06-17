@@ -5,19 +5,21 @@ use arrow::array::{StringViewBuilder, UInt64Builder};
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
 pub(crate) struct TablesTable {
     catalog: Arc<Catalog>,
+    database: Option<Arc<DatabaseSchema>>,
     schema: SchemaRef,
 }
 
 impl TablesTable {
-    pub(crate) fn new(catalog: Arc<Catalog>) -> Self {
+    pub(crate) fn new(catalog: Arc<Catalog>, database: Option<Arc<DatabaseSchema>>) -> Self {
         Self {
             catalog,
+            database,
             schema: tables_schema(),
         }
     }
@@ -52,7 +54,11 @@ impl IoxSystemTable for TablesTable {
         _filters: Option<Vec<Expr>>,
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
-        let databases = self.catalog.list_db_schema();
+        let databases = if let Some(database_schema) = &self.database {
+            vec![Arc::clone(database_schema)]
+        } else {
+            self.catalog.list_db_schema()
+        };
 
         // Count total tables across all databases
         let total_tables: usize = databases
