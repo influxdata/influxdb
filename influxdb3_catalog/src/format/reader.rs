@@ -50,13 +50,20 @@ impl CatalogFile {
         let pos = cursor.position() as usize;
         let payload_len = header.payload_len as usize;
         let underlying = cursor.get_ref().as_ref();
-        let payload_end = pos + payload_len;
-        if payload_end > underlying.len() {
-            return Err(FormatError::BufferTooShort {
-                expected: payload_end,
-                actual: underlying.len(),
-            });
-        }
+        // `header.payload_len` is attacker-controlled in a crafted or corrupt
+        // file; a value near usize::MAX overflows `pos + payload_len` and wraps
+        // past the length check, so the payload slice below then panics on an
+        // out-of-range index. Treat an overflowing or oversized length as a
+        // too-short buffer, the same outcome as a plainly truncated file.
+        let payload_end = match pos.checked_add(payload_len) {
+            Some(end) if end <= underlying.len() => end,
+            _ => {
+                return Err(FormatError::BufferTooShort {
+                    expected: pos.saturating_add(payload_len),
+                    actual: underlying.len(),
+                });
+            }
+        };
         if verify_payload_crc {
             let computed_crc = crc32fast::hash(&underlying[pos..payload_end]);
             if computed_crc != header.payload_crc {
