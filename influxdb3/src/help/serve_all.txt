@@ -268,9 +268,9 @@ Examples:
                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
   --traces-exporter-jaeger-trace-context-header-name <NAME>    Header for trace context [default: uber-trace-id]
                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
-  --traces-jaeger-debug-name <NAME>                            Header for force sampling [default: jaeger-debug-id]
+  --traces-exporter-jaeger-debug-name <NAME>                   Header for force sampling [default: jaeger-debug-id]
                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
-  --traces-jaeger-tags <TAGS>                                  Key-value pairs for tracing spans
+  --traces-exporter-jaeger-tags <TAGS>                         Key-value pairs for tracing spans
                                                                 [env: INFLUXDB3_TRACES_EXPORTER_JAEGER_TAGS=]
   --traces-jaeger-max-msgs-per-second <N>                      Max messages per second [default: 1000]
                                                                 [env: INFLUXDB3_TRACES_JAEGER_MAX_MSGS_PER_SECOND=]
