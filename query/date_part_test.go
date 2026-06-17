@@ -342,7 +342,7 @@ func TestDatePartValuer_Call_Sunday(t *testing.T) {
 	t.Run("isodow - Sunday is 6", func(t *testing.T) {
 		result, ok := valuer.Call("date_part", []interface{}{"isodow", sundayTimestamp})
 		require.True(t, ok)
-		require.Equal(t, int64(6), result, "isdow check") // Sunday = 6 in ISO
+		require.Equal(t, int64(6), result, "isodow check") // Sunday = 6 in ISO
 	})
 }
 
