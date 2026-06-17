@@ -2,7 +2,6 @@ package query
 
 import (
 	"math"
-	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
@@ -237,9 +236,8 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 						row.GroupingKeys = make(map[string]struct{})
 					}
 					row.GroupingKeys[dimName] = struct{}{}
-					// Only set the column value if this field matches the dimension
-					exprName := strings.TrimSuffix(expr.String(), "::integer")
-					if exprName == dimName {
+					// Only set the column value if this field is the dimension VarRef.
+					if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
 						row.Values[i] = dpd.Val
 						continue
 					}

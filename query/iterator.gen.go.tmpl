@@ -1188,12 +1188,20 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)

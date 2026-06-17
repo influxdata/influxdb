@@ -1184,12 +1184,20 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -1517,12 +1525,20 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -1850,12 +1866,20 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -2183,12 +2207,20 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -2516,12 +2548,20 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -4075,12 +4115,20 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -4408,12 +4456,20 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -4741,12 +4797,20 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -5074,12 +5138,20 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -5407,12 +5479,20 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -6966,12 +7046,20 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -7299,12 +7387,20 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -7632,12 +7728,20 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -7965,12 +8069,20 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -8298,12 +8410,20 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -9843,12 +9963,20 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -10176,12 +10304,20 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -10509,12 +10645,20 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -10842,12 +10986,20 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -11175,12 +11327,20 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -12720,12 +12880,20 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -13053,12 +13221,20 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -13386,12 +13562,20 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -13719,12 +13903,20 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)
@@ -14052,12 +14244,20 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 					return nil, err
 				}
 				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, which already contains the raw int64
-				// date_part value(s) appended by the TSM iterator. Replace the
-				// last element in-place so Aux length stays consistent with the
-				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-				// nil Aux, so we append normally.
+				// point's Aux via cloneAux, whose last N slots hold the raw int64
+				// value for every date_part dimension. Only the active dimension is
+				// meaningful for this series, so clear all of those slots (leaving
+				// non-active dimension columns null) and carry only the active
+				// DecodedDatePartKey, which the scanner routes by name. Aggregate
+				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
 				if n := len(points[i].Aux); n > 0 {
+					base := n - len(itr.opt.DatePartDimensions)
+					if base < 0 {
+						base = 0
+					}
+					for j := base; j < n; j++ {
+						points[i].Aux[j] = nil
+					}
 					points[i].Aux[n-1] = dpVal
 				} else {
 					points[i].Aux = append(points[i].Aux, dpVal)

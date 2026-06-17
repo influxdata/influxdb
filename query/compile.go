@@ -1086,6 +1086,20 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 		return nil
 	}
 
+	// GROUP BY date_part injects an output column named after the canonical part
+	// (e.g. "year"). Reject a user-selected field/alias of the same name: the
+	// duplicate column names collapse in column-name-keyed result handling (e.g.
+	// SELECT INTO via convertRowToPoints), silently dropping data.
+	injected := make(map[string]struct{}, len(groupByParts))
+	for part := range groupByParts {
+		injected[part.String()] = struct{}{}
+	}
+	for _, f := range stmt.Fields {
+		if _, ok := injected[f.Name()]; ok {
+			return fmt.Errorf("date_part: output column %q collides with the GROUP BY date_part('%s', time) dimension; alias the field to a different name", f.Name(), f.Name())
+		}
+	}
+
 	var badPart string
 	for _, f := range stmt.Fields {
 		influxql.WalkFunc(f.Expr, func(n influxql.Node) {

@@ -395,6 +395,8 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT date_part('dow', value) FROM (SELECT value FROM cpu)`, err: `date_part: second argument must be time VarRef`},
 		// A SELECT date_part that does not match a GROUP BY date_part dimension is undefined per group and rejected.
 		{s: `SELECT count(value), date_part('month', time) FROM cpu GROUP BY date_part('year', time)`, err: `date_part: SELECT date_part('month', time) requires 'month' to be a GROUP BY date_part dimension`},
+		// A selected field/alias colliding with an injected date_part dimension column is rejected.
+		{s: `SELECT mean(value) AS year FROM cpu GROUP BY date_part('year', time)`, err: `date_part: output column "year" collides with the GROUP BY date_part('year', time) dimension; alias the field to a different name`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)

@@ -8538,23 +8538,23 @@ func TestServer_Query_DatePart(t *testing.T) {
 			command: `SELECT MAX(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time)`,
 			exp: `{"results":[{"statement_id":0,"series":[` +
 				`{"name":"cpu","grouping_keys":["month"],"columns":["time","max","year","month"],"values":[` +
-				`["2023-04-15T14:20:30Z",3,2023,4],` +
-				`["2023-07-19T08:15:22Z",4,2023,7],` +
-				`["2023-10-27T16:45:10Z",5,2023,10]]},` +
+				`["2023-04-15T14:20:30Z",3,null,4],` +
+				`["2023-07-19T08:15:22Z",4,null,7],` +
+				`["2023-10-27T16:45:10Z",5,null,10]]},` +
 				`{"name":"cpu","grouping_keys":["year"],"columns":["time","max","year","month"],"values":[` +
 				`["2023-12-31T23:59:59Z",6,2023,null]]},` +
 				`{"name":"cpu","grouping_keys":["month"],"columns":["time","max","year","month"],"values":[` +
-				`["2024-02-29T12:00:00Z",8,2024,2],` +
-				`["2024-05-19T06:30:15Z",9,2024,5],` +
-				`["2024-08-06T18:45:00Z",10,2024,8],` +
-				`["2024-11-23T22:10:55Z",11,2024,11],` +
-				`["2024-12-31T23:59:59Z",12,2024,12]]},` +
+				`["2024-02-29T12:00:00Z",8,null,2],` +
+				`["2024-05-19T06:30:15Z",9,null,5],` +
+				`["2024-08-06T18:45:00Z",10,null,8],` +
+				`["2024-11-23T22:10:55Z",11,null,11],` +
+				`["2024-12-31T23:59:59Z",12,null,12]]},` +
 				`{"name":"cpu","grouping_keys":["year"],"columns":["time","max","year","month"],"values":[` +
 				`["2024-12-31T23:59:59Z",12,2024,null]]},` +
 				`{"name":"cpu","grouping_keys":["month"],"columns":["time","max","year","month"],"values":[` +
-				`["2025-01-01T00:00:00Z",13,2025,1],` +
-				`["2025-06-12T11:20:30Z",14,2025,6],` +
-				`["2025-09-15T23:59:59Z",19,2025,9]]},` +
+				`["2025-01-01T00:00:00Z",13,null,1],` +
+				`["2025-06-12T11:20:30Z",14,null,6],` +
+				`["2025-09-15T23:59:59Z",19,null,9]]},` +
 				`{"name":"cpu","grouping_keys":["year"],"columns":["time","max","year","month"],"values":[` +
 				`["2025-09-15T23:59:59Z",19,2025,null]]}` +
 				`]}]}`,
@@ -8565,26 +8565,26 @@ func TestServer_Query_DatePart(t *testing.T) {
 			command: `SELECT MIN(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time)`,
 			exp: `{"results":[{"statement_id":0,"series":[` +
 				`{"name":"cpu","grouping_keys":["month"],"columns":["time","min","year","month"],"values":[` +
-				`["2023-01-01T00:00:00Z",1,2023,1]]},` +
+				`["2023-01-01T00:00:00Z",1,null,1]]},` +
 				`{"name":"cpu","grouping_keys":["year"],"columns":["time","min","year","month"],"values":[` +
 				`["2023-01-01T00:00:00Z",1,2023,null]]},` +
 				`{"name":"cpu","grouping_keys":["month"],"columns":["time","min","year","month"],"values":[` +
-				`["2023-04-15T14:20:30Z",3,2023,4],` +
-				`["2023-07-19T08:15:22Z",4,2023,7],` +
-				`["2023-10-27T16:45:10Z",5,2023,10],` +
-				`["2023-12-31T23:59:59Z",6,2023,12]]},` +
+				`["2023-04-15T14:20:30Z",3,null,4],` +
+				`["2023-07-19T08:15:22Z",4,null,7],` +
+				`["2023-10-27T16:45:10Z",5,null,10],` +
+				`["2023-12-31T23:59:59Z",6,null,12]]},` +
 				`{"name":"cpu","grouping_keys":["year"],"columns":["time","min","year","month"],"values":[` +
 				`["2024-01-01T00:00:00Z",7,2024,null]]},` +
 				`{"name":"cpu","grouping_keys":["month"],"columns":["time","min","year","month"],"values":[` +
-				`["2024-02-29T12:00:00Z",8,2024,2],` +
-				`["2024-05-19T06:30:15Z",9,2024,5],` +
-				`["2024-08-06T18:45:00Z",10,2024,8],` +
-				`["2024-11-23T22:10:55Z",11,2024,11]]},` +
+				`["2024-02-29T12:00:00Z",8,null,2],` +
+				`["2024-05-19T06:30:15Z",9,null,5],` +
+				`["2024-08-06T18:45:00Z",10,null,8],` +
+				`["2024-11-23T22:10:55Z",11,null,11]]},` +
 				`{"name":"cpu","grouping_keys":["year"],"columns":["time","min","year","month"],"values":[` +
 				`["2025-01-01T00:00:00Z",13,2025,null]]},` +
 				`{"name":"cpu","grouping_keys":["month"],"columns":["time","min","year","month"],"values":[` +
-				`["2025-06-12T11:20:30Z",14,2025,6],` +
-				`["2025-09-15T00:00:00Z",15,2025,9]]}` +
+				`["2025-06-12T11:20:30Z",14,null,6],` +
+				`["2025-09-15T00:00:00Z",15,null,9]]}` +
 				`]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
