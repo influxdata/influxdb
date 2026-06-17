@@ -299,6 +299,32 @@ fn snapshot_rejects_record_count_exceeding_payload() {
     ));
 }
 
+#[test]
+fn rejects_payload_len_overflowing_offset() {
+    // A crafted or corrupt header can claim a payload_len near u64::MAX. The
+    // bounds check must reject it cleanly: `pos + payload_len` would otherwise
+    // overflow and wrap past the check, panicking when the payload is sliced.
+    let header = Header {
+        format_version: FORMAT_VERSION,
+        flags: 0,
+        catalog_uuid: 1337,
+        sequence_number: 1,
+        record_count: 0,
+        group_count: 0,
+        payload_crc: crc32fast::hash(&[]),
+        payload_len: u64::MAX,
+    };
+    let mut file = Vec::new();
+    file.extend_from_slice(&header.to_bytes());
+    file.extend_from_slice(&[0u8; 8]);
+    let mut cursor = Cursor::new(Bytes::from(file));
+
+    assert!(matches!(
+        CatalogFile::read_from(&mut cursor),
+        Err(FormatError::BufferTooShort { .. }),
+    ));
+}
+
 #[cfg(test)]
 mod skip_crc_tests {
     use super::*;
