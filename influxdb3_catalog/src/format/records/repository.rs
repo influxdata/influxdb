@@ -1,7 +1,5 @@
 //! Repository id-counter records (record_id 25).
 
-use std::sync::Arc;
-
 use influxdb3_id::{
     ColumnId, DbId, DistinctCacheId, FieldFamilyId, LastCacheId, NodeId, RoleId, TableId, TokenId,
     TriggerId,
@@ -154,10 +152,7 @@ impl SetNextId {
         f: impl FnOnce(&mut DatabaseSchema) -> Result<(), ApplyError>,
     ) -> Result<(), ApplyError> {
         let db_id = DbId::new(database_id);
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        f(Arc::make_mut(&mut db))?;
-        catalog.databases.update(db_id, db)?;
-        Ok(())
+        catalog.databases.modify_by_id(&db_id, f)
     }
 
     fn with_table(
@@ -169,10 +164,7 @@ impl SetNextId {
     ) -> Result<(), ApplyError> {
         let table_id = TableId::new(table_id);
         self.with_database(catalog, database_id, |db| {
-            let mut table = db.tables.require_by_id(&table_id)?;
-            f(Arc::make_mut(&mut table))?;
-            db.tables.update(table_id, table)?;
-            Ok(())
+            db.tables.modify_by_id(&table_id, f)
         })
     }
 }

@@ -1,7 +1,5 @@
 //! Enterprise retention records (record_ids e2-e3).
 
-use std::sync::Arc;
-
 use crate::catalog::versions::v3::events::CatalogEvent;
 use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::retention::RetentionPeriod as SchemaRetentionPeriod;
@@ -9,7 +7,6 @@ use crate::format::apply::ApplyError;
 use crate::format::records::impl_bitcode_encoding;
 use crate::format::records::types::RetentionPeriod;
 use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
-use crate::resource::CatalogResource;
 use influxdb3_id::{DbId, TableId};
 
 /// Set retention period on a table (enterprise).
@@ -32,13 +29,12 @@ impl CatalogRecord for SetTableRetentionPeriod {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut table = db.tables.require_by_id(&table_id)?;
-        Arc::make_mut(&mut table).retention_period =
-            SchemaRetentionPeriod::from(&self.retention_period);
-        let d = Arc::make_mut(&mut db);
-        d.tables.update(table.id(), table)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.tables.modify_by_id(&table_id, |table| {
+                table.retention_period = SchemaRetentionPeriod::from(&self.retention_period);
+                Ok(())
+            })
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -71,12 +67,12 @@ impl CatalogRecord for ClearTableRetentionPeriod {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut table = db.tables.require_by_id(&table_id)?;
-        Arc::make_mut(&mut table).retention_period = SchemaRetentionPeriod::Indefinite;
-        let d = Arc::make_mut(&mut db);
-        d.tables.update(table.id(), table)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.tables.modify_by_id(&table_id, |table| {
+                table.retention_period = SchemaRetentionPeriod::Indefinite;
+                Ok(())
+            })
+        })
     }
 
     fn event(&self) -> CatalogEvent {

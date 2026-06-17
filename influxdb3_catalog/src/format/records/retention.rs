@@ -1,7 +1,5 @@
 //! Retention period records (record_ids 16-17).
 
-use std::sync::Arc;
-
 use super::impl_bitcode_encoding;
 use super::types::RetentionPeriod;
 use crate::catalog::versions::v3::events::CatalogEvent;
@@ -9,7 +7,6 @@ use crate::catalog::versions::v3::inner::InnerCatalog;
 use crate::catalog::versions::v3::schema::retention::RetentionPeriod as SchemaRetentionPeriod;
 use crate::format::apply::ApplyError;
 use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
-use crate::resource::CatalogResource;
 use influxdb3_id::DbId;
 
 /// Set retention period on a database.
@@ -28,10 +25,10 @@ impl CatalogRecord for SetDbRetentionPeriod {
 
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        Arc::make_mut(&mut db).retention_period =
-            SchemaRetentionPeriod::from(&self.retention_period);
-        catalog.databases.update(db.id(), db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.retention_period = SchemaRetentionPeriod::from(&self.retention_period);
+            Ok(())
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -59,9 +56,10 @@ impl CatalogRecord for ClearDbRetentionPeriod {
 
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let db_id = DbId::new(self.database_id);
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        Arc::make_mut(&mut db).retention_period = SchemaRetentionPeriod::Indefinite;
-        catalog.databases.update(db.id(), db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.retention_period = SchemaRetentionPeriod::Indefinite;
+            Ok(())
+        })
     }
 
     fn event(&self) -> CatalogEvent {

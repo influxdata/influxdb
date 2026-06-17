@@ -339,7 +339,7 @@ mod test {
         let plan_rb = chunks_to_physical_nodes(&schema, None, vec![record_batch_chunk], 1);
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan_rb),
-            @r#"- " RecordBatchesExec: chunks=1, projection=[tag, float_field, int_field, string_field, tag_no_val, field_no_val, time]""#
+            @r#"- " RecordBatchesExec: chunks=1 [Test=1], projection=[tag, float_field, int_field, string_field, tag_no_val, field_no_val, time]""#
         );
 
         // Stats for time

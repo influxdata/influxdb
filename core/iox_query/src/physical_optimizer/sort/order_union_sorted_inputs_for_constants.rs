@@ -86,7 +86,7 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " ProgressiveEvalExec: input_ranges=[(m0,tag0)->(m0,tag0), (m1,tag0)->(m1,tag0)]"
@@ -97,7 +97,7 @@ mod test {
             - "           DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "       SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
             - "         ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-            - "           RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "           RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -167,10 +167,10 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[m0 as iox::measurement, tag1 as key, tag1@2 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
           - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " ProgressiveEvalExec: input_ranges=[(m0,tag0)->(m0,tag0), (m0,tag1)->(m0,tag1), (m1,tag0)->(m1,tag0)]"
@@ -181,10 +181,10 @@ mod test {
             - "           DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "       SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
             - "         ProjectionExec: expr=[m0 as iox::measurement, tag1 as key, tag1@2 as value]"
-            - "           RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "           RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
             - "       SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
             - "         ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-            - "           RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "           RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -243,7 +243,7 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[2 as iox::measurement, 20 as key, tag0@1 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " ProgressiveEvalExec: input_ranges=[(1,10)->(1,10), (2,20)->(2,20)]"
@@ -253,7 +253,7 @@ mod test {
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
             - "       ProjectionExec: expr=[2 as iox::measurement, 20 as key, tag0@1 as value]"
-            - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -312,7 +312,7 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[m1 as iox::measurement, tag1 as key, tag2 as another_key, tag0@1 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " ProgressiveEvalExec: input_ranges=[(m0,tag0)->(m0,tag0), (m1,tag1)->(m1,tag1)]"
@@ -322,7 +322,7 @@ mod test {
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
             - "       ProjectionExec: expr=[m1 as iox::measurement, tag1 as key, tag2 as another_key, tag0@1 as value]"
-            - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -426,7 +426,7 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[iox::measurement ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " SortPreservingMergeExec: [iox::measurement ASC NULLS LAST]"
@@ -436,7 +436,7 @@ mod test {
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "     SortExec: expr=[iox::measurement ASC NULLS LAST], preserve_partitioning=[false]"
             - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-            - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -489,7 +489,7 @@ mod test {
           - "       ProjectionExec: expr=[m1 as iox::measurement, tag0 as key, tag0@1 as value]"
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-          - "       RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "       RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " SortPreservingMergeExec: [iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST, value@2 ASC NULLS LAST]"
@@ -498,7 +498,7 @@ mod test {
             - "       ProjectionExec: expr=[m1 as iox::measurement, tag0 as key, tag0@1 as value]"
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "     ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-            - "       RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "       RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -552,7 +552,7 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST, value@2 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " SortPreservingMergeExec: [iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST, value@2 ASC NULLS LAST]"
@@ -562,7 +562,7 @@ mod test {
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "     SortExec: expr=[iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST, value@2 ASC NULLS LAST], preserve_partitioning=[false]"
             - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-            - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -620,7 +620,7 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[tag0 as iox::measurement, tag1 as key, tag1@2 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " SortPreservingMergeExec: [iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST, value@2 ASC NULLS LAST]"
@@ -630,7 +630,7 @@ mod test {
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "     SortExec: expr=[iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST], preserve_partitioning=[false]"
             - "       ProjectionExec: expr=[tag0 as iox::measurement, tag1 as key, tag1@2 as value]"
-            - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -694,7 +694,7 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " SortPreservingMergeExec: [iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST, value@2 ASC NULLS LAST]"
@@ -704,7 +704,7 @@ mod test {
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
             - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-            - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }
@@ -769,7 +769,7 @@ mod test {
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
           - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
           - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-          - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         output:
           Ok:
             - " SortPreservingMergeExec: [iox::measurement@0 ASC NULLS LAST, key@1 ASC NULLS LAST, value@2 ASC NULLS LAST]"
@@ -779,7 +779,7 @@ mod test {
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag2, tag0, tag1, field1, time, __chunk_order], output_ordering=[__chunk_order@5 ASC], file_type=parquet"
             - "     SortExec: expr=[value@2 ASC NULLS LAST], preserve_partitioning=[false]"
             - "       ProjectionExec: expr=[m0 as iox::measurement, tag0 as key, tag0@1 as value]"
-            - "         RecordBatchesExec: chunks=1, projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=1 [Test=1], projection=[tag2, tag0, tag1, field1, time, __chunk_order]"
         "#
         );
     }

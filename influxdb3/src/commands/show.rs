@@ -51,7 +51,7 @@ pub struct ShowTokensConfig {
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -79,7 +79,7 @@ pub struct PluginsConfig {
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -111,7 +111,7 @@ pub struct RetentionConfig {
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -143,7 +143,7 @@ pub struct DatabaseConfig {
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 

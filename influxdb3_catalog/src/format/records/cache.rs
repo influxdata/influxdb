@@ -60,31 +60,30 @@ impl CatalogRecord for CreateDistinctCache {
         let table_id = TableId::new(self.table_id);
         let cache_id = DistinctCacheId::new(self.cache_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut tbl = db.tables.require_by_id(&table_id)?;
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.tables.modify_by_id(&table_id, |tbl| {
+                let cache_def = DistinctCacheDefinition {
+                    table_id: tbl.id(),
+                    table_name: tbl.name(),
+                    node_spec: SchemaNodeSpec::from(&self.node_spec),
+                    cache_id,
+                    cache_name: Arc::from(self.cache_name.as_str()),
+                    column_ids: self.column_ids.iter().map(ColumnIdentifier::from).collect(),
+                    max_cardinality: MaxCardinality::from_usize_unchecked(
+                        self.max_cardinality as usize,
+                    ),
+                    max_age_seconds: MaxAge::from_secs(self.max_age_seconds),
+                    source: CacheSource::from(self.source),
+                    lookback_seconds: self.lookback_seconds,
+                    refresh_interval: self
+                        .refresh_interval_seconds
+                        .map(RefreshInterval::from_secs),
+                };
 
-        let cache_def = DistinctCacheDefinition {
-            table_id: tbl.id(),
-            table_name: tbl.name(),
-            node_spec: SchemaNodeSpec::from(&self.node_spec),
-            cache_id,
-            cache_name: Arc::from(self.cache_name.as_str()),
-            column_ids: self.column_ids.iter().map(ColumnIdentifier::from).collect(),
-            max_cardinality: MaxCardinality::from_usize_unchecked(self.max_cardinality as usize),
-            max_age_seconds: MaxAge::from_secs(self.max_age_seconds),
-            source: CacheSource::from(self.source),
-            lookback_seconds: self.lookback_seconds,
-            refresh_interval: self
-                .refresh_interval_seconds
-                .map(RefreshInterval::from_secs),
-        };
-
-        Arc::make_mut(&mut tbl)
-            .distinct_caches
-            .insert(cache_id, cache_def)?;
-
-        Arc::make_mut(&mut db).tables.update(table_id, tbl)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+                tbl.distinct_caches.insert(cache_id, cache_def)?;
+                Ok(())
+            })
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -121,13 +120,12 @@ impl CatalogRecord for DeleteDistinctCache {
         let table_id = TableId::new(self.table_id);
         let cache_id = DistinctCacheId::new(self.cache_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut tbl = db.tables.require_by_id(&table_id)?;
-
-        Arc::make_mut(&mut tbl).distinct_caches.remove(&cache_id);
-
-        Arc::make_mut(&mut db).tables.update(table_id, tbl)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.tables.modify_by_id(&table_id, |tbl| {
+                tbl.distinct_caches.remove(&cache_id);
+                Ok(())
+            })
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -176,31 +174,28 @@ impl CatalogRecord for CreateLastCache {
         let table_id = TableId::new(self.table_id);
         let cache_id = LastCacheId::new(self.id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut tbl = db.tables.require_by_id(&table_id)?;
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.tables.modify_by_id(&table_id, |tbl| {
+                let cache_def = LastCacheDefinition {
+                    table_id: tbl.id(),
+                    table: tbl.name(),
+                    id: cache_id,
+                    node_spec: SchemaNodeSpec::from(&self.node_spec),
+                    name: Arc::from(self.name.as_str()),
+                    key_columns: self
+                        .key_columns
+                        .iter()
+                        .map(ColumnIdentifier::from)
+                        .collect(),
+                    value_columns: LastCacheValueColumnsDef::from(&self.value_columns),
+                    count: LastCacheSize::new(self.count as usize).expect("cache size must be > 0"),
+                    ttl: LastCacheTtl::from_secs(self.ttl_seconds),
+                };
 
-        let cache_def = LastCacheDefinition {
-            table_id: tbl.id(),
-            table: tbl.name(),
-            id: cache_id,
-            node_spec: SchemaNodeSpec::from(&self.node_spec),
-            name: Arc::from(self.name.as_str()),
-            key_columns: self
-                .key_columns
-                .iter()
-                .map(ColumnIdentifier::from)
-                .collect(),
-            value_columns: LastCacheValueColumnsDef::from(&self.value_columns),
-            count: LastCacheSize::new(self.count as usize).expect("cache size must be > 0"),
-            ttl: LastCacheTtl::from_secs(self.ttl_seconds),
-        };
-
-        Arc::make_mut(&mut tbl)
-            .last_caches
-            .insert(cache_id, cache_def)?;
-
-        Arc::make_mut(&mut db).tables.update(table_id, tbl)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+                tbl.last_caches.insert(cache_id, cache_def)?;
+                Ok(())
+            })
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -237,13 +232,12 @@ impl CatalogRecord for DeleteLastCache {
         let table_id = TableId::new(self.table_id);
         let cache_id = LastCacheId::new(self.cache_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut tbl = db.tables.require_by_id(&table_id)?;
-
-        Arc::make_mut(&mut tbl).last_caches.remove(&cache_id);
-
-        Arc::make_mut(&mut db).tables.update(table_id, tbl)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.tables.modify_by_id(&table_id, |tbl| {
+                tbl.last_caches.remove(&cache_id);
+                Ok(())
+            })
+        })
     }
 
     fn event(&self) -> CatalogEvent {

@@ -19,6 +19,7 @@ observability_deps = { path = "../core/observability_deps" }
 
 # crates.io
 anyhow.workspace = true
+bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
 comfy-table.workspace = true
