@@ -1086,6 +1086,19 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 		return nil
 	}
 
+	// Value-carrying fill modes (previous/linear/<number>) synthesize values for
+	// empty windows. For a GROUP BY date_part dimension this would leak a value
+	// into a series where that dimension is not active, so reject those modes.
+	// fill(null) (the default) and fill(none) are unaffected.
+	switch c.FillOption {
+	case influxql.PreviousFill:
+		return errors.New("date_part: fill(previous) is not supported with GROUP BY date_part")
+	case influxql.LinearFill:
+		return errors.New("date_part: fill(linear) is not supported with GROUP BY date_part")
+	case influxql.NumberFill:
+		return errors.New("date_part: fill(<value>) is not supported with GROUP BY date_part")
+	}
+
 	// GROUP BY date_part injects an output column named after the canonical part
 	// (e.g. "year"). Reject a user-selected field/alias of the same name: the
 	// duplicate column names collapse in column-name-keyed result handling (e.g.

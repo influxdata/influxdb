@@ -558,6 +558,9 @@ func (s *{{$k.name}}IteratorScanner) ScanAt(ts int64, name string, tags Tags, m 
 			m[k.Val] = v
 		case DecodedDatePartKey:
 		    m[DatePartDimensionsString] = v
+		    // Clear any stale raw value under this dimension's own key so a prior
+		    // row's value can't persist (the active value is carried via the key above).
+		    delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {

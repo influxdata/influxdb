@@ -559,6 +559,9 @@ func (s *floatIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[st
 			m[k.Val] = v
 		case DecodedDatePartKey:
 			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -3490,6 +3493,9 @@ func (s *integerIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[
 			m[k.Val] = v
 		case DecodedDatePartKey:
 			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -6421,6 +6427,9 @@ func (s *unsignedIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map
 			m[k.Val] = v
 		case DecodedDatePartKey:
 			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -9352,6 +9361,9 @@ func (s *stringIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[s
 			m[k.Val] = v
 		case DecodedDatePartKey:
 			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -12269,6 +12281,9 @@ func (s *booleanIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[
 			m[k.Val] = v
 		case DecodedDatePartKey:
 			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {

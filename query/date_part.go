@@ -252,6 +252,23 @@ func (v DatePartValuer) Call(name string, args []interface{}) (interface{}, bool
 		return nil, false
 	}
 
+	// Under GROUP BY date_part(...), the active grouped dimension value is
+	// authoritative for the series; the row timestamp is only a bucket
+	// representative and must not be used. Resolving from the grouped value here
+	// keeps nested expressions (e.g. date_part('year', time) + 1) consistent with
+	// top-level date_part fields: the active part yields its grouped value, and a
+	// non-active grouped part is undefined for this series (nil).
+	if v.Valuer != nil {
+		if raw, ok := v.Valuer.Value(DatePartDimensionsString); ok {
+			if dpk, ok := raw.(DecodedDatePartKey); ok {
+				if expr == dpk.Expr {
+					return dpk.Val, true
+				}
+				return nil, false
+			}
+		}
+	}
+
 	timestampRaw, ok := args[1].(int64)
 	if !ok {
 		return nil, false

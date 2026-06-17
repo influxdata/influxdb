@@ -237,28 +237,13 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 					}
 					row.GroupingKeys[dimName] = struct{}{}
 					// Only set the column value if this field is the dimension VarRef.
+					// Explicit date_part(...) calls — top-level or nested in a larger
+					// expression — are resolved by DatePartValuer.Call against the
+					// active grouped key (already applied in v above), so they need no
+					// special handling here.
 					if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
 						row.Values[i] = dpd.Val
 						continue
-					}
-					// An explicit SELECT date_part('part', time) under GROUP BY
-					// date_part is only well-defined for this series' active
-					// grouping dimension. Report the grouped value when it matches;
-					// otherwise (a different grouped part that is active on another
-					// series) the value is undefined for this group, so emit null
-					// rather than date_part evaluated against the bucket's
-					// representative timestamp, which would be a misleading constant.
-					if call, ok := expr.(*influxql.Call); ok && call.Name == DatePartString && len(call.Args) == DatePartArgCount {
-						if partArg, ok := call.Args[0].(*influxql.StringLiteral); ok {
-							if part, ok := ParseDatePartExpr(partArg.Val); ok {
-								if part == dpd.Expr {
-									row.Values[i] = dpd.Val
-								} else {
-									row.Values[i] = nil
-								}
-								continue
-							}
-						}
 					}
 				}
 			}

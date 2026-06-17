@@ -8466,6 +8466,14 @@ func TestServer_Query_DatePart(t *testing.T) {
 			params: url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			// date_part nested in an expression under GROUP BY date_part must use
+			// the grouped value, not the bucket timestamp: year+1 per group.
+			name:    `SELECT date_part nested in expression under GROUP BY date_part`,
+			command: `SELECT COUNT(value), date_part('year', time) + 1 AS yp FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["year"],"columns":["time","count","yp","year"],"values":[["2023-01-01T00:00:00Z",6,2024,2023],["2023-01-01T00:00:00Z",6,2025,2024],["2023-01-01T00:00:00Z",7,2026,2025]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			// An explicit SELECT date_part('month') under GROUP BY year, month is
 			// well-defined only on the month series; on the year series it is a
 			// different (non-active) grouping dimension, so it must be null rather
