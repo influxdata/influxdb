@@ -1161,6 +1161,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
         trace_exporter,
         trace_header_parser,
         Arc::clone(&telemetry_store),
+        Arc::from(node_id.as_str()),
     );
 
     if config.without_auth {

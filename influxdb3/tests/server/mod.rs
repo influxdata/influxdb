@@ -37,6 +37,7 @@ mod flight;
 mod gen1_lookback_guard;
 mod limits;
 mod logs;
+mod metrics;
 mod packages;
 mod ping;
 mod plugin_restriction;

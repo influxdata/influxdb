@@ -29,6 +29,11 @@ pub struct PrometheusTextEncoder<'a, W: Write> {
 
     encoder: TextEncoder,
     writer: &'a mut W,
+
+    /// Labels prepended to every reported observation. Per-metric attributes
+    /// must not reuse these label names — Prometheus rejects duplicates within
+    /// a series.
+    default_attributes: Attributes,
 }
 
 impl<'a, W: Write> PrometheusTextEncoder<'a, W> {
@@ -37,7 +42,14 @@ impl<'a, W: Write> PrometheusTextEncoder<'a, W> {
             metric: None,
             encoder: TextEncoder::new(),
             writer,
+            default_attributes: Attributes::from(&[]),
         }
+    }
+
+    /// Set labels that will be added to every reported observation.
+    pub fn with_default_attributes(mut self, attributes: Attributes) -> Self {
+        self.default_attributes = attributes;
+        self
     }
 }
 
@@ -79,8 +91,9 @@ impl<W: Write> metric::Reporter for PrometheusTextEncoder<'_, W> {
         let mut metric = Metric::default();
 
         metric.set_label(
-            attributes
+            self.default_attributes
                 .iter()
+                .chain(attributes.iter())
                 .map(|(name, value)| {
                     let mut pair = LabelPair::default();
                     pair.set_name(name.to_string());
@@ -353,6 +366,29 @@ foo_total{tag1="value",tag2="value2"} 7
 
         // no errors
         assert_not_contains!(tracing_capture.to_string(), "error");
+    }
+
+    #[test]
+    fn test_encode_with_default_attributes() {
+        let registry = Registry::new();
+        let counter: Metric<U64Counter> = registry.register_metric("foo", "a counter metric");
+        counter.recorder(&[("tag1", "value")]).inc(3);
+
+        let mut buffer = Vec::new();
+        let mut default_attrs = Attributes::from(&[]);
+        default_attrs.insert("node_id", "node-1".to_string());
+        let mut encoder =
+            PrometheusTextEncoder::new(&mut buffer).with_default_attributes(default_attrs);
+        registry.report(&mut encoder);
+
+        let buffer = String::from_utf8(buffer).unwrap();
+        let expected = r#"
+# HELP foo_total a counter metric
+# TYPE foo_total counter
+foo_total{node_id="node-1",tag1="value"} 3
+"#
+        .trim_start();
+        assert_eq!(&buffer, expected, "{buffer}");
     }
 
     #[test]
