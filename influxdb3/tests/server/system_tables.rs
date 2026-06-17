@@ -93,6 +93,73 @@ async fn queries_table() {
     }
 }
 
+#[tokio::test]
+async fn queries_table_scoped_to_database() {
+    let server = TestServer::spawn().await;
+
+    // Initialize two user databases by writing to each.
+    server
+        .write_lp_to_db("foo", "cpu,host=s1 usage=0.9 2998574931", Precision::Second)
+        .await
+        .expect("write to foo");
+    server
+        .write_lp_to_db("bar", "cpu,host=s2 usage=0.8 2998574931", Precision::Second)
+        .await
+        .expect("write to bar");
+
+    // Run a query on foo so the global query log has at least one foo entry.
+    {
+        let mut foo_client = server.flight_sql_client("foo").await;
+        let resp = foo_client.query("SELECT * FROM cpu").await.unwrap();
+        let _batches = collect_stream(resp).await;
+    }
+
+    // system.queries on `bar` must not return foo's query. `running = false`
+    // excludes the current scan query itself (which is still in flight).
+    {
+        let mut bar_client = server.flight_sql_client("bar").await;
+        let resp = bar_client
+            .query("SELECT COUNT(*) FROM system.queries WHERE running = false")
+            .await
+            .unwrap();
+        let batches = collect_stream(resp).await;
+        assert_batches_sorted_eq!(
+            [
+                "+----------+",
+                "| count(*) |",
+                "+----------+",
+                "| 0        |",
+                "+----------+",
+            ],
+            &batches
+        );
+    }
+
+    // system.queries on `_internal` is also scoped — it does not act as a
+    // server-wide admin view, so foo's query must not appear here either.
+    {
+        let mut internal_client = server.flight_sql_client("_internal").await;
+        let resp = internal_client
+            .query(
+                "SELECT COUNT(*) FROM system.queries \
+                 WHERE running = false AND query_text LIKE '%SELECT * FROM cpu%'",
+            )
+            .await
+            .unwrap();
+        let batches = collect_stream(resp).await;
+        assert_batches_sorted_eq!(
+            [
+                "+----------+",
+                "| count(*) |",
+                "+----------+",
+                "| 0        |",
+                "+----------+",
+            ],
+            &batches
+        );
+    }
+}
+
 #[test_log::test(tokio::test)]
 async fn last_caches_table() {
     let server = TestServer::spawn().await;
