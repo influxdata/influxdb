@@ -1180,18 +1180,19 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -1512,18 +1513,19 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -1844,18 +1846,19 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -2176,18 +2179,19 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -2508,18 +2512,19 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -4066,18 +4071,19 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -4398,18 +4404,19 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -4730,18 +4737,19 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -5062,18 +5070,19 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -5394,18 +5403,19 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -6952,18 +6962,19 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -7284,18 +7295,19 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -7616,18 +7628,19 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -7948,18 +7961,19 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -8280,18 +8294,19 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -9824,18 +9839,19 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -10156,18 +10172,19 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -10488,18 +10505,19 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -10820,18 +10838,19 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -11152,18 +11171,19 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -12696,18 +12716,19 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -13028,18 +13049,19 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -13360,18 +13382,19 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -13692,18 +13715,19 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
@@ -14024,18 +14048,19 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 
 			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
 				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
-				if err == nil {
-					// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-					// point's Aux via cloneAux, which already contains the raw int64
-					// date_part value(s) appended by the TSM iterator. Replace the
-					// last element in-place so Aux length stays consistent with the
-					// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
-					// nil Aux, so we append normally.
-					if n := len(points[i].Aux); n > 0 {
-						points[i].Aux[n-1] = dpVal
-					} else {
-						points[i].Aux = append(points[i].Aux, dpVal)
-					}
+				if err != nil {
+					return nil, err
+				}
+				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
+				// point's Aux via cloneAux, which already contains the raw int64
+				// date_part value(s) appended by the TSM iterator. Replace the
+				// last element in-place so Aux length stays consistent with the
+				// scanner's keys. Aggregate functions (COUNT, SUM, MEAN) return
+				// nil Aux, so we append normally.
+				if n := len(points[i].Aux); n > 0 {
+					points[i].Aux[n-1] = dpVal
+				} else {
+					points[i].Aux = append(points[i].Aux, dpVal)
 				}
 			}
 
