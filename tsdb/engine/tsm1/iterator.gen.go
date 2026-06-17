@@ -280,22 +280,6 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute date part dimension values in-place. The date_part dims
-		// occupy the last N slots of opt.Aux (added by select.go), so we
-		// overwrite the nil values left by the phantom aux cursors rather
-		// than appending, keeping Aux length consistent with scanner keys.
-		if len(itr.opt.DatePartDimensions) > 0 {
-			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
-			for i, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
-				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
-				}
-				itr.point.Aux[baseIdx+i] = val
-			}
-		}
-
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
@@ -310,6 +294,23 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -788,22 +789,6 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute date part dimension values in-place. The date_part dims
-		// occupy the last N slots of opt.Aux (added by select.go), so we
-		// overwrite the nil values left by the phantom aux cursors rather
-		// than appending, keeping Aux length consistent with scanner keys.
-		if len(itr.opt.DatePartDimensions) > 0 {
-			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
-			for i, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
-				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
-				}
-				itr.point.Aux[baseIdx+i] = val
-			}
-		}
-
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
@@ -818,6 +803,23 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -1296,22 +1298,6 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute date part dimension values in-place. The date_part dims
-		// occupy the last N slots of opt.Aux (added by select.go), so we
-		// overwrite the nil values left by the phantom aux cursors rather
-		// than appending, keeping Aux length consistent with scanner keys.
-		if len(itr.opt.DatePartDimensions) > 0 {
-			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
-			for i, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
-				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
-				}
-				itr.point.Aux[baseIdx+i] = val
-			}
-		}
-
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
@@ -1326,6 +1312,23 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -1804,22 +1807,6 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute date part dimension values in-place. The date_part dims
-		// occupy the last N slots of opt.Aux (added by select.go), so we
-		// overwrite the nil values left by the phantom aux cursors rather
-		// than appending, keeping Aux length consistent with scanner keys.
-		if len(itr.opt.DatePartDimensions) > 0 {
-			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
-			for i, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
-				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
-				}
-				itr.point.Aux[baseIdx+i] = val
-			}
-		}
-
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
@@ -1834,6 +1821,23 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -2312,22 +2316,6 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Compute date part dimension values in-place. The date_part dims
-		// occupy the last N slots of opt.Aux (added by select.go), so we
-		// overwrite the nil values left by the phantom aux cursors rather
-		// than appending, keeping Aux length consistent with scanner keys.
-		if len(itr.opt.DatePartDimensions) > 0 {
-			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
-			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
-			for i, dim := range itr.opt.DatePartDimensions {
-				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
-				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
-				}
-				itr.point.Aux[baseIdx+i] = val
-			}
-		}
-
 		// Read from condition field cursors.
 		for i := range itr.conds.curs {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
@@ -2342,6 +2330,23 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
