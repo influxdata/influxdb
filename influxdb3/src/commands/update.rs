@@ -30,7 +30,7 @@ pub struct UpdateDatabase {
     #[clap(long, short = 'r')]
     retention_period: Option<String>,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -52,7 +52,7 @@ pub struct UpdateTrigger {
     #[clap(long, short = 'p')]
     path: PathBuf,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 

@@ -23,6 +23,12 @@ pub enum RepositoryError<I: CatalogId> {
     #[error("{resource} with id {id} already exists")]
     AlreadyExists { resource: &'static str, id: I },
 
+    #[error("{resource} with name '{name}' already exists")]
+    AlreadyExistsByName {
+        resource: &'static str,
+        name: String,
+    },
+
     #[error("{resource} with id {id} not found")]
     NotFound { resource: &'static str, id: I },
 
@@ -44,6 +50,11 @@ impl<I: CatalogId> std::fmt::Debug for RepositoryError<I> {
                 .field("resource", resource)
                 .field("id", &format_args!("{id}"))
                 .finish(),
+            Self::AlreadyExistsByName { resource, name } => f
+                .debug_struct("AlreadyExistsByName")
+                .field("resource", resource)
+                .field("name", name)
+                .finish(),
             Self::NotFound { resource, id } => f
                 .debug_struct("NotFound")
                 .field("resource", resource)
@@ -61,7 +72,9 @@ impl<I: CatalogId> std::fmt::Debug for RepositoryError<I> {
 impl<I: CatalogId> From<RepositoryError<I>> for CatalogError {
     fn from(e: RepositoryError<I>) -> Self {
         match e {
-            RepositoryError::AlreadyExists { .. } => Self::AlreadyExists,
+            RepositoryError::AlreadyExists { .. } | RepositoryError::AlreadyExistsByName { .. } => {
+                Self::AlreadyExists
+            }
             RepositoryError::NotFound { resource, id } => {
                 Self::NotFound(format!("{resource}: {id}"))
             }
@@ -130,6 +143,27 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
             })
     }
 
+    /// Mutate an existing resource by `id`, keeping the id↔name map consistent.
+    ///
+    /// Clones the resource out, hands `f` a `&mut R` (via `Arc::make_mut`), and
+    /// writes the result back via [`update`](Self::update) only if `f` succeeds
+    /// — so an error from `f` leaves the repository untouched. Returns `f`'s
+    /// value. Renaming the resource onto a name another resource already holds
+    /// fails with `AlreadyExistsByName` and writes nothing.
+    pub fn modify_by_id<T, E>(
+        &mut self,
+        id: &I,
+        f: impl FnOnce(&mut R) -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<RepositoryError<I>>,
+    {
+        let mut resource = self.require_by_id(id)?;
+        let output = f(Arc::make_mut(&mut resource))?;
+        self.update(*id, resource)?;
+        Ok(output)
+    }
+
     pub(crate) fn get_and_increment_next_id(&mut self) -> I {
         let next_id = self.next_id;
         self.next_id = self.next_id.next();
@@ -159,12 +193,6 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
             .cloned()
     }
 
-    pub fn get_mut_by_name(&mut self, name: &str) -> Option<&mut Arc<R>> {
-        self.id_name_map
-            .get_by_right(name)
-            .and_then(|id| self.repo.get_mut(id))
-    }
-
     pub fn get_ref_by_id(&self, id: &I) -> Option<&Arc<R>> {
         self.repo.get(id)
     }
@@ -173,7 +201,13 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         self.repo.get(id).cloned()
     }
 
-    pub fn get_mut_by_id(&mut self, id: &I) -> Option<&mut Arc<R>> {
+    /// Mutable handle to the stored `Arc` that bypasses the id↔name map.
+    ///
+    /// Crate-internal only: renaming through this handle desyncs the bimap.
+    /// Prefer [`modify_by_id`](Self::modify_by_id); reach for this only when a
+    /// caller needs in-place, unique-owner mutation that the clone-out in
+    /// `modify_by_id` would defeat.
+    pub(crate) fn get_mut_by_id(&mut self, id: &I) -> Option<&mut Arc<R>> {
         self.repo.get_mut(id)
     }
 
@@ -247,7 +281,11 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         Ok(())
     }
 
-    /// Update an existing resource in the repository
+    /// Update an existing resource in the repository.
+    ///
+    /// Returns `NotFound` if `id` is absent, or `AlreadyExistsByName` if the
+    /// resource was renamed onto a name another resource already holds. On
+    /// error the repository is left unchanged.
     pub(crate) fn update(
         &mut self,
         id: I,
@@ -260,7 +298,22 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
                 id,
             });
         }
-        self.id_name_map.insert(id, resource.name());
+        // Guard the id↔name bijection: if the (possibly renamed) resource's name
+        // is already held by a different id, `id_name_map.insert` would evict
+        // that id's name entry and leave it in `repo` with no name — a desync
+        // that later trips `id_exists`. Reject the rename instead.
+        let name = resource.name();
+        if self
+            .id_name_map
+            .get_by_right(name.as_ref())
+            .is_some_and(|owner| *owner != id)
+        {
+            return Err(RepositoryError::AlreadyExistsByName {
+                resource: R::CATEGORY,
+                name: name.to_string(),
+            });
+        }
+        self.id_name_map.insert(id, name);
         self.repo.insert(id, resource);
         Ok(())
     }
@@ -282,3 +335,6 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         self.repo.values()
     }
 }
+
+#[cfg(test)]
+mod tests;

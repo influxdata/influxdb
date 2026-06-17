@@ -141,20 +141,17 @@ impl CatalogRecord for StopNode {
 
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
-        let mut node = catalog.nodes.require_by_id(&node_catalog_id)?;
-        let n = Arc::make_mut(&mut node);
-        // Legacy StopNode carries no ack or final-snapshot information; use
-        // `stopped_time_ns` as a synthetic ack timestamp so system tables don't
-        // show epoch dates, and leave `final_snapshot_sequence` unset.
-        n.state = NodeState::Stopped {
-            stopped_time_ns: self.stopped_time_ns,
-            ack_time_ns: self.stopped_time_ns,
-            final_snapshot_sequence: None,
-        };
-        catalog
-            .nodes
-            .update(node_catalog_id, node)
-            .map_err(Into::into)
+        catalog.nodes.modify_by_id(&node_catalog_id, |n| {
+            // Legacy StopNode carries no ack or final-snapshot information; use
+            // `stopped_time_ns` as a synthetic ack timestamp so system tables don't
+            // show epoch dates, and leave `final_snapshot_sequence` unset.
+            n.state = NodeState::Stopped {
+                stopped_time_ns: self.stopped_time_ns,
+                ack_time_ns: self.stopped_time_ns,
+                final_snapshot_sequence: None,
+            };
+            Ok(())
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -191,23 +188,16 @@ impl CatalogRecord for RequestStopNode {
 
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
-        let mut node = catalog.nodes.require_by_id(&node_catalog_id)?;
-        let n = Arc::make_mut(&mut node);
-
-        match n.state {
-            NodeState::Running { .. } => {
+        catalog.nodes.modify_by_id(&node_catalog_id, |n| {
+            // Already past Running: leave the existing terminal/transitional
+            // state in place rather than rewinding timestamps.
+            if let NodeState::Running { .. } = n.state {
                 n.state = NodeState::Stopping {
                     stopped_time_ns: self.stopped_time_ns,
                 };
-                catalog
-                    .nodes
-                    .update(node_catalog_id, node)
-                    .map_err(Into::into)
             }
-            // Already past Running: leave the existing terminal/transitional
-            // state in place rather than rewinding timestamps.
-            _ => Ok(()),
-        }
+            Ok(())
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -246,11 +236,8 @@ impl CatalogRecord for AckStopNode {
 
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
-        let mut node = catalog.nodes.require_by_id(&node_catalog_id)?;
-        let n = Arc::make_mut(&mut node);
-
-        match n.state {
-            NodeState::Stopping { stopped_time_ns } => {
+        catalog.nodes.modify_by_id(&node_catalog_id, |n| {
+            if let NodeState::Stopping { stopped_time_ns } = n.state {
                 n.state = NodeState::Stopped {
                     stopped_time_ns,
                     ack_time_ns: self.ack_time_ns,
@@ -258,13 +245,9 @@ impl CatalogRecord for AckStopNode {
                         .final_snapshot_sequence
                         .map(SnapshotSequenceNumber::new),
                 };
-                catalog
-                    .nodes
-                    .update(node_catalog_id, node)
-                    .map_err(Into::into)
             }
-            _ => Ok(()),
-        }
+            Ok(())
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -300,29 +283,25 @@ impl CatalogRecord for RemoveNode {
 
     fn apply(&self, catalog: &mut InnerCatalog) -> Result<(), ApplyError> {
         let node_catalog_id = NodeId::new(self.node_catalog_id);
-        let mut node = catalog.nodes.require_by_id(&node_catalog_id)?;
-        let n = Arc::make_mut(&mut node);
-
-        match n.state {
-            NodeState::Stopped {
-                final_snapshot_sequence,
-                ..
-            } => {
-                n.state = NodeState::Removing {
-                    requested_time_ns: self.requested_time_ns,
+        catalog
+            .nodes
+            .modify_by_id(&node_catalog_id, |n| match n.state {
+                NodeState::Stopped {
                     final_snapshot_sequence,
-                };
-                catalog
-                    .nodes
-                    .update(node_catalog_id, node)
-                    .map_err(Into::into)
-            }
-            NodeState::Removing { .. } => Ok(()),
-            _ => Err(ApplyError(format!(
-                "RemoveNode: node '{}' is not in Stopped state",
-                self.node_id
-            ))),
-        }
+                    ..
+                } => {
+                    n.state = NodeState::Removing {
+                        requested_time_ns: self.requested_time_ns,
+                        final_snapshot_sequence,
+                    };
+                    Ok(())
+                }
+                NodeState::Removing { .. } => Ok(()),
+                _ => Err(ApplyError(format!(
+                    "RemoveNode: node '{}' is not in Stopped state",
+                    self.node_id
+                ))),
+            })
     }
 
     fn event(&self) -> CatalogEvent {

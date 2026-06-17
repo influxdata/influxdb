@@ -150,7 +150,7 @@ pub struct DatabaseConfig {
     /// The retention period for the database as a human-readable duration, e.g., "30d", "24h"
     pub retention_period: Option<Duration>,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -197,7 +197,7 @@ pub struct LastCacheConfig {
     #[clap(required = false)]
     cache_name: Option<String>,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -238,7 +238,7 @@ pub struct DistinctCacheConfig {
     #[clap(required = false)]
     cache_name: Option<String>,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -265,7 +265,7 @@ pub struct TableConfig {
     /// The name of the table to be created
     table_name: String,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 
@@ -310,7 +310,7 @@ pub struct TriggerConfig {
     /// Name for the new trigger
     trigger_name: String,
 
-    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    /// An optional arg to use a custom CA, useful for testing with self-signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 

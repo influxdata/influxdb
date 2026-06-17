@@ -4239,6 +4239,58 @@ fn test_create_token_requires_subcommand() {
     assert_contains!(&stdout_help, "--admin");
 }
 
+#[test_log::test]
+fn test_write_rejects_zero_max_request_size() {
+    let output = cargo_bin_cmd!("influxdb3")
+        .args([
+            "write",
+            "--host",
+            "http://127.0.0.1:8181",
+            "--database",
+            "foo",
+            "--max-request-size",
+            "0",
+            "cpu a=1",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "expected non-zero exit for --max-request-size 0"
+    );
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_contains!(&stderr, "--max-request-size");
+    assert_contains!(&stderr, "value must be at least 1");
+    assert_not_contains!(&stderr, "panic");
+}
+
+#[test_log::test]
+fn test_write_rejects_zero_max_concurrent_requests() {
+    let output = cargo_bin_cmd!("influxdb3")
+        .args([
+            "write",
+            "--host",
+            "http://127.0.0.1:8181",
+            "--database",
+            "foo",
+            "--max-concurrent-requests",
+            "0",
+            "cpu a=1",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "expected non-zero exit for --max-concurrent-requests 0"
+    );
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_contains!(&stderr, "--max-concurrent-requests");
+    assert_contains!(&stderr, "value must be at least 1");
+    assert_not_contains!(&stderr, "panic");
+}
+
 #[test_log::test(tokio::test)]
 async fn test_update_trigger() {
     let plugin_dir = TempDir::new().unwrap();

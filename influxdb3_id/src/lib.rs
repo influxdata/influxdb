@@ -89,6 +89,7 @@ macro_rules! catalog_identifier_type {
 }
 
 catalog_identifier_type!(NodeId, u32);
+catalog_identifier_type!(QueryGroupId, u32);
 catalog_identifier_type!(DbId, u32);
 catalog_identifier_type!(TableId, u32);
 catalog_identifier_type!(TriggerId, u32);
@@ -267,3 +268,18 @@ impl From<&TagId> for ColumnIdentifier {
         Self::Tag(*id)
     }
 }
+
+/// Shard identifier within a window (initially always 0).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct ShardId(pub u32);
+
+impl fmt::Display for ShardId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Keep the legacy `p` prefix because object-store paths still encode
+        // shard IDs as `p{shard_id}` for compatibility.
+        write!(f, "p{}", self.0)
+    }
+}
+
+#[cfg(test)]
+mod tests;

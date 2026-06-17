@@ -50,27 +50,26 @@ impl CatalogRecord for CreateTrigger {
         let db_id = DbId::new(self.database_id);
         let trigger_id = TriggerId::new(self.trigger_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
+        catalog.databases.modify_by_id(&db_id, |db| {
+            let trigger_def = TriggerDefinition {
+                trigger_id,
+                trigger_name: Arc::from(self.trigger_name.as_str()),
+                plugin_filename: self.plugin_filename.clone(),
+                database_name: db.name(),
+                node_spec: SchemaNodeSpec::from(&self.node_spec),
+                trigger: TriggerSpecificationDefinition::from(&self.trigger),
+                trigger_settings: TriggerSettings::from(self.trigger_settings),
+                trigger_arguments: self
+                    .trigger_arguments
+                    .as_ref()
+                    .map(|args| args.iter().cloned().collect()),
+                disabled: self.disabled,
+            };
 
-        let trigger_def = TriggerDefinition {
-            trigger_id,
-            trigger_name: Arc::from(self.trigger_name.as_str()),
-            plugin_filename: self.plugin_filename.clone(),
-            database_name: db.name(),
-            node_spec: SchemaNodeSpec::from(&self.node_spec),
-            trigger: TriggerSpecificationDefinition::from(&self.trigger),
-            trigger_settings: TriggerSettings::from(self.trigger_settings),
-            trigger_arguments: self
-                .trigger_arguments
-                .as_ref()
-                .map(|args| args.iter().cloned().collect()),
-            disabled: self.disabled,
-        };
-
-        Arc::make_mut(&mut db)
-            .processing_engine_triggers
-            .insert(trigger_id, trigger_def)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+            db.processing_engine_triggers
+                .insert(trigger_id, trigger_def)?;
+            Ok(())
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -107,12 +106,10 @@ impl CatalogRecord for DeleteTrigger {
         let db_id = DbId::new(self.database_id);
         let trigger_id = TriggerId::new(self.trigger_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-
-        Arc::make_mut(&mut db)
-            .processing_engine_triggers
-            .remove(&trigger_id);
-        catalog.databases.update(db_id, db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.processing_engine_triggers.remove(&trigger_id);
+            Ok(())
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -148,14 +145,13 @@ impl CatalogRecord for EnableTrigger {
         let db_id = DbId::new(self.db_id);
         let trigger_id = TriggerId::new(self.trigger_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut trigger = db.processing_engine_triggers.require_by_id(&trigger_id)?;
-
-        Arc::make_mut(&mut trigger).disabled = false;
-
-        let d = Arc::make_mut(&mut db);
-        d.processing_engine_triggers.update(trigger_id, trigger)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.processing_engine_triggers
+                .modify_by_id(&trigger_id, |trigger| {
+                    trigger.disabled = false;
+                    Ok(())
+                })
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -190,14 +186,13 @@ impl CatalogRecord for DisableTrigger {
         let db_id = DbId::new(self.db_id);
         let trigger_id = TriggerId::new(self.trigger_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut trigger = db.processing_engine_triggers.require_by_id(&trigger_id)?;
-
-        Arc::make_mut(&mut trigger).disabled = true;
-
-        let d = Arc::make_mut(&mut db);
-        d.processing_engine_triggers.update(trigger_id, trigger)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.processing_engine_triggers
+                .modify_by_id(&trigger_id, |trigger| {
+                    trigger.disabled = true;
+                    Ok(())
+                })
+        })
     }
 
     fn event(&self) -> CatalogEvent {

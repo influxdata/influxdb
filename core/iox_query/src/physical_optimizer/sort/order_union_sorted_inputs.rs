@@ -301,7 +301,7 @@ mod test {
           - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "             UnionExec"
           - "               SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -316,7 +316,7 @@ mod test {
             - "             SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "               UnionExec"
             - "                 SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                   RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                   RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "                 DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -371,7 +371,7 @@ mod test {
           - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "             UnionExec"
           - "               SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -386,7 +386,7 @@ mod test {
             - "             SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "               UnionExec"
             - "                 SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                   RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                   RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "                 DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -440,7 +440,7 @@ mod test {
           - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "             UnionExec"
           - "               SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -454,7 +454,7 @@ mod test {
             - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "             UnionExec"
             - "               SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -504,7 +504,7 @@ mod test {
           - "         SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "           UnionExec"
           - "             SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "               RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "               RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "             DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -518,7 +518,7 @@ mod test {
             - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "             UnionExec"
             - "               SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -572,7 +572,7 @@ mod test {
           - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "             UnionExec"
           - "               SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -586,7 +586,7 @@ mod test {
             - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "             UnionExec"
             - "               SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -648,7 +648,7 @@ mod test {
           - "         SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "           UnionExec"
           - "             SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "               RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "               RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "             DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -662,7 +662,7 @@ mod test {
             - "           SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "             UnionExec"
             - "               SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -712,7 +712,7 @@ mod test {
           - "         SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "           UnionExec"
           - "             SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "               RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "               RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "             DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -725,7 +725,7 @@ mod test {
             - "         SortPreservingMergeExec: [col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "           UnionExec"
             - "             SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "               RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "               RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "             DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -825,7 +825,7 @@ mod test {
           - "           SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "             UnionExec"
           - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
           - "                 DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
@@ -842,7 +842,7 @@ mod test {
             - "             SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "               UnionExec"
             - "                 SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                   RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                   RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "                 SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
             - "                   DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
@@ -940,7 +940,7 @@ mod test {
           - "         SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "           UnionExec"
           - "             SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "               RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "               RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "             DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -954,7 +954,7 @@ mod test {
             - "           SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "             UnionExec"
             - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -1056,7 +1056,7 @@ mod test {
           - "         SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "           UnionExec"
           - "             SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "               RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "               RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "             SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
           - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
@@ -1071,7 +1071,7 @@ mod test {
             - "           SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "             UnionExec"
             - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
             - "                 DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
@@ -1181,7 +1181,7 @@ mod test {
           - "         SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "           UnionExec"
           - "             SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "               RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "               RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "             SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
           - "               DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
@@ -1196,7 +1196,7 @@ mod test {
             - "           SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "             UnionExec"
             - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
             - "                 DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
@@ -1355,7 +1355,7 @@ mod test {
           - "       DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
           - "     SortExec: expr=[time@3 DESC NULLS LAST, field1@2 DESC NULLS LAST], preserve_partitioning=[false]"
           - "       UnionExec"
-          - "         RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -1366,7 +1366,7 @@ mod test {
             - "         DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
             - "       SortExec: expr=[time@3 DESC NULLS LAST, field1@2 DESC NULLS LAST], preserve_partitioning=[false]"
             - "         UnionExec"
-            - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "           RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "           DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -1429,7 +1429,7 @@ mod test {
           - "       SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
           - "         UnionExec"
           - "           SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "             RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "             RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "           DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -1442,7 +1442,7 @@ mod test {
             - "         SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
             - "           UnionExec"
             - "             SortExec: expr=[col2@1 ASC NULLS LAST, col1@0 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "               RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "               RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "             DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -1557,7 +1557,7 @@ mod test {
           - "           SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
           - "             UnionExec"
           - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-          - "                 RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "                 RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "               SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
           - "                 DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
@@ -1574,7 +1574,7 @@ mod test {
             - "             SortPreservingMergeExec: [col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST]"
             - "               UnionExec"
             - "                 SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-            - "                   RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "                   RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "                 SortExec: expr=[col1@0 ASC NULLS LAST, col2@1 ASC NULLS LAST, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
             - "                   DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
@@ -1618,7 +1618,7 @@ mod test {
           - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3], 8), input_partitions=8"
           - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=3"
           - "         UnionExec"
-          - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "           RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "           DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -1627,7 +1627,7 @@ mod test {
             - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3], 8), input_partitions=8"
             - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=3"
             - "         UnionExec"
-            - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "           RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "           DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -1661,21 +1661,21 @@ mod test {
           - " GlobalLimitExec: skip=0, fetch=1"
           - "   UnionExec"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
-          - "       RecordBatchesExec: chunks=1, projection=[col1, col2, field1, time, __chunk_order]"
+          - "       RecordBatchesExec: chunks=1 [Test=1], projection=[col1, col2, field1, time, __chunk_order]"
           - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
           - "       UnionExec"
-          - "         RecordBatchesExec: chunks=3, projection=[col1, col2, field1, time, __chunk_order]"
-          - "         RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=3 [Test=3], projection=[col1, col2, field1, time, __chunk_order]"
+          - "         RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
         output:
           Ok:
             - " GlobalLimitExec: skip=0, fetch=1"
             - "   UnionExec"
             - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
-            - "       RecordBatchesExec: chunks=1, projection=[col1, col2, field1, time, __chunk_order]"
+            - "       RecordBatchesExec: chunks=1 [Test=1], projection=[col1, col2, field1, time, __chunk_order]"
             - "     SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
             - "       UnionExec"
-            - "         RecordBatchesExec: chunks=3, projection=[col1, col2, field1, time, __chunk_order]"
-            - "         RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=3 [Test=3], projection=[col1, col2, field1, time, __chunk_order]"
+            - "         RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
         "#
         );
     }
@@ -1720,7 +1720,7 @@ mod test {
           - "     DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
           - "   SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
           - "     UnionExec"
-          - "       RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "       RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
           - "       DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         output:
           Ok:
@@ -1729,7 +1729,7 @@ mod test {
             - "     DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
             - "   SortExec: expr=[time@3 DESC NULLS LAST], preserve_partitioning=[false]"
             - "     UnionExec"
-            - "       RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "       RecordBatchesExec: chunks=2 [Test=2], projection=[col1, col2, field1, time, __chunk_order]"
             - "       DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[__chunk_order@4 ASC], file_type=parquet"
         "#
         );
@@ -1865,7 +1865,7 @@ mod test {
         - "                   CoalesceBatchesExec: target_batch_size=8192"
         - "                     FilterExec: time@1 > 0"
         - "                       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1"
-        - "                         RecordBatchesExec: chunks=1, projection=[tag, time, __chunk_order]"
+        - "                         RecordBatchesExec: chunks=1 [Test=1], projection=[tag, time, __chunk_order]"
         - "                 DataSourceExec: file_groups={4 groups: [[2.parquet:0..500], [3.parquet:0..500], [2.parquet:500..1000], [3.parquet:500..1000]]}, projection=[tag, time, __chunk_order], output_ordering=[tag@0 ASC, time@1 ASC, __chunk_order@2 ASC], file_type=parquet, predicate=time@1 > 0, pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
         "#
         );
@@ -1905,7 +1905,7 @@ mod test {
         - "                 CoalesceBatchesExec: target_batch_size=8192"
         - "                   FilterExec: time@1 > 0"
         - "                     RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1"
-        - "                       RecordBatchesExec: chunks=1, projection=[tag, time, __chunk_order]"
+        - "                       RecordBatchesExec: chunks=1 [Test=1], projection=[tag, time, __chunk_order]"
         - "               DataSourceExec: file_groups={4 groups: [[2.parquet:0..500], [3.parquet:0..500], [2.parquet:500..1000], [3.parquet:500..1000]]}, projection=[tag, time, __chunk_order], output_ordering=[tag@0 ASC, time@1 ASC, __chunk_order@2 ASC], file_type=parquet, predicate=time@1 > 0, pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 0, required_guarantees=[]"
         "#
         );

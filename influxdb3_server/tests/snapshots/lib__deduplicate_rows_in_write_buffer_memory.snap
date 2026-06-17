@@ -9,6 +9,6 @@ expression: plan
 | physical_plan | ProjectionExec: expr=[time@0 as time, val@1 as val]                                 |
 |               |   DeduplicateExec: [time@0 ASC]                                                     |
 |               |     SortExec: expr=[time@0 ASC, __chunk_order@2 ASC], preserve_partitioning=[false] |
-|               |       RecordBatchesExec: chunks=1, projection=[time, val, __chunk_order]            |
+|               |       RecordBatchesExec: chunks=1 [Buffer=1], projection=[time, val, __chunk_order] |
 |               |                                                                                     |
 +---------------+-------------------------------------------------------------------------------------+

@@ -25,7 +25,11 @@ use datafusion::{
 };
 use itertools::Itertools;
 use schema::sort::SortKey;
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt,
+    sync::Arc,
+};
 use tracing::trace;
 
 /// Implements the DataFusion physical plan interface for [`RecordBatch`]es with automatic projection and NULL-column creation.
@@ -258,12 +262,46 @@ impl DisplayAs for RecordBatchesExec {
             DisplayFormatType::Default
             | DisplayFormatType::Verbose
             | DisplayFormatType::TreeRender => {
-                write!(f, "RecordBatchesExec: chunks={}", self.chunks.len(),)?;
+                write!(f, "RecordBatchesExec: chunks={}", self.chunks.len())?;
+                if let Some(breakdown) = self.chunk_type_breakdown() {
+                    write!(f, " [{breakdown}]")?;
+                }
                 if !self.schema.fields().is_empty() {
                     write!(f, ", projection={}", ProjectSchemaDisplay(&self.schema))?;
                 }
                 Ok(())
             }
         }
+    }
+}
+
+impl RecordBatchesExec {
+    /// Per-`chunk_type` count formatted as `Window=2, Buffer=1`. Returns
+    /// `None` when there are no chunks.
+    ///
+    /// `chunk_type()` strings have a trailing `Chunk` suffix stripped for
+    /// readability (e.g. `WindowChunk` -> `Window`); other strings are kept
+    /// verbatim.
+    fn chunk_type_breakdown(&self) -> Option<String> {
+        if self.chunks.is_empty() {
+            return None;
+        }
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for chunk in &self.chunks {
+            *counts.entry(chunk.chunk_type()).or_insert(0) += 1;
+        }
+        Some(
+            counts
+                .iter()
+                .map(|(ty, n)| {
+                    let short = ty
+                        .strip_suffix("Chunk")
+                        .map(str::trim_end)
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or(ty);
+                    format!("{short}={n}")
+                })
+                .join(", "),
+        )
     }
 }
