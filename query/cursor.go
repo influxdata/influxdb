@@ -210,11 +210,13 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		row.Values = make([]interface{}, len(cur.columns))
 	}
 
+	// Make the row timestamp available to the eval map so date_part can access it.
+	// This must be unconditional: date_part may be nested inside another expression
+	// (e.g. date_part('hour', time) + 1), in which case the top-level field is not a
+	// date_part call and a per-field check would miss it, leaving time unset.
+	cur.m[models.TimeString] = row.Time
+
 	for i, expr := range cur.fields {
-		// Set the timestamp in the map so date_part can access it
-		if callExpr, ok := expr.(*influxql.Call); ok && callExpr.Name == DatePartString {
-			cur.m[models.TimeString] = row.Time
-		}
 		// A special case if the field is time to reduce memory allocations.
 		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
@@ -241,14 +243,21 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 						row.Values[i] = dpd.Val
 						continue
 					}
-					// An explicit SELECT date_part('part', time) whose part matches
-					// the active grouping dimension must report the grouped value,
-					// not date_part evaluated against the bucket's representative
-					// timestamp (which would be the same for every group).
+					// An explicit SELECT date_part('part', time) under GROUP BY
+					// date_part is only well-defined for this series' active
+					// grouping dimension. Report the grouped value when it matches;
+					// otherwise (a different grouped part that is active on another
+					// series) the value is undefined for this group, so emit null
+					// rather than date_part evaluated against the bucket's
+					// representative timestamp, which would be a misleading constant.
 					if call, ok := expr.(*influxql.Call); ok && call.Name == DatePartString && len(call.Args) == DatePartArgCount {
 						if partArg, ok := call.Args[0].(*influxql.StringLiteral); ok {
-							if part, ok := ParseDatePartExpr(partArg.Val); ok && part == dpd.Expr {
-								row.Values[i] = dpd.Val
+							if part, ok := ParseDatePartExpr(partArg.Val); ok {
+								if part == dpd.Expr {
+									row.Values[i] = dpd.Val
+								} else {
+									row.Values[i] = nil
+								}
 								continue
 							}
 						}

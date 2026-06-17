@@ -8339,6 +8339,15 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			// date_part nested inside an expression (not the top-level field) must
+			// still receive the row timestamp. hour=10 at this point, so
+			// date_part('hour', time) + 1 = 11.
+			name:    `SELECT date_part nested in arithmetic`,
+			command: `SELECT value, date_part('hour', time) + 1 AS hour_plus FROM db0.rp0.cpu WHERE time = '2023-01-16T10:30:45Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","hour_plus"],"values":[["2023-01-16T10:30:45Z",2,11]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 		// GROUP BY date_part tests
 		&Query{
 			name:    `GROUP BY year with COUNT`,
@@ -8394,9 +8403,9 @@ func TestServer_Query_DatePart(t *testing.T) {
 			params: url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			// Regression: part names are case-insensitive, so GROUP BY date_part('DOW', ...)
+			// part names are case-insensitive, so GROUP BY date_part('DOW', ...)
 			// must normalize to the canonical "dow" and populate the grouped column
-			// identically to the lowercase form (previously the column stayed null).
+			// identically to the lowercase form.
 			name:    `GROUP BY DOW uppercase normalizes to dow`,
 			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('DOW', time)`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["dow"],"columns":["time","count","dow"],"values":[` +
@@ -8453,6 +8462,36 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`["2023-01-01T00:00:00Z",6,2023,null],` + // 2023: 6 points
 				`["2023-01-01T00:00:00Z",6,2024,null],` + // 2024: 6 points
 				`["2023-01-01T00:00:00Z",7,2025,null]` + // 2025: 7 points
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			// An explicit SELECT date_part('month') under GROUP BY year, month is
+			// well-defined only on the month series; on the year series it is a
+			// different (non-active) grouping dimension, so it must be null rather
+			// than a misleading constant from the bucket timestamp.
+			name:    `SELECT non-active date_part is null under multi-dimension GROUP BY`,
+			command: `SELECT COUNT(value), date_part('month', time) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('month', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				// month series: the active dimension, so date_part = month value
+				`{"name":"cpu","grouping_keys":["month"],"columns":["time","count","date_part","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",4,1,null,1],` +
+				`["2023-01-01T00:00:00Z",1,2,null,2],` +
+				`["2023-01-01T00:00:00Z",1,4,null,4],` +
+				`["2023-01-01T00:00:00Z",1,5,null,5],` +
+				`["2023-01-01T00:00:00Z",1,6,null,6],` +
+				`["2023-01-01T00:00:00Z",1,7,null,7],` +
+				`["2023-01-01T00:00:00Z",1,8,null,8],` +
+				`["2023-01-01T00:00:00Z",5,9,null,9],` +
+				`["2023-01-01T00:00:00Z",1,10,null,10],` +
+				`["2023-01-01T00:00:00Z",1,11,null,11],` +
+				`["2023-01-01T00:00:00Z",2,12,null,12]` +
+				`]},` +
+				// year series: date_part('month') is non-active here, so it is null
+				`{"name":"cpu","grouping_keys":["year"],"columns":["time","count","date_part","year","month"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,null,2023,null],` +
+				`["2023-01-01T00:00:00Z",6,null,2024,null],` +
+				`["2023-01-01T00:00:00Z",7,null,2025,null]` +
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
