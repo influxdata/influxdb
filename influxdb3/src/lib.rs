@@ -800,16 +800,36 @@ fn init_logs_and_tracing(
 
     let layers = log_layer;
 
-    // Optionally enable the tokio console exporter layer, if enabled.
-    //
-    // This spawns a background tokio task to serve the instrumentation data,
-    // and hooks the instrumentation into the tracing pipeline.
+    // Attach the tokio-console exporter layer only when requested via
+    // `--tokio-console-enabled` / `TOKIO_CONSOLE_ENABLED`. It spawns a
+    // background task serving instrumentation data and retains per-task span
+    // stats whose memory scales with task-spawn rate × retention, so it must
+    // be opt-in, and the upstream 1 h retention default is lowered to 60 s
+    // (`TOKIO_CONSOLE_RETENTION` still overrides). See influxdb_pro#4040.
     #[cfg(feature = "tokio_console")]
     let layers = {
         use console_subscriber::ConsoleLayer;
-        let console_layer = ConsoleLayer::builder().with_default_env().spawn();
+        let console_layer = if config.tokio_console.enabled {
+            let mut builder = ConsoleLayer::builder()
+                .retention(std::time::Duration::from_secs(60))
+                .with_default_env();
+            if let Some(capacity) = config.tokio_console.event_buffer_capacity {
+                builder = builder.event_buffer_capacity(capacity);
+            }
+            if let Some(capacity) = config.tokio_console.client_buffer_capacity {
+                builder = builder.client_buffer_capacity(capacity);
+            }
+            Some(builder.spawn())
+        } else {
+            None
+        };
         layers.and_then(console_layer)
     };
+
+    #[cfg(not(feature = "tokio_console"))]
+    if config.tokio_console.enabled {
+        return Err(trogging::Error::TokioConsoleMissing);
+    }
 
     let subscriber = Registry::default().with(layers);
     let guard = trogging::install_global(subscriber)?;

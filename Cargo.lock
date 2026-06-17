@@ -4038,6 +4038,7 @@ name = "influxdb3_commands"
 version = "3.10.0-nightly"
 dependencies = [
  "anyhow",
+ "bytes",
  "chrono",
  "clap",
  "comfy-table",

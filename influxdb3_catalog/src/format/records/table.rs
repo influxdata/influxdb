@@ -52,8 +52,6 @@ impl CatalogRecord for CreateTable {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-
         let field_family_mode = FieldFamilyMode::from(self.field_family_mode);
         let mut new_table = TableDefinition::new_empty(
             table_id,
@@ -62,8 +60,10 @@ impl CatalogRecord for CreateTable {
         );
         new_table.retention_period = SchemaRetentionPeriod::from(&self.retention_period);
 
-        Arc::make_mut(&mut db).tables.insert(table_id, new_table)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.tables.insert(table_id, new_table)?;
+            Ok(())
+        })
     }
 
     fn event(&self) -> CatalogEvent {
@@ -201,46 +201,43 @@ impl CatalogRecord for AddColumns {
         let db_id = DbId::new(self.database_id);
         let table_id = TableId::new(self.table_id);
 
-        let mut db = catalog.databases.require_by_id(&db_id)?;
-        let mut table = db.tables.require_by_id(&table_id)?;
-        let t = Arc::make_mut(&mut table);
+        catalog.databases.modify_by_id(&db_id, |db| {
+            db.tables.modify_by_id(&table_id, |t| {
+                // Insert field family definitions before adding columns — add_columns panics
+                // if a field column references a family that doesn't exist yet.
+                for ff_def in &self.field_families {
+                    let ff_id = FieldFamilyId::new(ff_def.id);
+                    let name = FieldFamilyName::from(&ff_def.name);
+                    // For auto-field families, ensure the auto field family name is set:
+                    if let WireFieldFamilyName::Auto(n) = ff_def.name {
+                        t.set_auto_field_family(ff_id, n).map_err(|e| {
+                            ApplyError(format!(
+                                "{}: set auto field family (db_id={}, table_id={}): {e}",
+                                Self::NAME,
+                                self.database_id,
+                                self.table_id,
+                            ))
+                        })?;
+                    }
+                    let ff = FieldFamilyDefinition::new(ff_id, name);
+                    t.field_families.insert(ff_id, ff)?;
+                }
 
-        // Insert field family definitions before adding columns — add_columns panics
-        // if a field column references a family that doesn't exist yet.
-        for ff_def in &self.field_families {
-            let ff_id = FieldFamilyId::new(ff_def.id);
-            let name = FieldFamilyName::from(&ff_def.name);
-            // For auto-field families, ensure the auto field family name is set:
-            if let WireFieldFamilyName::Auto(n) = ff_def.name {
-                t.set_auto_field_family(ff_id, n).map_err(|e| {
-                    ApplyError(format!(
-                        "{}: set auto field family (db_id={}, table_id={}): {e}",
-                        Self::NAME,
-                        self.database_id,
-                        self.table_id,
-                    ))
-                })?;
-            }
-            let ff = FieldFamilyDefinition::new(ff_id, name);
-            t.field_families.insert(ff_id, ff)?;
-        }
-
-        let new_columns: Vec<ColumnDefinition> =
-            self.columns.iter().map(ColumnDefinition::from).collect();
-        if !new_columns.is_empty() {
-            t.add_columns(new_columns).map_err(|e| {
-                ApplyError(format!(
-                    "{}: add columns (db_id={}, table_id={}): {e}",
-                    Self::NAME,
-                    self.database_id,
-                    self.table_id,
-                ))
-            })?;
-        }
-
-        let d = Arc::make_mut(&mut db);
-        d.tables.update(table_id, table)?;
-        catalog.databases.update(db_id, db).map_err(Into::into)
+                let new_columns: Vec<ColumnDefinition> =
+                    self.columns.iter().map(ColumnDefinition::from).collect();
+                if !new_columns.is_empty() {
+                    t.add_columns(new_columns).map_err(|e| {
+                        ApplyError(format!(
+                            "{}: add columns (db_id={}, table_id={}): {e}",
+                            Self::NAME,
+                            self.database_id,
+                            self.table_id,
+                        ))
+                    })?;
+                }
+                Ok(())
+            })
+        })
     }
 
     fn event(&self) -> CatalogEvent {

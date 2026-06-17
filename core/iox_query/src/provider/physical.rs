@@ -460,7 +460,7 @@ mod tests {
         let plan = chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk)], 2);
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan),
-            @r#"- " RecordBatchesExec: chunks=1""#
+            @r#"- " RecordBatchesExec: chunks=1 [Test=1]""#
         );
     }
 
@@ -557,7 +557,7 @@ mod tests {
             format_execution_plan(&plan),
             @r#"
         - " UnionExec"
-        - "   RecordBatchesExec: chunks=1"
+        - "   RecordBatchesExec: chunks=1 [Test=1]"
         - "   DataSourceExec: file_groups={1 group: [[0.parquet]]}, file_type=parquet"
         "#
         );
@@ -585,7 +585,7 @@ mod tests {
             format_execution_plan(&plan),
             @r#"
         - " UnionExec"
-        - "   RecordBatchesExec: chunks=1, projection=[tag, __chunk_order]"
+        - "   RecordBatchesExec: chunks=1 [Test=1], projection=[tag, __chunk_order]"
         - "   DataSourceExec: file_groups={1 group: [[0.parquet]]}, projection=[tag, __chunk_order], output_ordering=[__chunk_order@1 ASC], file_type=parquet"
         "#
         );

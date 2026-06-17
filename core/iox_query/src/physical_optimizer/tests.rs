@@ -98,7 +98,7 @@ async fn test_parquet_should_not_be_resorted() {
     - "                   CoalesceBatchesExec: target_batch_size=8192"
     - "                     FilterExec: time@1 > 2"
     - "                       RepartitionExec: partitioning=RoundRobinBatch(16), input_partitions=1"
-    - "                         RecordBatchesExec: chunks=1, projection=[tag, time, __chunk_order]"
+    - "                         RecordBatchesExec: chunks=1 [Test=1], projection=[tag, time, __chunk_order]"
     - "                 DataSourceExec: file_groups={16 groups: [[2.parquet:0..125], [3.parquet:0..125], [2.parquet:125..250], [3.parquet:125..250], [2.parquet:250..375], ...]}, projection=[tag, time, __chunk_order], output_ordering=[tag@0 ASC, time@1 ASC, __chunk_order@2 ASC], file_type=parquet, predicate=time@1 > 2, pruning_predicate=time_null_count@1 != row_count@2 AND time_max@0 > 2, required_guarantees=[]"
     "#
     );

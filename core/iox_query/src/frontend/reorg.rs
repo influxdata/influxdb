@@ -436,11 +436,11 @@ mod test {
         - " ProgressiveEvalExec: input_ranges=[(AL,50)->(MT,7000), (UT,28000)->(WA,220000)]"
         - "   UnionExec"
         - "     SortExec: expr=[tag1@2 ASC, time@3 ASC], preserve_partitioning=[false]"
-        - "       RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time]"
+        - "       RecordBatchesExec: chunks=1 [Test=1], projection=[field_int, field_int2, tag1, time]"
         - "     ProjectionExec: expr=[field_int@0 as field_int, field_int2@1 as field_int2, tag1@2 as tag1, time@3 as time]"
         - "       DeduplicateExec: [tag1@2 ASC,time@3 ASC]"
         - "         SortExec: expr=[tag1@2 ASC, time@3 ASC, __chunk_order@4 ASC], preserve_partitioning=[false]"
-        - "           RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time, __chunk_order]"
+        - "           RecordBatchesExec: chunks=1 [Test=1], projection=[field_int, field_int2, tag1, time, __chunk_order]"
         "#
         );
 
@@ -511,12 +511,12 @@ mod test {
         - "   ReorderPartitionsExec: mapped_partition_indices=[1, 0]"
         - "     UnionExec"
         - "       SortExec: expr=[tag1@2 DESC, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
-        - "         RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time]"
+        - "         RecordBatchesExec: chunks=1 [Test=1], projection=[field_int, field_int2, tag1, time]"
         - "       SortExec: expr=[tag1@2 DESC, time@3 ASC NULLS LAST], preserve_partitioning=[false]"
         - "         ProjectionExec: expr=[field_int@0 as field_int, field_int2@1 as field_int2, tag1@2 as tag1, time@3 as time]"
         - "           DeduplicateExec: [tag1@2 ASC,time@3 ASC]"
         - "             SortExec: expr=[tag1@2 ASC, time@3 ASC, __chunk_order@4 ASC], preserve_partitioning=[false]"
-        - "               RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time, __chunk_order]"
+        - "               RecordBatchesExec: chunks=1 [Test=1], projection=[field_int, field_int2, tag1, time, __chunk_order]"
         "#
         );
 
@@ -589,12 +589,12 @@ mod test {
         - "   ProgressiveEvalExec: input_ranges=[(50,AL)->(7000,MT), (28000,UT)->(220000,WA)]"
         - "     UnionExec"
         - "       SortExec: expr=[time@3 ASC NULLS LAST, tag1@2 ASC], preserve_partitioning=[false]"
-        - "         RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time]"
+        - "         RecordBatchesExec: chunks=1 [Test=1], projection=[field_int, field_int2, tag1, time]"
         - "       SortExec: expr=[time@3 ASC NULLS LAST, tag1@2 ASC], preserve_partitioning=[false]"
         - "         ProjectionExec: expr=[field_int@0 as field_int, field_int2@1 as field_int2, tag1@2 as tag1, time@3 as time]"
         - "           DeduplicateExec: [tag1@2 ASC,time@3 ASC]"
         - "             SortExec: expr=[tag1@2 ASC, time@3 ASC, __chunk_order@4 ASC], preserve_partitioning=[false]"
-        - "               RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time, __chunk_order]"
+        - "               RecordBatchesExec: chunks=1 [Test=1], projection=[field_int, field_int2, tag1, time, __chunk_order]"
         "#
         );
 
@@ -679,12 +679,12 @@ mod test {
         - "   ProgressiveEvalExec: input_ranges=[(50,AL)->(7000,MT), (28000,UT)->(220000,WA)]"
         - "     UnionExec"
         - "       SortExec: expr=[time@3 ASC NULLS LAST, tag1@2 ASC], preserve_partitioning=[false]"
-        - "         RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time]"
+        - "         RecordBatchesExec: chunks=1 [Test=1], projection=[field_int, field_int2, tag1, time]"
         - "       SortExec: expr=[time@3 ASC NULLS LAST, tag1@2 ASC], preserve_partitioning=[false]"
         - "         ProjectionExec: expr=[field_int@0 as field_int, field_int2@1 as field_int2, tag1@2 as tag1, time@3 as time]"
         - "           DeduplicateExec: [tag1@2 ASC,time@3 ASC]"
         - "             SortExec: expr=[tag1@2 ASC, time@3 ASC, __chunk_order@4 ASC], preserve_partitioning=[false]"
-        - "               RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time, __chunk_order]"
+        - "               RecordBatchesExec: chunks=1 [Test=1], projection=[field_int, field_int2, tag1, time, __chunk_order]"
         "#
         );
 

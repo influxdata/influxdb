@@ -1353,10 +1353,10 @@ mod tests {
             @r#"
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1]"
-          - "   RecordBatchesExec: chunks=1, projection=[tag1, tag2, field]"
+          - "   RecordBatchesExec: chunks=1 [Test=1], projection=[tag1, tag2, field]"
         output:
           Ok:
-            - " RecordBatchesExec: chunks=1, projection=[tag1]"
+            - " RecordBatchesExec: chunks=1 [Test=1], projection=[tag1]"
         "#
         );
 

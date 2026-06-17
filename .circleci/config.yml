@@ -146,10 +146,10 @@ parameters:
   # Consistent environment setup for Python Build Standalone
   PBS_DATE:
     type: string
-    default: "20260602"
+    default: "20260610"
   PBS_VERSION:
     type: string
-    default: "3.13.13"
+    default: "3.13.14"
 
 # Consistent Cargo environment configuration
 cargo_env: &cargo_env
