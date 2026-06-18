@@ -557,10 +557,10 @@ func (s *{{$k.name}}IteratorScanner) ScanAt(ts int64, name string, tags Tags, m 
 		case float64, int64, uint64, string, bool:
 			m[k.Val] = v
 		case DecodedDatePartKey:
-		    m[DatePartDimensionsString] = v
-		    // Clear any stale raw value under this dimension's own key so a prior
-		    // row's value can't persist (the active value is carried via the key above).
-		    delete(m, k.Val)
+			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
