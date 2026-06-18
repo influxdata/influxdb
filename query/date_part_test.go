@@ -282,7 +282,7 @@ func TestDatePartValuer_Call(t *testing.T) {
 			name:     "week",
 			funcName: "date_part",
 			args:     []interface{}{"week", testTimestamp},
-			expected: int64(3), // 2024-01-15 is in ISO week 3 (week 1 = Jan 1-7)
+			expected: int64(3), // 2024-01-15 is in ISO week 3
 			ok:       true,
 		},
 		{
