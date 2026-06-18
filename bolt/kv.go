@@ -458,6 +458,7 @@ func (s *KVStore) migrateRestored(ctx context.Context) error {
 
 	restoredKV := NewKVStore(s.log.With(zap.String("service", "restored kvstore-bolt")), s.tempPath())
 	restoredKV.WithDB(restoredClient.DB())
+	defer restoredKV.StopProber()
 
 	migrator, err := migration.NewMigrator(
 		s.log.With(zap.String("service", "bolt restore migrations")),
