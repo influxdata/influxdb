@@ -159,6 +159,10 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT date_part('year', time) FROM cpu`, err: `at least 1 non-time field must be queried`},
 		{s: `SELECT date_part('dow', time), date_part('month', time) FROM cpu`, err: `at least 1 non-time field must be queried`},
 		{s: `SELECT date_part('hour', time) + 1 FROM cpu`, err: `at least 1 non-time field must be queried`},
+		// GROUP BY date_part over a subquery source is not supported: the date_part
+		// dimensions aren't real fields of the subquery and can't be resolved through
+		// the subquery grouping path, so the query would silently return no rows.
+		{s: `SELECT count(value) FROM (SELECT value FROM cpu) GROUP BY date_part('year', time)`, err: `date_part: GROUP BY date_part is not supported with a subquery source`},
 		{s: `SELECT value, mean(value) FROM cpu`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `SELECT value, max(value), min(value) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
 		{s: `SELECT top(value, 10), max(value) FROM cpu`, err: `selector function top() cannot be combined with other functions`},

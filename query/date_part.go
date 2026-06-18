@@ -23,7 +23,13 @@ const (
 	// DatePartArgCount is the amount of arguments required for date_part function
 	DatePartArgCount = 2
 
-	DatePartDimensionsString = "date_part_dimensions"
+	// DatePartDimensionsString is the internal eval-map key under which the active
+	// GROUP BY date_part dimension value is published for a scanned row. The
+	// leading NUL byte makes it impossible to collide with a user field or tag
+	// name (those originate from InfluxQL identifiers, which can never contain a
+	// NUL), so selecting a series with a field/tag literally named
+	// "date_part_dimensions" is not corrupted by date_part grouping.
+	DatePartDimensionsString = "\x00date_part_dimensions"
 )
 
 type DatePartExpr int

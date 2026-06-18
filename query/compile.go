@@ -948,6 +948,16 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 				if err := ValidateDatePart(expr.Args); err != nil {
 					return err
 				}
+				// GROUP BY date_part over a subquery source is not supported: the
+				// date_part dimensions are not real fields of the subquery, so they
+				// cannot be resolved through the subquery aux-mapping/grouping path
+				// and the query would otherwise silently return no rows. Reject it
+				// here rather than produce wrong results.
+				for _, source := range stmt.Sources {
+					if _, ok := source.(*influxql.SubQuery); ok {
+						return errors.New("date_part: GROUP BY date_part is not supported with a subquery source")
+					}
+				}
 			default:
 				return errors.New("only time() and date_part() calls allowed in dimensions")
 			}
