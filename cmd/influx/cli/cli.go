@@ -876,23 +876,11 @@ func columnsEqual(prev, current []string) bool {
 	return reflect.DeepEqual(prev, current)
 }
 
-func groupingKeysEqual(prev, current []string) bool {
-	if len(prev) != len(current) {
-		return false
-	}
-	for i := range prev {
-		if prev[i] != current[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func headersEqual(prev, current models.Row) bool {
 	if prev.Name != current.Name {
 		return false
 	}
-	if !groupingKeysEqual(prev.GroupingKeys, current.GroupingKeys) {
+	if !reflect.DeepEqual(prev.GroupingKeys, current.GroupingKeys) {
 		return false
 	}
 	return tagsEqual(prev.Tags, current.Tags) && columnsEqual(prev.Columns, current.Columns)

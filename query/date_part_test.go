@@ -118,16 +118,37 @@ func TestValidateDatePart(t *testing.T) {
 				&influxql.IntegerLiteral{Val: 123},
 			},
 			expectError: true,
-			errorMsg:    "second argument must be",
+			errorMsg:    "second argument must be a variable reference",
 		},
 		{
-			name: "invalid - unknown date part expression",
+			name: "invalid - second arg is a non-time VarRef",
+			args: []influxql.Expr{
+				&influxql.StringLiteral{Val: "dow"},
+				&influxql.VarRef{Val: "value"},
+			},
+			expectError: true,
+			errorMsg:    "second argument must be time VarRef",
+		},
+		{
+			name: "invalid - first arg is a non-string literal",
 			args: []influxql.Expr{
 				&influxql.VarRef{Val: "invalid_expr"},
 				&influxql.VarRef{Val: models.TimeString},
 			},
 			expectError: true,
 			errorMsg:    "first argument must be a string",
+		},
+		{
+			// A valid string literal whose value is not a known part exercises the
+			// ParseDatePartExpr-failure branch (distinct from the non-string branch
+			// above), including the construction of the valid-parts list.
+			name: "invalid - unknown date part name",
+			args: []influxql.Expr{
+				&influxql.StringLiteral{Val: "bogus"},
+				&influxql.VarRef{Val: models.TimeString},
+			},
+			expectError: true,
+			errorMsg:    "first argument must be one of the following",
 		},
 	}
 
@@ -416,6 +437,26 @@ func TestDatePartValuer_Value(t *testing.T) {
 	val, ok = valuer.Value(query.DatePartTimeString)
 	require.True(t, ok)
 	require.Equal(t, now, val)
+}
+
+func TestDatePartValuer_Call_GroupedDimension(t *testing.T) {
+	// Under GROUP BY date_part the active grouped value is authoritative for the
+	// series and is published via the DatePartDimensionsString key. date_part for
+	// the active part must return that grouped value; date_part for any other
+	// (non-active) part is undefined for the series and must return (nil, false)
+	// rather than recomputing from the bucket-representative timestamp.
+	m := influxql.MapValuer{}
+	m[query.DatePartDimensionsString] = query.DecodedDatePartKey{Expr: query.Year, Val: 2024}
+	valuer := query.DatePartValuer{Valuer: m}
+
+	// args[1] is irrelevant on the grouped path; it returns before timestamp use.
+	got, ok := valuer.Call("date_part", []interface{}{"year", int64(0)})
+	require.True(t, ok, "active dimension should resolve")
+	require.Equal(t, int64(2024), got, "active dimension returns the grouped value")
+
+	got, ok = valuer.Call("date_part", []interface{}{"month", int64(0)})
+	require.False(t, ok, "non-active dimension is undefined for the series")
+	require.Nil(t, got)
 }
 
 func TestDatePartGrouper_ResolveKeys_FirstLevel(t *testing.T) {

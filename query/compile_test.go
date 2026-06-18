@@ -123,6 +123,9 @@ func TestCompile_Success(t *testing.T) {
 		// SELECT date_part matching a GROUP BY date_part dimension is allowed (maps to the grouped value)
 		`SELECT count(value), date_part('year', time) FROM cpu GROUP BY date_part('year', time)`,
 		`SELECT count(value), date_part('year', time), date_part('month', time) FROM cpu GROUP BY date_part('year', time), date_part('month', time)`,
+		// Non-value-carrying fill modes are allowed with GROUP BY date_part.
+		`SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(none)`,
+		`SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(null)`,
 		// date_part in subqueries
 		`SELECT max(dow) FROM (SELECT value, date_part('dow', time) AS dow FROM cpu)`,
 		`SELECT mean(value) FROM (SELECT value FROM cpu WHERE date_part('dow', time) = 1)`,
@@ -399,6 +402,10 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT mean(value) AS year FROM cpu GROUP BY date_part('year', time)`, err: `date_part: output column "year" collides with the GROUP BY date_part('year', time) dimension; alias the field to a different name`},
 		// Value-carrying fill modes can leak into non-active date_part dimensions and are rejected.
 		{s: `SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(previous)`, err: `date_part: fill(previous) is not supported with GROUP BY date_part`},
+		{s: `SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(linear)`, err: `date_part: fill(linear) is not supported with GROUP BY date_part`},
+		{s: `SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(100)`, err: `date_part: fill(<value>) is not supported with GROUP BY date_part`},
+		// A field/alias colliding with a non-first injected date_part dimension column is also rejected.
+		{s: `SELECT mean(value) AS month FROM cpu GROUP BY date_part('year', time), date_part('month', time)`, err: `date_part: output column "month" collides with the GROUP BY date_part('month', time) dimension; alias the field to a different name`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)

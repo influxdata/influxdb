@@ -228,23 +228,21 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 			// a null value that needs to be filled.
 			v = NullFloat
 		}
-		if cur.m != nil {
-			if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
-				if dpd, ok := val.(DecodedDatePartKey); ok {
-					dimName := dpd.Expr.String()
-					if row.GroupingKeys == nil {
-						row.GroupingKeys = make(map[string]struct{})
-					}
-					row.GroupingKeys[dimName] = struct{}{}
-					// Only set the column value if this field is the dimension VarRef.
-					// Explicit date_part(...) calls — top-level or nested in a larger
-					// expression — are resolved by DatePartValuer.Call against the
-					// active grouped key (already applied in v above), so they need no
-					// special handling here.
-					if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
-						row.Values[i] = dpd.Val
-						continue
-					}
+		if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
+			if dpd, ok := val.(DecodedDatePartKey); ok {
+				dimName := dpd.Expr.String()
+				if row.GroupingKeys == nil {
+					row.GroupingKeys = make(map[string]struct{})
+				}
+				row.GroupingKeys[dimName] = struct{}{}
+				// Only set the column value if this field is the dimension VarRef.
+				// Explicit date_part(...) calls — top-level or nested in a larger
+				// expression — are resolved by DatePartValuer.Call against the
+				// active grouped key (already applied in v above), so they need no
+				// special handling here.
+				if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
+					row.Values[i] = dpd.Val
+					continue
 				}
 			}
 		}

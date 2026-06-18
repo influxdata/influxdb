@@ -162,8 +162,6 @@ func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
 		} else {
 			return dow - 1, true
 		}
-	case Invalid:
-		return 0, false
 	default:
 		return 0, false
 	}

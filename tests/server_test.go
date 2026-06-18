@@ -8255,6 +8255,18 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			// ISO week (date_part('week')) follows ISOWeek(), so 2023-01-01 (a Sunday)
+			// belongs to week 52 of the prior year and 2023-12-31 (a Sunday) belongs to
+			// week 52 of 2023 — both match week 52 while no other point does.
+			name:    `filter by ISO week 52`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('week', time) = 52`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
+				`["2023-01-01T00:00:00Z","server01",1],` +
+				`["2023-12-31T23:59:59Z","server01",6]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
 		// SELECT statement tests - date_part as a column
 		&Query{
 			name:    `SELECT date_part dow as column`,
@@ -8336,6 +8348,18 @@ func TestServer_Query_DatePart(t *testing.T) {
 			command: `SELECT value, date_part('epoch', time) AS epoch FROM db0.rp0.cpu WHERE time = '2024-01-01T00:00:00Z'`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","epoch"],"values":[` +
 				`["2024-01-01T00:00:00Z",7,1704067200]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			// date_part('week') uses ISOWeek(), which disagrees with the calendar
+			// year at boundaries: 2023-01-01 reports week 52 (of 2022) while the very
+			// next stored point, 2023-01-16, is week 3.
+			name:    `SELECT date_part week (ISO week-year boundary)`,
+			command: `SELECT value, date_part('week', time) AS week FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","week"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,52],` +
+				`["2023-01-16T10:30:45Z",2,3]` +
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
@@ -8606,6 +8630,21 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`["2025-06-12T11:20:30Z",14,null,6],` +
 				`["2025-09-15T00:00:00Z",15,null,9]]}` +
 				`]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			// GROUP BY date_part('week') routes points through the grouper using the
+			// ISO week. Over 2023 the weeks present are 3, 15, 29, 43 and 52, with
+			// week 52 holding both 2023-01-01 (ISO week 52 of 2022) and 2023-12-31.
+			name:    `GROUP BY ISO week with COUNT`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-12-31T23:59:59Z' GROUP BY date_part('week', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["week"],"columns":["time","count","week"],"values":[` +
+				`["2023-01-01T00:00:00Z",1,3],` +
+				`["2023-01-01T00:00:00Z",1,15],` +
+				`["2023-01-01T00:00:00Z",1,29],` +
+				`["2023-01-01T00:00:00Z",1,43],` +
+				`["2023-01-01T00:00:00Z",2,52]` +
+				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
 		&Query{
