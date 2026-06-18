@@ -443,6 +443,22 @@ func TestDatePartGrouper_ResolveKeys_FirstLevel_WithTags(t *testing.T) {
 	require.NotEmpty(t, entries[0].DimKey)
 }
 
+func TestDatePartGrouper_DimKey_NoCollisionWithNulBytesInTagID(t *testing.T) {
+	// Tag IDs can contain NUL bytes (e.g. empty tag values), so the grouping key
+	// must not collide for distinct tag IDs. The length-prefixed encoding keeps
+	// them unambiguous even when a tag ID ends in / contains the bytes that the
+	// old separator scheme used.
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "month", Expr: query.Month},
+	})
+
+	a, err := g.ResolveKeys([]interface{}{int64(3)}, "a\x00\x00b", true)
+	require.NoError(t, err)
+	b, err := g.ResolveKeys([]interface{}{int64(3)}, "a\x00\x00b\x00\x00c", true)
+	require.NoError(t, err)
+	require.NotEqual(t, a[0].DimKey, b[0].DimKey, "distinct tag IDs must yield distinct grouping keys")
+}
+
 func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
 		{Name: "month", Expr: query.Month},
@@ -509,6 +525,20 @@ func TestDatePartGrouper_DecodeEntry_InvalidLength(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must be exactly 9 bytes")
 	}
+}
+
+func TestDatePartGrouper_DecodeEntry_InvalidExprByte(t *testing.T) {
+	// A 9-byte key whose first byte is not a valid DatePartExpr must be rejected
+	// rather than decoded into an out-of-range expr (whose String() is empty and
+	// would silently misroute the output column).
+	g := query.NewDatePartGrouper([]query.DatePartDimension{
+		{Name: "month", Expr: query.Month},
+	})
+
+	key := string([]byte{200, 0, 0, 0, 0, 0, 0, 0, 0})
+	_, err := g.DecodeEntry(key)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid expr byte")
 }
 
 func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {

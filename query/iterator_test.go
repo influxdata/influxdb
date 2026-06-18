@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
 
 // Ensure that a set of iterators can be merged together, sorted by window and name/tag.
@@ -1681,6 +1682,30 @@ func TestIteratorOptions_MarshalBinary(t *testing.T) {
 	} else if !reflect.DeepEqual(&other, opt) {
 		t.Fatalf("unexpected options: %s", spew.Sdump(other))
 	}
+}
+
+// Ensure date_part GROUP BY options survive a marshal round-trip, including
+// reconstruction of the DimensionGrouper (which is not itself serialized).
+func TestIteratorOptions_MarshalBinary_DatePart(t *testing.T) {
+	opt := &query.IteratorOptions{
+		DatePartDimensions: []query.DatePartDimension{
+			{Name: "year", Expr: query.Year},
+			{Name: "month", Expr: query.Month},
+		},
+		NeedTimeRef: true,
+	}
+	opt.DimensionGrouper = query.NewDatePartGrouper(opt.DatePartDimensions)
+
+	buf, err := opt.MarshalBinary()
+	require.NoError(t, err)
+
+	var other query.IteratorOptions
+	require.NoError(t, other.UnmarshalBinary(buf))
+
+	require.Equal(t, opt.DatePartDimensions, other.DatePartDimensions)
+	require.True(t, other.NeedTimeRef)
+	require.NotNil(t, other.DimensionGrouper, "grouper must be reconstructed on decode")
+	require.Equal(t, opt.DimensionGrouper, other.DimensionGrouper)
 }
 
 // Ensure iterator can be encoded and decoded over a byte stream.

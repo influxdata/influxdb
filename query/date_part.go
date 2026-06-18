@@ -24,11 +24,6 @@ const (
 	DatePartArgCount = 2
 
 	DatePartDimensionsString = "date_part_dimensions"
-
-	// DatePartKeySeparator separates tag IDs from date_part keys in composite
-	// grouping keys. Double-null cannot appear in a valid tag ID because
-	// InfluxDB disallows empty tag keys and values.
-	DatePartKeySeparator = "\x00\x00"
 )
 
 type DatePartExpr int
@@ -309,15 +304,19 @@ func NewDatePartGrouper(dims []DatePartDimension) *DatePartGrouper {
 	return &DatePartGrouper{dims: dims}
 }
 
-// computeDimKey builds a grouping key string.
-// Format: "exprName:<8-byte big-endian value>" optionally prefixed with "tagID\x00\x00".
-// Uses a stack-allocated [8]byte for the binary encoding.
+// computeDimKey builds a grouping key string that uniquely identifies a
+// (tagID, expr, val) tuple; it is used only as a map key and is never decoded.
+// When tags are present the tagID is length-prefixed (8-byte big-endian) so the
+// encoding stays unambiguous even if the tagID contains NUL bytes — which it can,
+// e.g. when a series has empty tag values.
 func computeDimKey(expr DatePartExpr, val int64, tagID string, hasTags bool) string {
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], uint64(val))
 	valStr := string(buf[:])
 	if hasTags {
-		return tagID + DatePartKeySeparator + expr.String() + ":" + valStr
+		var lenBuf [8]byte
+		binary.BigEndian.PutUint64(lenBuf[:], uint64(len(tagID)))
+		return string(lenBuf[:]) + tagID + expr.String() + ":" + valStr
 	}
 	return expr.String() + ":" + valStr
 }
@@ -337,8 +336,12 @@ func decodeKey(encodedKey string) (DecodedDatePartKey, error) {
 	if len(encodedKey) != 9 {
 		return DecodedDatePartKey{}, fmt.Errorf("date_part: encoded key must be exactly 9 bytes, got %d", len(encodedKey))
 	}
+	expr := DatePartExpr(encodedKey[0])
+	if expr < Year || expr >= Invalid {
+		return DecodedDatePartKey{}, fmt.Errorf("date_part: encoded key has invalid expr byte %d", encodedKey[0])
+	}
 	return DecodedDatePartKey{
-		Expr: DatePartExpr(encodedKey[0]),
+		Expr: expr,
 		Val:  int64(binary.BigEndian.Uint64([]byte(encodedKey[1:9]))),
 	}, nil
 }

@@ -8360,6 +8360,18 @@ func TestServer_Query_DatePart(t *testing.T) {
 			params: url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			// A repeated date_part dimension is deduplicated: the result must match
+			// single-dimension grouping (one year series, counts not doubled).
+			name:    `GROUP BY duplicate year dimension is deduplicated`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('year', time), date_part('year', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["year"],"columns":["time","count","year"],"values":[` +
+				`["2023-01-01T00:00:00Z",6,2023],` +
+				`["2023-01-01T00:00:00Z",6,2024],` +
+				`["2023-01-01T00:00:00Z",7,2025]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    `GROUP BY quarter with SUM`,
 			command: `SELECT SUM(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('quarter', time)`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["quarter"],"columns":["time","sum","quarter"],"values":[` +

@@ -697,6 +697,19 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 			if !ok {
 				return opt, fmt.Errorf("invalid date part expression: %s", d.Args[0].String())
 			}
+			// Skip a duplicate date_part dimension (e.g. GROUP BY date_part('year',
+			// time), date_part('year', time)); a repeated part would inject a
+			// duplicate output column and double-aggregate the same series.
+			duplicate := false
+			for _, existing := range opt.DatePartDimensions {
+				if existing.Expr == expr {
+					duplicate = true
+					break
+				}
+			}
+			if duplicate {
+				continue
+			}
 			opt.DatePartDimensions = append(opt.DatePartDimensions, DatePartDimension{
 				// Store the canonical part name (e.g. "dow"), not the raw user
 				// literal (e.g. "DOW"). Downstream grouping-key decoding uses
@@ -1011,20 +1024,33 @@ func (opt *IteratorOptions) UnmarshalBinary(buf []byte) error {
 
 func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 	pb := &internal.IteratorOptions{
-		Interval:   encodeInterval(opt.Interval),
-		Dimensions: opt.Dimensions,
-		Fill:       proto.Int32(int32(opt.Fill)),
-		StartTime:  proto.Int64(opt.StartTime),
-		EndTime:    proto.Int64(opt.EndTime),
-		Ascending:  proto.Bool(opt.Ascending),
-		Limit:      proto.Int64(int64(opt.Limit)),
-		Offset:     proto.Int64(int64(opt.Offset)),
-		SLimit:     proto.Int64(int64(opt.SLimit)),
-		SOffset:    proto.Int64(int64(opt.SOffset)),
-		StripName:  proto.Bool(opt.StripName),
-		Dedupe:     proto.Bool(opt.Dedupe),
-		MaxSeriesN: proto.Int64(int64(opt.MaxSeriesN)),
-		Ordered:    proto.Bool(opt.Ordered),
+		Interval:    encodeInterval(opt.Interval),
+		Dimensions:  opt.Dimensions,
+		Fill:        proto.Int32(int32(opt.Fill)),
+		StartTime:   proto.Int64(opt.StartTime),
+		EndTime:     proto.Int64(opt.EndTime),
+		Ascending:   proto.Bool(opt.Ascending),
+		Limit:       proto.Int64(int64(opt.Limit)),
+		Offset:      proto.Int64(int64(opt.Offset)),
+		SLimit:      proto.Int64(int64(opt.SLimit)),
+		SOffset:     proto.Int64(int64(opt.SOffset)),
+		StripName:   proto.Bool(opt.StripName),
+		Dedupe:      proto.Bool(opt.Dedupe),
+		MaxSeriesN:  proto.Int64(int64(opt.MaxSeriesN)),
+		Ordered:     proto.Bool(opt.Ordered),
+		NeedTimeRef: proto.Bool(opt.NeedTimeRef),
+	}
+
+	// Encode date_part GROUP BY dimensions. The DimensionGrouper is not encoded;
+	// it is reconstructed from these dimensions on decode.
+	if len(opt.DatePartDimensions) > 0 {
+		pb.DatePartDimensions = make([]*internal.DatePartDimension, len(opt.DatePartDimensions))
+		for i, d := range opt.DatePartDimensions {
+			pb.DatePartDimensions[i] = &internal.DatePartDimension{
+				Name: proto.String(d.Name),
+				Expr: proto.Int32(int32(d.Expr)),
+			}
+		}
 	}
 
 	// Set expression, if set.
@@ -1081,20 +1107,33 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 
 func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, error) {
 	opt := &IteratorOptions{
-		Interval:   decodeInterval(pb.GetInterval()),
-		Dimensions: pb.GetDimensions(),
-		Fill:       influxql.FillOption(pb.GetFill()),
-		StartTime:  pb.GetStartTime(),
-		EndTime:    pb.GetEndTime(),
-		Ascending:  pb.GetAscending(),
-		Limit:      int(pb.GetLimit()),
-		Offset:     int(pb.GetOffset()),
-		SLimit:     int(pb.GetSLimit()),
-		SOffset:    int(pb.GetSOffset()),
-		StripName:  pb.GetStripName(),
-		Dedupe:     pb.GetDedupe(),
-		MaxSeriesN: int(pb.GetMaxSeriesN()),
-		Ordered:    pb.GetOrdered(),
+		Interval:    decodeInterval(pb.GetInterval()),
+		Dimensions:  pb.GetDimensions(),
+		Fill:        influxql.FillOption(pb.GetFill()),
+		StartTime:   pb.GetStartTime(),
+		EndTime:     pb.GetEndTime(),
+		Ascending:   pb.GetAscending(),
+		Limit:       int(pb.GetLimit()),
+		Offset:      int(pb.GetOffset()),
+		SLimit:      int(pb.GetSLimit()),
+		SOffset:     int(pb.GetSOffset()),
+		StripName:   pb.GetStripName(),
+		Dedupe:      pb.GetDedupe(),
+		MaxSeriesN:  int(pb.GetMaxSeriesN()),
+		Ordered:     pb.GetOrdered(),
+		NeedTimeRef: pb.GetNeedTimeRef(),
+	}
+
+	// Decode date_part GROUP BY dimensions and rebuild the grouper from them.
+	if dims := pb.GetDatePartDimensions(); len(dims) > 0 {
+		opt.DatePartDimensions = make([]DatePartDimension, len(dims))
+		for i, d := range dims {
+			opt.DatePartDimensions[i] = DatePartDimension{
+				Name: d.GetName(),
+				Expr: DatePartExpr(d.GetExpr()),
+			}
+		}
+		opt.DimensionGrouper = NewDatePartGrouper(opt.DatePartDimensions)
 	}
 
 	// Set expression, if set.
