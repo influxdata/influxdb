@@ -1021,6 +1021,26 @@ func (c *compiledStatement) validateFields() error {
 	if len(c.Fields) == 0 {
 		return errors.New("at least 1 non-time field must be queried")
 	}
+	// date_part('part', time) derives its value purely from the row timestamp and
+	// references no stored field. A SELECT whose only fields are such date_part
+	// expressions has nothing to anchor the scan on (the storage engine needs a
+	// real field cursor to emit points), so it would silently return no data, like
+	// SELECT time. Reject it with a clear error instead. Queries that also select a
+	// bare field (HasAuxiliaryFields) or an aggregate/selector call other than
+	// date_part carry an anchor and are unaffected.
+	if !c.HasAuxiliaryFields {
+		datePartCalls, otherCalls := 0, 0
+		for _, call := range c.FunctionCalls {
+			if call.Name == DatePartString {
+				datePartCalls++
+			} else {
+				otherCalls++
+			}
+		}
+		if datePartCalls > 0 && otherCalls == 0 {
+			return errors.New("at least 1 non-time field must be queried")
+		}
+	}
 	// Ensure there are not multiple calls if top/bottom is present.
 	if len(c.FunctionCalls) > 1 && c.TopBottomFunction != "" {
 		return fmt.Errorf("selector function %s() cannot be combined with other functions", c.TopBottomFunction)

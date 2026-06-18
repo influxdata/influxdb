@@ -112,8 +112,6 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT sum("out")/sum("in") FROM (SELECT derivative("out") AS "out", derivative("in") AS "in" FROM "m0" WHERE time >= now() - 5m GROUP BY "index") GROUP BY time(1m) fill(none)`,
 		// date_part tests
 		`SELECT value, date_part('dow', time) FROM cpu`,
-		`SELECT date_part('dow', time), date_part('month', time) FROM cpu`,
-		`SELECT date_part('dow', time), date_part('month', time), date_part('year', time) FROM cpu`,
 		`SELECT value, date_part('dow', time), date_part('month', time) FROM cpu`,
 		`SELECT value FROM cpu WHERE date_part('dow', time) = 1`,
 		`SELECT value FROM cpu WHERE date_part('dow', time) != 0 AND date_part('dow', time) != 6`,
@@ -154,6 +152,13 @@ func TestCompile_Failures(t *testing.T) {
 		err string
 	}{
 		{s: `SELECT time FROM cpu`, err: `at least 1 non-time field must be queried`},
+		// date_part(...) derives purely from the row timestamp and references no
+		// stored field, so a SELECT whose only fields are date_part expressions has
+		// nothing to anchor the scan on (like SELECT time). Reject it instead of
+		// silently returning no data.
+		{s: `SELECT date_part('year', time) FROM cpu`, err: `at least 1 non-time field must be queried`},
+		{s: `SELECT date_part('dow', time), date_part('month', time) FROM cpu`, err: `at least 1 non-time field must be queried`},
+		{s: `SELECT date_part('hour', time) + 1 FROM cpu`, err: `at least 1 non-time field must be queried`},
 		{s: `SELECT value, mean(value) FROM cpu`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `SELECT value, max(value), min(value) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
 		{s: `SELECT top(value, 10), max(value) FROM cpu`, err: `selector function top() cannot be combined with other functions`},

@@ -8267,6 +8267,22 @@ func TestServer_Query_DatePart(t *testing.T) {
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
+		// A SELECT whose only fields are date_part(...) expressions references no
+		// stored field (date_part derives purely from the row timestamp), so there
+		// is nothing to anchor the scan on. This is rejected rather than silently
+		// returning no data, mirroring SELECT time.
+		&Query{
+			name:    `SELECT only date_part is rejected`,
+			command: `SELECT date_part('year', time) FROM db0.rp0.cpu WHERE host = 'server01'`,
+			exp:     `{"results":[{"statement_id":0,"error":"at least 1 non-time field must be queried"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT only multiple date_part is rejected`,
+			command: `SELECT date_part('year', time), date_part('month', time) FROM db0.rp0.cpu WHERE host = 'server01'`,
+			exp:     `{"results":[{"statement_id":0,"error":"at least 1 non-time field must be queried"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 		// SELECT statement tests - date_part as a column
 		&Query{
 			name:    `SELECT date_part dow as column`,
