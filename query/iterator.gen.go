@@ -1186,25 +1186,42 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -1527,25 +1544,42 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -1868,25 +1902,42 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -2209,25 +2260,42 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -2550,25 +2618,42 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -4120,25 +4205,42 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -4461,25 +4563,42 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -4802,25 +4921,42 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -5143,25 +5279,42 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -5484,25 +5637,42 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -7054,25 +7224,42 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -7395,25 +7582,42 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -7736,25 +7940,42 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -8077,25 +8298,42 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -8418,25 +8656,42 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -9974,25 +10229,42 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -10315,25 +10587,42 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -10656,25 +10945,42 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -10997,25 +11303,42 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -11338,25 +11661,42 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -12894,25 +13234,42 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -13235,25 +13592,42 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -13576,25 +13950,42 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -13917,25 +14308,42 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])
@@ -14258,25 +14666,42 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 				if err != nil {
 					return nil, err
 				}
-				// Selector functions (MIN, MAX, FIRST, LAST) preserve the input
-				// point's Aux via cloneAux, whose last N slots hold the raw int64
-				// value for every date_part dimension. Only the active dimension is
-				// meaningful for this series, so clear all of those slots (leaving
-				// non-active dimension columns null) and carry only the active
-				// DecodedDatePartKey, which the scanner routes by name. Aggregate
-				// functions (COUNT, SUM, MEAN) return nil Aux, so we append normally.
-				if n := len(points[i].Aux); n > 0 {
-					base := n - len(itr.opt.DatePartDimensions)
-					if base < 0 {
-						base = 0
-					}
-					for j := base; j < n; j++ {
-						points[i].Aux[j] = nil
-					}
-					points[i].Aux[n-1] = dpVal
-				} else {
-					points[i].Aux = append(points[i].Aux, dpVal)
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
 				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
 			}
 
 			a = append(a, points[i])

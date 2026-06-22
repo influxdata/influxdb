@@ -149,11 +149,38 @@ type scannerCursorBase struct {
 	columns []influxql.VarRef
 	loc     *time.Location
 
+	// needDatePart caches whether this query actually involves date_part (either
+	// an explicit date_part(...) field or a GROUP BY date_part dimension). When
+	// false, the per-row date_part bookkeeping in Scan is skipped entirely so
+	// ordinary queries don't pay for a feature they don't use.
+	needDatePart bool
+
 	scan   scannerFunc
 	valuer influxql.ValuerEval
 }
 
-func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.Location) scannerCursorBase {
+// scannerCursorNeedsDatePart reports whether the cursor must perform date_part
+// bookkeeping: true when a GROUP BY date_part dimension is present or when any
+// selected field references the date_part function (top-level or nested).
+func scannerCursorNeedsDatePart(fields []*influxql.Field, opt IteratorOptions) bool {
+	if len(opt.DatePartDimensions) > 0 {
+		return true
+	}
+	for _, f := range fields {
+		found := false
+		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+			if call, ok := n.(*influxql.Call); ok && call.Name == DatePartString {
+				found = true
+			}
+		})
+		if found {
+			return true
+		}
+	}
+	return false
+}
+
+func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.Location, needDatePart bool) scannerCursorBase {
 	typmap := FunctionTypeMapper{}
 	exprs := make([]influxql.Expr, len(fields))
 	columns := make([]influxql.VarRef, len(fields))
@@ -170,27 +197,43 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 
 	m := make(map[string]interface{})
 	mapValuer := influxql.MapValuer(m)
+
+	// Only wire DatePartValuer into the evaluation chain when date_part is
+	// actually used; otherwise skip the extra valuer indirection on every Eval.
+	var valuer influxql.Valuer
+	if needDatePart {
+		valuer = influxql.MultiValuer(
+			MathValuer{},
+			DatePartValuer{Valuer: mapValuer, Location: loc},
+			mapValuer,
+		)
+	} else {
+		valuer = influxql.MultiValuer(
+			MathValuer{},
+			mapValuer,
+		)
+	}
+
 	return scannerCursorBase{
-		fields:  exprs,
-		m:       m,
-		columns: columns,
-		loc:     loc,
-		scan:    scan,
+		fields:       exprs,
+		m:            m,
+		columns:      columns,
+		loc:          loc,
+		needDatePart: needDatePart,
+		scan:         scan,
 		valuer: influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				MathValuer{},
-				DatePartValuer{Valuer: mapValuer, Location: loc},
-				mapValuer,
-			),
+			Valuer:               valuer,
 			IntegerFloatDivision: true,
 		},
 	}
 }
 
 func (cur *scannerCursorBase) Scan(row *Row) bool {
-	// Clear date_part state from previous scan so it doesn't leak across rows.
-	delete(cur.m, DatePartDimensionsString)
-	row.GroupingKeys = nil
+	if cur.needDatePart {
+		// Clear date_part state from previous scan so it doesn't leak across rows.
+		delete(cur.m, DatePartDimensionsString)
+		row.GroupingKeys = nil
+	}
 
 	ts, name, tags := cur.scan(cur.m)
 	if ts == ZeroTime {
@@ -210,10 +253,13 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 	}
 
 	// Make the row timestamp available to the eval map so date_part can access it.
-	// This must be unconditional: date_part may be nested inside another expression
-	// (e.g. date_part('hour', time) + 1), in which case the top-level field is not a
-	// date_part call and a per-field check would miss it, leaving time unset.
-	cur.m[models.TimeString] = row.Time
+	// This is set whenever the query uses date_part, because date_part may be
+	// nested inside another expression (e.g. date_part('hour', time) + 1), in
+	// which case the top-level field is not a date_part call and a per-field
+	// check would miss it, leaving time unset.
+	if cur.needDatePart {
+		cur.m[models.TimeString] = row.Time
+	}
 
 	for i, expr := range cur.fields {
 		// A special case if the field is time to reduce memory allocations.
@@ -228,21 +274,23 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 			// a null value that needs to be filled.
 			v = NullFloat
 		}
-		if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
-			if dpd, ok := val.(DecodedDatePartKey); ok {
-				dimName := dpd.Expr.String()
-				if row.GroupingKeys == nil {
-					row.GroupingKeys = make(map[string]struct{})
-				}
-				row.GroupingKeys[dimName] = struct{}{}
-				// Only set the column value if this field is the dimension VarRef.
-				// Explicit date_part(...) calls — top-level or nested in a larger
-				// expression — are resolved by DatePartValuer.Call against the
-				// active grouped key (already applied in v above), so they need no
-				// special handling here.
-				if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
-					row.Values[i] = dpd.Val
-					continue
+		if cur.needDatePart {
+			if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
+				if dpd, ok := val.(DecodedDatePartKey); ok {
+					dimName := dpd.Expr.String()
+					if row.GroupingKeys == nil {
+						row.GroupingKeys = make(map[string]struct{})
+					}
+					row.GroupingKeys[dimName] = struct{}{}
+					// Only set the column value if this field is the dimension VarRef.
+					// Explicit date_part(...) calls — top-level or nested in a larger
+					// expression — are resolved by DatePartValuer.Call against the
+					// active grouped key (already applied in v above), so they need no
+					// special handling here.
+					if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
+						row.Values[i] = dpd.Val
+						continue
+					}
 				}
 			}
 		}
@@ -270,7 +318,7 @@ type scannerCursor struct {
 
 func newScannerCursor(s IteratorScanner, fields []*influxql.Field, opt IteratorOptions) *scannerCursor {
 	cur := &scannerCursor{scanner: s}
-	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location)
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location, scannerCursorNeedsDatePart(fields, opt))
 	return cur
 }
 
@@ -313,7 +361,7 @@ func newMultiScannerCursor(scanners []IteratorScanner, fields []*influxql.Field,
 		scanners:  scanners,
 		ascending: opt.Ascending,
 	}
-	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location)
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location, scannerCursorNeedsDatePart(fields, opt))
 	return cur
 }
 
