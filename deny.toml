@@ -66,6 +66,9 @@ ignore = [
     # WASI filesystem access required (we don't grant any preopened dirs to UDFs):
     "RUSTSEC-2026-0149", # GHSA-2r75-cxrj-cmph: WASI path_open(TRUNCATE) bypasses FilePerms::WRITE host restriction
     #
+    # Another wasmtime advisory:
+    "RUSTSEC-2026-0182",
+    #
     # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=42.0.2)
 
     # rand unsoundness: only reachable with rand's `log` feature plus a custom logger
@@ -74,6 +77,18 @@ ignore = [
     # unreachable. Patched in rand >=0.9.3 / >=0.8.6; the 0.8.x copy is pinned
     # transitively via cap-rand/wasmtime. Tracked for a version bump on main.
     "RUSTSEC-2026-0097", # rand unsound with custom logger calling thread_rng (log feature not enabled here)
+    #
+    # pyo3 0.24-0.28 out-of-bounds read in Iterator::nth/nth_back on
+    # PyList/PyTuple iterators; fix is only in pyo3 0.29 (API-breaking bump,
+    # tracked in influxdb_pro#4072). Not reachable here: no nth/nth_back calls
+    # in our pyo3-consuming crates, and the overflow needs a Rust-side n near
+    # usize::MAX, which our embedding never produces.
+    "RUSTSEC-2026-0176",
+    #
+    # pyo3 0.15-0.29 unsoundness bug. Possible data race in functions supplied
+    # to PyCFunction::new_closure, or PyCFunction::new_closure_bound.
+    # Neither of these methods are used in this code.
+    "RUSTSEC-2026-0177",
 ]
 git-fetch-with-cli = true
 

@@ -1,10 +1,32 @@
 use arrow::compute::rank;
+use arrow::datatypes::Field;
 use datafusion::common::ColumnStatistics;
 use datafusion::common::stats::Precision;
 use datafusion::error::DataFusionError;
 use datafusion::physical_plan::expressions::Column;
 use datafusion::physical_plan::projection::ProjectionExec;
 use datafusion::scalar::ScalarValue;
+
+/// `ColumnStatistics` for a column absent from a chunk but present in the
+/// outer schema. Min/max use a typed null derived from `field.data_type()`
+/// so synthesized bounds match those produced for the same column on
+/// chunks that have it. Falls back to untyped `ScalarValue::Null` for
+/// Arrow types that `ScalarValue::try_from` does not handle.
+///
+/// See <https://github.com/influxdata/EAR/issues/6894>.
+pub(crate) fn synthesize_absent_column_stats(
+    field: &Field,
+    null_count: Precision<usize>,
+) -> ColumnStatistics {
+    let typed_null = ScalarValue::try_from(field.data_type()).unwrap_or(ScalarValue::Null);
+    ColumnStatistics {
+        null_count,
+        max_value: Precision::Exact(typed_null.clone()),
+        min_value: Precision::Exact(typed_null),
+        distinct_count: Precision::Absent,
+        sum_value: Precision::Absent,
+    }
+}
 
 /// Return min max of a ColumnStatistics with precise values
 pub fn column_statistics_min_max(

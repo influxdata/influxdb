@@ -1146,10 +1146,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
     let key_file = config.key_file;
 
     // Start processing engine triggers
-    Arc::clone(&processing_engine)
-        .start_triggers()
-        .await
-        .expect("failed to start processing engine triggers");
+    Arc::clone(&processing_engine).start_triggers().await;
 
     write_buffer
         .wal()

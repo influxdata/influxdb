@@ -252,3 +252,44 @@ async fn test_filter_on_time_with_date_trunc() {
         })
         .expect("create ChunkFilter");
 }
+
+#[test]
+fn test_write_line_error_serialize_truncates_at_utf8_boundary() {
+    use crate::WriteLineError;
+
+    // Serialize caps `original_line` at this many bytes (mirrors the constant in the impl).
+    const TRUNCATE_LIMIT: usize = 20;
+
+    // 19 ASCII bytes followed by a 2-byte 'é' starting at byte 19. A naive `[..TRUNCATE_LIMIT]`
+    // slice lands in the middle of 'é' and would panic; floor_char_boundary backs up to byte 19.
+    let long_line = format!("{}érest of the line", "a".repeat(19));
+    assert!(
+        !long_line.is_char_boundary(TRUNCATE_LIMIT),
+        "test premise: byte {TRUNCATE_LIMIT} must fall inside a multi-byte char",
+    );
+
+    let err = WriteLineError {
+        original_line: long_line,
+        line_number: 1,
+        error_message: "bad line".to_string(),
+    };
+    let json = serde_json::to_string(&err).expect("serialize must not panic");
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let emitted = parsed["original_line"]
+        .as_str()
+        .expect("original_line must serialize as a JSON string");
+
+    assert_eq!(emitted, "a".repeat(19));
+
+    // Short input passes through unchanged.
+    let short = "short line";
+    assert!(short.len() < TRUNCATE_LIMIT);
+    let err = WriteLineError {
+        original_line: short.to_string(),
+        line_number: 2,
+        error_message: "bad".to_string(),
+    };
+    let json = serde_json::to_string(&err).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed["original_line"].as_str().unwrap(), short);
+}
