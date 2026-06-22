@@ -146,11 +146,8 @@ impl Serialize for WriteLineError {
         use serde::ser::SerializeStruct;
         let mut state = serializer.serialize_struct("WriteLineError", 3)?;
         const TRUNCATE_LIMIT: usize = 20;
-        let truncated_line = if self.original_line.len() > TRUNCATE_LIMIT {
-            &self.original_line[..TRUNCATE_LIMIT]
-        } else {
-            &self.original_line
-        };
+        let truncated_line =
+            &self.original_line[..self.original_line.floor_char_boundary(TRUNCATE_LIMIT)];
         state.serialize_field("error_message", &self.error_message)?;
         state.serialize_field("line_number", &self.line_number)?;
         state.serialize_field("original_line", truncated_line)?;

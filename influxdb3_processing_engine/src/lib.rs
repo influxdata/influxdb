@@ -759,14 +759,18 @@ impl ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    pub async fn start_triggers(self: Arc<Self>) -> Result<(), ProcessingEngineError> {
+    pub async fn start_triggers(self: Arc<Self>) {
         let triggers = self.catalog.active_triggers();
         for (db_name, trigger_name) in triggers {
-            Arc::clone(&self)
-                .run_trigger(&db_name, &trigger_name)
-                .await?;
+            if let Err(error) = Arc::clone(&self).run_trigger(&db_name, &trigger_name).await {
+                error!(
+                    ?error,
+                    db_name = %db_name,
+                    trigger_name = %trigger_name,
+                    "failed to start trigger at boot; continuing in degraded state"
+                );
+            }
         }
-        Ok(())
     }
 
     /// dry_run_wal_plugin doesn't write data to the DB but it does perform

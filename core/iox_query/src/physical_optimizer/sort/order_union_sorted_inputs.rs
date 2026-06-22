@@ -2033,6 +2033,253 @@ mod test {
         );
     }
 
+    // Parameterized matrix over chunk-schema heterogeneity. Cases
+    // named `*_with_overlapping_ingester` are the pre-fix failures;
+    // the matrix asserts planning success for all.
+    // See <https://github.com/influxdata/EAR/issues/6894>.
+
+    // Column names; SQL is built from these.
+    const TAG1: &str = "tag1";
+    const VAR_TAG: &str = "tag2";
+    const FLD: &str = "fld";
+    const VAR_FLD: &str = "extra_fld";
+
+    const EAR_6894_ERROR: &str = "Endpoints of an Interval should have the same type";
+
+    fn reproducer_sql() -> String {
+        format!(
+            "SELECT *, \
+             ROW_NUMBER() OVER (PARTITION BY {TAG1} ORDER BY time DESC) AS row_num \
+             FROM data \
+             WHERE time >= TIMESTAMP '1970-01-01T00:00:00Z' AND {FLD} > 0"
+        )
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum InconsistentKind {
+        Tag,
+        Field,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    struct Case {
+        name: &'static str,
+        kind: InconsistentKind,
+        // chunk_a: parquet time [1000,2000]; chunk_b: parquet time
+        // [3000,4000]; ingester (if Some): time [1500,2500] —
+        // overlaps chunk_a.
+        chunk_a_has: bool,
+        chunk_b_has: bool,
+        overlapping_ingester_has: Option<bool>,
+    }
+
+    const CASES: &[Case] = &[
+        Case {
+            name: "tag_parquet_only_inconsistent",
+            kind: InconsistentKind::Tag,
+            chunk_a_has: true,
+            chunk_b_has: false,
+            overlapping_ingester_has: None,
+        },
+        Case {
+            name: "field_parquet_only_inconsistent",
+            kind: InconsistentKind::Field,
+            chunk_a_has: true,
+            chunk_b_has: false,
+            overlapping_ingester_has: None,
+        },
+        Case {
+            name: "tag_on_parquet_a_only_with_overlapping_ingester",
+            kind: InconsistentKind::Tag,
+            chunk_a_has: true,
+            chunk_b_has: false,
+            overlapping_ingester_has: Some(false),
+        },
+        Case {
+            name: "tag_on_parquet_a_and_ingester",
+            kind: InconsistentKind::Tag,
+            chunk_a_has: true,
+            chunk_b_has: false,
+            overlapping_ingester_has: Some(true),
+        },
+        Case {
+            name: "tag_on_ingester_only",
+            kind: InconsistentKind::Tag,
+            chunk_a_has: false,
+            chunk_b_has: false,
+            overlapping_ingester_has: Some(true),
+        },
+        Case {
+            name: "field_on_parquet_a_only_with_overlapping_ingester",
+            kind: InconsistentKind::Field,
+            chunk_a_has: true,
+            chunk_b_has: false,
+            overlapping_ingester_has: Some(false),
+        },
+        Case {
+            name: "field_on_parquet_a_and_ingester",
+            kind: InconsistentKind::Field,
+            chunk_a_has: true,
+            chunk_b_has: false,
+            overlapping_ingester_has: Some(true),
+        },
+        Case {
+            name: "field_on_ingester_only",
+            kind: InconsistentKind::Field,
+            chunk_a_has: false,
+            chunk_b_has: false,
+            overlapping_ingester_has: Some(true),
+        },
+    ];
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum ChunkRole {
+        Parquet,
+        Ingester,
+    }
+
+    /// Builds a chunk with always-present (`tag1`, `fld`, time)
+    /// columns; adds the variable column when `has_variable`. Parquet
+    /// chunks get `with_dummy_parquet_file` + dedupe-clean; ingester
+    /// chunks use `i64::MAX - id` ordering (IOx "newest").
+    fn build_chunk(
+        chunk_id: u128,
+        role: ChunkRole,
+        time_min: i64,
+        time_max: i64,
+        kind: InconsistentKind,
+        has_variable: bool,
+    ) -> TestChunk {
+        let mut c = TestChunk::new("data").with_id(chunk_id);
+        c = match role {
+            ChunkRole::Ingester => c.with_order(i64::MAX - (chunk_id as i64)),
+            ChunkRole::Parquet => c.with_order(chunk_id as i64),
+        };
+        c = c
+            .with_time_column_with_stats(Some(time_min), Some(time_max))
+            .with_tag_column_with_stats(TAG1, Some("a"), Some("a"));
+
+        if let (InconsistentKind::Tag, true) = (kind, has_variable) {
+            c = c.with_tag_column_with_stats(VAR_TAG, Some("x"), Some("x"));
+        }
+
+        // Ingester field columns omit stats; parquet sets them.
+        c = if role == ChunkRole::Ingester {
+            c.with_i64_field_column(FLD)
+        } else {
+            c.with_i64_field_column_with_stats(FLD, Some(10), Some(40))
+        };
+
+        if let (InconsistentKind::Field, true) = (kind, has_variable) {
+            c = if role == ChunkRole::Ingester {
+                c.with_i64_field_column(VAR_FLD)
+            } else {
+                c.with_i64_field_column_with_stats(VAR_FLD, Some(100), Some(200))
+            };
+        }
+
+        match role {
+            ChunkRole::Parquet => c
+                .with_may_contain_pk_duplicates(false)
+                .with_dummy_parquet_file(),
+            ChunkRole::Ingester => c,
+        }
+    }
+
+    fn build_provider_for_case(case: &Case) -> Arc<crate::provider::ChunkTableProvider> {
+        let mut sb = IOxSchemaBuilder::new();
+        sb.tag(TAG1);
+        match case.kind {
+            InconsistentKind::Tag => {
+                sb.tag(VAR_TAG).influx_field(FLD, InfluxFieldType::Integer);
+            }
+            InconsistentKind::Field => {
+                sb.influx_field(FLD, InfluxFieldType::Integer)
+                    .influx_field(VAR_FLD, InfluxFieldType::Integer);
+            }
+        }
+        sb.timestamp();
+        let canonical_schema: schema::Schema = sb.build().unwrap();
+
+        let chunk_a = build_chunk(
+            1,
+            ChunkRole::Parquet,
+            1_000,
+            2_000,
+            case.kind,
+            case.chunk_a_has,
+        );
+        let chunk_b = build_chunk(
+            2,
+            ChunkRole::Parquet,
+            3_000,
+            4_000,
+            case.kind,
+            case.chunk_b_has,
+        );
+        let mut builder = ProviderBuilder::new(Arc::from("data"), canonical_schema)
+            .add_chunk(Arc::new(chunk_a) as Arc<dyn QueryChunk>)
+            .add_chunk(Arc::new(chunk_b) as Arc<dyn QueryChunk>);
+        if let Some(has) = case.overlapping_ingester_has {
+            let ingester = build_chunk(3, ChunkRole::Ingester, 1_500, 2_500, case.kind, has);
+            builder = builder.add_chunk(Arc::new(ingester) as Arc<dyn QueryChunk>);
+        }
+        Arc::new(builder.build().unwrap())
+    }
+
+    async fn plan_for_case(case: &Case) -> Result<Arc<dyn ExecutionPlan>, String> {
+        let exec = Executor::new_with_config_and_executor(
+            ExecutorConfig::testing(),
+            DedicatedExecutor::new_testing(),
+        );
+        let ctx = exec.new_context();
+        ctx.inner()
+            .register_table("data", build_provider_for_case(case))
+            .map_err(|e| e.to_string())?;
+        ctx.sql_to_physical_plan(&reproducer_sql())
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    /// Runs all `CASES`: asserts no `EAR_6894_ERROR`, and that
+    /// `RecordBatchesExec` is present whenever an ingester chunk
+    /// was configured (so the overlap is real, not pruned away).
+    #[tokio::test]
+    async fn ear6894_matrix() {
+        test_helpers::maybe_start_logging();
+
+        let mut failures = Vec::new();
+        for case in CASES {
+            match plan_for_case(case).await {
+                Err(e) => {
+                    let hint = if e.contains(EAR_6894_ERROR) {
+                        " (matches known EAR #6894 signature)"
+                    } else {
+                        ""
+                    };
+                    failures.push(format!("[{}] planning failed{hint}: {e}", case.name));
+                }
+                Ok(plan) => {
+                    let formatted = format_execution_plan(&plan).join("\n");
+                    if case.overlapping_ingester_has.is_some()
+                        && !formatted.contains("RecordBatchesExec")
+                    {
+                        failures.push(format!(
+                            "[{}] expected RecordBatchesExec in plan; got:\n{formatted}",
+                            case.name
+                        ));
+                    }
+                }
+            }
+        }
+
+        assert!(
+            failures.is_empty(),
+            "EAR #6894 matrix had failures:\n{}",
+            failures.join("\n")
+        );
+    }
+
     // ------------------------------------------------------------------
     // Helper functions
     // ------------------------------------------------------------------

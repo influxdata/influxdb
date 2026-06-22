@@ -1429,10 +1429,7 @@ async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn Wr
         &[&tokio_rustls::rustls::version::TLS13];
 
     // Start processing engine triggers
-    Arc::clone(&processing_engine)
-        .start_triggers()
-        .await
-        .expect("failed to start processing engine triggers");
+    Arc::clone(&processing_engine).start_triggers().await;
 
     write_buffer
         .wal()
