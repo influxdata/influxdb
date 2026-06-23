@@ -149,7 +149,7 @@ func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
 		return err
 	}
 	// Verify that the condition is actually ok to use.
-	if err := c.validateCondition(cond, stmt); err != nil {
+	if err := c.validateCondition(cond, stmt.Sources); err != nil {
 		return err
 	}
 	c.Condition = cond
@@ -1183,16 +1183,16 @@ func hasSubquerySource(sources influxql.Sources) bool {
 // validateCondition verifies that all elements in the condition are appropriate.
 // For example, aggregate calls don't work in the condition and should throw an
 // error as an invalid expression.
-func (c *compiledStatement) validateCondition(expr influxql.Expr, stmt *influxql.SelectStatement) error {
+func (c *compiledStatement) validateCondition(expr influxql.Expr, sources influxql.Sources) error {
 	switch expr := expr.(type) {
 	case *influxql.BinaryExpr:
 		// Verify each side of the binary expression. We do not need to
 		// verify the binary expression itself since that should have been
 		// done by influxql.ConditionExpr.
-		if err := c.validateCondition(expr.LHS, stmt); err != nil {
+		if err := c.validateCondition(expr.LHS, sources); err != nil {
 			return err
 		}
-		if err := c.validateCondition(expr.RHS, stmt); err != nil {
+		if err := c.validateCondition(expr.RHS, sources); err != nil {
 			return err
 		}
 		return nil
@@ -1208,7 +1208,7 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr, stmt *influxql
 				// valuer that does not populate time or resolve date_part, so the
 				// predicate would silently evaluate to null and drop every row.
 				// Reject it here rather than produce wrong results.
-				if hasSubquerySource(stmt.Sources) {
+				if hasSubquerySource(sources) {
 					return errors.New("date_part: condition is not supported with a subquery source")
 				}
 				return nil
@@ -1231,7 +1231,7 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr, stmt *influxql
 
 		// Are all the args valid?
 		for _, arg := range expr.Args {
-			if err := c.validateCondition(arg, stmt); err != nil {
+			if err := c.validateCondition(arg, sources); err != nil {
 				return err
 			}
 		}
