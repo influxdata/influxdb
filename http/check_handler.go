@@ -24,6 +24,11 @@ const (
 	statusReady    = "ready"
 	messageHealthy = "healthy"
 
+	// healthName is the top-level Name reported on the /health response.
+	// QueryHealthCheck reuses it so the check identity it returns is the
+	// same whether the remote /health succeeds or fails.
+	healthName = "influxdb"
+
 	// startingBody is the response body for non-/health-or-/ready requests
 	// received before SetHandler installs a delegate.
 	startingBody = `{"status":"` + statusStarting + `"}` + "\n"
@@ -163,7 +168,7 @@ func (h *HealthReadyHandler) writeHealth(w http.ResponseWriter, r *http.Request)
 		message = firstFailureMessage(resp.Checks())
 	}
 	body := healthBody{
-		Name:    "influxdb",
+		Name:    healthName,
 		Status:  string(resp.Status()),
 		Message: message,
 		Checks:  resp.Checks(),

@@ -612,30 +612,28 @@ func SimpleQuery(addr *url.URL, flux, org, token string, headers ...string) ([]b
 	return GetQueryResponseBody(res)
 }
 
-const queryHealthName = "query health"
-
 func QueryHealthCheck(url string, insecureSkipVerify bool) check.Response {
 	u, err := NewURL(url, "/health")
 	if err != nil {
-		return check.NamedFail(queryHealthName, errors.Wrap(err, "could not form URL").Error())
+		return check.NamedFail(healthName, errors.Wrap(err, "could not form URL").Error())
 	}
 
 	hc := NewClient(u.Scheme, insecureSkipVerify)
 	resp, err := hc.Get(u.String())
 	if err != nil {
-		return check.NamedFail(queryHealthName, errors.Wrap(err, "error getting response").Error())
+		return check.NamedFail(healthName, errors.Wrap(err, "error getting response").Error())
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		return check.NamedFail(queryHealthName, fmt.Sprintf("http error %v", resp.StatusCode))
+		return check.NamedFail(healthName, fmt.Sprintf("http error %v", resp.StatusCode))
 	}
 
 	// check.Response is an interface; decode into the concrete
 	// BasicResponse and return it.
 	var healthResponse check.BasicResponse
 	if err = json.NewDecoder(resp.Body).Decode(&healthResponse); err != nil {
-		return check.NamedFail(queryHealthName, errors.Wrap(err, "error decoding JSON response").Error())
+		return check.NamedFail(healthName, errors.Wrap(err, "error decoding JSON response").Error())
 	}
 
 	return healthResponse
