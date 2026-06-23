@@ -691,9 +691,13 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 		}
 
 		if d, ok := d.Expr.(*influxql.Call); ok && d.Name == DatePartString {
-			// This should already be validated during compileDatePartDimensions
-			arg, _ := d.Args[0].(*influxql.StringLiteral)
-			expr, ok := ParseDatePartExpr(arg.Val)
+			// This should already be validated during compilation, but keep this code
+			// defensive to avoid panics if an invalid statement reaches this point.
+			lit, ok := d.Args[0].(*influxql.StringLiteral)
+			if !ok {
+				return opt, fmt.Errorf("invalid date part expression: %s", d.Args[0].String())
+			}
+			expr, ok := ParseDatePartExpr(lit.Val)
 			if !ok {
 				return opt, fmt.Errorf("invalid date part expression: %s", d.Args[0].String())
 			}
