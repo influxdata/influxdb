@@ -163,6 +163,11 @@ func TestCompile_Failures(t *testing.T) {
 		// dimensions aren't real fields of the subquery and can't be resolved through
 		// the subquery grouping path, so the query would silently return no rows.
 		{s: `SELECT count(value) FROM (SELECT value FROM cpu) GROUP BY date_part('year', time)`, err: `date_part: GROUP BY date_part is not supported with a subquery source`},
+		// date_part in a WHERE condition over a subquery source is not supported: the
+		// subquery filter is evaluated with a plain map valuer that does not populate
+		// time or resolve date_part, so the predicate would silently drop every row.
+		{s: `SELECT value FROM (SELECT value FROM cpu) WHERE date_part('dow', time) = 0`, err: `date_part: condition is not supported with a subquery source`},
+		{s: `SELECT mean(value) FROM (SELECT value FROM cpu) WHERE date_part('dow', time) != 0 AND date_part('dow', time) != 6`, err: `date_part: condition is not supported with a subquery source`},
 		{s: `SELECT value, mean(value) FROM cpu`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `SELECT value, max(value), min(value) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
 		{s: `SELECT top(value, 10), max(value) FROM cpu`, err: `selector function top() cannot be combined with other functions`},

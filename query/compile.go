@@ -1192,7 +1192,20 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 		if !isMathFunction(expr) {
 			switch expr.Name {
 			case DatePartString:
-				return ValidateDatePart(expr.Args)
+				if err := ValidateDatePart(expr.Args); err != nil {
+					return err
+				}
+				// date_part in a WHERE condition over a subquery source is not
+				// supported: the subquery filter is evaluated with a plain map
+				// valuer that does not populate time or resolve date_part, so the
+				// predicate would silently evaluate to null and drop every row.
+				// Reject it here rather than produce wrong results.
+				for _, source := range c.stmt.Sources {
+					if _, ok := source.(*influxql.SubQuery); ok {
+						return errors.New("date_part: condition is not supported with a subquery source")
+					}
+				}
+				return nil
 			default:
 				return fmt.Errorf("invalid function call in condition: %s", expr)
 			}
@@ -1226,6 +1239,7 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 // this compiledStatement as the parent.
 func (c *compiledStatement) subquery(stmt *influxql.SelectStatement) error {
 	subquery := newCompiler(c.Options)
+	subquery.stmt = stmt
 	if err := subquery.preprocess(stmt); err != nil {
 		return err
 	}
