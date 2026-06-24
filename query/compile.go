@@ -1036,6 +1036,11 @@ func (c *compiledStatement) validateFields() error {
 	// SELECT time. Reject it with a clear error instead. Queries that also select a
 	// bare field (HasAuxiliaryFields) or an aggregate/selector call other than
 	// date_part carry an anchor and are unaffected.
+	//
+	// This is a schema-blind early check: HasAuxiliaryFields is true for any bare
+	// VarRef including a tag, which is not a real anchor. The tag-only case can only
+	// be detected once field types are known, so it is caught later by the
+	// authoritative validateDatePartAnchor in Prepare. Keep both in sync.
 	if !c.HasAuxiliaryFields {
 		datePartCalls, otherCalls := 0, 0
 		for _, call := range c.FunctionCalls {
@@ -1166,6 +1171,46 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 		if badPart != "" {
 			return fmt.Errorf("date_part: SELECT date_part('%s', time) requires '%s' to be a GROUP BY date_part dimension", badPart, badPart)
 		}
+	}
+	return nil
+}
+
+// validateDatePartAnchor rejects a SELECT that uses date_part(...) but has no
+// real anchor to drive the scan. date_part derives its value purely from the row
+// timestamp, so it cannot itself produce points; it must be paired with a stored
+// field or a non-date_part aggregate/selector. A bare tag reference is not an
+// anchor (the storage engine cannot emit timestamps from a tag-only cursor), so a
+// query like `SELECT host, date_part('year', time) FROM cpu` would otherwise plan
+// as an aux-only iterator and silently return no rows.
+//
+// This runs after RewriteFields, once VarRef types (field vs tag) are known: that
+// distinction is not available during compilation, where HasAuxiliaryFields is set
+// for any bare VarRef including tags, so the compile-time check cannot catch it.
+func validateDatePartAnchor(stmt *influxql.SelectStatement) error {
+	var hasDatePart, hasAnchor bool
+	for _, f := range stmt.Fields {
+		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+			switch n := n.(type) {
+			case *influxql.Call:
+				if n.Name == DatePartString {
+					hasDatePart = true
+				} else if !isMathFunction(n) {
+					// An aggregate or selector (count, max, ...) anchors the scan.
+					hasAnchor = true
+				}
+			case *influxql.VarRef:
+				// Only a stored field anchors the scan. Tags, the time column
+				// (the date_part argument, typed Time/Unknown here), and untyped
+				// refs do not, so match the concrete stored-field types explicitly.
+				switch n.Type {
+				case influxql.Float, influxql.Integer, influxql.Unsigned, influxql.String, influxql.Boolean:
+					hasAnchor = true
+				}
+			}
+		})
+	}
+	if hasDatePart && !hasAnchor {
+		return errors.New("at least 1 non-time field must be queried")
 	}
 	return nil
 }
@@ -1356,6 +1401,14 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 
 	// Validate if the types are correct now that they have been assigned.
 	if err := validateTypes(stmt); err != nil {
+		shards.Close()
+		return nil, err
+	}
+
+	// Now that VarRef types are known, reject a date_part SELECT whose only
+	// non-date_part fields are tags: a tag is not a scan anchor, so the query
+	// would otherwise silently return no rows.
+	if err := validateDatePartAnchor(stmt); err != nil {
 		shards.Close()
 		return nil, err
 	}

@@ -8283,6 +8283,21 @@ func TestServer_Query_DatePart(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"error":"at least 1 non-time field must be queried"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		// A tag is not a scan anchor, so date_part paired only with a tag must be
+		// rejected too (the field-vs-tag distinction is only known after the schema
+		// is resolved). Otherwise the query plans aux-only and returns no rows.
+		&Query{
+			name:    `SELECT date_part with only a tag is rejected`,
+			command: `SELECT host, date_part('year', time) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"statement_id":0,"error":"at least 1 non-time field must be queried"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `SELECT date_part first with only a tag is rejected`,
+			command: `SELECT date_part('year', time), host FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"statement_id":0,"error":"at least 1 non-time field must be queried"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 		// SELECT statement tests - date_part as a column
 		&Query{
 			name:    `SELECT date_part dow as column`,
