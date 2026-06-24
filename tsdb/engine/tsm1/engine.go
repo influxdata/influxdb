@@ -820,7 +820,7 @@ func (e *Engine) Open(ctx context.Context) error {
 		}
 	}
 
-	if err := e.FileStore.Open(ctx); err != nil {
+	if err := e.FileStore.Open(); err != nil {
 		return err
 	}
 

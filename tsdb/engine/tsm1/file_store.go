@@ -697,7 +697,7 @@ func (f *FileStore) Open() error {
 			// Ensure a limited number of TSM files are loaded at once.
 			// Systems which have very large datasets (1TB+) can have thousands
 			// of TSM files which can cause extremely long load times.
-			if err := f.openLimiter.Take(ctx); err != nil {
+			if err := f.openLimiter.Take(context.Background()); err != nil {
 				f.logger.Error("Failed to open tsm file", zap.String("path", file.Name()), zap.Error(err))
 				readerC <- &res{err: fmt.Errorf("failed to open tsm file %q: %w", file.Name(), err)}
 				return

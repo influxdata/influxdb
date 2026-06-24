@@ -3356,7 +3356,11 @@ func TestFileStore_ConcurrentLocking(t *testing.T) {
 	if testing.Verbose() {
 		fs.WithLogger(zaptest.NewLogger(t))
 	}
-	require.NoError(t, fs.Open())
+	// Load the permanent cpu file via Replace, matching the convention used by the
+	// rest of this file. Do NOT also call fs.Open(): Open globs dir/*.tsm and would
+	// load the same cpu file a second time, so f.files would start as {cpu, cpu} and
+	// the Count()/Files() bounds below (cpu + at most one churned mem file) would be
+	// violated from the first churn onward.
 	require.NoError(t, fs.Replace(nil, files))
 	// Use assert (not require) in this cleanup: require's FailNow during teardown
 	// could short-circuit the temp-dir RemoveAll defers above and obscure the

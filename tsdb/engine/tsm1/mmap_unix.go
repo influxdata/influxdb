@@ -6,7 +6,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/influxdata/influxdb/pkg/file"
+	"github.com/influxdata/influxdb/v2/pkg/file"
 	"golang.org/x/sys/unix"
 )
 

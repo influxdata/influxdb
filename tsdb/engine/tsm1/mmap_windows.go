@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/pkg/file"
+	"github.com/influxdata/influxdb/v2/pkg/file"
 )
 
 // mmap implementation for Windows
