@@ -9227,6 +9227,67 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 	}
 }
 
+// A stored field whose name matches a GROUP BY date_part output column (e.g. a
+// field literally named "year") collides with the injected date_part column. The
+// explicit form is rejected at compile time; the wildcard form must be rejected
+// too, even though `*` is only expanded later in Prepare (RewriteFields). Without
+// the post-RewriteFields revalidation the wildcard query emits duplicate "year"
+// columns and silently corrupts column-name-keyed handling (e.g. SELECT INTO).
+func TestServer_Query_DatePart_WildcardCollision(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`m,host=a year=5,value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`m,host=a year=6,value=2 %d`, mustParseTime(time.RFC3339Nano, "2024-01-01T00:00:00Z").UnixNano()),
+	}
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{&Write{data: strings.Join(writes, "\n")}}
+
+	collision := `date_part: output column "year" collides with the GROUP BY date_part('year', time) dimension; alias the field to a different name`
+	test.addQueries([]*Query{
+		&Query{
+			name:    `explicit field colliding with GROUP BY date_part is rejected`,
+			command: `SELECT year FROM db0.rp0.m GROUP BY date_part('year', time)`,
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, collision),
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `wildcard expanding to a colliding field is rejected`,
+			command: `SELECT * FROM db0.rp0.m GROUP BY date_part('year', time)`,
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, collision),
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// A wildcard with no colliding field must still work.
+		&Query{
+			name:    `wildcard with no colliding field is allowed`,
+			command: `SELECT count(*) FROM db0.rp0.m GROUP BY date_part('month', time)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"m","grouping_keys":["month"],"columns":["time","count_value","count_year","month"],"values":[["1970-01-01T00:00:00Z",2,2,1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				require.NoError(t, test.init(s), "init error")
+				initialized = true
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
+	}
+}
+
 func TestServer_Query_ShowTagKeys(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())

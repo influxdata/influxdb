@@ -1413,6 +1413,16 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 		return nil, err
 	}
 
+	// Re-run the date_part SELECT/GROUP BY validation now that RewriteFields has
+	// expanded any wildcards. The compile-time pass ran before expansion, so a
+	// wildcard-expanded field (e.g. a stored field named "year" colliding with
+	// GROUP BY date_part('year', time)) would otherwise slip through and emit
+	// duplicate output columns.
+	if err := c.validateDatePartSelectFields(stmt); err != nil {
+		shards.Close()
+		return nil, err
+	}
+
 	// Determine base options for iterators.
 	opt, err := newIteratorOptionsStmt(stmt, sopt)
 	if err != nil {
