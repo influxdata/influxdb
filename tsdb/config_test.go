@@ -1,11 +1,13 @@
 package tsdb_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_Parse(t *testing.T) {
@@ -74,6 +76,164 @@ func TestConfig_Validate_Error(t *testing.T) {
 	c.SeriesIDSetCacheSize = -1
 	if err := c.Validate(); err == nil || err.Error() != "series-id-set-cache-size must be non-negative" {
 		t.Errorf("unexpected error: %s", err)
+	}
+}
+
+func TestConfig_Validate_AdaptiveCacheSizing(t *testing.T) {
+	base := func() tsdb.Config {
+		c := tsdb.NewConfig()
+		c.Dir = "/var/lib/influxdb/data"
+		c.WALDir = "/var/lib/influxdb/wal"
+		return c
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(c *tsdb.Config)
+		wantErr error // nil = expect success
+	}{
+		{
+			name:    "defaults are valid (adaptive disabled)",
+			mutate:  func(c *tsdb.Config) {},
+			wantErr: nil,
+		},
+		{
+			name: "negative max rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheMaxSize = -1
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheMaxSizeNegative,
+		},
+		{
+			name: "negative target rate rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = -0.1
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheTargetHitRateRange,
+		},
+		{
+			name: "target rate above 1 rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = 1.01
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheTargetHitRateRange,
+		},
+		{
+			name: "target rate of exactly 1 rejected (unachievable)",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = 1.0
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheTargetHitRateRange,
+		},
+		{
+			// NaN compares false to every bound, so it must be rejected by a
+			// positive range test rather than slipping through as "disabled".
+			name: "target rate NaN rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = math.NaN()
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheTargetHitRateRange,
+		},
+		{
+			name: "max without target rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheMaxSize = 200
+			},
+			wantErr: tsdb.ErrAdaptiveCacheSizingPairing,
+		},
+		{
+			name: "target without max rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: tsdb.ErrAdaptiveCacheSizingPairing,
+		},
+		{
+			name: "adaptive enabled with cache disabled rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 0
+				c.SeriesIDSetCacheMaxSize = 200
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: tsdb.ErrAdaptiveCacheSizingRequiresCacheSize,
+		},
+		{
+			name: "max < initial rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 200
+				c.SeriesIDSetCacheMaxSize = 100
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: tsdb.ErrAdaptiveCacheMaxSizeTooSmall,
+		},
+		{
+			name: "max == initial rejected (adaptive cache that cannot grow)",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 100
+				c.SeriesIDSetCacheMaxSize = 100
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: tsdb.ErrAdaptiveCacheMaxSizeTooSmall,
+		},
+		{
+			name: "adaptive enabled with valid configuration",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 100
+				c.SeriesIDSetCacheMaxSize = 1600
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: nil,
+		},
+		{
+			name: "adaptive enabled at minimal valid max (size+1)",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheSize = 100
+				c.SeriesIDSetCacheMaxSize = 101
+				c.SeriesIDSetCacheTargetHitRate = 0.95
+			},
+			wantErr: nil,
+		},
+		{
+			name: "negative shrink conservatism rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheShrinkConservatism = -0.1
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheShrinkConservatismRange,
+		},
+		{
+			name: "shrink conservatism NaN rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheShrinkConservatism = math.NaN()
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheShrinkConservatismRange,
+		},
+		{
+			name: "shrink conservatism +Inf rejected",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheShrinkConservatism = math.Inf(1)
+			},
+			wantErr: tsdb.ErrSeriesIDSetCacheShrinkConservatismRange,
+		},
+		{
+			name: "shrink conservatism at lower bound (0.0) accepted",
+			mutate: func(c *tsdb.Config) {
+				c.SeriesIDSetCacheShrinkConservatism = 0.0
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := base()
+			tt.mutate(&c)
+			err := c.Validate()
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+		})
 	}
 }
 

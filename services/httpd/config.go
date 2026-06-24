@@ -59,7 +59,7 @@ type Config struct {
 	UnixSocketGroup          *toml.Group       `toml:"unix-socket-group"`
 	UnixSocketPermissions    toml.FileMode     `toml:"unix-socket-permissions"`
 	BindSocket               string            `toml:"bind-socket"`
-	MaxBodySize              int               `toml:"max-body-size"`
+	MaxBodySize              toml.SSize        `toml:"max-body-size"`
 	AccessLogPath            string            `toml:"access-log-path"`
 	AccessLogStatusFilters   []StatusFilter    `toml:"access-log-status-filters"`
 	MaxConcurrentWriteLimit  int               `toml:"max-concurrent-write-limit"`

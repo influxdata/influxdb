@@ -67,50 +67,66 @@ type Config struct {
 	UDPReadBuffer    int           `toml:"udp-read-buffer"`
 }
 
-// NewConfig returns a new instance of Config with defaults.
-func NewConfig() Config {
-	return Config{
-		BindAddress:      DefaultBindAddress,
-		Database:         DefaultDatabase,
-		Protocol:         DefaultProtocol,
-		BatchSize:        DefaultBatchSize,
-		BatchPending:     DefaultBatchPending,
-		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
-		ConsistencyLevel: DefaultConsistencyLevel,
-		Separator:        DefaultSeparator,
-	}
+// Compile-time check that *Config implements toml.Defaulter so it can be used
+// as a slice element type with ApplyEnvOverrides.
+var _ toml.Defaulter = (*Config)(nil)
+
+// ApplyDefaults populates the Config with default values. It is called by
+// NewConfig and by toml.ApplyEnvOverrides on slice elements appended via
+// indexed environment variables. ApplyDefaults assumes the receiver is a
+// freshly constructed (zero-valued) Config and sets fields unconditionally.
+func (c *Config) ApplyDefaults() {
+	c.BindAddress = DefaultBindAddress
+	c.Database = DefaultDatabase
+	c.Protocol = DefaultProtocol
+	c.BatchSize = DefaultBatchSize
+	c.BatchPending = DefaultBatchPending
+	c.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+	c.ConsistencyLevel = DefaultConsistencyLevel
+	c.Separator = DefaultSeparator
 }
 
-// WithDefaults takes the given config and returns a new config with any required
-// default values set.
+// NewConfig returns a new instance of Config with defaults.
+func NewConfig() Config {
+	var c Config
+	c.ApplyDefaults()
+	return c
+}
+
+// WithDefaults takes the given config and returns a new config with any
+// zero-valued fields filled in from ApplyDefaults. Existing non-zero values
+// are preserved. ApplyDefaults remains the single source of truth for what
+// the default values are.
 func (c *Config) WithDefaults() *Config {
 	d := *c
+	var defaults Config
+	defaults.ApplyDefaults()
 	if d.BindAddress == "" {
-		d.BindAddress = DefaultBindAddress
+		d.BindAddress = defaults.BindAddress
 	}
 	if d.Database == "" {
-		d.Database = DefaultDatabase
+		d.Database = defaults.Database
 	}
 	if d.Protocol == "" {
-		d.Protocol = DefaultProtocol
+		d.Protocol = defaults.Protocol
 	}
 	if d.BatchSize == 0 {
-		d.BatchSize = DefaultBatchSize
+		d.BatchSize = defaults.BatchSize
 	}
 	if d.BatchPending == 0 {
-		d.BatchPending = DefaultBatchPending
+		d.BatchPending = defaults.BatchPending
 	}
 	if d.BatchTimeout == 0 {
-		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+		d.BatchTimeout = defaults.BatchTimeout
 	}
 	if d.ConsistencyLevel == "" {
-		d.ConsistencyLevel = DefaultConsistencyLevel
+		d.ConsistencyLevel = defaults.ConsistencyLevel
 	}
 	if d.Separator == "" {
-		d.Separator = DefaultSeparator
+		d.Separator = defaults.Separator
 	}
 	if d.UDPReadBuffer == 0 {
-		d.UDPReadBuffer = DefaultUDPReadBuffer
+		d.UDPReadBuffer = defaults.UDPReadBuffer
 	}
 	return &d
 }

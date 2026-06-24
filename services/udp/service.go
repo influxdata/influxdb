@@ -3,6 +3,7 @@ package udp // import "github.com/influxdata/influxdb/services/udp"
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -105,10 +106,15 @@ func (s *Service) Open() (err error) {
 	}
 
 	if s.config.ReadBuffer != 0 {
-		err = s.conn.SetReadBuffer(s.config.ReadBuffer)
+		rbs, err := s.config.ReadBuffer.ToInt()
 		if err != nil {
+			// err already contains context.
+			s.Logger.Info("Invalid UDP read buffer size", zap.Error(err))
+			return fmt.Errorf("unable to set UDP read buffer: %w", err)
+		}
+		if err = s.conn.SetReadBuffer(rbs); err != nil {
 			s.Logger.Info("Failed to set UDP read buffer",
-				zap.Int("buffer_size", s.config.ReadBuffer), zap.Error(err))
+				zap.Int("buffer_size", rbs), zap.Error(err))
 			return err
 		}
 	}

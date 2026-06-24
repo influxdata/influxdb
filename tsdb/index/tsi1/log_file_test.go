@@ -16,8 +16,10 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/slices"
+	th "github.com/influxdata/influxdb/pkg/testing/helper"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
+	"github.com/stretchr/testify/require"
 )
 
 // Ensure log file can append series.
@@ -394,6 +396,73 @@ func GenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*L
 		}
 	}
 	return f, nil
+}
+
+// Ensure TagValueIterator is safe to call concurrently with AddSeriesList.
+// Regression test for a "concurrent map iteration and map write" fatal
+// introduced when LogFile.TagValueIterator released its RLock before the
+// underlying logTagKey.tagValues map was snapshotted. This is able to
+// consistently reproduce the fatal error introduced by #26372.
+func TestLogFile_TagValueIterator_ConcurrentWrite(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer th.CheckedClose(t, sfile)()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
+	defer th.CheckedClose(t, f)()
+	seriesSet := tsdb.NewSeriesIDSet()
+
+	// Seed the measurement/tag key so the iterator finds something.
+	_, err := f.AddSeriesList(seriesSet,
+		slices.StringsToBytes("cpu"),
+		[]models.Tags{models.NewTags(map[string]string{"host": "server-0"})},
+		notrack,
+	)
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	errCh := make(chan error, 1)
+
+	// Writer: continuously add new tag values for tag key "host" on "cpu",
+	// which mutates the logTagKey.tagValues map under f.mu.Lock().
+	go func() {
+		defer close(errCh)
+		for i := 0; ; i++ {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			tags := models.NewTags(map[string]string{
+				"host": fmt.Sprintf("server-%d", i),
+			})
+			if _, err := f.AddSeriesList(seriesSet,
+				slices.StringsToBytes("cpu"),
+				[]models.Tags{tags},
+				notrack,
+			); err != nil {
+				errCh <- err
+				return
+			}
+		}
+	}()
+
+	// Reader: hammer TagValueIterator, which iterates the same map.
+	// With the buggy LogFile.TagValueIterator (RLock released before the
+	// snapshot loop runs in logTagKey.TagValueIterator), the Go runtime
+	// fatals with "concurrent map iteration and map write".
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		itr := f.TagValueIterator([]byte("cpu"), []byte("host"))
+		if itr == nil {
+			continue
+		}
+		for e := itr.Next(); e != nil; e = itr.Next() {
+			_ = e.Value()
+		}
+	}
+	close(done)
+
+	require.NoError(t, <-errCh)
 }
 
 func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesValueN int) {

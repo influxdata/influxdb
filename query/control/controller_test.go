@@ -116,7 +116,7 @@ func validateUnusedMemory(t testing.TB, reg *prometheus.Registry, c control.Conf
 	if m != nil {
 		got = int64(*m.Gauge.Value)
 	}
-	want := c.MaxMemoryBytes - (int64(c.ConcurrencyQuota) * c.InitialMemoryBytesQuotaPerQuery)
+	want := int64(c.MaxMemoryBytes) - (int64(c.ConcurrencyQuota) * int64(c.InitialMemoryBytesQuotaPerQuery))
 	if got != want {
 		t.Errorf("unexpected memory unused bytes: got %d want: %d", got, want)
 	}
@@ -1138,7 +1138,7 @@ func TestController_NoisyNeighbor(t *testing.T) {
 				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc memory.Allocator) {
 					// Allocate memory until we hit our initial memory limit so we should
 					// never request more memory.
-					for amount := int64(0); amount < config.InitialMemoryBytesQuotaPerQuery; amount += 16 {
+					for amount := int64(0); amount < int64(config.InitialMemoryBytesQuotaPerQuery); amount += 16 {
 						if err := alloc.Account(16); err != nil {
 							q.SetErr(fmt.Errorf("well behaved query affected by noisy neighbor: %s", err))
 							return
@@ -1248,7 +1248,7 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 							// We were not allowed to allocate more.
 							// Ensure that the size never exceeded the
 							// MaxMemoryBytes value.
-							if size > config.MaxMemoryBytes {
+							if size > int64(config.MaxMemoryBytes) {
 								t.Errorf("query was allowed to allocate more than the maximum memory: %d > %d", size, config.MaxMemoryBytes)
 							}
 							return

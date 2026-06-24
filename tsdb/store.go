@@ -524,8 +524,16 @@ func (s *Store) loadShards() error {
 	s.EngineOptions.OptimizedCompactionLimiter = limiter.NewFixed(optLim)
 
 	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
-	throughput := int(s.EngineOptions.Config.CompactThroughput)
-	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
+	throughput, err := s.EngineOptions.Config.CompactThroughput.ToInt()
+	if err != nil {
+		// err already contains context.
+		return fmt.Errorf("compact-throughput: %w", err)
+	}
+	throughputBurst, err := s.EngineOptions.Config.CompactThroughputBurst.ToInt()
+	if err != nil {
+		// err already contains context.
+		return fmt.Errorf("compact-throughput-burst: %w", err)
+	}
 	if throughput > 0 {
 		if throughputBurst < throughput {
 			throughputBurst = throughput

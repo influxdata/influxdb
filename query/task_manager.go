@@ -238,6 +238,14 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, opt ExecutionOptions, inter
 	}
 	t.nextID++
 
+	// Default to a fully permissive coarse authorizer so statement executors
+	// that consult opt.CoarseAuthorizer (SHOW DATABASES, SHOW CONTINUOUS
+	// QUERIES, SHOW MEASUREMENTS ON *.*) do not panic when a caller
+	// constructs ExecutionOptions without setting it.
+	if opt.CoarseAuthorizer == nil {
+		opt.CoarseAuthorizer = OpenCoarseAuthorizer
+	}
+
 	ctx := &ExecutionContext{
 		Context:          context.Background(),
 		QueryID:          qid,

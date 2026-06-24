@@ -2340,6 +2340,63 @@ func TestEngine_WritePointsWithStats(t *testing.T) {
 	}
 }
 
+// TestEngine_Statistics_TSI1Cache verifies that the TSI1 tag-value series-ID
+// cache is plumbed through the engine's Statistics aggregator. Counter
+// semantics are covered by TagValueSeriesIDCache unit tests; this test only
+// proves the wiring.
+func TestEngine_Statistics_TSI1Cache(t *testing.T) {
+	e := MustOpenEngine(tsdb.TSI1IndexName)
+	defer e.Close()
+
+	require.NoError(t, e.WritePointsString(
+		`cpu,host=A value=1.1 1000000000`,
+		`cpu,host=B value=1.2 2000000000`,
+	))
+
+	// Drive at least one miss followed by one hit through the cache so
+	// the wiring proves the counters move end-to-end via Statistics,
+	// not just that the keys are present.
+	itr1, err := e.index.TagValueSeriesIDIterator([]byte("cpu"), []byte("host"), []byte("A"))
+	require.NoError(t, err)
+	if itr1 != nil {
+		require.NoError(t, itr1.Close())
+	}
+	itr2, err := e.index.TagValueSeriesIDIterator([]byte("cpu"), []byte("host"), []byte("A"))
+	require.NoError(t, err)
+	if itr2 != nil {
+		require.NoError(t, itr2.Close())
+	}
+
+	stats := e.Statistics(map[string]string{"database": "db0", "id": "1"})
+
+	var found *models.Statistic
+	for i := range stats {
+		if stats[i].Name == "tsi1_cache" {
+			found = &stats[i]
+			break
+		}
+	}
+	require.NotNil(t, found, "expected a tsi1_cache statistic in engine output")
+	require.Contains(t, found.Values, "hit")
+	require.Contains(t, found.Values, "miss")
+	require.Contains(t, found.Values, "eviction")
+	require.Contains(t, found.Values, "shrink_eviction")
+	require.Contains(t, found.Values, "size")
+	require.Contains(t, found.Values, "capacity")
+	require.Equal(t, "db0", found.Tags["database"])
+	require.Greater(t, found.Values["hit"].(int64), int64(0), "expected at least one cache hit")
+	require.Greater(t, found.Values["miss"].(int64), int64(0), "expected at least one cache miss")
+
+	// The inmem index has no analogous cache; ensure its engine Statistics
+	// does NOT emit tsi1_cache.
+	e2 := MustOpenEngine(inmem.IndexName)
+	defer e2.Close()
+	for _, s := range e2.Statistics(map[string]string{"database": "db0", "id": "1"}) {
+		require.NotEqual(t, "tsi1_cache", s.Name,
+			"inmem engine should not emit a tsi1_cache statistic")
+	}
+}
+
 func TestEngine_WritePoints_TypeConflict(t *testing.T) {
 	os.Setenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED", "1")
 	defer os.Unsetenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED")
@@ -2985,13 +3042,15 @@ type mockPlanner struct{}
 
 func (m *mockPlanner) GetAggressiveCompactionPointsPerBlock() int { return 0 }
 func (m *mockPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int) {
-	return
 }
-func (m *mockPlanner) Plan(lastWrite time.Time) ([]tsm1.CompactionGroup, int64) { return nil, 0 }
-func (m *mockPlanner) PlanLevel(level int) ([]tsm1.CompactionGroup, int64) {
+func (m *mockPlanner) FindGenerations() tsm1.TsmGenerations { return nil }
+func (m *mockPlanner) Plan(generations tsm1.TsmGenerations, lastWrite time.Time) ([]tsm1.CompactionGroup, int64) {
 	return nil, 0
 }
-func (m *mockPlanner) PlanOptimize(lastWrite time.Time) ([]tsm1.CompactionGroup, int64, int64) {
+func (m *mockPlanner) PlanLevel(generations tsm1.TsmGenerations, level int) ([]tsm1.CompactionGroup, int64) {
+	return nil, 0
+}
+func (m *mockPlanner) PlanOptimize(generations tsm1.TsmGenerations, lastWrite time.Time) ([]tsm1.CompactionGroup, int64, int64) {
 	return nil, 0, 0
 }
 func (m *mockPlanner) Release(groups []tsm1.CompactionGroup) {}

@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -15,8 +16,10 @@ import (
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/cmd/influx/cli"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"github.com/peterh/liner"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -652,6 +655,325 @@ func emptyTestServerWithPath(path string) *httptest.Server {
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
+}
+
+// Shared fixture values for the two PartialMeasurements tests below.
+const (
+	formatColumn = "column"
+	formatJSON   = "json"
+
+	levelWarning       = "warning"
+	levelWarningPrefix = levelWarning + ": "
+
+	seriesNameMeasurements    = "measurements"
+	seriesNameHeaderColumnFmt = "name: " + seriesNameMeasurements
+
+	colNameField       = "name"
+	colDatabase        = "database"
+	colRetentionPolicy = "retention policy"
+
+	measurementCPU = "cpu"
+	measurementMem = "mem"
+
+	dbName0 = "db0"
+	dbName1 = "db1"
+	rpName0 = "rp0"
+
+	// Match the coordinator's formatMeasurementSource output: simple
+	// identifiers emit unquoted via influxql.QuoteIdent, joined by '.'.
+	warnTextSingleDB0 = `partial results for db0: node 2: timeout`
+	warnTextDB0RP0    = `partial results for db0.rp0: db0: timeout`
+	warnTextDB1RP0    = `partial results for db1.rp0: db1: refused`
+)
+
+// TestCommandLine_FormatResponse_Column_PartialMeasurements verifies that
+// when SHOW MEASUREMENTS returns partial results — some measurement rows plus
+// one or more warning Messages produced by partialMeasurementsWarning in the
+// coordinator — the influx CLI's "column" formatter prints both pieces in the
+// expected shape: each message rendered as "<level>: <text>." on its own line
+// before the table, followed by the column header, a dashed underline, and the
+// data rows.
+func TestCommandLine_FormatResponse_Column_PartialMeasurements(t *testing.T) {
+	t.Parallel()
+
+	// findLine returns the index of the first line in lines that contains sub,
+	// or -1. Used to assert relative ordering without depending on exact
+	// whitespace produced by tabwriter.
+	findLine := func(lines []string, sub string) int {
+		for i, l := range lines {
+			if strings.Contains(l, sub) {
+				return i
+			}
+		}
+		return -1
+	}
+
+	t.Run("single_source_one_warning", func(t *testing.T) {
+		t.Parallel()
+		resp := &client.Response{
+			Results: []client.Result{{
+				Messages: []*client.Message{{
+					Level: levelWarning,
+					Text:  warnTextSingleDB0,
+				}},
+				Series: []models.Row{{
+					Name:    seriesNameMeasurements,
+					Columns: []string{colNameField},
+					Values:  [][]interface{}{{measurementCPU}, {measurementMem}},
+				}},
+			}},
+		}
+
+		c := cli.New(CLIENT_VERSION)
+		c.Format = formatColumn
+		var buf bytes.Buffer
+		c.FormatResponse(resp, &buf)
+
+		out := buf.String()
+		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+
+		warnIdx := findLine(lines, levelWarningPrefix)
+		require.NotEqual(t, -1, warnIdx, "expected a warning line in output:\n%s", out)
+		require.Equal(t, levelWarningPrefix+warnTextSingleDB0+".", strings.TrimRight(lines[warnIdx], " "),
+			"warning line should be rendered as '<level>: <text>.' with the CLI-appended period")
+
+		nameHdrIdx := findLine(lines, seriesNameHeaderColumnFmt)
+		require.NotEqual(t, -1, nameHdrIdx, "expected series name header line:\n%s", out)
+		colHdrIdx := findLine(lines[nameHdrIdx+1:], colNameField)
+		require.NotEqual(t, -1, colHdrIdx, "expected 'name' column header line:\n%s", out)
+		colHdrIdx += nameHdrIdx + 1
+		dashIdx := colHdrIdx + 1
+		require.Less(t, dashIdx, len(lines), "expected a dashed underline after the column header")
+		require.Equal(t, "----", strings.TrimSpace(lines[dashIdx]),
+			"column underline should match the width of 'name'")
+
+		cpuIdx := findLine(lines, measurementCPU)
+		memIdx := findLine(lines, measurementMem)
+		require.NotEqual(t, -1, cpuIdx)
+		require.NotEqual(t, -1, memIdx)
+
+		require.Less(t, warnIdx, nameHdrIdx, "warning must precede the table")
+		require.Less(t, dashIdx, cpuIdx, "data rows must come after the dashed underline")
+		require.Less(t, cpuIdx, memIdx, "data rows preserve series order")
+	})
+
+	t.Run("wildcard_two_warnings_three_columns", func(t *testing.T) {
+		t.Parallel()
+		resp := &client.Response{
+			Results: []client.Result{{
+				Messages: []*client.Message{
+					{Level: levelWarning, Text: warnTextDB0RP0},
+					{Level: levelWarning, Text: warnTextDB1RP0},
+				},
+				Series: []models.Row{{
+					Name:    seriesNameMeasurements,
+					Columns: []string{colNameField, colDatabase, colRetentionPolicy},
+					Values: [][]interface{}{
+						{measurementCPU, dbName0, rpName0},
+						{measurementMem, dbName1, rpName0},
+					},
+				}},
+			}},
+		}
+
+		c := cli.New(CLIENT_VERSION)
+		c.Format = formatColumn
+		var buf bytes.Buffer
+		c.FormatResponse(resp, &buf)
+
+		out := buf.String()
+		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+
+		w0 := findLine(lines, warnTextDB0RP0+".")
+		w1 := findLine(lines, warnTextDB1RP0+".")
+		require.NotEqual(t, -1, w0, "expected first warning line:\n%s", out)
+		require.NotEqual(t, -1, w1, "expected second warning line:\n%s", out)
+		require.True(t, strings.HasPrefix(strings.TrimSpace(lines[w0]), levelWarningPrefix),
+			"first warning should carry the 'warning: ' level prefix; got: %q", lines[w0])
+		require.True(t, strings.HasPrefix(strings.TrimSpace(lines[w1]), levelWarningPrefix),
+			"second warning should carry the 'warning: ' level prefix; got: %q", lines[w1])
+		require.Less(t, w0, w1, "warnings preserved in coordinator order")
+
+		nameHdrIdx := findLine(lines, seriesNameHeaderColumnFmt)
+		require.NotEqual(t, -1, nameHdrIdx, "expected series name header line:\n%s", out)
+
+		// Column header line must list all three columns in order.
+		colHdrIdx := -1
+		for i := nameHdrIdx + 1; i < len(lines); i++ {
+			l := lines[i]
+			if strings.Contains(l, colNameField) && strings.Contains(l, colDatabase) && strings.Contains(l, colRetentionPolicy) {
+				colHdrIdx = i
+				break
+			}
+		}
+		require.NotEqual(t, -1, colHdrIdx, "expected a three-column header line:\n%s", out)
+		require.Less(t, strings.Index(lines[colHdrIdx], colNameField), strings.Index(lines[colHdrIdx], colDatabase),
+			"column order is name | database | retention policy")
+		require.Less(t, strings.Index(lines[colHdrIdx], colDatabase), strings.Index(lines[colHdrIdx], colRetentionPolicy),
+			"column order is name | database | retention policy")
+
+		// Dashed underline: lengths must match each column header exactly
+		// (len("name")=4, len("database")=8, len("retention policy")=16).
+		dashIdx := colHdrIdx + 1
+		require.Less(t, dashIdx, len(lines), "expected dashed underline after column header")
+		dashFields := strings.Fields(lines[dashIdx])
+		require.Equal(t, []string{
+			strings.Repeat("-", len(colNameField)),
+			strings.Repeat("-", len(colDatabase)),
+			strings.Repeat("-", len(colRetentionPolicy)),
+		}, dashFields, "each column's underline width matches its header width")
+
+		// Data rows present, after the underline, in series order.
+		cpuIdx := findLine(lines, measurementCPU)
+		memIdx := findLine(lines, measurementMem)
+		require.NotEqual(t, -1, cpuIdx)
+		require.NotEqual(t, -1, memIdx)
+		require.Contains(t, lines[cpuIdx], dbName0)
+		require.Contains(t, lines[cpuIdx], rpName0)
+		require.Contains(t, lines[memIdx], dbName1)
+		require.Contains(t, lines[memIdx], rpName0)
+
+		require.Less(t, w1, nameHdrIdx, "all warnings precede the table")
+		require.Less(t, dashIdx, cpuIdx, "data rows come after the dashed underline")
+		require.Less(t, cpuIdx, memIdx, "row order matches series Values order")
+	})
+}
+
+// TestCommandLine_FormatResponse_JSON_PartialMeasurements is the JSON-format
+// companion to TestCommandLine_FormatResponse_Column_PartialMeasurements. It
+// verifies that when SHOW MEASUREMENTS returns partial results — some rows
+// plus warning Messages produced by partialMeasurementsWarning — the influx
+// CLI's "json" formatter emits a single line of valid JSON encoding the full
+// client.Response: results[].series with name/columns/values, and
+// results[].messages with the level/text pair for each warning, in order.
+func TestCommandLine_FormatResponse_JSON_PartialMeasurements(t *testing.T) {
+	t.Parallel()
+
+	// wireResponse mirrors what client.Response/Result/Message marshal to,
+	// independent of the in-memory structs — so the test pins the on-the-wire
+	// JSON shape that downstream consumers parse.
+	type wireMessage struct {
+		Level string `json:"level"`
+		Text  string `json:"text"`
+	}
+	type wireRow struct {
+		Name    string          `json:"name"`
+		Columns []string        `json:"columns"`
+		Values  [][]interface{} `json:"values"`
+	}
+	type wireResult struct {
+		Series   []wireRow     `json:"series"`
+		Messages []wireMessage `json:"messages"`
+		Error    string        `json:"error,omitempty"`
+	}
+	type wireResponse struct {
+		Results []wireResult `json:"results"`
+		Error   string       `json:"error,omitempty"`
+	}
+
+	decode := func(t *testing.T, out string) wireResponse {
+		t.Helper()
+		// CLI appends a trailing newline via Fprintln; tolerate it.
+		require.True(t, strings.HasSuffix(out, "\n"), "writeJSON should terminate with a newline; got %q", out)
+		var got wireResponse
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimRight(out, "\n")), &got),
+			"writeJSON should emit valid JSON; got %q", out)
+		return got
+	}
+
+	t.Run("single_source_one_warning_compact", func(t *testing.T) {
+		t.Parallel()
+		resp := &client.Response{
+			Results: []client.Result{{
+				Messages: []*client.Message{{
+					Level: levelWarning,
+					Text:  warnTextSingleDB0,
+				}},
+				Series: []models.Row{{
+					Name:    seriesNameMeasurements,
+					Columns: []string{colNameField},
+					Values:  [][]interface{}{{measurementCPU}, {measurementMem}},
+				}},
+			}},
+		}
+
+		c := cli.New(CLIENT_VERSION)
+		c.Format = formatJSON
+		var buf bytes.Buffer
+		c.FormatResponse(resp, &buf)
+
+		out := buf.String()
+		// Compact (non-pretty) JSON: one line of JSON, then a trailing newline.
+		require.Equal(t, 0, strings.Count(strings.TrimRight(out, "\n"), "\n"),
+			"compact JSON should be a single line; got %q", out)
+		require.NotContains(t, out, "    ", "compact JSON should not be indented; got %q", out)
+
+		got := decode(t, out)
+		require.Empty(t, got.Error, "no top-level error expected on partial success")
+		require.Len(t, got.Results, 1)
+		r := got.Results[0]
+		require.Empty(t, r.Error, "no per-result error expected on partial success")
+		require.Equal(t, []wireMessage{{
+			Level: levelWarning,
+			Text:  warnTextSingleDB0,
+		}}, r.Messages, "JSON message text is the raw coordinator string — no trailing period (unlike the column formatter)")
+		require.Equal(t, []wireRow{{
+			Name:    seriesNameMeasurements,
+			Columns: []string{colNameField},
+			Values:  [][]interface{}{{measurementCPU}, {measurementMem}},
+		}}, r.Series)
+	})
+
+	t.Run("wildcard_two_warnings_three_columns_pretty", func(t *testing.T) {
+		t.Parallel()
+		resp := &client.Response{
+			Results: []client.Result{{
+				Messages: []*client.Message{
+					{Level: levelWarning, Text: warnTextDB0RP0},
+					{Level: levelWarning, Text: warnTextDB1RP0},
+				},
+				Series: []models.Row{{
+					Name:    seriesNameMeasurements,
+					Columns: []string{colNameField, colDatabase, colRetentionPolicy},
+					Values: [][]interface{}{
+						{measurementCPU, dbName0, rpName0},
+						{measurementMem, dbName1, rpName0},
+					},
+				}},
+			}},
+		}
+
+		c := cli.New(CLIENT_VERSION)
+		c.Format = formatJSON
+		c.Pretty = true
+		var buf bytes.Buffer
+		c.FormatResponse(resp, &buf)
+
+		out := buf.String()
+		// Pretty JSON: multi-line, indented with four spaces (per writeJSON).
+		require.Greater(t, strings.Count(out, "\n"), 1,
+			"pretty JSON should span multiple lines; got %q", out)
+		require.Contains(t, out, "\n    \"results\":",
+			"pretty JSON should indent top-level fields with four spaces")
+
+		got := decode(t, out)
+		require.Empty(t, got.Error)
+		require.Len(t, got.Results, 1)
+		r := got.Results[0]
+		require.Empty(t, r.Error)
+		require.Equal(t, []wireMessage{
+			{Level: levelWarning, Text: warnTextDB0RP0},
+			{Level: levelWarning, Text: warnTextDB1RP0},
+		}, r.Messages, "messages preserved in order with original (unpunctuated) coordinator text")
+		require.Equal(t, []wireRow{{
+			Name:    seriesNameMeasurements,
+			Columns: []string{colNameField, colDatabase, colRetentionPolicy},
+			Values: [][]interface{}{
+				{measurementCPU, dbName0, rpName0},
+				{measurementMem, dbName1, rpName0},
+			},
+		}}, r.Series)
+	})
 }
 
 // helper methods

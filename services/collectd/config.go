@@ -2,6 +2,7 @@ package collectd
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -62,66 +63,82 @@ type Config struct {
 	BatchSize             int           `toml:"batch-size"`
 	BatchPending          int           `toml:"batch-pending"`
 	BatchDuration         toml.Duration `toml:"batch-timeout"`
-	ReadBuffer            int           `toml:"read-buffer"`
+	ReadBuffer            toml.SSize    `toml:"read-buffer"`
 	TypesDB               string        `toml:"typesdb"`
 	SecurityLevel         string        `toml:"security-level"`
 	AuthFile              string        `toml:"auth-file"`
 	ParseMultiValuePlugin string        `toml:"parse-multivalue-plugin"`
 }
 
-// NewConfig returns a new instance of Config with defaults.
-func NewConfig() Config {
-	return Config{
-		BindAddress:           DefaultBindAddress,
-		Database:              DefaultDatabase,
-		RetentionPolicy:       DefaultRetentionPolicy,
-		ReadBuffer:            DefaultReadBuffer,
-		BatchSize:             DefaultBatchSize,
-		BatchPending:          DefaultBatchPending,
-		BatchDuration:         DefaultBatchDuration,
-		TypesDB:               DefaultTypesDB,
-		SecurityLevel:         DefaultSecurityLevel,
-		AuthFile:              DefaultAuthFile,
-		ParseMultiValuePlugin: DefaultParseMultiValuePlugin,
-	}
+// Compile-time check that *Config implements toml.Defaulter so it can be used
+// as a slice element type with ApplyEnvOverrides.
+var _ toml.Defaulter = (*Config)(nil)
+
+// ApplyDefaults populates the Config with default values. It is called by
+// NewConfig and by toml.ApplyEnvOverrides on slice elements appended via
+// indexed environment variables. ApplyDefaults assumes the receiver is a
+// freshly constructed (zero-valued) Config and sets fields unconditionally.
+func (c *Config) ApplyDefaults() {
+	c.BindAddress = DefaultBindAddress
+	c.Database = DefaultDatabase
+	c.RetentionPolicy = DefaultRetentionPolicy
+	c.ReadBuffer = DefaultReadBuffer
+	c.BatchSize = DefaultBatchSize
+	c.BatchPending = DefaultBatchPending
+	c.BatchDuration = DefaultBatchDuration
+	c.TypesDB = DefaultTypesDB
+	c.SecurityLevel = DefaultSecurityLevel
+	c.AuthFile = DefaultAuthFile
+	c.ParseMultiValuePlugin = DefaultParseMultiValuePlugin
 }
 
-// WithDefaults takes the given config and returns a new config with any required
-// default values set.
+// NewConfig returns a new instance of Config with defaults.
+func NewConfig() Config {
+	var c Config
+	c.ApplyDefaults()
+	return c
+}
+
+// WithDefaults takes the given config and returns a new config with any
+// zero-valued fields filled in from ApplyDefaults. Existing non-zero values
+// are preserved. ApplyDefaults remains the single source of truth for what
+// the default values are.
 func (c *Config) WithDefaults() *Config {
 	d := *c
+	var defaults Config
+	defaults.ApplyDefaults()
 	if d.BindAddress == "" {
-		d.BindAddress = DefaultBindAddress
+		d.BindAddress = defaults.BindAddress
 	}
 	if d.Database == "" {
-		d.Database = DefaultDatabase
+		d.Database = defaults.Database
 	}
 	if d.RetentionPolicy == "" {
-		d.RetentionPolicy = DefaultRetentionPolicy
+		d.RetentionPolicy = defaults.RetentionPolicy
 	}
 	if d.BatchSize == 0 {
-		d.BatchSize = DefaultBatchSize
+		d.BatchSize = defaults.BatchSize
 	}
 	if d.BatchPending == 0 {
-		d.BatchPending = DefaultBatchPending
+		d.BatchPending = defaults.BatchPending
 	}
 	if d.BatchDuration == 0 {
-		d.BatchDuration = DefaultBatchDuration
+		d.BatchDuration = defaults.BatchDuration
 	}
 	if d.ReadBuffer == 0 {
-		d.ReadBuffer = DefaultReadBuffer
+		d.ReadBuffer = defaults.ReadBuffer
 	}
 	if d.TypesDB == "" {
-		d.TypesDB = DefaultTypesDB
+		d.TypesDB = defaults.TypesDB
 	}
 	if d.SecurityLevel == "" {
-		d.SecurityLevel = DefaultSecurityLevel
+		d.SecurityLevel = defaults.SecurityLevel
 	}
 	if d.AuthFile == "" {
-		d.AuthFile = DefaultAuthFile
+		d.AuthFile = defaults.AuthFile
 	}
 	if d.ParseMultiValuePlugin == "" {
-		d.ParseMultiValuePlugin = DefaultParseMultiValuePlugin
+		d.ParseMultiValuePlugin = defaults.ParseMultiValuePlugin
 	}
 
 	return &d
@@ -139,6 +156,10 @@ func (c *Config) Validate() error {
 	case "split", "join":
 	default:
 		return errors.New(`Invalid value for parse-multivalue-plugin. Valid options are "split" and "join"`)
+	}
+
+	if _, err := c.ReadBuffer.ToInt(); err != nil {
+		return fmt.Errorf("read-buffer: %w", err)
 	}
 
 	return nil

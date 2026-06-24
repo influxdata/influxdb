@@ -46,7 +46,7 @@ type Config struct {
 
 	// TotalBufferBytes is the total size in bytes allocated to buffering across all subscriptions.
 	// Each named subscription will receive an even division of the total.
-	TotalBufferBytes int `toml:"total-buffer-bytes"`
+	TotalBufferBytes toml.SSize `toml:"total-buffer-bytes"`
 
 	// TLS is a base tls config to use for https clients.
 	TLS *tls.Config `toml:"-"`

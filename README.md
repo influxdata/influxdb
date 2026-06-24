@@ -9,26 +9,36 @@ InfluxDB is the leading open source time series database for metrics, events, an
 
 </div>
 
-## Learn InfluxDB
-[Documentation](https://docs.influxdata.com/) | [Community Forum](https://community.influxdata.com/) | [Community Slack](https://www.influxdata.com/slack/) | [Blog](https://www.influxdata.com/blog/) | [InfluxDB University](https://university.influxdata.com/) | [YouTube](https://www.youtube.com/@influxdata8893)
+> [!NOTE]
+> This branch documents an earlier version of InfluxDB OSS. [InfluxDB 3 Core](https://github.com/influxdata/influxdb/tree/main) is the latest stable version. InfluxDB 3 Core includes [compatibility APIs for v2 and v1 write workloads](https://docs.influxdata.com/influxdb3/core/reference/api/).
 
-## An Open-Source Time Series Database
+## InfluxDB Versions
 
-InfluxDB is an open source **time series database** with
-**no external dependencies**. It's useful for recording metrics,
-events, and performing analytics.
+This repository contains multiple InfluxDB versions on separate branches:
 
-This branch, `master-1.x`, is for InfluxDB 1.x. If you'd like to leverage InfluxDB 2.x, please switch to the `main-2.x` branch. The `main` branch is currently being used for active development on the open source version of InfluxDB 3.x and is **not** ready for production use. 
+| Version | Branch | Query Languages | Documentation |
+|---------|--------|----------------|---------------|
+| **v1.x (this branch)** | [`master-1.x`](https://github.com/influxdata/influxdb/tree/master-1.x) | InfluxQL, Flux | [docs.influxdata.com/influxdb/v1/](https://docs.influxdata.com/influxdb/v1/) |
+| v2.x | [`main-2.x`](https://github.com/influxdata/influxdb/tree/main-2.x) | Flux, InfluxQL | [docs.influxdata.com/influxdb/v2/](https://docs.influxdata.com/influxdb/v2/) |
+| v3 Core | [`main`](https://github.com/influxdata/influxdb/tree/main) | SQL, InfluxQL | [docs.influxdata.com/influxdb3/core/](https://docs.influxdata.com/influxdb3/core/) |
+
+## Technical Summary
+
+| | |
+|---|---|
+| **Storage engine** | TSM (Time-Structured Merge Tree) |
+| **Query languages** | InfluxQL, Flux |
+| **Write format** | [Line protocol](https://docs.influxdata.com/influxdb/v1/write_protocols/line_protocol_reference/) |
+| **API** | HTTP on port 8086 |
+| **Configuration** | TOML (`influxdb.conf`) |
 
 ## Features
 
-* Built-in [HTTP API](https://docs.influxdata.com/influxdb/latest/guides/writing_data/) so you don't have to write any server side code to get up and running.
-* Data can be tagged, allowing very flexible querying.
-* SQL-like query language.
-* Simple to install and manage, and fast to get data in and out.
-* It aims to answer queries in real-time. That means every data point is
-  indexed as it comes in and is immediately available in queries that
-  should return in < 100ms.
+* Built-in [HTTP API](https://docs.influxdata.com/influxdb/v1/tools/api/) — no server-side code needed to get up and running.
+* Data can be tagged (tag keys, tag values, field keys), allowing flexible querying.
+* SQL-like query language ([InfluxQL](https://docs.influxdata.com/influxdb/v1/query_language/)) with [Flux](https://docs.influxdata.com/flux/v0/) support.
+* Simple to install and manage, fast to get data in and out ([line protocol](https://docs.influxdata.com/influxdb/v1/write_protocols/line_protocol_reference/)).
+* Real-time indexing — every data point is immediately available in queries.
 
 ## Installation
 
@@ -42,12 +52,12 @@ We recommend installing InfluxDB using one of the [pre-built packages](https://i
 
 ### Create your first database
 
-```
+```bash
 curl -XPOST "http://localhost:8086/query" --data-urlencode "q=CREATE DATABASE mydb"
 ```
 
 ### Insert some data
-```
+```bash
 curl -XPOST "http://localhost:8086/write?db=mydb" \
 -d 'cpu,host=server01,region=uswest load=42 1434055562000000000'
 
@@ -59,22 +69,21 @@ curl -XPOST "http://localhost:8086/write?db=mydb" \
 ```
 
 ### Query for the data
-```JSON
+```bash
 curl -G "http://localhost:8086/query?pretty=true" --data-urlencode "db=mydb" \
 --data-urlencode "q=SELECT * FROM cpu WHERE host='server01' AND time < now() - 1d"
 ```
 
 ### Analyze the data
-```JSON
+```bash
 curl -G "http://localhost:8086/query?pretty=true" --data-urlencode "db=mydb" \
 --data-urlencode "q=SELECT mean(load) FROM cpu WHERE region='uswest'"
 ```
 
 ## Documentation
 
-* Read more about the [design goals and motivations of the project](https://docs.influxdata.com/influxdb/latest/).
-* Follow the [getting started guide](https://docs.influxdata.com/influxdb/latest/introduction/getting_started/) to learn the basics in just a few minutes.
-* Learn more about [InfluxDB's key concepts](https://docs.influxdata.com/influxdb/latest/concepts/key_concepts/).
+* Follow the [getting started guide](https://docs.influxdata.com/influxdb/v1/introduction/get-started/) to learn the basics in just a few minutes.
+* Learn more about [InfluxDB's key concepts](https://docs.influxdata.com/influxdb/v1/concepts/key_concepts/).
 
 ## Contributing
 
@@ -84,6 +93,6 @@ If you're feeling adventurous and want to contribute to InfluxDB, see our [contr
 
 See [LICENSE](./LICENSE) and [DEPENDENCIES](./DEPENDENCIES).
 
-## Looking for Support?
+## Support
 
-InfluxDB offers a number of services to help your project succeed. We offer Developer Support for organizations in active development, Managed Hosting to make it easy to move into production, and Enterprise Support for companies requiring the best response times, SLAs, and technical fixes. Visit our [support page](https://influxdata.com/services/) or contact [sales@influxdb.com](mailto:sales@influxdb.com) to learn how we can best help you succeed.
+For community support, feedback channels, and documentation requests, see the [InfluxDB v1 documentation](https://docs.influxdata.com/influxdb/v1/#bug-reports-and-feedback).
