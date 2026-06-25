@@ -315,12 +315,48 @@ impl Persister {
         let snapshot_file_path =
             SnapshotInfoFilePath::new(self.node_identifier_prefix.as_str(), seq);
         let json = serde_json::to_vec_pretty(persisted_snapshot)?;
+        let manifest_bytes = json.len();
+
+        // A healthy snapshot manifest is small (KB to a few MB). A large one
+        // indicates a pathological number of files and risks exceeding object
+        // store limits, so warn with a breakdown (added vs removed files and
+        // the worst offending table) to identify the cause. The breakdown is
+        // only computed above the threshold to keep the common path cheap.
+        const LARGE_SNAPSHOT_MANIFEST_BYTES: usize = 1024 * 1024 * 1024; // 1 GiB
+        if manifest_bytes >= LARGE_SNAPSHOT_MANIFEST_BYTES {
+            let (added_dbs, added_tables, added_files) = snapshot.db_table_and_file_count();
+            let (removed_dbs, removed_tables, removed_files) =
+                snapshot.removed_db_table_and_file_count();
+            warn!(
+                snapshot_sequence_number = seq.as_u64(),
+                manifest_bytes,
+                added_dbs,
+                added_tables,
+                added_files,
+                removed_dbs,
+                removed_tables,
+                removed_files,
+                parquet_size_bytes = snapshot.parquet_size_bytes,
+                row_count = snapshot.row_count,
+                time_span_ns = snapshot.max_time.saturating_sub(snapshot.min_time),
+                gen1_buckets = snapshot.distinct_chunk_time_count(),
+                worst_table = ?snapshot.largest_table_by_file_count(),
+                "persisting unusually large snapshot manifest"
+            );
+        }
+
+        // Use an adaptive put: snapshot manifests are usually small, but with
+        // very large numbers of files they can exceed the object store's
+        // single-PUT limit (e.g. Azure's 5 GiB cap), which fails the snapshot
+        // and stalls the WAL. put_adaptive routes oversized payloads through a
+        // multipart upload instead of a single PUT.
         self.object_store
-            .put(snapshot_file_path.as_ref(), json.into())
+            .put_adaptive(snapshot_file_path.as_ref(), json.into())
             .await?;
 
         debug!(
             snapshot_sequence_number = seq.as_u64(),
+            manifest_bytes,
             path = %snapshot_file_path.as_ref(),
             "persist_snapshot: completed"
         );
