@@ -7,9 +7,12 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPartition_Open(t *testing.T) {
@@ -129,23 +132,45 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		t.Cleanup(func() { sfile.Close() })
 
 		p := MustOpenPartition(t, sfile.SeriesFile)
-		t.Cleanup(func() {
-			if err := p.Close(); err != nil {
-				t.Fatalf("error closing partition: %v", err)
-			}
-		})
-		p.Partition.SetMaxLogFileSize(-1)
+		t.Cleanup(func() { require.NoError(t, p.Close(), "error closing partition") })
+
+		// Long age so writing a series does not auto-roll the active log file
+		// (a bare Partition has maxLogFileAge == 0, which compacts any non-empty log).
+		p.Partition.SetMaxLogFileAge(time.Hour)
+
+		// Seed one series so the active log file is non-empty.
+		_, err := p.CreateSeriesListIfNotExists(
+			[][]byte{[]byte("cpu")},
+			[]models.Tags{models.NewTags(map[string]string{"region": "east"})})
+		require.NoError(t, err, "creating series")
+
+		// Size threshold 1: the populated log needs compaction, but a freshly
+		// rolled EMPTY log (size 0 < 1) does not, so the async re-trigger chain
+		// settles and the count cannot grow past fileN+1 under any interleaving.
+		p.Partition.SetMaxLogFileSize(1)
+
 		fileN := p.FileN()
 		p.Compact()
-		if (1 + fileN) != p.FileN() {
-			t.Fatalf("manifest write in compaction should have succeeded, but number of files did not change correctly: expected %d files, got %d files", fileN+1, p.FileN())
-		}
+		p.Wait() // settles; cannot re-trigger because the rolled log is empty
+		require.Equal(t, fileN+1, p.FileN(),
+			"manifest write in compaction should have succeeded and changed the file count")
+
+		// Part 2: a failing MANIFEST write during the roll must roll back, leaving
+		// the count unchanged. Raise the threshold so the next write doesn't roll,
+		// then shrink it again so the populated log needs compaction.
+		p.Partition.SetMaxLogFileSize(tsdb.DefaultMaxIndexLogFileSize)
+		_, err = p.CreateSeriesListIfNotExists(
+			[][]byte{[]byte("mem")},
+			[]models.Tags{models.NewTags(map[string]string{"region": "west"})})
+		require.NoError(t, err, "creating second series")
+		p.Partition.SetMaxLogFileSize(1)
+
 		p.SetManifestPathForTest(badManifestPath)
 		fileN = p.FileN()
 		p.Compact()
-		if fileN != p.FileN() {
-			t.Fatalf("manifest write should have failed the compaction, but number of files changed: expected %d files, got %d files", fileN, p.FileN())
-		}
+		p.Wait()
+		require.Equal(t, fileN, p.FileN(),
+			"failed manifest write must not change the file count")
 	})
 }
 
