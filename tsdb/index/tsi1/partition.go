@@ -462,13 +462,6 @@ func (p *Partition) manifest(newFileSet *FileSet) *Manifest {
 	return m
 }
 
-// SetManifestPathForTest is only to force a bad path in testing
-func (p *Partition) SetManifestPathForTest(path string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.manifestPathFn = func() string { return path }
-}
-
 // WithLogger sets the logger for the index.
 func (p *Partition) WithLogger(logger *zap.Logger) {
 	p.logger = logger.With(zap.String("index", "tsi"))
@@ -719,12 +712,6 @@ func (p *Partition) DropMeasurement(name []byte) error {
 	}
 
 	return nil
-}
-
-// CreateSeriesListIfNotExists is an exported wrapper around
-// createSeriesListIfNotExists for use in tests only. Only for tests!
-func (p *Partition) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
-	return p.createSeriesListIfNotExists(names, tagsSlice)
 }
 
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
