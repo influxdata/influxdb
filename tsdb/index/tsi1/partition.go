@@ -122,6 +122,16 @@ func (p *Partition) SetMaxLogFileSize(new int64) (old int64) {
 	return old
 }
 
+// SetMaxLogFileAge provides a setter for the partition setting of maxLogFileAge
+// that is otherwise only available at creation time. Returns the previous value.
+// Only for tests!
+func (p *Partition) SetMaxLogFileAge(new time.Duration) (old time.Duration) {
+	p.mu.Lock()
+	old, p.maxLogFileAge = p.maxLogFileAge, new
+	p.mu.Unlock()
+	return old
+}
+
 // bytes estimates the memory footprint of this Partition, in bytes.
 func (p *Partition) bytes() int {
 	var b int
@@ -729,6 +739,12 @@ func (p *Partition) DropMeasurement(name []byte) error {
 	}
 
 	return nil
+}
+
+// CreateSeriesListIfNotExists is an exported wrapper around
+// createSeriesListIfNotExists for use in tests only. Only for tests!
+func (p *Partition) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
+	return p.createSeriesListIfNotExists(names, tagsSlice)
 }
 
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
