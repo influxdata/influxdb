@@ -112,26 +112,6 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return p
 }
 
-// SetMaxLogFileSize provides a setter for the partition setting of maxLogFileSize
-// that is otherwise only available at creation time. Returns the previous value.
-// Only for tests!
-func (p *Partition) SetMaxLogFileSize(new int64) (old int64) {
-	p.mu.Lock()
-	old, p.maxLogFileSize = p.maxLogFileSize, new
-	p.mu.Unlock()
-	return old
-}
-
-// SetMaxLogFileAge provides a setter for the partition setting of maxLogFileAge
-// that is otherwise only available at creation time. Returns the previous value.
-// Only for tests!
-func (p *Partition) SetMaxLogFileAge(new time.Duration) (old time.Duration) {
-	p.mu.Lock()
-	old, p.maxLogFileAge = p.maxLogFileAge, new
-	p.mu.Unlock()
-	return old
-}
-
 // bytes estimates the memory footprint of this Partition, in bytes.
 func (p *Partition) bytes() int {
 	var b int
