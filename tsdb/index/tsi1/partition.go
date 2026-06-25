@@ -112,16 +112,6 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return p
 }
 
-// SetMaxLogFileSize provides a setter for the partition setting of maxLogFileSize
-// that is otherwise only available at creation time. Returns the previous value.
-// Only for tests!
-func (p *Partition) SetMaxLogFileSize(new int64) (old int64) {
-	p.mu.Lock()
-	old, p.maxLogFileSize = p.maxLogFileSize, new
-	p.mu.Unlock()
-	return old
-}
-
 // bytes estimates the memory footprint of this Partition, in bytes.
 func (p *Partition) bytes() int {
 	var b int
@@ -470,13 +460,6 @@ func (p *Partition) manifest(newFileSet *FileSet) *Manifest {
 	}
 
 	return m
-}
-
-// SetManifestPathForTest is only to force a bad path in testing
-func (p *Partition) SetManifestPathForTest(path string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.manifestPathFn = func() string { return path }
 }
 
 // WithLogger sets the logger for the index.
