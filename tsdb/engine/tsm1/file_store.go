@@ -169,12 +169,34 @@ var (
 
 // FileStore is an abstraction around multiple TSM files.
 type FileStore struct {
-	mu           sync.RWMutex
+	// fastMu and slowMu together protect the files field (and the mutable scalar
+	// fields below: lastModified, lastFileStats, currentGeneration,
+	// currentTempDirID, newReaderBlockCount). A single mutex would be adequate for
+	// correctness, but the separation isolates lock contention so that a writer
+	// waiting on a slow reader cannot stall hot, performance-sensitive readers.
+	//
+	// When a write lock is required, BOTH must be acquired, slowMu first then
+	// fastMu (use wlock/wunlock so the order is always correct). When only a read
+	// lock is required, acquiring EITHER fastMu.RLock or slowMu.RLock is adequate.
+	// Very quick and performance-sensitive operations may use fastMu; slow or
+	// non-sensitive operations must use slowMu. When in doubt, use slowMu.
+	//
+	// No reader ever takes both locks, and writers always take them in the same
+	// order (slowMu then fastMu), so there is no deadlock. The long drain wait for
+	// a slow reader happens on slowMu, which the fast lane never touches, so fastMu
+	// is held only for the actual mutation.
+	fastMu sync.RWMutex
+	slowMu sync.RWMutex
+
+	// lastModified is written only under the full write lock (wlock), so it is
+	// safe to read on either lane, including the fast lane (see LastModified).
 	lastModified time.Time
 	// Most recently known file stats. If nil then stats will need to be
 	// recalculated
 	lastFileStats []ExtFileStat
 
+	// currentGeneration is written only under the full write lock (wlock), so it is
+	// safe to read on either lane, including the fast lane (see CurrentGeneration).
 	currentGeneration int
 	dir               string
 
@@ -201,6 +223,19 @@ type FileStore struct {
 	// newReaderBlockCount keeps track of the current new reader block requests.
 	// If non-zero, no new TSMReader objects may be created.
 	newReaderBlockCount int
+}
+
+// wlock takes the full write lock on the FileStore: slowMu then fastMu. This is
+// the only correct acquisition order; always pair it with wunlock.
+func (f *FileStore) wlock() {
+	f.slowMu.Lock()
+	f.fastMu.Lock()
+}
+
+// wunlock releases the full write lock in the reverse order of wlock.
+func (f *FileStore) wunlock() {
+	f.fastMu.Unlock()
+	f.slowMu.Unlock()
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -402,24 +437,24 @@ func (f *fileStoreMetrics) remove() {
 
 // Count returns the number of TSM files currently loaded.
 func (f *FileStore) Count() int {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.fastMu.RLock()
+	defer f.fastMu.RUnlock()
 	return len(f.files)
 }
 
 // Files returns the slice of TSM files currently loaded. This is only used for
 // tests, and the files aren't guaranteed to stay valid in the presence of compactions.
 func (f *FileStore) Files() []TSMFile {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.fastMu.RLock()
+	defer f.fastMu.RUnlock()
 	return f.files
 }
 
 // Free releases any resources held by the FileStore.  The resources will be re-acquired
 // if necessary if they are needed after freeing them.
 func (f *FileStore) Free() error {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.slowMu.RLock()
+	defer f.slowMu.RUnlock()
 	for _, f := range f.files {
 		if err := f.Free(); err != nil {
 			return err
@@ -430,15 +465,15 @@ func (f *FileStore) Free() error {
 
 // CurrentGeneration returns the current generation of the TSM files.
 func (f *FileStore) CurrentGeneration() int {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.fastMu.RLock()
+	defer f.fastMu.RUnlock()
 	return f.currentGeneration
 }
 
 // NextGeneration increments the max file ID and returns the new value.
 func (f *FileStore) NextGeneration() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.wlock()
+	defer f.wunlock()
 	f.currentGeneration++
 	return f.currentGeneration
 }
@@ -446,13 +481,13 @@ func (f *FileStore) NextGeneration() int {
 // WalkKeys calls fn for every key in every TSM file known to the FileStore.  If the key
 // exists in multiple files, it will be invoked for each file.
 func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) error {
-	f.mu.RLock()
+	f.slowMu.RLock()
 	if len(f.files) == 0 {
-		f.mu.RUnlock()
+		f.slowMu.RUnlock()
 		return nil
 	}
 	if f.newReadersBlocked() {
-		f.mu.RUnlock()
+		f.slowMu.RUnlock()
 		return fmt.Errorf("WalkKeys: %q: %w", f.dir, ErrNewReadersBlocked)
 	}
 
@@ -463,7 +498,7 @@ func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) e
 	}
 
 	ki := newMergeKeyIterator(f.files, seek)
-	f.mu.RUnlock()
+	f.slowMu.RUnlock()
 	for ki.Next() {
 		key, typ := ki.Read()
 		if err := fn(key, typ); err != nil {
@@ -476,9 +511,11 @@ func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) e
 
 // Keys returns all keys and types for all files in the file store.
 func (f *FileStore) Keys() map[string]byte {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
+	// Do not take a read lock here: WalkKeys acquires the read lock itself, and
+	// holding it across that call would be a recursive read lock. Go's RWMutex is
+	// writer-preferring, so a writer that begins waiting between these two RLock
+	// calls would block the inner RLock while the outer one is still held,
+	// deadlocking. WalkKeys provides all the locking this method needs.
 	uniqueKeys := map[string]byte{}
 	if err := f.WalkKeys(nil, func(key []byte, typ byte) error {
 		uniqueKeys[string(key)] = typ
@@ -492,8 +529,8 @@ func (f *FileStore) Keys() map[string]byte {
 
 // Type returns the type of values store at the block for key.
 func (f *FileStore) Type(key []byte) (byte, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.slowMu.RLock()
+	defer f.slowMu.RUnlock()
 
 	for _, f := range f.files {
 		if f.Contains(key) {
@@ -512,9 +549,9 @@ func (f *FileStore) Apply(ctx context.Context, fn func(r TSMFile) error) error {
 	// Limit apply fn to number of cores
 	limiter := limiter.NewFixed(runtime.GOMAXPROCS(0))
 
-	f.mu.RLock()
+	f.slowMu.RLock()
 	if f.newReadersBlocked() {
-		f.mu.RUnlock()
+		f.slowMu.RUnlock()
 		return fmt.Errorf("Apply: %q: %w", f.dir, ErrNewReadersBlocked)
 	}
 	errC := make(chan error, len(f.files))
@@ -539,12 +576,12 @@ func (f *FileStore) Apply(ctx context.Context, fn func(r TSMFile) error) error {
 			applyErr = err
 		}
 	}
-	f.mu.RUnlock()
+	f.slowMu.RUnlock()
 
-	f.mu.Lock()
+	f.wlock()
 	f.lastModified = time.Now().UTC()
 	f.lastFileStats = nil
-	f.mu.Unlock()
+	f.wunlock()
 
 	return applyErr
 }
@@ -553,13 +590,13 @@ func (f *FileStore) Apply(ctx context.Context, fn func(r TSMFile) error) error {
 // be used with smaller batches of series keys.
 func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
 	var batches BatchDeleters
-	f.mu.RLock()
+	f.slowMu.RLock()
 	for _, f := range f.files {
 		if f.OverlapsTimeRange(min, max) {
 			batches = append(batches, f.BatchDelete())
 		}
 	}
-	f.mu.RUnlock()
+	f.slowMu.RUnlock()
 
 	if len(batches) == 0 {
 		return nil
@@ -577,17 +614,17 @@ func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
 		return err
 	}
 
-	f.mu.Lock()
+	f.wlock()
 	f.lastModified = time.Now().UTC()
 	f.lastFileStats = nil
-	f.mu.Unlock()
+	f.wunlock()
 	return nil
 }
 
 // Open loads all the TSM files in the configured directory.
 func (f *FileStore) Open(ctx context.Context) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.wlock()
+	defer f.wunlock()
 
 	// Not loading files from disk so nothing to do
 	if f.dir == "" {
@@ -660,7 +697,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 			// Ensure a limited number of TSM files are loaded at once.
 			// Systems which have very large datasets (1TB+) can have thousands
 			// of TSM files which can cause extremely long load times.
-			if err := f.openLimiter.Take(ctx); err != nil {
+			if err := f.openLimiter.Take(context.Background()); err != nil {
 				f.logger.Error("Failed to open tsm file", zap.String("path", file.Name()), zap.Error(err))
 				readerC <- &res{err: fmt.Errorf("failed to open tsm file %q: %w", file.Name(), err)}
 				return
@@ -748,7 +785,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 // Close closes the file store.
 func (f *FileStore) Close() error {
 	// Make the object appear closed to other method calls.
-	f.mu.Lock()
+	f.wlock()
 
 	files := f.files
 
@@ -758,7 +795,7 @@ func (f *FileStore) Close() error {
 	f.stats.SetFiles(0)
 
 	// Let other methods access this closed object while we do the actual closing.
-	f.mu.Unlock()
+	f.wunlock()
 
 	var errSlice []error
 	for _, tsmFile := range files {
@@ -775,8 +812,8 @@ func (f *FileStore) DiskSizeBytes() int64 {
 // Read returns the slice of values for the given key and the given timestamp,
 // if any file matches those constraints.
 func (f *FileStore) Read(key []byte, t int64) ([]Value, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.slowMu.RLock()
+	defer f.slowMu.RUnlock()
 
 	for _, f := range f.files {
 		// Can this file possibly contain this key and timestamp?
@@ -798,8 +835,8 @@ func (f *FileStore) Read(key []byte, t int64) ([]Value, error) {
 }
 
 func (f *FileStore) Cost(key []byte, min, max int64) query.IteratorCost {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.slowMu.RLock()
+	defer f.slowMu.RUnlock()
 	return f.cost(key, min, max)
 }
 
@@ -807,8 +844,8 @@ func (f *FileStore) Cost(key []byte, min, max int64) query.IteratorCost {
 // Otherwise it returns nil. If it returns a file, you must call Unref on it when
 // you are done, and never use it after that.
 func (f *FileStore) TSMReader(path string) (*TSMReader, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.slowMu.RLock()
+	defer f.slowMu.RUnlock()
 	if f.newReadersBlocked() {
 		return nil, fmt.Errorf("TSMReader: %q (%q): %w", f.dir, path, ErrNewReadersBlocked)
 	}
@@ -827,8 +864,8 @@ func (f *FileStore) TSMReader(path string) (*TSMReader, error) {
 // of reader blocks is decremented. If the reader blocks drops to 0, then
 // new readers will be granted access to the files.
 func (f *FileStore) SetNewReadersBlocked(block bool) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.wlock()
+	defer f.wunlock()
 	if block {
 		if f.newReaderBlockCount < 0 {
 			return fmt.Errorf("newReaderBlockCount for %q was %d before block operation, block failed", f.dir, f.newReaderBlockCount)
@@ -844,7 +881,7 @@ func (f *FileStore) SetNewReadersBlocked(block bool) error {
 }
 
 // newReadersBlocked returns true if new references to TSMReader objects are not allowed.
-// Must be called with f.mu lock held (reader or writer).
+// Must be called while holding either read lock (fastMu or slowMu) or both write locks.
 // See SetNewReadersBlocked for interface to allow and block access to TSMReader objects.
 func (f *FileStore) newReadersBlocked() bool {
 	return f.newReaderBlockCount > 0
@@ -856,8 +893,8 @@ func (f *FileStore) newReadersBlocked() bool {
 // that requires no active readers. Calling InUse without a new readers block results
 // in an error.
 func (f *FileStore) InUse() (bool, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.slowMu.RLock()
+	defer f.slowMu.RUnlock()
 	if !f.newReadersBlocked() {
 		return false, fmt.Errorf("InUse called without a new reader block for %q", f.dir)
 	}
@@ -871,8 +908,8 @@ func (f *FileStore) InUse() (bool, error) {
 
 // KeyCursor returns a KeyCursor for key and t across the files in the FileStore.
 func (f *FileStore) KeyCursor(ctx context.Context, key []byte, t int64, ascending bool) *KeyCursor {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.fastMu.RLock()
+	defer f.fastMu.RUnlock()
 	if f.newReadersBlocked() {
 		// New readers are blocked for this FileStore because there is a delete attempt in progress.
 		// Return an empty cursor to appease the callers since they generally don't handle
@@ -890,17 +927,17 @@ func (f *FileStore) KeyCursor(ctx context.Context, key []byte, t int64, ascendin
 
 // Stats returns the stats of the underlying files, preferring the cached version if it is still valid.
 func (f *FileStore) Stats() []ExtFileStat {
-	f.mu.RLock()
+	f.slowMu.RLock()
 	if len(f.lastFileStats) > 0 {
-		defer f.mu.RUnlock()
+		defer f.slowMu.RUnlock()
 		return f.lastFileStats
 	}
-	f.mu.RUnlock()
+	f.slowMu.RUnlock()
 
 	// The file stats cache is invalid due to changes to files. Need to
 	// recalculate.
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.wlock()
+	defer f.wunlock()
 
 	if len(f.lastFileStats) > 0 {
 		return f.lastFileStats
@@ -932,9 +969,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		return nil
 	}
 
-	f.mu.RLock()
-	maxTime := f.lastModified
-	f.mu.RUnlock()
+	maxTime := f.LastModified()
 
 	updated := make([]TSMFile, 0, len(newFiles))
 	tsmTmpExt := fmt.Sprintf("%s.%s", TSMFileExtension, TmpTSMFileExtension)
@@ -1001,8 +1036,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		updatedFn(updated)
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.wlock()
+	defer f.wunlock()
 
 	// Copy the current set of active files while we rename
 	// and load the new files.  We copy the pointers here to minimize
@@ -1038,8 +1073,9 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 				// In order to ensure that there are no races with this (file held externally calls Ref
 				// after we check InUse), we need to maintain the invariant that every handle to a file
 				// is handed out in use (Ref'd), and handlers only ever relinquish the file once (call Unref
-				// exactly once, and never use it again). InUse is only valid during a write lock, since
-				// we allow calls to Ref and Unref under the read lock and no lock at all respectively.
+				// exactly once, and never use it again). InUse is only valid while holding both write locks
+				// (we are here, via wlock), since we allow calls to Ref and Unref under either read lock and
+				// no lock at all respectively.
 				if file.InUse() {
 					// Copy all the tombstones related to this TSM file
 					var deletes []string
@@ -1118,8 +1154,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 // LastModified returns the last time the file store was updated with new
 // TSM files or a delete.
 func (f *FileStore) LastModified() time.Time {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.fastMu.RLock()
+	defer f.fastMu.RUnlock()
 
 	return f.lastModified
 }
@@ -1167,7 +1203,7 @@ func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
 
 // locations returns the files and index blocks for a key and time.  ascending indicates
 // whether the key will be scan in ascending time order or descenging time order.
-// This function assumes the read-lock has been taken.
+// This function assumes a read lock (fastMu or slowMu) or both write locks have been taken.
 func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 	var cache []IndexEntry
 	locations := make([]*location, 0, len(f.files))
@@ -1332,9 +1368,9 @@ func (f *FileStore) linkNotCopy(oldPath, newPath string) error {
 func (f *FileStore) CreateSnapshot() (string, error) {
 	f.traceLogger.Info("Creating snapshot", zap.String("dir", f.dir))
 
-	f.mu.Lock()
+	f.wlock()
 	if f.newReadersBlocked() {
-		f.mu.Unlock()
+		f.wunlock()
 		return "", fmt.Errorf("CreateSnapshot: %q: %w", f.dir, ErrNewReadersBlocked)
 	}
 	// create a copy of the files slice and ensure they aren't closed out from
@@ -1350,9 +1386,8 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	// increment and keep track of the current temp dir for when we drop the lock.
 	// this ensures we are the only writer to the directory.
 	f.currentTempDirID += 1
-	tmpPath := fmt.Sprintf("%d.%s", f.currentTempDirID, TmpTSMFileExtension)
-	tmpPath = filepath.Join(f.dir, tmpPath)
-	f.mu.Unlock()
+	tmpPath := filepath.Join(f.dir, fmt.Sprintf("%d.%s", f.currentTempDirID, TmpTSMFileExtension))
+	f.wunlock()
 
 	// create the tmp directory and add the hard links. there is no longer any shared
 	// mutable state.
@@ -1477,7 +1512,7 @@ func (a ascLocations) Less(i, j int) bool {
 }
 
 // newKeyCursor returns a new instance of KeyCursor.
-// This function assumes the read-lock has been taken.
+// This function assumes a read lock (fastMu or slowMu) or both write locks have been taken.
 func newKeyCursor(ctx context.Context, fs *FileStore, key []byte, t int64, ascending bool) *KeyCursor {
 	c := &KeyCursor{
 		key:       key,

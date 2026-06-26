@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -2401,7 +2402,7 @@ func TestFileStore_Open(t *testing.T) {
 	}
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(context.Background()); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2443,7 +2444,7 @@ func TestFileStore_OpenFail(t *testing.T) {
 
 func openFail(t *testing.T, dir string, fullErrMsg string, initErr error) {
 	fs := tsm1.NewFileStore(dir, tsdb.EngineTags{}, tsm1.TestMmapInitFailOption(initErr))
-	err := fs.Open(context.Background())
+	err := fs.Open(t.Context())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), fullErrMsg)
 	defer func() { assert.NoError(t, fs.Close(), "unexpected error on FileStore.Close") }()
@@ -2466,7 +2467,7 @@ func TestFileStore_Remove(t *testing.T) {
 	}
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(context.Background()); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2509,7 +2510,7 @@ func TestFileStore_Replace(t *testing.T) {
 	os.Rename(files[2], replacement)
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(context.Background()); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2594,7 +2595,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 	}
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(context.Background()); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2607,7 +2608,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 	}
 
 	fs2 := newTestFileStore(t, dir)
-	if err := fs2.Open(context.Background()); err != nil {
+	if err := fs2.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2701,7 +2702,7 @@ func TestFileStore_Stats(t *testing.T) {
 	}
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(context.Background()); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2837,7 +2838,7 @@ func TestFileStore_ReaderBlocking(t *testing.T) {
 	require.NoError(t, err)
 
 	fs := newTestFileStore(t, dir)
-	require.NoError(t, fs.Open(context.Background()))
+	require.NoError(t, fs.Open(t.Context()))
 
 	fsInUse := func() bool {
 		t.Helper()
@@ -3108,9 +3109,14 @@ func newFileDir(tb testing.TB, dir string, values ...keyValues) ([]string, error
 }
 
 func newFiles(tb testing.TB, dir string, values ...keyValues) ([]string, error) {
+	return newFilesId(tb, dir, 1, values...)
+}
+
+// newFilesId allows specifying a starting file id so that multiple calls into the
+// same directory do not collide on file names.
+func newFilesId(tb testing.TB, dir string, id int, values ...keyValues) ([]string, error) {
 	var files []string
 
-	id := 1
 	for _, v := range values {
 		f := MustTempFile(tb, dir)
 		w, err := tsm1.NewTSMWriter(f)
@@ -3144,6 +3150,14 @@ func newFiles(tb testing.TB, dir string, values ...keyValues) ([]string, error) 
 type keyValues struct {
 	key    string
 	values []tsm1.Value
+}
+
+func MustTempDir() string {
+	dir, err := os.MkdirTemp("", "tsm1-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir
 }
 
 func MustTempFile(tb testing.TB, dir string) *os.File {
@@ -3181,7 +3195,7 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 	fs := newTestFileStore(b, dir)
 	fs.WithLogger(zaptest.NewLogger(b))
 
-	if err := fs.Open(context.Background()); err != nil {
+	if err := fs.Open(b.Context()); err != nil {
 		b.Fatalf("opening file store %v", err)
 	}
 
@@ -3190,4 +3204,302 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		fsResult = fs.Stats()
 	}
+}
+
+// applyHoldTime is how long the Apply callback holds the read lock, to stall
+// write-lock acquisition and create the contended environment.
+const applyHoldTime = 100 * time.Microsecond
+
+// BenchmarkFileStore_FastLaneContention measures each fast-lane reader's exposure
+// to FileStore lock contention. Background goroutines create the contention for the
+// whole sub-benchmark: one holds the read lock for a while via Apply, another stalls
+// on the write lock via Replace. The Replace writer churns a separate "mem" key (it
+// never removes the "cpu" file the victim reads) and threads oldFiles so the live
+// file set stays bounded. The victim fast-lane reader is then measured across b.N
+// operations. Splitting mu into fastMu/slowMu keeps these readers off the slow drain
+// path, so their latency should drop substantially compared to a single shared mutex.
+func BenchmarkFileStore_FastLaneContention(b *testing.B) {
+	// fn takes the FileStore explicitly because a fresh one is built per sub-benchmark.
+	victims := []struct {
+		name string
+		fn   func(fs *tsm1.FileStore)
+	}{
+		{"KeyCursor", func(fs *tsm1.FileStore) { fs.KeyCursor(context.Background(), []byte("cpu"), 0, true).Close() }},
+		{"Count", func(fs *tsm1.FileStore) { _ = fs.Count() }},
+		{"Files", func(fs *tsm1.FileStore) { _ = fs.Files() }},
+		{"CurrentGeneration", func(fs *tsm1.FileStore) { _ = fs.CurrentGeneration() }},
+		{"LastModified", func(fs *tsm1.FileStore) { _ = fs.LastModified() }},
+	}
+
+	for _, v := range victims {
+		b.Run(v.name, func(b *testing.B) {
+			// Fresh FileStore per sub-benchmark so churned files do not accumulate
+			// across runs. Register cleanup right after creation so the dir is
+			// removed even if a require below aborts the sub-benchmark early.
+			// b.Cleanup runs after the benchmark, so it does not affect timing, and
+			// it runs after the explicit fs.Close() below, preserving owner-before-
+			// storage teardown ordering.
+			dir := MustTempDir()
+			b.Cleanup(func() { assert.NoError(b, os.RemoveAll(dir)) })
+			data := []keyValues{{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}}}
+			_, err := newFileDir(b, dir, data...)
+			require.NoError(b, err)
+
+			fs := newTestFileStore(b, dir)
+			if testing.Verbose() {
+				fs.WithLogger(zaptest.NewLogger(b))
+			}
+			require.NoError(b, fs.Open(b.Context()))
+
+			// Throwaway files for the Replace writer to churn. Register cleanup
+			// immediately so the dir is removed even if the sub-benchmark exits
+			// early. Registered after dir's cleanup, so under LIFO it runs first
+			// (churn before dir), matching the original teardown order.
+			churn := MustTempDir()
+			b.Cleanup(func() { assert.NoError(b, os.RemoveAll(churn)) })
+
+			// Start the contended environment once and run it for the whole
+			// sub-benchmark; only the victim loop below is timed.
+			var wg sync.WaitGroup
+			done := make(chan struct{})
+
+			// Apply - hold the read lock for a while to slow down write-lock
+			// acquisition. Not measured; it just creates the contended environment.
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					select {
+					case <-done:
+						return
+					default:
+						assert.NoError(b, fs.Apply(b.Context(), func(r tsm1.TSMFile) error {
+							// Hold the read lock a while.
+							time.Sleep(applyHoldTime)
+							return nil
+						}))
+					}
+				}
+			}()
+
+			// Replace - request the write lock but be stalled by Apply. Churns a
+			// "mem" key (never "cpu") and threads oldFiles so the file set stays
+			// bounded. Not measured; it just creates the contended environment.
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				id := 1
+				var oldFiles []string
+				for {
+					select {
+					case <-done:
+						return
+					default:
+						churnData := []keyValues{
+							{"mem", []tsm1.Value{tsm1.NewValue(0, 1.0), tsm1.NewValue(1, 2.0)}},
+						}
+						id++
+						files, err := newFilesId(b, churn, id, churnData...)
+						assert.NoError(b, err)
+						assert.NoError(b, fs.Replace(oldFiles, files))
+						oldFiles = files
+					}
+				}
+			}()
+
+			// Measure the victim across b.N operations under contention.
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				v.fn(fs)
+			}
+			b.StopTimer()
+
+			// Stop and join the contention goroutines, then close the FileStore.
+			// The temp-dir removals are registered as b.Cleanup above, so they run
+			// after this explicit Close (owner before storage).
+			close(done)
+			wg.Wait()
+			assert.NoError(b, fs.Close())
+		})
+	}
+}
+
+// TestFileStore_ConcurrentLocking exercises the fastMu/slowMu split under a heavy
+// concurrent mix of fast-lane readers (KeyCursor/Count/Files/CurrentGeneration/
+// LastModified), slow-lane readers (Read/Keys/WalkKeys/Apply), and writers
+// (NextGeneration via wlock, plus a file-mutating Replace loop). Run with -race to
+// catch data races and any lock-ordering deadlock. The "cpu" file is never removed,
+// so reads of it must always observe the original value.
+func TestFileStore_ConcurrentLocking(t *testing.T) {
+	const (
+		numReaders = 16
+		iters      = 200
+	)
+
+	// Register both temp-dir cleanups BEFORE creating the FileStore so that the
+	// deferred fs.Close() (registered last) runs FIRST under LIFO ordering: the
+	// store is closed before its backing directories are removed. The Replace
+	// churn can hand still-in-use files to the async purger, so closing the owner
+	// before deleting its storage keeps teardown ordered.
+	dir := MustTempDir()
+	defer func() { assert.NoError(t, os.RemoveAll(dir)) }()
+
+	// Throwaway files for the Replace writer to churn.
+	churnDir := MustTempDir()
+	defer func() { assert.NoError(t, os.RemoveAll(churnDir)) }()
+
+	// Permanent data file the readers depend on; never passed as oldFiles to Replace.
+	files, err := newFiles(t, dir, keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}})
+	require.NoError(t, err)
+
+	fs := newTestFileStore(t, dir)
+	if testing.Verbose() {
+		fs.WithLogger(zaptest.NewLogger(t))
+	}
+	// Load the permanent cpu file via Replace, matching the convention used by the
+	// rest of this file. Do NOT also call fs.Open(): Open globs dir/*.tsm and would
+	// load the same cpu file a second time, so f.files would start as {cpu, cpu} and
+	// the Count()/Files() bounds below (cpu + at most one churned mem file) would be
+	// violated from the first churn onward.
+	require.NoError(t, fs.Replace(nil, files))
+	// Use assert (not require) in this cleanup: require's FailNow during teardown
+	// could short-circuit the temp-dir RemoveAll defers above and obscure the
+	// original failure. assert lets teardown finish deterministically.
+	defer func() { assert.NoError(t, fs.Close()) }()
+
+	var concurrency, maxConcurrency atomic.Int64
+	bump := func() {
+		c := concurrency.Add(1)
+		for {
+			old := maxConcurrency.Load()
+			if c <= old || maxConcurrency.CompareAndSwap(old, c) {
+				break
+			}
+		}
+	}
+
+	// Each op exercises one lock path AND asserts its result, so the test catches
+	// not just races/deadlocks but also wrong values handed back under contention
+	// (e.g. a torn read of the files slice). The "cpu" key is stable, so reads of it
+	// are exact; the Replace writer churns a single "mem" file, so the file set is
+	// always {cpu} or {cpu, mem} and the generation counter is bounded by iters.
+	// Use assert (not require) since these run in spawned goroutines, where require's
+	// FailNow is unsafe.
+	ops := []func(){
+		func() {
+			c := fs.KeyCursor(context.Background(), []byte("cpu"), 0, true)
+			defer c.Close()
+			var buf []tsm1.FloatValue
+			values, err := c.ReadFloatBlock(&buf)
+			if assert.NoError(t, err) && assert.Len(t, values, 1) {
+				assert.Equal(t, int64(0), values[0].UnixNano())
+				assert.Equal(t, 1.0, values[0].Value())
+			}
+		},
+		func() {
+			c := fs.Count()
+			assert.GreaterOrEqual(t, c, 1) // cpu is always present
+			assert.LessOrEqual(t, c, 2)    // cpu + at most one churned mem file
+		},
+		func() {
+			fl := fs.Files()
+			assert.GreaterOrEqual(t, len(fl), 1)
+			assert.LessOrEqual(t, len(fl), 2)
+			for _, f := range fl {
+				assert.NotNil(t, f)
+			}
+		},
+		func() {
+			g := fs.CurrentGeneration()
+			assert.GreaterOrEqual(t, g, 0)  // never set via Open; bumped by NextGeneration
+			assert.LessOrEqual(t, g, iters) // at most one increment per NextGeneration op call
+		},
+		func() { assert.False(t, fs.LastModified().IsZero()) }, // set when cpu was loaded
+		func() {
+			v, err := fs.Read([]byte("cpu"), 0)
+			if assert.NoError(t, err) && assert.Len(t, v, 1) {
+				assert.Equal(t, 1.0, v[0].Value())
+			}
+		},
+		func() {
+			keys := fs.Keys()
+			if typ, ok := keys["cpu"]; assert.True(t, ok) {
+				assert.Equal(t, byte(tsm1.BlockFloat64), typ)
+			}
+		},
+		func() {
+			var sawCPU bool
+			err := fs.WalkKeys(nil, func(key []byte, typ byte) error {
+				if string(key) == "cpu" {
+					sawCPU = true
+					assert.Equal(t, byte(tsm1.BlockFloat64), typ)
+				}
+				return nil
+			})
+			if assert.NoError(t, err) {
+				assert.True(t, sawCPU)
+			}
+		},
+		func() {
+			// Apply runs fn in parallel goroutines, so count invocations atomically.
+			var applied atomic.Int64
+			err := fs.Apply(context.Background(), func(r tsm1.TSMFile) error {
+				applied.Add(1)
+				return nil
+			})
+			if assert.NoError(t, err) {
+				assert.GreaterOrEqual(t, applied.Load(), int64(1)) // cpu at least
+			}
+		},
+		func() {
+			g := fs.NextGeneration() // scalar writer through wlock
+			assert.GreaterOrEqual(t, g, 1)
+			assert.LessOrEqual(t, g, iters)
+		},
+	}
+
+	// Gate all goroutines so they start as simultaneously as possible.
+	var startGate sync.RWMutex
+	startGate.Lock()
+
+	var wg sync.WaitGroup
+	for i := 0; i < numReaders; i++ {
+		wg.Add(1)
+		op := ops[i%len(ops)]
+		go func() {
+			startGate.RLock()
+			defer startGate.RUnlock()
+			defer wg.Done()
+			for j := 0; j < iters; j++ {
+				bump()
+				op()
+				concurrency.Add(-1)
+			}
+		}()
+	}
+
+	// A single dedicated file-mutating writer. Kept to one goroutine so the file
+	// lifecycle (create, then hand the previous set to Replace as oldFiles) stays
+	// well-defined; writer-vs-writer ordering is still exercised against the
+	// NextGeneration op above.
+	wg.Add(1)
+	go func() {
+		startGate.RLock()
+		defer startGate.RUnlock()
+		defer wg.Done()
+		var oldFiles []string
+		for j := 0; j < iters; j++ {
+			bump()
+			nf, err := newFilesId(t, churnDir, j+2, keyValues{"mem", []tsm1.Value{tsm1.NewValue(int64(j), 2.0)}})
+			if assert.NoError(t, err) {
+				assert.NoError(t, fs.Replace(oldFiles, nf))
+				oldFiles = nf
+			}
+			concurrency.Add(-1)
+		}
+	}()
+
+	startGate.Unlock() // release everyone at once
+	wg.Wait()
+	t.Logf("max concurrency: %d", maxConcurrency.Load())
 }

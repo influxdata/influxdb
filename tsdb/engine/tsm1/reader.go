@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
-	"github.com/influxdata/influxdb/v2/pkg/file"
 	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
@@ -1541,50 +1540,6 @@ func (m *mmapAccessor) free() error {
 
 func (m *mmapAccessor) incAccess() {
 	atomic.AddUint64(&m.accessCount, 1)
-}
-
-func (m *mmapAccessor) rename(path string) error {
-	m.incAccess()
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	err := munmap(m.b)
-	if err != nil {
-		return err
-	}
-
-	if err := m.f.Close(); err != nil {
-		return err
-	}
-
-	if err := file.RenameFile(m.f.Name(), path); err != nil {
-		return err
-	}
-
-	m.f, err = os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	if _, err := m.f.Seek(0, 0); err != nil {
-		return err
-	}
-
-	stat, err := m.f.Stat()
-	if err != nil {
-		return err
-	}
-
-	m.b, err = mmap(m.f, 0, int(stat.Size()))
-	if err != nil {
-		return err
-	}
-
-	if m.mmapWillNeed {
-		return madviseWillNeed(m.b)
-	}
-	return nil
 }
 
 func (m *mmapAccessor) read(key []byte, timestamp int64) ([]Value, error) {
