@@ -231,12 +231,26 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			query.DatePartValuer{Location: opt.Location},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -740,12 +754,26 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			query.DatePartValuer{Location: opt.Location},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -1249,12 +1277,26 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			query.DatePartValuer{Location: opt.Location},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -1758,12 +1800,26 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			query.DatePartValuer{Location: opt.Location},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -2267,12 +2323,26 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			query.DatePartValuer{Location: opt.Location},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr

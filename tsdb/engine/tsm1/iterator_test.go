@@ -31,6 +31,30 @@ func BenchmarkIntegerIterator_Next(b *testing.B) {
 	}
 }
 
+// BenchmarkIntegerIterator_Next_Condition exercises the per-point condition
+// evaluation (itr.valuer.EvalBool) for a WHERE-filtered query that does NOT use
+// date_part. This is the common path: with opt.NeedTimeRef false the DatePartValuer
+// must be left out of the eval chain so no extra valuer indirection is paid per
+// scanned point.
+func BenchmarkIntegerIterator_Next_Condition(b *testing.B) {
+	opt := query.IteratorOptions{
+		Aux:       []influxql.VarRef{{Val: "f1", Type: influxql.Integer}},
+		Condition: influxql.MustParseExpr("f1 > 0"),
+		// NeedTimeRef defaults to false: the condition has no date_part.
+	}
+	aux := []cursorAt{&literalValueCursor{value: int64(1e3)}}
+	conds := []cursorAt{&literalValueCursor{value: int64(1e3)}}
+	condNames := []string{"f1"}
+
+	cur := newIntegerIterator("m0", query.Tags{}, opt, &infiniteIntegerCursor{}, aux, conds, condNames)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		cur.Next()
+	}
+}
+
 type infiniteIntegerCursor struct{}
 
 func (*infiniteIntegerCursor) close() error {
