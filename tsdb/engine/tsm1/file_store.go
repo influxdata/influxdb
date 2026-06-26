@@ -622,7 +622,7 @@ func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
 }
 
 // Open loads all the TSM files in the configured directory.
-func (f *FileStore) Open() error {
+func (f *FileStore) Open(ctx context.Context) error {
 	f.wlock()
 	defer f.wunlock()
 

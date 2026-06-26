@@ -2402,7 +2402,7 @@ func TestFileStore_Open(t *testing.T) {
 	}
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2444,7 +2444,7 @@ func TestFileStore_OpenFail(t *testing.T) {
 
 func openFail(t *testing.T, dir string, fullErrMsg string, initErr error) {
 	fs := tsm1.NewFileStore(dir, tsdb.EngineTags{}, tsm1.TestMmapInitFailOption(initErr))
-	err := fs.Open()
+	err := fs.Open(t.Context())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), fullErrMsg)
 	defer func() { assert.NoError(t, fs.Close(), "unexpected error on FileStore.Close") }()
@@ -2467,7 +2467,7 @@ func TestFileStore_Remove(t *testing.T) {
 	}
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2510,7 +2510,7 @@ func TestFileStore_Replace(t *testing.T) {
 	os.Rename(files[2], replacement)
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2595,7 +2595,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 	}
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2608,7 +2608,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 	}
 
 	fs2 := newTestFileStore(t, dir)
-	if err := fs2.Open(); err != nil {
+	if err := fs2.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2702,7 +2702,7 @@ func TestFileStore_Stats(t *testing.T) {
 	}
 
 	fs := newTestFileStore(t, dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(t.Context()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 
@@ -2838,7 +2838,7 @@ func TestFileStore_ReaderBlocking(t *testing.T) {
 	require.NoError(t, err)
 
 	fs := newTestFileStore(t, dir)
-	require.NoError(t, fs.Open())
+	require.NoError(t, fs.Open(t.Context()))
 
 	fsInUse := func() bool {
 		t.Helper()
@@ -3195,7 +3195,7 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 	fs := newTestFileStore(b, dir)
 	fs.WithLogger(zaptest.NewLogger(b))
 
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(b.Context()); err != nil {
 		b.Fatalf("opening file store %v", err)
 	}
 
@@ -3249,7 +3249,7 @@ func BenchmarkFileStore_FastLaneContention(b *testing.B) {
 			if testing.Verbose() {
 				fs.WithLogger(zaptest.NewLogger(b))
 			}
-			require.NoError(b, fs.Open())
+			require.NoError(b, fs.Open(b.Context()))
 
 			// Throwaway files for the Replace writer to churn. Register cleanup
 			// immediately so the dir is removed even if the sub-benchmark exits
