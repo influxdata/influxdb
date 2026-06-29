@@ -130,6 +130,10 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT value FROM (SELECT value, date_part('month', time) AS month FROM cpu) WHERE month = 1`,
 		`SELECT value, date_part('year', time) FROM (SELECT * FROM cpu WHERE value > 10)`,
 		`SELECT value, dow, month FROM (SELECT value, date_part('dow', time) AS dow, date_part('month', time) AS month FROM cpu)`,
+		// date_part GROUP BY over a subquery source (resolved at the subquery boundary)
+		`SELECT count(value) FROM (SELECT value FROM cpu) GROUP BY date_part('year', time)`,
+		// CQ-shaped: aggregate over a subquery, grouped by date_part, written via INTO
+		`SELECT mean(value) INTO target FROM (SELECT value FROM cpu) GROUP BY date_part('hour', time)`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)
@@ -159,10 +163,6 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT date_part('year', time) FROM cpu`, err: `at least 1 non-time field must be queried`},
 		{s: `SELECT date_part('dow', time), date_part('month', time) FROM cpu`, err: `at least 1 non-time field must be queried`},
 		{s: `SELECT date_part('hour', time) + 1 FROM cpu`, err: `at least 1 non-time field must be queried`},
-		// GROUP BY date_part over a subquery source is not supported: the date_part
-		// dimensions aren't real fields of the subquery and can't be resolved through
-		// the subquery grouping path, so the query would silently return no rows.
-		{s: `SELECT count(value) FROM (SELECT value FROM cpu) GROUP BY date_part('year', time)`, err: `date_part: GROUP BY date_part is not supported with a subquery source`},
 		// date_part in a WHERE condition over a subquery source is not supported: the
 		// subquery filter is evaluated with a plain map valuer that does not populate
 		// time or resolve date_part, so the predicate would silently drop every row.

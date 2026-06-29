@@ -9300,6 +9300,54 @@ func TestServer_Query_DatePart_WildcardCollision(t *testing.T) {
 	}
 }
 
+func TestServer_Query_DatePart_Subquery_GroupBy(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T01:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-01-02T01:30:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=3 %d`, mustParseTime(time.RFC3339Nano, "2023-01-03T05:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=4 %d`, mustParseTime(time.RFC3339Nano, "2023-01-04T05:45:00Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries(
+		// GROUP BY date_part('hour', time) where the source is a subquery.
+		&Query{
+			name:    `subquery GROUP BY hour with COUNT`,
+			command: `SELECT COUNT(value) FROM (SELECT value FROM db0.rp0.cpu) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' GROUP BY date_part('hour', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","grouping_keys":["hour"],"columns":["time","count","hour"],"values":[` +
+				`["2023-01-01T00:00:00Z",2,1],` + // 01:00, 01:30 -> hour 1
+				`["2023-01-01T00:00:00Z",2,5]` + // 05:00, 05:45 -> hour 5
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+	)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				require.NoError(t, test.init(s), "init error")
+				initialized = true
+			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
+		})
+	}
+}
+
 func TestServer_Query_ShowTagKeys(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
