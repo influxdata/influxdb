@@ -1119,10 +1119,36 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 		return nil
 	}
 
+	// GROUP BY date_part is implemented by a single reduce/grouper per query.
+	// The raw (no-aggregate) path takes the aux-cursor branch and does no grouping
+	// at all, silently returning one flat ungrouped series. The multi-aggregate
+	// path aligns the per-call scanners on (ts, name, tags) only and merges their
+	// values under a single shared date_part key, so each call's group value
+	// overwrites the others (mislabeled results). Require exactly one non-date_part
+	// aggregate or selector call so neither broken shape can compile.
+	nonDatePartCalls := 0
+	for _, call := range c.FunctionCalls {
+		if call.Name != DatePartString {
+			nonDatePartCalls++
+		}
+	}
+	if nonDatePartCalls == 0 {
+		return errors.New("date_part: GROUP BY date_part requires an aggregate or selector function")
+	}
+	if nonDatePartCalls > 1 {
+		return errors.New("date_part: GROUP BY date_part supports only a single aggregate or selector function")
+	}
+
 	// Value-carrying fill modes (previous/linear/<number>) synthesize values for
 	// empty windows. For a GROUP BY date_part dimension this would leak a value
 	// into a series where that dimension is not active, so reject those modes.
-	// fill(null) (the default) and fill(none) are unaffected.
+	//
+	// fill(null) (the default) is safe for a bare GROUP BY date_part, but when it
+	// is combined with a time() interval the fill iterator emits empty-window rows
+	// that carry no DecodedDatePartKey: their grouping value is lost and the
+	// emitter splits them into spurious extra series, fragmenting the real ones.
+	// Reject fill(null) only in that combined case (use fill(none) instead).
+	// fill(none) is always unaffected (it produces no fill iterator).
 	switch c.FillOption {
 	case influxql.PreviousFill:
 		return errors.New("date_part: fill(previous) is not supported with GROUP BY date_part")
@@ -1130,6 +1156,10 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 		return errors.New("date_part: fill(linear) is not supported with GROUP BY date_part")
 	case influxql.NumberFill:
 		return errors.New("date_part: fill(<value>) is not supported with GROUP BY date_part")
+	case influxql.NullFill:
+		if !c.Interval.IsZero() {
+			return errors.New("date_part: fill(null) is not supported with GROUP BY time() and date_part; use fill(none)")
+		}
 	}
 
 	// GROUP BY date_part injects an output column named after the canonical part
@@ -1211,6 +1241,21 @@ func validateDatePartAnchor(stmt *influxql.SelectStatement) error {
 	}
 	if hasDatePart && !hasAnchor {
 		return errors.New("at least 1 non-time field must be queried")
+	}
+
+	// Recurse into subquery sources. RewriteFields rewrites the whole statement
+	// tree, so inner VarRef types are resolved by the time this runs in Prepare.
+	// Without this, a tag-only-anchor inner query (e.g.
+	// SELECT host, date_part('year', time) AS yr FROM cpu) escapes the check: it
+	// plans as an aux-only iterator emitting no points, so an outer aggregate over
+	// it silently returns nothing even though the equivalent top-level query is
+	// rejected.
+	for _, source := range stmt.Sources {
+		if sub, ok := source.(*influxql.SubQuery); ok {
+			if err := validateDatePartAnchor(sub.Statement); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

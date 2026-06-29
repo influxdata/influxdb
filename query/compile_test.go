@@ -420,6 +420,17 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT count(value) FROM cpu GROUP BY date_part('year', time) fill(100)`, err: `date_part: fill(<value>) is not supported with GROUP BY date_part`},
 		// A field/alias colliding with a non-first injected date_part dimension column is also rejected.
 		{s: `SELECT mean(value) AS month FROM cpu GROUP BY date_part('year', time), date_part('month', time)`, err: `date_part: output column "month" collides with the GROUP BY date_part('month', time) dimension; alias the field to a different name`},
+		// Raw (non-aggregate) SELECT with GROUP BY date_part does no grouping at all and
+		// would silently return one flat ungrouped series, so it is rejected.
+		{s: `SELECT value FROM cpu GROUP BY date_part('year', time)`, err: `date_part: GROUP BY date_part requires an aggregate or selector function`},
+		// Multiple aggregate/selector calls with GROUP BY date_part merge values across
+		// groups under a single shared key (mislabeling results), so they are rejected.
+		{s: `SELECT count(value), sum(value) FROM cpu GROUP BY date_part('year', time)`, err: `date_part: GROUP BY date_part supports only a single aggregate or selector function`},
+		// fill(null) (the default) combined with a time() interval and GROUP BY date_part
+		// fragments the series: empty windows carry no date_part value and split into
+		// spurious extra series. Reject both the explicit and the default-null cases.
+		{s: `SELECT count(value) FROM cpu GROUP BY time(1h), date_part('year', time) fill(null)`, err: `date_part: fill(null) is not supported with GROUP BY time() and date_part; use fill(none)`},
+		{s: `SELECT count(value) FROM cpu GROUP BY time(1h), date_part('year', time)`, err: `date_part: fill(null) is not supported with GROUP BY time() and date_part; use fill(none)`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)
@@ -435,6 +446,86 @@ func TestCompile_Failures(t *testing.T) {
 				t.Errorf("unexpected error: %s != %s", have, want)
 			}
 		})
+	}
+}
+
+// TestPrepare_DatePartSubqueryAnchor verifies that the date_part anchor check
+// recurses into subquery sources. A subquery whose only non-date_part field is a
+// tag has no scan anchor, so the inner iterator emits no points and the outer
+// aggregate silently returns nothing. The equivalent top-level query is rejected,
+// so the subquery form must be too.
+func TestPrepare_DatePartSubqueryAnchor(t *testing.T) {
+	for _, tt := range []struct {
+		s   string
+		err string
+	}{
+		// Inner anchor is a tag (host) — rejected.
+		{
+			s:   `SELECT max(yr) FROM (SELECT host, date_part('year', time) AS yr FROM cpu)`,
+			err: `at least 1 non-time field must be queried`,
+		},
+		// Nested subquery: the tag-only anchor is two levels down.
+		{
+			s:   `SELECT max(yr) FROM (SELECT yr FROM (SELECT host, date_part('year', time) AS yr FROM cpu))`,
+			err: `at least 1 non-time field must be queried`,
+		},
+	} {
+		t.Run(tt.s, func(t *testing.T) {
+			stmt, err := influxql.ParseStatement(tt.s)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			s := stmt.(*influxql.SelectStatement)
+
+			c, err := query.Compile(s, query.CompileOptions{})
+			if err != nil {
+				t.Fatalf("unexpected compile error: %s", err)
+			}
+
+			shardMapper := ShardMapper{
+				MapShardsFn: func(_ influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+					return &ShardGroup{
+						Fields:     map[string]influxql.DataType{"value": influxql.Float},
+						Dimensions: []string{"host"},
+					}
+				},
+			}
+
+			_, err = c.Prepare(&shardMapper, query.SelectOptions{})
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			} else if have, want := err.Error(), tt.err; have != want {
+				t.Errorf("unexpected error: %s != %s", have, want)
+			}
+		})
+	}
+}
+
+// TestPrepare_DatePartSubqueryAnchor_Valid verifies the recursion does not reject
+// a subquery that has a real stored-field anchor alongside date_part.
+func TestPrepare_DatePartSubqueryAnchor_Valid(t *testing.T) {
+	stmt, err := influxql.ParseStatement(`SELECT max(yr) FROM (SELECT value, date_part('year', time) AS yr FROM cpu)`)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	s := stmt.(*influxql.SelectStatement)
+
+	c, err := query.Compile(s, query.CompileOptions{})
+	if err != nil {
+		t.Fatalf("unexpected compile error: %s", err)
+	}
+
+	shardMapper := ShardMapper{
+		MapShardsFn: func(_ influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields:     map[string]influxql.DataType{"value": influxql.Float},
+				Dimensions: []string{"host"},
+			}
+		},
+	}
+
+	if _, err := c.Prepare(&shardMapper, query.SelectOptions{}); err != nil {
+		t.Fatalf("unexpected error: %s", err)
 	}
 }
 

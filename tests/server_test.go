@@ -9250,20 +9250,32 @@ func TestServer_Query_DatePart_WildcardCollision(t *testing.T) {
 	test.writes = Writes{&Write{data: strings.Join(writes, "\n")}}
 
 	collision := `date_part: output column "year" collides with the GROUP BY date_part('year', time) dimension; alias the field to a different name`
+	rawErr := `date_part: GROUP BY date_part requires an aggregate or selector function`
 	test.addQueries([]*Query{
+		// An aggregate whose output column collides with the injected date_part
+		// dimension column is rejected.
 		&Query{
-			name:    `explicit field colliding with GROUP BY date_part is rejected`,
+			name:    `aggregate column colliding with GROUP BY date_part is rejected`,
+			command: `SELECT max(value) AS year FROM db0.rp0.m GROUP BY date_part('year', time)`,
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, collision),
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// A raw (non-aggregate) field selection with GROUP BY date_part does no
+		// grouping at all, so it is rejected before any column-collision check.
+		&Query{
+			name:    `raw field with GROUP BY date_part is rejected`,
 			command: `SELECT year FROM db0.rp0.m GROUP BY date_part('year', time)`,
-			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, collision),
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, rawErr),
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		// A raw wildcard with GROUP BY date_part is likewise rejected as a raw query.
 		&Query{
-			name:    `wildcard expanding to a colliding field is rejected`,
+			name:    `raw wildcard with GROUP BY date_part is rejected`,
 			command: `SELECT * FROM db0.rp0.m GROUP BY date_part('year', time)`,
-			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, collision),
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, rawErr),
 			params:  url.Values{"db": []string{"db0"}},
 		},
-		// A wildcard with no colliding field must still work.
+		// An aggregate wildcard with no colliding field must still work.
 		&Query{
 			name:    `wildcard with no colliding field is allowed`,
 			command: `SELECT count(*) FROM db0.rp0.m GROUP BY date_part('month', time)`,
