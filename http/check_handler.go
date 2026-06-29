@@ -88,14 +88,21 @@ func NewHealthReadyHandler(log *zap.Logger) *HealthReadyHandler {
 	return &HealthReadyHandler{
 		check:     check.NewCheck(),
 		startTime: time.Now(),
-		headers: &AddHeader{
-			WriteHeader: func(h http.Header) {
-				h.Add("X-Influxdb-Build", "OSS")
-				h.Add("X-Influxdb-Version", platform.GetBuildInfo().Version)
-			},
-		},
-		log: log,
+		headers:   &AddHeader{WriteHeader: serverHeaderWriter(false, 0)},
+		log:       log,
 	}
+}
+
+// SetStrictTransportSecurity makes the handler emit the Strict-Transport-Security
+// (HSTS) header, with the given max-age in seconds, on the /health, /ready, and
+// pre-delegate "starting" responses it renders itself. Like the root handler,
+// this is opt-in via --hardening-enabled so the header is consistent across all
+// endpoints. Call during setup, before the handler begins serving.
+func (h *HealthReadyHandler) SetStrictTransportSecurity(maxAge int) {
+	if maxAge < 0 {
+		maxAge = 0
+	}
+	h.headers = &AddHeader{WriteHeader: serverHeaderWriter(true, maxAge)}
 }
 
 // AddHealthCheck registers an anonymous health check.

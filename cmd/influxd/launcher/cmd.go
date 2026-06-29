@@ -196,6 +196,9 @@ type InfluxdOpts struct {
 
 	// HardeningEnabled toggles multiple best-practice hardening options on.
 	HardeningEnabled bool
+	// StrictTransportSecurityMaxAge is the max-age, in seconds, used for the
+	// Strict-Transport-Security header when --hardening-enabled is set.
+	StrictTransportSecurityMaxAge int
 	// TemplateFileUrlsDisabled disables file protocol URIs in templates.
 	TemplateFileUrlsDisabled bool
 	StrongPasswords          bool
@@ -254,10 +257,11 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		Testing:                 false,
 		TestingAlwaysAllowSetup: false,
 
-		HardeningEnabled:         false,
-		TemplateFileUrlsDisabled: false,
-		StrongPasswords:          false,
-		UseHashedTokens:          true,
+		HardeningEnabled:              false,
+		StrictTransportSecurityMaxAge: 31536000, // 1 year
+		TemplateFileUrlsDisabled:      false,
+		StrongPasswords:               false,
+		UseHashedTokens:               true,
 	}
 }
 
@@ -683,20 +687,32 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		// hardening options
 		// --hardening-enabled is meant to enable all hardening
 		// options in one go. Today it enables the IP validator for
-		// flux and pkger templates HTTP requests, and disables file://
-		// protocol for pkger templates. In the future,
+		// flux and pkger templates HTTP requests, disables file://
+		// protocol for pkger templates, and sets the
+		// Strict-Transport-Security response header. In the future,
 		// --hardening-enabled might be used to enable other security
 		// features, at which point we can add per-feature flags so
 		// that users can either opt into all features
 		// (--hardening-enabled) or to precisely the features they
-		// require. Since today there is but one feature, there is no
-		// need to introduce --hardening-ip-validation-enabled (or
-		// similar).
+		// require (e.g. --hardening-ip-validation-enabled or similar).
 		{
 			DestP:   &o.HardeningEnabled,
 			Flag:    "hardening-enabled",
 			Default: o.HardeningEnabled,
-			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests; disable file URLs in templates)",
+			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests; disable file URLs in templates; set the Strict-Transport-Security response header)",
+		},
+
+		// --strict-transport-security-max-age sets the max-age, in
+		// seconds, for the Strict-Transport-Security (HSTS) header. The
+		// header is only emitted when --hardening-enabled is set. Lower
+		// values can be useful during initial deployment, before
+		// committing to a longer policy. preload is never set since we
+		// do not own the domain InfluxDB is hosted on.
+		{
+			DestP:   &o.StrictTransportSecurityMaxAge,
+			Flag:    "strict-transport-security-max-age",
+			Default: o.StrictTransportSecurityMaxAge,
+			Desc:    "max-age, in seconds, for the Strict-Transport-Security header (only used when --hardening-enabled is set)",
 		},
 
 		// --template-file-urls-disabled prevents file protocol URIs

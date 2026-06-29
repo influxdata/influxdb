@@ -284,6 +284,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	// "starting" until SetHandler is called at the end of construction.
 	httpLogger := m.log.With(zap.String("service", "http"))
 	m.checkHandler = http.NewHealthReadyHandler(httpLogger)
+	if opts.HardeningEnabled {
+		// Match the root handler so /health and /ready also carry the header.
+		m.checkHandler.SetStrictTransportSecurity(opts.StrictTransportSecurityMaxAge)
+	}
 	m.kvReady = check.NewReadyGate(SubsystemKV)
 	m.sqliteReady = check.NewReadyGate(SubsystemSQLite)
 	m.engineReady = check.NewReadyGate(SubsystemEngine)
@@ -1026,13 +1030,17 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(configHandler),
 	)
 
-	var httpHandler nethttp.Handler = http.NewRootHandler(
-		"platform",
+	rootHandlerOpts := []http.HandlerOptFn{
 		http.WithLog(httpLogger),
 		http.WithAPIHandler(platformHandler),
 		http.WithPprofEnabled(!opts.ProfilingDisabled),
 		http.WithMetrics(m.reg, !opts.MetricsDisabled),
-	)
+	}
+	if opts.HardeningEnabled {
+		rootHandlerOpts = append(rootHandlerOpts, http.WithStrictTransportSecurity(opts.StrictTransportSecurityMaxAge))
+	}
+
+	var httpHandler nethttp.Handler = http.NewRootHandler("platform", rootHandlerOpts...)
 
 	if opts.LogLevel == zap.DebugLevel {
 		httpHandler = http.LoggingMW(httpLogger)(httpHandler)

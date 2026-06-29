@@ -150,6 +150,31 @@ func TestHealthReadyHandler_Ready_PassingGateOmitsChecks(t *testing.T) {
 	assert.Equal(t, "ready", generic["status"])
 }
 
+func TestHealthReadyHandler_StrictTransportSecurity(t *testing.T) {
+	for _, path := range []string{"/health", "/ready"} {
+		t.Run("absent by default "+path, func(t *testing.T) {
+			h := NewHealthReadyHandler(zaptest.NewLogger(t))
+
+			res := doRequest(t, h, http.MethodGet, path)
+			defer closeBody(t, res)
+
+			require.Empty(t, res.Header.Get(StrictTransportSecurityHeader))
+		})
+
+		t.Run("present when enabled "+path, func(t *testing.T) {
+			h := NewHealthReadyHandler(zaptest.NewLogger(t))
+			h.SetStrictTransportSecurity(31536000)
+
+			res := doRequest(t, h, http.MethodGet, path)
+			defer closeBody(t, res)
+
+			got := res.Header.Get(StrictTransportSecurityHeader)
+			require.Equal(t, "max-age=31536000; includeSubDomains", got)
+			require.NotContains(t, got, "preload")
+		})
+	}
+}
+
 func TestHealthReadyHandler_NoDelegate_ReturnsStarting(t *testing.T) {
 	h := NewHealthReadyHandler(zaptest.NewLogger(t))
 
