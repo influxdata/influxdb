@@ -2403,17 +2403,19 @@ func TestEngine_Statistics_TSI1Cache(t *testing.T) {
 // PlanLevel three times (levels 1-3), Plan once, and PlanOptimize once, so after
 // N cycles the counters are deterministic regardless of the installed planner.
 func TestEngine_Statistics_CompactionPlanner(t *testing.T) {
-	e := MustOpenEngine(tsdb.TSI1IndexName)
+	e, err := NewEngine(tsdb.TSI1IndexName)
+	require.NoError(t, err)
+	// Disable background compactions so PlanCompactions is only invoked by this test.
+	e.SetEnabled(false)
+	require.NoError(t, e.Open())
 	defer e.Close()
 
 	// Install a no-op planner so PlanCompactions exercises every planner method
-	// without doing real compaction work. MustOpenEngine does not enable
-	// background compactions, so PlanCompactions is only called from this test
-	// and the counts stay deterministic.
+	// without doing real compaction work.
 	e.CompactionPlan = &mockPlanner{}
 
 	const cycles = 3
-	for range cycles {
+	for i := 0; i < cycles; i++ {
 		e.PlanCompactions()
 	}
 
