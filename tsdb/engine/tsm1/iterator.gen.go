@@ -225,7 +225,12 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -748,7 +753,12 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -1271,7 +1281,12 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -1794,7 +1809,12 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
@@ -2317,7 +2337,12 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames

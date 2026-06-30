@@ -25,3 +25,21 @@ func TestDatePartMap_Value(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(5), datePartMap{expr: Hour, loc: ny}.Value(row)) // 10:30 UTC -> 05:30 EST
 }
+
+// TestEncodeDecodeAux_DatePartKey ensures a DecodedDatePartKey grouping value
+// survives the iterator wire codec (encodeAux/decodeAux). This is the codec used
+// to stream iterators between enterprise data nodes; without explicit handling the
+// key serializes to null and all date_part GROUP BY buckets collapse into one.
+func TestEncodeDecodeAux_DatePartKey(t *testing.T) {
+	// Use a non-zero Expr (Month) so the expr byte is actually exercised, alongside
+	// neighbouring aux values of other types.
+	key := DecodedDatePartKey{Expr: Month, Val: 12}
+	aux := []interface{}{int64(7), key, "host1"}
+
+	got := decodeAux(encodeAux(aux))
+
+	require.Len(t, got, 3)
+	require.Equal(t, int64(7), got[0])
+	require.Equal(t, key, got[1], "DecodedDatePartKey must survive the iterator wire codec")
+	require.Equal(t, "host1", got[2])
+}

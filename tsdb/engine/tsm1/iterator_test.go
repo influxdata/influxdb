@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkIntegerIterator_Next(b *testing.B) {
@@ -53,6 +54,27 @@ func BenchmarkIntegerIterator_Next_Condition(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		cur.Next()
 	}
+}
+
+// TestIntegerIterator_Next_NeedTimeRef_NilCondition guards against a nil-map panic
+// when an IteratorOptions arrives with NeedTimeRef=true but Condition=nil. Locally
+// conditionNeedsTimeRef(nil) keeps the invariant (NeedTimeRef implies a condition),
+// but the enterprise wire codec encodes the two fields independently and could
+// deliver this combination; itr.m must still be allocated before the time-ref write.
+func TestIntegerIterator_Next_NeedTimeRef_NilCondition(t *testing.T) {
+	opt := query.IteratorOptions{
+		Aux:         []influxql.VarRef{{Val: "f1", Type: influxql.Integer}},
+		NeedTimeRef: true,
+		// Condition is intentionally nil.
+	}
+	aux := []cursorAt{&literalValueCursor{value: int64(1e3)}}
+
+	cur := newIntegerIterator("m0", query.Tags{}, opt, &infiniteIntegerCursor{}, aux, nil, nil)
+
+	require.NotPanics(t, func() {
+		_, err := cur.Next()
+		require.NoError(t, err)
+	})
 }
 
 type infiniteIntegerCursor struct{}
