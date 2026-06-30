@@ -268,7 +268,7 @@ func TestDatePartValuer_Call(t *testing.T) {
 			name:     "isodow - Monday",
 			funcName: "date_part",
 			args:     []interface{}{"isodow", testTimestamp},
-			expected: int64(0), // Monday in ISO
+			expected: int64(1), // Monday = 1 in ISO 8601
 			ok:       true,
 		},
 		{
@@ -360,10 +360,10 @@ func TestDatePartValuer_Call_Sunday(t *testing.T) {
 		require.Equal(t, int64(0), result, "dow check") // Sunday = 0
 	})
 
-	t.Run("isodow - Sunday is 6", func(t *testing.T) {
+	t.Run("isodow - Sunday is 7", func(t *testing.T) {
 		result, ok := valuer.Call("date_part", []interface{}{"isodow", sundayTimestamp})
 		require.True(t, ok)
-		require.Equal(t, int64(6), result, "isodow check") // Sunday = 6 in ISO
+		require.Equal(t, int64(7), result, "isodow check") // Sunday = 7 in ISO 8601
 	})
 }
 
@@ -408,7 +408,7 @@ func TestDatePartValuer_Call_PreEpoch(t *testing.T) {
 		{"day", 31},
 		{"hour", 23},
 		{"dow", 3},    // Wednesday
-		{"isodow", 2}, // Wednesday is 2 in this implementation (Monday=0)
+		{"isodow", 3}, // Wednesday = 3 in ISO 8601 (Monday=1)
 	}
 
 	for _, tt := range tests {

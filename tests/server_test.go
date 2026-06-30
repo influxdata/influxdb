@@ -8226,8 +8226,8 @@ func TestServer_Query_DatePart(t *testing.T) {
 			params: url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `filter weekends using isodow (Saturday=5, Sunday=6)`,
-			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('isodow', time) >= 5`,
+			name:    `filter weekends using isodow (Saturday=6, Sunday=7)`,
+			command: `SELECT * FROM db0.rp0.cpu WHERE date_part('isodow', time) >= 6`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[` +
 				`["2023-01-01T00:00:00Z","server01",1],` + // Sunday
 				`["2023-04-15T14:20:30Z","server01",3],` + // Saturday
@@ -8369,8 +8369,8 @@ func TestServer_Query_DatePart(t *testing.T) {
 			name:    `SELECT date_part isodow`,
 			command: `SELECT value, date_part('isodow', time) AS iso_day FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-16T10:30:45Z'`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value","iso_day"],"values":[` +
-				`["2023-01-01T00:00:00Z",1,6],` + // Sunday = 6 in ISO
-				`["2023-01-16T10:30:45Z",2,0]` + // Monday = 0 in ISO
+				`["2023-01-01T00:00:00Z",1,7],` + // Sunday = 7 in ISO 8601
+				`["2023-01-16T10:30:45Z",2,1]` + // Monday = 1 in ISO 8601
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
@@ -8682,13 +8682,13 @@ func TestServer_Query_DatePart(t *testing.T) {
 			name:    `GROUP BY isodow with COUNT`,
 			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY date_part('isodow', time)`,
 			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","grouping_keys":["isodow"],"columns":["time","count","isodow"],"values":[` +
-				`["2023-01-01T00:00:00Z",7,0],` + // Monday (isodow=0): 7 points (2,7,15,16,17,18,19)
-				`["2023-01-01T00:00:00Z",2,1],` + // Tuesday (isodow=1): 2 points (10,12)
-				`["2023-01-01T00:00:00Z",2,2],` + // Wednesday (isodow=2): 2 points (4,13)
-				`["2023-01-01T00:00:00Z",2,3],` + // Thursday (isodow=3): 2 points (8,14)
-				`["2023-01-01T00:00:00Z",1,4],` + // Friday (isodow=4): 1 point (5)
-				`["2023-01-01T00:00:00Z",2,5],` + // Saturday (isodow=5): 2 points (3,11)
-				`["2023-01-01T00:00:00Z",3,6]` + // Sunday (isodow=6): 3 points (1,6,9)
+				`["2023-01-01T00:00:00Z",7,1],` + // Monday (isodow=1): 7 points (2,7,15,16,17,18,19)
+				`["2023-01-01T00:00:00Z",2,2],` + // Tuesday (isodow=2): 2 points (10,12)
+				`["2023-01-01T00:00:00Z",2,3],` + // Wednesday (isodow=3): 2 points (4,13)
+				`["2023-01-01T00:00:00Z",2,4],` + // Thursday (isodow=4): 2 points (8,14)
+				`["2023-01-01T00:00:00Z",1,5],` + // Friday (isodow=5): 1 point (5)
+				`["2023-01-01T00:00:00Z",2,6],` + // Saturday (isodow=6): 2 points (3,11)
+				`["2023-01-01T00:00:00Z",3,7]` + // Sunday (isodow=7): 3 points (1,6,9)
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},
@@ -8987,26 +8987,26 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 		&Query{
 			name:    `GROUP BY host and isodow with COUNT`,
 			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2025-12-31T23:59:59Z' GROUP BY host, date_part('isodow', time)`,
-			// isodow: Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6
+			// isodow: Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6, Sunday=7
 			exp: `{"results":[{"statement_id":0,"series":[` +
 				`{"name":"cpu","tags":{"host":"server01"},"grouping_keys":["isodow"],"columns":["time","count","isodow"],"values":[` +
-				`["2023-01-01T00:00:00Z",1,0],` + // server01 Mon (isodow=0): value 2
-				`["2023-01-01T00:00:00Z",1,2],` + // server01 Wed (isodow=2): value 4
-				`["2023-01-01T00:00:00Z",1,4],` + // server01 Fri (isodow=4): value 5
-				`["2023-01-01T00:00:00Z",1,5],` + // server01 Sat (isodow=5): value 3
-				`["2023-01-01T00:00:00Z",2,6]` + // server01 Sun (isodow=6): values 1,6
+				`["2023-01-01T00:00:00Z",1,1],` + // server01 Mon (isodow=1): value 2
+				`["2023-01-01T00:00:00Z",1,3],` + // server01 Wed (isodow=3): value 4
+				`["2023-01-01T00:00:00Z",1,5],` + // server01 Fri (isodow=5): value 5
+				`["2023-01-01T00:00:00Z",1,6],` + // server01 Sat (isodow=6): value 3
+				`["2023-01-01T00:00:00Z",2,7]` + // server01 Sun (isodow=7): values 1,6
 				`]},` +
 				`{"name":"cpu","tags":{"host":"server02"},"grouping_keys":["isodow"],"columns":["time","count","isodow"],"values":[` +
-				`["2023-01-01T00:00:00Z",1,0],` + // server02 Mon (isodow=0): value 7
-				`["2023-01-01T00:00:00Z",2,1],` + // server02 Tue (isodow=1): values 10,12
-				`["2023-01-01T00:00:00Z",1,3],` + // server02 Thu (isodow=3): value 8
-				`["2023-01-01T00:00:00Z",1,5],` + // server02 Sat (isodow=5): value 11
-				`["2023-01-01T00:00:00Z",1,6]` + // server02 Sun (isodow=6): value 9
+				`["2023-01-01T00:00:00Z",1,1],` + // server02 Mon (isodow=1): value 7
+				`["2023-01-01T00:00:00Z",2,2],` + // server02 Tue (isodow=2): values 10,12
+				`["2023-01-01T00:00:00Z",1,4],` + // server02 Thu (isodow=4): value 8
+				`["2023-01-01T00:00:00Z",1,6],` + // server02 Sat (isodow=6): value 11
+				`["2023-01-01T00:00:00Z",1,7]` + // server02 Sun (isodow=7): value 9
 				`]},` +
 				`{"name":"cpu","tags":{"host":"server03"},"grouping_keys":["isodow"],"columns":["time","count","isodow"],"values":[` +
-				`["2023-01-01T00:00:00Z",5,0],` + // server03 Mon (isodow=0): values 15,16,17,18,19
-				`["2023-01-01T00:00:00Z",1,2],` + // server03 Wed (isodow=2): value 13
-				`["2023-01-01T00:00:00Z",1,3]` + // server03 Thu (isodow=3): value 14
+				`["2023-01-01T00:00:00Z",5,1],` + // server03 Mon (isodow=1): values 15,16,17,18,19
+				`["2023-01-01T00:00:00Z",1,3],` + // server03 Wed (isodow=3): value 13
+				`["2023-01-01T00:00:00Z",1,4]` + // server03 Thu (isodow=4): value 14
 				`]}]}]}`,
 			params: url.Values{"db": []string{"db0"}},
 		},

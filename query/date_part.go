@@ -161,13 +161,14 @@ func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
 	case Epoch:
 		return t.Unix(), true
 	case ISODOW:
-		// Monday=0, Sunday=6
+		// ISO 8601 day of the week: Monday=1 ... Sunday=7.
+		// Go's time.Weekday() is Sunday=0 ... Saturday=6, so every weekday
+		// already maps onto its ISO value except Sunday, which becomes 7.
 		dow := int64(t.Weekday())
 		if dow == 0 {
-			return int64(6), true // Sunday
-		} else {
-			return dow - 1, true
+			return int64(7), true // Sunday
 		}
+		return dow, true
 	default:
 		return 0, false
 	}
