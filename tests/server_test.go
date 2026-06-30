@@ -8772,11 +8772,8 @@ func TestServer_Query_DatePart(t *testing.T) {
 				require.NoError(t, err, "init error")
 				initialized = true
 			}
-			if err := query.Execute(s); err != nil {
-				t.Error(query.Error(err))
-			} else if !query.success() {
-				t.Error(query.failureMessage())
-			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
 		})
 	}
 }
@@ -8845,11 +8842,8 @@ func TestServer_Query_DatePart_Timezone(t *testing.T) {
 				require.NoError(t, err, "init error")
 				initialized = true
 			}
-			if err := query.Execute(s); err != nil {
-				t.Error(query.Error(err))
-			} else if !query.success() {
-				t.Error(query.failureMessage())
-			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
 		})
 	}
 }
@@ -9218,11 +9212,8 @@ func TestServer_Query_DatePart_GroupByWithTags(t *testing.T) {
 				require.NoError(t, err, "init error")
 				initialized = true
 			}
-			if err := query.Execute(s); err != nil {
-				t.Error(query.Error(err))
-			} else if !query.success() {
-				t.Error(query.failureMessage())
-			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
 		})
 	}
 }
@@ -9291,11 +9282,8 @@ func TestServer_Query_DatePart_WildcardCollision(t *testing.T) {
 				require.NoError(t, test.init(s), "init error")
 				initialized = true
 			}
-			if err := query.Execute(s); err != nil {
-				t.Error(query.Error(err))
-			} else if !query.success() {
-				t.Error(query.failureMessage())
-			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
 		})
 	}
 }

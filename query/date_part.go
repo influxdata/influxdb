@@ -149,16 +149,22 @@ func ExtractDatePartExpr(t time.Time, expr DatePartExpr) (int64, bool) {
 	case Second:
 		return int64(t.Second()), true
 	case Millisecond:
-		return int64(t.Nanosecond() / 1e6), true
+		// Seconds-of-minute scaled to milliseconds, plus the sub-second component.
+		return int64(t.Second())*1000 + int64(t.Nanosecond())/1_000_000, true
 	case Microsecond:
-		return int64(t.Nanosecond() / 1e3), true
+		// Seconds-of-minute scaled to microseconds, plus the sub-second component.
+		return int64(t.Second())*1_000_000 + int64(t.Nanosecond())/1_000, true
 	case Nanosecond:
-		return int64(t.Nanosecond()), true
+		// Seconds-of-minute scaled to nanoseconds, plus the sub-second component.
+		return int64(t.Second())*1_000_000_000 + int64(t.Nanosecond()), true
 	case DOW:
 		return int64(t.Weekday()), true
 	case DOY:
 		return int64(t.YearDay()), true
 	case Epoch:
+		// Whole seconds since the Unix epoch. Sub-second precision is truncated by
+		// the int64 return type; select the millisecond/microsecond/nanosecond
+		// part for finer resolution.
 		return t.Unix(), true
 	case ISODOW:
 		// ISO 8601 day of the week: Monday=1 ... Sunday=7.
@@ -310,10 +316,13 @@ func NewDatePartGrouper(dims []DatePartDimension) *DatePartGrouper {
 }
 
 // computeDimKey builds a grouping key string that uniquely identifies a
-// (tagID, expr, val) tuple; it is used only as a map key and is never decoded.
-// When tags are present the tagID is length-prefixed (8-byte big-endian) so the
-// encoding stays unambiguous even if the tagID contains NUL bytes — which it can,
-// e.g. when a series has empty tag values.
+// (tagID, expr, val) tuple; it is used as a map key and is never decoded. Note
+// the reduce path SORTS these keys to order the output series, so the format is
+// observable: the leading expr.String() makes series sort by part name, which
+// the GROUP BY date_part result ordering depends on. When tags are present the
+// tagID is length-prefixed (8-byte big-endian) so the encoding stays unambiguous
+// even if the tagID contains NUL bytes — which it can, e.g. when a series has
+// empty tag values.
 func computeDimKey(expr DatePartExpr, val int64, tagID string, hasTags bool) string {
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], uint64(val))

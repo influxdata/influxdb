@@ -261,11 +261,43 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		cur.m[models.TimeString] = row.Time
 	}
 
+	// Resolve the active GROUP BY date_part dimension once per row instead of per
+	// field: the dimension value and its name are identical for every field, so
+	// the map lookup, type assertion, and Expr.String() only need to happen once.
+	var (
+		haveDim bool
+		dpd     DecodedDatePartKey
+		dimName string
+	)
+	if cur.needDatePart {
+		if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
+			if d, ok := val.(DecodedDatePartKey); ok {
+				haveDim = true
+				dpd = d
+				dimName = d.Expr.String()
+				if row.GroupingKeys == nil {
+					row.GroupingKeys = make(map[string]struct{})
+				}
+				row.GroupingKeys[dimName] = struct{}{}
+			}
+		}
+	}
+
 	for i, expr := range cur.fields {
 		// A special case if the field is time to reduce memory allocations.
 		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
+		}
+		// Only set the column value from the grouped dimension if this field is the
+		// dimension VarRef. Explicit date_part(...) calls — top-level or nested in a
+		// larger expression — are resolved by DatePartValuer.Call against the active
+		// grouped key during Eval below, so they need no special handling here.
+		if haveDim {
+			if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
+				row.Values[i] = dpd.Val
+				continue
+			}
 		}
 		v := cur.valuer.Eval(expr)
 		if fv, ok := v.(float64); ok && math.IsNaN(fv) {
@@ -273,26 +305,6 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 			// so this can be serialized correctly, but not mistaken for
 			// a null value that needs to be filled.
 			v = NullFloat
-		}
-		if cur.needDatePart {
-			if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
-				if dpd, ok := val.(DecodedDatePartKey); ok {
-					dimName := dpd.Expr.String()
-					if row.GroupingKeys == nil {
-						row.GroupingKeys = make(map[string]struct{})
-					}
-					row.GroupingKeys[dimName] = struct{}{}
-					// Only set the column value if this field is the dimension VarRef.
-					// Explicit date_part(...) calls — top-level or nested in a larger
-					// expression — are resolved by DatePartValuer.Call against the
-					// active grouped key (already applied in v above), so they need no
-					// special handling here.
-					if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
-						row.Values[i] = dpd.Val
-						continue
-					}
-				}
-			}
 		}
 		row.Values[i] = v
 	}

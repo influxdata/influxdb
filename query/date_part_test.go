@@ -240,21 +240,21 @@ func TestDatePartValuer_Call(t *testing.T) {
 			name:     "millisecond",
 			funcName: "date_part",
 			args:     []interface{}{"millisecond", testTimestamp},
-			expected: int64(123), // 123456789ns / 1e6
+			expected: int64(45123), // 45s*1000 + 123456789ns/1e6
 			ok:       true,
 		},
 		{
 			name:     "microsecond",
 			funcName: "date_part",
 			args:     []interface{}{"microsecond", testTimestamp},
-			expected: int64(123456), // 123456789ns / 1e3
+			expected: int64(45123456), // 45s*1e6 + 123456789ns/1e3
 			ok:       true,
 		},
 		{
 			name:     "nanosecond",
 			funcName: "date_part",
 			args:     []interface{}{"nanosecond", testTimestamp},
-			expected: int64(123456789),
+			expected: int64(45123456789), // 45s*1e9 + 123456789ns
 			ok:       true,
 		},
 		{
