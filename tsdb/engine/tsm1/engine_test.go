@@ -27,6 +27,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	tassert "github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -2230,6 +2231,34 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 			case <-done:
 			}
 		})
+	}
+}
+
+// TestEngine_PlannerCalls verifies that calls to the CompactionPlanner methods
+// are counted in the storage_compactions_planner_calls counter, keyed by the
+// "method" label. Each PlanCompactions cycle calls FindGenerations once,
+// PlanLevel three times (levels 1-3), Plan once, and PlanOptimize once, so after
+// N cycles the counters are deterministic regardless of the installed planner.
+func TestEngine_PlannerCalls(t *testing.T) {
+	e, err := NewEngine(t, tsi1.IndexName)
+	require.NoError(t, err)
+	// Install a no-op planner so PlanCompactions exercises every planner method
+	// without doing real compaction work, and disable background compactions so
+	// PlanCompactions is only invoked by this test.
+	e.CompactionPlan = &mockPlanner{}
+	e.SetEnabled(false)
+	require.NoError(t, e.Open(context.Background()))
+
+	const cycles = 3
+	for range cycles {
+		e.PlanCompactions()
+	}
+
+	// e.Stats.PlannerCalls is curried with this engine's labels, so only the
+	// "method" label remains and the counts are isolated from other engines.
+	for _, method := range []string{"find_generations", "plan_level_1", "plan_level_2", "plan_level_3", "plan", "plan_optimize"} {
+		require.Equal(t, float64(cycles), testutil.ToFloat64(e.Stats.PlannerCalls.WithLabelValues(method)),
+			"%s is called once per cycle", method)
 	}
 }
 
