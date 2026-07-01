@@ -2,6 +2,7 @@ package tsdb
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -299,5 +300,34 @@ func (sh *TempShard) MustWritePointsString(s string) {
 
 	if err := sh.WritePoints(a, NoopStatsTracker()); err != nil {
 		panic(err)
+	}
+}
+
+func TestShard_TimeRange(t *testing.T) {
+	for _, index := range RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			sh := NewTempShard(index)
+			defer CloseShard(t, sh)
+
+			require.NoError(t, sh.Open())
+
+			min, max, err := sh.TimeRange()
+			require.NoError(t, err)
+			require.Equal(t, int64(math.MaxInt64), min)
+			require.Equal(t, int64(math.MinInt64), max)
+
+			sh.MustWritePointsString(`
+cpu value=100 1000000000
+cpu value=200 2000000000
+mem value=300 1500000000`)
+
+			// Force flush WAL to TSM files
+			require.NoError(t, sh.ScheduleFullCompaction())
+
+			min, max, err = sh.TimeRange()
+			require.NoError(t, err)
+			require.Equal(t, int64(1000000000000000000), min)
+			require.Equal(t, int64(2000000000000000000), max)
+		})
 	}
 }
