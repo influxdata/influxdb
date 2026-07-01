@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/testing"
+	"github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
@@ -325,7 +326,16 @@ func (s *Server) appendHTTPDService(c httpd.Config) error {
 	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
 	srv.Handler.Store = ss
 	if s.config.HTTPD.FluxEnabled {
-		storageDep, err := influxdb2.NewDependencies(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.PointsWriter)
+		// When hardening is enabled, use an HTTP IP validator that restricts
+		// flux HTTP requests to non-private addresses.
+		var urlValidator url.Validator
+		if s.config.HardeningEnabled {
+			urlValidator = url.PrivateIPValidator{}
+		} else {
+			urlValidator = url.PassValidator{}
+		}
+
+		storageDep, err := influxdb2.NewDependencies(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.PointsWriter, influxdb2.WithURLValidator(urlValidator))
 		if err != nil {
 			return err
 		}

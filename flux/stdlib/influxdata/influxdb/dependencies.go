@@ -62,12 +62,27 @@ func (d Dependencies) Inject(ctx context.Context) context.Context {
 	return d.StorageDeps.Inject(ctx)
 }
 
+// FluxDepOption modifies the flux dependencies used to construct the
+// query Dependencies.
+type FluxDepOption func(*flux.Deps)
+
+// WithURLValidator overrides the URL validator (and the HTTP client that
+// enforces it) used by flux dependencies. Pass url.PrivateIPValidator{} to
+// restrict flux HTTP requests to non-private addresses.
+func WithURLValidator(v url.Validator) FluxDepOption {
+	return func(d *flux.Deps) {
+		d.Deps.URLValidator = v
+		d.Deps.HTTPClient = http.NewDefaultClient(v)
+	}
+}
+
 func NewDependencies(
 	mc MetaClient,
 	reader Reader,
 	auth Authorizer,
 	authEnabled bool,
 	writer PointsWriter,
+	fluxOpts ...FluxDepOption,
 ) (Dependencies, error) {
 	validator := &url.PassValidator{}
 	fdeps := dependencies.NewDefaultDependencies("")
@@ -78,6 +93,11 @@ func NewDependencies(
 			SecretService:     secret.EmptySecretService{},
 			URLValidator:      validator,
 		},
+	}
+	// Apply any flux dependency options (eg, a stricter URL validator when
+	// hardening is enabled) before assigning fdeps to deps.
+	for _, opt := range fluxOpts {
+		opt(&fdeps.Deps)
 	}
 	deps := Dependencies{FluxDeps: fdeps}
 	deps.StorageDeps = StorageDependencies{
