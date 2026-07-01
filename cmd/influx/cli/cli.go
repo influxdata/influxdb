@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -880,7 +881,7 @@ func headersEqual(prev, current models.Row) bool {
 	if prev.Name != current.Name {
 		return false
 	}
-	if !reflect.DeepEqual(prev.GroupingKeys, current.GroupingKeys) {
+	if !slices.Equal(prev.GroupingKeys, current.GroupingKeys) {
 		return false
 	}
 	return tagsEqual(prev.Tags, current.Tags) && columnsEqual(prev.Columns, current.Columns)

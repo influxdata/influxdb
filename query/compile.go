@@ -10,6 +10,27 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+// Sentinel errors returned during compilation. Named values so tests can
+// reference them (via export_test.go) instead of duplicating the strings.
+var (
+	errOnlyTimeAndDatePartDimensions = errors.New("only time() and date_part() calls allowed in dimensions")
+	errTimeDimensionArgCount         = errors.New("time dimension expected 1 or 2 arguments")
+	errTimeDimensionDurationArg      = errors.New("time dimension must have duration argument")
+	errMultipleTimeDimensions        = errors.New("multiple time dimensions not allowed")
+	errTimeOffsetFunctionMustBeNow   = errors.New("time dimension offset function must be now()")
+	errTimeOffsetNowNoArgs           = errors.New("time dimension offset now() function requires no arguments")
+	errInvalidTimeOffset             = errors.New("time dimension offset must be duration or now()")
+	errAtLeastOneNonTimeField        = errors.New("at least 1 non-time field must be queried")
+	errMixedMultipleSelectors        = errors.New("mixing multiple selector functions with tags or fields is not supported")
+	errDatePartRequiresAggregate     = errors.New("date_part: GROUP BY date_part requires an aggregate or selector function")
+	errDatePartSingleAggregate       = errors.New("date_part: GROUP BY date_part supports only a single aggregate or selector function")
+	errDatePartFillPrevious          = errors.New("date_part: fill(previous) is not supported with GROUP BY date_part")
+	errDatePartFillLinear            = errors.New("date_part: fill(linear) is not supported with GROUP BY date_part")
+	errDatePartFillValue             = errors.New("date_part: fill(<value>) is not supported with GROUP BY date_part")
+	errDatePartFillNull              = errors.New("date_part: fill(null) is not supported with GROUP BY time() and date_part; use fill(none)")
+	errDatePartSubqueryCondition     = errors.New("date_part: condition is not supported with a subquery source")
+)
+
 // CompileOptions are the customization options for the compiler.
 type CompileOptions struct {
 	Now time.Time
@@ -952,7 +973,7 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 				// subquery boundary by datePartMap (see query/subquery.go), which
 				// computes the dimension value from each row's timestamp.
 			default:
-				return errors.New("only time() and date_part() calls allowed in dimensions")
+				return errOnlyTimeAndDatePartDimensions
 			}
 		case *influxql.Wildcard:
 		case *influxql.RegexLiteral:
@@ -970,13 +991,13 @@ func (c *compiledStatement) compileTimeDimension(expr *influxql.Call, stmt *infl
 	// Ensure the call is time() and it has one or two duration arguments.
 	// If we already have a duration
 	if expr.Name != models.TimeString {
-		return errors.New("only time() and date_part() calls allowed in dimensions")
+		return errOnlyTimeAndDatePartDimensions
 	} else if got := len(expr.Args); got < 1 || got > 2 {
-		return errors.New("time dimension expected 1 or 2 arguments")
+		return errTimeDimensionArgCount
 	} else if lit, ok := expr.Args[0].(*influxql.DurationLiteral); !ok {
-		return errors.New("time dimension must have duration argument")
+		return errTimeDimensionDurationArg
 	} else if c.Interval.Duration != 0 {
-		return errors.New("multiple time dimensions not allowed")
+		return errMultipleTimeDimensions
 	} else {
 		c.Interval.Duration = lit.Val
 		if len(expr.Args) == 2 {
@@ -987,9 +1008,9 @@ func (c *compiledStatement) compileTimeDimension(expr *influxql.Call, stmt *infl
 				c.Interval.Offset = lit.Val.Sub(lit.Val.Truncate(c.Interval.Duration))
 			case *influxql.Call:
 				if lit.Name != "now" {
-					return errors.New("time dimension offset function must be now()")
+					return errTimeOffsetFunctionMustBeNow
 				} else if len(lit.Args) != 0 {
-					return errors.New("time dimension offset now() function requires no arguments")
+					return errTimeOffsetNowNoArgs
 				}
 				now := c.Options.Now
 				c.Interval.Offset = now.Sub(now.Truncate(c.Interval.Duration))
@@ -1007,10 +1028,10 @@ func (c *compiledStatement) compileTimeDimension(expr *influxql.Call, stmt *infl
 					}
 					c.Interval.Offset = t.Val.Sub(t.Val.Truncate(c.Interval.Duration))
 				} else {
-					return errors.New("time dimension offset must be duration or now()")
+					return errInvalidTimeOffset
 				}
 			default:
-				return errors.New("time dimension offset must be duration or now()")
+				return errInvalidTimeOffset
 			}
 		}
 	}
@@ -1022,7 +1043,7 @@ func (c *compiledStatement) compileTimeDimension(expr *influxql.Call, stmt *infl
 func (c *compiledStatement) validateFields() error {
 	// Validate that at least one field has been selected.
 	if len(c.Fields) == 0 {
-		return errors.New("at least 1 non-time field must be queried")
+		return errAtLeastOneNonTimeField
 	}
 	// date_part('part', time) derives its value purely from the row timestamp and
 	// references no stored field. A SELECT whose only fields are such date_part
@@ -1046,7 +1067,7 @@ func (c *compiledStatement) validateFields() error {
 			}
 		}
 		if datePartCalls > 0 && otherCalls == 0 {
-			return errors.New("at least 1 non-time field must be queried")
+			return errAtLeastOneNonTimeField
 		}
 	}
 	// Ensure there are not multiple calls if top/bottom is present.
@@ -1079,7 +1100,7 @@ func (c *compiledStatement) validateFields() error {
 				if call.Name != DatePartString {
 					nonDatePartCount++
 					if nonDatePartCount > 1 {
-						return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
+						return errMixedMultipleSelectors
 					}
 				}
 			}
@@ -1128,10 +1149,10 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 		}
 	}
 	if nonDatePartCalls == 0 {
-		return errors.New("date_part: GROUP BY date_part requires an aggregate or selector function")
+		return errDatePartRequiresAggregate
 	}
 	if nonDatePartCalls > 1 {
-		return errors.New("date_part: GROUP BY date_part supports only a single aggregate or selector function")
+		return errDatePartSingleAggregate
 	}
 
 	// Value-carrying fill modes (previous/linear/<number>) synthesize values for
@@ -1146,14 +1167,14 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 	// fill(none) is always unaffected (it produces no fill iterator).
 	switch c.FillOption {
 	case influxql.PreviousFill:
-		return errors.New("date_part: fill(previous) is not supported with GROUP BY date_part")
+		return errDatePartFillPrevious
 	case influxql.LinearFill:
-		return errors.New("date_part: fill(linear) is not supported with GROUP BY date_part")
+		return errDatePartFillLinear
 	case influxql.NumberFill:
-		return errors.New("date_part: fill(<value>) is not supported with GROUP BY date_part")
+		return errDatePartFillValue
 	case influxql.NullFill:
 		if !c.Interval.IsZero() {
-			return errors.New("date_part: fill(null) is not supported with GROUP BY time() and date_part; use fill(none)")
+			return errDatePartFillNull
 		}
 	}
 
@@ -1235,7 +1256,7 @@ func validateDatePartAnchor(stmt *influxql.SelectStatement) error {
 		})
 	}
 	if hasDatePart && !hasAnchor {
-		return errors.New("at least 1 non-time field must be queried")
+		return errAtLeastOneNonTimeField
 	}
 
 	// Recurse into subquery sources. RewriteFields rewrites the whole statement
@@ -1294,7 +1315,7 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr, sources influx
 				// predicate would silently evaluate to null and drop every row.
 				// Reject it here rather than produce wrong results.
 				if hasSubquerySource(sources) {
-					return errors.New("date_part: condition is not supported with a subquery source")
+					return errDatePartSubqueryCondition
 				}
 				return nil
 			default:

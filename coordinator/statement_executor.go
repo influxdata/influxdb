@@ -1404,14 +1404,17 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 	// as a field would collapse every group onto an identical series+timestamp
 	// (last-write-wins, silent data loss), so promote these columns to tags instead
 	// — mirroring how GROUP BY <tag> INTO writes its grouping tag.
-	groupingCols := make(map[string]struct{}, len(row.GroupingKeys))
-	for _, k := range row.GroupingKeys {
-		groupingCols[k] = struct{}{}
+	var groupingCols map[string]struct{}
+	if len(row.GroupingKeys) > 0 {
+		groupingCols = make(map[string]struct{}, len(row.GroupingKeys))
+		for _, k := range row.GroupingKeys {
+			groupingCols[k] = struct{}{}
+		}
 	}
 
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)
-	tagIndexes := make(map[string]int)
+	tagIndexes := make(map[string]int, len(row.GroupingKeys))
 	for i, c := range row.Columns {
 		switch {
 		case c == models.TimeString:
@@ -1459,9 +1462,6 @@ func convertRowToPoints(measurementName string, row *models.Row, strictErrorHand
 // isGroupingColumn reports whether column c is a GROUP BY date_part grouping
 // dimension (and so must be written as a tag rather than a field).
 func isGroupingColumn(groupingCols map[string]struct{}, c string) bool {
-	if len(groupingCols) == 0 {
-		return false
-	}
 	_, ok := groupingCols[c]
 	return ok
 }
