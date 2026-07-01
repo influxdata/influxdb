@@ -246,31 +246,33 @@ func (x *Aux) GetUnsignedValue() uint64 {
 }
 
 type IteratorOptions struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Expr          *string                `protobuf:"bytes,1,opt,name=Expr" json:"Expr,omitempty"`
-	Aux           []string               `protobuf:"bytes,2,rep,name=Aux" json:"Aux,omitempty"`
-	Fields        []*VarRef              `protobuf:"bytes,17,rep,name=Fields" json:"Fields,omitempty"`
-	Sources       []*Measurement         `protobuf:"bytes,3,rep,name=Sources" json:"Sources,omitempty"`
-	Interval      *Interval              `protobuf:"bytes,4,opt,name=Interval" json:"Interval,omitempty"`
-	Dimensions    []string               `protobuf:"bytes,5,rep,name=Dimensions" json:"Dimensions,omitempty"`
-	GroupBy       []string               `protobuf:"bytes,19,rep,name=GroupBy" json:"GroupBy,omitempty"`
-	Fill          *int32                 `protobuf:"varint,6,opt,name=Fill" json:"Fill,omitempty"`
-	FillValue     *float64               `protobuf:"fixed64,7,opt,name=FillValue" json:"FillValue,omitempty"`
-	Condition     *string                `protobuf:"bytes,8,opt,name=Condition" json:"Condition,omitempty"`
-	StartTime     *int64                 `protobuf:"varint,9,opt,name=StartTime" json:"StartTime,omitempty"`
-	EndTime       *int64                 `protobuf:"varint,10,opt,name=EndTime" json:"EndTime,omitempty"`
-	Location      *string                `protobuf:"bytes,21,opt,name=Location" json:"Location,omitempty"`
-	Ascending     *bool                  `protobuf:"varint,11,opt,name=Ascending" json:"Ascending,omitempty"`
-	Limit         *int64                 `protobuf:"varint,12,opt,name=Limit" json:"Limit,omitempty"`
-	Offset        *int64                 `protobuf:"varint,13,opt,name=Offset" json:"Offset,omitempty"`
-	SLimit        *int64                 `protobuf:"varint,14,opt,name=SLimit" json:"SLimit,omitempty"`
-	SOffset       *int64                 `protobuf:"varint,15,opt,name=SOffset" json:"SOffset,omitempty"`
-	StripName     *bool                  `protobuf:"varint,22,opt,name=StripName" json:"StripName,omitempty"`
-	Dedupe        *bool                  `protobuf:"varint,16,opt,name=Dedupe" json:"Dedupe,omitempty"`
-	MaxSeriesN    *int64                 `protobuf:"varint,18,opt,name=MaxSeriesN" json:"MaxSeriesN,omitempty"`
-	Ordered       *bool                  `protobuf:"varint,20,opt,name=Ordered" json:"Ordered,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Expr               *string                `protobuf:"bytes,1,opt,name=Expr" json:"Expr,omitempty"`
+	Aux                []string               `protobuf:"bytes,2,rep,name=Aux" json:"Aux,omitempty"`
+	Fields             []*VarRef              `protobuf:"bytes,17,rep,name=Fields" json:"Fields,omitempty"`
+	Sources            []*Measurement         `protobuf:"bytes,3,rep,name=Sources" json:"Sources,omitempty"`
+	Interval           *Interval              `protobuf:"bytes,4,opt,name=Interval" json:"Interval,omitempty"`
+	Dimensions         []string               `protobuf:"bytes,5,rep,name=Dimensions" json:"Dimensions,omitempty"`
+	GroupBy            []string               `protobuf:"bytes,19,rep,name=GroupBy" json:"GroupBy,omitempty"`
+	Fill               *int32                 `protobuf:"varint,6,opt,name=Fill" json:"Fill,omitempty"`
+	FillValue          *float64               `protobuf:"fixed64,7,opt,name=FillValue" json:"FillValue,omitempty"`
+	Condition          *string                `protobuf:"bytes,8,opt,name=Condition" json:"Condition,omitempty"`
+	StartTime          *int64                 `protobuf:"varint,9,opt,name=StartTime" json:"StartTime,omitempty"`
+	EndTime            *int64                 `protobuf:"varint,10,opt,name=EndTime" json:"EndTime,omitempty"`
+	Location           *string                `protobuf:"bytes,21,opt,name=Location" json:"Location,omitempty"`
+	Ascending          *bool                  `protobuf:"varint,11,opt,name=Ascending" json:"Ascending,omitempty"`
+	Limit              *int64                 `protobuf:"varint,12,opt,name=Limit" json:"Limit,omitempty"`
+	Offset             *int64                 `protobuf:"varint,13,opt,name=Offset" json:"Offset,omitempty"`
+	SLimit             *int64                 `protobuf:"varint,14,opt,name=SLimit" json:"SLimit,omitempty"`
+	SOffset            *int64                 `protobuf:"varint,15,opt,name=SOffset" json:"SOffset,omitempty"`
+	StripName          *bool                  `protobuf:"varint,22,opt,name=StripName" json:"StripName,omitempty"`
+	Dedupe             *bool                  `protobuf:"varint,16,opt,name=Dedupe" json:"Dedupe,omitempty"`
+	MaxSeriesN         *int64                 `protobuf:"varint,18,opt,name=MaxSeriesN" json:"MaxSeriesN,omitempty"`
+	Ordered            *bool                  `protobuf:"varint,20,opt,name=Ordered" json:"Ordered,omitempty"`
+	DatePartDimensions []*DatePartDimension   `protobuf:"bytes,23,rep,name=DatePartDimensions" json:"DatePartDimensions,omitempty"`
+	NeedTimeRef        *bool                  `protobuf:"varint,24,opt,name=NeedTimeRef" json:"NeedTimeRef,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *IteratorOptions) Reset() {
@@ -457,6 +459,72 @@ func (x *IteratorOptions) GetOrdered() bool {
 	return false
 }
 
+func (x *IteratorOptions) GetDatePartDimensions() []*DatePartDimension {
+	if x != nil {
+		return x.DatePartDimensions
+	}
+	return nil
+}
+
+func (x *IteratorOptions) GetNeedTimeRef() bool {
+	if x != nil && x.NeedTimeRef != nil {
+		return *x.NeedTimeRef
+	}
+	return false
+}
+
+type DatePartDimension struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          *string                `protobuf:"bytes,1,opt,name=Name" json:"Name,omitempty"`
+	Expr          *int32                 `protobuf:"varint,2,opt,name=Expr" json:"Expr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatePartDimension) Reset() {
+	*x = DatePartDimension{}
+	mi := &file_internal_internal_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatePartDimension) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatePartDimension) ProtoMessage() {}
+
+func (x *DatePartDimension) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_internal_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatePartDimension.ProtoReflect.Descriptor instead.
+func (*DatePartDimension) Descriptor() ([]byte, []int) {
+	return file_internal_internal_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DatePartDimension) GetName() string {
+	if x != nil && x.Name != nil {
+		return *x.Name
+	}
+	return ""
+}
+
+func (x *DatePartDimension) GetExpr() int32 {
+	if x != nil && x.Expr != nil {
+		return *x.Expr
+	}
+	return 0
+}
+
 type Measurements struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*Measurement         `protobuf:"bytes,1,rep,name=Items" json:"Items,omitempty"`
@@ -466,7 +534,7 @@ type Measurements struct {
 
 func (x *Measurements) Reset() {
 	*x = Measurements{}
-	mi := &file_internal_internal_proto_msgTypes[3]
+	mi := &file_internal_internal_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -478,7 +546,7 @@ func (x *Measurements) String() string {
 func (*Measurements) ProtoMessage() {}
 
 func (x *Measurements) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_internal_proto_msgTypes[3]
+	mi := &file_internal_internal_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -491,7 +559,7 @@ func (x *Measurements) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Measurements.ProtoReflect.Descriptor instead.
 func (*Measurements) Descriptor() ([]byte, []int) {
-	return file_internal_internal_proto_rawDescGZIP(), []int{3}
+	return file_internal_internal_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Measurements) GetItems() []*Measurement {
@@ -515,7 +583,7 @@ type Measurement struct {
 
 func (x *Measurement) Reset() {
 	*x = Measurement{}
-	mi := &file_internal_internal_proto_msgTypes[4]
+	mi := &file_internal_internal_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -527,7 +595,7 @@ func (x *Measurement) String() string {
 func (*Measurement) ProtoMessage() {}
 
 func (x *Measurement) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_internal_proto_msgTypes[4]
+	mi := &file_internal_internal_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -540,7 +608,7 @@ func (x *Measurement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Measurement.ProtoReflect.Descriptor instead.
 func (*Measurement) Descriptor() ([]byte, []int) {
-	return file_internal_internal_proto_rawDescGZIP(), []int{4}
+	return file_internal_internal_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Measurement) GetDatabase() string {
@@ -595,7 +663,7 @@ type Interval struct {
 
 func (x *Interval) Reset() {
 	*x = Interval{}
-	mi := &file_internal_internal_proto_msgTypes[5]
+	mi := &file_internal_internal_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -607,7 +675,7 @@ func (x *Interval) String() string {
 func (*Interval) ProtoMessage() {}
 
 func (x *Interval) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_internal_proto_msgTypes[5]
+	mi := &file_internal_internal_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -620,7 +688,7 @@ func (x *Interval) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Interval.ProtoReflect.Descriptor instead.
 func (*Interval) Descriptor() ([]byte, []int) {
-	return file_internal_internal_proto_rawDescGZIP(), []int{5}
+	return file_internal_internal_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Interval) GetDuration() int64 {
@@ -647,7 +715,7 @@ type IteratorStats struct {
 
 func (x *IteratorStats) Reset() {
 	*x = IteratorStats{}
-	mi := &file_internal_internal_proto_msgTypes[6]
+	mi := &file_internal_internal_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -659,7 +727,7 @@ func (x *IteratorStats) String() string {
 func (*IteratorStats) ProtoMessage() {}
 
 func (x *IteratorStats) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_internal_proto_msgTypes[6]
+	mi := &file_internal_internal_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -672,7 +740,7 @@ func (x *IteratorStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IteratorStats.ProtoReflect.Descriptor instead.
 func (*IteratorStats) Descriptor() ([]byte, []int) {
-	return file_internal_internal_proto_rawDescGZIP(), []int{6}
+	return file_internal_internal_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *IteratorStats) GetSeriesN() int64 {
@@ -699,7 +767,7 @@ type VarRef struct {
 
 func (x *VarRef) Reset() {
 	*x = VarRef{}
-	mi := &file_internal_internal_proto_msgTypes[7]
+	mi := &file_internal_internal_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -711,7 +779,7 @@ func (x *VarRef) String() string {
 func (*VarRef) ProtoMessage() {}
 
 func (x *VarRef) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_internal_proto_msgTypes[7]
+	mi := &file_internal_internal_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -724,7 +792,7 @@ func (x *VarRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VarRef.ProtoReflect.Descriptor instead.
 func (*VarRef) Descriptor() ([]byte, []int) {
-	return file_internal_internal_proto_rawDescGZIP(), []int{7}
+	return file_internal_internal_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *VarRef) GetVal() string {
@@ -774,7 +842,7 @@ const file_internal_internal_proto_rawDesc = "" +
 	"\fIntegerValue\x18\x03 \x01(\x03R\fIntegerValue\x12 \n" +
 	"\vStringValue\x18\x04 \x01(\tR\vStringValue\x12\"\n" +
 	"\fBooleanValue\x18\x05 \x01(\bR\fBooleanValue\x12$\n" +
-	"\rUnsignedValue\x18\x06 \x01(\x04R\rUnsignedValue\"\x85\x05\n" +
+	"\rUnsignedValue\x18\x06 \x01(\x04R\rUnsignedValue\"\xf1\x05\n" +
 	"\x0fIteratorOptions\x12\x12\n" +
 	"\x04Expr\x18\x01 \x01(\tR\x04Expr\x12\x10\n" +
 	"\x03Aux\x18\x02 \x03(\tR\x03Aux\x12%\n" +
@@ -802,7 +870,12 @@ const file_internal_internal_proto_rawDesc = "" +
 	"\n" +
 	"MaxSeriesN\x18\x12 \x01(\x03R\n" +
 	"MaxSeriesN\x12\x18\n" +
-	"\aOrdered\x18\x14 \x01(\bR\aOrdered\"8\n" +
+	"\aOrdered\x18\x14 \x01(\bR\aOrdered\x12H\n" +
+	"\x12DatePartDimensions\x18\x17 \x03(\v2\x18.query.DatePartDimensionR\x12DatePartDimensions\x12 \n" +
+	"\vNeedTimeRef\x18\x18 \x01(\bR\vNeedTimeRef\";\n" +
+	"\x11DatePartDimension\x12\x12\n" +
+	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x12\n" +
+	"\x04Expr\x18\x02 \x01(\x05R\x04Expr\"8\n" +
 	"\fMeasurements\x12(\n" +
 	"\x05Items\x18\x01 \x03(\v2\x12.query.MeasurementR\x05Items\"\xc1\x01\n" +
 	"\vMeasurement\x12\x1a\n" +
@@ -834,29 +907,31 @@ func file_internal_internal_proto_rawDescGZIP() []byte {
 	return file_internal_internal_proto_rawDescData
 }
 
-var file_internal_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_internal_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_internal_internal_proto_goTypes = []any{
-	(*Point)(nil),           // 0: query.Point
-	(*Aux)(nil),             // 1: query.Aux
-	(*IteratorOptions)(nil), // 2: query.IteratorOptions
-	(*Measurements)(nil),    // 3: query.Measurements
-	(*Measurement)(nil),     // 4: query.Measurement
-	(*Interval)(nil),        // 5: query.Interval
-	(*IteratorStats)(nil),   // 6: query.IteratorStats
-	(*VarRef)(nil),          // 7: query.VarRef
+	(*Point)(nil),             // 0: query.Point
+	(*Aux)(nil),               // 1: query.Aux
+	(*IteratorOptions)(nil),   // 2: query.IteratorOptions
+	(*DatePartDimension)(nil), // 3: query.DatePartDimension
+	(*Measurements)(nil),      // 4: query.Measurements
+	(*Measurement)(nil),       // 5: query.Measurement
+	(*Interval)(nil),          // 6: query.Interval
+	(*IteratorStats)(nil),     // 7: query.IteratorStats
+	(*VarRef)(nil),            // 8: query.VarRef
 }
 var file_internal_internal_proto_depIdxs = []int32{
 	1, // 0: query.Point.Aux:type_name -> query.Aux
-	6, // 1: query.Point.Stats:type_name -> query.IteratorStats
-	7, // 2: query.IteratorOptions.Fields:type_name -> query.VarRef
-	4, // 3: query.IteratorOptions.Sources:type_name -> query.Measurement
-	5, // 4: query.IteratorOptions.Interval:type_name -> query.Interval
-	4, // 5: query.Measurements.Items:type_name -> query.Measurement
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	7, // 1: query.Point.Stats:type_name -> query.IteratorStats
+	8, // 2: query.IteratorOptions.Fields:type_name -> query.VarRef
+	5, // 3: query.IteratorOptions.Sources:type_name -> query.Measurement
+	6, // 4: query.IteratorOptions.Interval:type_name -> query.Interval
+	3, // 5: query.IteratorOptions.DatePartDimensions:type_name -> query.DatePartDimension
+	5, // 6: query.Measurements.Items:type_name -> query.Measurement
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_internal_internal_proto_init() }
@@ -870,7 +945,7 @@ func file_internal_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_internal_proto_rawDesc), len(file_internal_internal_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

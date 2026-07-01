@@ -39,6 +39,12 @@ var (
 
 	// ErrTimeOutOfRange gets returned when time is out of the representable range using int64 nanoseconds since the epoch.
 	ErrTimeOutOfRange = fmt.Errorf("time outside range %d - %d", MinNanoTime, MaxNanoTime)
+
+	// Static objects to prevent small allocs.
+	TimeBytes = []byte("time")
+
+	// TimeString is a variable representing the string "time"
+	TimeString = string(TimeBytes)
 )
 
 // SafeCalcTime safely calculates the time given. Will return error if the time is outside the

@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 )
 
@@ -65,6 +66,10 @@ type Row struct {
 
 	// Values contains the values within the current row.
 	Values []interface{}
+
+	// GroupingKeys contains the names of active date_part grouping
+	// dimensions. Actual per-row values are in the Values slice.
+	GroupingKeys map[string]struct{}
 }
 
 type Cursor interface {
@@ -144,11 +149,38 @@ type scannerCursorBase struct {
 	columns []influxql.VarRef
 	loc     *time.Location
 
+	// needDatePart caches whether this query actually involves date_part (either
+	// an explicit date_part(...) field or a GROUP BY date_part dimension). When
+	// false, the per-row date_part bookkeeping in Scan is skipped entirely so
+	// ordinary queries don't pay for a feature they don't use.
+	needDatePart bool
+
 	scan   scannerFunc
 	valuer influxql.ValuerEval
 }
 
-func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.Location) scannerCursorBase {
+// scannerCursorNeedsDatePart reports whether the cursor must perform date_part
+// bookkeeping: true when a GROUP BY date_part dimension is present or when any
+// selected field references the date_part function (top-level or nested).
+func scannerCursorNeedsDatePart(fields []*influxql.Field, opt IteratorOptions) bool {
+	if len(opt.DatePartDimensions) > 0 {
+		return true
+	}
+	for _, f := range fields {
+		found := false
+		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
+			if call, ok := n.(*influxql.Call); ok && call.Name == DatePartString {
+				found = true
+			}
+		})
+		if found {
+			return true
+		}
+	}
+	return false
+}
+
+func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.Location, needDatePart bool) scannerCursorBase {
 	typmap := FunctionTypeMapper{}
 	exprs := make([]influxql.Expr, len(fields))
 	columns := make([]influxql.VarRef, len(fields))
@@ -164,23 +196,45 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 	}
 
 	m := make(map[string]interface{})
+	mapValuer := influxql.MapValuer(m)
+
+	// Only wire DatePartValuer into the evaluation chain when date_part is
+	// actually used; otherwise skip the extra valuer indirection on every Eval.
+	var valuer influxql.Valuer
+	if needDatePart {
+		valuer = influxql.MultiValuer(
+			MathValuer{},
+			DatePartValuer{Valuer: mapValuer, Location: loc},
+			mapValuer,
+		)
+	} else {
+		valuer = influxql.MultiValuer(
+			MathValuer{},
+			mapValuer,
+		)
+	}
+
 	return scannerCursorBase{
-		fields:  exprs,
-		m:       m,
-		columns: columns,
-		loc:     loc,
-		scan:    scan,
+		fields:       exprs,
+		m:            m,
+		columns:      columns,
+		loc:          loc,
+		needDatePart: needDatePart,
+		scan:         scan,
 		valuer: influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				MathValuer{},
-				influxql.MapValuer(m),
-			),
+			Valuer:               valuer,
 			IntegerFloatDivision: true,
 		},
 	}
 }
 
 func (cur *scannerCursorBase) Scan(row *Row) bool {
+	if cur.needDatePart {
+		// Clear date_part state from previous scan so it doesn't leak across rows.
+		delete(cur.m, DatePartDimensionsString)
+		row.GroupingKeys = nil
+	}
+
 	ts, name, tags := cur.scan(cur.m)
 	if ts == ZeroTime {
 		return false
@@ -198,11 +252,52 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		row.Values = make([]interface{}, len(cur.columns))
 	}
 
+	// Make the row timestamp available to the eval map so date_part can access it.
+	// This is set whenever the query uses date_part, because date_part may be
+	// nested inside another expression (e.g. date_part('hour', time) + 1), in
+	// which case the top-level field is not a date_part call and a per-field
+	// check would miss it, leaving time unset.
+	if cur.needDatePart {
+		cur.m[models.TimeString] = row.Time
+	}
+
+	// Resolve the active GROUP BY date_part dimension once per row instead of per
+	// field: the dimension value and its name are identical for every field, so
+	// the map lookup, type assertion, and Expr.String() only need to happen once.
+	var (
+		haveDim bool
+		dpd     DecodedDatePartKey
+		dimName string
+	)
+	if cur.needDatePart {
+		if val, ok := cur.m[DatePartDimensionsString]; ok && val != nil {
+			if d, ok := val.(DecodedDatePartKey); ok {
+				haveDim = true
+				dpd = d
+				dimName = d.Expr.String()
+				if row.GroupingKeys == nil {
+					row.GroupingKeys = make(map[string]struct{})
+				}
+				row.GroupingKeys[dimName] = struct{}{}
+			}
+		}
+	}
+
 	for i, expr := range cur.fields {
 		// A special case if the field is time to reduce memory allocations.
-		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == "time" {
+		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == models.TimeString {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
+		}
+		// Only set the column value from the grouped dimension if this field is the
+		// dimension VarRef. Explicit date_part(...) calls — top-level or nested in a
+		// larger expression — are resolved by DatePartValuer.Call against the active
+		// grouped key during Eval below, so they need no special handling here.
+		if haveDim {
+			if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == dimName {
+				row.Values[i] = dpd.Val
+				continue
+			}
 		}
 		v := cur.valuer.Eval(expr)
 		if fv, ok := v.(float64); ok && math.IsNaN(fv) {
@@ -235,7 +330,7 @@ type scannerCursor struct {
 
 func newScannerCursor(s IteratorScanner, fields []*influxql.Field, opt IteratorOptions) *scannerCursor {
 	cur := &scannerCursor{scanner: s}
-	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location)
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location, scannerCursorNeedsDatePart(fields, opt))
 	return cur
 }
 
@@ -278,7 +373,7 @@ func newMultiScannerCursor(scanners []IteratorScanner, fields []*influxql.Field,
 		scanners:  scanners,
 		ascending: opt.Ascending,
 	}
-	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location)
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location, scannerCursorNeedsDatePart(fields, opt))
 	return cur
 }
 

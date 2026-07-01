@@ -52,6 +52,13 @@ message IteratorOptions {
     optional bool        Dedupe     = 16;
     optional int64       MaxSeriesN = 18;
     optional bool        Ordered    = 20;
+    repeated DatePartDimension DatePartDimensions = 23;
+    optional bool        NeedTimeRef = 24;
+}
+
+message DatePartDimension {
+    optional string Name = 1;
+    optional int32  Expr = 2;
 }
 
 message Measurements {

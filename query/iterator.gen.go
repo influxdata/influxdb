@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"google.golang.org/protobuf/proto"
 )
@@ -556,6 +557,11 @@ func (s *floatIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[st
 		switch v.(type) {
 		case float64, int64, uint64, string, bool:
 			m[k.Val] = v
+		case DecodedDatePartKey:
+			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -1038,10 +1044,11 @@ func (itr *floatReduceFloatIterator) Next() (*FloatPoint, error) {
 
 // floatReduceFloatPoint stores the reduced data for a name/tag combination.
 type floatReduceFloatPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator FloatPointAggregator
-	Emitter    FloatPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  FloatPointAggregator
+	Emitter     FloatPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -1100,19 +1107,44 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceFloatPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &floatReduceFloatPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateFloat(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -1148,6 +1180,50 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -1326,10 +1402,11 @@ func (itr *floatReduceIntegerIterator) Next() (*IntegerPoint, error) {
 
 // floatReduceIntegerPoint stores the reduced data for a name/tag combination.
 type floatReduceIntegerPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator FloatPointAggregator
-	Emitter    IntegerPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  FloatPointAggregator
+	Emitter     IntegerPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -1388,19 +1465,44 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceIntegerPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &floatReduceIntegerPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateFloat(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -1436,6 +1538,50 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -1614,10 +1760,11 @@ func (itr *floatReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
 
 // floatReduceUnsignedPoint stores the reduced data for a name/tag combination.
 type floatReduceUnsignedPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator FloatPointAggregator
-	Emitter    UnsignedPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  FloatPointAggregator
+	Emitter     UnsignedPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -1676,19 +1823,44 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceUnsignedPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &floatReduceUnsignedPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateFloat(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -1724,6 +1896,50 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -1902,10 +2118,11 @@ func (itr *floatReduceStringIterator) Next() (*StringPoint, error) {
 
 // floatReduceStringPoint stores the reduced data for a name/tag combination.
 type floatReduceStringPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator FloatPointAggregator
-	Emitter    StringPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  FloatPointAggregator
+	Emitter     StringPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -1964,19 +2181,44 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceStringPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &floatReduceStringPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateFloat(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -2012,6 +2254,50 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -2190,10 +2476,11 @@ func (itr *floatReduceBooleanIterator) Next() (*BooleanPoint, error) {
 
 // floatReduceBooleanPoint stores the reduced data for a name/tag combination.
 type floatReduceBooleanPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator FloatPointAggregator
-	Emitter    BooleanPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  FloatPointAggregator
+	Emitter     BooleanPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -2252,19 +2539,44 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &floatReduceBooleanPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &floatReduceBooleanPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateFloat(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &floatReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateFloat(curr)
 		}
-		rp.Aggregator.AggregateFloat(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -2300,6 +2612,50 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -2515,7 +2871,7 @@ func newFloatFilterIterator(input FloatIterator, cond influxql.Expr, opt Iterato
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -3220,6 +3576,11 @@ func (s *integerIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[
 		switch v.(type) {
 		case float64, int64, uint64, string, bool:
 			m[k.Val] = v
+		case DecodedDatePartKey:
+			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -3702,10 +4063,11 @@ func (itr *integerReduceFloatIterator) Next() (*FloatPoint, error) {
 
 // integerReduceFloatPoint stores the reduced data for a name/tag combination.
 type integerReduceFloatPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator IntegerPointAggregator
-	Emitter    FloatPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  IntegerPointAggregator
+	Emitter     FloatPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -3764,19 +4126,44 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceFloatPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &integerReduceFloatPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateInteger(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -3812,6 +4199,50 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -3990,10 +4421,11 @@ func (itr *integerReduceIntegerIterator) Next() (*IntegerPoint, error) {
 
 // integerReduceIntegerPoint stores the reduced data for a name/tag combination.
 type integerReduceIntegerPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator IntegerPointAggregator
-	Emitter    IntegerPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  IntegerPointAggregator
+	Emitter     IntegerPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -4052,19 +4484,44 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceIntegerPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &integerReduceIntegerPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateInteger(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -4100,6 +4557,50 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -4278,10 +4779,11 @@ func (itr *integerReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
 
 // integerReduceUnsignedPoint stores the reduced data for a name/tag combination.
 type integerReduceUnsignedPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator IntegerPointAggregator
-	Emitter    UnsignedPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  IntegerPointAggregator
+	Emitter     UnsignedPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -4340,19 +4842,44 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceUnsignedPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &integerReduceUnsignedPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateInteger(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -4388,6 +4915,50 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -4566,10 +5137,11 @@ func (itr *integerReduceStringIterator) Next() (*StringPoint, error) {
 
 // integerReduceStringPoint stores the reduced data for a name/tag combination.
 type integerReduceStringPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator IntegerPointAggregator
-	Emitter    StringPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  IntegerPointAggregator
+	Emitter     StringPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -4628,19 +5200,44 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceStringPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &integerReduceStringPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateInteger(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -4676,6 +5273,50 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -4854,10 +5495,11 @@ func (itr *integerReduceBooleanIterator) Next() (*BooleanPoint, error) {
 
 // integerReduceBooleanPoint stores the reduced data for a name/tag combination.
 type integerReduceBooleanPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator IntegerPointAggregator
-	Emitter    BooleanPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  IntegerPointAggregator
+	Emitter     BooleanPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -4916,19 +5558,44 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &integerReduceBooleanPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &integerReduceBooleanPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateInteger(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &integerReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateInteger(curr)
 		}
-		rp.Aggregator.AggregateInteger(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -4964,6 +5631,50 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -5179,7 +5890,7 @@ func newIntegerFilterIterator(input IntegerIterator, cond influxql.Expr, opt Ite
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -5884,6 +6595,11 @@ func (s *unsignedIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map
 		switch v.(type) {
 		case float64, int64, uint64, string, bool:
 			m[k.Val] = v
+		case DecodedDatePartKey:
+			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -6366,10 +7082,11 @@ func (itr *unsignedReduceFloatIterator) Next() (*FloatPoint, error) {
 
 // unsignedReduceFloatPoint stores the reduced data for a name/tag combination.
 type unsignedReduceFloatPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator UnsignedPointAggregator
-	Emitter    FloatPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  UnsignedPointAggregator
+	Emitter     FloatPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -6428,19 +7145,44 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceFloatPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &unsignedReduceFloatPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateUnsigned(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -6476,6 +7218,50 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -6654,10 +7440,11 @@ func (itr *unsignedReduceIntegerIterator) Next() (*IntegerPoint, error) {
 
 // unsignedReduceIntegerPoint stores the reduced data for a name/tag combination.
 type unsignedReduceIntegerPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator UnsignedPointAggregator
-	Emitter    IntegerPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  UnsignedPointAggregator
+	Emitter     IntegerPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -6716,19 +7503,44 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceIntegerPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &unsignedReduceIntegerPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateUnsigned(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -6764,6 +7576,50 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -6942,10 +7798,11 @@ func (itr *unsignedReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
 
 // unsignedReduceUnsignedPoint stores the reduced data for a name/tag combination.
 type unsignedReduceUnsignedPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator UnsignedPointAggregator
-	Emitter    UnsignedPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  UnsignedPointAggregator
+	Emitter     UnsignedPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -7004,19 +7861,44 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceUnsignedPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &unsignedReduceUnsignedPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateUnsigned(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -7052,6 +7934,50 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -7230,10 +8156,11 @@ func (itr *unsignedReduceStringIterator) Next() (*StringPoint, error) {
 
 // unsignedReduceStringPoint stores the reduced data for a name/tag combination.
 type unsignedReduceStringPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator UnsignedPointAggregator
-	Emitter    StringPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  UnsignedPointAggregator
+	Emitter     StringPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -7292,19 +8219,44 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceStringPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &unsignedReduceStringPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateUnsigned(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -7340,6 +8292,50 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -7518,10 +8514,11 @@ func (itr *unsignedReduceBooleanIterator) Next() (*BooleanPoint, error) {
 
 // unsignedReduceBooleanPoint stores the reduced data for a name/tag combination.
 type unsignedReduceBooleanPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator UnsignedPointAggregator
-	Emitter    BooleanPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  UnsignedPointAggregator
+	Emitter     BooleanPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -7580,19 +8577,44 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &unsignedReduceBooleanPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &unsignedReduceBooleanPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateUnsigned(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &unsignedReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateUnsigned(curr)
 		}
-		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -7628,6 +8650,50 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -7843,7 +8909,7 @@ func newUnsignedFilterIterator(input UnsignedIterator, cond influxql.Expr, opt I
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -8548,6 +9614,11 @@ func (s *stringIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[s
 		switch v.(type) {
 		case float64, int64, uint64, string, bool:
 			m[k.Val] = v
+		case DecodedDatePartKey:
+			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -9016,10 +10087,11 @@ func (itr *stringReduceFloatIterator) Next() (*FloatPoint, error) {
 
 // stringReduceFloatPoint stores the reduced data for a name/tag combination.
 type stringReduceFloatPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator StringPointAggregator
-	Emitter    FloatPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  StringPointAggregator
+	Emitter     FloatPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -9078,19 +10150,44 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceFloatPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &stringReduceFloatPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateString(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -9126,6 +10223,50 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -9304,10 +10445,11 @@ func (itr *stringReduceIntegerIterator) Next() (*IntegerPoint, error) {
 
 // stringReduceIntegerPoint stores the reduced data for a name/tag combination.
 type stringReduceIntegerPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator StringPointAggregator
-	Emitter    IntegerPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  StringPointAggregator
+	Emitter     IntegerPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -9366,19 +10508,44 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceIntegerPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &stringReduceIntegerPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateString(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -9414,6 +10581,50 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -9592,10 +10803,11 @@ func (itr *stringReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
 
 // stringReduceUnsignedPoint stores the reduced data for a name/tag combination.
 type stringReduceUnsignedPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator StringPointAggregator
-	Emitter    UnsignedPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  StringPointAggregator
+	Emitter     UnsignedPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -9654,19 +10866,44 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceUnsignedPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &stringReduceUnsignedPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateString(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -9702,6 +10939,50 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -9880,10 +11161,11 @@ func (itr *stringReduceStringIterator) Next() (*StringPoint, error) {
 
 // stringReduceStringPoint stores the reduced data for a name/tag combination.
 type stringReduceStringPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator StringPointAggregator
-	Emitter    StringPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  StringPointAggregator
+	Emitter     StringPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -9942,19 +11224,44 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceStringPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &stringReduceStringPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateString(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -9990,6 +11297,50 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -10168,10 +11519,11 @@ func (itr *stringReduceBooleanIterator) Next() (*BooleanPoint, error) {
 
 // stringReduceBooleanPoint stores the reduced data for a name/tag combination.
 type stringReduceBooleanPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator StringPointAggregator
-	Emitter    BooleanPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  StringPointAggregator
+	Emitter     BooleanPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -10230,19 +11582,44 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &stringReduceBooleanPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &stringReduceBooleanPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateString(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &stringReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateString(curr)
 		}
-		rp.Aggregator.AggregateString(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -10278,6 +11655,50 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -10493,7 +11914,7 @@ func newStringFilterIterator(input StringIterator, cond influxql.Expr, opt Itera
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}
@@ -11198,6 +12619,11 @@ func (s *booleanIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[
 		switch v.(type) {
 		case float64, int64, uint64, string, bool:
 			m[k.Val] = v
+		case DecodedDatePartKey:
+			m[DatePartDimensionsString] = v
+			// Clear any stale raw value under this dimension's own key so a prior
+			// row's value can't persist (the active value is carried via the key above).
+			delete(m, k.Val)
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
@@ -11666,10 +13092,11 @@ func (itr *booleanReduceFloatIterator) Next() (*FloatPoint, error) {
 
 // booleanReduceFloatPoint stores the reduced data for a name/tag combination.
 type booleanReduceFloatPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator BooleanPointAggregator
-	Emitter    FloatPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  BooleanPointAggregator
+	Emitter     FloatPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -11728,19 +13155,44 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceFloatPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &booleanReduceFloatPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateBoolean(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceFloatPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -11776,6 +13228,50 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -11954,10 +13450,11 @@ func (itr *booleanReduceIntegerIterator) Next() (*IntegerPoint, error) {
 
 // booleanReduceIntegerPoint stores the reduced data for a name/tag combination.
 type booleanReduceIntegerPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator BooleanPointAggregator
-	Emitter    IntegerPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  BooleanPointAggregator
+	Emitter     IntegerPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -12016,19 +13513,44 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceIntegerPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &booleanReduceIntegerPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateBoolean(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceIntegerPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -12064,6 +13586,50 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -12242,10 +13808,11 @@ func (itr *booleanReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
 
 // booleanReduceUnsignedPoint stores the reduced data for a name/tag combination.
 type booleanReduceUnsignedPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator BooleanPointAggregator
-	Emitter    UnsignedPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  BooleanPointAggregator
+	Emitter     UnsignedPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -12304,19 +13871,44 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceUnsignedPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &booleanReduceUnsignedPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateBoolean(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceUnsignedPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -12352,6 +13944,50 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -12530,10 +14166,11 @@ func (itr *booleanReduceStringIterator) Next() (*StringPoint, error) {
 
 // booleanReduceStringPoint stores the reduced data for a name/tag combination.
 type booleanReduceStringPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator BooleanPointAggregator
-	Emitter    StringPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  BooleanPointAggregator
+	Emitter     StringPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -12592,19 +14229,44 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceStringPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &booleanReduceStringPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateBoolean(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceStringPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -12640,6 +14302,50 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -12818,10 +14524,11 @@ func (itr *booleanReduceBooleanIterator) Next() (*BooleanPoint, error) {
 
 // booleanReduceBooleanPoint stores the reduced data for a name/tag combination.
 type booleanReduceBooleanPoint struct {
-	Name       string
-	Tags       Tags
-	Aggregator BooleanPointAggregator
-	Emitter    BooleanPointEmitter
+	Name        string
+	Tags        Tags
+	GroupingKey string
+	Aggregator  BooleanPointAggregator
+	Emitter     BooleanPointEmitter
 }
 
 // reduce executes fn once for every point in the next window.
@@ -12880,19 +14587,44 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		tags := curr.Tags.Subset(itr.dims)
 		id := tags.ID()
 
-		// Retrieve the aggregator for this name/tag combination or create one.
-		rp := m[id]
-		if rp == nil {
-			aggregator, emitter := itr.create()
-			rp = &booleanReduceBooleanPoint{
-				Name:       curr.Name,
-				Tags:       tags,
-				Aggregator: aggregator,
-				Emitter:    emitter,
+		// Check to see if we have any GROUP BY dimensions that are not tags or time.
+		// If we have group-by key entries, create separate iterators for them.
+		// Otherwise, proceed as normal and create an iterator keyed by the tag ID.
+		if itr.opt.DimensionGrouper != nil && len(curr.Aux) > 0 {
+			entries, err := itr.opt.DimensionGrouper.ResolveKeys(curr.Aux, id, len(itr.dims) > 0)
+			if err != nil {
+				return nil, err
 			}
-			m[id] = rp
+
+			for _, entry := range entries {
+				rp := m[entry.DimKey]
+				if rp == nil {
+					aggregator, emitter := itr.create()
+					rp = &booleanReduceBooleanPoint{
+						Name:        curr.Name,
+						Tags:        tags,
+						GroupingKey: entry.EncodedKey,
+						Aggregator:  aggregator,
+						Emitter:     emitter,
+					}
+					m[entry.DimKey] = rp
+				}
+				rp.Aggregator.AggregateBoolean(curr)
+			}
+		} else {
+			rp := m[id]
+			if rp == nil {
+				aggregator, emitter := itr.create()
+				rp = &booleanReduceBooleanPoint{
+					Name:       curr.Name,
+					Tags:       tags,
+					Aggregator: aggregator,
+					Emitter:    emitter,
+				}
+				m[id] = rp
+			}
+			rp.Aggregator.AggregateBoolean(curr)
 		}
-		rp.Aggregator.AggregateBoolean(curr)
 	}
 
 	keys := make([]string, 0, len(m))
@@ -12928,6 +14660,50 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			} else {
 				sortedByTime = false
 			}
+
+			if itr.opt.DimensionGrouper != nil && rp.GroupingKey != "" {
+				dpVal, err := itr.opt.DimensionGrouper.DecodeEntry(rp.GroupingKey)
+				if err != nil {
+					return nil, err
+				}
+				// The emitted point must carry an Aux slot for every scanner aux
+				// key (len(itr.opt.Aux)). IteratorScanner.ScanAt ranges over the
+				// point's Aux, so a slice shorter than the key set leaves the
+				// trailing keys unvisited and the eval map retains stale values
+				// from a prior row, wrongly populating non-active date_part
+				// dimension columns. Selector functions (MIN, MAX, FIRST, LAST)
+				// already return a full-width Aux via cloneAux; aggregate
+				// functions (COUNT, SUM, MEAN) return an empty Aux, so grow it to
+				// full width here. (Keep any longer Aux as-is.)
+				width := len(itr.opt.Aux)
+				if width < len(points[i].Aux) {
+					width = len(points[i].Aux)
+				}
+				if width < 1 {
+					width = 1
+				}
+				if len(points[i].Aux) < width {
+					aux := make([]interface{}, width)
+					copy(aux, points[i].Aux)
+					points[i].Aux = aux
+				}
+				// Only the active dimension is meaningful for this series, so null
+				// every date_part dimension slot (leaving non-active dimension
+				// columns null) and carry the active value as a DecodedDatePartKey
+				// in the last slot, which the scanner routes to the correct column
+				// by name. A stable, full-width slot ensures every key is visited
+				// and cleared on each scan.
+				n := len(points[i].Aux)
+				base := n - len(itr.opt.DatePartDimensions)
+				if base < 0 {
+					base = 0
+				}
+				for j := base; j < n; j++ {
+					points[i].Aux[j] = nil
+				}
+				points[i].Aux[n-1] = dpVal
+			}
+
 			a = append(a, points[i])
 		}
 	}
@@ -13143,7 +14919,7 @@ func newBooleanFilterIterator(input BooleanIterator, cond influxql.Expr, opt Ite
 	n := influxql.RewriteFunc(influxql.CloneExpr(cond), func(n influxql.Node) influxql.Node {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			if n.LHS.String() == "time" {
+			if n.LHS.String() == models.TimeString {
 				return &influxql.BooleanLiteral{Val: true}
 			}
 		}

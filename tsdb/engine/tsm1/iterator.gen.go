@@ -11,7 +11,9 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/pkg/tracing/fields"
@@ -190,6 +192,8 @@ type floatIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.FloatPoint       // reusable buffer
 
@@ -214,21 +218,44 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	}
 	itr.stats = itr.statsBuf
 
+	// Use the cached NeedTimeRef from IteratorOptions
+	itr.timeRefMap = opt.NeedTimeRef
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -277,9 +304,32 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Set a reference "time" for the timestamp associated with the iterator.
+		// We need access to time for functions that operate on the `time` VarRef.
+		if itr.timeRefMap {
+			itr.m[models.TimeString] = seek
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -670,6 +720,8 @@ type integerIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.IntegerPoint     // reusable buffer
 
@@ -694,21 +746,44 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	}
 	itr.stats = itr.statsBuf
 
+	// Use the cached NeedTimeRef from IteratorOptions
+	itr.timeRefMap = opt.NeedTimeRef
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -757,9 +832,32 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Set a reference "time" for the timestamp associated with the iterator.
+		// We need access to time for functions that operate on the `time` VarRef.
+		if itr.timeRefMap {
+			itr.m[models.TimeString] = seek
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -1150,6 +1248,8 @@ type unsignedIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.UnsignedPoint    // reusable buffer
 
@@ -1174,21 +1274,44 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	}
 	itr.stats = itr.statsBuf
 
+	// Use the cached NeedTimeRef from IteratorOptions
+	itr.timeRefMap = opt.NeedTimeRef
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -1237,9 +1360,32 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Set a reference "time" for the timestamp associated with the iterator.
+		// We need access to time for functions that operate on the `time` VarRef.
+		if itr.timeRefMap {
+			itr.m[models.TimeString] = seek
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -1630,6 +1776,8 @@ type stringIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.StringPoint      // reusable buffer
 
@@ -1654,21 +1802,44 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	}
 	itr.stats = itr.statsBuf
 
+	// Use the cached NeedTimeRef from IteratorOptions
+	itr.timeRefMap = opt.NeedTimeRef
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -1717,9 +1888,32 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Set a reference "time" for the timestamp associated with the iterator.
+		// We need access to time for functions that operate on the `time` VarRef.
+		if itr.timeRefMap {
+			itr.m[models.TimeString] = seek
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
@@ -2110,6 +2304,8 @@ type booleanIterator struct {
 	}
 	opt query.IteratorOptions
 
+	timeRefMap bool // should we map time to our condition evaluation map
+
 	m     map[string]interface{} // map used for condition evaluation
 	point query.BooleanPoint     // reusable buffer
 
@@ -2134,21 +2330,44 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	}
 	itr.stats = itr.statsBuf
 
+	// Use the cached NeedTimeRef from IteratorOptions
+	itr.timeRefMap = opt.NeedTimeRef
+
 	if len(aux) > 0 {
 		itr.point.Aux = make([]interface{}, len(aux))
 	}
 
-	if opt.Condition != nil {
+	// Allocate the condition-evaluation map when there is a condition to evaluate or
+	// when we need to expose a "time" reference (opt.NeedTimeRef). The latter is
+	// normally implied by a condition, but the two fields are encoded independently
+	// over the iterator wire codec, so a NeedTimeRef=true / Condition=nil options
+	// struct must not nil-map-panic on the time-ref write in Next.
+	if opt.Condition != nil || opt.NeedTimeRef {
 		itr.m = make(map[string]interface{}, len(aux)+len(conds))
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
 
-	itr.valuer = influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			query.MathValuer{},
-			influxql.MapValuer(itr.m),
-		),
+	// Only wire DatePartValuer into the condition-evaluation chain when the
+	// condition actually uses date_part (opt.NeedTimeRef). Otherwise skip the extra
+	// valuer indirection that would otherwise cost an interface call per VarRef/Call
+	// lookup on every scanned point of every WHERE-filtered query. Mirrors the
+	// scanner cursor gating in query/cursor.go (newScannerCursorBase).
+	if opt.NeedTimeRef {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				query.DatePartValuer{Location: opt.Location},
+				influxql.MapValuer(itr.m),
+			),
+		}
+	} else {
+		itr.valuer = influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				query.MathValuer{},
+				influxql.MapValuer(itr.m),
+			),
+		}
 	}
 
 	return itr
@@ -2197,9 +2416,32 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
 		}
 
+		// Set a reference "time" for the timestamp associated with the iterator.
+		// We need access to time for functions that operate on the `time` VarRef.
+		if itr.timeRefMap {
+			itr.m[models.TimeString] = seek
+		}
+
 		// Evaluate condition, if one exists. Retry if it fails.
 		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
+		}
+
+		// Compute date part dimension values in-place, only for points that pass
+		// the condition (the extraction is wasted on filtered points). The
+		// date_part dims occupy the last N slots of opt.Aux (added by select.go),
+		// so we overwrite the nil values left by the phantom aux cursors rather
+		// than appending, keeping Aux length consistent with scanner keys.
+		if len(itr.opt.DatePartDimensions) > 0 {
+			baseIdx := len(itr.opt.Aux) - len(itr.opt.DatePartDimensions)
+			t := time.Unix(0, seek).In(query.LocationOrUTC(itr.opt.Location))
+			for i, dim := range itr.opt.DatePartDimensions {
+				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
+				if !ok {
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+				}
+				itr.point.Aux[baseIdx+i] = val
+			}
 		}
 
 		// Track points returned.
