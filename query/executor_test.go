@@ -321,7 +321,8 @@ func TestQueryExecutor_Abort(t *testing.T) {
 
 func TestQueryExecutor_ShowQueries(t *testing.T) {
 	const testUser = "Fred"
-	const userColumn = 5
+	// Column layout is queryFieldNames: host, qid, query, database, duration, status, user.
+	const userColumn = 6
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
@@ -347,9 +348,9 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 	} else if len(result.Series[0].Values) != 1 {
 		t.Errorf("expected %d row, got %d", 1, len(result.Series[0].Values))
 	} else if result.Series[0].Values[0][userColumn] != testUser {
-		t.Errorf("unexpected user: %s", result.Series[0].Values[0][0])
+		t.Errorf("unexpected user: %s", result.Series[0].Values[0][userColumn])
 	} else if result.Series[0].Columns[userColumn] != "user" {
-		t.Errorf("unexpected column: %s", result.Series[0].Columns[5])
+		t.Errorf("unexpected column: %s", result.Series[0].Columns[userColumn])
 	}
 	if result.Err != nil {
 		t.Errorf("unexpected error: %s", result.Err)
@@ -362,7 +363,8 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 // databases they have read access to, while an admin should see all queries.
 func TestQueryExecutor_ShowQueries_NonAdminFiltering(t *testing.T) {
 	const (
-		dbColumn     = 2
+		// Column layout is queryFieldNames: host, qid, query, database, duration, status, user.
+		dbColumn     = 3
 		allowedDB    = "mydb"
 		forbiddenDB  = "secretdb"
 		nonAdminUser = "bar"

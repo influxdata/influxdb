@@ -86,15 +86,7 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 
 	username := parseUsername(r)
 
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-
-	if xff := r.Header["X-Forwarded-For"]; xff != nil {
-		addrs := append(xff, host)
-		host = strings.Join(addrs, ",")
-	}
+	host := PrintableRemoteAddr(r)
 
 	uri := r.URL.RequestURI()
 
@@ -152,6 +144,19 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 			// with apache's %D parameter in mod_log_config
 			int64(time.Since(start)/time.Microsecond))
 	}
+}
+
+func PrintableRemoteAddr(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+
+	if xff := r.Header["X-Forwarded-For"]; xff != nil {
+		addrs := append(xff, host)
+		host = strings.Join(addrs, ",")
+	}
+	return host
 }
 
 // detect detects the first presence of a non blank string and returns it
