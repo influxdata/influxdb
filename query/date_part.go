@@ -284,6 +284,104 @@ func (v DatePartValuer) Call(name string, args []interface{}) (interface{}, bool
 	return ExtractDatePartExpr(timestamp, expr)
 }
 
+// datePartCondKeyPrefix prefixes the reserved eval-map keys written by
+// DatePartCondition.SetTime. The NUL byte keeps the names out of the space of
+// real field and tag names, following DatePartDimensionsString.
+const datePartCondKeyPrefix = "\x00date_part:"
+
+type datePartCondPart struct {
+	part DatePartExpr
+	name string
+
+	// Boxing cache: the extracted value is converted to interface{} only when
+	// it changes between points, so repeated scans of the same hour/day/year
+	// reuse the previous boxed value instead of allocating.
+	lastVal   int64
+	lastBoxed interface{}
+}
+
+// DatePartCondition evaluates date_part references in a condition without
+// per-point function-call evaluation. It rewrites each date_part call to a
+// reserved variable reference once at construction; SetTime then extracts the
+// referenced parts from a point's timestamp and publishes them to the
+// condition-evaluation map. A DatePartCondition carries per-point state and
+// must not be shared between concurrently scanning iterators.
+type DatePartCondition struct {
+	expr  influxql.Expr
+	parts []datePartCondPart
+	loc   *time.Location
+}
+
+// NewDatePartCondition returns a DatePartCondition for cond, or nil when cond
+// is nil or contains no date_part call. cond itself is never modified; the
+// rewrite operates on a clone.
+func NewDatePartCondition(cond influxql.Expr, loc *time.Location) *DatePartCondition {
+	if cond == nil {
+		return nil
+	}
+	c := &DatePartCondition{loc: loc}
+	rewritten := influxql.RewriteExpr(influxql.CloneExpr(cond), func(e influxql.Expr) influxql.Expr {
+		call, ok := e.(*influxql.Call)
+		if !ok || call.Name != DatePartString || len(call.Args) != DatePartArgCount {
+			return e
+		}
+		lit, ok := call.Args[0].(*influxql.StringLiteral)
+		if !ok {
+			return e
+		}
+		ref, ok := call.Args[1].(*influxql.VarRef)
+		if !ok || ref.Val != models.TimeString {
+			return e
+		}
+		part, ok := ParseDatePartExpr(lit.Val)
+		if !ok {
+			return e
+		}
+		return &influxql.VarRef{Val: c.varName(part)}
+	})
+	if len(c.parts) == 0 {
+		return nil
+	}
+	c.expr = rewritten
+	return c
+}
+
+// varName returns the reserved variable name for part, registering it on
+// first use so SetTime knows which parts to extract.
+func (c *DatePartCondition) varName(part DatePartExpr) string {
+	for i := range c.parts {
+		if c.parts[i].part == part {
+			return c.parts[i].name
+		}
+	}
+	name := datePartCondKeyPrefix + part.String()
+	c.parts = append(c.parts, datePartCondPart{part: part, name: name})
+	return name
+}
+
+// Expr returns the rewritten condition. Every date_part call has been replaced
+// by a reserved variable reference resolved through SetTime.
+func (c *DatePartCondition) Expr() influxql.Expr { return c.expr }
+
+// SetTime extracts each date_part referenced by the condition from ts and
+// stores the values in m under the reserved names.
+func (c *DatePartCondition) SetTime(ts int64, m map[string]interface{}) {
+	t := time.Unix(0, ts).In(LocationOrUTC(c.loc))
+	for i := range c.parts {
+		p := &c.parts[i]
+		v, ok := ExtractDatePartExpr(t, p.part)
+		if !ok {
+			m[p.name] = nil
+			continue
+		}
+		if p.lastBoxed == nil || v != p.lastVal {
+			p.lastVal = v
+			p.lastBoxed = v
+		}
+		m[p.name] = p.lastBoxed
+	}
+}
+
 type DatePartDimension struct {
 	Name string
 	Expr DatePartExpr

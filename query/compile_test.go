@@ -136,6 +136,10 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT count(value) FROM (SELECT value FROM cpu) GROUP BY date_part('year', time)`,
 		// CQ-shaped: aggregate over a subquery, grouped by date_part, written via INTO
 		`SELECT mean(value) INTO target FROM (SELECT value FROM cpu) GROUP BY date_part('hour', time)`,
+		// date_part in a WHERE condition over a subquery source (now supported: filterCursor resolves date_part at execution time)
+		`SELECT value FROM (SELECT value FROM cpu) WHERE date_part('dow', time) = 0`,
+		`SELECT mean(value) FROM (SELECT value FROM cpu) WHERE date_part('dow', time) != 0 AND date_part('dow', time) != 6`,
+		`SELECT mean(value) FROM (SELECT value FROM cpu) WHERE date_part('hour', time) >= 9 GROUP BY date_part('dow', time)`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)
@@ -165,11 +169,6 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT date_part('year', time) FROM cpu`, err: query.ErrAtLeastOneNonTimeField.Error()},
 		{s: `SELECT date_part('dow', time), date_part('month', time) FROM cpu`, err: query.ErrAtLeastOneNonTimeField.Error()},
 		{s: `SELECT date_part('hour', time) + 1 FROM cpu`, err: query.ErrAtLeastOneNonTimeField.Error()},
-		// date_part in a WHERE condition over a subquery source is not supported: the
-		// subquery filter is evaluated with a plain map valuer that does not populate
-		// time or resolve date_part, so the predicate would silently drop every row.
-		{s: `SELECT value FROM (SELECT value FROM cpu) WHERE date_part('dow', time) = 0`, err: query.ErrDatePartSubqueryCondition.Error()},
-		{s: `SELECT mean(value) FROM (SELECT value FROM cpu) WHERE date_part('dow', time) != 0 AND date_part('dow', time) != 6`, err: query.ErrDatePartSubqueryCondition.Error()},
 		{s: `SELECT value, mean(value) FROM cpu`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `SELECT value, max(value), min(value) FROM cpu`, err: query.ErrMixedMultipleSelectors.Error()},
 		{s: `SELECT top(value, 10), max(value) FROM cpu`, err: `selector function top() cannot be combined with other functions`},

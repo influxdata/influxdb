@@ -231,8 +231,10 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 func (cur *scannerCursorBase) Scan(row *Row) bool {
 	if cur.needDatePart {
 		// Clear date_part state from previous scan so it doesn't leak across rows.
+		// The map is cleared rather than set to nil so callers that reuse the Row
+		// across scans keep the allocation.
 		delete(cur.m, DatePartDimensionsString)
-		row.GroupingKeys = nil
+		clear(row.GroupingKeys)
 	}
 
 	ts, name, tags := cur.scan(cur.m)
@@ -276,7 +278,8 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 				dpd = d
 				dimName = d.Expr.String()
 				if row.GroupingKeys == nil {
-					row.GroupingKeys = make(map[string]struct{})
+					// A scan inserts only the active dimension, so one slot suffices.
+					row.GroupingKeys = make(map[string]struct{}, 1)
 				}
 				row.GroupingKeys[dimName] = struct{}{}
 			}
@@ -448,11 +451,14 @@ type filterCursor struct {
 	// we need and will exclude the ones we do not.
 	fields map[string]IteratorMap
 	filter influxql.Expr
+	// dpCond is non-nil when the filter uses date_part; it owns the rewritten
+	// filter and publishes per-row part values into m via SetTime.
+	dpCond *DatePartCondition
 	m      map[string]interface{}
 	valuer influxql.ValuerEval
 }
 
-func newFilterCursor(cur Cursor, filter influxql.Expr) *filterCursor {
+func newFilterCursor(cur Cursor, filter influxql.Expr, loc *time.Location) *filterCursor {
 	fields := make(map[string]IteratorMap)
 	for _, name := range influxql.ExprNames(filter) {
 		for i, col := range cur.Columns() {
@@ -473,11 +479,23 @@ func newFilterCursor(cur Cursor, filter influxql.Expr) *filterCursor {
 			fields[name.Val] = TagMap(name.Val)
 		}
 	}
+	// When the filter uses date_part, rewrite it once so no function call is
+	// evaluated per row: date_part calls become reserved variable references
+	// resolved by dpCond.SetTime in Scan. Filters without date_part are
+	// untouched.
+	var dpCond *DatePartCondition
+	if conditionNeedsTimeRef(filter) {
+		if dp := NewDatePartCondition(filter, loc); dp != nil {
+			dpCond = dp
+			filter = dp.Expr()
+		}
+	}
 	m := make(map[string]interface{})
 	return &filterCursor{
 		Cursor: cur,
 		fields: fields,
 		filter: filter,
+		dpCond: dpCond,
 		m:      m,
 		valuer: influxql.ValuerEval{Valuer: influxql.MapValuer(m)},
 	}
@@ -488,6 +506,9 @@ func (cur *filterCursor) Scan(row *Row) bool {
 		// Use the field mappings to prepare the map for the valuer.
 		for name, f := range cur.fields {
 			cur.m[name] = f.Value(row)
+		}
+		if cur.dpCond != nil {
+			cur.dpCond.SetTime(row.Time, cur.m)
 		}
 
 		if cur.valuer.EvalBool(cur.filter) {

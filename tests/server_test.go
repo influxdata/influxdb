@@ -9336,6 +9336,82 @@ func TestServer_Query_DatePart_Subquery_GroupBy(t *testing.T) {
 	}
 }
 
+func TestServer_Query_DatePart_Subquery_Where(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "2023-01-01T01:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=2 %d`, mustParseTime(time.RFC3339Nano, "2023-01-02T01:30:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=3 %d`, mustParseTime(time.RFC3339Nano, "2023-01-03T05:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=4 %d`, mustParseTime(time.RFC3339Nano, "2023-01-04T05:45:00Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries(
+		&Query{
+			name:    `raw subquery WHERE hour`,
+			command: `SELECT value FROM (SELECT value FROM db0.rp0.cpu) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' AND date_part('hour', time) = 5`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","columns":["time","value"],"values":[` +
+				`["2023-01-03T05:00:00Z",3],` +
+				`["2023-01-04T05:45:00Z",4]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `aggregate subquery WHERE dow`,
+			command: `SELECT COUNT(value) FROM (SELECT value FROM db0.rp0.cpu) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' AND date_part('dow', time) = 0`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","columns":["time","count"],"values":[` +
+				`["2023-01-01T00:00:00Z",1]` + // only 2023-01-01 is a Sunday
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `raw subquery WHERE hour with tz()`,
+			command: `SELECT value FROM (SELECT value FROM db0.rp0.cpu) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' AND date_part('hour', time) = 21 tz('America/Los_Angeles')`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","columns":["time","value"],"values":[` +
+				`["2023-01-02T21:00:00-08:00",3],` + // 05:00Z = 21:00 PST previous day
+				`["2023-01-03T21:45:00-08:00",4]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `non-date_part subquery filter is unchanged`,
+			command: `SELECT value FROM (SELECT value FROM db0.rp0.cpu) WHERE time >= '2023-01-01T00:00:00Z' AND time <= '2023-01-31T23:59:59Z' AND value > 2`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","columns":["time","value"],"values":[` +
+				`["2023-01-03T05:00:00Z",3],` +
+				`["2023-01-04T05:45:00Z",4]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+	)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				require.NoError(t, test.init(s), "init error")
+				initialized = true
+			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
+		})
+	}
+}
+
 func TestServer_Query_ShowTagKeys(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())

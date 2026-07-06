@@ -33,5 +33,4 @@ var (
 	ErrDatePartFillLinear            = errDatePartFillLinear
 	ErrDatePartFillValue             = errDatePartFillValue
 	ErrDatePartFillNull              = errDatePartFillNull
-	ErrDatePartSubqueryCondition     = errDatePartSubqueryCondition
 )

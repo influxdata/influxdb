@@ -28,7 +28,7 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 
 	// Filter the cursor by a condition if one was given.
 	if opt.Condition != nil {
-		cur = newFilterCursor(cur, opt.Condition)
+		cur = newFilterCursor(cur, opt.Condition, opt.Location)
 	}
 
 	// Construct the iterators for the subquery.
@@ -126,7 +126,7 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 
 	// Filter the cursor by a condition if one was given.
 	if opt.Condition != nil {
-		cur = newFilterCursor(cur, opt.Condition)
+		cur = newFilterCursor(cur, opt.Condition, opt.Location)
 	}
 
 	// Construct the iterators for the subquery.

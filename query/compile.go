@@ -28,7 +28,6 @@ var (
 	errDatePartFillLinear            = errors.New("date_part: fill(linear) is not supported with GROUP BY date_part")
 	errDatePartFillValue             = errors.New("date_part: fill(<value>) is not supported with GROUP BY date_part")
 	errDatePartFillNull              = errors.New("date_part: fill(null) is not supported with GROUP BY time() and date_part; use fill(none)")
-	errDatePartSubqueryCondition     = errors.New("date_part: condition is not supported with a subquery source")
 )
 
 // CompileOptions are the customization options for the compiler.
@@ -1276,16 +1275,6 @@ func validateDatePartAnchor(stmt *influxql.SelectStatement) error {
 	return nil
 }
 
-// hasSubquerySource reports whether any of the given sources is a subquery.
-func hasSubquerySource(sources influxql.Sources) bool {
-	for _, source := range sources {
-		if _, ok := source.(*influxql.SubQuery); ok {
-			return true
-		}
-	}
-	return false
-}
-
 // validateCondition verifies that all elements in the condition are appropriate.
 // For example, aggregate calls don't work in the condition and should throw an
 // error as an invalid expression.
@@ -1308,14 +1297,6 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr, sources influx
 			case DatePartString:
 				if err := ValidateDatePart(expr.Args); err != nil {
 					return err
-				}
-				// date_part in a WHERE condition over a subquery source is not
-				// supported: the subquery filter is evaluated with a plain map
-				// valuer that does not populate time or resolve date_part, so the
-				// predicate would silently evaluate to null and drop every row.
-				// Reject it here rather than produce wrong results.
-				if hasSubquerySource(sources) {
-					return errDatePartSubqueryCondition
 				}
 				return nil
 			default:
