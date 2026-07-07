@@ -159,10 +159,12 @@ func PrintableRemoteAddr(r *http.Request) string {
 			host = r.RemoteAddr
 		}
 
-		if xff := r.Header["X-Forwarded-For"]; xff != nil {
+		if xff := r.Header["X-Forwarded-For"]; len(xff) > 0 {
 			addrs := make([]string, 0, len(xff)+1)
 			addrs = append(addrs, xff...)
-			addrs = append(addrs, host)
+			if host != "" {
+				addrs = append(addrs, host)
+			}
 			host = strings.Join(addrs, ",")
 		}
 	}
