@@ -11,6 +11,7 @@
 //! types as OSS crates — emitters and sink agree on one identity.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 /// Sink for system state-change events.
 pub trait SllSink: Send + Sync + Debug {
@@ -235,6 +236,30 @@ pub enum SystemEvent {
         phase: &'static str,
         error_code: &'static str,
         duration_ms: u64,
+    },
+
+    // ── replica_wal_skipped / replica_snapshot_skipped ────────────────
+    /// A replica node skipped a WAL file received from a peer ingester
+    /// because it could not be deserialized. `from_node_id` identifies
+    /// the peer whose file was skipped. Node-scoped.
+    ReplicaWalSkipped {
+        /// Peer ingester whose WAL file was skipped.
+        from_node_id: Arc<str>,
+        /// WAL file sequence number that was skipped.
+        wal_file_sequence_number: u64,
+        /// Error category code (never a full message).
+        error_code: &'static str,
+    },
+    /// A replica node skipped a snapshot received from a peer ingester
+    /// because it could not be deserialized. `from_node_id` identifies
+    /// the peer whose snapshot was skipped. Node-scoped.
+    ReplicaSnapshotSkipped {
+        /// Peer ingester whose snapshot was skipped.
+        from_node_id: Arc<str>,
+        /// Snapshot sequence number that was skipped.
+        snapshot_sequence_number: u64,
+        /// Error category code (never a full message).
+        error_code: &'static str,
     },
 }
 

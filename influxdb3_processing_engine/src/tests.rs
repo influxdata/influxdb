@@ -38,6 +38,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tempfile::NamedTempFile;
+use tokio_util::sync::CancellationToken;
 
 #[test_log::test(tokio::test)]
 async fn test_trigger_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
@@ -1642,7 +1643,7 @@ async fn setup_db_with_trigger(
                 channels.add_wal_trigger(db_id, trigger_id);
             }
             "schedule" => {
-                channels.add_schedule_trigger(db_id, trigger_id);
+                channels.add_schedule_trigger(db_id, trigger_id, CancellationToken::new());
             }
             "request" => {
                 channels.add_request_trigger(
@@ -2011,6 +2012,7 @@ mod plugin_channels_tests {
     use influxdb3_id::{DbId, TriggerId};
     use iox_http_util::Response;
     use tokio::sync::oneshot;
+    use tokio_util::sync::CancellationToken;
 
     #[tokio::test]
     async fn add_wal_trigger_is_keyed_by_id() {
@@ -2136,6 +2138,48 @@ mod plugin_channels_tests {
         assert!(
             matches!(wal_rx.recv().await, Some(WalEvent::Shutdown(_))),
             "expected WalEvent::Shutdown"
+        );
+    }
+
+    /// Stopping a scheduled trigger must cancel its per-trigger token, so an
+    /// in-flight run_async=false run is interrupted (the schedule loop races this
+    /// token in run_at_time). Without it the disable/`delete --force` hang recurs.
+    #[tokio::test]
+    async fn send_shutdown_cancels_schedule_trigger_token() {
+        let mut channels = PluginChannels::default();
+        let (db_id, trigger_id) = (DbId::new(1), TriggerId::new(1));
+        let token = CancellationToken::new();
+        let _rx = channels.add_schedule_trigger(db_id, trigger_id, token.clone());
+        assert!(!token.is_cancelled());
+
+        let shutdown_rx = channels.send_shutdown(db_id, trigger_id).await.unwrap();
+        assert!(shutdown_rx.is_some(), "expected a shutdown receiver");
+        assert!(
+            token.is_cancelled(),
+            "stopping a scheduled trigger must cancel its per-trigger token"
+        );
+    }
+
+    /// Deleting a database must also cancel its scheduled triggers' tokens — a
+    /// blocking run_async=false run would otherwise hang the database deletion the
+    /// same way it hangs a single-trigger disable/delete.
+    #[tokio::test]
+    async fn shutdown_all_for_db_cancels_schedule_trigger_token() {
+        let mut channels = PluginChannels::default();
+        let (db_id, trigger_id) = (DbId::new(1), TriggerId::new(1));
+        let token = CancellationToken::new();
+        let _rx = channels.add_schedule_trigger(db_id, trigger_id, token.clone());
+        assert!(!token.is_cancelled());
+
+        let receivers = channels.shutdown_all_for_db(db_id).await;
+        assert_eq!(
+            receivers.len(),
+            1,
+            "expected one shutdown receiver for the schedule trigger"
+        );
+        assert!(
+            token.is_cancelled(),
+            "deleting a database must cancel its schedule triggers' tokens"
         );
     }
 }
