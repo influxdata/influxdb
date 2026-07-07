@@ -17,6 +17,14 @@ ignore = [
     # there are multiple replacements at this time but there isn't
     # yet a clear choice
     "RUSTSEC-2025-0141",
+    # quick-xml < 0.41.0 two DoS advisories: unbounded namespace-declaration
+    # allocation in NsReader (0195) and quadratic-time attribute duplicate check
+    # (0194). Pulled in transitively at two versions with no upgrade path yet:
+    # object_store (latest 0.14.0) pins quick-xml ^0.40.1 and inferno (latest
+    # 0.12.6, via pprof) pins ^0.39 — neither reaches the patched 0.41.0. Remove
+    # once object_store and pprof/inferno move to quick-xml >= 0.41.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
     # rustls-webpki 0.102.8 CRL distribution point matching bug; low impact
     # (requires CA compromise). Stuck on 0.102.x via wasmtime's rustls 0.22.x
     # dep in datafusion-udf-wasm. Upstream also ignores this advisory.

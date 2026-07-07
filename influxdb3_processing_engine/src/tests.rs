@@ -33,6 +33,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tempfile::NamedTempFile;
+use tokio_util::sync::CancellationToken;
 
 #[test_log::test(tokio::test)]
 async fn test_trigger_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
@@ -1714,7 +1715,11 @@ async fn setup_db_with_trigger(
                 channels.add_wal_trigger("test_db".to_string(), trigger_name.to_string());
             }
             "schedule" => {
-                channels.add_schedule_trigger("test_db".to_string(), trigger_name.to_string());
+                channels.add_schedule_trigger(
+                    "test_db".to_string(),
+                    trigger_name.to_string(),
+                    CancellationToken::new(),
+                );
             }
             "request" => {
                 channels.add_request_trigger("/api/v3/engine/test_db/test_endpoint".to_string());
@@ -1922,4 +1927,64 @@ async fn test_hard_delete_removes_request_triggers() -> Result<(), Box<dyn std::
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod plugin_channels_tests {
+    use super::*;
+    use crate::PluginChannels;
+
+    fn schedule_spec() -> TriggerSpecificationDefinition {
+        TriggerSpecificationDefinition::Schedule {
+            schedule: "0 * * * * *".to_string(),
+        }
+    }
+
+    /// Stopping a single schedule trigger must fire its cancellation token so an
+    /// in-flight plugin run is abandoned instead of blocking the shutdown.
+    #[tokio::test]
+    async fn send_shutdown_cancels_schedule_trigger_token() {
+        let mut channels = PluginChannels::default();
+        let cancel = CancellationToken::new();
+        // keep the receiver alive so the shutdown send succeeds
+        let _rx = channels.add_schedule_trigger(
+            "test_db".to_string(),
+            "sched".to_string(),
+            cancel.clone(),
+        );
+
+        assert!(!cancel.is_cancelled());
+
+        let result = channels
+            .send_shutdown("test_db".to_string(), "sched".to_string(), &schedule_spec())
+            .await
+            .expect("send_shutdown should succeed");
+        assert!(result.is_some(), "expected a shutdown receiver");
+        assert!(
+            cancel.is_cancelled(),
+            "stopping the schedule trigger should cancel its in-flight run token"
+        );
+    }
+
+    /// Deleting a database must fire the cancellation tokens of all its schedule
+    /// triggers so their in-flight runs are abandoned during cleanup.
+    #[tokio::test]
+    async fn shutdown_all_for_db_cancels_schedule_trigger_token() {
+        let mut channels = PluginChannels::default();
+        let cancel = CancellationToken::new();
+        let _rx = channels.add_schedule_trigger(
+            "test_db".to_string(),
+            "sched".to_string(),
+            cancel.clone(),
+        );
+
+        assert!(!cancel.is_cancelled());
+
+        let receivers = channels.shutdown_all_for_db("test_db", &[]).await;
+        assert_eq!(receivers.len(), 1, "expected one shutdown receiver");
+        assert!(
+            cancel.is_cancelled(),
+            "deleting the db should cancel the schedule trigger's in-flight run token"
+        );
+    }
 }
