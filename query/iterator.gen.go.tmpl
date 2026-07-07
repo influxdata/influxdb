@@ -1119,8 +1119,8 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			if err != nil {
 				return nil, err
 			}
-      
-    			for _, entry := range entries {
+
+			for _, entry := range entries {
 				rp := m[entry.DimKey]
 				if rp == nil {
 					aggregator, emitter := itr.create()
