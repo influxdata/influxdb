@@ -160,7 +160,7 @@ func PrintableRemoteAddr(r *http.Request) string {
 		addrs = append(addrs, host)
 		host = strings.Join(addrs, ",")
 	}
-	return host
+	return detect(host, "internal")
 }
 
 // detect detects the first presence of a non blank string and returns it
