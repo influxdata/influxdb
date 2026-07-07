@@ -148,17 +148,23 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 
 // PrintableRemoteAddr returns a printable representation of the request's remote address.
 // If X-Forwarded-For is present, its values are prepended (in order) before the RemoteAddr host.
+// Fall back to "internal" if no remote address is present.
 func PrintableRemoteAddr(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
+	var host string
+	var err error
 
-	if xff := r.Header["X-Forwarded-For"]; xff != nil {
-		addrs := make([]string, 0, len(xff)+1)
-		addrs = append(addrs, xff...)
-		addrs = append(addrs, host)
-		host = strings.Join(addrs, ",")
+	if r != nil {
+		host, _, err = net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+
+		if xff := r.Header["X-Forwarded-For"]; xff != nil {
+			addrs := make([]string, 0, len(xff)+1)
+			addrs = append(addrs, xff...)
+			addrs = append(addrs, host)
+			host = strings.Join(addrs, ",")
+		}
 	}
 	return detect(host, "internal")
 }

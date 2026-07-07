@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -443,6 +444,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *query.R
 	// Execute the SELECT.
 	ch := s.QueryExecutor.ExecuteQuery(q, query.ExecutionOptions{
 		Database: cq.Database,
+		Host:     httpd.PrintableRemoteAddr(nil),
 	}, closing)
 
 	// There is only one statement, so we will only ever receive one result
