@@ -69,12 +69,12 @@ type Service struct {
 	unixSocketGroup int
 	bindSocket      string
 
-	// httpsCertificate is the initial TLS certificate to load if https is true. This should not be
+	// httpsCertificate is the initial TLS certificate to load if httpsEnabled is true. This should not be
 	// exposed to client code because a different certificate might be loaded on a config reload.
 	httpsCertificate string
 
-	// httpsPrivateKey is the initial TLS httpsPrivateKey to load if https is true. This should not be
-	// exposed to client code because a httpsPrivateKey certificate might be loaded on a config reload.
+	// httpsPrivateKey is the initial TLS private key to load if httpsEnabled is true. This should not be
+	// exposed to client code because a different private key might be loaded on a config reload.
 	httpsPrivateKey string
 
 	// httpsInsecureCertificate is true if certificate file permissions should be ignored.

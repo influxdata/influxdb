@@ -667,7 +667,7 @@ var ErrInvalidTlsClientAuthType = fmt.Errorf("invalid tls.ClientAuthType (valid 
 
 // UnmarshalText converts the enum name in text to a TlsClientAuthType.
 func (v *TlsClientAuthType) UnmarshalText(text []byte) error {
-	// This makes no attempt to convert the typecase int strings
+	// This makes no attempt to convert the typecast int strings
 	// (e.g. "ClientAuthType(-1)") that MarshalText() can generate for invalid
 	// values. This is desired behavior, because you don't want a security
 	// sensitive setting getting an undefined value from the config file.
