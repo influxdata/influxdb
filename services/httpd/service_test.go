@@ -289,7 +289,7 @@ func TestService_Open_ClientCertAuth(t *testing.T) {
 		}}
 		resp, err := client.Get(pingURI)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer th.CheckedClose(t, resp.Body)()
 		require.NotNil(t, resp.TLS)
 		require.NotEmpty(t, resp.TLS.PeerCertificates, "handshake should have completed with the server cert")
 		require.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -302,7 +302,8 @@ func TestService_Open_ClientCertAuth(t *testing.T) {
 		}}
 		resp, err := client.Get(pingURI)
 		if resp != nil {
-			resp.Body.Close()
+			// Defer close so we get the important assertions before this.
+			defer th.CheckedClose(t, resp.Body)()
 		}
 		require.Error(t, err, "server should reject a client without a certificate")
 		require.ErrorContains(t, err, "certificate required")
@@ -316,7 +317,8 @@ func TestService_Open_ClientCertAuth(t *testing.T) {
 		}}
 		resp, err := client.Get(pingURI)
 		if resp != nil {
-			resp.Body.Close()
+			// Defer close so we get the important assertions before this.
+			defer th.CheckedClose(t, resp.Body)()
 		}
 		require.Error(t, err, "server should reject a client with an untrusted certificate")
 	})
@@ -376,7 +378,8 @@ func TestService_Open_TLSConfigManager(t *testing.T) {
 
 		resp, err := http.Get(fmt.Sprintf("http://%s/ping", s.Addr()))
 		require.NoError(t, err)
-		resp.Body.Close()
+		// Defer close so it doesn't mask the more important assertions,
+		defer th.CheckedClose(t, resp.Body)()
 		require.Equal(t, http.StatusNoContent, resp.StatusCode)
 		require.Nil(t, resp.TLS)
 	})
