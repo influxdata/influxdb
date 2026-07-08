@@ -3,6 +3,7 @@ package toml
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding"
 	"errors"
 	"fmt"
@@ -640,6 +641,49 @@ func (g *Group) UnmarshalTOML(data interface{}) error {
 	return errors.New("group must be a name (string) or id (int)")
 }
 
+// TlsClientAuthType is a TOML wrapper around tls.ClientAuthType.
+// It is a simple enum that supports marshaling and unmarshaling as text.
+type TlsClientAuthType tls.ClientAuthType
+
+// MarshalText converts v to a string.
+func (v TlsClientAuthType) MarshalText() ([]byte, error) {
+	// tls.ClientAuthType.String() will marshal invalid values
+	// as an int typecast (e.g. "ClientAuthType(-1)"). This is
+	// desired behavior, because it prevents marshaling from failing
+	// due to an invalid value. Returning an error could make
+	// debugging harder.
+	return []byte(tls.ClientAuthType(v).String()), nil
+}
+
+var tlsClientAuthTypeStrings = []string{
+	tls.NoClientCert:               tls.NoClientCert.String(),
+	tls.RequestClientCert:          tls.RequestClientCert.String(),
+	tls.RequireAnyClientCert:       tls.RequireAnyClientCert.String(),
+	tls.VerifyClientCertIfGiven:    tls.VerifyClientCertIfGiven.String(),
+	tls.RequireAndVerifyClientCert: tls.RequireAndVerifyClientCert.String(),
+}
+
+var ErrInvalidTlsClientAuthType = fmt.Errorf("invalid tls.ClientAuthType (valid values: %s)", strings.Join(tlsClientAuthTypeStrings, ", "))
+
+// UnmarshalText converts the enum name in text to a TlsClientAuthType.
+func (v *TlsClientAuthType) UnmarshalText(text []byte) error {
+	// This makes no attempt to convert the typecase int strings
+	// (e.g. "ClientAuthType(-1)") that MarshalText() can generate for invalid
+	// values. This is desired behavior, because you don't want a security
+	// sensitive setting getting an undefined value from the config file.
+	s := string(text)
+	idx := slices.IndexFunc(tlsClientAuthTypeStrings, func(v string) bool {
+		// Case-insensitive equality check. This doesn't cause any ambiguity,
+		// and reduces a source of frustration when editing configs.
+		return strings.EqualFold(s, v)
+	})
+	if idx < 0 {
+		return fmt.Errorf("%q: %w", s, ErrInvalidTlsClientAuthType)
+	}
+	*v = TlsClientAuthType(idx)
+	return nil
+}
+
 // UnmatchedEnvVars returns the names of environment variables in environ that
 // match the prefix namespace (start with prefix+"_") but are not present in
 // applied. The applied list is typically the result of ApplyEnvOverrides.
@@ -1178,22 +1222,42 @@ func applyEnvOverrides(getenv GetenvFunc, prefix string, spec reflect.Value, str
 
 	value := getEnvValue(getenv, prefix)
 
-	// If we have a pointer, dereference it. For nil pointers to leaf types
-	// (scalars or TextUnmarshaler implementations), allocate the underlying
-	// value when there is a non-empty env var to apply. This allows fields like
-	// httpd.Config.UnixSocketGroup (*toml.Group) to be set purely via env vars
-	// without requiring NewConfig or the TOML file to pre-allocate the pointer.
-	//
-	// Nil pointers to struct types are still skipped because the struct's env
-	// vars target its fields (e.g., INFLUXDB_FOO_BAR), not the struct itself,
-	// so there's no way to detect whether to allocate without probing every
-	// possible field env var.
+	// If we have a pointer, dereference it, allocating a nil pointer when env
+	// vars want to populate it. This lets a pointer field be configured purely
+	// via env vars without NewConfig or the TOML file pre-allocating it.
 	if spec.Kind() == reflect.Pointer {
 		if spec.IsNil() {
-			if len(value) == 0 || !spec.CanSet() || !isLeafType(spec.Type().Elem()) {
+			// Can't allocate through an unsettable value.
+			if !spec.CanSet() {
 				return envOverrideResult{}, nil
 			}
-			spec.Set(reflect.New(spec.Type().Elem()))
+			elemType := spec.Type().Elem()
+			if isLeafType(elemType) {
+				// Leaf types (scalars, TextUnmarshaler) are driven by this
+				// element's own env var (e.g. httpd.Config.UnixSocketGroup, a
+				// *toml.Group). Allocate only when there is a value to apply.
+				if len(value) == 0 {
+					return envOverrideResult{}, nil
+				}
+				spec.Set(reflect.New(elemType))
+			} else {
+				// Non-leaf types (structs) are configured by their fields' env
+				// vars, not a value on the pointer itself. Speculatively
+				// allocate a temporary, apply overrides to it, and keep it only
+				// if a field was actually set; otherwise leave the pointer nil
+				// so an absent sub-config stays absent. This is what lets an
+				// optional sub-config (e.g. a *tlsconfig.CAConfig) be enabled
+				// entirely from env vars.
+				tmp := reflect.New(elemType)
+				result, err := applyEnvOverrides(getenv, prefix, tmp.Elem(), structKey)
+				if err != nil {
+					return envOverrideResult{}, err
+				}
+				if result.Applied {
+					spec.Set(tmp)
+				}
+				return result, nil
+			}
 		}
 		element = spec.Elem()
 	}

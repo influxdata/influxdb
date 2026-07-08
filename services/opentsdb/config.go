@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -37,20 +38,22 @@ const (
 
 // Config represents the configuration of the OpenTSDB service.
 type Config struct {
-	Enabled             bool          `toml:"enabled"`
-	BindAddress         string        `toml:"bind-address"`
-	Database            string        `toml:"database"`
-	RetentionPolicy     string        `toml:"retention-policy"`
-	ConsistencyLevel    string        `toml:"consistency-level"`
-	TLSEnabled          bool          `toml:"tls-enabled"`
-	Certificate         string        `toml:"certificate"`
-	PrivateKey          string        `toml:"private-key"`
-	InsecureCertificate bool          `toml:"insecure-certificate"`
-	BatchSize           int           `toml:"batch-size"`
-	BatchPending        int           `toml:"batch-pending"`
-	BatchTimeout        toml.Duration `toml:"batch-timeout"`
-	LogPointErrors      bool          `toml:"log-point-errors"`
-	TLS                 *tls.Config   `toml:"-"`
+	Enabled             bool                    `toml:"enabled"`
+	BindAddress         string                  `toml:"bind-address"`
+	Database            string                  `toml:"database"`
+	RetentionPolicy     string                  `toml:"retention-policy"`
+	ConsistencyLevel    string                  `toml:"consistency-level"`
+	TLSEnabled          bool                    `toml:"tls-enabled"`
+	Certificate         string                  `toml:"certificate"`
+	PrivateKey          string                  `toml:"private-key"`
+	InsecureCertificate bool                    `toml:"insecure-certificate"`
+	ClientAuthType      *toml.TlsClientAuthType `toml:"client-auth-type"`
+	ClientCA            *tlsconfig.CAConfig     `toml:"client-ca"`
+	BatchSize           int                     `toml:"batch-size"`
+	BatchPending        int                     `toml:"batch-pending"`
+	BatchTimeout        toml.Duration           `toml:"batch-timeout"`
+	LogPointErrors      bool                    `toml:"log-point-errors"`
+	TLS                 *tls.Config             `toml:"-"`
 }
 
 // Compile-time check that *Config implements toml.Defaulter so it can be used

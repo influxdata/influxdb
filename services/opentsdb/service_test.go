@@ -1,6 +1,7 @@
 package opentsdb
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -16,8 +17,12 @@ import (
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
@@ -290,4 +295,86 @@ func NewTestService(database string, bind string) *TestService {
 
 func (s *TestService) WritePointsPrivileged(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 	return s.WritePointsFn(ctx, database, retentionPolicy, consistencyLevel, points)
+}
+
+// pointsWriterFunc adapts a function to the Service.PointsWriter interface.
+type pointsWriterFunc func(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
+
+func (f pointsWriterFunc) WritePointsPrivileged(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	return f(ctx, database, retentionPolicy, consistencyLevel, points)
+}
+
+// TestService_ClientCertAuth verifies that, when configured with a client auth
+// type and a client CA, the opentsdb service enforces mutual TLS: a client
+// presenting a certificate signed by the configured CA is authenticated, while
+// a client presenting no certificate or an untrusted one is rejected during the
+// TLS handshake.
+func TestService_ClientCertAuth(t *testing.T) {
+	// serverSS is the server's TLS certificate; clientSS provides the client
+	// certificate and the CA (clientSS.CACertPath) the server is told to trust
+	// for client authentication.
+	serverSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("localhost"))
+	clientSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("client", "Client CA"))
+
+	authType := toml.TlsClientAuthType(tls.RequireAndVerifyClientCert)
+	s, err := NewService(Config{
+		BindAddress:      "127.0.0.1:0",
+		Database:         "db0",
+		ConsistencyLevel: "one",
+		TLSEnabled:       true,
+		Certificate:      serverSS.CertPath,
+		PrivateKey:       serverSS.KeyPath,
+		ClientAuthType:   &authType,
+		ClientCA:         &tlsconfig.CAConfig{Paths: []string{clientSS.CACertPath}},
+		TLS:              new(tls.Config),
+	})
+	require.NoError(t, err)
+
+	// Wire the minimal dependencies so /api/put succeeds once the handshake passes.
+	s.MetaClient = &internal.MetaClientMock{
+		CreateDatabaseFn: func(string) (*meta.DatabaseInfo, error) { return nil, nil },
+	}
+	s.PointsWriter = pointsWriterFunc(func(tsdb.WriteContext, string, string, models.ConsistencyLevel, []models.Point) error {
+		return nil
+	})
+
+	require.NoError(t, s.Open())
+	defer s.Close()
+
+	putURL := "https://" + s.Addr().String() + "/api/put"
+	body := `{"metric":"sys.cpu.nice","timestamp":1346846400,"value":18,"tags":{"host":"web01","dc":"lga"}}`
+
+	post := func(clientTLS *tls.Config) (*http.Response, error) {
+		client := &http.Client{Transport: &http.Transport{TLSClientConfig: clientTLS}}
+		return client.Post(putURL, "application/json", strings.NewReader(body))
+	}
+
+	t.Run("client with trusted certificate is authenticated", func(t *testing.T) {
+		// Present the client certificate; skip server-cert verification so the
+		// test isolates client authentication.
+		resp, err := post(clientSS.ClientTLSConfig(t, true, true))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.NotNil(t, resp.TLS)
+		require.NotEmpty(t, resp.TLS.PeerCertificates, "handshake should have completed with the server cert")
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	})
+
+	t.Run("client without certificate is rejected", func(t *testing.T) {
+		resp, err := post(&tls.Config{InsecureSkipVerify: true})
+		if resp != nil {
+			resp.Body.Close()
+		}
+		require.Error(t, err, "server should reject a client without a certificate")
+		require.ErrorContains(t, err, "certificate required")
+	})
+
+	t.Run("client with untrusted certificate is rejected", func(t *testing.T) {
+		otherSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("other", "Other CA"))
+		resp, err := post(otherSS.ClientTLSConfig(t, true, true))
+		if resp != nil {
+			resp.Body.Close()
+		}
+		require.Error(t, err, "server should reject a client with an untrusted certificate")
+	})
 }

@@ -4,6 +4,7 @@ package subscriber // import "github.com/influxdata/influxdb/services/subscriber
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 )
@@ -119,6 +121,10 @@ type Service struct {
 	conf            Config
 	subs            map[subEntry]*chanWriter
 
+	// tlsManager builds the client TLS configuration for HTTPS writers and owns
+	// the client certificate loader so rotated certificates can be reloaded.
+	tlsManager *tlsconfig.TLSConfigManager
+
 	// subscriptionRouter is not locked by mu
 	router *subscriptionRouter
 }
@@ -149,6 +155,19 @@ func (s *Service) Open() error {
 		if s.MetaClient == nil {
 			return errors.New("no meta store")
 		}
+
+		// Build the client TLS manager once for all HTTPS writers. It resolves
+		// the root CAs (RootCA block plus the legacy ca-certs) and any client
+		// certificate, and owns the certificate loader used for reloads.
+		cm, err := tlsconfig.NewClientTLSConfigManager(true, s.conf.TLS, s.conf.InsecureSkipVerify,
+			tlsconfig.WithCertificate(s.conf.Certificate, s.conf.PrivateKey),
+			tlsconfig.WithRootCA(s.conf.effectiveRootCA()),
+			tlsconfig.WithIgnoreFilePermissions(s.conf.InsecureCertificate),
+			tlsconfig.WithLogger(s.Logger))
+		if err != nil {
+			return fmt.Errorf("subscriber: error creating TLS manager: %w", err)
+		}
+		s.tlsManager = cm
 
 		s.closing = make(chan struct{})
 
@@ -211,8 +230,33 @@ func (s *Service) Close() error {
 		cw.Close()
 	}
 	s.subs = nil
+	if s.tlsManager != nil {
+		if err := s.tlsManager.Close(); err != nil {
+			s.Logger.Warn("error closing TLS manager", zap.Error(err))
+		}
+		s.tlsManager = nil
+	}
 	s.Logger.Info("Closed service")
 	return nil
+}
+
+// PrepareReloadTLSCertificates verifies that the configured client TLS
+// certificate can be reloaded from its current path. On success it returns a
+// function that applies the reloaded certificate; the new certificate is then
+// presented on subsequent HTTPS connections. If no client certificate is
+// configured there is nothing to reload and the returned function is a no-op.
+func (s *Service) PrepareReloadTLSCertificates() (func() error, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.tlsManager == nil || s.tlsManager.TLSCertLoader() == nil {
+		return func() error { return nil }, nil
+	}
+	apply, err := s.tlsManager.PrepareCertificateLoad(s.conf.Certificate, s.conf.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("subscriber: TLS certificate reload failed (%q, %q): %w", s.conf.Certificate, s.conf.PrivateKey, err)
+	}
+	return apply, nil
 }
 
 // WithLogger sets the logger on the service.
@@ -403,7 +447,14 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 		if s.conf.InsecureSkipVerify {
 			s.Logger.Warn("'insecure-skip-verify' is true. This will skip all certificate verifications.")
 		}
-		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts, s.conf.TLS)
+		// Each writer gets its own clone of the manager's config; the clone
+		// shares the certificate loader via GetClientCertificate, so a reloaded
+		// client certificate is picked up on new connections.
+		var tlsConfig *tls.Config
+		if s.tlsManager != nil {
+			tlsConfig = s.tlsManager.TLSConfig()
+		}
+		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), tlsConfig)
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}

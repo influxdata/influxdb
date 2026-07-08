@@ -854,7 +854,7 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
 		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-			WithRootCAFiles(ss.CACertPath))
+			WithRootCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -878,7 +878,7 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 
 		// Client manager trusting the CA that signed the server certificate
 		clientManager, err := NewClientTLSConfigManager(true, nil, false,
-			WithRootCAFiles(ss.CACertPath))
+			WithRootCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, clientManager.Close())
@@ -918,6 +918,9 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 
 	t.Run("client rejects server without CA", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
+		// A different, unrelated self-signed CA. It makes for a valid (non-empty)
+		// root CA config that nonetheless does not trust the server's certificate.
+		otherSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("other", "Other CA"))
 
 		// Server manager
 		serverManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
@@ -926,9 +929,9 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 			require.NoError(t, serverManager.Close())
 		}()
 
-		// Client manager with empty RootCA pool (explicitly set, no system CAs)
+		// Client manager trusting only an unrelated CA, so it will not trust the server.
 		clientManager, err := NewClientTLSConfigManager(true, nil, false,
-			WithRootCAIncludeSystem(false))
+			WithRootCA(&CAConfig{Paths: []string{otherSS.CACertPath}}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, clientManager.Close())
@@ -970,7 +973,7 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert2))
 
 		manager, err := NewClientTLSConfigManager(true, nil, false,
-			WithRootCAFiles(ss1.CACertPath, ss2.CACertPath))
+			WithRootCA(&CAConfig{Paths: []string{ss1.CACertPath, ss2.CACertPath}}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -984,7 +987,7 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 
 	t.Run("error on nonexistent file", func(t *testing.T) {
 		_, err := NewClientTLSConfigManager(true, nil, false,
-			WithRootCAFiles("/nonexistent/ca.pem"))
+			WithRootCA(&CAConfig{Paths: []string{"/nonexistent/ca.pem"}}))
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.ErrorContains(t, err, "error creating root CA pool: error reading file \"/nonexistent/ca.pem\" for CA store: open /nonexistent/ca.pem: no such file or directory")
 	})
@@ -996,7 +999,7 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		require.NoError(t, os.WriteFile(tmpFile, []byte("not a valid PEM file"), 0644))
 
 		manager, err := NewClientTLSConfigManager(true, nil, false,
-			WithRootCAFiles(tmpFile))
+			WithRootCA(&CAConfig{Paths: []string{tmpFile}}))
 		require.ErrorContains(t, err, "error creating root CA pool: error adding certificates from \""+tmpFile+"\" to CA store: no valid certificates found")
 		require.Nil(t, manager)
 	})
@@ -1009,7 +1012,7 @@ func TestTLSConfigManager_WithRootCAIncludeSystem(t *testing.T) {
 		require.NoError(t, err)
 
 		manager, err := NewClientTLSConfigManager(true, nil, false,
-			WithRootCAIncludeSystem(true))
+			WithRootCA(&CAConfig{IncludeSystem: true}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -1021,21 +1024,24 @@ func TestTLSConfigManager_WithRootCAIncludeSystem(t *testing.T) {
 		require.True(t, tlsConfig.RootCAs.Equal(expectedPool), "RootCAs should equal system pool")
 	})
 
-	t.Run("excludes system CA pool", func(t *testing.T) {
-		// Expected: empty pool
-		expectedPool := x509.NewCertPool()
-
+	t.Run("trusts no certificates is an error", func(t *testing.T) {
+		// A non-nil root CA config that neither lists paths nor includes the
+		// system pool trusts nothing and is rejected at construction.
 		manager, err := NewClientTLSConfigManager(true, nil, false,
-			WithRootCAIncludeSystem(false))
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+			WithRootCA(&CAConfig{IncludeSystem: false}))
+		require.EqualError(t, err, "root CA configuration trusts no certificates: "+
+			"set paths or enable include-system")
+		require.Nil(t, manager)
+	})
 
-		tlsConfig := manager.TLSConfig()
-		require.NotNil(t, tlsConfig)
-		require.NotNil(t, tlsConfig.RootCAs)
-		require.True(t, tlsConfig.RootCAs.Equal(expectedPool), "RootCAs should be empty pool")
+	t.Run("trusts no certificates is an error even when insecure", func(t *testing.T) {
+		// A non-nil config is validated regardless of allowInsecure, so a
+		// no-trust-anchors config is still rejected at construction.
+		manager, err := NewClientTLSConfigManager(true, nil, true,
+			WithRootCA(&CAConfig{IncludeSystem: false}))
+		require.EqualError(t, err, "root CA configuration trusts no certificates: "+
+			"set paths or enable include-system")
+		require.Nil(t, manager)
 	})
 
 	t.Run("combined with CA files", func(t *testing.T) {
@@ -1049,8 +1055,7 @@ func TestTLSConfigManager_WithRootCAIncludeSystem(t *testing.T) {
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
 		manager, err := NewClientTLSConfigManager(true, nil, false,
-			WithRootCAIncludeSystem(true),
-			WithRootCAFiles(ss.CACertPath))
+			WithRootCA(&CAConfig{Paths: []string{ss.CACertPath}, IncludeSystem: true}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -1074,7 +1079,8 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
 		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-			WithClientCAFiles(ss.CACertPath))
+			WithClientAuth(tls.RequireAndVerifyClientCert),
+			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -1091,7 +1097,7 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 
 		// Server manager that requires client certificates.
 		serverManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-			WithClientCAFiles(ss.CACertPath),
+			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}),
 			WithClientAuth(tls.RequireAndVerifyClientCert))
 		require.NoError(t, err)
 		defer func() {
@@ -1143,7 +1149,7 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		// Server manager that requires client certificates
 		serverManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
 			WithClientAuth(tls.RequireAndVerifyClientCert),
-			WithClientCAFiles(ss.CACertPath))
+			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, serverManager.Close())
@@ -1206,7 +1212,8 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert2))
 
 		manager, err := NewTLSConfigManager(true, nil, ss1.CertPath, ss1.KeyPath, false,
-			WithClientCAFiles(ss1.CACertPath, ss2.CACertPath))
+			WithClientAuth(tls.RequireAndVerifyClientCert),
+			WithClientCA(&CAConfig{Paths: []string{ss1.CACertPath, ss2.CACertPath}}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -1222,7 +1229,8 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
 		_, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-			WithClientCAFiles("/nonexistent/ca.pem"))
+			WithClientAuth(tls.RequireAndVerifyClientCert),
+			WithClientCA(&CAConfig{Paths: []string{"/nonexistent/ca.pem"}}))
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.ErrorContains(t, err, "error creating client CA pool: error reading file \"/nonexistent/ca.pem\" for CA store: open /nonexistent/ca.pem: no such file or directory")
 	})
@@ -1236,7 +1244,8 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		require.NoError(t, os.WriteFile(tmpFile, []byte("not a valid PEM file"), 0644))
 
 		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-			WithClientCAFiles(tmpFile))
+			WithClientAuth(tls.RequireAndVerifyClientCert),
+			WithClientCA(&CAConfig{Paths: []string{tmpFile}}))
 		require.ErrorContains(t, err, "error creating client CA pool: error adding certificates from \""+tmpFile+"\" to CA store: no valid certificates found")
 		require.Nil(t, manager)
 	})
@@ -1251,7 +1260,8 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 		require.NoError(t, err)
 
 		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-			WithClientCAIncludeSystem(true))
+			WithClientAuth(tls.RequireAndVerifyClientCert),
+			WithClientCA(&CAConfig{IncludeSystem: true}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -1263,23 +1273,17 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 		require.True(t, tlsConfig.ClientCAs.Equal(expectedPool), "ClientCAs should equal system pool")
 	})
 
-	t.Run("excludes system CA pool", func(t *testing.T) {
+	t.Run("trusts no certificates is an error", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
-		// Expected: empty pool
-		expectedPool := x509.NewCertPool()
-
+		// A client CA config that neither lists paths nor includes the system pool
+		// trusts nothing and is rejected at construction.
 		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-			WithClientCAIncludeSystem(false))
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
-
-		tlsConfig := manager.TLSConfig()
-		require.NotNil(t, tlsConfig)
-		require.NotNil(t, tlsConfig.ClientCAs)
-		require.True(t, tlsConfig.ClientCAs.Equal(expectedPool), "ClientCAs should be empty pool")
+			WithClientAuth(tls.RequireAndVerifyClientCert),
+			WithClientCA(&CAConfig{IncludeSystem: false}))
+		require.EqualError(t, err, "client CA configuration trusts no certificates: "+
+			"set paths or enable include-system")
+		require.Nil(t, manager)
 	})
 
 	t.Run("combined with CA files", func(t *testing.T) {
@@ -1293,8 +1297,8 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
 		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-			WithClientCAIncludeSystem(true),
-			WithClientCAFiles(ss.CACertPath))
+			WithClientAuth(tls.RequireAndVerifyClientCert),
+			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}, IncludeSystem: true}))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -1304,6 +1308,50 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 		require.NotNil(t, tlsConfig)
 		require.NotNil(t, tlsConfig.ClientCAs)
 		require.True(t, tlsConfig.ClientCAs.Equal(expectedPool), "ClientCAs should contain system + custom CA")
+	})
+
+	t.Run("built without client auth: include-system", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		// A non-nil client CA config is validated and built even without client
+		// auth (the pool is simply unused until auth is enabled).
+		expectedPool, err := x509.SystemCertPool()
+		require.NoError(t, err)
+
+		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+			WithClientCA(&CAConfig{IncludeSystem: true}))
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, manager.Close())
+		}()
+
+		tlsConfig := manager.TLSConfig()
+		require.NotNil(t, tlsConfig)
+		require.NotNil(t, tlsConfig.ClientCAs)
+		require.True(t, tlsConfig.ClientCAs.Equal(expectedPool), "ClientCAs should be built even without client auth")
+	})
+
+	t.Run("built without client auth: paths and include-system", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		// Build expected pool: system + custom CA.
+		expectedPool, err := x509.SystemCertPool()
+		require.NoError(t, err)
+		caCert, err := os.ReadFile(ss.CACertPath)
+		require.NoError(t, err)
+		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
+
+		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}, IncludeSystem: true}))
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, manager.Close())
+		}()
+
+		tlsConfig := manager.TLSConfig()
+		require.NotNil(t, tlsConfig)
+		require.NotNil(t, tlsConfig.ClientCAs)
+		require.True(t, tlsConfig.ClientCAs.Equal(expectedPool), "ClientCAs should be built even without client auth")
 	})
 }
 
@@ -1346,7 +1394,7 @@ func TestTLSConfigManager_CAOptionsWithBaseConfig(t *testing.T) {
 
 	// Create manager with different CA file - should override base config
 	manager, err := NewClientTLSConfigManager(true, baseConfig, false,
-		WithRootCAFiles(anotherSS.CACertPath))
+		WithRootCA(&CAConfig{Paths: []string{anotherSS.CACertPath}}))
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, manager.Close())
@@ -1356,8 +1404,192 @@ func TestTLSConfigManager_CAOptionsWithBaseConfig(t *testing.T) {
 	require.NotNil(t, tlsConfig)
 	require.NotNil(t, tlsConfig.RootCAs)
 	// The RootCAs should match the new CA, not the base config
-	require.True(t, tlsConfig.RootCAs.Equal(expectedPool), "RootCAs should be overridden by WithRootCAFiles")
+	require.True(t, tlsConfig.RootCAs.Equal(expectedPool), "RootCAs should be overridden by WithRootCA")
 	require.False(t, tlsConfig.RootCAs.Equal(basePool), "RootCAs should not equal base pool")
+}
+
+func TestTLSConfigManager_CAResolution(t *testing.T) {
+	t.Run("root nil defers to base config RootCAs", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		// Base config supplies a RootCAs pool. With no WithRootCA, the base pool
+		// should be left in place unchanged.
+		basePool := x509.NewCertPool()
+		caCert, err := os.ReadFile(ss.CACertPath)
+		require.NoError(t, err)
+		require.True(t, basePool.AppendCertsFromPEM(caCert))
+		baseConfig := &tls.Config{RootCAs: basePool}
+
+		manager, err := NewClientTLSConfigManager(true, baseConfig, false)
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, manager.Close())
+		}()
+
+		tlsConfig := manager.TLSConfig()
+		require.NotNil(t, tlsConfig)
+		require.NotNil(t, tlsConfig.RootCAs)
+		require.True(t, tlsConfig.RootCAs.Equal(basePool), "RootCAs should equal the base config's pool")
+	})
+
+	t.Run("root no-trust-anchors is an error", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(true, nil, false,
+			WithRootCA(&CAConfig{}))
+		require.EqualError(t, err, "root CA configuration trusts no certificates: "+
+			"set paths or enable include-system")
+		require.Nil(t, manager)
+	})
+
+	t.Run("root no-trust-anchors is an error even when insecure", func(t *testing.T) {
+		// A non-nil config is validated regardless of allowInsecure, so a
+		// no-trust-anchors config is still rejected at construction.
+		manager, err := NewClientTLSConfigManager(true, nil, true,
+			WithRootCA(&CAConfig{}))
+		require.EqualError(t, err, "root CA configuration trusts no certificates: "+
+			"set paths or enable include-system")
+		require.Nil(t, manager)
+	})
+
+	t.Run("client nil under client auth defers to base config ClientCAs", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		// Base config supplies a ClientCAs pool. With client auth enabled but no
+		// WithClientCA, the base pool should be left in place unchanged.
+		basePool := x509.NewCertPool()
+		caCert, err := os.ReadFile(ss.CACertPath)
+		require.NoError(t, err)
+		require.True(t, basePool.AppendCertsFromPEM(caCert))
+		baseConfig := &tls.Config{ClientCAs: basePool}
+
+		manager, err := NewTLSConfigManager(true, baseConfig, ss.CertPath, ss.KeyPath, false,
+			WithClientAuth(tls.RequireAndVerifyClientCert))
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, manager.Close())
+		}()
+
+		tlsConfig := manager.TLSConfig()
+		require.NotNil(t, tlsConfig)
+		require.NotNil(t, tlsConfig.ClientCAs)
+		require.True(t, tlsConfig.ClientCAs.Equal(basePool), "ClientCAs should equal the base config's pool")
+	})
+
+	t.Run("client no-trust-anchors is an error even without client auth", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		// A non-nil client CA config is validated regardless of whether client
+		// auth is enabled, so a config that trusts nothing is rejected here even
+		// with the default NoClientCert.
+		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+			WithClientCA(&CAConfig{}))
+		require.EqualError(t, err, "client CA configuration trusts no certificates: "+
+			"set paths or enable include-system")
+		require.Nil(t, manager)
+	})
+
+	t.Run("client config built even without client auth", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		// A non-nil client CA config is built even with the default NoClientCert;
+		// the pool is simply unused until client auth is enabled.
+		expectedPool := x509.NewCertPool()
+		caCert, err := os.ReadFile(ss.CACertPath)
+		require.NoError(t, err)
+		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
+
+		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}))
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, manager.Close())
+		}()
+
+		tlsConfig := manager.TLSConfig()
+		require.NotNil(t, tlsConfig)
+		require.NotNil(t, tlsConfig.ClientCAs)
+		require.True(t, tlsConfig.ClientCAs.Equal(expectedPool), "ClientCAs should be built even without client auth")
+	})
+
+	t.Run("client paths without include-system trusts only those paths", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		// A non-nil config with Paths but IncludeSystem false (zero value) should
+		// build a pool of only those paths, not the system pool.
+		expectedPool := x509.NewCertPool()
+		caCert, err := os.ReadFile(ss.CACertPath)
+		require.NoError(t, err)
+		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
+
+		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+			WithClientAuth(tls.RequireAndVerifyClientCert),
+			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}))
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, manager.Close())
+		}()
+
+		tlsConfig := manager.TLSConfig()
+		require.NotNil(t, tlsConfig)
+		require.NotNil(t, tlsConfig.ClientCAs)
+		require.True(t, tlsConfig.ClientCAs.Equal(expectedPool), "ClientCAs should contain only the configured path")
+	})
+}
+
+func TestTLSConfigManager_ClientAuthOverride(t *testing.T) {
+	// Base config with a non-zero ClientAuth, so we can tell whether an option
+	// overrode it (including overriding it back to the zero value).
+	base := func() *tls.Config {
+		return &tls.Config{ClientAuth: tls.RequireAndVerifyClientCert}
+	}
+
+	t.Run("no option leaves base ClientAuth", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(true, base(), false)
+		require.NoError(t, err)
+		defer func() { require.NoError(t, manager.Close()) }()
+		require.Equal(t, tls.RequireAndVerifyClientCert, manager.TLSConfig().ClientAuth)
+	})
+
+	t.Run("WithClientAuth overrides base", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(true, base(), false,
+			WithClientAuth(tls.VerifyClientCertIfGiven))
+		require.NoError(t, err)
+		defer func() { require.NoError(t, manager.Close()) }()
+		require.Equal(t, tls.VerifyClientCertIfGiven, manager.TLSConfig().ClientAuth)
+	})
+
+	t.Run("WithClientAuth overrides base with zero value", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(true, base(), false,
+			WithClientAuth(tls.NoClientCert))
+		require.NoError(t, err)
+		defer func() { require.NoError(t, manager.Close()) }()
+		require.Equal(t, tls.NoClientCert, manager.TLSConfig().ClientAuth)
+	})
+
+	t.Run("WithClientAuthPtr nil leaves base ClientAuth", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(true, base(), false,
+			WithClientAuthPtr(nil))
+		require.NoError(t, err)
+		defer func() { require.NoError(t, manager.Close()) }()
+		require.Equal(t, tls.RequireAndVerifyClientCert, manager.TLSConfig().ClientAuth)
+	})
+
+	t.Run("WithClientAuthPtr non-nil overrides base with zero value", func(t *testing.T) {
+		auth := tls.NoClientCert
+		manager, err := NewClientTLSConfigManager(true, base(), false,
+			WithClientAuthPtr(&auth))
+		require.NoError(t, err)
+		defer func() { require.NoError(t, manager.Close()) }()
+		require.Equal(t, tls.NoClientCert, manager.TLSConfig().ClientAuth)
+	})
+
+	t.Run("WithClientAuthPtr non-nil overrides base with non-zero value", func(t *testing.T) {
+		auth := tls.VerifyClientCertIfGiven
+		manager, err := NewClientTLSConfigManager(true, base(), false,
+			WithClientAuthPtr(&auth))
+		require.NoError(t, err)
+		defer func() { require.NoError(t, manager.Close()) }()
+		require.Equal(t, tls.VerifyClientCertIfGiven, manager.TLSConfig().ClientAuth)
+	})
 }
 
 // testManagerCheckTime is the TLS certificate check time in logging tests.
