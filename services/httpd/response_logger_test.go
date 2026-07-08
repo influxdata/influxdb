@@ -51,6 +51,11 @@ func TestPrintableRemoteAddr(t *testing.T) {
 			forwarded:  []string{"192.168.0.1"},
 			want:       "192.168.0.1,unixsocket",
 		},
+		{
+			name:       "empty remote addr falls back to internal",
+			remoteAddr: "",
+			want:       httpd.NoHostSentinel,
+		},
 	}
 
 	for _, tt := range tests {
@@ -64,4 +69,5 @@ func TestPrintableRemoteAddr(t *testing.T) {
 			require.Equal(t, tt.want, httpd.PrintableRemoteAddr(r))
 		})
 	}
+	require.Equal(t, httpd.NoHostSentinel, httpd.PrintableRemoteAddr(nil))
 }

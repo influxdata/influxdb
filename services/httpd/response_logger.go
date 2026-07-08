@@ -11,6 +11,8 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+const NoHostSentinel = "internal"
+
 // responseLogger is wrapper of http.ResponseWriter that keeps track of its HTTP status
 // code and body size
 type responseLogger struct {
@@ -168,10 +170,10 @@ func PrintableRemoteAddr(r *http.Request) string {
 			host = strings.Join(addrs, ",")
 		}
 	}
-	return detect(host, "internal")
+	return detect(host, NoHostSentinel)
 }
 
-// detect detects the first presence of a non blank string and returns it
+// detect detects the first presence of a non-empty string and returns it
 func detect(values ...string) string {
 	for _, v := range values {
 		if v != "" {
