@@ -17,8 +17,11 @@ const (
 
 	// DatePartTimeString is a symbol used to represent a reference variable
 	// for the current timestamp from a given point. It is used during time
-	// lookup on the query path.
-	DatePartTimeString = "date_part_time"
+	// lookup on the query path. The leading NUL byte makes it impossible to
+	// collide with a user field or tag name (those originate from InfluxQL
+	// identifiers, which can never contain a NUL), so a field or tag literally
+	// named "date_part_time" is not shadowed by this sentinel.
+	DatePartTimeString = "\x00date_part_time"
 
 	// DatePartArgCount is the amount of arguments required for date_part function
 	DatePartArgCount = 2

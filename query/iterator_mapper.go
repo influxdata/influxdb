@@ -46,7 +46,12 @@ type datePartMap struct {
 }
 
 func (m datePartMap) Value(row *Row) interface{} {
-	v, _ := ExtractDatePartExpr(time.Unix(0, row.Time).In(LocationOrUTC(m.loc)), m.expr)
+	v, ok := ExtractDatePartExpr(time.Unix(0, row.Time).In(LocationOrUTC(m.loc)), m.expr)
+	if !ok {
+		// Return nil rather than 0 so the grouper surfaces an explicit type
+		// error instead of silently grouping every row under value 0.
+		return nil
+	}
 	return v
 }
 

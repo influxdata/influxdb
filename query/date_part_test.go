@@ -437,6 +437,13 @@ func TestDatePartValuer_Value(t *testing.T) {
 	val, ok = valuer.Value(query.DatePartTimeString)
 	require.True(t, ok)
 	require.Equal(t, now, val)
+
+	// A user field or tag literally named "date_part_time" must resolve to its
+	// own value, not be shadowed by the internal time sentinel.
+	mapValuer["date_part_time"] = int64(42)
+	val, ok = valuer.Value("date_part_time")
+	require.True(t, ok)
+	require.Equal(t, int64(42), val)
 }
 
 func TestDatePartValuer_Call_GroupedDimension(t *testing.T) {

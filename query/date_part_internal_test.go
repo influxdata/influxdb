@@ -26,6 +26,11 @@ func TestDatePartMap_Value(t *testing.T) {
 	ny, err := time.LoadLocation("America/New_York")
 	require.NoError(t, err)
 	require.Equal(t, int64(5), datePartMap{expr: Hour, loc: ny}.Value(row)) // 10:30 UTC -> 05:30 EST
+
+	// An unknown expr (e.g. deserialized from a newer peer's iterator options)
+	// must yield nil so the grouper rejects it loudly instead of silently
+	// grouping every row under value 0.
+	require.Nil(t, datePartMap{expr: Invalid, loc: time.UTC}.Value(row))
 }
 
 // TestEncodeDecodeAux_DatePartKey ensures a DecodedDatePartKey grouping value
