@@ -18,7 +18,7 @@ use futures_util::future::BoxFuture;
 use influxdb3_write::{BufferedWriteRequest, Bufferer, Precision, write_buffer};
 use iox_time::Time;
 use iox_time::TimeProvider;
-use observability_deps::tracing::error;
+use observability_deps::tracing::{debug, error};
 use std::fmt::Debug;
 use std::path::PathBuf;
 
@@ -29,6 +29,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 /// A buffering implementation of Bufferer for dry-run testing.
 /// Collects writes without persisting them.
@@ -241,6 +242,25 @@ pub(crate) struct PluginContext {
     pub(crate) manager: Arc<ProcessingEngineManagerImpl>,
     // sys events for writing logs to ring buffers
     pub(crate) sys_event_store: Arc<SysEventStore>,
+    // cancellation token used to abandon an in-flight scheduled plugin run when
+    // the trigger is stopped.
+    pub(crate) cancel: CancellationToken,
+}
+
+/// Await a spawned blocking plugin run, returning `Some(result)` when it
+/// finishes or `None` if `cancel` fires first. On cancellation we stop awaiting
+/// the `JoinHandle` and drop it: the blocking task is *not* interrupted — it
+/// keeps running to completion and its result is discarded — but the caller no
+/// longer waits on it. (Core's plugin execution is not cancellation-aware, so
+/// detaching is the only lever available here.)
+async fn run_until_cancelled<T>(
+    join: tokio::task::JoinHandle<T>,
+    cancel: &CancellationToken,
+) -> Option<Result<T, tokio::task::JoinError>> {
+    tokio::select! {
+        joined = join => Some(joined),
+        _ = cancel.cancelled() => None,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -252,6 +272,7 @@ struct TriggerPlugin {
     query_executor: Arc<dyn QueryExecutor>,
     manager: Arc<ProcessingEngineManagerImpl>,
     logger: ProcessingEngineLogger,
+    cancel: CancellationToken,
 }
 
 mod python_plugin {
@@ -299,6 +320,7 @@ mod python_plugin {
                 query_executor: Arc::clone(&context.query_executor),
                 manager: Arc::clone(&context.manager),
                 logger,
+                cancel: context.cancel,
             }
         }
 
@@ -995,7 +1017,7 @@ mod python_plugin {
                 let plugin_code_str = plugin.plugin_code.code();
                 let plugin_root = plugin.plugin_code.plugin_root().cloned();
                 let write_buffer = Arc::clone(&plugin.write_buffer);
-                let result = tokio::task::spawn_blocking(move || {
+                let join = tokio::task::spawn_blocking(move || {
                     execute_schedule_trigger(
                         plugin_code_str.as_ref(),
                         trigger_time,
@@ -1007,8 +1029,20 @@ mod python_plugin {
                         py_cache,
                         plugin_root.as_deref(),
                     )
-                })
-                .await?;
+                });
+                // Race the blocking plugin run against the trigger's cancellation
+                // token so a stop/delete stops awaiting a long-running run instead
+                // of blocking shutdown on it. This does not interrupt the run: the
+                // detached task keeps executing to completion and its result is
+                // dropped.
+                let Some(joined) = run_until_cancelled(join, &plugin.cancel).await else {
+                    debug!(
+                        trigger_name = %plugin.trigger_definition.trigger_name,
+                        "scheduled plugin run cancelled before completion"
+                    );
+                    return Ok(PluginNextState::SuccessfulRun);
+                };
+                let result = joined?;
                 match plugin
                     .handle_trigger_result(result, "schedule plugin")
                     .await

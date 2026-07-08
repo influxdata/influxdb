@@ -36,6 +36,7 @@ use std::time::{Duration, SystemTime};
 use tokio::fs as async_fs;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 
 pub mod environment;
 pub mod manager;
@@ -129,6 +130,11 @@ struct PluginChannels {
     wal_triggers: HashMap<String, HashMap<String, mpsc::Sender<WalEvent>>>,
     /// Map of database to schedule trigger name to handler
     schedule_triggers: HashMap<String, HashMap<String, mpsc::Sender<ScheduleEvent>>>,
+    /// Map of database to schedule trigger name to the cancellation token used,
+    /// when the trigger is stopped, to make the schedule loop stop awaiting an
+    /// in-flight run (the run itself keeps executing, detached) so it can't block
+    /// shutdown.
+    schedule_cancels: HashMap<String, HashMap<String, CancellationToken>>,
     /// Map of request path to the request trigger handler
     request_triggers: HashMap<String, mpsc::Sender<RequestEvent>>,
 }
@@ -165,6 +171,13 @@ impl PluginChannels {
                 if let Some(trigger_map) = self.schedule_triggers.get(&db)
                     && let Some(sender) = trigger_map.get(&trigger)
                 {
+                    // cancel any in-flight scheduled plugin run so the trigger task can
+                    // observe the shutdown promptly instead of blocking on the run.
+                    if let Some(token) =
+                        self.schedule_cancels.get(&db).and_then(|m| m.get(&trigger))
+                    {
+                        token.cancel();
+                    }
                     // create a one shot to wait for the shutdown to complete
                     let (tx, rx) = oneshot::channel();
                     if sender.send(ScheduleEvent::Shutdown(tx)).await.is_err() {
@@ -212,6 +225,9 @@ impl PluginChannels {
                 if let Some(trigger_map) = self.schedule_triggers.get_mut(&db) {
                     trigger_map.remove(&trigger);
                 }
+                if let Some(cancel_map) = self.schedule_cancels.get_mut(&db) {
+                    cancel_map.remove(&trigger);
+                }
             }
             TriggerSpecificationDefinition::RequestPath { .. } => {
                 self.request_triggers.remove(&trigger);
@@ -239,6 +255,15 @@ impl PluginChannels {
 
         if let Some(trigger_map) = self.schedule_triggers.get(db) {
             for (trigger_name, sender) in trigger_map {
+                // cancel any in-flight scheduled plugin run so the trigger task can
+                // observe the shutdown promptly instead of blocking on the run.
+                if let Some(token) = self
+                    .schedule_cancels
+                    .get(db)
+                    .and_then(|m| m.get(trigger_name))
+                {
+                    token.cancel();
+                }
                 let (tx, rx) = oneshot::channel();
                 if sender.send(ScheduleEvent::Shutdown(tx)).await.is_err() {
                     warn!(
@@ -272,6 +297,7 @@ impl PluginChannels {
     fn remove_all_for_db(&mut self, db: &str, request_paths: &[String]) {
         self.wal_triggers.remove(db);
         self.schedule_triggers.remove(db);
+        self.schedule_cancels.remove(db);
         for path in request_paths {
             self.request_triggers.remove(path.as_str());
         }
@@ -287,12 +313,17 @@ impl PluginChannels {
         &mut self,
         db: String,
         trigger: String,
+        cancel: CancellationToken,
     ) -> mpsc::Receiver<ScheduleEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
         self.schedule_triggers
+            .entry(db.clone())
+            .or_default()
+            .insert(trigger.clone(), tx);
+        self.schedule_cancels
             .entry(db)
             .or_default()
-            .insert(trigger, tx);
+            .insert(trigger, cancel);
         rx
     }
 
@@ -645,11 +676,16 @@ impl ProcessingEngineManagerImpl {
                 return Ok(());
             }
 
+            // Cancellation token used to abandon an in-flight scheduled plugin run
+            // when the trigger is stopped. Only scheduled triggers register it with
+            // the plugin channels; other plugin types ignore it.
+            let cancel = CancellationToken::new();
             let plugin_context = PluginContext {
                 write_buffer: Arc::clone(&self.write_buffer),
                 query_executor: Arc::clone(&self.query_executor),
                 sys_event_store: Arc::clone(&self.sys_event_store),
                 manager: Arc::clone(&self),
+                cancel: cancel.clone(),
             };
             let plugin_code = Arc::new(self.read_plugin_code(&trigger.plugin_filename).await?);
             match trigger.trigger.plugin_type() {
@@ -669,11 +705,11 @@ impl ProcessingEngineManagerImpl {
                     )
                 }
                 PluginType::Schedule => {
-                    let rec = self
-                        .plugin_event_tx
-                        .write()
-                        .await
-                        .add_schedule_trigger(db_name.to_string(), trigger_name.to_string());
+                    let rec = self.plugin_event_tx.write().await.add_schedule_trigger(
+                        db_name.to_string(),
+                        trigger_name.to_string(),
+                        cancel.clone(),
+                    );
 
                     plugins::run_schedule_plugin(
                         db_name.to_string(),

@@ -384,3 +384,32 @@ def process_writes(influxdb3_local, table_batches, args=None):
         "Plugin B's helper should still be callable from its own namespace"
     );
 }
+
+/// When the blocking run finishes before cancellation, the joined result is
+/// returned unchanged.
+#[tokio::test]
+async fn run_until_cancelled_returns_result_when_not_cancelled() {
+    let cancel = CancellationToken::new();
+    let join = tokio::task::spawn_blocking(|| 42);
+    let result = run_until_cancelled(join, &cancel).await;
+    assert_eq!(
+        result.expect("should not be cancelled").expect("join ok"),
+        42
+    );
+}
+
+/// When the cancellation token fires, the in-flight run is abandoned and
+/// `run_until_cancelled` resolves to `None` without waiting for the task.
+#[tokio::test]
+async fn run_until_cancelled_abandons_blocking_run_on_cancel() {
+    let cancel = CancellationToken::new();
+    // A task that won't complete promptly. Use an async sleep so the abandoned
+    // task doesn't tie up a blocking thread during test teardown.
+    let join = tokio::spawn(async {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        0
+    });
+    cancel.cancel();
+    let result = run_until_cancelled(join, &cancel).await;
+    assert!(result.is_none(), "cancellation should win the race");
+}
