@@ -79,6 +79,27 @@ pub fn verify_file_type_and_deserialize(b: Bytes) -> Result<WalContents> {
     Ok(contents)
 }
 
+impl Error {
+    /// Returns `true` if this serialize error indicates a durably corrupt WAL file.
+    ///
+    /// "Durable" means the bytes themselves are wrong — a retry against the same
+    /// object will never succeed. Truncation (`WalFileTooSmall`), missing/incorrect
+    /// file magic (`InvalidWalFile`), and CRC mismatch (`Crc32Mismatch`) all qualify.
+    ///
+    /// `Bitcode(...)` is deliberately excluded: CRC validation runs before bitcode
+    /// decoding in `verify_file_type_and_deserialize`, so a `Bitcode` error means
+    /// the bytes are CRC-consistent but the reader can't decode them — almost always
+    /// a writer/reader version or schema skew, recoverable by upgrading the reader,
+    /// not by skipping the file. `Io(...)` and `TryFromSlice(...)` are transport-level
+    /// rather than content-level.
+    pub fn is_durable_wal_corruption(&self) -> bool {
+        matches!(
+            self,
+            Error::WalFileTooSmall { .. } | Error::InvalidWalFile | Error::Crc32Mismatch,
+        )
+    }
+}
+
 pub(crate) fn serialize_to_file_bytes(contents: &WalContents) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
     buf.extend_from_slice(FILE_TYPE_IDENTIFIER);
