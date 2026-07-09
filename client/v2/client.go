@@ -44,7 +44,8 @@ type HTTPConfig struct {
 	InsecureSkipVerify bool
 
 	// TLSConfig allows the user to set their own TLS config for the HTTP
-	// Client. If set, this option overrides InsecureSkipVerify.
+	// Client. If set, it is used as-is and its own InsecureSkipVerify applies;
+	// the InsecureSkipVerify field above is ignored.
 	TLSConfig *tls.Config
 
 	// Proxy configures the Proxy function on the HTTP client.
@@ -128,9 +129,10 @@ func NewHTTPClient(conf HTTPConfig) (HTTPClient, error) {
 		DialContext: conf.DialContext,
 	}
 	if conf.TLSConfig != nil {
+		// A supplied TLSConfig is used as-is, including its own
+		// InsecureSkipVerify; the HTTPConfig.InsecureSkipVerify field only
+		// applies when no TLSConfig is given.
 		tr.TLSClientConfig = conf.TLSConfig
-		// Make sure to preserve the InsecureSkipVerify setting from the config.
-		tr.TLSClientConfig.InsecureSkipVerify = conf.InsecureSkipVerify
 	}
 	return &client{
 		url:       *u,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -37,6 +38,21 @@ type Config struct {
 	// configure the path to the PEM encoded CA certs file. If the
 	// empty string, the default system certs will be used
 	CaCerts string `toml:"ca-certs"`
+
+	// RootCA configures the CA pool used to verify subscription endpoint server
+	// certificates. It is combined with the legacy CaCerts (ca-certs) setting,
+	// which continues to work on its own for backwards compatibility.
+	RootCA *tlsconfig.CAConfig `toml:"root-ca"`
+
+	// Certificate and PrivateKey are the client certificate the subscriber
+	// presents to HTTPS endpoints for mutual TLS. Empty means no client
+	// certificate is presented.
+	Certificate string `toml:"certificate"`
+	PrivateKey  string `toml:"private-key"`
+
+	// InsecureCertificate is true if the client certificate's file permissions
+	// should be ignored when it is loaded.
+	InsecureCertificate bool `toml:"insecure-certificate"`
 
 	// The number of writer goroutines processing the write channel.
 	WriteConcurrency int `toml:"write-concurrency"`
@@ -87,6 +103,27 @@ func (c Config) Validate() error {
 	}
 
 	return nil
+}
+
+// effectiveRootCA combines the RootCA block with the legacy CaCerts (ca-certs)
+// setting into a single *tlsconfig.CAConfig for verifying subscription endpoint
+// server certificates. A nil result leaves the base TLS config's roots in place
+// (Go's system pool). CaCerts is appended to the block's paths so both settings
+// work together, and ca-certs continues to behave as before on its own.
+func (c Config) effectiveRootCA() *tlsconfig.CAConfig {
+	var cc *tlsconfig.CAConfig
+	if c.RootCA != nil {
+		dup := *c.RootCA
+		dup.Paths = append([]string(nil), c.RootCA.Paths...)
+		cc = &dup
+	}
+	if c.CaCerts != "" {
+		if cc == nil {
+			cc = &tlsconfig.CAConfig{}
+		}
+		cc.Paths = append(cc.Paths, c.CaCerts)
+	}
+	return cc
 }
 
 func fileExists(fileName string) bool {

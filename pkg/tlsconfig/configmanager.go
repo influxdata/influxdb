@@ -26,35 +26,57 @@ type TLSConfigManager struct {
 	certLoader *TLSCertLoader
 }
 
-// caConfig contains configuration to configure a TLS CA config.
+// CAConfig configures a CA certificate pool: the PEM files to trust and whether
+// to also include the host's system CA pool. It is used for both root CAs
+// (verifying peer server certificates) and client CAs (verifying client
+// certificates during client authentication).
+//
+// It is designed to be embedded in configuration structs as a *CAConfig so that
+// "not configured" is distinguishable from "configured": a nil pointer leaves
+// the base TLS config's pool in place (for root CAs, that means Go's implicit
+// system roots), while a non-nil value is used exactly as given. In particular,
+// a non-nil config with Paths but without IncludeSystem trusts only those
+// paths, because IncludeSystem's zero value is the correct default once the
+// user has configured a pool.
+type CAConfig struct {
+	// Paths are the PEM files whose certificates are added to the pool.
+	Paths []string `toml:"paths"`
+
+	// IncludeSystem includes the host's system CA pool in addition to Paths.
+	IncludeSystem bool `toml:"include-system"`
+}
+
+// hasTrustAnchors reports whether the config would verify against any
+// certificates. A config with no paths and no system pool trusts nothing and
+// cannot verify a peer.
+func (cc *CAConfig) hasTrustAnchors() bool {
+	return len(cc.Paths) > 0 || cc.IncludeSystem
+}
+
+// customCAConfig returns an internal caConfig that builds a pool from cc.
+func (cc *CAConfig) customCAConfig() caConfig {
+	return caConfig{custom: true, includeSystem: cc.IncludeSystem, files: cc.Paths}
+}
+
+// caConfig is the internal, resolved CA configuration used to build a pool.
 type caConfig struct {
-	// custom indicates if caConfig specifies a custom CA config. If false,
-	// the rest of the configuration is ignored.
+	// custom indicates a certificate pool should be built. When false,
+	// newCertPool returns nil so the base *tls.Config is left as-is.
 	custom bool
 
-	// includeSystem indicates if system root CA should be included.
+	// includeSystem indicates if the system CA pool should be included.
 	includeSystem bool
 
-	// files lists paths to PEM files to include in CA.
+	// files lists paths to PEM files to include in the pool.
 	files []string
-}
-
-// setIncludeSystem sets includeSystem and marks the config as custom.
-func (c *caConfig) setIncludeSystem(include bool) {
-	c.custom = true
-	c.includeSystem = include
-}
-
-// addFiles adds a list of files to be included in CA configuration and marks config as custom.
-func (c *caConfig) addFiles(files ...string) {
-	c.custom = true
-	c.files = append(c.files, files...)
 }
 
 // newCertPool returns a x509.CertPool for the configuration in c. If c is not a custom config, then
 // nil is returned.
 func (c *caConfig) newCertPool() (*x509.CertPool, error) {
-	// Only create a CertPool for a custom CA config.
+	// Only create a CertPool for a custom CA config that has either a CA certificate list or
+	// explicitly includes the system CA. A "custom CA" without any certificates
+	// is almost certainly from default config values.
 	if !c.custom {
 		return nil, nil
 	}
@@ -102,14 +124,19 @@ type tlsConfigManagerConfig struct {
 	// allowInsecure indicates if certificate checks should be ignored.
 	allowInsecure bool
 
-	// rootCAConfig is the root CA config.
-	rootCAConfig caConfig
+	// rootCA configures the CA pool used to verify peer certificates. A nil
+	// value leaves the base config's roots (and Go's implicit system pool).
+	rootCA *CAConfig
 
-	// clientCAConfig is the CA config for servers to use for verifying client certificates.
-	clientCAConfig caConfig
+	// clientCA configures the CA pool used to verify client certificates during
+	// client authentication. A nil value under client auth uses the system pool.
+	clientCA *CAConfig
 
-	// clientAuth indicates the type of ClientAuth required by a server.
-	clientAuth tls.ClientAuthType
+	// clientAuth indicates the type of ClientAuth required by a server. A nil
+	// value means it was not configured and the base config's ClientAuth is
+	// left in place; a non-nil value overrides it, even with the zero value
+	// (tls.NoClientCert).
+	clientAuth *tls.ClientAuthType
 
 	// certLoaderOpts are options for the underlying TLSCertLoader.
 	certLoaderOpts []TLSCertLoaderOpt
@@ -152,38 +179,48 @@ func WithAllowInsecure(allowInsecure bool) TLSConfigManagerOpt {
 	}
 }
 
-// WithRootCAIncludeSystem specifies if the system CA should be included in the root CA.
-func WithRootCAIncludeSystem(includeSystem bool) TLSConfigManagerOpt {
+// WithRootCA configures the CA pool used to verify peer (server) certificates.
+// A nil config leaves the base config's roots in place (Go's implicit system
+// pool). A non-nil config is used as-is; one that trusts no certificates is an
+// error at construction unless insecure connections are allowed.
+func WithRootCA(cc *CAConfig) TLSConfigManagerOpt {
 	return func(cp *tlsConfigManagerConfig) {
-		cp.rootCAConfig.setIncludeSystem(includeSystem)
+		cp.rootCA = cc
 	}
 }
 
-// WithRootCAFiles specifies a list of paths to PEM files that contain root CAs.
-func WithRootCAFiles(pemFiles ...string) TLSConfigManagerOpt {
+// WithClientCA configures the CA pool used to verify client certificates during
+// client authentication. A nil config leaves the base config's client pool in
+// place; a non-nil config is validated and built into a pool whether or not
+// client authentication is enabled via WithClientAuth, and one that trusts no
+// certificates is an error at construction. The pool is only actually used to
+// verify clients when client authentication is enabled.
+func WithClientCA(cc *CAConfig) TLSConfigManagerOpt {
 	return func(cp *tlsConfigManagerConfig) {
-		cp.rootCAConfig.addFiles(pemFiles...)
+		cp.clientCA = cc
 	}
 }
 
-// WithClientCAIncludeSystem specifies if the system CA should be included in the client CA for client authentication.
-func WithClientCAIncludeSystem(includeSystem bool) TLSConfigManagerOpt {
-	return func(cp *tlsConfigManagerConfig) {
-		cp.clientCAConfig.setIncludeSystem(includeSystem)
-	}
-}
-
-// WithClientCAFiles specifies a list of paths to PEM files that contain root CA for client authentication.
-func WithClientCAFiles(pemFiles ...string) TLSConfigManagerOpt {
-	return func(cp *tlsConfigManagerConfig) {
-		cp.clientCAConfig.addFiles(pemFiles...)
-	}
-}
-
-// WithClientAuth specifies the type TLS client authentication a server should perform.
+// WithClientAuth specifies the type of TLS client authentication a server
+// should perform. When used, it overrides the base config's ClientAuth with
+// auth, even if auth is the zero value (tls.NoClientCert).
 func WithClientAuth(auth tls.ClientAuthType) TLSConfigManagerOpt {
 	return func(cp *tlsConfigManagerConfig) {
-		cp.clientAuth = auth
+		cp.clientAuth = &auth
+	}
+}
+
+// WithClientAuthPtr specifies the type of TLS client authentication a server
+// should perform, allowing "not configured" to be distinguished from an
+// explicit value. When clientAuthPtr is nil the base config's ClientAuth is left
+// in place; when it is non-nil the base config's ClientAuth is overridden with
+// *clientAuthPtr, even if that is the zero value (tls.NoClientCert).
+func WithClientAuthPtr(clientAuthPtr *tls.ClientAuthType) TLSConfigManagerOpt {
+	return func(cp *tlsConfigManagerConfig) {
+		if clientAuthPtr != nil {
+			auth := *clientAuthPtr
+			cp.clientAuth = &auth
+		}
 	}
 }
 
@@ -216,6 +253,27 @@ func WithIgnoreFilePermissions(ignore bool) TLSConfigManagerOpt {
 	}
 }
 
+// errCATrustsNothing is returned by resolveCA when a configured CA pool would
+// trust no certificates. Callers wrap it with root/client context.
+var errCATrustsNothing = errors.New("trusts no certificates: set paths or enable include-system")
+
+// resolveCA resolves a user-facing *CAConfig into an internal pool config,
+// shared by root and client CAs. A nil config leaves the base config's pool in
+// place (for root CAs, that means Go's implicit system roots). A non-nil config
+// is always validated and built into a pool, regardless of how (or whether) the
+// pool will be used, so a misconfigured CA is reported at construction; one that
+// trusts no certificates returns errCATrustsNothing for the caller to wrap with
+// the appropriate root/client context.
+func resolveCA(cc *CAConfig) (caConfig, error) {
+	if cc == nil {
+		return caConfig{}, nil // leave the base config's pool
+	}
+	if !cc.hasTrustAnchors() {
+		return caConfig{}, errCATrustsNothing
+	}
+	return cc.customCAConfig(), nil
+}
+
 // newTLSConfigManager returns a TLSConfigManager configured by opts.
 func newTLSConfigManager(opts ...TLSConfigManagerOpt) (*TLSConfigManager, error) {
 	c := tlsConfigManagerConfig{}
@@ -236,9 +294,22 @@ func newTLSConfigManager(opts ...TLSConfigManagerOpt) (*TLSConfigManager, error)
 		// Modify configuration.
 		tlsConfig.InsecureSkipVerify = c.allowInsecure
 
-		// Only overwrite default value of ClientAuth.
-		if tlsConfig.ClientAuth == tls.NoClientCert {
-			tlsConfig.ClientAuth = c.clientAuth
+		// Override ClientAuth only when it was explicitly configured; otherwise
+		// leave the base config's value in place.
+		if c.clientAuth != nil {
+			tlsConfig.ClientAuth = *c.clientAuth
+		}
+
+		// Resolve the user-facing *CAConfig values into internal pool configs,
+		// applying the not-configured defaults and rejecting configurations
+		// that trust no certificates. See CAConfig for the nil/non-nil semantics.
+		rootCAConfig, err := resolveCA(c.rootCA)
+		if err != nil {
+			return nil, fmt.Errorf("root CA configuration %w", err)
+		}
+		clientCAConfig, err := resolveCA(c.clientCA)
+		if err != nil {
+			return nil, fmt.Errorf("client CA configuration %w", err)
 		}
 
 		// Setup CA pools.
@@ -252,10 +323,10 @@ func newTLSConfigManager(opts ...TLSConfigManagerOpt) (*TLSConfigManager, error)
 			return nil
 		}
 
-		if err := setupPool(&tlsConfig.RootCAs, c.rootCAConfig); err != nil {
+		if err := setupPool(&tlsConfig.RootCAs, rootCAConfig); err != nil {
 			return nil, fmt.Errorf("error creating root CA pool: %w", err)
 		}
-		if err := setupPool(&tlsConfig.ClientCAs, c.clientCAConfig); err != nil {
+		if err := setupPool(&tlsConfig.ClientCAs, clientCAConfig); err != nil {
 			return nil, fmt.Errorf("error creating client CA pool: %w", err)
 		}
 

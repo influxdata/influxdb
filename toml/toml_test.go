@@ -2,6 +2,7 @@ package toml_test
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"math"
@@ -569,6 +570,154 @@ func TestFileMode_UnmarshalText(t *testing.T) {
 	}
 }
 
+// validClientAuthTypes pairs every valid tls.ClientAuthType with its canonical
+// (exact-match) string form, as produced by tls.ClientAuthType.String().
+var validClientAuthTypes = []struct {
+	val itoml.TlsClientAuthType
+	str string
+}{
+	{itoml.TlsClientAuthType(tls.NoClientCert), "NoClientCert"},
+	{itoml.TlsClientAuthType(tls.RequestClientCert), "RequestClientCert"},
+	{itoml.TlsClientAuthType(tls.RequireAnyClientCert), "RequireAnyClientCert"},
+	{itoml.TlsClientAuthType(tls.VerifyClientCertIfGiven), "VerifyClientCertIfGiven"},
+	{itoml.TlsClientAuthType(tls.RequireAndVerifyClientCert), "RequireAndVerifyClientCert"},
+}
+
+// invalidClientAuthErr returns the exact error text UnmarshalText produces for
+// an unrecognized value, matching its `fmt.Errorf("%q: %w", s, sentinel)` form.
+//
+// The sentinel text is spelled out as a literal on purpose: reusing
+// itoml.ErrInvalidTlsClientAuthType would make the test blind to an accidental
+// change of the error message. Pinning the literal means such a change is
+// caught, and an intentional change forces a deliberate update here.
+func invalidClientAuthErr(value string) string {
+	return fmt.Sprintf("%q: invalid tls.ClientAuthType (valid values: NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven, RequireAndVerifyClientCert)", value)
+}
+
+func TestTlsClientAuthType_MarshalText(t *testing.T) {
+	// Every valid enum value marshals to its canonical string.
+	for _, tc := range validClientAuthTypes {
+		t.Run(tc.str, func(t *testing.T) {
+			b, err := tc.val.MarshalText()
+			require.NoError(t, err)
+			require.Equal(t, tc.str, string(b))
+		})
+	}
+
+	// Invalid values marshal to the typecast form rather than returning an
+	// error, so that a bad in-memory value can never break config writeout.
+	t.Run("invalid", func(t *testing.T) {
+		b, err := itoml.TlsClientAuthType(-1).MarshalText()
+		require.NoError(t, err)
+		require.Equal(t, "ClientAuthType(-1)", string(b))
+	})
+}
+
+func TestTlsClientAuthType_UnmarshalText(t *testing.T) {
+	// Every valid enum value round-trips from its canonical string.
+	for _, tc := range validClientAuthTypes {
+		t.Run(tc.str, func(t *testing.T) {
+			var got itoml.TlsClientAuthType
+			require.NoError(t, got.UnmarshalText([]byte(tc.str)))
+			require.Equal(t, tc.val, got)
+		})
+	}
+
+	// Matching is case-insensitive.
+	t.Run("case-insensitive", func(t *testing.T) {
+		var got itoml.TlsClientAuthType
+		require.NoError(t, got.UnmarshalText([]byte("requireandverifyclientcert")))
+		require.Equal(t, itoml.TlsClientAuthType(tls.RequireAndVerifyClientCert), got)
+	})
+
+	// Invalid strings, including the typecast form MarshalText emits for
+	// invalid values, are rejected with the sentinel error.
+	for _, str := range []string{"bogus", "", "ClientAuthType(-1)"} {
+		t.Run(fmt.Sprintf("invalid/%q", str), func(t *testing.T) {
+			var got itoml.TlsClientAuthType
+			err := got.UnmarshalText([]byte(str))
+			require.ErrorIs(t, err, itoml.ErrInvalidTlsClientAuthType)
+			require.EqualError(t, err, invalidClientAuthErr(str))
+			require.Zero(t, got, "value should be untouched after a failed unmarshal")
+		})
+	}
+}
+
+func TestTlsClientAuthType_TOML(t *testing.T) {
+	type config struct {
+		Auth itoml.TlsClientAuthType `toml:"auth"`
+	}
+
+	t.Run("marshal", func(t *testing.T) {
+		// Encode a value (non-pointer) field: this is the common case and the
+		// one a pointer-receiver MarshalText would silently emit as a raw int.
+		var buf bytes.Buffer
+		c := config{Auth: itoml.TlsClientAuthType(tls.RequireAnyClientCert)}
+		require.NoError(t, toml.NewEncoder(&buf).Encode(c))
+		require.Equal(t, "auth = \"RequireAnyClientCert\"\n", buf.String())
+	})
+
+	for _, tc := range []struct {
+		name string
+		in   string
+		val  string // the quoted config value, for error-text assertions
+		want itoml.TlsClientAuthType
+		ok   bool
+	}{
+		{"exact", `auth = "RequireAndVerifyClientCert"`, "RequireAndVerifyClientCert", itoml.TlsClientAuthType(tls.RequireAndVerifyClientCert), true},
+		{"case-insensitive", `auth = "verifyclientcertifgiven"`, "verifyclientcertifgiven", itoml.TlsClientAuthType(tls.VerifyClientCertIfGiven), true},
+		{"invalid", `auth = "bogus"`, "bogus", 0, false},
+	} {
+		t.Run("unmarshal/"+tc.name, func(t *testing.T) {
+			var c config
+			_, err := toml.Decode(tc.in, &c)
+			if tc.ok {
+				require.NoError(t, err)
+				require.Equal(t, tc.want, c.Auth)
+			} else {
+				// BurntSushi's decoder reports our UnmarshalText error's text
+				// but wraps it in a toml.ParseError that has no Unwrap method,
+				// so errors.Is cannot reach our sentinel through it. Assert the
+				// portion we own rather than the library's wrapper format.
+				require.ErrorContains(t, err, invalidClientAuthErr(tc.val))
+			}
+		})
+	}
+}
+
+func TestTlsClientAuthType_EnvOverride(t *testing.T) {
+	type config struct {
+		Auth itoml.TlsClientAuthType `toml:"auth"`
+	}
+
+	for _, tc := range []struct {
+		name string
+		val  string
+		want itoml.TlsClientAuthType
+		ok   bool
+	}{
+		{"exact", "RequireAnyClientCert", itoml.TlsClientAuthType(tls.RequireAnyClientCert), true},
+		{"case-insensitive", "requestclientcert", itoml.TlsClientAuthType(tls.RequestClientCert), true},
+		{"invalid", "bogus", 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var c config
+			env := mapEnv(map[string]string{"X_AUTH": tc.val})
+			applied, err := itoml.ApplyEnvOverrides(env, "X", &c)
+			if tc.ok {
+				require.NoError(t, err)
+				require.Equal(t, []string{"X_AUTH"}, applied)
+				require.Equal(t, tc.want, c.Auth)
+			} else {
+				require.ErrorIs(t, err, itoml.ErrInvalidTlsClientAuthType)
+				// ApplyEnvOverrides wraps our error; assert the owned portion.
+				require.ErrorContains(t, err, invalidClientAuthErr(tc.val))
+				require.Empty(t, applied)
+			}
+		})
+	}
+}
+
 func TestGroup_UnmarshalTOML(t *testing.T) {
 	// Skip this test on windows since it does not support setting the group anyway.
 	if runtime.GOOS == "windows" {
@@ -1000,7 +1149,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_NESTED_INT":       "13",
 		"X_NESTEDPTR_STRING": "a nested pointer string",
 		"X_NESTEDPTR_INT":    "14",
-		"X_NILPTR_STRING":    "should be ignored",
+		"X_NILPTR_STRING":    "a nil pointer string",
 		"X_NILPTR_INT":       "99",
 		"X_ES":               "an embedded string",
 		"X__":                "-1", // This value should not be applied to the "ignored" field with toml tag -.
@@ -1174,6 +1323,12 @@ func TestEnvOverride_Builtins(t *testing.T) {
 			Str: "a nested pointer string",
 			Int: 14,
 		},
+		// A nil pointer to a struct is speculatively allocated and populated
+		// when a field env var is present.
+		NilPtr: &nestedConfig{
+			Str: "a nil pointer string",
+			Int: 99,
+		},
 		EmbeddedConfig: EmbeddedConfig{
 			ES: "an embedded string",
 		},
@@ -1241,6 +1396,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_NESTEDSLICE_3_INT", "X_NESTEDSLICE_3_STRING",
 		"X_NESTEDSLICE_4_STRING",
 		"X_NESTED_INT", "X_NESTED_STRING",
+		"X_NILPTR_INT", "X_NILPTR_STRING",
 		"X_SIZESLICE2",
 		"X_SIZESLICE3_0", "X_SIZESLICE3_1",
 		"X_SIZESLICE_0", "X_SIZESLICE_1",
@@ -1945,29 +2101,38 @@ func TestEnvOverride_AllocatesPointerWhenGrowingStructSlice(t *testing.T) {
 	}, appliedVars)
 }
 
-func TestEnvOverride_NilPointerToStructSkipped(t *testing.T) {
-	// A nil pointer to a struct is NOT auto-allocated. Struct env vars target
-	// the struct's fields, not the struct itself, so there's no single value
-	// to trigger allocation. Users must initialize such pointers in NewConfig
-	// or via the TOML file.
+func TestEnvOverride_NilPointerToStructAllocated(t *testing.T) {
+	// A nil pointer to a struct is speculatively allocated when a field env var
+	// is present, and left nil otherwise. This lets an optional sub-config be
+	// enabled entirely from env vars without pre-allocating the pointer in
+	// NewConfig or the TOML file.
 	type sub struct {
 		A string `toml:"a"`
+		B string `toml:"b"`
 	}
 	type config struct {
 		Sub *sub `toml:"sub"`
 	}
 
-	env := func(s string) string {
-		if s == "X_SUB_A" {
-			return "value"
-		}
-		return ""
-	}
+	t.Run("allocated when a field env var is set", func(t *testing.T) {
+		env := mapEnv(map[string]string{"X_SUB_A": "value"})
+		var c config
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.NoError(t, err)
+		require.NotNil(t, c.Sub)
+		require.Equal(t, "value", c.Sub.A)
+		require.Empty(t, c.Sub.B, "unset fields stay at their zero value")
+		require.Equal(t, []string{"X_SUB_A"}, appliedVars)
+	})
 
-	var c config
-	_, err := itoml.ApplyEnvOverrides(env, "X", &c)
-	require.NoError(t, err)
-	require.Nil(t, c.Sub)
+	t.Run("left nil when no field env var is set", func(t *testing.T) {
+		env := mapEnv(map[string]string{"X_UNRELATED": "value"})
+		var c config
+		appliedVars, err := itoml.ApplyEnvOverrides(env, "X", &c)
+		require.NoError(t, err)
+		require.Nil(t, c.Sub, "absent sub-config stays absent (speculative alloc rolled back)")
+		require.Empty(t, appliedVars)
+	})
 }
 
 func TestEnvOverride_FalseGrowFromDefault(t *testing.T) {

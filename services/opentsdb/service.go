@@ -58,6 +58,13 @@ type Service struct {
 	privateKey   string
 	insecureCert bool
 
+	// clientAuthType controls TLS client-certificate authentication (mTLS). A
+	// nil value leaves the base TLS config's ClientAuth in place.
+	clientAuthType *tls.ClientAuthType
+	// clientCA configures the CA pool used to verify client certificates. A nil
+	// value leaves the base TLS config's client pool in place.
+	clientCA *tlsconfig.CAConfig
+
 	mu    sync.RWMutex
 	ready bool          // Has the required database been created?
 	done  chan struct{} // Is the service closing or closed?
@@ -91,12 +98,22 @@ func NewService(c Config) (*Service, error) {
 	// Use defaults where necessary.
 	d := c.WithDefaults()
 
+	// Convert the optional client-auth type to a *tls.ClientAuthType so a nil
+	// (unset) config leaves the base TLS config's ClientAuth in place.
+	var clientAuthType *tls.ClientAuthType
+	if d.ClientAuthType != nil {
+		auth := tls.ClientAuthType(*d.ClientAuthType)
+		clientAuthType = &auth
+	}
+
 	s := &Service{
 		tls:             d.TLSEnabled,
 		tlsConfig:       d.TLS,
 		cert:            d.Certificate,
 		privateKey:      d.PrivateKey,
 		insecureCert:    d.InsecureCertificate,
+		clientAuthType:  clientAuthType,
+		clientCA:        d.ClientCA,
 		BindAddress:     d.BindAddress,
 		Database:        d.Database,
 		RetentionPolicy: d.RetentionPolicy,
@@ -137,6 +154,8 @@ func (s *Service) Open() error {
 	// Open listener.
 	cm, err := tlsconfig.NewTLSConfigManager(s.tls, s.tlsConfig, s.cert, s.privateKey, false,
 		tlsconfig.WithIgnoreFilePermissions(s.insecureCert),
+		tlsconfig.WithClientAuthPtr(s.clientAuthType),
+		tlsconfig.WithClientCA(s.clientCA),
 		tlsconfig.WithLogger(s.Logger))
 	if err != nil {
 		return fmt.Errorf("opentsdb: error creating TLS manager: %w", err)

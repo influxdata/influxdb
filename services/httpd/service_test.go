@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
 	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/httpd"
+	"github.com/influxdata/influxdb/toml"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -252,6 +253,77 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 	})
 }
 
+// TestService_Open_ClientCertAuth verifies that, when configured with a client
+// auth type and a client CA, the httpd service enforces mutual TLS: a client
+// presenting a certificate signed by the configured CA is authenticated, while
+// a client that presents no certificate or an untrusted one is rejected during
+// the TLS handshake.
+func TestService_Open_ClientCertAuth(t *testing.T) {
+	// serverSS is the server's HTTPS certificate; clientSS provides the client
+	// certificate and the CA (clientSS.CACertPath) the server is told to trust
+	// for client authentication.
+	serverSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("localhost"))
+	clientSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("client", "Client CA"))
+
+	authType := toml.TlsClientAuthType(tls.RequireAndVerifyClientCert)
+	s := httpd.NewService(httpd.Config{
+		BindAddress:         "localhost:",
+		HTTPSEnabled:        true,
+		HTTPSCertificate:    serverSS.CertPath,
+		HTTPSPrivateKey:     serverSS.KeyPath,
+		HTTPSClientAuthType: &authType,
+		HTTPSClientCA:       &tlsconfig.CAConfig{Paths: []string{clientSS.CACertPath}},
+		TLS:                 new(tls.Config),
+	})
+	s.WithLogger(zap.NewNop())
+	require.NoError(t, s.Open())
+	defer th.CheckedClose(t, s)()
+
+	pingURI := fmt.Sprintf("https://%s/ping", s.Addr())
+
+	t.Run("client with trusted certificate is authenticated", func(t *testing.T) {
+		// Present the client certificate; skip server-cert verification so the
+		// test isolates client authentication.
+		client := http.Client{Transport: &http.Transport{
+			TLSClientConfig: clientSS.ClientTLSConfig(t, true, true),
+		}}
+		resp, err := client.Get(pingURI)
+		require.NoError(t, err)
+		defer th.CheckedClose(t, resp.Body)()
+		require.NotNil(t, resp.TLS)
+		require.NotEmpty(t, resp.TLS.PeerCertificates, "handshake should have completed with the server cert")
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	})
+
+	t.Run("client without certificate is rejected", func(t *testing.T) {
+		// No client certificate presented.
+		client := http.Client{Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}}
+		resp, err := client.Get(pingURI)
+		if resp != nil {
+			// Defer close so we get the important assertions before this.
+			defer th.CheckedClose(t, resp.Body)()
+		}
+		require.Error(t, err, "server should reject a client without a certificate")
+		require.ErrorContains(t, err, "certificate required")
+	})
+
+	t.Run("client with untrusted certificate is rejected", func(t *testing.T) {
+		// Certificate signed by a CA the server does not trust for clients.
+		otherSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("other", "Other CA"))
+		client := http.Client{Transport: &http.Transport{
+			TLSClientConfig: otherSS.ClientTLSConfig(t, true, true),
+		}}
+		resp, err := client.Get(pingURI)
+		if resp != nil {
+			// Defer close so we get the important assertions before this.
+			defer th.CheckedClose(t, resp.Body)()
+		}
+		require.Error(t, err, "server should reject a client with an untrusted certificate")
+	})
+}
+
 // openService creates, opens, and registers cleanup for an httpd.Service.
 func openService(t *testing.T, config httpd.Config) *httpd.Service {
 	t.Helper()
@@ -306,7 +378,8 @@ func TestService_Open_TLSConfigManager(t *testing.T) {
 
 		resp, err := http.Get(fmt.Sprintf("http://%s/ping", s.Addr()))
 		require.NoError(t, err)
-		resp.Body.Close()
+		// Defer close so it doesn't mask the more important assertions,
+		defer th.CheckedClose(t, resp.Body)()
 		require.Equal(t, http.StatusNoContent, resp.StatusCode)
 		require.Nil(t, resp.TLS)
 	})
