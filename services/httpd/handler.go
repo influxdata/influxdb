@@ -734,6 +734,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		NodeID:          nodeID,
 		Authorizer:      fineAuthorizer,
 		UserID:          userName,
+		Host:            PrintableRemoteAddr(r),
 	}
 
 	if h.Config.AuthEnabled {

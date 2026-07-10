@@ -204,6 +204,9 @@ type ExecutionOptions struct {
 
 	// UserID is the ID of the user executing the query.
 	UserID string
+
+	// Remote requesting address
+	Host string
 }
 
 type (
@@ -479,6 +482,7 @@ type Task struct {
 	closing   chan struct{}
 	monitorCh chan error
 	err       error
+	host      string
 	mu        sync.Mutex
 }
 

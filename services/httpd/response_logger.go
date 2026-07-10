@@ -11,6 +11,8 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+const NoHostSentinel = "internal"
+
 // responseLogger is wrapper of http.ResponseWriter that keeps track of its HTTP status
 // code and body size
 type responseLogger struct {
@@ -86,15 +88,7 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 
 	username := parseUsername(r)
 
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-
-	if xff := r.Header["X-Forwarded-For"]; xff != nil {
-		addrs := append(xff, host)
-		host = strings.Join(addrs, ",")
-	}
+	host := PrintableRemoteAddr(r)
 
 	uri := r.URL.RequestURI()
 
@@ -154,7 +148,32 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 	}
 }
 
-// detect detects the first presence of a non blank string and returns it
+// PrintableRemoteAddr returns a printable representation of the request's remote address.
+// If X-Forwarded-For is present, its values are prepended (in order) before the RemoteAddr host.
+// Fall back to "internal" if no remote address is present.
+func PrintableRemoteAddr(r *http.Request) string {
+	var host string
+	var err error
+
+	if r != nil {
+		host, _, err = net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+
+		if xff := r.Header["X-Forwarded-For"]; len(xff) > 0 {
+			addrs := make([]string, 0, len(xff)+1)
+			addrs = append(addrs, xff...)
+			if host != "" {
+				addrs = append(addrs, host)
+			}
+			host = strings.Join(addrs, ",")
+		}
+	}
+	return detect(host, NoHostSentinel)
+}
+
+// detect detects the first presence of a non-empty string and returns it
 func detect(values ...string) string {
 	for _, v := range values {
 		if v != "" {
