@@ -321,7 +321,7 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
 				}
 				itr.point.Aux[baseIdx+i] = val
 			}
@@ -845,7 +845,7 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
 				}
 				itr.point.Aux[baseIdx+i] = val
 			}
@@ -1369,7 +1369,7 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
 				}
 				itr.point.Aux[baseIdx+i] = val
 			}
@@ -1893,7 +1893,7 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
 				}
 				itr.point.Aux[baseIdx+i] = val
 			}
@@ -2417,7 +2417,7 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 			for i, dim := range itr.opt.DatePartDimensions {
 				val, ok := query.ExtractDatePartExpr(t, dim.Expr)
 				if !ok {
-					return nil, fmt.Errorf("failed to extract date_part %s", dim.Name)
+					return nil, fmt.Errorf("failed to extract date_part %s", dim.Expr.String())
 				}
 				itr.point.Aux[baseIdx+i] = val
 			}

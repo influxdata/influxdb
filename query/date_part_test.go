@@ -468,7 +468,7 @@ func TestDatePartValuer_Call_GroupedDimension(t *testing.T) {
 
 func TestDatePartGrouper_ResolveKeys_FirstLevel(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Month},
 	})
 
 	aux := []interface{}{int64(3)}
@@ -481,7 +481,7 @@ func TestDatePartGrouper_ResolveKeys_FirstLevel(t *testing.T) {
 
 func TestDatePartGrouper_ResolveKeys_FirstLevel_WithTags(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Month},
 	})
 
 	aux := []interface{}{int64(3)}
@@ -497,7 +497,7 @@ func TestDatePartGrouper_DimKey_NoCollisionWithNulBytesInTagID(t *testing.T) {
 	// them unambiguous even when a tag ID ends in / contains the bytes that the
 	// old separator scheme used.
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Month},
 	})
 
 	a, err := g.ResolveKeys([]interface{}{int64(3)}, "a\x00\x00b", true)
@@ -509,7 +509,7 @@ func TestDatePartGrouper_DimKey_NoCollisionWithNulBytesInTagID(t *testing.T) {
 
 func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Month},
 	})
 
 	aux := []interface{}{query.DecodedDatePartKey{Expr: query.Month, Val: 3}}
@@ -520,7 +520,7 @@ func TestDatePartGrouper_ResolveKeys_SecondLevel(t *testing.T) {
 
 func TestDatePartGrouper_DecodeEntry(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Month},
 	})
 
 	aux := []interface{}{int64(7)}
@@ -538,8 +538,8 @@ func TestDatePartGrouper_ResolveKeys_AuxShorterThanDims(t *testing.T) {
 	// Two dimensions but only one raw value and no DecodedDatePartKey present:
 	// ResolveKeys cannot map values to dims, so it returns (nil, nil).
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "year", Expr: query.Year},
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Year},
+		{Expr: query.Month},
 	})
 
 	entries, err := g.ResolveKeys([]interface{}{int64(3)}, "", false)
@@ -551,7 +551,7 @@ func TestDatePartGrouper_ResolveKeys_UnexpectedAuxType(t *testing.T) {
 	// A first-level aux value that is neither int64 nor DecodedDatePartKey
 	// must surface an error rather than silently mis-grouping.
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Month},
 	})
 
 	entries, err := g.ResolveKeys([]interface{}{"not an int"}, "", false)
@@ -565,7 +565,7 @@ func TestDatePartGrouper_DecodeEntry_InvalidLength(t *testing.T) {
 	// and longer keys must be rejected rather than read out of bounds or silently
 	// truncated.
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Month},
 	})
 
 	for _, key := range []string{"short", "this key is far too long"} {
@@ -580,7 +580,7 @@ func TestDatePartGrouper_DecodeEntry_InvalidExprByte(t *testing.T) {
 	// rather than decoded into an out-of-range expr (whose String() is empty and
 	// would silently misroute the output column).
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Month},
 	})
 
 	key := string([]byte{200, 0, 0, 0, 0, 0, 0, 0, 0})
@@ -591,8 +591,8 @@ func TestDatePartGrouper_DecodeEntry_InvalidExprByte(t *testing.T) {
 
 func TestDatePartGrouper_RoundTrip_MultiDimension(t *testing.T) {
 	g := query.NewDatePartGrouper([]query.DatePartDimension{
-		{Name: "year", Expr: query.Year},
-		{Name: "month", Expr: query.Month},
+		{Expr: query.Year},
+		{Expr: query.Month},
 	})
 
 	aux := []interface{}{int64(2026), int64(3)}

@@ -80,6 +80,11 @@ func NewIteratorMapper(cur Cursor, driver IteratorMap, fields []IteratorMap, opt
 			}
 		case TagMap:
 			return newStringIteratorMapper(cur, driver, fields, opt)
+		case datePartMap:
+			// A driver named after an active GROUP BY date_part dimension (e.g.
+			// count(year) under GROUP BY date_part('year', time)). The computed
+			// date part is always an int64, so drive an integer iterator.
+			return newIntegerIteratorMapper(cur, driver, fields, opt)
 		default:
 			panic(fmt.Sprintf("unable to create iterator mapper with driver expression type: %T", driver))
 		}

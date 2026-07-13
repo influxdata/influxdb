@@ -9336,6 +9336,56 @@ func TestServer_Query_DatePart_Subquery_GroupBy(t *testing.T) {
 	}
 }
 
+// Ensure GROUP BY date_part('epoch', ...) emits pre-1970 (negative) buckets in
+// chronological order. The reduce path orders series by sorting encoded
+// grouping-key strings, so the encoding must preserve signed value order.
+func TestServer_Query_DatePart_EpochPre1970(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0, 0, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu,host=server01 value=1 %d`, mustParseTime(time.RFC3339Nano, "1969-12-31T23:59:59Z").UnixNano()), // epoch -1
+		fmt.Sprintf(`cpu,host=server01 value=2 %d`, mustParseTime(time.RFC3339Nano, "1970-01-01T00:00:00Z").UnixNano()), // epoch 0
+		fmt.Sprintf(`cpu,host=server01 value=3 %d`, mustParseTime(time.RFC3339Nano, "1970-01-01T00:00:01Z").UnixNano()), // epoch 1
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries(
+		&Query{
+			name:    `GROUP BY epoch spanning 1970 emits buckets chronologically`,
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu WHERE time >= '1969-12-31T23:59:59Z' AND time <= '1970-01-01T00:00:01Z' GROUP BY date_part('epoch', time)`,
+			exp: `{"results":[{"statement_id":0,"series":[` +
+				`{"name":"cpu","grouping_keys":["epoch"],"columns":["time","count","epoch"],"values":[` +
+				`["1969-12-31T23:59:59Z",1,-1],` +
+				`["1969-12-31T23:59:59Z",1,0],` +
+				`["1969-12-31T23:59:59Z",1,1]` +
+				`]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
+		},
+	)
+
+	var initialized bool
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if !initialized {
+				require.NoError(t, test.init(s), "init error")
+				initialized = true
+			}
+			require.NoError(t, query.Execute(s))
+			require.True(t, query.success(), query.failureMessage())
+		})
+	}
+}
+
 func TestServer_Query_DatePart_Subquery_Where(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())

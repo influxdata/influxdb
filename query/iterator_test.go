@@ -1689,8 +1689,8 @@ func TestIteratorOptions_MarshalBinary(t *testing.T) {
 func TestIteratorOptions_MarshalBinary_DatePart(t *testing.T) {
 	opt := &query.IteratorOptions{
 		DatePartDimensions: []query.DatePartDimension{
-			{Name: "year", Expr: query.Year},
-			{Name: "month", Expr: query.Month},
+			{Expr: query.Year},
+			{Expr: query.Month},
 		},
 		NeedTimeRef: true,
 	}

@@ -28,7 +28,7 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 
 	// Filter the cursor by a condition if one was given.
 	if opt.Condition != nil {
-		cur = newFilterCursor(cur, opt.Condition, opt.Location)
+		cur = newFilterCursor(cur, opt.Condition, opt.NeedTimeRef, opt.Location)
 	}
 
 	// Construct the iterators for the subquery.
@@ -61,7 +61,7 @@ func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef, opt IteratorOptions
 	// measurement-source path, where date_part dimensions are always derived from
 	// time. Gated on DatePartDimensions so non-date_part subqueries are unaffected.
 	for _, d := range opt.DatePartDimensions {
-		if d.Name == name.Val {
+		if d.Expr.String() == name.Val {
 			return datePartMap{expr: d.Expr, loc: opt.Location}
 		}
 	}
@@ -126,7 +126,7 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 
 	// Filter the cursor by a condition if one was given.
 	if opt.Condition != nil {
-		cur = newFilterCursor(cur, opt.Condition, opt.Location)
+		cur = newFilterCursor(cur, opt.Condition, opt.NeedTimeRef, opt.Location)
 	}
 
 	// Construct the iterators for the subquery.

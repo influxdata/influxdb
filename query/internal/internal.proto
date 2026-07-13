@@ -57,8 +57,7 @@ message IteratorOptions {
 }
 
 message DatePartDimension {
-    optional string Name = 1;
-    optional int32  Expr = 2;
+    optional int32 Expr = 1;
 }
 
 message Measurements {

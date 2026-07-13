@@ -214,6 +214,21 @@ func ValidateDatePart(args []influxql.Expr) error {
 	return nil
 }
 
+// exprContainsDatePart reports whether expr contains a call to the date_part
+// function at any nesting depth. A nil expr contains none.
+func exprContainsDatePart(expr influxql.Expr) bool {
+	if expr == nil {
+		return false
+	}
+	found := false
+	influxql.WalkFunc(expr, func(n influxql.Node) {
+		if call, ok := n.(*influxql.Call); ok && call.Name == DatePartString {
+			found = true
+		}
+	})
+	return found
+}
+
 type DatePartValuer struct {
 	Valuer influxql.MapValuer
 	// Location is the timezone in which calendar fields are computed.
@@ -385,8 +400,10 @@ func (c *DatePartCondition) SetTime(ts int64, m map[string]interface{}) {
 	}
 }
 
+// DatePartDimension is a GROUP BY date_part dimension. Its output column is
+// named by Expr.String() — the canonical part name (e.g. "dow"), regardless of
+// how the user spelled the literal (e.g. "DOW").
 type DatePartDimension struct {
-	Name string
 	Expr DatePartExpr
 }
 
@@ -426,7 +443,10 @@ func NewDatePartGrouper(dims []DatePartDimension) *DatePartGrouper {
 // empty tag values.
 func computeDimKey(expr DatePartExpr, val int64, tagID string, hasTags bool) string {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(val))
+	// Flip the sign bit so lexicographic byte order matches signed numeric
+	// order; without this a negative value (e.g. a pre-1970 'epoch') encodes
+	// with its high bit set and sorts after every non-negative value.
+	binary.BigEndian.PutUint64(buf[:], uint64(val)^(1<<63))
 	valStr := string(buf[:])
 	if hasTags {
 		var lenBuf [8]byte

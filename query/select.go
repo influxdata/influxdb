@@ -678,19 +678,6 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 		f.Alias = columns[i]
 	}
 
-	// Add date part dimensions as output columns
-	if len(opt.DatePartDimensions) > 0 {
-		for _, dim := range opt.DatePartDimensions {
-			fields = append(fields, &influxql.Field{
-				Expr: &influxql.VarRef{
-					Val:  dim.Name,
-					Type: influxql.Integer,
-				},
-				Alias: dim.Name,
-			})
-		}
-	}
-
 	// Retrieve the refs to retrieve the auxiliary fields.
 	var auxKeys []influxql.VarRef
 	if len(valueMapper.refs) > 0 {
@@ -706,19 +693,14 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 		}
 	}
 
-	// Add date part dimensions as auxiliary fields so they appear as output columns
-	if len(opt.DatePartDimensions) > 0 {
-		if opt.Aux == nil {
-			opt.Aux = make([]influxql.VarRef, 0, len(opt.DatePartDimensions))
-		}
-		if auxKeys == nil {
-			auxKeys = make([]influxql.VarRef, 0, len(opt.DatePartDimensions))
-		}
-		for _, dim := range opt.DatePartDimensions {
-			// Add the date part dimension name as an auxiliary field reference
-			opt.Aux = append(opt.Aux, influxql.VarRef{Val: dim.Name, Type: influxql.Integer})
-			auxKeys = append(auxKeys, influxql.VarRef{Val: dim.Name, Type: influxql.Integer})
-		}
+	// Add each date part dimension as an output column with a backing auxiliary
+	// field, in a single pass so a column can never be added without its aux slot.
+	for _, dim := range opt.DatePartDimensions {
+		name := dim.Expr.String()
+		ref := influxql.VarRef{Val: name, Type: influxql.Integer}
+		fields = append(fields, &influxql.Field{Expr: &ref, Alias: name})
+		opt.Aux = append(opt.Aux, ref)
+		auxKeys = append(auxKeys, ref)
 	}
 
 	// If there are no calls, then produce an auxiliary cursor.

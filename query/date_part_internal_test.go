@@ -1,6 +1,7 @@
 package query
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -164,6 +165,7 @@ func TestFilterCursor_DatePartCondition(t *testing.T) {
 		cur := newFilterCursor(
 			RowCursor(rows, cols),
 			influxql.MustParseExpr(`date_part('hour', time) < 12`),
+			true,
 			nil,
 		)
 		var row Row
@@ -181,6 +183,7 @@ func TestFilterCursor_DatePartCondition(t *testing.T) {
 		cur := newFilterCursor(
 			RowCursor(rows, cols),
 			influxql.MustParseExpr(`date_part('hour', time) < 12`),
+			true,
 			la,
 		)
 		var row Row
@@ -195,6 +198,7 @@ func TestFilterCursor_DatePartCondition(t *testing.T) {
 		cur := newFilterCursor(
 			RowCursor(rows, cols),
 			influxql.MustParseExpr(`value > 1`),
+			false,
 			nil,
 		)
 		require.Nil(t, cur.dpCond)
@@ -214,7 +218,7 @@ func TestFilterCursor_DatePart_ZeroAllocs(t *testing.T) {
 	for i := range rows {
 		rows[i] = Row{Time: base + int64(i)*int64(time.Second), Values: []interface{}{1.0}}
 	}
-	cur := newFilterCursor(RowCursor(rows, cols), influxql.MustParseExpr(`date_part('hour', time) < 12`), nil)
+	cur := newFilterCursor(RowCursor(rows, cols), influxql.MustParseExpr(`date_part('hour', time) < 12`), true, nil)
 
 	var row Row
 	require.True(t, cur.Scan(&row)) // prime the boxing cache
@@ -223,6 +227,25 @@ func TestFilterCursor_DatePart_ZeroAllocs(t *testing.T) {
 		cur.Scan(&row)
 	})
 	require.Zero(t, allocs)
+}
+
+// TestComputeDimKey_SignedValueOrdering ensures DimKeys sort lexicographically
+// in the same order as their signed values. The reduce path sorts DimKey
+// strings to order the emitted series, so a negative value (e.g. a pre-1970
+// 'epoch') must produce a key that sorts before every non-negative value's key.
+func TestComputeDimKey_SignedValueOrdering(t *testing.T) {
+	vals := []int64{math.MinInt64, -100, -1, 0, 1, 100, math.MaxInt64}
+	for _, hasTags := range []bool{false, true} {
+		var prev string
+		for i, v := range vals {
+			key := computeDimKey(Epoch, v, "tagid", hasTags)
+			if i > 0 {
+				require.Less(t, prev, key,
+					"DimKey for %d must sort before DimKey for %d (hasTags=%v)", vals[i-1], v, hasTags)
+			}
+			prev = key
+		}
+	}
 }
 
 // BenchmarkFilterCursor_DatePartCondition measures the per-row cost of a
@@ -235,7 +258,7 @@ func BenchmarkFilterCursor_DatePartCondition(b *testing.B) {
 	for i := range rows {
 		rows[i] = Row{Time: base + int64(i)*int64(time.Second), Values: []interface{}{1.0}}
 	}
-	cur := newFilterCursor(RowCursor(rows, cols), influxql.MustParseExpr(`date_part('hour', time) < 12`), nil)
+	cur := newFilterCursor(RowCursor(rows, cols), influxql.MustParseExpr(`date_part('hour', time) < 12`), true, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()

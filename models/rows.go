@@ -1,6 +1,7 @@
 package models
 
 import (
+	"slices"
 	"sort"
 )
 
@@ -15,11 +16,9 @@ type Row struct {
 }
 
 // SameSeries returns true if r contains values for the same series as o.
+// GroupingKeys are emitted sorted, so they can be compared element-wise.
 func (r *Row) SameSeries(o *Row) bool {
-	if len(o.GroupingKeys) == 0 && len(r.GroupingKeys) == 0 {
-		return r.tagsHash() == o.tagsHash() && r.Name == o.Name
-	}
-	return r.tagsHash() == o.tagsHash() && r.Name == o.Name && r.groupingKeysHash() == o.groupingKeysHash()
+	return r.tagsHash() == o.tagsHash() && r.Name == o.Name && slices.Equal(r.GroupingKeys, o.GroupingKeys)
 }
 
 // tagsHash returns a hash of tag key/value pairs.
@@ -29,17 +28,6 @@ func (r *Row) tagsHash() uint64 {
 	for _, k := range keys {
 		h.Write([]byte(k))
 		h.Write([]byte(r.Tags[k]))
-	}
-	return h.Sum64()
-}
-
-func (r *Row) groupingKeysHash() uint64 {
-	h := NewInlineFNV64a()
-	for i, k := range r.GroupingKeys {
-		if i > 0 {
-			h.Write([]byte{0})
-		}
-		h.Write([]byte(k))
 	}
 	return h.Sum64()
 }

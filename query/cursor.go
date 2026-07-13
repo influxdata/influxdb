@@ -167,13 +167,7 @@ func scannerCursorNeedsDatePart(fields []*influxql.Field, opt IteratorOptions) b
 		return true
 	}
 	for _, f := range fields {
-		found := false
-		influxql.WalkFunc(f.Expr, func(n influxql.Node) {
-			if call, ok := n.(*influxql.Call); ok && call.Name == DatePartString {
-				found = true
-			}
-		})
-		if found {
+		if exprContainsDatePart(f.Expr) {
 			return true
 		}
 	}
@@ -458,7 +452,11 @@ type filterCursor struct {
 	valuer influxql.ValuerEval
 }
 
-func newFilterCursor(cur Cursor, filter influxql.Expr, loc *time.Location) *filterCursor {
+// newFilterCursor filters rows against the given expression. needTimeRef
+// reports whether the filter references the row timestamp (i.e. contains a
+// date_part call); it is precomputed by the caller (opt.NeedTimeRef) so the
+// condition AST is not re-walked for every filter cursor.
+func newFilterCursor(cur Cursor, filter influxql.Expr, needTimeRef bool, loc *time.Location) *filterCursor {
 	fields := make(map[string]IteratorMap)
 	for _, name := range influxql.ExprNames(filter) {
 		for i, col := range cur.Columns() {
@@ -484,7 +482,7 @@ func newFilterCursor(cur Cursor, filter influxql.Expr, loc *time.Location) *filt
 	// resolved by dpCond.SetTime in Scan. Filters without date_part are
 	// untouched.
 	var dpCond *DatePartCondition
-	if conditionNeedsTimeRef(filter) {
+	if needTimeRef {
 		if dp := NewDatePartCondition(filter, loc); dp != nil {
 			dpCond = dp
 			filter = dp.Expr()

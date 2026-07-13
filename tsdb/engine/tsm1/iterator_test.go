@@ -94,7 +94,7 @@ func BenchmarkIntegerIterator_Next_DatePartDimension(b *testing.B) {
 			{Val: "f1", Type: influxql.Integer},
 			{Val: "hour", Type: influxql.Integer},
 		},
-		DatePartDimensions: []query.DatePartDimension{{Name: "hour", Expr: query.Hour}},
+		DatePartDimensions: []query.DatePartDimension{{Expr: query.Hour}},
 		EndTime:            influxql.MaxTime,
 		Ascending:          true,
 	}

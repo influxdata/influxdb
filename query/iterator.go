@@ -714,14 +714,7 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 			if duplicate {
 				continue
 			}
-			opt.DatePartDimensions = append(opt.DatePartDimensions, DatePartDimension{
-				// Store the canonical part name (e.g. "dow"), not the raw user
-				// literal (e.g. "DOW"). Downstream grouping-key decoding uses
-				// DatePartExpr.String(), so the column name must match it or the
-				// grouped column never gets populated.
-				Name: expr.String(),
-				Expr: expr,
-			})
+			opt.DatePartDimensions = append(opt.DatePartDimensions, DatePartDimension{Expr: expr})
 		}
 	}
 
@@ -753,16 +746,7 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 // conditionNeedsTimeRef returns true if the condition expression contains
 // function calls that require access to the point's timestamp (e.g. date_part).
 func conditionNeedsTimeRef(condition influxql.Expr) bool {
-	if condition == nil {
-		return false
-	}
-	found := false
-	influxql.WalkFunc(condition, func(n influxql.Node) {
-		if call, ok := n.(*influxql.Call); ok && call.Name == DatePartString {
-			found = true
-		}
-	})
-	return found
+	return exprContainsDatePart(condition)
 }
 
 func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {
@@ -1051,7 +1035,6 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 		pb.DatePartDimensions = make([]*internal.DatePartDimension, len(opt.DatePartDimensions))
 		for i, d := range opt.DatePartDimensions {
 			pb.DatePartDimensions[i] = &internal.DatePartDimension{
-				Name: proto.String(d.Name),
 				Expr: proto.Int32(int32(d.Expr)),
 			}
 		}
@@ -1133,7 +1116,6 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 		opt.DatePartDimensions = make([]DatePartDimension, len(dims))
 		for i, d := range dims {
 			opt.DatePartDimensions[i] = DatePartDimension{
-				Name: d.GetName(),
 				Expr: DatePartExpr(d.GetExpr()),
 			}
 		}

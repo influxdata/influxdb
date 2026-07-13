@@ -475,8 +475,7 @@ func (x *IteratorOptions) GetNeedTimeRef() bool {
 
 type DatePartDimension struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          *string                `protobuf:"bytes,1,opt,name=Name" json:"Name,omitempty"`
-	Expr          *int32                 `protobuf:"varint,2,opt,name=Expr" json:"Expr,omitempty"`
+	Expr          *int32                 `protobuf:"varint,1,opt,name=Expr" json:"Expr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -509,13 +508,6 @@ func (x *DatePartDimension) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DatePartDimension.ProtoReflect.Descriptor instead.
 func (*DatePartDimension) Descriptor() ([]byte, []int) {
 	return file_internal_internal_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *DatePartDimension) GetName() string {
-	if x != nil && x.Name != nil {
-		return *x.Name
-	}
-	return ""
 }
 
 func (x *DatePartDimension) GetExpr() int32 {
@@ -872,10 +864,9 @@ const file_internal_internal_proto_rawDesc = "" +
 	"MaxSeriesN\x12\x18\n" +
 	"\aOrdered\x18\x14 \x01(\bR\aOrdered\x12H\n" +
 	"\x12DatePartDimensions\x18\x17 \x03(\v2\x18.query.DatePartDimensionR\x12DatePartDimensions\x12 \n" +
-	"\vNeedTimeRef\x18\x18 \x01(\bR\vNeedTimeRef\";\n" +
+	"\vNeedTimeRef\x18\x18 \x01(\bR\vNeedTimeRef\"'\n" +
 	"\x11DatePartDimension\x12\x12\n" +
-	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x12\n" +
-	"\x04Expr\x18\x02 \x01(\x05R\x04Expr\"8\n" +
+	"\x04Expr\x18\x01 \x01(\x05R\x04Expr\"8\n" +
 	"\fMeasurements\x12(\n" +
 	"\x05Items\x18\x01 \x03(\v2\x12.query.MeasurementR\x05Items\"\xc1\x01\n" +
 	"\vMeasurement\x12\x1a\n" +
