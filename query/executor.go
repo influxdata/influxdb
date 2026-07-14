@@ -401,8 +401,9 @@ LOOP:
 		// This can occur on meta read statements which convert to SELECT statements.
 		newStmt, err := RewriteStatement(stmt)
 		if err != nil {
-			failed = true
-			results <- &Result{Err: err}
+			if err := ctx.send(&Result{StatementID: i, Err: err}); err == ErrQueryAborted {
+				return
+			}
 			break
 		}
 		stmt = newStmt
