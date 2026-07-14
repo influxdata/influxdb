@@ -726,6 +726,31 @@ func TestQueryExecutor_InvalidSource(t *testing.T) {
 	}
 }
 
+// TestQueryExecutor_InvalidSource_StatementID verifies that a system-source
+// error raised for a later statement in a multi-statement query is attributed
+// to that statement's index, not statement 0.
+func TestQueryExecutor_InvalidSource_StatementID(t *testing.T) {
+	e := NewQueryExecutor()
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			return nil // the first (valid) statement succeeds
+		},
+	}
+
+	q, err := influxql.ParseQuery(`SELECT value FROM cpu; SELECT fieldKey FROM _fieldKeys`)
+	require.NoError(t, err)
+
+	var errResult *query.Result
+	for r := range e.ExecuteQuery(q, query.ExecutionOptions{}, nil) {
+		if r.Err != nil {
+			errResult = r
+		}
+	}
+	require.NotNil(t, errResult)
+	require.EqualError(t, errResult.Err, `unable to use system source '_fieldKeys': use SHOW FIELD KEYS instead`)
+	require.Equal(t, 1, errResult.StatementID)
+}
+
 func discardOutput(results <-chan *query.Result) {
 	for range results {
 		// Read all results and discard.

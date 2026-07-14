@@ -387,9 +387,11 @@ LOOP:
 						case "_tags":
 							command = "SHOW TAG VALUES"
 						}
-						failed = true
-						results <- &Result{
-							Err: fmt.Errorf("unable to use system source '%s': use %s instead", s.Name, command),
+						if err := ctx.send(&Result{
+							StatementID: i,
+							Err:         fmt.Errorf("unable to use system source '%s': use %s instead", s.Name, command),
+						}); err == ErrQueryAborted {
+							return
 						}
 						break LOOP
 					}
