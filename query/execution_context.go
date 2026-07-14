@@ -29,9 +29,9 @@ type ExecutionContext struct {
 	done chan struct{}
 	err  error
 
-	// failed is set (via send/Send) whenever a Result carrying a non-nil Err is
-	// emitted for this query, including errors a StatementExecutor sends itself
-	// while returning nil. Read by the Executor to count queriesFailed.
+	// failed is set (via send/Send) whenever a Result with a non-nil Err is
+	// passed to the execution context for sending (even if the query is aborted
+	// before it can be delivered). Read by the Executor to count queriesFailed.
 	failed int32
 }
 
