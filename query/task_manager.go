@@ -158,6 +158,29 @@ func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStateme
 	}}, nil
 }
 
+// SlowQueryCount returns a snapshot of the number of currently-running queries
+// that have been executing for longer than LogQueriesAfter. It returns 0 when
+// LogQueriesAfter is unset (0), matching the slow-query logging semantics.
+func (t *TaskManager) SlowQueryCount() int64 {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if t.LogQueriesAfter == 0 {
+		return 0
+	}
+
+	now := time.Now()
+	var n int64
+	for _, qi := range t.queries {
+		// >= matches the slow-query logging monitor, whose timer fires at
+		// exactly LogQueriesAfter.
+		if now.Sub(qi.startTime) >= t.LogQueriesAfter {
+			n++
+		}
+	}
+	return n
+}
+
 func prettyTime(d time.Duration) time.Duration {
 	switch {
 	case d >= time.Second:
