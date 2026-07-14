@@ -9266,11 +9266,15 @@ func TestServer_Query_DatePart_WildcardCollision(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, rawErr),
 			params:  url.Values{"db": []string{"db0"}},
 		},
-		// An aggregate wildcard with no colliding field must still work.
+		// An aggregate wildcard over a multi-field measurement expands to multiple
+		// aggregates, the same shape as the rejected explicit form: the per-call
+		// scanners align positionally, so a field missing from one group shifts
+		// another group's values under its label (mislabeled results). Rejected
+		// at Prepare, once the wildcard has been expanded.
 		&Query{
-			name:    `wildcard with no colliding field is allowed`,
+			name:    `wildcard expanding to multiple aggregates is rejected`,
 			command: `SELECT count(*) FROM db0.rp0.m GROUP BY date_part('month', time)`,
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"m","grouping_keys":["month"],"columns":["time","count_value","count_year","month"],"values":[["1970-01-01T00:00:00Z",2,2,1]]}]}]}`,
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"error":%q}]}`, `date_part: GROUP BY date_part supports only a single aggregate or selector function`),
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

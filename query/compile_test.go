@@ -432,6 +432,19 @@ func TestCompile_Failures(t *testing.T) {
 		// spurious extra series. Reject both the explicit and the default-null cases.
 		{s: `SELECT count(value) FROM cpu GROUP BY time(1h), date_part('year', time) fill(null)`, err: query.ErrDatePartFillNull.Error()},
 		{s: `SELECT count(value) FROM cpu GROUP BY time(1h), date_part('year', time)`, err: query.ErrDatePartFillNull.Error()},
+		// date_part is not an aggregate: it must not satisfy the aggregate/fill
+		// requirements a raw query would otherwise fail.
+		{s: `SELECT value, date_part('year', time) FROM cpu GROUP BY time(1m)`, err: `GROUP BY requires at least one aggregate function`},
+		{s: `SELECT value, date_part('year', time) FROM cpu fill(linear)`, err: `fill(linear) must be used with a function`},
+		{s: `SELECT value, date_part('year', time) FROM cpu fill(none)`, err: `fill(none) must be used with a function`},
+		// Stream transformations (derivative, moving_average, ...) reduce keyed on
+		// tags only and ignore the date_part grouper, silently flattening groups.
+		{s: `SELECT derivative(value) FROM cpu GROUP BY date_part('year', time) fill(none)`, err: `date_part: derivative() is not supported with GROUP BY date_part`},
+		{s: `SELECT moving_average(value, 2) FROM cpu GROUP BY date_part('year', time) fill(none)`, err: `date_part: moving_average() is not supported with GROUP BY date_part`},
+		{s: `SELECT cumulative_sum(value) FROM cpu GROUP BY date_part('year', time) fill(none)`, err: `date_part: cumulative_sum() is not supported with GROUP BY date_part`},
+		// A GROUP BY tag sharing the injected date_part column name would be
+		// clobbered in column-name-keyed handling (e.g. SELECT INTO), so reject it.
+		{s: `SELECT max(value) FROM cpu GROUP BY year, date_part('year', time) fill(none)`, err: `date_part: GROUP BY dimension "year" collides with the GROUP BY date_part('year', time) dimension`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)
@@ -527,6 +540,92 @@ func TestPrepare_DatePartSubqueryAnchor_Valid(t *testing.T) {
 
 	if _, err := c.Prepare(&shardMapper, query.SelectOptions{}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// TestPrepare_DatePartWildcardValidation verifies that the date_part SELECT/GROUP BY
+// rules still hold after RewriteFields expands wildcards. The compile-time pass runs
+// before expansion, so a wildcard shape (e.g. max(*) over a multi-field measurement)
+// can hide a multi-aggregate or dimension-collision query that the explicit
+// equivalent would reject.
+func TestPrepare_DatePartWildcardValidation(t *testing.T) {
+	shardMapper := ShardMapper{
+		MapShardsFn: func(_ influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"value": influxql.Float,
+					"usage": influxql.Float,
+				},
+				Dimensions: []string{"host", "year"},
+			}
+		},
+	}
+
+	for _, tt := range []struct {
+		s   string
+		err string
+	}{
+		// max(*) expands to one aggregate per field; two fields means two
+		// aggregates, the same shape as the rejected explicit form.
+		{
+			s:   `SELECT max(*) FROM cpu GROUP BY date_part('year', time) fill(none)`,
+			err: query.ErrDatePartSingleAggregate.Error(),
+		},
+		// The same expansion two levels down: the inner statement of a subquery.
+		{
+			s:   `SELECT mean(max) FROM (SELECT max(*) FROM cpu GROUP BY date_part('year', time) fill(none))`,
+			err: query.ErrDatePartSingleAggregate.Error(),
+		},
+		// GROUP BY * expands to tag dimensions; the tag "year" collides with the
+		// injected date_part output column.
+		{
+			s:   `SELECT max(value) FROM cpu GROUP BY *, date_part('year', time) fill(none)`,
+			err: `date_part: GROUP BY dimension "year" collides with the GROUP BY date_part('year', time) dimension`,
+		},
+	} {
+		t.Run(tt.s, func(t *testing.T) {
+			stmt, err := influxql.ParseStatement(tt.s)
+			require.NoError(t, err)
+			s := stmt.(*influxql.SelectStatement)
+
+			c, err := query.Compile(s, query.CompileOptions{})
+			require.NoError(t, err, "expected the error at Prepare, not Compile")
+
+			_, err = c.Prepare(&shardMapper, query.SelectOptions{})
+			require.EqualError(t, err, tt.err)
+		})
+	}
+}
+
+// TestPrepare_DatePartWildcardValidation_Valid pins the shape that must keep
+// working: a wildcard aggregate over a single-field measurement expands to
+// exactly one aggregate and satisfies the single-aggregate rule.
+func TestPrepare_DatePartWildcardValidation_Valid(t *testing.T) {
+	shardMapper := ShardMapper{
+		MapShardsFn: func(_ influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields:     map[string]influxql.DataType{"value": influxql.Float},
+				Dimensions: []string{"host"},
+			}
+		},
+	}
+
+	for _, s := range []string{
+		`SELECT max(*) FROM cpu GROUP BY date_part('year', time) fill(none)`,
+		// A subquery whose redundant fill(null) is rewritten to fill(none) by
+		// subquery compilation must not be re-rejected by the Prepare-time pass.
+		`SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY time(1h), date_part('year', time) fill(none))`,
+	} {
+		t.Run(s, func(t *testing.T) {
+			stmt, err := influxql.ParseStatement(s)
+			require.NoError(t, err)
+
+			c, err := query.Compile(stmt.(*influxql.SelectStatement), query.CompileOptions{})
+			require.NoError(t, err)
+
+			_, err = c.Prepare(&shardMapper, query.SelectOptions{})
+			require.NoError(t, err)
+		})
 	}
 }
 

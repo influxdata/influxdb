@@ -1056,15 +1056,15 @@ func (c *compiledStatement) validateFields() error {
 	// VarRef including a tag, which is not a real anchor. The tag-only case can only
 	// be detected once field types are known, so it is caught later by the
 	// authoritative validateDatePartAnchor in Prepare. Keep both in sync.
-	if !c.HasAuxiliaryFields {
-		datePartCalls, otherCalls := 0, 0
-		for _, call := range c.FunctionCalls {
-			if call.Name == DatePartString {
-				datePartCalls++
-			} else {
-				otherCalls++
-			}
+	datePartCalls, otherCalls := 0, 0
+	for _, call := range c.FunctionCalls {
+		if call.Name == DatePartString {
+			datePartCalls++
+		} else {
+			otherCalls++
 		}
+	}
+	if !c.HasAuxiliaryFields {
 		if datePartCalls > 0 && otherCalls == 0 {
 			return errAtLeastOneNonTimeField
 		}
@@ -1072,7 +1072,10 @@ func (c *compiledStatement) validateFields() error {
 	// Ensure there are not multiple calls if top/bottom is present.
 	if len(c.FunctionCalls) > 1 && c.TopBottomFunction != "" {
 		return fmt.Errorf("selector function %s() cannot be combined with other functions", c.TopBottomFunction)
-	} else if len(c.FunctionCalls) == 0 {
+	} else if otherCalls == 0 {
+		// date_part is registered in FunctionCalls but is not an aggregate, so a
+		// query whose only calls are date_part must satisfy the same fill and
+		// GROUP BY interval requirements as a raw query.
 		switch c.FillOption {
 		case influxql.NoFill:
 			return errors.New("fill(none) must be used with a function")
@@ -1118,6 +1121,102 @@ func (c *compiledStatement) validateFields() error {
 // date_part against each point's real timestamp, and GROUP BY time() buckets carry a
 // meaningful timestamp, both of which are correct.
 func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectStatement) error {
+	return validateDatePartFields(stmt, c.FillOption, !c.Interval.IsZero())
+}
+
+// validateDatePartTree runs validateDatePartFields over a statement and every
+// subquery source beneath it, deriving the fill option and interval from each
+// statement itself. This is the Prepare-time re-run: RewriteFields rewrites the
+// whole statement tree, so a wildcard expanded inside a subquery (which the
+// per-statement compile passes ran before expansion) is only visible here.
+func validateDatePartTree(stmt *influxql.SelectStatement, subquery bool) error {
+	interval, err := stmt.GroupByInterval()
+	if err != nil {
+		return err
+	}
+	fill := stmt.Fill
+	// Subquery compilation rewrites a redundant fill(null) with an interval to
+	// fill(none) (see (*compiledStatement).subquery). Mirror that here so this
+	// pass does not reject a shape the executed plan never produces.
+	if subquery && interval > 0 && fill == influxql.NullFill {
+		fill = influxql.NoFill
+	}
+	if err := validateDatePartFields(stmt, fill, interval > 0); err != nil {
+		return err
+	}
+	for _, source := range stmt.Sources {
+		if sub, ok := source.(*influxql.SubQuery); ok {
+			if err := validateDatePartTree(sub.Statement, true); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// datePartStreamCalls lists the stream-based transformation functions. Their
+// reducers process points in timestamp order keyed on tags only and never
+// consult the date_part grouper, so combining them with GROUP BY date_part
+// would silently flatten the groups into one series.
+var datePartStreamCalls = map[string]struct{}{
+	"derivative":                        {},
+	"non_negative_derivative":           {},
+	"difference":                        {},
+	"non_negative_difference":           {},
+	"elapsed":                           {},
+	"moving_average":                    {},
+	"exponential_moving_average":        {},
+	"double_exponential_moving_average": {},
+	"triple_exponential_moving_average": {},
+	"triple_exponential_derivative":     {},
+	"relative_strength_index":           {},
+	"kaufmans_efficiency_ratio":         {},
+	"kaufmans_adaptive_moving_average":  {},
+	"chande_momentum_oscillator":        {},
+	"cumulative_sum":                    {},
+	"integral":                          {},
+	"holt_winters":                      {},
+	"holt_winters_with_fit":             {},
+}
+
+// datePartAnchorCalls collects the outermost non-math, non-date_part function
+// calls in the SELECT fields. Math functions are transparent (their arguments
+// may hold the anchoring call); aggregate/selector arguments are not descended
+// into, so a nested shape like count(distinct(value)) counts once. Unlike
+// c.FunctionCalls this is derived from the statement, so it sees the fields
+// RewriteFields expanded from a wildcard.
+func datePartAnchorCalls(fields influxql.Fields) []*influxql.Call {
+	var calls []*influxql.Call
+	var walk func(expr influxql.Expr)
+	walk = func(expr influxql.Expr) {
+		switch e := expr.(type) {
+		case *influxql.Call:
+			if e.Name == DatePartString {
+				return
+			}
+			if isMathFunction(e) {
+				for _, arg := range e.Args {
+					walk(arg)
+				}
+				return
+			}
+			calls = append(calls, e)
+		case *influxql.BinaryExpr:
+			walk(e.LHS)
+			walk(e.RHS)
+		case *influxql.ParenExpr:
+			walk(e.Expr)
+		case *influxql.Distinct:
+			calls = append(calls, e.NewCall())
+		}
+	}
+	for _, f := range fields {
+		walk(f.Expr)
+	}
+	return calls
+}
+
+func validateDatePartFields(stmt *influxql.SelectStatement, fillOption influxql.FillOption, hasInterval bool) error {
 	groupByParts := make(map[DatePartExpr]struct{})
 	for _, d := range stmt.Dimensions {
 		call, ok := d.Expr.(*influxql.Call)
@@ -1141,17 +1240,15 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 	// values under a single shared date_part key, so each call's group value
 	// overwrites the others (mislabeled results). Require exactly one non-date_part
 	// aggregate or selector call so neither broken shape can compile.
-	nonDatePartCalls := 0
-	for _, call := range c.FunctionCalls {
-		if call.Name != DatePartString {
-			nonDatePartCalls++
-		}
-	}
-	if nonDatePartCalls == 0 {
+	anchorCalls := datePartAnchorCalls(stmt.Fields)
+	if len(anchorCalls) == 0 {
 		return errDatePartRequiresAggregate
 	}
-	if nonDatePartCalls > 1 {
+	if len(anchorCalls) > 1 {
 		return errDatePartSingleAggregate
+	}
+	if _, ok := datePartStreamCalls[anchorCalls[0].Name]; ok {
+		return fmt.Errorf("date_part: %s() is not supported with GROUP BY date_part", anchorCalls[0].Name)
 	}
 
 	// Value-carrying fill modes (previous/linear/<number>) synthesize values for
@@ -1164,7 +1261,7 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 	// emitter splits them into spurious extra series, fragmenting the real ones.
 	// Reject fill(null) only in that combined case (use fill(none) instead).
 	// fill(none) is always unaffected (it produces no fill iterator).
-	switch c.FillOption {
+	switch fillOption {
 	case influxql.PreviousFill:
 		return errDatePartFillPrevious
 	case influxql.LinearFill:
@@ -1172,7 +1269,7 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 	case influxql.NumberFill:
 		return errDatePartFillValue
 	case influxql.NullFill:
-		if !c.Interval.IsZero() {
+		if hasInterval {
 			return errDatePartFillNull
 		}
 	}
@@ -1188,6 +1285,17 @@ func (c *compiledStatement) validateDatePartSelectFields(stmt *influxql.SelectSt
 	for _, f := range stmt.Fields {
 		if _, ok := injected[f.Name()]; ok {
 			return fmt.Errorf("date_part: output column %q collides with the GROUP BY date_part('%s', time) dimension; alias the field to a different name", f.Name(), f.Name())
+		}
+	}
+
+	// A GROUP BY tag with the same name collides with the injected column too:
+	// column-name-keyed handling (e.g. SELECT INTO promoting grouping columns to
+	// tags) would silently overwrite the real tag's value with the part value.
+	for _, d := range stmt.Dimensions {
+		if ref, ok := d.Expr.(*influxql.VarRef); ok {
+			if _, ok := injected[ref.Val]; ok {
+				return fmt.Errorf("date_part: GROUP BY dimension %q collides with the GROUP BY date_part('%s', time) dimension", ref.Val, ref.Val)
+			}
 		}
 	}
 
@@ -1456,11 +1564,12 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	}
 
 	// Re-run the date_part SELECT/GROUP BY validation now that RewriteFields has
-	// expanded any wildcards. The compile-time pass ran before expansion, so a
-	// wildcard-expanded field (e.g. a stored field named "year" colliding with
-	// GROUP BY date_part('year', time)) would otherwise slip through and emit
-	// duplicate output columns.
-	if err := c.validateDatePartSelectFields(stmt); err != nil {
+	// expanded any wildcards, recursing into subquery sources. The compile-time
+	// passes ran before expansion, so a wildcard-expanded shape (e.g. max(*)
+	// becoming multiple aggregates, a stored field named "year" colliding with
+	// GROUP BY date_part('year', time), or either inside a subquery) would
+	// otherwise slip through.
+	if err := validateDatePartTree(stmt, false); err != nil {
 		shards.Close()
 		return nil, err
 	}
