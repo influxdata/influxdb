@@ -309,28 +309,32 @@ func (e *Executor) ExecuteQuery(query *influxql.Query, opt ExecutionOptions, clo
 
 func (e *Executor) executeQuery(query *influxql.Query, opt ExecutionOptions, closing <-chan struct{}, results chan *Result) {
 	defer close(results)
-	defer e.recover(query, results)
 
 	atomic.AddInt64(&e.stats.ActiveQueries, 1)
 	atomic.AddInt64(&e.stats.ExecutedQueries, 1)
 
-	// A query is counted as failed at most once, in the deferred cleanup below.
-	// Two signals feed it: failed, for terminal errors executeQuery emits
-	// directly on the results channel (before ctx exists, or bypassing it); and
-	// ctx.Failed(), set whenever any Result with a non-nil Err is sent through
-	// the ExecutionContext — including errors a StatementExecutor sends itself
-	// while returning nil, and ErrNotExecuted emitted for interrupted queries.
-	// Panics are counted separately in recover(), which runs after this closure.
+	// A query is counted as failed at most once, here in the single cleanup
+	// closure. It is deferred BEFORE e.recover below so it runs AFTER recover
+	// during unwinding and can observe a recovered panic via panicked. Three
+	// signals feed it: failed, for terminal errors executeQuery emits directly
+	// on the results channel (before ctx exists, or bypassing it); panicked, set
+	// by recover when it recovers a panic; and ctx.Failed(), set whenever any
+	// Result with a non-nil Err is sent through the ExecutionContext — including
+	// errors a StatementExecutor sends itself while returning nil, and
+	// ErrNotExecuted emitted for interrupted queries.
 	failed := false
+	panicked := false
 	var ctx *ExecutionContext
 	defer func(start time.Time) {
 		atomic.AddInt64(&e.stats.ActiveQueries, -1)
 		atomic.AddInt64(&e.stats.FinishedQueries, 1)
-		if failed || (ctx != nil && ctx.Failed()) {
+		if failed || panicked || (ctx != nil && ctx.Failed()) {
 			atomic.AddInt64(&e.stats.FailedQueries, 1)
 		}
 		atomic.AddInt64(&e.stats.QueryExecutionDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
+
+	defer e.recover(query, results, &panicked)
 
 	var detach func()
 	var err error
@@ -481,10 +485,14 @@ func init() {
 	}
 }
 
-func (e *Executor) recover(query *influxql.Query, results chan *Result) {
+// recover recovers a panic from executing a query. When it recovers a panic it
+// sets *panicked so the caller's cleanup counts the query as failed exactly once
+// (a panicked query is a failed query); recover does not touch FailedQueries
+// itself to avoid double-counting a query that also emitted an error Result.
+func (e *Executor) recover(query *influxql.Query, results chan *Result, panicked *bool) {
 	if err := recover(); err != nil {
+		*panicked = true
 		atomic.AddInt64(&e.stats.RecoveredPanics, 1) // Capture the panic in _internal stats.
-		atomic.AddInt64(&e.stats.FailedQueries, 1)   // A panicked query is a failed query.
 		e.Logger.Error(fmt.Sprintf("%s [panic:%s] %s", query.String(), err, debug.Stack()))
 		results <- &Result{
 			StatementID: -1,

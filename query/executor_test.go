@@ -818,6 +818,30 @@ func TestQueryExecutor_Statistics_QueriesFailed(t *testing.T) {
 		require.Equal(t, int64(1), queryExecutorStat(t, e, "queriesFailed"))
 		require.Equal(t, int64(1), queryExecutorStat(t, e, "recoveredPanics"))
 	})
+
+	t.Run("error then panic counts once", func(t *testing.T) {
+		e := NewQueryExecutor()
+		var call int
+		e.StatementExecutor = &StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				call++
+				if call == 1 {
+					// First statement reports an error by sending a Result and
+					// returning nil, which sets ctx.Failed().
+					return ctx.Send(&query.Result{Err: errUnexpected})
+				}
+				// A later statement panics after the failure was already
+				// recorded; the query must still be counted as failed only once.
+				panic("test error")
+			},
+		}
+		queryStr := strings.Join([]string{goodStatement, goodStatement}, ";")
+		q, err := influxql.ParseQuery(queryStr)
+		require.NoError(t, err)
+		discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "queriesFailed"))
+		require.Equal(t, int64(1), queryExecutorStat(t, e, "recoveredPanics"))
+	})
 }
 
 func TestTaskManager_SlowQueryCount(t *testing.T) {
