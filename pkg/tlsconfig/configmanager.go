@@ -853,7 +853,20 @@ func NewClientServerTLSConfigManager(monitor *TLSCertMonitor, opts ...TLSConfigM
 // config manager can not be reconfigured to enable TLS later. It is primarily useful for tests
 // that do not require TLS.
 func NewDisabledTLSConfigManager() *TLSConfigManager {
-	return &TLSConfigManager{disabled: true}
+	cm := &TLSConfigManager{
+		disabled: true,
+
+		// role is set to ServerAndClientRole because a disabled TLSConfigManager should
+		// still be able to do plaintext dials and listens.
+		role: ServerAndClientRole,
+	}
+
+	// A disabled manager has nothing to say today, but every manager is built
+	// with a usable logger so that anything logging through one does not have to
+	// ask whether it exists.
+	cm.setLogger(nil)
+
+	return cm
 }
 
 // TLSConfig returns a tls.Config for use with dial and listen functions. When TLS is disabled the return is nil.

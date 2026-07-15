@@ -588,7 +588,7 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 			require.NoError(t, manager.Close())
 		}()
 
-		_, err = manager.Listen("tcp", "invalid:address:format")
+		_, err := manager.Listen("tcp", "invalid:address:format")
 		require.ErrorContains(t, err, "address invalid:address:format: too many colons in address")
 	})
 }
@@ -714,15 +714,88 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 }
 
 func TestNewDisabledTLSConfigManager(t *testing.T) {
-	monitor := newTestCertMonitor(t)
-	defer th.CheckedClose(t, monitor)()
-
+	// A disabled manager takes no certificate monitor and owns nothing that has
+	// to be closed, which is the whole point of it for tests that do not want
+	// TLS.
 	disabled := NewDisabledTLSConfigManager()
-	defer th.CheckedClose(t, disabled)()
-
 	require.NotNil(t, disabled)
-	require.False(t, disabled.UseTLS())
-	require.Nil(t, disabled.TLSConfig())
+
+	t.Run("TLS is off", func(t *testing.T) {
+		require.False(t, disabled.UseTLS())
+		require.Nil(t, disabled.TLSConfig())
+	})
+
+	t.Run("has a usable logger like any other manager", func(t *testing.T) {
+		// Nothing logs through a disabled manager today, so this guards the
+		// invariant rather than any current behavior: the next thing that does
+		// must not have to nil check first.
+		require.NotNil(t, disabled.logger)
+		require.NotPanics(t, func() { disabled.logger.Info("disabled manager logger is usable") })
+	})
+
+	t.Run("listens in plaintext", func(t *testing.T) {
+		listener, err := disabled.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		// Plain TCP rather than a TLS listener wrapping it.
+		require.IsType(t, &net.TCPListener{}, listener)
+	})
+
+	t.Run("serves a plaintext connection end to end", func(t *testing.T) {
+		listener, err := disabled.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		testData := []byte("hello")
+		serverDone := make(chan error, 1)
+		go simpleEchoServer(serverDone, listener, len(testData))
+
+		// The same disabled manager both listens and dials, so it has to hold
+		// both roles.
+		conn, err := disabled.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+		defer th.CheckedClose(t, conn)()
+		require.IsType(t, &net.TCPConn{}, conn)
+
+		_, err = conn.Write(testData)
+		require.NoError(t, err)
+
+		buf := make([]byte, len(testData))
+		_, err = conn.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, testData, buf)
+		require.NoError(t, <-serverDone)
+	})
+
+	t.Run("DialContext dials in plaintext", func(t *testing.T) {
+		listener, err := disabled.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		conn, err := disabled.DialContext(context.Background(), "tcp", listener.Addr().String())
+		require.NoError(t, err)
+		require.IsType(t, &net.TCPConn{}, conn)
+		require.NoError(t, conn.Close())
+	})
+
+	t.Run("DialWithDialer dials in plaintext", func(t *testing.T) {
+		listener, err := disabled.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		conn, err := disabled.DialWithDialer(&net.Dialer{}, "tcp", listener.Addr().String())
+		require.NoError(t, err)
+		require.IsType(t, &net.TCPConn{}, conn)
+		require.NoError(t, conn.Close())
+	})
+
+	t.Run("Close is a harmless no-op", func(t *testing.T) {
+		// There are no cert loaders to close, but Close must stay safe to call
+		// so a disabled manager can stand in for a real one.
+		require.NoError(t, disabled.Close())
+		require.NoError(t, disabled.Close())
+	})
 }
 
 func TestNewClientTLSConfigManager(t *testing.T) {
