@@ -97,7 +97,7 @@ func (r Role) IsClientRole() bool {
 
 // TLSConfigManager will manage a TLS configuration and make sure that only one instance of its tls.Config exists.
 // Different TLSConfigManager objects will have different configurations, even if they are instantiated in exactly
-// the same way. No struct member is modified once the NewTLSConfigManager constructor is finished.
+// the same way.
 type TLSConfigManager struct {
 	// Fields above mu are not protected by mu and can only be set at construction time.
 
@@ -233,7 +233,7 @@ type tlsConfigManagerConfig struct {
 	// baseConfig is the *tls.Config to use as the basis for the manager's *tls.Config.
 	baseConfig *tls.Config
 
-	// serverCertPath is the path to the server certificate. It is also used a s fallback for
+	// serverCertPath is the path to the server certificate. It is also used as fallback for
 	// the client certificate.
 	serverCertPath string
 
@@ -286,6 +286,8 @@ func (c *tlsConfigManagerConfig) serverCertLoaderOpts() []TLSCertLoaderOpt {
 }
 
 // clientCertLoaderOpts returns the options needed for the client TLSCertLoader.
+// If the client certificate is not set, then the server certificate will
+// be used as a fallback.
 func (c *tlsConfigManagerConfig) clientCertLoaderOpts() []TLSCertLoaderOpt {
 	certPath := c.clientCertPath
 	keyPath := c.clientKeyPath
@@ -325,8 +327,9 @@ func WithServerCertificate(certPath, keyPath string) TLSConfigManagerOpt {
 	}
 }
 
-// WithServerCertificate sets the config manager's client certificate and private
-// key path. These will also be used as fallbacks for a client if no client
+// WithClientCertificate sets the config manager's client certificate and private
+// key path. If no client certificate is set, then the server certificate will
+// be used as a fallback.
 func WithClientCertificate(certPath, keyPath string) TLSConfigManagerOpt {
 	return func(cp *tlsConfigManagerConfig) {
 		cp.clientCertPath = certPath
@@ -735,6 +738,10 @@ func (cm *TLSConfigManager) copyCurrentConfig() *tlsConfigManagerConfig {
 
 // PrepareReconfigure creates an apply function for a new configuration of the configuration manager.
 func (cm *TLSConfigManager) PrepareReconfigure(opts ...TLSConfigManagerOpt) (func() error, error) {
+	if cm.disabled {
+		return nil, ErrConfigureDisabledManager
+	}
+
 	// Use the current configuration. If there are no opts that set a field, then the
 	// current setting will continue to be used.
 	c := cm.copyCurrentConfig()

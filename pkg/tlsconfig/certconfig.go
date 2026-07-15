@@ -58,9 +58,6 @@ type TLSCertLoader struct {
 	// be set at construction time using WIthCertLoaderUsage.
 	usage string
 
-	// closeCh is used to trigger closing the monitor.
-	closeCh chan struct{}
-
 	// mu protects all members below. All fields below can be set at construction
 	// time or with Reconfigure.
 	mu sync.RWMutex
@@ -70,9 +67,6 @@ type TLSCertLoader struct {
 
 	// config is the current configuration of the loader.
 	config *tlsCertLoaderConfig
-
-	// ignorePermissions is true if file permission checks should be bypassed.
-	ignorePermissions bool
 }
 
 // tlsCertLoaderConfig holds configuration data for TLSCertLoader. It is the actual
@@ -90,10 +84,6 @@ type tlsCertLoaderConfig struct {
 	// ignoreFilePermissions is true if file permission checks should be bypassed.
 	// It is during a reconfiguration if ignoreFilePermissionsSet is false.
 	ignoreFilePermissions bool
-
-	// ignoreFilePermissionsSet indicates if ignoreFilePermissions was set or is
-	// simply the default value.
-	ignoreFilePermissionsSet bool
 
 	// logger is the logger to use for logging. It is ignored during reconfiguration
 	// if loggerSet is false.
@@ -134,7 +124,6 @@ func WithCertLoaderUsage(usage string) TLSCertLoaderOpt {
 func WithCertLoaderIgnoreFilePermissions(ignore bool) TLSCertLoaderOpt {
 	return func(c *tlsCertLoaderConfig) {
 		c.ignoreFilePermissions = ignore
-		c.ignoreFilePermissionsSet = true
 	}
 }
 
@@ -195,20 +184,6 @@ func (cl *TLSCertLoader) setLogger(logger *zap.Logger) {
 
 	// Add usage to logger.
 	cl.logger = cl.logger.With(zap.String(logUsageContext, cl.usage))
-}
-
-// ignoreFilePermissions indicates if file permissions should be ignored on load.
-func (cl *TLSCertLoader) ignoreFilePermissions() bool {
-	cl.mu.RLock()
-	defer cl.mu.RUnlock()
-	return cl.config.ignoreFilePermissions
-}
-
-// SetIgnoreFilePermissions sets if file permissions should be ignored on load.
-func (cl *TLSCertLoader) SetIgnoreFilePermissions(ignore bool) {
-	cl.mu.Lock()
-	defer cl.mu.Unlock()
-	cl.ignorePermissions = ignore
 }
 
 // Usage is the descriptive usage set using WithCertLoaderUsage.
@@ -304,10 +279,6 @@ func (cl *TLSCertLoader) Leaf() *x509.Certificate {
 	return cl.cert.Leaf
 }
 
-func (cl *TLSCertLoader) loadCertificate(certPath, keyPath string) (LoadedCertificate, error) {
-	return LoadCertificate(certPath, keyPath, WithLoadCertificateIgnoreFilePermissions(cl.ignoreFilePermissions()))
-}
-
 // Load loads the certificate at the given certificate path and private keyfile path.
 // Only trusted input (standard configuration files) should be used for certPath and keyPath.
 func (cl *TLSCertLoader) Load(certPath, keyPath string) error {
@@ -361,11 +332,7 @@ func (cl *TLSCertLoader) PrepareLoad(opts ...TLSCertLoaderOpt) (func() error, er
 		}
 	}
 
-	ignoreFilePermissions := cl.ignoreFilePermissions()
-	if c.ignoreFilePermissionsSet {
-		ignoreFilePermissions = c.ignoreFilePermissions
-	}
-	loadedCert, err := LoadCertificate(c.certPath, c.keyPath, WithLoadCertificateIgnoreFilePermissions(ignoreFilePermissions))
+	loadedCert, err := LoadCertificate(c.certPath, c.keyPath, WithLoadCertificateIgnoreFilePermissions(c.ignoreFilePermissions))
 	if err != nil {
 		logLoadError(err)
 		return nil, err

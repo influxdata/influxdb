@@ -14,10 +14,13 @@ const (
 	DefaultTriggerDelay = 5 * time.Second
 )
 
-// certMonitor is an internal class that implements periodic certificate
-// monitoring. It avoids logging about a single certificate / key pair
+// TLSCertMonitor implements periodic certificate monitoring.
+//
+//	It avoids logging about a single certificate / key pair
+//
 // multiple times, as well as the number of goroutines required to monitor
-// certificates.
+// certificates. There should be a single TLSCertMonitor in an application
+// that is shared amongst all TLSConfigManager objects.
 type TLSCertMonitor struct {
 	// log is the logger to use.
 	log *zap.Logger
@@ -82,7 +85,7 @@ type TLSCertMonitor struct {
 // TLSCertMonitorOpt is an option for NewTLSCertMonitor.
 type TLSCertMonitorOpt func(*TLSCertMonitor)
 
-// WithMonitorCheckInternal sets the initial check interval for the monitor.
+// WithMonitorCheckInterval sets the initial check interval for the monitor.
 // It can be changed later with SetCheckInterval.
 func WithMonitorCheckInterval(d time.Duration) TLSCertMonitorOpt {
 	return func(m *TLSCertMonitor) {
@@ -91,7 +94,7 @@ func WithMonitorCheckInterval(d time.Duration) TLSCertMonitorOpt {
 }
 
 // WithMonitorExpirationWarn sets the initial expiration warn time for the
-// monitor. It can be changed later with SetExpirationWarn.
+// monitor. It can be changed later with SetExpirationAdvanced.
 func WithMonitorExpirationAdvanced(d time.Duration) TLSCertMonitorOpt {
 	return func(m *TLSCertMonitor) {
 		m.certExpirationAdvanced = d
@@ -181,7 +184,8 @@ func (m *TLSCertMonitor) Close() error {
 }
 
 // WaitForMonitorStop waits for the certificate monitor goroutine to stop.
-// This is mainly useful for tests to avoid race conditions.
+// This is mainly useful for tests to avoid race conditions. This will block
+// forever if Open is not called before Close.
 func (m *TLSCertMonitor) WaitForMonitorStop() {
 	m.monitorStopWg.Wait()
 }
@@ -230,9 +234,10 @@ func (m *TLSCertMonitor) resetCheckInterval(d time.Duration) {
 
 func (m *TLSCertMonitor) SetCheckInterval(checkInterval time.Duration) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.certCheckInterval = checkInterval
-	m.resetCheckInterval(m.certCheckInterval)
+	m.mu.Unlock()
+
+	m.resetCheckInterval(checkInterval)
 }
 
 func (m *TLSCertMonitor) checkInterval() time.Duration {
@@ -243,8 +248,9 @@ func (m *TLSCertMonitor) checkInterval() time.Duration {
 
 func (m *TLSCertMonitor) SetExpirationAdvanced(expirationAdvanced time.Duration) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.certExpirationAdvanced = expirationAdvanced
+	m.mu.Unlock()
+
 	m.resetTrigger(m.triggerDelayInterval)
 }
 
@@ -268,9 +274,9 @@ func (m *TLSCertMonitor) SetTriggerDelay(d time.Duration) {
 // have certificates have been reloaded.
 func (m *TLSCertMonitor) QueueWarnIssues(cl *TLSCertLoader) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.queuedCertLoaders = append(m.queuedCertLoaders, cl)
+	m.mu.Unlock()
+
 	m.resetTrigger(m.triggerDelayInterval)
 }
 
