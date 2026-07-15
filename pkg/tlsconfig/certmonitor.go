@@ -248,10 +248,12 @@ func (m *TLSCertMonitor) checkInterval() time.Duration {
 
 func (m *TLSCertMonitor) SetExpirationAdvanced(expirationAdvanced time.Duration) {
 	m.mu.Lock()
+	triggerDelay := m.triggerDelayInterval
 	m.certExpirationAdvanced = expirationAdvanced
 	m.mu.Unlock()
 
-	m.resetTrigger(m.triggerDelayInterval)
+	// Send on channel outside of lock to prevent deadlocks.
+	m.resetTrigger(triggerDelay)
 }
 
 func (m *TLSCertMonitor) expirationAdvanced() time.Duration {
@@ -274,10 +276,12 @@ func (m *TLSCertMonitor) SetTriggerDelay(d time.Duration) {
 // have certificates have been reloaded.
 func (m *TLSCertMonitor) QueueWarnIssues(cl *TLSCertLoader) {
 	m.mu.Lock()
+	triggerDelay := m.triggerDelayInterval
 	m.queuedCertLoaders = append(m.queuedCertLoaders, cl)
 	m.mu.Unlock()
 
-	m.resetTrigger(m.triggerDelayInterval)
+	// Send on channel outside of lock to prevent deadlocks.
+	m.resetTrigger(triggerDelay)
 }
 
 // takeQueuedCertLoaders returns and clears TLSCertLoader objects queued
