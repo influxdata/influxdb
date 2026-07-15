@@ -129,6 +129,7 @@ func (c Config) effectiveRootCA() *tlsconfig.CAConfig {
 // TLSManagerOpts returns the list of TLS manager options specified by c.
 func (c Config) TLSManagerOpts() []tlsconfig.TLSConfigManagerOpt {
 	return []tlsconfig.TLSConfigManagerOpt{
+		tlsconfig.WithUsage("subscriber"),
 		tlsconfig.WithUseTLS(true),
 		tlsconfig.WithBaseConfig(c.TLS),
 		tlsconfig.WithAllowInsecure(c.InsecureSkipVerify),

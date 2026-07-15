@@ -155,9 +155,12 @@ func (s *Service) Open() error {
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.processBatches(s.batcher) }()
 
-	// Open listener.
+	// Open listener. The usage carries the bind address because a server can run
+	// several OpenTSDB services at once, and the certificate monitor groups its
+	// warnings by usage.
 	cm, err := tlsconfig.NewServerTLSConfigManager(
 		s.certMonitor,
+		tlsconfig.WithUsage(fmt.Sprintf("opentsdb(%s)", s.BindAddress)),
 		tlsconfig.WithUseTLS(s.tls),
 		tlsconfig.WithBaseConfig(s.tlsConfig),
 		tlsconfig.WithServerCertificate(s.cert, s.privateKey),

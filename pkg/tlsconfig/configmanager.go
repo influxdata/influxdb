@@ -42,6 +42,10 @@ var (
 	// with a valid Role. It is generally due to a misuse of an internal API.
 	ErrNoRole = errors.New("no role specified for TLS certificate")
 
+	// ErrNoTLSConfig indicates that a TLS connection was attempted against a manager
+	// that has no TLS configuration to serve it.
+	ErrNoTLSConfig = errors.New("no TLS configuration available")
+
 	// ErrNotSupportedServer indicates that an operation is not supported by a server role
 	// config manager.
 	ErrNotSupportedServer = errors.New("operation not supported by server role TLS manager")
@@ -688,16 +692,36 @@ func (cm *TLSConfigManager) UseTLS() bool {
 }
 
 // Return a net.Listener for network and address based on current configuration.
+//
+// When TLS is enabled the listener resolves its configuration on each
+// connection, so a manager reconfigured through PrepareReconfigure takes effect
+// on the next connection without the listener being rebound. Connections that
+// are already established keep the configuration they handshook with. Whether
+// the listener is TLS at all is fixed here, when the socket is bound, which is
+// why PrepareReconfigure refuses to change useTLS for a server.
 func (cm *TLSConfigManager) Listen(network, address string) (net.Listener, error) {
 	if !cm.role.IsServerRole() {
 		return nil, fmt.Errorf("%s: %w", cm.usage, ErrClientListen)
 	}
 
-	if tlsConfig := cm.TLSConfig(); tlsConfig != nil {
-		return tls.Listen(network, address, tlsConfig)
-	} else {
+	if !cm.UseTLS() {
 		return net.Listen(network, address)
 	}
+
+	// This config carries only the callback; the configuration it returns is
+	// what serves each connection. Session ticket keys are read from this outer
+	// config rather than from the returned one, so they stay stable across
+	// connections and session resumption is unaffected.
+	return tls.Listen(network, address, &tls.Config{
+		GetConfigForClient: func(*tls.ClientHelloInfo) (*tls.Config, error) {
+			if tlsConfig := cm.TLSConfig(); tlsConfig != nil {
+				return tlsConfig, nil
+			}
+			// Unreachable while a server cannot turn useTLS off, but failing
+			// the handshake beats serving a connection with no configuration.
+			return nil, fmt.Errorf("%s: %w", cm.usage, ErrNoTLSConfig)
+		},
+	})
 }
 
 // Dial a remote for network and addressing using the current configuration.

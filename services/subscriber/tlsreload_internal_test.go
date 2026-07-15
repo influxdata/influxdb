@@ -23,6 +23,9 @@ import (
 	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // certSerial returns the serial of ss's leaf certificate.
@@ -404,4 +407,29 @@ func TestService_ReloadTLSConfig_DisabledService(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, apply)
 	require.NoError(t, apply())
+}
+
+// TestService_TLSUsage covers the service naming itself to the certificate
+// monitor, which groups its warnings by usage.
+func TestService_TLSUsage(t *testing.T) {
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	core, logs := observer.New(zapcore.InfoLevel)
+	certMonitor := tlsconfig.NewTLSCertMonitor(tlsconfig.WithMonitorLogger(zap.New(core)))
+	require.NoError(t, certMonitor.Open())
+	t.Cleanup(th.CheckedClose(t, certMonitor))
+
+	conf := NewConfig()
+	conf.Certificate = ss.CertPath
+	conf.PrivateKey = ss.KeyPath
+
+	s := NewService(conf, certMonitor)
+	s.MetaClient = stubMetaClient{}
+	require.NoError(t, s.Open())
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+
+	entries := logs.FilterMessage("Registered certificate loader").TakeAll()
+	require.Len(t, entries, 1)
+	require.Equal(t, "subscriber.client", entries[0].ContextMap()["usage"],
+		"the subscriber holds a client certificate, not a server one")
 }

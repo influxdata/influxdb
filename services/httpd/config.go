@@ -215,3 +215,28 @@ func (filters StatusFilters) Match(statusCode int) bool {
 	}
 	return false
 }
+
+// TLSManagerOpts returns the list of TLS manager options specified by c.
+//
+// Open and PrepareReloadConfig both build the manager from these, so a reload
+// applies every TLS setting rather than only the certificate, and the two paths
+// cannot drift apart.
+func (c Config) TLSManagerOpts() []tlsconfig.TLSConfigManagerOpt {
+	// Convert the optional client-auth type to a *tls.ClientAuthType so a nil
+	// (unset) config leaves the base TLS config's ClientAuth in place.
+	var clientAuthType *tls.ClientAuthType
+	if c.HTTPSClientAuthType != nil {
+		auth := tls.ClientAuthType(*c.HTTPSClientAuthType)
+		clientAuthType = &auth
+	}
+
+	return []tlsconfig.TLSConfigManagerOpt{
+		tlsconfig.WithUsage("httpd"),
+		tlsconfig.WithUseTLS(c.HTTPSEnabled),
+		tlsconfig.WithBaseConfig(c.TLS),
+		tlsconfig.WithServerCertificate(c.HTTPSCertificate, c.HTTPSPrivateKey),
+		tlsconfig.WithIgnoreFilePermissions(c.HTTPSInsecureCertificate),
+		tlsconfig.WithClientAuthPtr(clientAuthType),
+		tlsconfig.WithClientCA(c.HTTPSClientCA),
+	}
+}

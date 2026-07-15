@@ -2306,3 +2306,134 @@ func TestTLSConfigManager_DialContext(t *testing.T) {
 		require.NoError(t, conn.Close())
 	})
 }
+
+// TestTLSConfigManager_ListenResolvesConfigPerConnection covers the listener
+// resolving its configuration on each connection rather than freezing it when
+// the socket is bound.
+func TestTLSConfigManager_ListenResolvesConfigPerConnection(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	ss := selfsigned.NewSelfSignedCert(t)
+	clientSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("c", "Client CA"))
+
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithServerCertificate(ss.CertPath, ss.KeyPath))
+	require.NoError(t, err)
+	defer th.CheckedClose(t, manager)()
+
+	listener, err := manager.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer th.CheckedClose(t, listener)()
+
+	// Report the server's view of each handshake: that is what enforces the
+	// client auth policy.
+	serverErr := make(chan error, 8)
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				serverErr <- conn.(*tls.Conn).Handshake()
+				conn.Close()
+			}()
+		}
+	}()
+
+	dial := func(t *testing.T, cfg *tls.Config) {
+		t.Helper()
+		cfg.InsecureSkipVerify = true
+		conn, err := tls.Dial("tcp", listener.Addr().String(), cfg)
+		if err == nil {
+			conn.Handshake()
+			conn.Close()
+		}
+	}
+
+	dial(t, &tls.Config{})
+	require.NoError(t, <-serverErr, "no client certificate is required initially")
+
+	// Require client certificates. The listener is not rebound.
+	apply, err := manager.PrepareReconfigure(
+		WithClientAuth(tls.RequireAndVerifyClientCert),
+		WithClientCA(&CAConfig{Paths: []string{clientSS.CACertPath}}))
+	require.NoError(t, err)
+
+	dial(t, &tls.Config{})
+	require.NoError(t, <-serverErr, "PrepareReconfigure must not change the listener")
+
+	require.NoError(t, apply())
+
+	dial(t, &tls.Config{})
+	require.Error(t, <-serverErr, "the reconfigured client auth policy should be enforced")
+
+	clientCert, err := tls.LoadX509KeyPair(clientSS.CertPath, clientSS.KeyPath)
+	require.NoError(t, err)
+	dial(t, &tls.Config{Certificates: []tls.Certificate{clientCert}})
+	require.NoError(t, <-serverErr, "the reconfigured client CA should verify the client")
+}
+
+// TestTLSConfigManager_ListenSessionResumption guards the session ticket keys.
+// The listener resolves a fresh *tls.Config per connection; ticket keys are
+// taken from the listener's own config, so they stay stable and resumption
+// keeps working. Fresh per-connection keys would silently break it.
+func TestTLSConfigManager_ListenSessionResumption(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	ss := selfsigned.NewSelfSignedCert(t)
+
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithServerCertificate(ss.CertPath, ss.KeyPath))
+	require.NoError(t, err)
+	defer th.CheckedClose(t, manager)()
+
+	listener, err := manager.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer th.CheckedClose(t, listener)()
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				if err := conn.(*tls.Conn).Handshake(); err != nil {
+					return
+				}
+				conn.Write([]byte("x"))
+				buf := make([]byte, 1)
+				conn.Read(buf)
+			}()
+		}
+	}()
+
+	// One cache across dials, as a real client would have.
+	clientConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		ClientSessionCache: tls.NewLRUClientSessionCache(8),
+	}
+
+	var resumed []bool
+	for range 3 {
+		conn, err := tls.Dial("tcp", listener.Addr().String(), clientConfig)
+		require.NoError(t, err)
+		resumed = append(resumed, conn.ConnectionState().DidResume)
+
+		// Reading processes the session ticket, caching it for the next dial.
+		buf := make([]byte, 1)
+		_, err = conn.Read(buf)
+		require.NoError(t, err)
+		require.NoError(t, conn.Close())
+	}
+
+	require.Contains(t, resumed, true, "per-connection configs must not break session resumption")
+}

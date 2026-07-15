@@ -187,7 +187,8 @@ func TestService_VerifyReloadedConfig(t *testing.T) {
 			HTTPSPrivateKey:  "/nonexistent/path/key.pem",
 		}
 		applyFunc, err := s.PrepareReloadConfig(newConfig)
-		require.ErrorContains(t, err, "error loading certificate")
+		require.ErrorContains(t, err, "error reloading TLS configuration")
+		require.ErrorContains(t, err, "/nonexistent/path/cert.pem", "the error should name the path that failed")
 		require.Nil(t, applyFunc)
 	})
 

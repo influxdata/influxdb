@@ -25,6 +25,9 @@ import (
 	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
@@ -268,7 +271,9 @@ type TestService struct {
 func NewTestService(t *testing.T, database string, bind string) *TestService {
 	certMonitor := tlsconfig.NewTLSCertMonitor()
 	require.NoError(t, certMonitor.Open())
-	defer th.CheckedClose(t, certMonitor)()
+	// The monitor has to outlive this helper, so close it when the test ends
+	// rather than when the helper returns.
+	t.Cleanup(th.CheckedClose(t, certMonitor))
 
 	s, err := NewService(Config{
 		BindAddress:      bind,
@@ -337,7 +342,7 @@ func TestService_ClientCertAuth(t *testing.T) {
 
 	certMonitor := tlsconfig.NewTLSCertMonitor()
 	require.NoError(t, certMonitor.Open())
-	defer th.CheckedClose(t, certMonitor)
+	defer th.CheckedClose(t, certMonitor)()
 
 	authType := toml.TlsClientAuthType(tls.RequireAndVerifyClientCert)
 	s, err := NewService(Config{
@@ -400,4 +405,39 @@ func TestService_ClientCertAuth(t *testing.T) {
 		}
 		require.Error(t, err, "server should reject a client with an untrusted certificate")
 	})
+}
+
+// TestService_TLSUsage covers the service naming itself to the certificate
+// monitor. A server can run several OpenTSDB services at once, so the usage
+// carries the bind address; otherwise the monitor, which groups its warnings by
+// usage, could not tell two of them apart.
+func TestService_TLSUsage(t *testing.T) {
+	serverSS := selfsigned.NewSelfSignedCert(t)
+
+	core, logs := observer.New(zapcore.InfoLevel)
+	certMonitor := tlsconfig.NewTLSCertMonitor(tlsconfig.WithMonitorLogger(zap.New(core)))
+	require.NoError(t, certMonitor.Open())
+	t.Cleanup(th.CheckedClose(t, certMonitor))
+
+	const bind = "127.0.0.1:0"
+	s, err := NewService(Config{
+		BindAddress:      bind,
+		Database:         "db0",
+		ConsistencyLevel: "one",
+		TLSEnabled:       true,
+		Certificate:      serverSS.CertPath,
+		PrivateKey:       serverSS.KeyPath,
+		TLS:              new(tls.Config),
+	}, certMonitor)
+	require.NoError(t, err)
+
+	s.MetaClient = &internal.MetaClientMock{
+		CreateDatabaseFn: func(string) (*meta.DatabaseInfo, error) { return nil, nil },
+	}
+	require.NoError(t, s.Open())
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+
+	entries := logs.FilterMessage("Registered certificate loader").TakeAll()
+	require.Len(t, entries, 1)
+	require.Equal(t, "opentsdb("+bind+").server", entries[0].ContextMap()["usage"])
 }
