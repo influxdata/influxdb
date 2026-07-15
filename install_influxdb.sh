@@ -167,8 +167,8 @@ PORT=8181
 # Set the default (latest) version here. Users may specify a version using the
 # --version arg (handled below)
 INFLUXDB_VERSION_FLAG_SET="0"
-INFLUXDB_OSS_VERSION="3.10.0"
-INFLUXDB_ENT_VERSION="3.10.0"
+INFLUXDB_OSS_VERSION="3.10.1"
+INFLUXDB_ENT_VERSION="3.10.4"
 
 EDITION="Core"
 EDITION_TAG="core"
