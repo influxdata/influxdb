@@ -466,8 +466,9 @@ jobs:
           name: Cargo release build
           command: |
             target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
-          # linking might take a while and doesn't produce CLI output
-          no_output_timeout: 30m
+          # linking might take a while and doesn't produce CLI output; aarch64
+          # targets can compile a single unit past 30m of silence, so allow 60m
+          no_output_timeout: 60m
       - when:
           condition:
             or:
