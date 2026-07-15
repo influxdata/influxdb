@@ -443,10 +443,10 @@ func TestService_TLSUsage(t *testing.T) {
 	require.Equal(t, "opentsdb("+bind+").server", entries[0].ContextMap()["usage"])
 }
 
-// TestConfig_IgnoreSanityChecks covers the config option reaching the
+// TestConfig_IgnoreCertSanityChecks covers the config option reaching the
 // TLS manager. A certificate issued only for client authentication fails the
 // server sanity checks, so it opens only when the option is set.
-func TestConfig_IgnoreSanityChecks(t *testing.T) {
+func TestConfig_IgnoreCertSanityChecks(t *testing.T) {
 	clientOnlySS := selfsigned.NewSelfSignedCert(t,
 		selfsigned.WithExtKeyUsage(x509.ExtKeyUsageClientAuth))
 
@@ -458,14 +458,14 @@ func TestConfig_IgnoreSanityChecks(t *testing.T) {
 		t.Cleanup(th.CheckedClose(t, certMonitor))
 
 		s, err := NewService(Config{
-			BindAddress:        "127.0.0.1:0",
-			Database:           "db0",
-			ConsistencyLevel:   "one",
-			TLSEnabled:         true,
-			Certificate:        clientOnlySS.CertPath,
-			PrivateKey:         clientOnlySS.KeyPath,
-			IgnoreSanityChecks: ignore,
-			TLS:                new(tls.Config),
+			BindAddress:            "127.0.0.1:0",
+			Database:               "db0",
+			ConsistencyLevel:       "one",
+			TLSEnabled:             true,
+			Certificate:            clientOnlySS.CertPath,
+			PrivateKey:             clientOnlySS.KeyPath,
+			IgnoreCertSanityChecks: ignore,
+			TLS:                    new(tls.Config),
 		}, certMonitor)
 		require.NoError(t, err)
 

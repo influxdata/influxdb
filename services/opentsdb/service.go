@@ -117,7 +117,7 @@ func NewService(c Config, certMonitor *tlsconfig.TLSCertMonitor) (*Service, erro
 		cert:               d.Certificate,
 		privateKey:         d.PrivateKey,
 		insecureCert:       d.InsecureCertificate,
-		ignoreSanityChecks: d.IgnoreSanityChecks,
+		ignoreSanityChecks: d.IgnoreCertSanityChecks,
 		clientAuthType:     clientAuthType,
 		clientCA:           d.ClientCA,
 		BindAddress:        d.BindAddress,

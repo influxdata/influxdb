@@ -47,16 +47,16 @@ type Config struct {
 	Certificate         string `toml:"certificate"`
 	PrivateKey          string `toml:"private-key"`
 	InsecureCertificate bool   `toml:"insecure-certificate"`
-	// IgnoreSanityChecks loads the certificate even when it fails the
+	// IgnoreCertSanityChecks loads the certificate even when it fails the
 	// checks that decide whether a server can use it at all.
-	IgnoreSanityChecks bool                    `toml:"ignore-sanity-checks"`
-	ClientAuthType     *toml.TlsClientAuthType `toml:"client-auth-type"`
-	ClientCA           *tlsconfig.CAConfig     `toml:"client-ca"`
-	BatchSize          int                     `toml:"batch-size"`
-	BatchPending       int                     `toml:"batch-pending"`
-	BatchTimeout       toml.Duration           `toml:"batch-timeout"`
-	LogPointErrors     bool                    `toml:"log-point-errors"`
-	TLS                *tls.Config             `toml:"-"`
+	IgnoreCertSanityChecks bool                    `toml:"ignore-cert-sanity-checks"`
+	ClientAuthType         *toml.TlsClientAuthType `toml:"client-auth-type"`
+	ClientCA               *tlsconfig.CAConfig     `toml:"client-ca"`
+	BatchSize              int                     `toml:"batch-size"`
+	BatchPending           int                     `toml:"batch-pending"`
+	BatchTimeout           toml.Duration           `toml:"batch-timeout"`
+	LogPointErrors         bool                    `toml:"log-point-errors"`
+	TLS                    *tls.Config             `toml:"-"`
 }
 
 // Compile-time check that *Config implements toml.Defaulter so it can be used

@@ -500,7 +500,7 @@
   # Loads certificate even when it fails the checks for whether a server can use it, such as
   # the certificate not permitting server authentication. The failed checks are logged
   # instead. A missing or unparseable certificate is still an error.
-  # ignore-sanity-checks = false
+  # ignore-cert-sanity-checks = false
 
   # The number of writer goroutines processing the write channel.
   # write-concurrency = 40
@@ -625,7 +625,7 @@
   # Loads certificate even when it fails the checks for whether a server can use it, such as
   # the certificate not permitting server authentication. The failed checks are logged
   # instead. A missing or unparseable certificate is still an error.
-  # ignore-sanity-checks = false
+  # ignore-cert-sanity-checks = false
 
   # The type of client certificate authentication (mutual TLS) to require. One of
   # NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven, or
