@@ -210,3 +210,63 @@ async fn persist_and_load_newest_catalog() {
     // // my_db
     // assert!(!catalog.db_exists(DbId::from(0)));
 }
+
+#[test_log::test(tokio::test)]
+async fn checkpoint_exists_logs_diagnostics_on_head_failure() {
+    use influxdb3_test_helpers::object_store::mock::{self, MockCall, MockStore};
+    use object_store::{GetOptions, GetRange};
+
+    use super::CatalogFilePath;
+
+    let store = MockStore::new()
+        .mock_next(MockCall::Head {
+            params: CatalogFilePath::checkpoint("test_host").into(),
+            barriers: vec![],
+            res: Err(mock::err()),
+        })
+        // a HEAD error response carries no body, so the failed HEAD must be followed by a
+        // single-byte ranged GET, whose error response can carry the store's error body
+        .mock_next(MockCall::GetOpts {
+            params: (
+                CatalogFilePath::checkpoint("test_host").into(),
+                GetOptions {
+                    range: Some(GetRange::Bounded(0..1)),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+            barriers: vec![],
+            res: Err(mock::err()),
+        });
+    let catalog = ObjectStoreCatalog::new("test_host", 10, store.as_store());
+
+    let error = catalog
+        .checkpoint_exists()
+        .await
+        .expect_err("the HEAD error should be propagated");
+    // the first catalog load runs before logging is initialized, so the diagnostic must
+    // travel inside the propagated error, not just the log line
+    let rendered = format!("{error}");
+    assert!(
+        rendered.contains("diagnostic ranged GET"),
+        "diagnostics missing from error: {rendered}"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn checkpoint_exists_no_diagnostics_when_not_found() {
+    use influxdb3_test_helpers::object_store::mock::{self, MockCall, MockStore};
+
+    use super::CatalogFilePath;
+
+    // no GET is mocked: MockStore panics on any unexpected call, so this also verifies that
+    // a NotFound HEAD does not trigger the diagnostic GET
+    let store = MockStore::new().mock_next(MockCall::Head {
+        params: CatalogFilePath::checkpoint("test_host").into(),
+        barriers: vec![],
+        res: Err(mock::not_found("test_host/catalog/v2/snapshot")),
+    });
+    let catalog = ObjectStoreCatalog::new("test_host", 10, store.as_store());
+
+    assert!(!catalog.checkpoint_exists().await.unwrap());
+}
