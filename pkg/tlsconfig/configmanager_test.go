@@ -1,6 +1,7 @@
 package tlsconfig
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -2125,5 +2126,183 @@ func TestTLSConfigManager_PrepareReconfigureUseTLS(t *testing.T) {
 		certPath, keyPath := manager.clientCertLoader.Paths()
 		require.Empty(t, certPath)
 		require.Empty(t, keyPath)
+	})
+}
+
+func TestTLSConfigManager_DialContext(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	t.Run("useTLS false dials plain TCP", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(monitor, WithUseTLS(false))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		testData := []byte("hello")
+		serverDone := make(chan error, 1)
+		go simpleEchoServer(serverDone, listener, len(testData))
+
+		conn, err := manager.DialContext(context.Background(), "tcp", listener.Addr().String())
+		require.NoError(t, err)
+		defer th.CheckedClose(t, conn)()
+
+		_, err = conn.Write(testData)
+		require.NoError(t, err)
+
+		buf := make([]byte, len(testData))
+		_, err = conn.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, testData, buf)
+		require.NoError(t, <-serverDone)
+	})
+
+	t.Run("useTLS true dials TLS", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		serverManager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, serverManager)()
+
+		listener, err := serverManager.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		testData := []byte("hello")
+		serverDone := make(chan error, 1)
+		go simpleEchoServer(serverDone, listener, len(testData))
+
+		clientManager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithRootCA(&CAConfig{Paths: []string{ss.CACertPath}}))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, clientManager)()
+
+		conn, err := clientManager.DialContext(context.Background(), "tcp", listener.Addr().String())
+		require.NoError(t, err)
+		defer th.CheckedClose(t, conn)()
+
+		// ServerName is inferred from the address, so the peer is verified
+		// against the root CAs rather than skipped.
+		require.True(t, conn.(*tls.Conn).ConnectionState().HandshakeComplete)
+
+		_, err = conn.Write(testData)
+		require.NoError(t, err)
+
+		buf := make([]byte, len(testData))
+		_, err = conn.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, testData, buf)
+		require.NoError(t, <-serverDone)
+	})
+
+	t.Run("server manager cannot DialContext", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		conn, err := manager.DialContext(context.Background(), "tcp", "127.0.0.1:0")
+		require.ErrorIs(t, err, ErrServerDial)
+		require.Nil(t, conn)
+	})
+
+	t.Run("cancellation aborts the handshake", func(t *testing.T) {
+		// A peer that accepts the connection but never speaks TLS: without
+		// honoring ctx the handshake would hang here.
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		accepted := make(chan net.Conn, 1)
+		go func() {
+			conn, err := listener.Accept()
+			if err != nil {
+				close(accepted)
+				return
+			}
+			accepted <- conn
+		}()
+		t.Cleanup(func() {
+			if conn, ok := <-accepted; ok && conn != nil {
+				conn.Close()
+			}
+		})
+
+		manager, err := NewClientTLSConfigManager(monitor, WithUseTLS(true), WithAllowInsecure(true))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		// An http.Client.Timeout reaches a dialer as a cancellation with no
+		// deadline attached, so that is what is reproduced here.
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		_, hasDeadline := ctx.Deadline()
+		require.False(t, hasDeadline, "the timeout arrives as a cancellation, not a deadline")
+		time.AfterFunc(50*time.Millisecond, cancel)
+
+		start := time.Now()
+		conn, err := manager.DialContext(ctx, "tcp", listener.Addr().String())
+		require.ErrorIs(t, err, context.Canceled)
+		require.Nil(t, conn)
+		require.Less(t, time.Since(start), 10*time.Second, "the handshake should be abandoned when ctx is cancelled")
+	})
+
+	t.Run("resolves the configuration per connection", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+		otherSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("other", "Other CA"))
+
+		cert, err := tls.LoadX509KeyPair(ss.CertPath, ss.KeyPath)
+		require.NoError(t, err)
+		listener, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{cert}})
+		require.NoError(t, err)
+		defer th.CheckedClose(t, listener)()
+
+		go func() {
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				go func() {
+					buf := make([]byte, 1)
+					conn.Read(buf)
+					conn.Close()
+				}()
+			}
+		}()
+
+		// Trust the wrong CA to begin with.
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithRootCA(&CAConfig{Paths: []string{otherSS.CACertPath}}))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		conn, err := manager.DialContext(context.Background(), "tcp", listener.Addr().String())
+		require.ErrorContains(t, err, "certificate signed by unknown authority")
+		require.Nil(t, conn)
+
+		// Reconfiguring is enough: the next dial resolves the new roots without
+		// the caller rebuilding anything.
+		apply, err := manager.PrepareReconfigure(WithRootCA(&CAConfig{Paths: []string{ss.CACertPath}}))
+		require.NoError(t, err)
+		require.NoError(t, apply())
+
+		conn, err = manager.DialContext(context.Background(), "tcp", listener.Addr().String())
+		require.NoError(t, err)
+		require.NoError(t, conn.Close())
 	})
 }

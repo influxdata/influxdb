@@ -1,6 +1,7 @@
 package tlsconfig
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -709,6 +710,34 @@ func (cm *TLSConfigManager) Dial(network, address string) (net.Conn, error) {
 		return tls.Dial(network, address, tlsConfig)
 	} else {
 		return net.Dial(network, address)
+	}
+}
+
+// DialContext dials a remote for network and address using the current
+// configuration, honoring ctx for cancellation.
+//
+// The configuration is resolved on each call, so a manager reconfigured through
+// PrepareReconfigure takes effect on the next connection without the caller
+// rebuilding anything. This makes it suitable for an http.Transport's
+// DialTLSContext, where a *tls.Config handed over once would otherwise freeze
+// the settings in place.
+//
+// No dial timeout is imposed: ctx is the only bound, matching Dial. Callers that
+// need one should pass a ctx carrying it. Note that an http.Client.Timeout is
+// delivered as a cancellation of ctx rather than as a ctx deadline, and is
+// honored either way.
+func (cm *TLSConfigManager) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	if !cm.role.IsClientRole() {
+		return nil, fmt.Errorf("%s: %w", cm.usage, ErrServerDial)
+	}
+
+	if tlsConfig := cm.TLSConfig(); tlsConfig != nil {
+		// tls.Dialer fills in ServerName from address when the config does not
+		// set one, so peer verification still works.
+		dialer := &tls.Dialer{NetDialer: new(net.Dialer), Config: tlsConfig}
+		return dialer.DialContext(ctx, network, address)
+	} else {
+		return (&net.Dialer{}).DialContext(ctx, network, address)
 	}
 }
 

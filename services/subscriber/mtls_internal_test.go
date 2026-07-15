@@ -95,7 +95,7 @@ func TestHTTP_PresentsClientCertificate(t *testing.T) {
 		cm := newManager(true)
 		defer cm.Close()
 
-		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.TLSConfig())
+		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.TLSConfig(), cm.DialContext)
 		require.NoError(t, err)
 
 		_, err = w.WritePointsContext(context.Background(), WriteRequest{
@@ -111,7 +111,7 @@ func TestHTTP_PresentsClientCertificate(t *testing.T) {
 		cm := newManager(false)
 		defer cm.Close()
 
-		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.TLSConfig())
+		w, err := NewHTTPS(srv.URL, time.Duration(conf.HTTPTimeout), cm.TLSConfig(), cm.DialContext)
 		require.NoError(t, err)
 
 		_, err = w.WritePointsContext(context.Background(), WriteRequest{
@@ -149,8 +149,9 @@ func TestService_PrepareReloadTLSCertificates(t *testing.T) {
 	}
 
 	t.Run("no client certificate is a no-op", func(t *testing.T) {
-		s := open(t, NewConfig())
-		apply, err := s.PrepareReloadTLSCertificates()
+		conf := NewConfig()
+		s := open(t, conf)
+		apply, err := s.PrepareReloadTLSCertificates(conf)
 		require.NoError(t, err)
 		require.NotNil(t, apply)
 		require.NoError(t, apply())
@@ -163,7 +164,7 @@ func TestService_PrepareReloadTLSCertificates(t *testing.T) {
 		c.PrivateKey = clientSS.KeyPath
 
 		s := open(t, c)
-		apply, err := s.PrepareReloadTLSCertificates()
+		apply, err := s.PrepareReloadTLSCertificates(c)
 		require.NoError(t, err)
 		require.NotNil(t, apply)
 		require.NoError(t, apply())

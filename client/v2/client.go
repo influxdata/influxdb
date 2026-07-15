@@ -54,6 +54,18 @@ type HTTPConfig struct {
 	// DialContext specifies the dial function for creating unencrypted TCP connections.
 	// If DialContext is nil then the transport dials using package net.
 	DialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+
+	// DialTLSContext specifies the dial function for creating TLS connections for
+	// non-proxied HTTPS requests. The returned connection is assumed to have
+	// already completed its TLS handshake. It allows the TLS configuration to be
+	// resolved per connection instead of being fixed when the client is created.
+	//
+	// When DialTLSContext is set, TLSConfig is only used for proxied requests,
+	// which tunnel through the proxy and so do not use this function. Set both to
+	// keep proxied requests working.
+	//
+	// If DialTLSContext is nil then DialContext and TLSConfig are used.
+	DialTLSContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 // BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct.
@@ -125,8 +137,9 @@ func NewHTTPClient(conf HTTPConfig) (HTTPClient, error) {
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: conf.InsecureSkipVerify,
 		},
-		Proxy:       conf.Proxy,
-		DialContext: conf.DialContext,
+		Proxy:          conf.Proxy,
+		DialContext:    conf.DialContext,
+		DialTLSContext: conf.DialTLSContext,
 	}
 	if conf.TLSConfig != nil {
 		// A supplied TLSConfig is used as-is, including its own

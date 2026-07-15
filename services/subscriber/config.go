@@ -126,6 +126,18 @@ func (c Config) effectiveRootCA() *tlsconfig.CAConfig {
 	return cc
 }
 
+// TLSManagerOpts returns the list of TLS manager options specified by c.
+func (c Config) TLSManagerOpts() []tlsconfig.TLSConfigManagerOpt {
+	return []tlsconfig.TLSConfigManagerOpt{
+		tlsconfig.WithUseTLS(true),
+		tlsconfig.WithBaseConfig(c.TLS),
+		tlsconfig.WithAllowInsecure(c.InsecureSkipVerify),
+		tlsconfig.WithClientCertificate(c.Certificate, c.PrivateKey),
+		tlsconfig.WithRootCA(c.effectiveRootCA()),
+		tlsconfig.WithIgnoreFilePermissions(c.InsecureCertificate),
+	}
+}
+
 func fileExists(fileName string) bool {
 	info, err := os.Stat(fileName)
 	return err == nil && !info.IsDir()

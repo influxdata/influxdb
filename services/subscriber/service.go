@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"sync"
 	"sync/atomic"
@@ -165,13 +166,9 @@ func (s *Service) Open() error {
 		// certificate, and owns the certificate loader used for reloads.
 		cm, err := tlsconfig.NewClientTLSConfigManager(
 			s.certMonitor,
-			tlsconfig.WithUseTLS(true),
-			tlsconfig.WithBaseConfig(s.conf.TLS),
-			tlsconfig.WithAllowInsecure(s.conf.InsecureSkipVerify),
-			tlsconfig.WithClientCertificate(s.conf.Certificate, s.conf.PrivateKey),
-			tlsconfig.WithRootCA(s.conf.effectiveRootCA()),
-			tlsconfig.WithIgnoreFilePermissions(s.conf.InsecureCertificate),
-			tlsconfig.WithLogger(s.Logger))
+			append(
+				s.conf.TLSManagerOpts(),
+				tlsconfig.WithLogger(s.Logger))...)
 		if err != nil {
 			return fmt.Errorf("subscriber: error creating TLS manager: %w", err)
 		}
@@ -248,21 +245,26 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// PrepareReloadTLSCertificates verifies that the configured client TLS
-// certificate can be reloaded from its current path. On success it returns a
-// function that applies the reloaded certificate; the new certificate is then
-// presented on subsequent HTTPS connections. If no client certificate is
-// configured there is nothing to reload and the returned function is a no-op.
-func (s *Service) PrepareReloadTLSCertificates() (func() error, error) {
+// PrepareReloadTLSCertificates verifies that the client TLS settings in conf can
+// be loaded. On success it returns a function that applies them; subsequent
+// HTTPS connections then use the new settings, including from writers that
+// already exist, because writers dial through the TLS manager. Connections that
+// are already established are left alone.
+//
+// A service with TLS disabled has no TLS manager, so there is nothing to reload
+// and the returned function is a no-op.
+func (s *Service) PrepareReloadTLSCertificates(conf Config) (func() error, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.tlsManager == nil {
 		return func() error { return nil }, nil
 	}
-	apply, err := s.tlsManager.PrepareReconfigure(tlsconfig.WithServerCertificate(s.conf.Certificate, s.conf.PrivateKey))
+	apply, err := s.tlsManager.PrepareReconfigure(conf.TLSManagerOpts()...)
 	if err != nil {
-		return nil, fmt.Errorf("subscriber: TLS certificate reload failed (%q, %q): %w", s.conf.Certificate, s.conf.PrivateKey, err)
+		// Report the paths being loaded, not the ones currently in use: the
+		// whole point of the message is to name what failed.
+		return nil, fmt.Errorf("subscriber: TLS certificate reload failed (%q, %q): %w", conf.Certificate, conf.PrivateKey, err)
 	}
 	return apply, nil
 }
@@ -455,14 +457,17 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 		if s.conf.InsecureSkipVerify {
 			s.Logger.Warn("'insecure-skip-verify' is true. This will skip all certificate verifications.")
 		}
-		// Each writer gets its own clone of the manager's config; the clone
-		// shares the certificate loader via GetClientCertificate, so a reloaded
-		// client certificate is picked up on new connections.
+		// Writers dial through the manager, which resolves the TLS
+		// configuration on each connection, so a reloaded configuration reaches
+		// writers that already exist. The config snapshot is only a fallback for
+		// proxied requests, which do not dial through the manager.
 		var tlsConfig *tls.Config
+		var dialTLSContext func(ctx context.Context, network, addr string) (net.Conn, error)
 		if s.tlsManager != nil {
 			tlsConfig = s.tlsManager.TLSConfig()
+			dialTLSContext = s.tlsManager.DialContext
 		}
-		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), tlsConfig)
+		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), tlsConfig, dialTLSContext)
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}
