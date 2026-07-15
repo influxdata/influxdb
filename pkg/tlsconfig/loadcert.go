@@ -58,14 +58,14 @@ func (xc *X509Certificate) ExpiresSoon(expirationAdvanced time.Duration) (bool, 
 	return false, 0
 }
 
-// SupportsServerAuth reports whether xc may be presented by a TLS server.
+// supportsExtKeyUsage reports whether xc permits want.
 //
 // A certificate with no extended key usage extension is unrestricted and may be
 // used for any purpose. Once the extension is present it is exhaustive, so it
-// must name server authentication (or anyExtendedKeyUsage) for a peer to accept
-// the certificate. Go's verifier rejects the rest with "x509: certificate
-// specifies an incompatible key usage".
-func (xc *X509Certificate) SupportsServerAuth() bool {
+// must name want (or anyExtendedKeyUsage) for a peer to accept the certificate.
+// Go's verifier rejects the rest with "x509: certificate specifies an
+// incompatible key usage".
+func (xc *X509Certificate) supportsExtKeyUsage(want x509.ExtKeyUsage) bool {
 	if xc == nil || xc.Certificate == nil {
 		return false
 	}
@@ -78,11 +78,24 @@ func (xc *X509Certificate) SupportsServerAuth() bool {
 	}
 
 	for _, eku := range xc.ExtKeyUsage {
-		if eku == x509.ExtKeyUsageServerAuth || eku == x509.ExtKeyUsageAny {
+		if eku == want || eku == x509.ExtKeyUsageAny {
 			return true
 		}
 	}
 	return false
+}
+
+// SupportsServerAuth reports whether xc may be presented by a TLS server.
+func (xc *X509Certificate) SupportsServerAuth() bool {
+	return xc.supportsExtKeyUsage(x509.ExtKeyUsageServerAuth)
+}
+
+// SupportsClientAuth reports whether xc may be presented by a TLS client for
+// client authentication. It only matters against a peer that verifies the
+// certificates clients present; below tls.VerifyClientCertIfGiven the usages
+// are never examined.
+func (xc *X509Certificate) SupportsClientAuth() bool {
+	return xc.supportsExtKeyUsage(x509.ExtKeyUsageClientAuth)
 }
 
 // logIssues logs issues with xc. Issues include:

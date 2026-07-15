@@ -302,6 +302,61 @@ func TestLoadCertificate_MalformedFiles(t *testing.T) {
 	})
 }
 
+func TestX509Certificate_SupportsClientAuth(t *testing.T) {
+	tests := []struct {
+		name      string
+		eku       []x509.ExtKeyUsage
+		unknown   []asn1.ObjectIdentifier
+		supported bool
+	}{
+		{
+			name:      "no extension is unrestricted",
+			supported: true,
+		},
+		{
+			name:      "client auth",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			supported: true,
+		},
+		{
+			name:      "server and client auth",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+			supported: true,
+		},
+		{
+			name:      "any extended key usage",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+			supported: true,
+		},
+		{
+			name:      "server auth only",
+			eku:       []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			supported: false,
+		},
+		{
+			name:      "only unrecognized usages",
+			unknown:   []asn1.ObjectIdentifier{{1, 3, 6, 1, 4, 1, 99999, 1}},
+			supported: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			xc := &X509Certificate{Certificate: &x509.Certificate{
+				ExtKeyUsage:        tt.eku,
+				UnknownExtKeyUsage: tt.unknown,
+			}}
+			require.Equal(t, tt.supported, xc.SupportsClientAuth())
+		})
+	}
+
+	t.Run("nil certificate", func(t *testing.T) {
+		var xc *X509Certificate
+		require.False(t, xc.SupportsClientAuth())
+		require.False(t, (&X509Certificate{}).SupportsClientAuth())
+	})
+}
+
 func TestX509Certificate_SupportsServerAuth(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -46,6 +46,10 @@ var (
 	// that has no TLS configuration to serve it.
 	ErrNoTLSConfig = errors.New("no TLS configuration available")
 
+	// ErrCertificateNotClientAuth indicates a certificate a client would present does
+	// not permit client authentication.
+	ErrCertificateNotClientAuth = errors.New("TLS certificate does not permit client authentication")
+
 	// ErrNotSupportedServer indicates that an operation is not supported by a server role
 	// config manager.
 	ErrNotSupportedServer = errors.New("operation not supported by server role TLS manager")
@@ -116,6 +120,11 @@ type TLSConfigManager struct {
 
 	// usage is the descriptive usage for this config manager.
 	usage string
+
+	// logger is the logger used for logging status. It is always usable and
+	// already carries the usage, so callers can log through it directly. It can
+	// only be set at construction time using WithLogger.
+	logger *zap.Logger
 
 	// serverCertLoader is the cert loader for server certificates. It is only
 	// created if role is a server role. It is only modified on instantiation and
@@ -298,13 +307,37 @@ func (c *tlsConfigManagerConfig) serverCertLoaderOpts() []TLSCertLoaderOpt {
 // clientCertLoaderOpts returns the options needed for the client TLSCertLoader.
 // If the client certificate is not set, then the server certificate will
 // be used as a fallback.
-func (c *tlsConfigManagerConfig) clientCertLoaderOpts() []TLSCertLoaderOpt {
-	certPath := c.clientCertPath
-	keyPath := c.clientKeyPath
-	if certPath == "" && keyPath == "" {
-		certPath = c.serverCertPath
-		keyPath = c.serverKeyPath
+// clientCertificatePaths resolves the certificate the client will present. When
+// no client certificate is configured the server pair is used instead, which
+// usingFallback reports. Setting either client path suppresses the fallback.
+func (c *tlsConfigManagerConfig) clientCertificatePaths() (certPath, keyPath string, usingFallback bool) {
+	if c.clientCertPath == "" && c.clientKeyPath == "" {
+		return c.serverCertPath, c.serverKeyPath, true
 	}
+	return c.clientCertPath, c.clientKeyPath, false
+}
+
+// verifiesClientCertificates reports whether the effective client
+// authentication makes a server verify the certificates clients present, which
+// is what makes the client extended key usage matter. Below
+// tls.VerifyClientCertIfGiven the certificate is never verified, so its usages
+// are never examined, even when one is demanded.
+//
+// The effective value is resolved the same way prepareConfigure applies it: the
+// base config's setting, overridden by WithClientAuth when it was given.
+func (c *tlsConfigManagerConfig) verifiesClientCertificates() bool {
+	clientAuth := tls.NoClientCert
+	if c.baseConfig != nil {
+		clientAuth = c.baseConfig.ClientAuth
+	}
+	if c.clientAuth != nil {
+		clientAuth = *c.clientAuth
+	}
+	return clientAuth >= tls.VerifyClientCertIfGiven
+}
+
+func (c *tlsConfigManagerConfig) clientCertLoaderOpts() []TLSCertLoaderOpt {
+	certPath, keyPath, _ := c.clientCertificatePaths()
 	return append(c.commonCertLoaderOpts(),
 		WithCertLoaderCertificate(certPath, keyPath),
 	)
@@ -517,6 +550,10 @@ func newTLSConfigManager(opts ...TLSConfigManagerOpt) (*TLSConfigManager, error)
 		clientCertLoader: clientCertLoader,
 	}
 
+	// Set the logger even when none was configured, so that everything below has
+	// a usable one.
+	cm.setLogger(c.logger)
+
 	if apply, err := cm.prepareConfigure(&c); err != nil {
 		return nil, fmt.Errorf("error configuring new TLSConfigManager: %w", err)
 	} else if err := apply(); err != nil {
@@ -524,6 +561,131 @@ func newTLSConfigManager(opts ...TLSConfigManagerOpt) (*TLSConfigManager, error)
 	}
 
 	return cm, nil
+}
+
+// setLogger sets the current logger and adds context to it.
+func (cm *TLSConfigManager) setLogger(logger *zap.Logger) {
+	cm.logger = logger
+	if cm.logger == nil {
+		cm.logger = zap.NewNop()
+	}
+
+	// Add usage to logger.
+	cm.logger = cm.logger.With(zap.String(logUsageContext, cm.usage))
+}
+
+// checkClientCertificate sanity checks the certificate the client will present
+// for client authentication, returning an error if the load should fail.
+//
+// The checks live here rather than in the cert loader because they need what
+// only the manager knows: whether the certificate is the client's own or
+// borrowed from the server, and how client certificates are authenticated.
+//
+// How firmly a failure is treated depends on what the certificate is and how it
+// will be used:
+//
+//   - A certificate configured with WithClientCertificate exists to be presented
+//     by the client, so failing a check is an error.
+//   - A client that has fallen back to the server's certificate is a different
+//     matter. Server certificates that do not name client authentication are
+//     common, and such a deployment works today wherever no peer verifies the
+//     certificates clients present. Failing it there would break working
+//     configurations, so it is only ever a warning.
+//   - Once client certificates are verified, a borrowed certificate is going to
+//     be rejected, so failing a check is an error again.
+//
+// The client authentication setting describes how this manager's server treats
+// incoming clients, and is read here as a statement about the deployment: a
+// cluster that verifies the clients it accepts is taken to be one whose peers
+// will verify this client in turn.
+//
+// An error is downgraded to a warning when sanity checks are being ignored.
+func (cm *TLSConfigManager) checkClientCertificate(c *tlsConfigManagerConfig) error {
+	certPath, keyPath, usingFallback := c.clientCertificatePaths()
+
+	// Both of these only mean something for a manager that is also a server: a
+	// client-only manager has no server whose certificate it could have
+	// borrowed, and no client authentication setting of its own to read the
+	// deployment from. For it, a client certificate is simply a client
+	// certificate.
+	peersVerify := cm.role.IsServerRole() && c.verifiesClientCertificates()
+	borrowedFromServer := cm.role.IsServerRole() && usingFallback
+
+	var (
+		// sanityErrs are failures that matter however the certificate is used.
+		sanityErrs []error
+
+		// verifiedOnlyErrs are failures that only matter once a peer verifies
+		// the certificates clients present. They are kept apart from sanityErrs
+		// so that excusing a borrowed certificate excuses only the checks that
+		// depend on that verification, and not every other check with them.
+		verifiedOnlyErrs []error
+	)
+
+	if certPath == "" && keyPath == "" {
+		// Presenting no client certificate is a valid configuration, until a
+		// peer demands one and checks it.
+		if !peersVerify {
+			return nil
+		}
+		sanityErrs = append(sanityErrs, fmt.Errorf(
+			"%s: no client certificate is configured, but client certificates are verified: %w",
+			cm.usage, ErrCertificateEmpty))
+	} else {
+		// The cert loader has already prepared this same certificate, so a read
+		// failure here is a race with a changing file rather than something for
+		// this check to report.
+		loadedCert, err := LoadCertificate(certPath, keyPath,
+			WithLoadCertificateIgnoreFilePermissions(c.ignoreFilePermissions))
+		if err != nil {
+			return nil
+		}
+
+		// A leaf that will not parse is a fault rather than a judgment, so it
+		// fails the load even when sanity checks are ignored.
+		leaf, err := loadedCert.GetLeaf()
+		if err != nil {
+			return fmt.Errorf("%s: %w", cm.usage, err)
+		}
+
+		// A peer only examines the extended key usage when it verifies the
+		// certificate, so this failure is moot until one does.
+		if !leaf.SupportsClientAuth() {
+			verifiedOnlyErrs = append(verifiedOnlyErrs, fmt.Errorf(
+				"%s: certificate presented for client authentication does not permit it: %w",
+				cm.usage, ErrCertificateNotClientAuth))
+		}
+	}
+
+	log := cm.logger.With(
+		zap.String(logCertContext, certPath),
+		zap.String(logKeyContext, keyPath))
+
+	// A borrowed server certificate that no peer will verify keeps working, and
+	// failing it would break configurations that predate these checks. Only the
+	// checks that hinge on that verification are excused.
+	if borrowedFromServer && !peersVerify {
+		if len(verifiedOnlyErrs) > 0 {
+			log.Warn("Server TLS certificate is also being used as the client certificate and failed client sanity checks; "+
+				"this is only a problem against a peer that verifies client certificates",
+				zap.Error(errors.Join(verifiedOnlyErrs...)))
+		}
+	} else {
+		sanityErrs = append(sanityErrs, verifiedOnlyErrs...)
+	}
+
+	if len(sanityErrs) == 0 {
+		return nil
+	}
+	sanityErr := errors.Join(sanityErrs...)
+
+	if c.ignoreSanityChecks {
+		log.Warn("TLS certificate failed sanity checks, loading it anyway because sanity checks are being ignored",
+			zap.Error(sanityErr))
+		return nil
+	}
+
+	return sanityErr
 }
 
 // prepareConfigure changes the configuration of cm based on
@@ -613,6 +775,13 @@ func (cm *TLSConfigManager) prepareConfigure(c *tlsConfigManagerConfig) (func() 
 			return nil, fmt.Errorf("%s: error configuring client cert loader: %w", cm.usage, err)
 		} else {
 			applyClientCert = apply
+		}
+
+		// The client sanity check lives here rather than in the cert loader
+		// because it needs what only the manager knows: whether the certificate
+		// is the client's own or the server's, and how clients are authenticated.
+		if err := cm.checkClientCertificate(c); err != nil {
+			return nil, err
 		}
 	}
 

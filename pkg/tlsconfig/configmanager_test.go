@@ -2437,3 +2437,194 @@ func TestTLSConfigManager_ListenSessionResumption(t *testing.T) {
 
 	require.Contains(t, resumed, true, "per-connection configs must not break session resumption")
 }
+
+// serverOnlyCert is a certificate that permits server authentication but not
+// client authentication, so a client presenting it fails the client checks.
+func serverOnlyCert(t *testing.T) *selfsigned.Cert {
+	t.Helper()
+	return selfsigned.NewSelfSignedCert(t, selfsigned.WithExtKeyUsage(x509.ExtKeyUsageServerAuth))
+}
+
+func TestTLSConfigManager_ClientCertificateSanityChecks(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	t.Run("client-only rejects a certificate without client auth", func(t *testing.T) {
+		ss := serverOnlyCert(t)
+
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithClientCertificate(ss.CertPath, ss.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotClientAuth)
+		require.Nil(t, manager)
+	})
+
+	t.Run("client-only with no certificate is fine", func(t *testing.T) {
+		// The client simply presents nothing. A client-only manager has no
+		// client auth setting of its own to contradict that.
+		manager, err := NewClientTLSConfigManager(monitor, WithUseTLS(true))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+	})
+
+	t.Run("client-only accepts a proper client certificate", func(t *testing.T) {
+		ss := selfsigned.NewSelfSignedCert(t)
+
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithClientCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+	})
+
+	t.Run("client/server rejects an explicit certificate without client auth", func(t *testing.T) {
+		serverSS := selfsigned.NewSelfSignedCert(t)
+		clientSS := serverOnlyCert(t)
+
+		// The certificate was configured to be the client's, so it is held to
+		// the client checks regardless of client authentication.
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath),
+			WithClientCertificate(clientSS.CertPath, clientSS.KeyPath))
+		require.ErrorIs(t, err, ErrCertificateNotClientAuth)
+		require.Nil(t, manager)
+	})
+
+	t.Run("client/server warns when a borrowed certificate is never verified", func(t *testing.T) {
+		serverSS := serverOnlyCert(t)
+
+		core, logs := observer.New(zapcore.InfoLevel)
+
+		// This is the shape of every deployment that predates these checks: a
+		// server certificate reused by the client, with no client auth. It must
+		// keep working even though sanity checks are enforced.
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithLogger(zap.New(core)),
+			WithIgnoreSanityChecks(false),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath))
+		require.NoError(t, err, "a borrowed certificate no peer verifies must not fail the load")
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+
+		warnings := logs.FilterMessage("Server TLS certificate is also being used as the client certificate and failed client sanity checks; " +
+			"this is only a problem against a peer that verifies client certificates").TakeAll()
+		require.Len(t, warnings, 1, "the load should still say what is wrong")
+		require.Equal(t, zap.WarnLevel, warnings[0].Level)
+		require.Contains(t, warnings[0].ContextMap()["error"], ErrCertificateNotClientAuth.Error())
+	})
+
+	t.Run("client/server rejects a borrowed certificate once clients are verified", func(t *testing.T) {
+		serverSS := serverOnlyCert(t)
+		clientCASS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("c", "Client CA"))
+
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath),
+			WithClientCA(&CAConfig{Paths: []string{clientCASS.CACertPath}}),
+			WithClientAuth(tls.RequireAndVerifyClientCert))
+		require.ErrorIs(t, err, ErrCertificateNotClientAuth)
+		require.Nil(t, manager)
+	})
+
+	t.Run("verification is what matters, not demanding a certificate", func(t *testing.T) {
+		serverSS := serverOnlyCert(t)
+
+		// RequireAnyClientCert demands a certificate but never verifies it, so
+		// the extended key usage is never examined and the load succeeds.
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath),
+			WithClientAuth(tls.RequireAnyClientCert))
+		require.NoError(t, err, "RequireAnyClientCert does not verify, so the usage is moot")
+		defer th.CheckedClose(t, manager)()
+
+		// VerifyClientCertIfGiven does not demand one but does verify it.
+		manager, err = NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath),
+			WithClientAuth(tls.VerifyClientCertIfGiven))
+		require.ErrorIs(t, err, ErrCertificateNotClientAuth,
+			"VerifyClientCertIfGiven verifies, so the usage matters")
+		require.Nil(t, manager)
+	})
+
+	t.Run("ignoring sanity checks downgrades the error", func(t *testing.T) {
+		serverSS := serverOnlyCert(t)
+		clientCASS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("c", "Client CA"))
+
+		core, logs := observer.New(zapcore.InfoLevel)
+
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithLogger(zap.New(core)),
+			WithIgnoreSanityChecks(true),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath),
+			WithClientCA(&CAConfig{Paths: []string{clientCASS.CACertPath}}),
+			WithClientAuth(tls.RequireAndVerifyClientCert))
+		require.NoError(t, err)
+		require.NotNil(t, manager)
+		defer th.CheckedClose(t, manager)()
+
+		require.Len(t, logs.FilterMessage("TLS certificate failed sanity checks, loading it anyway because sanity checks are being ignored").TakeAll(), 1)
+	})
+}
+
+// TestTLSConfigManager_LoggerCarriesUsage covers the manager's logger being
+// usable and already carrying the usage, so that code logging through it does
+// not have to add the context itself.
+func TestTLSConfigManager_LoggerCarriesUsage(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	t.Run("usage is added once at construction", func(t *testing.T) {
+		serverSS := serverOnlyCert(t)
+
+		core, logs := observer.New(zapcore.InfoLevel)
+
+		// A borrowed server certificate without client auth warns, which is a
+		// convenient way to see what the manager's logger carries.
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithUsage("meta"),
+			WithLogger(zap.New(core)),
+			WithServerCertificate(serverSS.CertPath, serverSS.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
+
+		entries := logs.FilterMessageSnippet("also being used as the client certificate").TakeAll()
+		require.Len(t, entries, 1)
+
+		ctx := entries[0].ContextMap()
+		require.Equal(t, "meta", ctx["usage"], "the manager's logger should carry its usage")
+		require.Equal(t, serverSS.CertPath, ctx["cert"])
+		require.Equal(t, serverSS.KeyPath, ctx["key"])
+	})
+
+	t.Run("no logger configured is still usable", func(t *testing.T) {
+		serverSS := serverOnlyCert(t)
+
+		// Without WithLogger the manager must still log somewhere rather than
+		// panic on a nil logger.
+		require.NotPanics(t, func() {
+			manager, err := NewClientServerTLSConfigManager(
+				monitor,
+				WithUseTLS(true),
+				WithServerCertificate(serverSS.CertPath, serverSS.KeyPath))
+			require.NoError(t, err)
+			require.NotNil(t, manager.logger)
+			require.NoError(t, manager.Close())
+		})
+	})
+}
