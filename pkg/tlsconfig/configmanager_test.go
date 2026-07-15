@@ -588,8 +588,9 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 			require.NoError(t, manager.Close())
 		}()
 
-		_, err := manager.Listen("tcp", "invalid:address:format")
+		conn, err := manager.Listen("tcp", "invalid:address:format")
 		require.ErrorContains(t, err, "address invalid:address:format: too many colons in address")
+		require.Nil(t, conn)
 	})
 }
 
@@ -2022,8 +2023,9 @@ func TestTLSConfigManager_WithUsage(t *testing.T) {
 		defer th.CheckedClose(t, manager)()
 
 		// A server manager cannot dial; the message should say which manager.
-		_, err = manager.Dial("tcp", "127.0.0.1:0")
+		conn, err := manager.Dial("tcp", "127.0.0.1:0")
 		require.ErrorContains(t, err, "httpd: ")
+		require.Nil(t, conn)
 	})
 
 	t.Run("unset usage still names the loaders", func(t *testing.T) {
