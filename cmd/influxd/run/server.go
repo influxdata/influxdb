@@ -23,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	prometheus2 "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/control"
@@ -79,6 +80,10 @@ type Server struct {
 
 	err     chan error
 	closing chan struct{}
+
+	// certMonitor is the TLS certificate monitor all TLSConfigManager objects
+	// in influxd should use.
+	certMonitor *tlsconfig.TLSCertMonitor
 
 	BindAddress string
 	Listener    net.Listener
@@ -197,6 +202,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		reportingDisabled: c.ReportingDisabled,
 
+		certMonitor: tlsconfig.NewTLSCertMonitor(),
+
 		httpAPIAddr: c.HTTPD.BindAddress,
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
 
@@ -217,7 +224,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.TSDBStore.EngineOptions.IndexVersion = c.Data.Index
 
 	// Create the Subscriber service
-	s.Subscriber = subscriber.NewService(c.Subscriber)
+	s.Subscriber = subscriber.NewService(c.Subscriber, s.certMonitor)
 
 	// Initialize points writer.
 	s.PointsWriter = coordinator.NewPointsWriter()
@@ -308,11 +315,11 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendHTTPDService(c httpd.Config) error {
+func (s *Server) appendHTTPDService(c httpd.Config, certMonitor *tlsconfig.TLSCertMonitor) error {
 	if !c.Enabled {
 		return nil
 	}
-	srv := httpd.NewService(c)
+	srv := httpd.NewService(c, certMonitor)
 	srv.Handler.MetaClient = s.MetaClient
 	authorizer := meta.NewQueryAuthorizer(s.MetaClient)
 	srv.Handler.QueryAuthorizer = authorizer
@@ -361,11 +368,11 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
+func (s *Server) appendOpenTSDBService(c opentsdb.Config, certMonitor *tlsconfig.TLSCertMonitor) error {
 	if !c.Enabled {
 		return nil
 	}
-	srv, err := opentsdb.NewService(c)
+	srv, err := opentsdb.NewService(c, certMonitor)
 	if err != nil {
 		return err
 	}
@@ -437,6 +444,13 @@ func (s *Server) Open() error {
 		return err
 	}
 
+	// Configure and start certificate monitor. Do this early so we don't block
+	// on any of its channels.
+	s.certMonitor.SetLogger(s.Logger)
+	if err := s.certMonitor.Open(); err != nil {
+		return fmt.Errorf("error starting TLS certificate monitor: %w", err)
+	}
+
 	// Open shared TCP connection.
 	ln, err := net.Listen("tcp", s.BindAddress)
 	if err != nil {
@@ -453,7 +467,7 @@ func (s *Server) Open() error {
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
-	if err := s.appendHTTPDService(s.config.HTTPD); err != nil {
+	if err := s.appendHTTPDService(s.config.HTTPD, s.certMonitor); err != nil {
 		return err
 	}
 	s.appendRetentionPolicyService(s.config.Retention)
@@ -466,7 +480,7 @@ func (s *Server) Open() error {
 		s.appendCollectdService(i)
 	}
 	for _, i := range s.config.OpenTSDBInputs {
-		if err := s.appendOpenTSDBService(i); err != nil {
+		if err := s.appendOpenTSDBService(i, s.certMonitor); err != nil {
 			return err
 		}
 	}
@@ -541,6 +555,9 @@ func (s *Server) Open() error {
 // Close shuts down the meta and data stores and all services.
 func (s *Server) Close() error {
 	s.stopProfile()
+
+	// Close the TLS certificate monitor.
+	s.certMonitor.Close()
 
 	// Close the listener first to stop any new connections
 	if s.Listener != nil {

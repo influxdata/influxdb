@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	th "github.com/influxdata/influxdb/pkg/testing/helper"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/httpd"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_Parse(t *testing.T) {
@@ -51,8 +54,12 @@ max-body-size = 100
 }
 
 func TestConfig_WriteTracing(t *testing.T) {
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	defer th.CheckedClose(t, certMonitor)()
+
 	c := httpd.Config{WriteTracing: true}
-	s := httpd.NewService(c)
+	s := httpd.NewService(c, certMonitor)
 	if !s.Handler.Config.WriteTracing {
 		t.Fatalf("write tracing was not set")
 	}

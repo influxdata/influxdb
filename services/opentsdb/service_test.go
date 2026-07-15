@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	th "github.com/influxdata/influxdb/pkg/testing/helper"
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
 	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/meta"
@@ -28,7 +30,7 @@ import (
 func Test_Service_OpenClose(t *testing.T) {
 	// Let the OS assign a random port since we are only opening and closing the service,
 	// not actually connecting to it.
-	service := NewTestService("db0", "127.0.0.1:0")
+	service := NewTestService(t, "db0", "127.0.0.1:0")
 
 	// Closing a closed service is fine.
 	if err := service.Service.Close(); err != nil {
@@ -69,7 +71,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	t.Parallel()
 
 	database := "db0"
-	s := NewTestService(database, "127.0.0.1:0")
+	s := NewTestService(t, database, "127.0.0.1:0")
 	s.WritePointsFn = func(tsdb.WriteContext, string, string, models.ConsistencyLevel, []models.Point) error {
 		return nil
 	}
@@ -145,7 +147,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 func TestService_Telnet(t *testing.T) {
 	t.Parallel()
 
-	s := NewTestService("db0", "127.0.0.1:0")
+	s := NewTestService(t, "db0", "127.0.0.1:0")
 	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +210,7 @@ func TestService_Telnet(t *testing.T) {
 func TestService_HTTP(t *testing.T) {
 	t.Parallel()
 
-	s := NewTestService("db0", "127.0.0.1:0")
+	s := NewTestService(t, "db0", "127.0.0.1:0")
 	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -255,26 +257,30 @@ func TestService_HTTP(t *testing.T) {
 }
 
 type TestService struct {
+	t             *testing.T
 	Service       *Service
 	MetaClient    *internal.MetaClientMock
 	WritePointsFn func(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
+	certMonitor   *tlsconfig.TLSCertMonitor
 }
 
 // NewTestService returns a new instance of Service.
-func NewTestService(database string, bind string) *TestService {
+func NewTestService(t *testing.T, database string, bind string) *TestService {
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	defer th.CheckedClose(t, certMonitor)()
+
 	s, err := NewService(Config{
 		BindAddress:      bind,
 		Database:         database,
 		ConsistencyLevel: "one",
-	})
-
-	if err != nil {
-		panic(err)
-	}
+	}, certMonitor)
+	require.NoError(t, err)
 
 	service := &TestService{
-		Service:    s,
-		MetaClient: &internal.MetaClientMock{},
+		Service:     s,
+		MetaClient:  &internal.MetaClientMock{},
+		certMonitor: certMonitor,
 	}
 
 	service.MetaClient.CreateDatabaseFn = func(db string) (*meta.DatabaseInfo, error) {
@@ -291,6 +297,19 @@ func NewTestService(database string, bind string) *TestService {
 	service.Service.MetaClient = service.MetaClient
 	service.Service.PointsWriter = service
 	return service
+}
+
+func (s *TestService) Close() error {
+	var allErrs []error
+
+	if err := s.certMonitor.Close(); err != nil {
+		allErrs = append(allErrs, fmt.Errorf("error closing cert monitor: %w", err))
+	}
+	if err := s.Service.Close(); err != nil {
+		allErrs = append(allErrs, fmt.Errorf("error closing opentsdb service: %w", err))
+	}
+
+	return errors.Join(allErrs...)
 }
 
 func (s *TestService) WritePointsPrivileged(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
@@ -316,6 +335,10 @@ func TestService_ClientCertAuth(t *testing.T) {
 	serverSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("localhost"))
 	clientSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("client", "Client CA"))
 
+	certMonitor := tlsconfig.NewTLSCertMonitor()
+	require.NoError(t, certMonitor.Open())
+	defer th.CheckedClose(t, certMonitor)
+
 	authType := toml.TlsClientAuthType(tls.RequireAndVerifyClientCert)
 	s, err := NewService(Config{
 		BindAddress:      "127.0.0.1:0",
@@ -327,7 +350,7 @@ func TestService_ClientCertAuth(t *testing.T) {
 		ClientAuthType:   &authType,
 		ClientCA:         &tlsconfig.CAConfig{Paths: []string{clientSS.CACertPath}},
 		TLS:              new(tls.Config),
-	})
+	}, certMonitor)
 	require.NoError(t, err)
 
 	// Wire the minimal dependencies so /api/put succeeds once the handshake passes.

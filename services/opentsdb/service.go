@@ -50,7 +50,10 @@ type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
-	wg           sync.WaitGroup
+	wg sync.WaitGroup
+
+	certMonitor *tlsconfig.TLSCertMonitor
+
 	tls          bool
 	tlsManager   *tlsconfig.TLSConfigManager
 	tlsConfig    *tls.Config
@@ -94,7 +97,7 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c Config) (*Service, error) {
+func NewService(c Config, certMonitor *tlsconfig.TLSCertMonitor) (*Service, error) {
 	// Use defaults where necessary.
 	d := c.WithDefaults()
 
@@ -107,6 +110,7 @@ func NewService(c Config) (*Service, error) {
 	}
 
 	s := &Service{
+		certMonitor:     certMonitor,
 		tls:             d.TLSEnabled,
 		tlsConfig:       d.TLS,
 		cert:            d.Certificate,
@@ -152,7 +156,11 @@ func (s *Service) Open() error {
 	go func() { defer s.wg.Done(); s.processBatches(s.batcher) }()
 
 	// Open listener.
-	cm, err := tlsconfig.NewTLSConfigManager(s.tls, s.tlsConfig, s.cert, s.privateKey, false,
+	cm, err := tlsconfig.NewServerTLSConfigManager(
+		s.certMonitor,
+		tlsconfig.WithUseTLS(s.tls),
+		tlsconfig.WithBaseConfig(s.tlsConfig),
+		tlsconfig.WithServerCertificate(s.cert, s.privateKey),
 		tlsconfig.WithIgnoreFilePermissions(s.insecureCert),
 		tlsconfig.WithClientAuthPtr(s.clientAuthType),
 		tlsconfig.WithClientCA(s.clientCA),
@@ -239,7 +247,7 @@ func (s *Service) PrepareReloadTLSCertificates() (func() error, error) {
 		return nil, errors.New("opentsdb: no TLS manager available")
 	}
 
-	if apply, err := s.tlsManager.PrepareCertificateLoad(s.cert, s.privateKey); err == nil {
+	if apply, err := s.tlsManager.PrepareReconfigure(tlsconfig.WithServerCertificate(s.cert, s.privateKey)); err == nil {
 		return apply, nil
 	} else {
 		return nil, fmt.Errorf("opentsdb: TLS certificate reload failed (%q, %q): %w", s.cert, s.privateKey, err)

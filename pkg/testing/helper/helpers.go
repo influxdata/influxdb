@@ -15,6 +15,7 @@ import (
 // can be replaced by:
 // defer CheckedClose(t, c)()
 func CheckedClose(t require.TestingT, c io.Closer) func() {
+	require.NotNil(t, c, "CheckedClose cannot be used with a nil io.Closer")
 	return func() {
 		if h, ok := t.(interface{ Helper() }); ok {
 			h.Helper()

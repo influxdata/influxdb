@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	th "github.com/influxdata/influxdb/pkg/testing/helper"
 	"github.com/influxdata/influxdb/pkg/testing/selfsigned"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -21,16 +22,21 @@ import (
 func TestTLSConfigManager_ConsistentClonedConfigs(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	// Create an initial baseConfig for manager.
 	baseTLSConfig := ss.ClientTLSConfig(t, false, false)
 	require.NotNil(t, baseTLSConfig.RootCAs, "ClientTLSConfig should have set RootCAs")
 
-	manager, err := NewTLSConfigManager(true, baseTLSConfig, ss.CertPath, ss.KeyPath, false)
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithBaseConfig(baseTLSConfig),
+		WithServerCertificate(ss.CertPath, ss.KeyPath))
 	require.NoError(t, err)
 	require.NotNil(t, manager)
-	defer func() {
-		require.NoError(t, manager.Close())
-	}()
+	defer th.CheckedClose(t, manager)()
 
 	// Get TLS config
 	tlsConfig := manager.TLSConfig()
@@ -50,25 +56,20 @@ func TestTLSConfigManager_ConsistentClonedConfigs(t *testing.T) {
 	// Clear out the function pointers before calling require.Equal.
 	require.NotNil(t, tlsConfig.GetCertificate)
 	require.NotNil(t, tlsConfig2.GetCertificate)
-	require.NotNil(t, tlsConfig.GetClientCertificate)
-	require.NotNil(t, tlsConfig2.GetClientCertificate)
+	require.Nil(t, tlsConfig.GetClientCertificate)
+	require.Nil(t, tlsConfig2.GetClientCertificate)
 	tlsConfig.GetCertificate = nil
 	tlsConfig.GetClientCertificate = nil
 	tlsConfig2.GetCertificate = nil
 	tlsConfig2.GetClientCertificate = nil
 	require.Equal(t, tlsConfig, tlsConfig2)
-
-	// TLSCertLoader should also be available
-	certLoader := manager.TLSCertLoader()
-	require.NotNil(t, certLoader)
-
-	// Subsequent calls should return the same instance
-	certLoader2 := manager.TLSCertLoader()
-	require.Same(t, certLoader, certLoader2)
 }
 
 func TestTLSConfigManager_BaseConfigCloned(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
+
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
 
 	baseConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -76,12 +77,14 @@ func TestTLSConfigManager_BaseConfigCloned(t *testing.T) {
 		ServerName: "test.example.com",
 	}
 
-	manager, err := NewTLSConfigManager(true, baseConfig, ss.CertPath, ss.KeyPath, false)
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithBaseConfig(baseConfig),
+		WithServerCertificate(ss.CertPath, ss.KeyPath))
 	require.NoError(t, err)
 	require.NotNil(t, manager)
-	defer func() {
-		require.NoError(t, manager.Close())
-	}()
+	defer th.CheckedClose(t, manager)()
 
 	tlsConfig := manager.TLSConfig()
 	require.NotNil(t, tlsConfig)
@@ -102,7 +105,14 @@ func TestTLSConfigManager_BaseConfigCloned(t *testing.T) {
 func TestTLSConfigManager_NilBaseConfig(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 
-	manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithBaseConfig(nil),
+		WithServerCertificate(ss.CertPath, ss.KeyPath))
 	require.NoError(t, err)
 	require.NotNil(t, manager)
 	defer func() {
@@ -120,43 +130,36 @@ func TestTLSConfigManager_NilBaseConfig(t *testing.T) {
 func TestTLSConfigManager_CertLoaderCallbacksSet(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 
-	manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithBaseConfig(nil),
+		WithServerCertificate(ss.CertPath, ss.KeyPath))
 	require.NoError(t, err)
 	require.NotNil(t, manager)
-	defer func() {
-		require.NoError(t, manager.Close())
-	}()
+	defer th.CheckedClose(t, manager)()
 
 	tlsConfig := manager.TLSConfig()
 	require.NotNil(t, tlsConfig)
 
 	// Verify that TLSCertLoader.SetupTLSConfig was called by checking callbacks are set
 	require.NotNil(t, tlsConfig.GetCertificate, "GetCertificate callback should be set")
-	require.NotNil(t, tlsConfig.GetClientCertificate, "GetClientCertificate callback should be set")
-}
-
-func TestTLSConfigManager_CertLoaderPathsCorrect(t *testing.T) {
-	ss := selfsigned.NewSelfSignedCert(t)
-
-	manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
-	require.NoError(t, err)
-	require.NotNil(t, manager)
-	defer func() {
-		require.NoError(t, manager.Close())
-	}()
-
-	certLoader := manager.TLSCertLoader()
-	require.NotNil(t, certLoader)
-
-	// Verify the paths were passed correctly to TLSCertLoader
-	certPath, keyPath := certLoader.Paths()
-	require.Equal(t, ss.CertPath, certPath)
-	require.Equal(t, ss.KeyPath, keyPath)
+	require.Nil(t, tlsConfig.GetClientCertificate, "GetClientCertificate callback should not be set")
 }
 
 func TestTLSConfigManager_ConstructorError(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	// Use non-existent paths to verify NewTLSConfigLoader returns error
-	manager, err := NewTLSConfigManager(true, nil, "/nonexistent/cert.pem", "/nonexistent/key.pem", false)
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithBaseConfig(nil),
+		WithServerCertificate("/nonexistent/cert.pem", "/nonexistent/key.pem"))
 	require.ErrorContains(t, err, "LoadCertificate: error opening \"/nonexistent/cert.pem\" for reading: open /nonexistent/cert.pem: no such file or directory")
 	require.Nil(t, manager)
 }
@@ -164,23 +167,45 @@ func TestTLSConfigManager_ConstructorError(t *testing.T) {
 func TestTLSConfigManager_InsecureSkipVerify(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("allowInsecure true", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, true)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(nil),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
+			WithAllowInsecure(true))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.True(t, tlsConfig.InsecureSkipVerify)
 	})
 
 	t.Run("allowInsecure false", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(nil),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
+			WithAllowInsecure(false))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
+
+		tlsConfig := manager.TLSConfig()
+		require.False(t, tlsConfig.InsecureSkipVerify)
+	})
+
+	t.Run("allowInsecure implied false", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(nil),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.False(t, tlsConfig.InsecureSkipVerify)
@@ -191,11 +216,13 @@ func TestTLSConfigManager_InsecureSkipVerify(t *testing.T) {
 			InsecureSkipVerify: true,
 		}
 
-		manager, err := NewTLSConfigManager(true, baseConfig, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(baseConfig),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.False(t, tlsConfig.InsecureSkipVerify, "allowInsecure should override base config")
@@ -206,64 +233,69 @@ func TestTLSConfigManager_MultipleLoadersIndependent(t *testing.T) {
 	ss1 := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("server1.example.com"))
 	ss2 := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("server2.example.com"))
 
-	loader1, err := NewTLSConfigManager(true, nil, ss1.CertPath, ss1.KeyPath, false)
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	loader1, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithBaseConfig(nil),
+		WithServerCertificate(ss1.CertPath, ss1.KeyPath))
 	require.NoError(t, err)
-	loader2, err := NewTLSConfigManager(true, nil, ss2.CertPath, ss2.KeyPath, false)
+	defer th.CheckedClose(t, loader1)()
+
+	loader2, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithBaseConfig(nil),
+		WithServerCertificate(ss2.CertPath, ss2.KeyPath))
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, loader1.Close())
-		require.NoError(t, loader2.Close())
-	}()
+	defer th.CheckedClose(t, loader2)()
 
 	tlsConfig1 := loader1.TLSConfig()
 	tlsConfig2 := loader2.TLSConfig()
 
 	// Configs should be different instances
 	require.NotSame(t, tlsConfig1, tlsConfig2)
-
-	// Cert loaders should be different instances
-	certLoader1 := loader1.TLSCertLoader()
-	certLoader2 := loader2.TLSCertLoader()
-	require.NotSame(t, certLoader1, certLoader2)
-
-	// Each manager should have its own certificate paths
-	cp1, kp1 := certLoader1.Paths()
-	cp2, kp2 := certLoader2.Paths()
-	require.Equal(t, ss1.CertPath, cp1)
-	require.Equal(t, ss1.KeyPath, kp1)
-	require.Equal(t, ss2.CertPath, cp2)
-	require.Equal(t, ss2.KeyPath, kp2)
 }
 
 func TestTLSConfigManager_UseTLSFalse(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("returns nil config and no error", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithBaseConfig(nil),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
 		require.NotNil(t, manager)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.Nil(t, tlsConfig)
 		require.False(t, manager.UseTLS())
 	})
 
-	t.Run("returns nil cert manager and no error", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+	t.Run("no error on bad cert when disabled", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithBaseConfig(nil),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
 		require.NotNil(t, manager)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
-
-		certLoader := manager.TLSCertLoader()
-		require.Nil(t, certLoader)
+		defer th.CheckedClose(t, manager)()
 	})
 
 	t.Run("ignores invalid paths when disabled", func(t *testing.T) {
 		// Even with nonexistent paths, useTLS=false should not error
-		manager, err := NewTLSConfigManager(false, nil, "/nonexistent/cert.pem", "/nonexistent/key.pem", false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithBaseConfig(nil),
+			WithServerCertificate("/nonexistent/cert.pem", "/nonexistent/key.pem"))
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 		defer func() {
@@ -272,9 +304,6 @@ func TestTLSConfigManager_UseTLSFalse(t *testing.T) {
 
 		tlsConfig := manager.TLSConfig()
 		require.Nil(t, tlsConfig)
-
-		certLoader := manager.TLSCertLoader()
-		require.Nil(t, certLoader)
 	})
 
 	t.Run("ignores base config when disabled", func(t *testing.T) {
@@ -283,127 +312,104 @@ func TestTLSConfigManager_UseTLSFalse(t *testing.T) {
 			ServerName: "test.example.com",
 		}
 
-		manager, err := NewTLSConfigManager(false, baseConfig, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithBaseConfig(baseConfig),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
 		require.NotNil(t, manager)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.Nil(t, tlsConfig, "should return nil config even with base config provided")
 	})
 
 	t.Run("close works when disabled", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithBaseConfig(nil),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
 
 		// Close should succeed
 		require.NoError(t, manager.Close())
 		require.NoError(t, manager.Close()) // idempotent
 	})
-
-	t.Run("explicit parameters override opts", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "", "", false, WithUseTLS(true))
-		require.NoError(t, err)
-		require.NotNil(t, manager)
-		require.False(t, manager.UseTLS())
-	})
 }
 
 func TestTLSConfigManager_UseTLSWithoutCert(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("constructor succeeds with empty paths", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, "", "", true)
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(nil),
+			WithServerCertificate("", ""))
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 		require.NoError(t, manager.Close())
 	})
 
-	t.Run("returns non-nil TLSConfig", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, "", "", true)
+	t.Run("constructor succeeds with implied empty paths", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(nil))
+		defer th.CheckedClose(t, manager)()
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		require.NotNil(t, manager)
+	})
+
+	t.Run("returns non-nil TLSConfig", func(t *testing.T) {
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(nil),
+			WithServerCertificate("", ""),
+			WithAllowInsecure(true))
+		require.NoError(t, err)
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
 		require.True(t, manager.UseTLS())
 	})
 
-	t.Run("returns nil TLSCertLoader", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, "", "", true)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
-
-		certLoader := manager.TLSCertLoader()
-		require.Nil(t, certLoader)
-	})
-
-	t.Run("PrepareCertificateLoad returns ErrNoCertLoader", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, "", "", true)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
-
-		callback, err := manager.PrepareCertificateLoad("/any/cert.pem", "/any/key.pem")
-		require.ErrorIs(t, err, ErrNoCertLoader)
-		require.Nil(t, callback)
-	})
-
-	t.Run("Listen fails without certificate", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, "", "", true)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
-
-		_, err = manager.Listen("tcp", "127.0.0.1:0")
-		require.ErrorContains(t, err, "tls: neither Certificates, GetCertificate, nor GetConfigForClient set in Config")
-	})
-
-	t.Run("respects base config", func(t *testing.T) {
-		baseConfig := &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			ServerName: "test.example.com",
-		}
-
-		manager, err := NewTLSConfigManager(true, baseConfig, "", "", false)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
-
-		tlsConfig := manager.TLSConfig()
-		require.NotNil(t, tlsConfig)
-		require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
-		require.Equal(t, "test.example.com", tlsConfig.ServerName)
-	})
-
-	t.Run("close works without cert manager", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, "", "", true)
-		require.NoError(t, err)
-
-		require.NoError(t, manager.Close())
-		require.NoError(t, manager.Close()) // idempotent
+	t.Run("server constructor fails without certificate", func(t *testing.T) {
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithAllowInsecure(true))
+		require.ErrorIs(t, err, ErrCertificateEmpty)
+		require.Nil(t, manager)
 	})
 }
 
 func TestTLSConfigManager_Close(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("close after construction", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
 
 		require.NoError(t, manager.Close())
 	})
 
 	t.Run("close is idempotent", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
 
 		require.NoError(t, manager.Close())
@@ -412,15 +418,20 @@ func TestTLSConfigManager_Close(t *testing.T) {
 }
 
 func TestTLSConfigManager_PrepareCertificateLoad(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("useTLS false returns NOP callback", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Should return a NOP callback even with invalid paths
-		callback, err := manager.PrepareCertificateLoad("/nonexistent/cert.pem", "/nonexistent/key.pem")
+		callback, err := manager.PrepareReconfigure(
+			WithServerCertificate("/nonexistent/cert.pem", "/nonexistent/key.pem"))
 		require.NoError(t, err)
 		require.NotNil(t, callback)
 
@@ -431,14 +442,16 @@ func TestTLSConfigManager_PrepareCertificateLoad(t *testing.T) {
 	t.Run("useTLS true with valid paths returns callback", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Prepare loading the same cert (valid paths)
-		callback, err := manager.PrepareCertificateLoad(ss.CertPath, ss.KeyPath)
+		callback, err := manager.PrepareReconfigure(
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
 		require.NotNil(t, callback)
 
@@ -449,14 +462,16 @@ func TestTLSConfigManager_PrepareCertificateLoad(t *testing.T) {
 	t.Run("useTLS true with invalid paths returns error", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Prepare loading with nonexistent paths should fail
-		callback, err := manager.PrepareCertificateLoad("/nonexistent/cert.pem", "/nonexistent/key.pem")
+		callback, err := manager.PrepareReconfigure(
+			WithServerCertificate("/nonexistent/cert.pem", "/nonexistent/key.pem"))
 		require.ErrorContains(t, err, "LoadCertificate: error opening \"/nonexistent/cert.pem\" for reading: open /nonexistent/cert.pem: no such file or directory")
 		require.Nil(t, callback)
 	})
@@ -465,31 +480,25 @@ func TestTLSConfigManager_PrepareCertificateLoad(t *testing.T) {
 		ss1 := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("server1.example.com"))
 		ss2 := selfsigned.NewSelfSignedCert(t, selfsigned.WithDNSName("server2.example.com"))
 
-		manager, err := NewTLSConfigManager(true, nil, ss1.CertPath, ss1.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss1.CertPath, ss1.KeyPath))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
-
-		// Verify initial certificate paths
-		certLoader := manager.TLSCertLoader()
-		certPath, keyPath := certLoader.Paths()
-		require.Equal(t, ss1.CertPath, certPath)
-		require.Equal(t, ss1.KeyPath, keyPath)
+		defer th.CheckedClose(t, manager)()
 
 		// Prepare and execute loading a different certificate
-		callback, err := manager.PrepareCertificateLoad(ss2.CertPath, ss2.KeyPath)
+		callback, err := manager.PrepareReconfigure(
+			WithServerCertificate(ss2.CertPath, ss2.KeyPath))
 		require.NoError(t, err)
 		require.NoError(t, callback())
-
-		// Verify certificate paths have been updated
-		certPath, keyPath = certLoader.Paths()
-		require.Equal(t, ss2.CertPath, certPath)
-		require.Equal(t, ss2.KeyPath, keyPath)
 	})
 }
 
 func TestTLSConfigManager_Listen(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	testListenerConnection := func(t *testing.T, listener net.Listener, dial func(addr string) (net.Conn, error)) {
 		t.Helper()
 
@@ -527,17 +536,16 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 	}
 
 	t.Run("useTLS false returns plain TCP listener", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		listener, err := manager.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		defer th.CheckedClose(t, listener)()
 
 		testListenerConnection(t, listener, func(addr string) (net.Conn, error) {
 			return net.Dial("tcp", addr)
@@ -547,7 +555,10 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 	t.Run("useTLS true returns TLS listener", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -567,7 +578,10 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 	})
 
 	t.Run("invalid address returns error", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, manager.Close())
@@ -579,6 +593,9 @@ func TestTLSConfigManager_Listen(t *testing.T) {
 }
 
 func TestTLSConfigManager_Dial(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	testDialConnection := func(t *testing.T, listener net.Listener, dial func(addr string) (net.Conn, error)) {
 		t.Helper()
 
@@ -607,27 +624,24 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 		require.NoError(t, err)
 		_, err = conn.Write(testData)
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, conn.Close())
-		}()
+		defer th.CheckedClose(t, conn)()
 
 		require.NoError(t, <-serverResult)
 		require.Equal(t, testData, <-serverData)
 	}
 
 	t.Run("useTLS false dials plain TCP", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Create plain TCP server
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		defer th.CheckedClose(t, listener)()
 
 		testDialConnection(t, listener, func(addr string) (net.Conn, error) {
 			return manager.Dial("tcp", addr)
@@ -637,11 +651,13 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 	t.Run("useTLS true dials TLS", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, true)
+		manager, err := NewClientServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
+			WithAllowInsecure(true))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Create TLS server
 		cert, err := tls.LoadX509KeyPair(ss.CertPath, ss.KeyPath)
@@ -650,9 +666,7 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 			Certificates: []tls.Certificate{cert},
 		})
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		defer th.CheckedClose(t, listener)()
 
 		testDialConnection(t, listener, func(addr string) (net.Conn, error) {
 			return manager.Dial("tcp", addr)
@@ -663,11 +677,12 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
 		// Create manager without client cert (client-only mode)
-		manager, err := NewTLSConfigManager(true, nil, "", "", true)
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithAllowInsecure(true))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Create TLS server
 		cert, err := tls.LoadX509KeyPair(ss.CertPath, ss.KeyPath)
@@ -676,9 +691,7 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 			Certificates: []tls.Certificate{cert},
 		})
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		defer th.CheckedClose(t, listener)()
 
 		testDialConnection(t, listener, func(addr string) (net.Conn, error) {
 			return manager.Dial("tcp", addr)
@@ -686,85 +699,102 @@ func TestTLSConfigManager_Dial(t *testing.T) {
 	})
 
 	t.Run("invalid address returns error", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
-		_, err = manager.Dial("tcp", "invalid:address:format")
+		dialer, err := manager.Dial("tcp", "invalid:address:format")
 		require.ErrorContains(t, err, "address invalid:address:format: too many colons in address")
+		require.Nil(t, dialer)
 	})
 }
 
 func TestNewDisabledTLSConfigManager(t *testing.T) {
-	// NewDisabledTLSConfigManager should be equivalent to NewTLSConfigManager(false, nil, "", "", false).
-	// The functional behavior of a disabled manager is already tested in TestTLSConfigManager_UseTLSFalse,
-	// so we just verify the two constructors produce equivalent managers.
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	disabled := NewDisabledTLSConfigManager()
+	defer th.CheckedClose(t, disabled)()
+
 	require.NotNil(t, disabled)
-	explicit, err := NewTLSConfigManager(false, nil, "", "", false)
-	require.NoError(t, err)
-	require.NotNil(t, explicit)
-
-	require.Equal(t, explicit.TLSConfig(), disabled.TLSConfig())
-	require.Equal(t, explicit.TLSCertLoader(), disabled.TLSCertLoader())
 	require.False(t, disabled.UseTLS())
-
-	require.NoError(t, disabled.Close())
-	require.NoError(t, explicit.Close())
+	require.Nil(t, disabled.TLSConfig())
 }
 
 func TestNewClientTLSConfigManager(t *testing.T) {
-	// NewClientTLSConfigManager should be equivalent to NewTLSConfigManager(useTLS, baseConfig, "", "", allowInsecure).
-	// The functional behavior is already tested in other tests (TestTLSConfigManager_UseTLSWithoutCert, etc.),
-	// so we just verify the two constructors produce equivalent managers for various parameter combinations.
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
+	ss := selfsigned.NewSelfSignedCert(t)
 
 	t.Run("TLS disabled", func(t *testing.T) {
-		client, err := NewClientTLSConfigManager(false, nil, false)
+		client, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(false))
 		require.NoError(t, err)
 		require.NotNil(t, client)
-		explicit, err := NewTLSConfigManager(false, nil, "", "", false)
-		require.NoError(t, err)
-		require.NotNil(t, explicit)
+		defer th.CheckedClose(t, client)()
 
-		require.Equal(t, explicit.TLSConfig(), client.TLSConfig())
-		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
+		server, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(false))
+		require.NoError(t, err)
+		require.NotNil(t, server)
+		defer th.CheckedClose(t, server)()
+
+		require.Equal(t, server.TLSConfig(), client.TLSConfig())
 		require.False(t, client.UseTLS())
 
 		require.NoError(t, client.Close())
-		require.NoError(t, explicit.Close())
+		require.NoError(t, server.Close())
 	})
 
 	t.Run("TLS enabled allowInsecure false", func(t *testing.T) {
-		client, err := NewClientTLSConfigManager(true, nil, false)
+		client, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true))
 		require.NoError(t, err)
 		require.NotNil(t, client)
-		explicit, err := NewTLSConfigManager(true, nil, "", "", false)
-		require.NoError(t, err)
-		require.NotNil(t, explicit)
+		defer th.CheckedClose(t, client)()
 
-		require.Equal(t, explicit.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
-		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
+		server, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, server)
+		defer th.CheckedClose(t, server)()
+
+		require.Equal(t, server.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
 		require.True(t, client.UseTLS())
 
 		require.NoError(t, client.Close())
-		require.NoError(t, explicit.Close())
+		require.NoError(t, server.Close())
 	})
 
 	t.Run("TLS enabled allowInsecure true", func(t *testing.T) {
-		client, err := NewClientTLSConfigManager(true, nil, true)
+		client, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithAllowInsecure(true))
 		require.NoError(t, err)
 		require.NotNil(t, client)
-		explicit, err := NewTLSConfigManager(true, nil, "", "", true)
+		defer th.CheckedClose(t, client)()
+
+		server, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithAllowInsecure(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
-		require.NotNil(t, explicit)
+		require.NotNil(t, server)
+		defer th.CheckedClose(t, server)()
 
-		require.Equal(t, explicit.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
-		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
-
-		require.NoError(t, client.Close())
-		require.NoError(t, explicit.Close())
+		require.Equal(t, server.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
 	})
 
 	t.Run("with base config", func(t *testing.T) {
@@ -774,22 +804,28 @@ func TestNewClientTLSConfigManager(t *testing.T) {
 			ServerName: "test.example.com",
 		}
 
-		client, err := NewClientTLSConfigManager(true, baseConfig, false)
+		client, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(baseConfig))
 		require.NoError(t, err)
 		require.NotNil(t, client)
-		explicit, err := NewTLSConfigManager(true, baseConfig, "", "", false)
+		defer th.CheckedClose(t, client)()
+
+		server, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(baseConfig),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
-		require.NotNil(t, explicit)
+		require.NotNil(t, server)
+		defer th.CheckedClose(t, server)()
 
 		// Verify base config values are preserved in both
-		require.Equal(t, explicit.TLSConfig().MinVersion, client.TLSConfig().MinVersion)
-		require.Equal(t, explicit.TLSConfig().MaxVersion, client.TLSConfig().MaxVersion)
-		require.Equal(t, explicit.TLSConfig().ServerName, client.TLSConfig().ServerName)
-		require.Equal(t, explicit.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
-		require.Equal(t, explicit.TLSCertLoader(), client.TLSCertLoader())
-
-		require.NoError(t, client.Close())
-		require.NoError(t, explicit.Close())
+		require.Equal(t, server.TLSConfig().MinVersion, client.TLSConfig().MinVersion)
+		require.Equal(t, server.TLSConfig().MaxVersion, client.TLSConfig().MaxVersion)
+		require.Equal(t, server.TLSConfig().ServerName, client.TLSConfig().ServerName)
+		require.Equal(t, server.TLSConfig().InsecureSkipVerify, client.TLSConfig().InsecureSkipVerify)
 	})
 
 	t.Run("base config is cloned", func(t *testing.T) {
@@ -797,9 +833,13 @@ func TestNewClientTLSConfigManager(t *testing.T) {
 			ServerName: "original.example.com",
 		}
 
-		client, err := NewClientTLSConfigManager(true, baseConfig, false)
+		client, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(baseConfig))
 		require.NoError(t, err)
 		require.NotNil(t, client)
+		defer th.CheckedClose(t, client)()
 
 		// Verify config is cloned (not same instance)
 		require.NotSame(t, baseConfig, client.TLSConfig())
@@ -809,13 +849,6 @@ func TestNewClientTLSConfigManager(t *testing.T) {
 		require.Equal(t, "original.example.com", client.TLSConfig().ServerName)
 
 		require.NoError(t, client.Close())
-	})
-
-	t.Run("explicit parameters override opts", func(t *testing.T) {
-		client, err := NewClientTLSConfigManager(false, nil, false, WithUseTLS(true))
-		require.NoError(t, err)
-		require.NotNil(t, client)
-		require.False(t, client.UseTLS())
 	})
 }
 
@@ -844,6 +877,9 @@ func simpleEchoServer(serverDone chan error, listener net.Listener, bufSize int)
 }
 
 func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("sets RootCAs from file", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
@@ -853,12 +889,13 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithRootCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -870,26 +907,26 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
 		// Server manager with certificate
-		serverManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		serverManager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, serverManager.Close())
-		}()
+		defer th.CheckedClose(t, serverManager)()
 
 		// Client manager trusting the CA that signed the server certificate
-		clientManager, err := NewClientTLSConfigManager(true, nil, false,
+		clientManager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, clientManager.Close())
-		}()
+		defer th.CheckedClose(t, clientManager)()
 
 		// Start server
 		listener, err := serverManager.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		require.NotNil(t, listener)
+		defer th.CheckedClose(t, listener)()
 
 		// Server accepts and echoes
 		testData := []byte("hello")
@@ -899,9 +936,8 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		// Client connects with CA-trusted connection
 		conn, err := clientManager.Dial("tcp", listener.Addr().String())
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, conn.Close())
-		}()
+		require.NotNil(t, conn)
+		defer th.CheckedClose(t, conn)()
 
 		n, err := conn.Write(testData)
 		require.NoError(t, err)
@@ -923,26 +959,25 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		otherSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("other", "Other CA"))
 
 		// Server manager
-		serverManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		serverManager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, serverManager.Close())
-		}()
+		defer th.CheckedClose(t, serverManager)()
 
 		// Client manager trusting only an unrelated CA, so it will not trust the server.
-		clientManager, err := NewClientTLSConfigManager(true, nil, false,
+		clientManager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{Paths: []string{otherSS.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, clientManager.Close())
-		}()
+		defer th.CheckedClose(t, clientManager)()
 
 		// Start server
 		listener, err := serverManager.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		defer th.CheckedClose(t, listener)()
 
 		// Server accepts and waits for handshake to complete (will fail due to client rejecting cert)
 		testData := []byte("test")
@@ -972,12 +1007,12 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert2))
 
-		manager, err := NewClientTLSConfigManager(true, nil, false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{Paths: []string{ss1.CACertPath, ss2.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -986,10 +1021,13 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 	})
 
 	t.Run("error on nonexistent file", func(t *testing.T) {
-		_, err := NewClientTLSConfigManager(true, nil, false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{Paths: []string{"/nonexistent/ca.pem"}}))
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.ErrorContains(t, err, "error creating root CA pool: error reading file \"/nonexistent/ca.pem\" for CA store: open /nonexistent/ca.pem: no such file or directory")
+		require.Nil(t, manager)
 	})
 
 	t.Run("error on invalid PEM file", func(t *testing.T) {
@@ -998,7 +1036,9 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 		tmpFile := path.Join(tmpDir, "invalid.pem")
 		require.NoError(t, os.WriteFile(tmpFile, []byte("not a valid PEM file"), 0644))
 
-		manager, err := NewClientTLSConfigManager(true, nil, false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{Paths: []string{tmpFile}}))
 		require.ErrorContains(t, err, "error creating root CA pool: error adding certificates from \""+tmpFile+"\" to CA store: no valid certificates found")
 		require.Nil(t, manager)
@@ -1006,17 +1046,20 @@ func TestTLSConfigManager_WithRootCAFiles(t *testing.T) {
 }
 
 func TestTLSConfigManager_WithRootCAIncludeSystem(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("includes system CA pool", func(t *testing.T) {
 		// Get expected system pool
 		expectedPool, err := x509.SystemCertPool()
 		require.NoError(t, err)
 
-		manager, err := NewClientTLSConfigManager(true, nil, false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{IncludeSystem: true}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1027,20 +1070,23 @@ func TestTLSConfigManager_WithRootCAIncludeSystem(t *testing.T) {
 	t.Run("trusts no certificates is an error", func(t *testing.T) {
 		// A non-nil root CA config that neither lists paths nor includes the
 		// system pool trusts nothing and is rejected at construction.
-		manager, err := NewClientTLSConfigManager(true, nil, false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{IncludeSystem: false}))
-		require.EqualError(t, err, "root CA configuration trusts no certificates: "+
-			"set paths or enable include-system")
+		require.ErrorIs(t, err, ErrCATrustsNothing)
 		require.Nil(t, manager)
 	})
 
 	t.Run("trusts no certificates is an error even when insecure", func(t *testing.T) {
 		// A non-nil config is validated regardless of allowInsecure, so a
 		// no-trust-anchors config is still rejected at construction.
-		manager, err := NewClientTLSConfigManager(true, nil, true,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithAllowInsecure(true),
 			WithRootCA(&CAConfig{IncludeSystem: false}))
-		require.EqualError(t, err, "root CA configuration trusts no certificates: "+
-			"set paths or enable include-system")
+		require.ErrorIs(t, err, ErrCATrustsNothing)
 		require.Nil(t, manager)
 	})
 
@@ -1054,12 +1100,12 @@ func TestTLSConfigManager_WithRootCAIncludeSystem(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
-		manager, err := NewClientTLSConfigManager(true, nil, false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{Paths: []string{ss.CACertPath}, IncludeSystem: true}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1069,6 +1115,9 @@ func TestTLSConfigManager_WithRootCAIncludeSystem(t *testing.T) {
 }
 
 func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("sets ClientCAs from file", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
@@ -1078,13 +1127,14 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1096,20 +1146,20 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
 		// Server manager that requires client certificates.
-		serverManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		serverManager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}),
 			WithClientAuth(tls.RequireAndVerifyClientCert))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, serverManager.Close())
-		}()
+		defer th.CheckedClose(t, serverManager)()
 
 		// Start server
 		listener, err := serverManager.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		require.NotNil(t, listener)
+		defer th.CheckedClose(t, listener)()
 
 		// Server accepts and echoes
 		testData := []byte("hello")
@@ -1118,16 +1168,18 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 
 		// Client config with client certificate. Ignore certificate validity from server, we're testing
 		// client certificate functionality here.
-		clientManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, true)
+		clientManager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
+			WithAllowInsecure(true))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, clientManager.Close())
-		}()
+		defer th.CheckedClose(t, clientManager)()
+
 		conn, err := clientManager.Dial("tcp", listener.Addr().String())
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, conn.Close())
-		}()
+		require.NotNil(t, conn)
+		defer th.CheckedClose(t, conn)()
 
 		n, err := conn.Write(testData)
 		require.NoError(t, err)
@@ -1147,31 +1199,34 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		otherSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("other", "Other CA"))
 
 		// Server manager that requires client certificates
-		serverManager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		serverManager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, serverManager.Close())
-		}()
+		defer th.CheckedClose(t, serverManager)()
+
 		serverTLSConfig := serverManager.TLSConfig()
 		require.NotNil(t, serverTLSConfig)
 		require.Equal(t, tls.RequireAndVerifyClientCert, serverTLSConfig.ClientAuth)
 
 		// Client with certificate signed by different CA. Ignore server certificate validity. We're
 		// checking client certificate functionality here.
-		clientManager, err := NewTLSConfigManager(true, nil, otherSS.CertPath, otherSS.KeyPath, true)
+		clientManager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(otherSS.CertPath, otherSS.KeyPath),
+			WithAllowInsecure(true))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, clientManager.Close())
-		}()
+		defer th.CheckedClose(t, clientManager)()
 
 		// Start server
 		listener, err := serverManager.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		require.NotNil(t, listener)
+		defer th.CheckedClose(t, listener)()
 
 		// Server accepts and waits for handshake (will fail due to untrusted client cert)
 		testData := []byte("hello")
@@ -1211,13 +1266,14 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert2))
 
-		manager, err := NewTLSConfigManager(true, nil, ss1.CertPath, ss1.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss1.CertPath, ss1.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{Paths: []string{ss1.CACertPath, ss2.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1228,11 +1284,15 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 	t.Run("error on nonexistent file", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
-		_, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{Paths: []string{"/nonexistent/ca.pem"}}))
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.ErrorContains(t, err, "error creating client CA pool: error reading file \"/nonexistent/ca.pem\" for CA store: open /nonexistent/ca.pem: no such file or directory")
+		require.Nil(t, manager)
 	})
 
 	t.Run("error on invalid PEM file", func(t *testing.T) {
@@ -1243,7 +1303,10 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 		tmpFile := path.Join(tmpDir, "invalid.pem")
 		require.NoError(t, os.WriteFile(tmpFile, []byte("not a valid PEM file"), 0644))
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{Paths: []string{tmpFile}}))
 		require.ErrorContains(t, err, "error creating client CA pool: error adding certificates from \""+tmpFile+"\" to CA store: no valid certificates found")
@@ -1252,6 +1315,9 @@ func TestTLSConfigManager_WithClientCAFiles(t *testing.T) {
 }
 
 func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("includes system CA pool", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
@@ -1259,13 +1325,14 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 		expectedPool, err := x509.SystemCertPool()
 		require.NoError(t, err)
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{IncludeSystem: true}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1278,11 +1345,13 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 
 		// A client CA config that neither lists paths nor includes the system pool
 		// trusts nothing and is rejected at construction.
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{IncludeSystem: false}))
-		require.EqualError(t, err, "client CA configuration trusts no certificates: "+
-			"set paths or enable include-system")
+		require.ErrorIs(t, err, ErrCATrustsNothing)
 		require.Nil(t, manager)
 	})
 
@@ -1296,13 +1365,14 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}, IncludeSystem: true}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1318,12 +1388,13 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 		expectedPool, err := x509.SystemCertPool()
 		require.NoError(t, err)
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientCA(&CAConfig{IncludeSystem: true}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1341,12 +1412,13 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}, IncludeSystem: true}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1356,15 +1428,19 @@ func TestTLSConfigManager_WithClientCAIncludeSystem(t *testing.T) {
 }
 
 func TestTLSConfigManager_CAOptionsNotSetByDefault(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	// When no CA options are specified, the TLS config should not have
 	// custom CA pools set (allowing Go's default behavior)
 	ss := selfsigned.NewSelfSignedCert(t)
 
-	manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithServerCertificate(ss.CertPath, ss.KeyPath))
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, manager.Close())
-	}()
+	defer th.CheckedClose(t, manager)()
 
 	tlsConfig := manager.TLSConfig()
 	require.NotNil(t, tlsConfig)
@@ -1375,6 +1451,9 @@ func TestTLSConfigManager_CAOptionsNotSetByDefault(t *testing.T) {
 func TestTLSConfigManager_CAOptionsWithBaseConfig(t *testing.T) {
 	ss := selfsigned.NewSelfSignedCert(t)
 	anotherSS := selfsigned.NewSelfSignedCert(t, selfsigned.WithCASubject("another", "Another CA"))
+
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
 
 	// Create a base config with existing RootCAs
 	basePool := x509.NewCertPool()
@@ -1393,12 +1472,13 @@ func TestTLSConfigManager_CAOptionsWithBaseConfig(t *testing.T) {
 	require.True(t, expectedPool.AppendCertsFromPEM(anotherCACert))
 
 	// Create manager with different CA file - should override base config
-	manager, err := NewClientTLSConfigManager(true, baseConfig, false,
+	manager, err := NewClientTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithBaseConfig(baseConfig),
 		WithRootCA(&CAConfig{Paths: []string{anotherSS.CACertPath}}))
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, manager.Close())
-	}()
+	defer th.CheckedClose(t, manager)()
 
 	tlsConfig := manager.TLSConfig()
 	require.NotNil(t, tlsConfig)
@@ -1409,6 +1489,9 @@ func TestTLSConfigManager_CAOptionsWithBaseConfig(t *testing.T) {
 }
 
 func TestTLSConfigManager_CAResolution(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("root nil defers to base config RootCAs", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
@@ -1420,11 +1503,12 @@ func TestTLSConfigManager_CAResolution(t *testing.T) {
 		require.True(t, basePool.AppendCertsFromPEM(caCert))
 		baseConfig := &tls.Config{RootCAs: basePool}
 
-		manager, err := NewClientTLSConfigManager(true, baseConfig, false)
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(baseConfig))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1433,20 +1517,23 @@ func TestTLSConfigManager_CAResolution(t *testing.T) {
 	})
 
 	t.Run("root no-trust-anchors is an error", func(t *testing.T) {
-		manager, err := NewClientTLSConfigManager(true, nil, false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
 			WithRootCA(&CAConfig{}))
-		require.EqualError(t, err, "root CA configuration trusts no certificates: "+
-			"set paths or enable include-system")
+		require.ErrorIs(t, err, ErrCATrustsNothing)
 		require.Nil(t, manager)
 	})
 
 	t.Run("root no-trust-anchors is an error even when insecure", func(t *testing.T) {
 		// A non-nil config is validated regardless of allowInsecure, so a
 		// no-trust-anchors config is still rejected at construction.
-		manager, err := NewClientTLSConfigManager(true, nil, true,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithAllowInsecure(true),
 			WithRootCA(&CAConfig{}))
-		require.EqualError(t, err, "root CA configuration trusts no certificates: "+
-			"set paths or enable include-system")
+		require.ErrorIs(t, err, ErrCATrustsNothing)
 		require.Nil(t, manager)
 	})
 
@@ -1461,12 +1548,14 @@ func TestTLSConfigManager_CAResolution(t *testing.T) {
 		require.True(t, basePool.AppendCertsFromPEM(caCert))
 		baseConfig := &tls.Config{ClientCAs: basePool}
 
-		manager, err := NewTLSConfigManager(true, baseConfig, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(baseConfig),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1480,10 +1569,12 @@ func TestTLSConfigManager_CAResolution(t *testing.T) {
 		// A non-nil client CA config is validated regardless of whether client
 		// auth is enabled, so a config that trusts nothing is rejected here even
 		// with the default NoClientCert.
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientCA(&CAConfig{}))
-		require.EqualError(t, err, "client CA configuration trusts no certificates: "+
-			"set paths or enable include-system")
+		require.ErrorIs(t, err, ErrCATrustsNothing)
 		require.Nil(t, manager)
 	})
 
@@ -1497,12 +1588,13 @@ func TestTLSConfigManager_CAResolution(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1520,13 +1612,14 @@ func TestTLSConfigManager_CAResolution(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, expectedPool.AppendCertsFromPEM(caCert))
 
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithClientAuth(tls.RequireAndVerifyClientCert),
 			WithClientCA(&CAConfig{Paths: []string{ss.CACertPath}}))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
@@ -1536,6 +1629,9 @@ func TestTLSConfigManager_CAResolution(t *testing.T) {
 }
 
 func TestTLSConfigManager_ClientAuthOverride(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	// Base config with a non-zero ClientAuth, so we can tell whether an option
 	// overrode it (including overriding it back to the zero value).
 	base := func() *tls.Config {
@@ -1543,51 +1639,68 @@ func TestTLSConfigManager_ClientAuthOverride(t *testing.T) {
 	}
 
 	t.Run("no option leaves base ClientAuth", func(t *testing.T) {
-		manager, err := NewClientTLSConfigManager(true, base(), false)
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(base()))
 		require.NoError(t, err)
-		defer func() { require.NoError(t, manager.Close()) }()
+		defer th.CheckedClose(t, manager)()
 		require.Equal(t, tls.RequireAndVerifyClientCert, manager.TLSConfig().ClientAuth)
 	})
 
 	t.Run("WithClientAuth overrides base", func(t *testing.T) {
-		manager, err := NewClientTLSConfigManager(true, base(), false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true), WithBaseConfig(base()),
 			WithClientAuth(tls.VerifyClientCertIfGiven))
 		require.NoError(t, err)
-		defer func() { require.NoError(t, manager.Close()) }()
+		defer th.CheckedClose(t, manager)()
 		require.Equal(t, tls.VerifyClientCertIfGiven, manager.TLSConfig().ClientAuth)
 	})
 
 	t.Run("WithClientAuth overrides base with zero value", func(t *testing.T) {
-		manager, err := NewClientTLSConfigManager(true, base(), false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(base()),
 			WithClientAuth(tls.NoClientCert))
 		require.NoError(t, err)
-		defer func() { require.NoError(t, manager.Close()) }()
+		defer th.CheckedClose(t, manager)()
 		require.Equal(t, tls.NoClientCert, manager.TLSConfig().ClientAuth)
 	})
 
 	t.Run("WithClientAuthPtr nil leaves base ClientAuth", func(t *testing.T) {
-		manager, err := NewClientTLSConfigManager(true, base(), false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(base()),
 			WithClientAuthPtr(nil))
 		require.NoError(t, err)
-		defer func() { require.NoError(t, manager.Close()) }()
+		defer th.CheckedClose(t, manager)()
 		require.Equal(t, tls.RequireAndVerifyClientCert, manager.TLSConfig().ClientAuth)
 	})
 
 	t.Run("WithClientAuthPtr non-nil overrides base with zero value", func(t *testing.T) {
 		auth := tls.NoClientCert
-		manager, err := NewClientTLSConfigManager(true, base(), false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(base()),
 			WithClientAuthPtr(&auth))
 		require.NoError(t, err)
-		defer func() { require.NoError(t, manager.Close()) }()
+		defer th.CheckedClose(t, manager)()
 		require.Equal(t, tls.NoClientCert, manager.TLSConfig().ClientAuth)
 	})
 
 	t.Run("WithClientAuthPtr non-nil overrides base with non-zero value", func(t *testing.T) {
 		auth := tls.VerifyClientCertIfGiven
-		manager, err := NewClientTLSConfigManager(true, base(), false,
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithBaseConfig(base()),
 			WithClientAuthPtr(&auth))
 		require.NoError(t, err)
-		defer func() { require.NoError(t, manager.Close()) }()
+		defer th.CheckedClose(t, manager)()
 		require.Equal(t, tls.VerifyClientCertIfGiven, manager.TLSConfig().ClientAuth)
 	})
 }
@@ -1600,8 +1713,7 @@ const testManagerCheckTime = 333 * time.Millisecond
 const testManagerCheckCapture = 500 * time.Millisecond
 
 func TestTLSConfigManager_WithCertLoaderOptions(t *testing.T) {
-	// This test verifies that WithLogger, WithCertificateCheckInterval, and WithExpirationAdvanced
-	// properly pass through to the underlying TLSCertLoader.
+	// This test verifies that WithLogger is properly passed to the underlying TLSCertLoader.
 
 	// Create a certificate that expires in 24 hours
 	notBefore := time.Now().UTC().Truncate(time.Minute).Add(-7 * 24 * time.Hour)
@@ -1612,24 +1724,22 @@ func TestTLSConfigManager_WithCertLoaderOptions(t *testing.T) {
 	core, logs := observer.New(zapcore.InfoLevel)
 	logger := zap.New(core)
 
+	// No logger so logging has to come through manager.
+	monitor := newTestCertMonitor(t, WithMonitorExpirationAdvanced(2*24*time.Hour), WithMonitorLogger(logger), WithMonitorTriggerDelay(0))
+	defer th.CheckedClose(t, monitor)()
+
 	// Create TLSConfigManager with all three options:
 	// - WithLogger: to capture log output
 	// - WithCertificateCheckInterval: to set a short check interval
 	// - WithExpirationAdvanced: to set the expiration warning window to 2 days (> 24 hours remaining)
-	manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
-		WithLogger(logger),
-		WithCertificateCheckInterval(testManagerCheckTime),
-		WithExpirationAdvanced(2*24*time.Hour))
+	manager, err := NewServerTLSConfigManager(
+		monitor,
+		WithUseTLS(true),
+		WithServerCertificate(ss.CertPath, ss.KeyPath),
+		WithLogger(logger))
 	require.NoError(t, err)
 	require.NotNil(t, manager)
-	defer func() {
-		require.NoError(t, manager.Close())
-	}()
-
-	// Wait for the certificate monitor to start
-	certLoader := manager.TLSCertLoader()
-	require.NotNil(t, certLoader)
-	certLoader.WaitForMonitorStart()
+	defer th.CheckedClose(t, manager)()
 
 	// Verify the "Certificate will expire soon" warning is logged
 	checkWarning := func(t *testing.T) {
@@ -1646,6 +1756,7 @@ func TestTLSConfigManager_WithCertLoaderOptions(t *testing.T) {
 		require.WithinDuration(t, notAfter, timeExpires, 2*time.Minute, "untilExpires varies more than expected")
 		logs.TakeAll() // dump all logs
 	}
+	time.Sleep(testWarnWaitTime)
 	checkWarning(t)
 
 	// Check for warning during monitor (after another check interval)
@@ -1655,62 +1766,74 @@ func TestTLSConfigManager_WithCertLoaderOptions(t *testing.T) {
 }
 
 func TestTLSConfigManager_WithIgnoreFilePermissions(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	t.Run("fails without ignore when cert permissions too open", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
 		require.NoError(t, os.Chmod(ss.CertPath, 0660))
-		_, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.ErrorContains(t, err, fmt.Sprintf("LoadCertificate: file permissions are too open: for %q, maximum is 0644 (-rw-r--r--) but found 0660 (-rw-rw----); extra permissions: 0020 (-----w----)", ss.CertPath))
+		require.Nil(t, manager)
 	})
 
 	t.Run("succeeds with ignore when cert permissions too open", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
 		require.NoError(t, os.Chmod(ss.CertPath, 0660))
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithIgnoreFilePermissions(true))
 		require.NoError(t, err)
 		require.NotNil(t, manager)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Verify the manager works correctly
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
-		certLoader := manager.TLSCertLoader()
-		require.NotNil(t, certLoader)
 	})
 
 	t.Run("fails without ignore when key permissions too open", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
 		require.NoError(t, os.Chmod(ss.KeyPath, 0644))
-		_, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false)
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath))
 		require.ErrorContains(t, err, fmt.Sprintf("LoadCertificate: file permissions are too open: for %q, maximum is 0600 (-rw-------) but found 0644 (-rw-r--r--); extra permissions: 0044 (----r--r--)", ss.KeyPath))
+		require.Nil(t, manager)
 	})
 
 	t.Run("succeeds with ignore when key permissions too open", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
 		require.NoError(t, os.Chmod(ss.KeyPath, 0644))
-		manager, err := NewTLSConfigManager(true, nil, ss.CertPath, ss.KeyPath, false,
+		manager, err := NewServerTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithServerCertificate(ss.CertPath, ss.KeyPath),
 			WithIgnoreFilePermissions(true))
 		require.NoError(t, err)
 		require.NotNil(t, manager)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Verify the manager works correctly
 		tlsConfig := manager.TLSConfig()
 		require.NotNil(t, tlsConfig)
-		certLoader := manager.TLSCertLoader()
-		require.NotNil(t, certLoader)
 	})
 }
 
 func TestTLSConfigManager_DialWithDialer(t *testing.T) {
+	monitor := newTestCertMonitor(t)
+	defer th.CheckedClose(t, monitor)()
+
 	testDialWithDialerConnection := func(t *testing.T, listener net.Listener, dial func(dialer *net.Dialer, addr string) (net.Conn, error)) {
 		t.Helper()
 
@@ -1750,27 +1873,24 @@ func TestTLSConfigManager_DialWithDialer(t *testing.T) {
 
 		_, err = conn.Write(testData)
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, conn.Close())
-		}()
+		defer th.CheckedClose(t, conn)()
 
 		require.NoError(t, <-serverResult)
 		require.Equal(t, testData, <-serverData)
 	}
 
 	t.Run("dialer LocalAddr is used for plain TCP", func(t *testing.T) {
-		manager, err := NewTLSConfigManager(false, nil, "/any/cert.pem", "/any/key.pem", false)
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(false),
+			WithServerCertificate("/any/cert.pem", "/any/key.pem"))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Create plain TCP server
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		defer th.CheckedClose(t, listener)
 
 		testDialWithDialerConnection(t, listener, func(dialer *net.Dialer, addr string) (net.Conn, error) {
 			return manager.DialWithDialer(dialer, "tcp", addr)
@@ -1780,11 +1900,12 @@ func TestTLSConfigManager_DialWithDialer(t *testing.T) {
 	t.Run("dialer LocalAddr is used for TLS", func(t *testing.T) {
 		ss := selfsigned.NewSelfSignedCert(t)
 
-		manager, err := NewTLSConfigManager(true, nil, "", "", true)
+		manager, err := NewClientTLSConfigManager(
+			monitor,
+			WithUseTLS(true),
+			WithAllowInsecure(true))
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, manager.Close())
-		}()
+		defer th.CheckedClose(t, manager)()
 
 		// Create TLS server
 		cert, err := tls.LoadX509KeyPair(ss.CertPath, ss.KeyPath)
@@ -1793,9 +1914,7 @@ func TestTLSConfigManager_DialWithDialer(t *testing.T) {
 			Certificates: []tls.Certificate{cert},
 		})
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-		}()
+		defer th.CheckedClose(t, listener)()
 
 		testDialWithDialerConnection(t, listener, func(dialer *net.Dialer, addr string) (net.Conn, error) {
 			return manager.DialWithDialer(dialer, "tcp", addr)

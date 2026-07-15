@@ -121,6 +121,9 @@ type Service struct {
 	conf            Config
 	subs            map[subEntry]*chanWriter
 
+	// certMonitor is the TLS certificate monitor to use for tlsManager.
+	certMonitor *tlsconfig.TLSCertMonitor
+
 	// tlsManager builds the client TLS configuration for HTTPS writers and owns
 	// the client certificate loader so rotated certificates can be reloaded.
 	tlsManager *tlsconfig.TLSConfigManager
@@ -130,13 +133,14 @@ type Service struct {
 }
 
 // NewService returns a subscriber service with given settings
-func NewService(c Config) *Service {
+func NewService(c Config, certMonitor *tlsconfig.TLSCertMonitor) *Service {
 	stats := &Statistics{}
 	s := &Service{
-		Logger: zap.NewNop(),
-		stats:  stats,
-		conf:   c,
-		router: newSubscriptionRouter(stats),
+		Logger:      zap.NewNop(),
+		stats:       stats,
+		conf:        c,
+		router:      newSubscriptionRouter(stats),
+		certMonitor: certMonitor,
 	}
 	s.NewPointsWriter = s.newPointsWriter
 	return s
@@ -159,8 +163,12 @@ func (s *Service) Open() error {
 		// Build the client TLS manager once for all HTTPS writers. It resolves
 		// the root CAs (RootCA block plus the legacy ca-certs) and any client
 		// certificate, and owns the certificate loader used for reloads.
-		cm, err := tlsconfig.NewClientTLSConfigManager(true, s.conf.TLS, s.conf.InsecureSkipVerify,
-			tlsconfig.WithCertificate(s.conf.Certificate, s.conf.PrivateKey),
+		cm, err := tlsconfig.NewClientTLSConfigManager(
+			s.certMonitor,
+			tlsconfig.WithUseTLS(true),
+			tlsconfig.WithBaseConfig(s.conf.TLS),
+			tlsconfig.WithAllowInsecure(s.conf.InsecureSkipVerify),
+			tlsconfig.WithClientCertificate(s.conf.Certificate, s.conf.PrivateKey),
 			tlsconfig.WithRootCA(s.conf.effectiveRootCA()),
 			tlsconfig.WithIgnoreFilePermissions(s.conf.InsecureCertificate),
 			tlsconfig.WithLogger(s.Logger))
@@ -249,10 +257,10 @@ func (s *Service) PrepareReloadTLSCertificates() (func() error, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.tlsManager == nil || s.tlsManager.TLSCertLoader() == nil {
+	if s.tlsManager == nil {
 		return func() error { return nil }, nil
 	}
-	apply, err := s.tlsManager.PrepareCertificateLoad(s.conf.Certificate, s.conf.PrivateKey)
+	apply, err := s.tlsManager.PrepareReconfigure(tlsconfig.WithServerCertificate(s.conf.Certificate, s.conf.PrivateKey))
 	if err != nil {
 		return nil, fmt.Errorf("subscriber: TLS certificate reload failed (%q, %q): %w", s.conf.Certificate, s.conf.PrivateKey, err)
 	}

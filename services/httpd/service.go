@@ -61,6 +61,8 @@ type Service struct {
 	// Fields above mu are not protected by mu and should be read-only after being
 	// set in NewService.
 
+	certMonitor *tlsconfig.TLSCertMonitor
+
 	addr         string
 	httpsEnabled bool
 
@@ -122,7 +124,7 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c Config) *Service {
+func NewService(c Config, certMonitor *tlsconfig.TLSCertMonitor) *Service {
 	handler := NewHandler(c)
 
 	// Convert the optional client-auth type to a *tls.ClientAuthType so a nil
@@ -134,6 +136,7 @@ func NewService(c Config) *Service {
 	}
 
 	s := &Service{
+		certMonitor:              certMonitor,
 		addr:                     c.BindAddress,
 		httpsEnabled:             c.HTTPSEnabled,
 		httpsCertificate:         c.HTTPSCertificate,
@@ -178,7 +181,11 @@ func (s *Service) Open() error {
 	s.Handler.Open()
 
 	// Open listener.
-	tm, err := tlsconfig.NewTLSConfigManager(s.httpsEnabled, s.tlsConfig, s.httpsCertificate, s.httpsPrivateKey, false,
+	tm, err := tlsconfig.NewServerTLSConfigManager(
+		s.certMonitor,
+		tlsconfig.WithUseTLS(s.httpsEnabled),
+		tlsconfig.WithBaseConfig(s.tlsConfig),
+		tlsconfig.WithServerCertificate(s.httpsCertificate, s.httpsPrivateKey),
 		tlsconfig.WithIgnoreFilePermissions(s.httpsInsecureCertificate),
 		tlsconfig.WithClientAuthPtr(s.httpsClientAuthType),
 		tlsconfig.WithClientCA(s.httpsClientCA),
@@ -332,7 +339,8 @@ func (s *Service) PrepareReloadConfig(c Config) (func() error, error) {
 		}
 
 		// Make sure the specified certificate will load correctly and return an apply function.
-		if apply, err := s.tlsManager.PrepareCertificateLoad(c.HTTPSCertificate, c.HTTPSPrivateKey); err == nil {
+		if apply, err := s.tlsManager.PrepareReconfigure(
+			tlsconfig.WithServerCertificate(c.HTTPSCertificate, c.HTTPSPrivateKey)); err == nil {
 			return apply, nil
 		} else {
 			return nil, fmt.Errorf("httpd: error loading certificate at (%q, %q): %w", c.HTTPSCertificate, c.HTTPSPrivateKey, err)
