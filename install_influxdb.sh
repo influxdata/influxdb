@@ -72,7 +72,7 @@
 # CONFIGURATION OPTIONS:
 #   Command Line Arguments:
 #     [enterprise]        Install Enterprise edition (default: Core)
-#     --version VERSION   Specify InfluxDB version (default: 3.10.0)
+#     --version VERSION   Specify InfluxDB version (default: 3.8.0)
 #
 #   Interactive Prompts (Binary Installation):
 #     Installation Type:  Docker Compose or Binary
@@ -167,8 +167,8 @@ PORT=8181
 # Set the default (latest) version here. Users may specify a version using the
 # --version arg (handled below)
 INFLUXDB_VERSION_FLAG_SET="0"
-INFLUXDB_OSS_VERSION="3.10.0"
-INFLUXDB_ENT_VERSION="3.10.0"
+INFLUXDB_OSS_VERSION="3.9.1"
+INFLUXDB_ENT_VERSION="3.9.1"
 
 EDITION="Core"
 EDITION_TAG="core"

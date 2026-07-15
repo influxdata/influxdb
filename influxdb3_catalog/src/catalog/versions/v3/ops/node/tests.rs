@@ -194,8 +194,8 @@ fn register_bundles_advance_when_consensus_exceeds_committed() {
 
     let records = batch.as_slice();
     assert_eq!(records.len(), 2);
-    assert_eq!(records[0].id(), record_ids::REGISTER_NODE.raw());
-    assert_eq!(records[1].id(), record_ids::ADVANCE_FEATURE_LEVEL.raw());
+    assert_eq!(records[0].id(), record_ids::REGISTER_NODE);
+    assert_eq!(records[1].id(), record_ids::ADVANCE_FEATURE_LEVEL);
 }
 
 #[test]
@@ -207,7 +207,7 @@ fn register_does_not_bundle_advance_when_already_at_committed() {
 
     RegisterNodeOp::prepare(&register_args("node-a", "inst-1"), &catalog, &mut batch).unwrap();
     assert_eq!(batch.as_slice().len(), 1);
-    assert_eq!(batch.as_slice()[0].id(), record_ids::REGISTER_NODE.raw());
+    assert_eq!(batch.as_slice()[0].id(), record_ids::REGISTER_NODE);
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn register_replaces_existing_slot_in_consensus() {
         2,
         "advance must bundle when re-register replaces the floor slot"
     );
-    assert_eq!(records[1].id(), record_ids::ADVANCE_FEATURE_LEVEL.raw());
+    assert_eq!(records[1].id(), record_ids::ADVANCE_FEATURE_LEVEL);
 }
 
 #[test]
@@ -276,7 +276,7 @@ fn stop_never_bundles_advance() {
 
     let records = batch.as_slice();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].id(), record_ids::STOP_NODE.raw());
+    assert_eq!(records[0].id(), record_ids::STOP_NODE);
 }
 
 fn register_args_with_mode(node_id: &str, instance_id: &str, mode: NodeMode) -> RegisterNodeArgs {
@@ -528,6 +528,59 @@ fn unregister_rejected_unless_removing() {
         result,
         Err(CatalogError::InvalidUnregister { .. })
     ));
+}
+
+#[test]
+fn remove_node_op_blocked_when_member_of_query_group() {
+    // A node that belongs to a query group cannot be removed. Removing it
+    // would leave the group referencing a node that no longer exists.
+    use crate::catalog::versions::v3::ops::query_group::{
+        CreateQueryGroupArgs, CreateQueryGroupOp,
+    };
+    use std::num::NonZeroUsize;
+
+    let mut catalog = test_catalog();
+
+    // Register as a query node so it satisfies query group membership validation.
+    let mut batch = RecordBatch::new(1);
+    RegisterNodeOp::prepare(
+        &register_args_with_mode("node-a", "inst-1", NodeMode::Query),
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+
+    let mut batch = RecordBatch::new(2);
+    RequestStopNodeOp::prepare(&request_stop_args("node-a"), &catalog, &mut batch).unwrap();
+    apply_batch(&batch, &mut catalog);
+
+    let mut batch = RecordBatch::new(3);
+    AckStopNodeOp::prepare(&ack_args("node-a", Some(7)), &catalog, &mut batch).unwrap();
+    apply_batch(&batch, &mut catalog);
+
+    let node_id = catalog
+        .nodes
+        .get_by_name("node-a")
+        .unwrap()
+        .node_catalog_id();
+
+    let mut batch = RecordBatch::new(4);
+    CreateQueryGroupOp::prepare(
+        &CreateQueryGroupArgs {
+            name: Arc::from("group-1"),
+            members: vec![node_id],
+            replication_factor: NonZeroUsize::new(1).unwrap(),
+        },
+        &catalog,
+        &mut batch,
+    )
+    .unwrap();
+    apply_batch(&batch, &mut catalog);
+
+    let mut batch = RecordBatch::new(5);
+    let result = RemoveNodeOp::prepare(&remove_args("node-a"), &catalog, &mut batch);
+    assert!(matches!(result, Err(CatalogError::NodeInQueryGroup { .. })));
 }
 
 #[test]

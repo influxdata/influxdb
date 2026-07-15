@@ -66,7 +66,6 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     // Retention and deletion parameters
     "retention-check-interval",
     "delete-grace-period",
-    "hard-delete-default-duration",
     // Generation configuration
     "gen1-duration",
     "gen1-lookback-duration",
@@ -97,7 +96,6 @@ const NON_SENSITIVE_PARAMS: &[&str] = &[
     "datafusion-runtime-max-io-events-per-tick",
     "datafusion-runtime-max-blocking-threads",
     // Object store parameters
-    "object-store-cache-endpoint",
     "object-store-connection-limit",
     "object-store-http2-only",
     "object-store-http2-max-frame-size",

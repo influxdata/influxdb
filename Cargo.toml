@@ -13,6 +13,7 @@ members = [
     "influxdb3_load_generator",
     "influxdb3_process",
     "influxdb3_processing_engine",
+    "influxdb3_processing_engine_telemetry",
     "influxdb3_py_api",
     "influxdb3_query_executor",
     "influxdb3_server",
@@ -127,7 +128,7 @@ exclude = [
 #
 # For porting to the actual OSS repo (influxdb), this would need to change to `-nightly`, i.e., by
 # stripping the `-oss`.
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -230,12 +231,11 @@ snap = "1.0.0"
 sqlparser = "0.48.0"
 # NOTE(tjh): explicitly add sqlite feature as the `data_types` crate relies on it
 sqlx = { version = "0.8.6", features = ["sqlite"] }
-# Delaying upgrade until <https://github.com/GuillaumeGomez/sysinfo/issues/1496> is fixed
-sysinfo = "<0.38"
+sysinfo = "0.39.5"
 tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
-tokio = { version = "1.52.2", features = ["full"] }
+tokio = { version = "1.52.2", features = ["full", "test-util"] }
 tokio-rustls = { version = "0.25", default-features = false, features = ["ring", "tls12"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 tonic = { version = "0.14", features = ["tls-native-roots"] }

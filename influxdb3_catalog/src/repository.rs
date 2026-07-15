@@ -134,15 +134,6 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         })
     }
 
-    /// Get a resource by name, or return `NotFoundByName` if it does not exist.
-    pub fn require_by_name(&self, name: &str) -> Result<Arc<R>, RepositoryError<I>> {
-        self.get_by_name(name)
-            .ok_or_else(|| RepositoryError::NotFoundByName {
-                resource: R::CATEGORY,
-                name: name.to_string(),
-            })
-    }
-
     /// Mutate an existing resource by `id`, keeping the id↔name map consistent.
     ///
     /// Clones the resource out, hands `f` a `&mut R` (via `Arc::make_mut`), and

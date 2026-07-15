@@ -7,8 +7,13 @@ use uuid::Uuid;
 pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
 
 /// Package version.
-pub static INFLUXDB3_VERSION: LazyLock<&'static str> =
-    LazyLock::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));
+pub static INFLUXDB3_VERSION: LazyLock<&'static str> = LazyLock::new(|| {
+    let raw = option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN");
+    match raw.strip_suffix("-oss-nightly") {
+        Some(prefix) => Box::leak(format!("{prefix}-nightly").into_boxed_str()),
+        None => raw,
+    }
+});
 
 /// Build-time GIT revision hash.
 pub static INFLUXDB3_GIT_HASH: &str = env!(

@@ -12,7 +12,8 @@ const ENTERPRISE_BIT_MASK: u16 = !ENTERPRISE_BIT;
 /// Use `RecordId::core(seq)` for core records and `RecordId::enterprise(seq)`
 /// for enterprise-only records. The type enforces correct partition membership
 /// at compile time via `const` constructors with assertions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[serde(transparent)]
 pub struct RecordId(u16);
 
 impl RecordId {

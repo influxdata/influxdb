@@ -8,17 +8,18 @@ use crate::format::apply::ApplyError;
 use crate::format::records::impl_bitcode_encoding;
 use crate::format::records::types::{
     RoleAdminTokenAction, RoleAdminTokenPermission, RoleDatabaseAction, RoleDatabasePermission,
-    RoleDatabaseResource, RolePermissionGrant, RoleRoleAction, RoleRolePermission, RoleTokenAction,
+    RoleDatabaseResource, RolePermissionGrant, RoleRoleAction, RoleRolePermission,
+    RoleSystemAction, RoleSystemPermission, RoleSystemResource, RoleTokenAction,
     RoleTokenPermission, RoleUserAction, RoleUserPermission,
 };
 use crate::format::{CatalogRecord, RecordFlags, RecordId, RegisteredRecord, record_ids};
 use influxdb3_authz::role::role_permissions::{
     AdminTokenPermission, DatabasePermission, RolePermission as RoleResourcePermission,
-    TokenPermission, UserPermission,
+    SystemPermission, TokenPermission, UserPermission,
 };
 use influxdb3_authz::role::{
     AdminTokenAction, DatabaseAction, Permission, ResourceIdentifier, Role, RoleAction,
-    RoleDescription, RoleName, TokenAction, UserAction,
+    RoleDescription, RoleName, SystemAction, SystemResource, TokenAction, UserAction,
 };
 use influxdb3_id::{DbId, RoleId};
 
@@ -282,6 +283,10 @@ impl From<&Permission> for RolePermissionGrant {
                     action: a.action().into(),
                 })
             }
+            Permission::System(s) => RolePermissionGrant::System(RoleSystemPermission {
+                action: s.action().into(),
+                resource: s.resource().into(),
+            }),
         }
     }
 }
@@ -303,6 +308,9 @@ impl From<&RolePermissionGrant> for Permission {
             }
             RolePermissionGrant::AdminToken(a) => {
                 Permission::AdminToken(AdminTokenPermission::new(a.action.into()))
+            }
+            RolePermissionGrant::System(s) => {
+                Permission::System(SystemPermission::new(s.action.into(), s.resource.into()))
             }
         }
     }
@@ -434,6 +442,46 @@ impl From<RoleAdminTokenAction> for AdminTokenAction {
         match a {
             RoleAdminTokenAction::Create => AdminTokenAction::Create,
             RoleAdminTokenAction::Delete => AdminTokenAction::Delete,
+        }
+    }
+}
+
+impl From<SystemAction> for RoleSystemAction {
+    fn from(a: SystemAction) -> Self {
+        match a {
+            SystemAction::Read => RoleSystemAction::Read,
+        }
+    }
+}
+
+impl From<RoleSystemAction> for SystemAction {
+    fn from(a: RoleSystemAction) -> Self {
+        match a {
+            RoleSystemAction::Read => SystemAction::Read,
+        }
+    }
+}
+
+impl From<ResourceIdentifier<SystemResource>> for RoleSystemResource {
+    fn from(r: ResourceIdentifier<SystemResource>) -> Self {
+        match r {
+            ResourceIdentifier::All => RoleSystemResource::All,
+            ResourceIdentifier::Identifier(SystemResource::Health) => RoleSystemResource::Health,
+            ResourceIdentifier::Identifier(SystemResource::Metrics) => RoleSystemResource::Metrics,
+            ResourceIdentifier::Identifier(SystemResource::Ping) => RoleSystemResource::Ping,
+            ResourceIdentifier::Identifier(SystemResource::Ready) => RoleSystemResource::Ready,
+        }
+    }
+}
+
+impl From<RoleSystemResource> for ResourceIdentifier<SystemResource> {
+    fn from(r: RoleSystemResource) -> Self {
+        match r {
+            RoleSystemResource::All => ResourceIdentifier::All,
+            RoleSystemResource::Health => ResourceIdentifier::Identifier(SystemResource::Health),
+            RoleSystemResource::Metrics => ResourceIdentifier::Identifier(SystemResource::Metrics),
+            RoleSystemResource::Ping => ResourceIdentifier::Identifier(SystemResource::Ping),
+            RoleSystemResource::Ready => ResourceIdentifier::Identifier(SystemResource::Ready),
         }
     }
 }

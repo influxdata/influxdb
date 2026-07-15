@@ -487,8 +487,8 @@ impl V2WriteApiError {
                 | CatalogError::InvalidConfiguration { .. }
                 | CatalogError::InvalidColumnType { .. }
                 | CatalogError::ReservedColumn(_)
-                | CatalogError::TooManyColumns(_)
-                | CatalogError::TooManyTagColumns(_)
+                | CatalogError::TooManyColumns { .. }
+                | CatalogError::TooManyTagColumns { .. }
                 | CatalogError::TooManyTables { .. }
                 | CatalogError::TooManyDbs(_)
                 | CatalogError::TooManyFields { .. }
@@ -659,7 +659,11 @@ impl IntoResponse for CatalogError {
             Self::NotFound(_) | Self::DatabaseNotFound { .. } | Self::TableNotFound { .. } => {
                 Either::Right(StatusCode::NOT_FOUND)
             }
-            Self::AlreadyExists | Self::AlreadyDeleted(_) => Either::Right(StatusCode::CONFLICT),
+            Self::AlreadyExists
+            | Self::AlreadyDeleted(_)
+            | Self::NodeNotFullyStopped { .. }
+            | Self::NodeModeNotRemovable { .. }
+            | Self::NodeInQueryGroup { .. } => Either::Right(StatusCode::CONFLICT),
             Self::InvalidConfiguration { .. }
             | Self::InvalidDistinctCacheColumnType
             | Self::InvalidLastCacheKeyColumnType
@@ -667,10 +671,10 @@ impl IntoResponse for CatalogError {
             | Self::DuplicateColumn { .. }
             | Self::InvalidColumnType { .. }
             | Self::NodeAlreadyStopped { .. } => Either::Right(StatusCode::BAD_REQUEST),
-            Self::TooManyColumns(_)
+            Self::TooManyColumns { .. }
             | Self::TooManyTables { .. }
             | Self::TooManyDbs(_)
-            | Self::TooManyTagColumns(_)
+            | Self::TooManyTagColumns { .. }
             | Self::TooManyFields { .. } => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: self.to_string(),
@@ -847,6 +851,10 @@ impl IntoResponse for Error {
                         || err
                             .error_message
                             .starts_with("Adding a new database would exceed limit of")
+                        || err.error_message.contains("would exceed the column limit")
+                        || err
+                            .error_message
+                            .contains("would exceed the tag column limit")
                 });
                 let err = ErrorMessage {
                     error: "partial write of line protocol occurred".into(),

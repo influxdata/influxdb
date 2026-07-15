@@ -1,8 +1,8 @@
 //! Repository id-counter records (record_id 25).
 
 use influxdb3_id::{
-    ColumnId, DbId, DistinctCacheId, FieldFamilyId, LastCacheId, NodeId, RoleId, TableId, TokenId,
-    TriggerId,
+    ColumnId, DbId, DistinctCacheId, FieldFamilyId, LastCacheId, NodeId, QueryGroupId, RoleId,
+    TableId, TokenId, TriggerId,
 };
 
 use super::impl_bitcode_encoding;
@@ -51,13 +51,32 @@ pub enum NextIdScope {
     Nodes,
     Databases,
     Tokens,
-    Tables { database_id: u32 },
-    Triggers { database_id: u32 },
-    Columns { database_id: u32, table_id: u32 },
-    FieldFamilies { database_id: u32, table_id: u32 },
-    LastCaches { database_id: u32, table_id: u32 },
-    DistinctCaches { database_id: u32, table_id: u32 },
+    Tables {
+        database_id: u32,
+    },
+    Triggers {
+        database_id: u32,
+    },
+    Columns {
+        database_id: u32,
+        table_id: u32,
+    },
+    FieldFamilies {
+        database_id: u32,
+        table_id: u32,
+    },
+    LastCaches {
+        database_id: u32,
+        table_id: u32,
+    },
+    DistinctCaches {
+        database_id: u32,
+        table_id: u32,
+    },
     Roles,
+    /// Query groups can be deleted, so snapshot compaction may need to
+    /// preserve a `next_id` that has advanced past `max(present id) + 1`.
+    QueryGroups,
 }
 
 impl CatalogRecord for SetNextId {
@@ -118,6 +137,9 @@ impl CatalogRecord for SetNextId {
                 Ok(())
             })?,
             NextIdScope::Roles => catalog.roles.set_next_id(RoleId::new(self.id)),
+            NextIdScope::QueryGroups => catalog
+                .query_groups
+                .set_next_id(QueryGroupId::new(self.narrow_u32()?)),
         }
         Ok(())
     }

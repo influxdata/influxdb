@@ -6,7 +6,7 @@ use object_store::path::Path as ObjPath;
 use regex::Regex;
 use std::ops::Deref;
 use std::str::FromStr;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 use thiserror::Error;
 
 /// Errors that can occur when parsing paths
@@ -154,11 +154,12 @@ impl TableIndexSnapshotPath {
     pub fn full_table_id(&self) -> TableIndexId {
         let mut parts = self.0.parts();
 
-        let node_id = parts
-            .next()
-            .expect("constructors ensure there is a valid node id")
-            .as_ref()
-            .to_string();
+        let node_id = Arc::from(
+            parts
+                .next()
+                .expect("constructors ensure there is a valid node id")
+                .as_ref(),
+        );
 
         // skip static part of path
         let _ = parts.next();
@@ -260,11 +261,12 @@ impl TableIndexPath {
     pub fn full_table_id(&self) -> TableIndexId {
         let mut parts = self.0.parts();
 
-        let node_id = parts
-            .next()
-            .expect("constructors ensure there is a valid node id")
-            .as_ref()
-            .to_string();
+        let node_id = Arc::from(
+            parts
+                .next()
+                .expect("constructors ensure there is a valid node id")
+                .as_ref(),
+        );
 
         // skip static part of path
         let _ = parts.next();

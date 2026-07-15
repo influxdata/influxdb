@@ -222,6 +222,11 @@ impl Client {
         self.inner
     }
 
+    /// Get a mutable reference to the inner arrow flight client
+    pub fn inner(&mut self) -> &mut FlightClient {
+        &mut self.inner
+    }
+
     /// Return a reference to gRPC metadata included with each request
     pub fn metadata(&self) -> &MetadataMap {
         self.inner.metadata()

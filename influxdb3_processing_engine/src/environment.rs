@@ -230,7 +230,7 @@ impl PythonEnvironmentManager for TestManager {
     }
 }
 
-/// The location of the one-per-process venv, set once by [`init_venv`].
+/// The location of the one-per-process venv, set once by [`get_or_init_venv`].
 static VENV_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 /// The outcome of building the venv at [`VENV_PATH`], computed at most once.
@@ -248,12 +248,12 @@ pub fn venv_path_for(plugin_dir: &Path, virtual_env_location: Option<&PathBuf>) 
 }
 
 /// Create the venv at [`VENV_PATH`] if it does not already exist. This is the
-/// seconds-long step; it runs once and is shared by every [`PendingVenv::ready`]
-/// caller and the background thread spawned by [`init_venv`].
+/// seconds-long step; it runs once and is shared by every [`VenvHandle::ready`]
+/// caller and the background thread spawned by [`get_or_init_venv`].
 fn build_venv() -> Result<(), String> {
     let venv_path = VENV_PATH
         .get()
-        .expect("init_venv sets VENV_PATH before the build runs");
+        .expect("get_or_init_venv sets VENV_PATH before the build runs");
 
     if !is_valid_venv(venv_path) {
         let python_exe = find_python();
@@ -279,23 +279,36 @@ fn build_venv() -> Result<(), String> {
 }
 
 /// Start building the one-per-process venv on a background thread so it overlaps
-/// with the rest of startup. Call [`PendingVenv::ready`] to wait for it.
-pub fn init_venv(venv_path: PathBuf) -> PendingVenv {
+/// with the rest of startup. Call [`VenvHandle::ready`] to wait for it.
+///
+/// Idempotent like [`OnceLock::get_or_init`]: the first call kicks off the
+/// build on a background thread; subsequent calls skip the spawn entirely and
+/// return a handle whose [`VenvHandle::ready`] reads the cached result without
+/// rebuilding.
+pub fn get_or_init_venv(venv_path: PathBuf) -> VenvHandle {
     let _ = VENV_PATH.set(venv_path);
-    let build = std::thread::spawn(|| {
+    // Skip the spawn if the build already ran; `ready` will just read the cache.
+    let build = VENV_BUILD.get().is_none().then(spawn_venv_build);
+    VenvHandle { build }
+}
+
+/// Spawn the background thread that fills [`VENV_BUILD`].
+fn spawn_venv_build() -> std::thread::JoinHandle<()> {
+    std::thread::spawn(|| {
         VENV_BUILD.get_or_init(build_venv);
-    });
-    PendingVenv { build }
+    })
 }
 
-/// The in-flight venv build started by [`init_venv`]. Holding the build thread's
-/// handle makes this a move-only, [`init_venv`]-only handle.
+/// A handle to the one-per-process venv build started by [`get_or_init_venv`].
+/// Holds the build thread's `JoinHandle` on the call that kicked off the build;
+/// `None` when the build was already cached and no thread was spawned. The
+/// private field makes this a move-only, [`get_or_init_venv`]-only handle.
 #[derive(Debug)]
-pub struct PendingVenv {
-    build: std::thread::JoinHandle<()>,
+pub struct VenvHandle {
+    build: Option<std::thread::JoinHandle<()>>,
 }
 
-impl PendingVenv {
+impl VenvHandle {
     /// Block until the background venv build finishes.
     ///
     /// The returned [`ReadyVenv`] is the only handle to the built venv and the
@@ -303,14 +316,19 @@ impl PendingVenv {
     /// Because nothing else can construct a `ReadyVenv`, any code that touches
     /// the venv must wait on the build first — the compiler enforces it.
     pub fn ready(self) -> Result<ReadyVenv, PluginEnvironmentError> {
-        // Wait for the build thread; if it failed to run for some reason, fall
-        // back to building inline (a no-op once the thread has populated it).
-        let _ = self.build.join();
+        // If this call kicked off the build, wait for the thread; otherwise the
+        // cached result is already available and there is no thread to join.
+        if let Some(handle) = self.build {
+            let _ = handle.join();
+        }
         VENV_BUILD
             .get_or_init(build_venv)
             .clone()
             .map_err(PluginEnvironmentError::PackageManagerNotFound)?;
-        let path = VENV_PATH.get().expect("init_venv set VENV_PATH").clone();
+        let path = VENV_PATH
+            .get()
+            .expect("get_or_init_venv set VENV_PATH")
+            .clone();
         Ok(ReadyVenv { path })
     }
 }
@@ -348,5 +366,68 @@ impl ReadyVenv {
         } else {
             Arc::new(DisabledManager)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn venv_path_for_uses_explicit_virtual_env_location() {
+        let explicit = PathBuf::from("/some/custom/venv");
+        let plugin_dir = Path::new("/plugins");
+        assert_eq!(venv_path_for(plugin_dir, Some(&explicit)), explicit);
+    }
+
+    #[test]
+    fn venv_path_for_defaults_to_dotvenv_under_plugin_dir() {
+        let plugin_dir = Path::new("/plugins");
+        assert_eq!(venv_path_for(plugin_dir, None), plugin_dir.join(".venv"));
+    }
+
+    /// Exercises the full `get_or_init_venv` → `ready` → `determine_package_manager`
+    /// contract, including idempotency. The process-wide `VENV_PATH`/`VENV_BUILD`
+    /// statics mean only one test in this binary can drive the lifecycle, so every
+    /// state-touching contract is checked together here.
+    #[test]
+    fn venv_handle_lifecycle_and_idempotency() {
+        let tmp = TempDir::new().unwrap();
+        let first_path = tmp.path().join("first_venv");
+        let second_path = tmp.path().join("second_venv");
+
+        // First call kicks off the build; `ready` blocks until it finishes.
+        let first_ready = get_or_init_venv(first_path.clone())
+            .ready()
+            .expect("first venv build should succeed");
+        assert_eq!(first_ready.path, first_path);
+        assert!(
+            is_valid_venv(&first_path),
+            "first venv should exist on disk after ready()"
+        );
+
+        // The probe runs against the just-built venv; `python -m venv` bootstraps
+        // pip via ensurepip, so a freshly built venv should yield `PipManager`.
+        let manager = first_ready.determine_package_manager();
+        let manager_debug = format!("{manager:?}");
+        assert!(
+            manager_debug.contains("PipManager"),
+            "expected PipManager from a fresh venv, got: {manager_debug}"
+        );
+
+        // Second call with a *different* path: idempotent. `ready` returns the
+        // cached result and never tries to build at `second_path`.
+        let second_ready = get_or_init_venv(second_path.clone())
+            .ready()
+            .expect("second call should reuse the cached build");
+        assert_eq!(
+            second_ready.path, first_path,
+            "second call must observe the cached path, not the new argument"
+        );
+        assert!(
+            !second_path.exists(),
+            "no second build should have happened at second_path"
+        );
     }
 }

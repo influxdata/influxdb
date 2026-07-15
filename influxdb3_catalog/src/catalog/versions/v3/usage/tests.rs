@@ -25,6 +25,15 @@ fn catalog_limits_new_returns_stored_values_regardless_of_usage() {
         assert_eq!(limits.database_count_limit(&u), 7);
         assert_eq!(limits.table_count_limit(&u), 11);
         assert_eq!(limits.column_per_table_limit(&u), 13);
+        assert_eq!(limits.tag_column_per_table_limit(&u), NUM_TAG_COLUMNS_LIMIT);
+    }
+}
+
+#[test]
+fn catalog_limits_tag_column_override_returns_stored_value() {
+    let limits = CatalogLimits::new(7, 11, 13).with_tag_columns_per_table_limit(5);
+    for u in [usage(0, 0, 0), usage(50, 500, 5_000)] {
+        assert_eq!(limits.tag_column_per_table_limit(&u), 5);
     }
 }
 
@@ -50,6 +59,10 @@ fn maximum_column_count_default_uses_catalog_constant() {
         limiter.column_per_table_limit(&u),
         Catalog::MAX_TOTAL_COLUMNS as usize,
     );
+    assert_eq!(
+        limiter.tag_column_per_table_limit(&u),
+        NUM_TAG_COLUMNS_LIMIT
+    );
 }
 
 #[test]
@@ -60,6 +73,10 @@ fn maximum_column_count_custom_creation() {
     assert_eq!(limiter.database_count_limit(&u), 510);
     assert_eq!(limiter.table_count_limit(&u), 550);
     assert_eq!(limiter.column_per_table_limit(&u), 500);
+    assert_eq!(
+        limiter.tag_column_per_table_limit(&u),
+        NUM_TAG_COLUMNS_LIMIT
+    );
 }
 
 #[test]

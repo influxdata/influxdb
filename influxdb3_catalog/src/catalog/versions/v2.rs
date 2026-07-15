@@ -1347,6 +1347,7 @@ impl CatalogBuilder {
 }
 
 impl Catalog {
+    #[cfg(any(test, feature = "test_helpers"))]
     pub fn builder_testing(catalog_id: impl Into<Arc<str>>) -> CatalogBuilder {
         CatalogBuilder::default().catalog_id(catalog_id)
     }

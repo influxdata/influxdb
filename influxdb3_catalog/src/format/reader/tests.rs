@@ -62,7 +62,7 @@ fn parse_single_record() {
     let records = log_records(&file);
 
     assert_eq!(file.record_count(), 1);
-    assert_eq!(records[0].id(), 1);
+    assert_eq!(records[0].id().raw(), 1);
     assert_eq!(records[0].data, data);
 }
 
@@ -80,9 +80,9 @@ fn parse_multiple_records() {
     let records = log_records(&file);
 
     assert_eq!(file.record_count(), 3);
-    assert_eq!(records[0].id(), 1);
-    assert_eq!(records[1].id(), 2);
-    assert_eq!(records[2].id(), 3);
+    assert_eq!(records[0].id().raw(), 1);
+    assert_eq!(records[1].id().raw(), 2);
+    assert_eq!(records[2].id().raw(), 3);
 }
 
 #[test]
@@ -128,6 +128,47 @@ fn crc_mismatch() {
 
     let result = CatalogFile::read_from(&mut cursor);
     assert!(matches!(result, Err(FormatError::Crc32Mismatch { .. })));
+}
+
+#[test]
+fn read_verified_header_returns_header_for_valid_file() {
+    let data = Bytes::from_static(b"test payload");
+    let record = Record::new(1, RecordFlags::none(), 0, data);
+    let file_bytes = create_test_file(&[record]);
+    let mut cursor = Cursor::new(file_bytes);
+
+    let header = CatalogFile::read_verified_header(&mut cursor).unwrap();
+    assert_eq!(header.sequence_number, 12345);
+}
+
+#[test]
+fn read_verified_header_rejects_corrupt_payload_crc() {
+    let data = Bytes::from_static(b"test payload");
+    let record = Record::new(1, RecordFlags::none(), 0, data);
+    let mut file_bytes = create_test_file(&[record]).to_vec();
+
+    // Flip a payload byte: the header CRC still passes, but the payload CRC
+    // must not, so the header-only read must reject it just like read_from.
+    file_bytes[Header::SIZE + 5] ^= 0xFF;
+    let mut cursor = Cursor::new(Bytes::from(file_bytes));
+
+    let result = CatalogFile::read_verified_header(&mut cursor);
+    assert!(matches!(result, Err(FormatError::Crc32Mismatch { .. })));
+}
+
+#[test]
+fn read_verified_header_rejects_truncated_payload() {
+    let data = Bytes::from_static(b"test payload");
+    let record = Record::new(1, RecordFlags::none(), 0, data);
+    let mut file_bytes = create_test_file(&[record]).to_vec();
+
+    // Drop the final payload byte while the header still declares the full
+    // payload_len, so the bounds check must fail.
+    file_bytes.pop();
+    let mut cursor = Cursor::new(Bytes::from(file_bytes));
+
+    let result = CatalogFile::read_verified_header(&mut cursor);
+    assert!(matches!(result, Err(FormatError::BufferTooShort { .. })));
 }
 
 #[test]
@@ -216,8 +257,8 @@ fn snapshot_payload_parses_like_log() {
     );
     let parsed = &file.records;
     assert_eq!(parsed.len(), 2);
-    assert_eq!(parsed[0].id(), 1);
-    assert_eq!(parsed[1].id(), 2);
+    assert_eq!(parsed[0].id().raw(), 1);
+    assert_eq!(parsed[1].id().raw(), 2);
 }
 
 #[test]
@@ -255,8 +296,8 @@ fn legacy_grouped_snapshot_skips_index_and_reads_records() {
     let parsed = CatalogFile::read_from(&mut cursor).unwrap();
     assert!(parsed.header.is_snapshot());
     assert_eq!(parsed.records.len(), 2);
-    assert_eq!(parsed.records[0].id(), 1);
-    assert_eq!(parsed.records[1].id(), 2);
+    assert_eq!(parsed.records[0].id().raw(), 1);
+    assert_eq!(parsed.records[1].id().raw(), 2);
     assert_eq!(&parsed.records[0].data[..], b"alpha");
     assert_eq!(&parsed.records[1].data[..], b"bravo");
 }

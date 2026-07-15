@@ -141,7 +141,7 @@ A mutation through the Op path flows:
 
 ### In-memory state and locking
 
-`InnerCatalog` (`oss/influxdb3_catalog/src/catalog/versions/v3/inner.rs`) holds the authoritative in-memory state: `nodes`, `databases` (each `DatabaseSchema` carrying its tables/columns/caches/triggers), `tokens` + `token_permissions`, `sequence`, `committed_feature_level`, `storage_mode`, `generation_config`, and `ordered_records` (the snapshot payload).
+`InnerCatalog` (`oss/influxdb3_catalog/src/catalog/versions/v3/inner.rs`) holds the authoritative in-memory state: `nodes`, `databases` (each `DatabaseSchema` carrying its tables/columns/caches/triggers), `tokens` + `token_permissions`, `query_groups`, `sequence`, `committed_feature_level`, `storage_mode`, `generation_config`, and `ordered_records` (the snapshot payload).
 
 `Catalog` (`oss/influxdb3_catalog/src/catalog/versions/v3/catalog.rs`) wraps it as a single `RwLock<InnerCatalog>` plus an async `Mutex<CatalogSequenceNumber>` (the `write_permit`). The `write_permit` serializes the prepare→serialize→persist step within a node; cross-node serialization is handled by the object store conditional write. Apply and broadcast take the `inner` write lock, and `apply_records` processes a file's records sequentially.
 
@@ -305,6 +305,9 @@ Bodies are `bitcode`-encoded via `Encode`/`Decode`. Headers (file, record) are a
 | `0x8004` | CreateLoginIdentityOAuth | LoginIdentityCreated |
 | `0x8005` | DeleteLoginIdentityOAuth | LoginIdentityDeleted |
 | `0x8006` | RestoreCatalog | CatalogRestored |
+| `0x8007` | CreateQueryGroup | QueryGroupCreated |
+| `0x8008` | UpdateQueryGroup | QueryGroupUpdated |
+| `0x8009` | DeleteQueryGroup | QueryGroupDeleted |
 
 `SetNextId` (26) explicitly sets a repository's id counter; it is produced during migration and compaction rather than by user operations.
 

@@ -67,10 +67,10 @@ impl IoxQueryDatafusionConfig {
     /// [`IoxQueryDatafusionConfig`] struct. Note, any IOx extension parameters that are defined
     /// in the `datafusion_config` will be overridden by the provided values or their default. For
     /// example, if the user provides:
+    /// ```text
+    /// --datafusion-config "iox.max_parquet_fanout:50"
     /// ```
-    /// --datafusion-config "iox.max_arquet_fanout:50"
-    /// ```
-    /// This will be overridden with with the default value for `max_parquet_fanout` of `1000`, or
+    /// This will be overridden with the default value for `max_parquet_fanout` of `1000`, or
     /// with the value provided for the `--datafusion-max-parquet-fanout` argument.
     pub fn build(mut self) -> HashMap<String, String> {
         self.datafusion_config.insert(

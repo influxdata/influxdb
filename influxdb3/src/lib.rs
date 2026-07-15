@@ -176,6 +176,13 @@ pub fn startup(args: Vec<String>) -> Result<(), std::io::Error> {
     // Copy deprecated environment variable aliases for backwards compatibility.
     // Must be called BEFORE clap parsing so that old env var names still work.
     env_compat::copy_env_aliases(ENV_ALIASES);
+    env_compat::copy_env_aliases(&[
+        // This one fixes a LISTINER -> LISTENER typo
+        (
+            "INFLUXDB3_TCP_LISTENER_FILE_PATH",
+            "INFLUXDB3_TCP_LISTINER_FILE_PATH",
+        ),
+    ]);
 
     // Handle printing help messages for each command so that we can have a custom
     // output with both a help and help-all message. We have to disable the help
@@ -800,43 +807,48 @@ fn init_logs_and_tracing(
 
     let layers = log_layer;
 
+    // This fn is necessary because we used to do essentially
+    // `layers = layers.and_then(tokio_console.enabled.then_some(ConsoleLayer))` and then install
+    // that as the global logger, but we somehow seem to still be suffering from
+    // https://github.com/tokio-rs/tracing/issues/2265, which resets the log level whenever you
+    // install a `None` layer. So can't ever use a `Option<impl Layer>`.
+    fn install_layers(
+        config: &trogging::cli::LoggingConfig,
+        layers: impl tracing_subscriber::layer::Layer<Registry> + Send + Sync + 'static,
+    ) -> Result<TroggingGuard, trogging::Error> {
+        let subscriber = Registry::default().with(layers);
+        let guard = trogging::install_global(subscriber)?;
+        if let Some(ref f) = config.log_filter {
+            tracing::debug!(log_filter = %f, "log_filter_active");
+        }
+        Ok(guard)
+    }
+
     // Attach the tokio-console exporter layer only when requested via
-    // `--tokio-console-enabled` / `TOKIO_CONSOLE_ENABLED`. It spawns a
+    // `--tokio-console-enabled` / `INFLUXDB3_TOKIO_CONSOLE_ENABLED`. It spawns a
     // background task serving instrumentation data and retains per-task span
     // stats whose memory scales with task-spawn rate × retention, so it must
     // be opt-in, and the upstream 1 h retention default is lowered to 60 s
-    // (`TOKIO_CONSOLE_RETENTION` still overrides). See influxdb_pro#4040.
-    #[cfg(feature = "tokio_console")]
-    let layers = {
-        use console_subscriber::ConsoleLayer;
-        let console_layer = if config.tokio_console.enabled {
-            let mut builder = ConsoleLayer::builder()
-                .retention(std::time::Duration::from_secs(60))
-                .with_default_env();
-            if let Some(capacity) = config.tokio_console.event_buffer_capacity {
-                builder = builder.event_buffer_capacity(capacity);
-            }
-            if let Some(capacity) = config.tokio_console.client_buffer_capacity {
-                builder = builder.client_buffer_capacity(capacity);
-            }
-            Some(builder.spawn())
-        } else {
-            None
-        };
-        layers.and_then(console_layer)
-    };
-
-    #[cfg(not(feature = "tokio_console"))]
+    // (`TOKIO_CONSOLE_RETENTION` still overrides). See #4040.
     if config.tokio_console.enabled {
-        return Err(trogging::Error::TokioConsoleMissing);
+        return cfg_select! {
+            feature = "tokio_console" => {{
+                let mut builder = console_subscriber::ConsoleLayer::builder()
+                    .retention(std::time::Duration::from_secs(60))
+                    .with_default_env();
+                if let Some(capacity) = config.tokio_console.event_buffer_capacity {
+                    builder = builder.event_buffer_capacity(capacity);
+                }
+                if let Some(capacity) = config.tokio_console.client_buffer_capacity {
+                    builder = builder.client_buffer_capacity(capacity);
+                }
+                install_layers(&config, layers.and_then(builder.spawn()))
+            }},
+            _ => Err(trogging::Error::TokioConsoleMissing)
+        };
     }
 
-    let subscriber = Registry::default().with(layers);
-    let guard = trogging::install_global(subscriber)?;
-    if let Some(ref f) = config.log_filter {
-        tracing::debug!(log_filter = %f, "log_filter_active");
-    }
-    Ok(guard)
+    install_layers(&config, layers)
 }
 
 #[cfg(test)]

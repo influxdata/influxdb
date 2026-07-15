@@ -320,6 +320,7 @@ pub enum RolePermissionGrant {
     User(RoleUserPermission),
     Role(RoleRolePermission),
     AdminToken(RoleAdminTokenPermission),
+    System(RoleSystemPermission),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
@@ -346,6 +347,12 @@ pub struct RoleRolePermission {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
 pub struct RoleAdminTokenPermission {
     pub action: RoleAdminTokenAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
+pub struct RoleSystemPermission {
+    pub action: RoleSystemAction,
+    pub resource: RoleSystemResource,
 }
 
 /// Database action.
@@ -392,6 +399,23 @@ pub enum RoleRoleAction {
 pub enum RoleAdminTokenAction {
     Create,
     Delete,
+}
+
+/// System action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
+pub enum RoleSystemAction {
+    Read,
+}
+
+/// System resource. `All` represents `ResourceIdentifier::All`; otherwise a
+/// specific system resource identified by its enumerated variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Encode, Decode)]
+pub enum RoleSystemResource {
+    All,
+    Health,
+    Metrics,
+    Ping,
+    Ready,
 }
 
 /// Database resource. `All` represents `ResourceIdentifier::All`, otherwise the

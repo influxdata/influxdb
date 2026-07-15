@@ -26,10 +26,12 @@ use influxdb3_processing_engine::environment::{
     self, DisabledManager, DisabledPackageManager, PipManager, PythonEnvironmentManager,
     list_installed_packages,
 };
-use influxdb3_processing_engine::plugin_telemetry::PluginTriggerInvocationRegistry;
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::{
     ProcessingEngineManagerImpl, ProcessingEngineManagerOptions, write::InProcessWriteEndpoint,
+};
+use influxdb3_processing_engine_telemetry::{
+    setup_plugin_trigger_invocation_registry, setup_plugin_trigger_invocation_telemetry,
 };
 use influxdb3_query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
 use influxdb3_server::http::HttpApi;
@@ -39,7 +41,7 @@ use influxdb3_server::{
 use influxdb3_shutdown::{ShutdownManager, ShutdownToken, wait_for_signal};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::{
-    MetricsError, PluginTriggerInvocation, PluginTriggerInvocationMetrics, ProcessingEngineMetrics,
+    MetricsError, PluginTriggerInvocationMetrics, ProcessingEngineMetrics,
     PythonEnvironmentMetrics, ServeInvocationMethod, StorageEngineType,
     store::{CreateTelemetryStoreArgs, TelemetryStore},
 };
@@ -592,7 +594,7 @@ pub struct Config {
     /// This is mainly intended for testing purposes and is not considered stable.
     #[clap(
         long = "tcp-listener-file-path",
-        env = "INFLUXDB3_TCP_LISTINER_FILE_PATH",
+        env = "INFLUXDB3_TCP_LISTENER_FILE_PATH",
         hide = true
     )]
     pub tcp_listener_file_path: Option<PathBuf>,
@@ -627,15 +629,6 @@ pub struct Config {
         value_parser = parse_snapshot_concurrency_limit,
     )]
     pub parquet_snapshot_concurrency_limit: NonZeroUsize,
-
-    /// The duration from when a database or table is soft-deleted until the data is scheduled to
-    /// be hard deleted.
-    #[clap(
-        long = "hard-delete-default-duration",
-        env = "INFLUXDB3_HARD_DELETE_DEFAULT_DURATION",
-        default_value_t = Catalog::DEFAULT_HARD_DELETE_DURATION.into(),
-    )]
-    pub hard_delete_default_duration: humantime::Duration,
 
     /// Grace period for hard deleted databases and tables before they are removed permanently from
     /// the catalog.
@@ -771,7 +764,7 @@ impl FromStr for ParquetCachePrunePercent {
 }
 
 pub async fn command(config: Config, user_params: HashMap<String, String>) -> Result<()> {
-    let node_id = config.get_node_id()?;
+    let node_id = Arc::from(config.get_node_id()?);
 
     let max_concurrent_queries = config.max_concurrent_queries.0;
 
@@ -954,14 +947,14 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        node_id.as_str(),
+        Arc::clone(&node_id),
         Arc::clone(&time_provider) as _,
         config.checkpoint_interval.map(|v| v.into()),
     ));
 
     let process_uuid_getter: Arc<dyn ProcessUuidGetter> = Arc::new(ProcessUuidWrapper::new());
     let catalog = Catalog::new_with_shutdown(
-        node_id.as_str(),
+        Arc::clone(&node_id),
         Arc::clone(&object_store),
         Arc::clone(&time_provider),
         Arc::clone(&metrics),
@@ -979,7 +972,7 @@ pub async fn command(config: Config, user_params: HashMap<String, String>) -> Re
 
     let retention_handler_token = shutdown_manager.register("retention_handler");
     let _table_index_cache = initialize_table_index_cache(
-        node_id.clone(),
+        Arc::clone(&node_id),
         config.retention_check_interval.into(),
         table_index_cache_config,
         Arc::clone(&object_store),
@@ -1456,7 +1449,7 @@ pub(crate) fn setup_processing_engine_env_manager(
         // pip inside it. `ready()` blocks until the build finishes; a venv that
         // cannot be built (or no plugin dir to build one in) means no pip.
         PackageManager::Discover => match venv_path {
-            Some(path) => environment::init_venv(path)
+            Some(path) => environment::get_or_init_venv(path)
                 .ready()
                 .map(|venv| venv.determine_package_manager())
                 .unwrap_or_else(|_| Arc::new(DisabledManager)),
@@ -1502,41 +1495,6 @@ pub(crate) fn setup_python_env_metrics(
     Arc::new(PythonEnvironmentMetricsImpl::new(environment))
 }
 
-#[derive(Debug)]
-struct PluginTriggerInvocationTelemetryImpl {
-    registry: Arc<PluginTriggerInvocationRegistry>,
-}
-
-impl PluginTriggerInvocationMetrics for PluginTriggerInvocationTelemetryImpl {
-    fn plugin_trigger_invocations(&self) -> Vec<PluginTriggerInvocation> {
-        self.registry
-            .snapshot()
-            .into_iter()
-            .map(|entry| PluginTriggerInvocation {
-                database_name: entry.database_name,
-                trigger_name: entry.trigger_name,
-                plugin_name: entry.plugin_name,
-                trigger_type: entry.trigger_type.to_owned(),
-                invocation_count: entry.invocation_count,
-            })
-            .collect()
-    }
-
-    fn reset_plugin_trigger_invocations(&self) {
-        self.registry.reset();
-    }
-}
-
-pub(crate) fn setup_plugin_trigger_invocation_registry() -> Arc<PluginTriggerInvocationRegistry> {
-    Arc::new(PluginTriggerInvocationRegistry::default())
-}
-
-pub(crate) fn setup_plugin_trigger_invocation_telemetry(
-    registry: Arc<PluginTriggerInvocationRegistry>,
-) -> Arc<dyn PluginTriggerInvocationMetrics> {
-    Arc::new(PluginTriggerInvocationTelemetryImpl { registry })
-}
-
 fn restricted_plugin_trigger_types(config: &ProcessingEngineConfig) -> Vec<PluginType> {
     config
         .restrict_plugin_triggers_to
@@ -1550,7 +1508,7 @@ fn restricted_plugin_trigger_types(config: &ProcessingEngineConfig) -> Vec<Plugi
 }
 
 async fn initialize_table_index_cache(
-    node_id: String,
+    node_id: Arc<str>,
     retention_check_interval: Duration,
     table_index_cache_config: TableIndexCacheConfig,
     object_store: Arc<dyn ObjectStore>,
@@ -1559,13 +1517,13 @@ async fn initialize_table_index_cache(
     retention_handler_token: ShutdownToken,
 ) -> Result<Option<TableIndexCache>> {
     let table_index_cache = TableIndexCache::new(
-        node_id.clone(),
+        Arc::clone(&node_id),
         table_index_cache_config,
         Arc::clone(&object_store),
     );
 
     info!(
-        node_id = node_id.clone(),
+        node_id = &*node_id,
         max_entries = ?table_index_cache_config.max_entries,
         concurrency_limit = table_index_cache_config.concurrency_limit,
         "Initializing table index cache"
@@ -1590,7 +1548,7 @@ async fn initialize_table_index_cache(
         Arc::clone(&catalog),
         Arc::clone(&time_provider) as _,
         retention_check_interval,
-        node_id.to_string(),
+        node_id,
     ));
 
     tokio::spawn(async move {

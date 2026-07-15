@@ -2,47 +2,35 @@
 
 use std::{str::FromStr, sync::OnceLock};
 
-use observability_deps::tracing::info;
-use sysinfo::System;
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, get_current_pid};
 
-/// Memory size.
+use crate::size_units::{MB, UNITS, parse_unit_suffix, unit_suffixes};
+
+/// Memory size with *required* unit suffix.
 ///
 /// # Parsing
 /// This can be parsed from strings in one of the following formats:
 ///
-/// - **absolute:** just use a non-negative number to specify the absolute
-///   bytes, e.g. `1024`
-/// - **relative:** use percentage between 0 and 100 (both inclusive) to specify
-///   a relative amount of the totally available memory size, e.g. `50%`
+/// - **with unit suffix:** append a unit suffix (case-insensitive) for explicit sizing:
+///   - `b` for bytes, e.g. `1048576b`
+///   - `kb` for kilobytes, e.g. `1024kb`
+///   - `mb` for megabytes, e.g. `100mb`
+///   - `gb` for gigabytes, e.g. `2gb`
+///   - `tb` for terabytes, e.g. `1tb`
+/// - **relative:** a percentage between 0 and 100 (inclusive) of total available memory, e.g. `50%`
+///   (see [`total_mem_bytes`] for how total memory is determined)
 ///
-/// # Limits
+/// Whitespace before the suffix is allowed, e.g. `5 mb`.
 ///
-/// Memory limits are read from the following, stopping when a valid value is
-/// found:
+/// Unlike [`MemorySizeMb`], bare numbers without units are rejected.
 ///
-///   - `/sys/fs/cgroup/memory/memory.limit_in_bytes` (cgroup)
-///   - `/sys/fs/cgroup/memory.max` (cgroup2)
-///   - Platform specific syscall (infallible)
-///
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy)]
 pub struct MemorySize(usize);
 
 impl MemorySize {
-    /// Number of bytes.
-    pub fn bytes(&self) -> usize {
+    /// Express this size in terms of bytes (B)
+    pub fn as_num_bytes(&self) -> usize {
         self.0
-    }
-}
-
-impl std::fmt::Debug for MemorySize {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::fmt::Display for MemorySize {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
     }
 }
 
@@ -50,33 +38,68 @@ impl FromStr for MemorySize {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.strip_suffix('%') {
-            Some(s) => {
-                let percentage = u64::from_str(s).map_err(|e| e.to_string())?;
-                if percentage > 100 {
-                    return Err(format!(
-                        "relative memory size must be in [0, 100] but is {percentage}"
-                    ));
-                }
-                let total = total_mem_bytes();
-                let bytes = (percentage as f64 / 100f64 * total as f64).round() as usize;
-                Ok(Self(bytes))
-            }
-            None => {
-                let bytes = usize::from_str(s).map_err(|e| e.to_string())?;
-                Ok(Self(bytes))
-            }
-        }
+        let s = s.trim().to_lowercase();
+        parse_memory_with_unit(&s).map(Self)
     }
 }
 
-/// Similar to [`MemorySize`] but allows specifying absolute sizes in megabytes (MB) instead of
-/// bytes (B)
+/// Byte size with *required* unit suffix. Does not accept percentages.
+///
+/// # Parsing
+/// This can be parsed from strings with a unit suffix (case-insensitive):
+///
+/// - `b` for bytes, e.g. `1048576b`
+/// - `kb` for kilobytes, e.g. `1024kb`
+/// - `mb` for megabytes, e.g. `100mb`
+/// - `gb` for gigabytes, e.g. `2gb`
+/// - `tb` for terabytes, e.g. `1tb`
+///
+/// Whitespace before the suffix is allowed, e.g. `5 mb`.
+///
+/// Unlike [`MemorySize`], percentages are not accepted since this type
+/// represents absolute file/data sizes rather than memory allocations.
 #[derive(Debug, Clone, Copy)]
+pub struct ByteSize(usize);
+
+impl ByteSize {
+    pub fn as_num_bytes(&self) -> usize {
+        self.0
+    }
+}
+
+impl FromStr for ByteSize {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim().to_lowercase();
+        parse_bytes_with_unit(&s).map(Self)
+    }
+}
+
+/// Memory size with optional unit suffix.
+///
+/// # Parsing
+/// This can be parsed from strings in one of several formats:
+///
+/// - **absolute (default MB):** a plain non-negative number specifies the size in megabytes, e.g. `1024`
+/// - **with unit suffix:** append a unit suffix (case-insensitive) for explicit sizing:
+///   - `b` for bytes, e.g. `1048576b`
+///   - `kb` for kilobytes, e.g. `1024kb`
+///   - `mb` for megabytes, e.g. `100mb`
+///   - `gb` for gigabytes, e.g. `2gb`
+///   - `tb` for terabytes, e.g. `1tb`
+/// - **relative:** a percentage between 0 and 100 (inclusive) of total available memory, e.g. `50%`
+///   (see [`total_mem_bytes`] for how total memory is determined)
+///
+/// Whitespace before the suffix is allowed, e.g. `5 mb`.
+///
+/// For new CLI arguments, prefer [`MemorySize`] which requires explicit units.
+///
+#[derive(Debug, Clone, Copy, Default)]
 pub struct MemorySizeMb(usize);
 
 impl MemorySizeMb {
-    /// Express this cache size in terms of bytes (B)
+    /// Express this size in terms of bytes (B)
     pub fn as_num_bytes(&self) -> usize {
         self.0
     }
@@ -85,69 +108,123 @@ impl MemorySizeMb {
 impl FromStr for MemorySizeMb {
     type Err = String;
 
-    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
-        let s_lower = s.to_lowercase();
-        let num_bytes = if s_lower.contains('%') {
-            let mem_size = MemorySize::from_str(s).map_err(|e| {
-                format!(
-                    "failed to parse '{}' as a percentage of available memory: {}",
-                    s, e
-                )
-            })?;
-            mem_size.bytes()
-        } else if let Some(num_str) = s_lower.strip_suffix("gb") {
-            let num = usize::from_str(num_str.trim())
-                .map_err(|e| format!("failed to parse '{}' as a memory size in GB: {}", s, e))?;
-            num * 1024 * 1024 * 1024
-        } else if let Some(num_str) = s_lower.strip_suffix("mb") {
-            let num = usize::from_str(num_str.trim())
-                .map_err(|e| format!("failed to parse '{}' as a memory size in MB: {}", s, e))?;
-            num * 1024 * 1024
-        } else if let Some(num_str) = s_lower.strip_suffix("kb") {
-            let num = usize::from_str(num_str.trim())
-                .map_err(|e| format!("failed to parse '{}' as a memory size in KB: {}", s, e))?;
-            num * 1024
-        } else if let Some(num_str) = s_lower.strip_suffix('b') {
-            usize::from_str(num_str.trim())
-                .map_err(|e| format!("failed to parse '{}' as a memory size in bytes: {}", s, e))?
-        } else {
-            let num_mb = usize::from_str(s.trim())
-                .map_err(|e| format!("failed to parse '{}' as a memory size in MB: {}", s, e))?;
-            num_mb * 1024 * 1024
-        };
-        Ok(Self(num_bytes))
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim().to_lowercase();
+        // If it has a recognized suffix, use strict parsing
+        if has_unit_suffix(&s) {
+            return parse_memory_with_unit(&s).map(Self);
+        }
+        // Otherwise, try bare number = MB
+        usize::from_str(&s)
+            .map_err(|e| format!("failed to parse '{}' as a memory size in MB: {}", s, e))?
+            .checked_mul(MB)
+            .map(Self)
+            .ok_or_else(|| format!("failed to parse '{}' as a memory size in MB: overflow", s))
     }
 }
 
-/// Totally available memory size in bytes.
-pub fn total_mem_bytes() -> usize {
-    // Keep this in a global state so that we only need to inspect the system once during IOx startup.
-    static TOTAL_MEM_BYTES: OnceLock<usize> = OnceLock::new();
+/// Check if a string has a recognized unit suffix (%, tb, gb, mb, kb, b).
+fn has_unit_suffix(s: &str) -> bool {
+    s.ends_with('%') || UNITS.iter().any(|(suffix, _, _)| s.ends_with(suffix))
+}
 
+/// Parse a memory size string that has an explicit unit suffix or percentage.
+///
+/// Expects a trimmed, lowercased input. Returns the size in bytes.
+fn parse_memory_with_unit(s: &str) -> Result<usize, String> {
+    if let Some(num_str) = s.strip_suffix('%') {
+        let percentage = u64::from_str(num_str.trim()).map_err(|e| {
+            format!(
+                "failed to parse '{}' as a percentage of available memory: {}",
+                s, e
+            )
+        })?;
+        if percentage > 100 {
+            return Err(format!(
+                "relative memory size must be in [0, 100] but is {percentage}"
+            ));
+        }
+        let total = total_mem_bytes();
+        return Ok((percentage as f64 / 100f64 * total as f64).round() as usize);
+    }
+
+    parse_unit_suffix(s).unwrap_or_else(|| {
+        Err(format!(
+            "'{}' requires a unit suffix ({}) or percentage (%)",
+            s,
+            unit_suffixes()
+        ))
+    })
+}
+
+/// Parse a byte size string that has an explicit unit suffix.
+///
+/// Expects a trimmed, lowercased input. Returns the size in bytes.
+/// Unlike [`parse_memory_with_unit`], percentages are not accepted.
+fn parse_bytes_with_unit(s: &str) -> Result<usize, String> {
+    parse_unit_suffix(s).unwrap_or_else(|| {
+        Err(format!(
+            "'{}' requires a unit suffix ({})",
+            s,
+            unit_suffixes()
+        ))
+    })
+}
+
+/// Total available memory in bytes.
+///
+/// Memory limits are resolved in the following order, stopping at the first valid value:
+///
+///   - the current process's cgroup memory limit (cgroup v2 `memory.max` or cgroup v1
+///     `memory.limit_in_bytes`), discovered via `/proc/self/cgroup` and taking the most
+///     restrictive limit up the cgroup hierarchy — this captures per-process limits set
+///     with `systemd-run` without namespace isolation
+///   - platform-specific syscall for total system RAM (fallback)
+pub fn total_mem_bytes() -> usize {
+    static TOTAL_MEM_BYTES: OnceLock<usize> = OnceLock::new();
     *TOTAL_MEM_BYTES.get_or_init(get_memory_limit)
 }
 
-/// Resolve the amount of memory available to this process.
+/// Returns a percentage of total memory, capped at a maximum value.
+pub fn percent_of_total_mem_capped(percent: u8, cap_bytes: usize) -> usize {
+    let total = total_mem_bytes();
+    let amount = (total as f64 * percent as f64 / 100.0) as usize;
+    amount.min(cap_bytes)
+}
+
+/// Threshold (as a fraction of detected process memory) at which configured
+/// memory reservations are considered close enough to the available total to
+/// warrant warning the operator.
+pub const MEMORY_RESERVATION_WARN_THRESHOLD: f64 = 0.90;
+
+/// Returns true when `reserved` is at or above
+/// [`MEMORY_RESERVATION_WARN_THRESHOLD`] of `detected`.
 ///
-/// This attempts to find a cgroup limit first, before falling back to the
-/// amount of system RAM available.
+/// Returns false when `detected` is zero — without a known total there is no
+/// meaningful signal to warn against.
+pub fn should_warn_memory_reservations(detected: usize, reserved: usize) -> bool {
+    detected > 0 && reserved as f64 / detected as f64 >= MEMORY_RESERVATION_WARN_THRESHOLD
+}
+
 fn get_memory_limit() -> usize {
     let mut sys = System::new();
     sys.refresh_memory();
 
-    let limit = sys
-        .cgroup_limits()
+    let cgroup_limit = get_current_pid().ok().and_then(|pid| {
+        sys.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[pid]),
+            true,
+            ProcessRefreshKind::nothing(),
+        );
+        sys.process(pid).and_then(|p| p.cgroup_limits())
+    });
+
+    cgroup_limit
         .map(|v| v.total_memory)
-        .unwrap_or_else(|| sys.total_memory()) as usize;
-
-    info!(%limit, "detected process memory available");
-
-    limit
+        .unwrap_or_else(|| sys.total_memory()) as usize
 }
 
-/// Format a byte count as a human-readable string using suffixes:
-/// `512B`, `1.50KiB`, `8.00MiB`, `1.50GiB`. Picks the largest unit where the
-/// value is ≥ 1.
+/// Format a byte count as a human-readable string.
 pub fn format_bytes(bytes: usize) -> String {
     const GIB: usize = 1024 * 1024 * 1024;
     const MIB: usize = 1024 * 1024;
@@ -159,7 +236,7 @@ pub fn format_bytes(bytes: usize) -> String {
     } else if bytes >= KIB {
         format!("{:.2}KiB", bytes as f64 / KIB as f64)
     } else {
-        format!("{bytes}B")
+        format!("{}B", bytes)
     }
 }
 

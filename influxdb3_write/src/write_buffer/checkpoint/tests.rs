@@ -3,6 +3,7 @@ use crate::ParquetFile;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_id::ParquetFileId;
 use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
+use std::sync::Arc;
 
 fn create_test_file(id: ParquetFileId, size_bytes: u64, row_count: u64) -> ParquetFile {
     ParquetFile {
@@ -22,7 +23,7 @@ fn create_test_snapshot(
     removed_files: SerdeVecMap<DbId, DatabaseTables>,
 ) -> PersistedSnapshot {
     PersistedSnapshot {
-        node_id: "test-node".to_string(),
+        node_id: Arc::from("test-node"),
         next_file_id: ParquetFileId::new(),
         snapshot_sequence_number: SnapshotSequenceNumber::new(seq),
         wal_file_sequence_number: WalFileSequenceNumber::new(seq),

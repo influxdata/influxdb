@@ -130,6 +130,122 @@ fn account_admin_all_covers_role_permission() {
     assert!(perm.covers(&required));
 }
 
+// SystemPermission tests
+
+#[test]
+fn system_permission_covers_matching_action_and_resource() {
+    let perm = Permission::System(SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::Identifier(SystemResource::Health),
+    ));
+    let required = SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::Identifier(SystemResource::Health),
+    );
+    assert!(perm.covers(&required));
+}
+
+#[test]
+fn system_permission_all_resource_covers_specific_resource() {
+    let perm = Permission::System(SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::All,
+    ));
+    for resource in [
+        SystemResource::Health,
+        SystemResource::Metrics,
+        SystemResource::Ping,
+        SystemResource::Ready,
+    ] {
+        let required =
+            SystemPermission::new(SystemAction::Read, ResourceIdentifier::Identifier(resource));
+        assert!(perm.covers(&required), "All should cover {resource:?}");
+    }
+}
+
+#[test]
+fn system_permission_specific_does_not_cover_different_resource() {
+    let perm = Permission::System(SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::Identifier(SystemResource::Health),
+    ));
+    let required = SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::Identifier(SystemResource::Metrics),
+    );
+    assert!(!perm.covers(&required));
+}
+
+#[test]
+fn system_permission_specific_does_not_cover_all() {
+    let perm = Permission::System(SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::Identifier(SystemResource::Health),
+    ));
+    let required = SystemPermission::new(SystemAction::Read, ResourceIdentifier::All);
+    assert!(!perm.covers(&required));
+}
+
+#[test]
+fn system_permission_not_covered_by_other_variants() {
+    let perm = Permission::User(UserPermission::new(UserAction::Read));
+    let required = SystemPermission::new(SystemAction::Read, ResourceIdentifier::All);
+    assert!(!perm.covers(&required));
+}
+
+#[test]
+fn account_admin_all_covers_system_permission() {
+    let perm = Permission::AccountAdminAll;
+    let required = SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::Identifier(SystemResource::Health),
+    );
+    assert!(perm.covers(&required));
+    let required_all = SystemPermission::new(SystemAction::Read, ResourceIdentifier::All);
+    assert!(perm.covers(&required_all));
+}
+
+// Bridge between the token bitmap types and the role permission enum.
+
+#[test]
+fn system_resource_from_identifier_maps_known_values() {
+    use crate::SystemResourceIdentifier;
+    let cases = [
+        (SystemResourceIdentifier::HEALTH, SystemResource::Health),
+        (SystemResourceIdentifier::METRICS, SystemResource::Metrics),
+        (SystemResourceIdentifier::PING, SystemResource::Ping),
+        (SystemResourceIdentifier::READY, SystemResource::Ready),
+    ];
+    for (bits, expected) in cases {
+        let id = SystemResourceIdentifier::from(bits);
+        let mapped = SystemResource::try_from(id).expect("known identifier maps");
+        assert_eq!(mapped, expected);
+    }
+}
+
+#[test]
+fn system_resource_from_identifier_rejects_unknown() {
+    use crate::SystemResourceIdentifier;
+    let id = SystemResourceIdentifier::from(u16::MAX);
+    assert!(SystemResource::try_from(id).is_err());
+}
+
+#[test]
+fn system_actions_bitmap_expands_to_role_actions() {
+    use crate::SystemActions;
+    let bits = SystemActions::from(SystemActions::READ);
+    let actions = SystemAction::from_bitmap(bits);
+    assert_eq!(actions, vec![SystemAction::Read]);
+}
+
+#[test]
+fn system_actions_empty_bitmap_expands_to_empty() {
+    use crate::SystemActions;
+    let bits = SystemActions::from(0u16);
+    let actions = SystemAction::from_bitmap(bits);
+    assert!(actions.is_empty());
+}
+
 // RoleName tests
 use super::role::RoleName;
 

@@ -14,6 +14,7 @@ pub mod config;
 pub mod database;
 pub mod feature_level;
 pub mod node;
+pub mod query_group;
 pub mod restore;
 pub mod retention;
 pub mod role;

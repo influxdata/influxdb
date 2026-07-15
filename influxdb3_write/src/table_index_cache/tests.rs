@@ -431,7 +431,7 @@ mod cache_operations {
                 TestStep::CacheOpSaveLastAccessedTime { table_id, time_key } => {
                     let indices = cache.inner.indices.read().await;
                     if let Some(db_map) =
-                        indices.get(&(table_id.node_id().to_string(), table_id.db_id()))
+                        indices.get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                     {
                         if let Some(cached) = db_map.get(&table_id.table_id()) {
                             let time = cached
@@ -458,7 +458,7 @@ mod cache_operations {
                 TestStep::ExpectCacheHit { table_id } => {
                     let indices = cache.inner.indices.read().await;
                     let was_cached = indices
-                        .get(&(table_id.node_id().to_string(), table_id.db_id()))
+                        .get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                         .map(|db_map| db_map.contains_key(&table_id.table_id()))
                         .unwrap_or(false);
                     assert!(
@@ -470,7 +470,7 @@ mod cache_operations {
                 TestStep::ExpectCacheMiss { table_id } => {
                     let indices = cache.inner.indices.read().await;
                     let was_cached = indices
-                        .get(&(table_id.node_id().to_string(), table_id.db_id()))
+                        .get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                         .map(|db_map| db_map.contains_key(&table_id.table_id()))
                         .unwrap_or(false);
                     assert!(
@@ -490,7 +490,7 @@ mod cache_operations {
                 TestStep::ExpectCached { table_id, expected } => {
                     let indices = cache.inner.indices.read().await;
                     let is_cached = indices
-                        .get(&(table_id.node_id().to_string(), table_id.db_id()))
+                        .get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                         .map(|db_map| db_map.contains_key(&table_id.table_id()))
                         .unwrap_or(false);
                     assert_eq!(
@@ -506,7 +506,7 @@ mod cache_operations {
 
                     let indices = cache.inner.indices.read().await;
                     if let Some(db_map) =
-                        indices.get(&(table_id.node_id().to_string(), table_id.db_id()))
+                        indices.get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                     {
                         if let Some(cached) = db_map.get(&table_id.table_id()) {
                             assert_eq!(
@@ -541,7 +541,7 @@ mod cache_operations {
 
                     let indices = cache.inner.indices.read().await;
                     if let Some(db_map) =
-                        indices.get(&(table_id.node_id().to_string(), table_id.db_id()))
+                        indices.get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                     {
                         if let Some(cached) = db_map.get(&table_id.table_id()) {
                             assert!(
@@ -1169,7 +1169,7 @@ mod update_all_from_object_store {
                 UpdateTestStep::ExpectTableInCache { table_id, expected } => {
                     let indices = cache.inner.indices.read().await;
                     let is_cached = indices
-                        .get(&(table_id.node_id().to_string(), table_id.db_id()))
+                        .get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                         .map(|db_map| db_map.contains_key(&table_id.table_id()))
                         .unwrap_or(false);
                     assert_eq!(
@@ -1200,7 +1200,7 @@ mod update_all_from_object_store {
                 } => {
                     let indices = cache.inner.indices.read().await;
                     let cached = indices
-                        .get(&(table_id.node_id().to_string(), table_id.db_id()))
+                        .get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                         .and_then(|db_map| db_map.get(&table_id.table_id()));
                     let actual_count = if let Some(cached) = cached {
                         let index = cached.inner.index.read().await;
@@ -1319,7 +1319,7 @@ mod split_and_update_indices {
         }
 
         PersistedSnapshotVersion::V1(PersistedSnapshot {
-            node_id: node_prefix.to_string(),
+            node_id: Arc::from(node_prefix),
             next_file_id: ParquetFileId::from(next_file_id),
             snapshot_sequence_number: seq,
             wal_file_sequence_number: influxdb3_wal::WalFileSequenceNumber::new(seq.as_u64()),
@@ -2378,7 +2378,7 @@ mod purge {
                     PurgeTestStep::ExpectTableInCache { table_id, expected } => {
                         let indices = self.cache.inner.indices.read().await;
                         let is_cached = indices
-                            .get(&(table_id.node_id().to_string(), table_id.db_id()))
+                            .get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                             .map(|db_map| db_map.contains_key(&table_id.table_id()))
                             .unwrap_or(false);
                         assert_eq!(
@@ -2507,7 +2507,7 @@ mod purge {
                         // Manually insert into cache
                         let mut indices = self.cache.inner.indices.write().await;
                         let db_map = indices
-                            .entry((test.node_prefix.to_string(), db_id))
+                            .entry((Arc::from(test.node_prefix), db_id))
                             .or_insert_with(HashMap::new);
                         db_map.insert(table_id, CachedTableIndex::new(index));
                     }
@@ -2523,7 +2523,7 @@ mod purge {
                     } => {
                         let indices = self.cache.inner.indices.read().await;
                         let actual_count = indices
-                            .get(&(test.node_prefix.to_string(), db_id))
+                            .get(&(Arc::from(test.node_prefix), db_id))
                             .map(|db_map| db_map.len())
                             .unwrap_or(0);
                         assert_eq!(
@@ -2558,7 +2558,7 @@ mod purge {
                         // Verify no tables in cache
                         let indices = self.cache.inner.indices.read().await;
                         let has_tables = indices
-                            .get(&(test.node_prefix.to_string(), db_id))
+                            .get(&(Arc::from(test.node_prefix), db_id))
                             .map(|db_map| !db_map.is_empty())
                             .unwrap_or(false);
                         assert!(
@@ -2604,7 +2604,7 @@ mod purge {
                     } => {
                         let result = self
                             .cache
-                            .purge_expired(&node_id, db_id, table_id, cutoff_time_ns)
+                            .purge_expired(Arc::from(&*node_id), db_id, table_id, cutoff_time_ns)
                             .await;
 
                         assert!(
@@ -2620,7 +2620,7 @@ mod purge {
                         table_id,
                         cutoff_time_ns,
                     } => {
-                        let table_index_id = TableIndexId::new(&node_id, db_id, table_id);
+                        let table_index_id = TableIndexId::new(&*node_id, db_id, table_id);
 
                         // Verify files that should remain based on time ranges
                         if let Some(file_info) = self.file_time_info.get(&table_index_id) {

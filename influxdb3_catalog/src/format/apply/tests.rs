@@ -2,6 +2,7 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use pretty_assertions::assert_eq;
 use uuid::Uuid;
 
 use crate::catalog::CatalogSequenceNumber;
@@ -268,7 +269,7 @@ fn serialize_snapshot_empty_catalog_writes_compat_entry_only() {
     // An empty catalog snapshots to a header plus the single
     // backward-compatibility group-index entry: SNAPSHOT flag set, zero
     // records, all-zero entry (Global, zero records, zero bytes).
-    let catalog = test_catalog();
+    let mut catalog = test_catalog();
     let bytes = catalog.create_snapshot();
     let mut cursor = Cursor::new(bytes.as_ref());
     let header = Header::read_from(&mut cursor).expect("valid header");
@@ -333,7 +334,7 @@ fn create_snapshot_byte_layout_compat_entry_then_flat_records() {
     let first = &bytes.as_ref()[Header::SIZE + 24..Header::SIZE + 24 + RECORD_HEADER_SIZE];
     assert_eq!(
         u16::from_le_bytes(first[0..2].try_into().unwrap()),
-        input[0].id(),
+        input[0].id().raw(),
     );
     assert_eq!(
         u64::from_le_bytes(first[4..12].try_into().unwrap()),
@@ -369,11 +370,11 @@ fn snapshot_round_trip_preserves_application_order_and_sequences() {
     let mut cursor = Cursor::new(bytes.as_ref());
     let file = CatalogFile::read_from(&mut cursor).expect("reader parses snapshot");
 
-    let parsed: Vec<(u16, u64)> = snapshot_records(&file)
+    let parsed: Vec<(_, u64)> = snapshot_records(&file)
         .iter()
         .map(|r| (r.id(), r.header.sequence))
         .collect();
-    let expected: Vec<(u16, u64)> = input.iter().map(|r| (r.id(), r.header.sequence)).collect();
+    let expected: Vec<(_, u64)> = input.iter().map(|r| (r.id(), r.header.sequence)).collect();
     assert_eq!(parsed, expected);
 }
 
@@ -448,4 +449,72 @@ fn apply_records_failure_retains_pre_failure_records() {
     let records = snapshot_records(&parsed);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].id(), r1.id());
+}
+
+#[cfg(feature = "true_deletion")]
+#[test]
+fn apply_records_removes_hard_deleted_data() {
+    use crate::format::records::{
+        CreateTrigger, HardDeleteDatabase, HardDeleteTable, NextIdScope, SetNextId,
+        types::{NodeSpec, TriggerSettings, TriggerSpec},
+    };
+
+    let mut catalog = test_catalog();
+
+    let records = [
+        sample_register_node().make_record(1),
+        sample_create_database(1, 2),
+        sample_create_table(1, 1, 3),
+        sample_create_table(1, 2, 4),
+        sample_create_database(2, 5),
+        sample_create_table(2, 1, 6),
+        CreateTrigger {
+            trigger_id: 1,
+            trigger_name: "trigger1".to_string(),
+            plugin_filename: "plugin_filename".to_string(),
+            database_id: 1,
+            node_spec: NodeSpec::default(),
+            trigger: TriggerSpec::AllTablesWalWrite,
+            trigger_settings: TriggerSettings::default(),
+            trigger_arguments: None,
+            disabled: true,
+        }
+        .make_record(7),
+        HardDeleteDatabase { db_id: 1 }.make_record(8),
+        HardDeleteTable {
+            db_id: 2,
+            table_id: 1,
+        }
+        .make_record(9),
+    ];
+
+    apply_records(
+        &records,
+        &mut catalog,
+        CatalogSequenceNumber::new(1),
+        &mut RestorePreload::empty(),
+    )
+    .unwrap();
+
+    let snapshot = catalog.create_snapshot();
+    let mut cursor = Cursor::new(snapshot.as_ref());
+    let parsed = CatalogFile::read_from(&mut cursor).unwrap();
+    let records = snapshot_records(&parsed);
+
+    let expected_records = [
+        sample_register_node().make_record(1),
+        SetNextId {
+            id: 1,
+            scope: NextIdScope::Databases,
+        }
+        .make_record(2),
+        sample_create_database(2, 5),
+        SetNextId {
+            id: 1,
+            scope: NextIdScope::Tables { database_id: 2 },
+        }
+        .make_record(6),
+    ];
+
+    assert_eq!(&records, &expected_records);
 }

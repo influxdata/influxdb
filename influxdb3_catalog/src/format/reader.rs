@@ -44,9 +44,38 @@ impl CatalogFile {
         cursor: &mut Cursor<T>,
         verify_payload_crc: bool,
     ) -> Result<Self, FormatError> {
+        let header = Self::read_validated_header(cursor, verify_payload_crc)?;
+        let records = read_records(cursor, &header)?;
+        Ok(Self { header, records })
+    }
+
+    /// Validate a catalog file and return its [`Header`] without decoding the
+    /// records.
+    ///
+    /// Performs the same integrity checks as [`Self::read_from`] — header CRC,
+    /// payload-length bounds, and payload CRC32 — but skips record decoding.
+    /// Use when only header metadata (e.g. the sequence number) is needed yet a
+    /// truncated or corrupt file must still be rejected rather than passed
+    /// through to be discovered later.
+    pub fn read_verified_header<T: AsRef<[u8]>>(
+        cursor: &mut Cursor<T>,
+    ) -> Result<Header, FormatError> {
+        Self::read_validated_header(cursor, true)
+    }
+
+    /// Read the header and validate the payload-length bounds and (when
+    /// `verify_payload_crc`) the payload CRC, leaving the cursor at the start of
+    /// the payload. Shared by [`Self::read_inner`] and
+    /// [`Self::read_verified_header`] so the integrity checks are identical
+    /// whether or not the records are then decoded.
+    fn read_validated_header<T: AsRef<[u8]>>(
+        cursor: &mut Cursor<T>,
+        verify_payload_crc: bool,
+    ) -> Result<Header, FormatError> {
         let header = Header::read_from(cursor)?;
 
-        // Verify payload CRC over the next payload_len bytes.
+        // Verify the payload occupies its declared `payload_len` bytes and, when
+        // requested, matches the recorded CRC over that range.
         let pos = cursor.position() as usize;
         let payload_len = header.payload_len as usize;
         let underlying = cursor.get_ref().as_ref();
@@ -67,9 +96,7 @@ impl CatalogFile {
             }
         }
 
-        let records = read_records(cursor, &header)?;
-
-        Ok(Self { header, records })
+        Ok(header)
     }
 
     /// Get the sequence number from the file header.

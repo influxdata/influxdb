@@ -1551,7 +1551,11 @@ impl TableTransaction {
     #[inline]
     fn check_columns_limit(&self) -> Result<()> {
         if self.num_columns() >= self.column_limit {
-            Err(CatalogError::TooManyColumns(self.column_limit))
+            Err(CatalogError::too_many_columns(
+                self.table.table_name.as_ref(),
+                self.num_columns() + 1,
+                self.column_limit,
+            ))
         } else {
             Ok(())
         }
@@ -1628,7 +1632,11 @@ impl TableTransaction {
         key::is_valid(key::Type::Tag, tag.as_ref())?;
 
         if self.table.tag_columns.len() >= NUM_TAG_COLUMNS_LIMIT {
-            return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
+            return Err(CatalogError::too_many_tag_columns(
+                self.table.table_name.as_ref(),
+                self.table.tag_columns.len() + 1,
+                NUM_TAG_COLUMNS_LIMIT,
+            ));
         }
 
         self.check_columns_limit()?;
@@ -1975,10 +1983,18 @@ impl DatabaseCatalogTransaction {
         }
         if let Some(c) = columns.as_ref() {
             if c.tags.len() > NUM_TAG_COLUMNS_LIMIT {
-                return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
+                return Err(CatalogError::too_many_tag_columns(
+                    table_name,
+                    c.tags.len(),
+                    NUM_TAG_COLUMNS_LIMIT,
+                ));
             }
             if c.num_columns() > self.columns_per_table_limit {
-                return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
+                return Err(CatalogError::too_many_columns(
+                    table_name,
+                    c.num_columns(),
+                    self.columns_per_table_limit,
+                ));
             }
         }
 

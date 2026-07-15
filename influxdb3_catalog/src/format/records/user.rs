@@ -152,7 +152,7 @@ pub struct RestoreUser {
     /// User ID.
     pub user_id: u64,
     /// Optional new display name.
-    pub display_name: Option<String>,
+    pub display_name: Option<Arc<str>>,
     /// Restore timestamp in milliseconds.
     pub restored_at: i64,
 }
@@ -168,7 +168,7 @@ impl CatalogRecord for RestoreUser {
             .users
             .restore_user(
                 user_id,
-                self.display_name.as_ref().map(|s| Arc::from(s.as_str())),
+                self.display_name.as_ref().map(Arc::clone),
                 self.restored_at,
             )
             .map_err(|e| {

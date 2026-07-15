@@ -106,17 +106,25 @@ impl ObjectStoreCatalog {
         self.load_file(&path).await
     }
 
-    async fn load_file(&self, path: &CatalogFilePath) -> Result<Option<(CatalogFile, u64)>> {
+    /// Fetch the raw bytes of the object at `path`, returning `Ok(None)` if it
+    /// does not exist. Other object-store errors propagate. Shared by
+    /// [`Self::load_file`] and [`Self::checkpoint_for_backup`] so the
+    /// get/NotFound handling lives in one place.
+    async fn read_file_bytes(&self, path: &CatalogFilePath) -> Result<Option<Bytes>> {
         match self.store.get(path).await {
-            Ok(get_result) => {
-                let bytes = get_result.bytes().await?;
-                let size_bytes = bytes.len() as u64;
-                let mut cursor = Cursor::new(bytes.as_ref());
-                Ok(Some((CatalogFile::read_from(&mut cursor)?, size_bytes)))
-            }
+            Ok(get_result) => Ok(Some(get_result.bytes().await?)),
             Err(object_store::Error::NotFound { .. }) => Ok(None),
             Err(error) => Err(error.into()),
         }
+    }
+
+    async fn load_file(&self, path: &CatalogFilePath) -> Result<Option<(CatalogFile, u64)>> {
+        let Some(bytes) = self.read_file_bytes(path).await? else {
+            return Ok(None);
+        };
+        let size_bytes = bytes.len() as u64;
+        let mut cursor = Cursor::new(bytes.as_ref());
+        Ok(Some((CatalogFile::read_from(&mut cursor)?, size_bytes)))
     }
 
     /// Reconstruct an [`InnerCatalog`] from the object store: load the
@@ -397,16 +405,24 @@ impl ObjectStoreCatalog {
     /// separate "checkpoint" file maps onto this single snapshot file.
     pub(crate) async fn checkpoint_for_backup(&self) -> Result<CatalogCheckpointForBackup> {
         let path = CatalogFilePath::snapshot(&self.prefix);
-        let (snapshot, _size_bytes) = self.load_file(&path).await?.ok_or_else(|| {
-            ObjectStoreCatalogError::unexpected(format!(
+        let Some(bytes) = self.read_file_bytes(&path).await? else {
+            return Err(ObjectStoreCatalogError::unexpected(format!(
                 "no catalog snapshot found for backup at {}",
                 path.as_ref(),
-            ))
-        })?;
+            )));
+        };
+        // The raw bytes are copied verbatim into the backup, so the records do
+        // not need decoding here. Still validate the header, payload-length
+        // bounds, and payload CRC so a truncated or corrupt snapshot is rejected
+        // now rather than surfacing at restore time, then take the sequence
+        // from the validated header.
+        let mut cursor = Cursor::new(bytes.as_ref());
+        let sequence = CatalogFile::read_verified_header(&mut cursor)?.sequence_number;
 
         Ok(CatalogCheckpointForBackup {
-            sequence: CatalogSequenceNumber::new(snapshot.sequence_number()),
+            sequence: CatalogSequenceNumber::new(sequence),
             path: path.into(),
+            bytes,
         })
     }
 

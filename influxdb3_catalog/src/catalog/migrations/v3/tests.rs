@@ -11,7 +11,6 @@ use influxdb3_id::{
 use uuid::Uuid;
 
 use super::synthesize_records;
-use crate::catalog::CatalogSequenceNumber;
 use crate::catalog::versions::v2::{
     DeletionScope as V2DeletionScope, FieldFamilyMode as V2FieldFamilyMode,
     FieldFamilyName as V2FieldFamilyName,
@@ -46,6 +45,7 @@ use crate::snapshot::versions::v4::{
     SystemActionsSnapshot, TableSnapshot, TagColumnSnapshot, TimestampColumnSnapshot,
     TokenInfoSnapshot,
 };
+use crate::{catalog::CatalogSequenceNumber, format::RecordId};
 
 // ---------------------------------------------------------------------------
 // Snapshot builders
@@ -274,8 +274,8 @@ fn generation_config_emits_one_record_per_level() {
     let records = batch.as_slice();
 
     assert_eq!(records.len(), 2);
-    assert_eq!(records[0].id(), record_ids::SET_GENERATION_DURATION.raw());
-    assert_eq!(records[1].id(), record_ids::SET_GENERATION_DURATION.raw());
+    assert_eq!(records[0].id(), record_ids::SET_GENERATION_DURATION);
+    assert_eq!(records[1].id(), record_ids::SET_GENERATION_DURATION);
 }
 
 #[test]
@@ -293,7 +293,7 @@ fn storage_mode_non_default_emits_one_record() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].id(), record_ids::SET_STORAGE_MODE.raw());
+    assert_eq!(records[0].id(), record_ids::SET_STORAGE_MODE);
 }
 
 #[test]
@@ -306,7 +306,7 @@ fn running_node_emits_register_only() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].id(), record_ids::REGISTER_NODE.raw());
+    assert_eq!(records[0].id(), record_ids::REGISTER_NODE);
 }
 
 #[test]
@@ -322,8 +322,8 @@ fn stopped_node_emits_register_then_stop_with_zero_registration() {
     // RegisterNode is emitted with the placeholder registration time, then
     // StopNode drives the node into the Stopped state.
     assert_eq!(records.len(), 2);
-    assert_eq!(records[0].id(), record_ids::REGISTER_NODE.raw());
-    assert_eq!(records[1].id(), record_ids::STOP_NODE.raw());
+    assert_eq!(records[0].id(), record_ids::REGISTER_NODE);
+    assert_eq!(records[1].id(), record_ids::STOP_NODE);
 
     let register = RegisterNode::decode(&records[0].data).expect("decode RegisterNode");
     assert_eq!(register.registered_time_ns, 0);
@@ -353,7 +353,7 @@ fn database_emits_create_with_name_and_id() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE.raw());
+    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE);
 
     let create = CreateDatabase::decode(&records[0].data).expect("decode CreateDatabase");
     assert_eq!(create.database_id, 10);
@@ -398,8 +398,8 @@ fn soft_deleted_database_emits_soft_delete_after_create() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 2);
-    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE.raw());
-    assert_eq!(records[1].id(), record_ids::SOFT_DELETE_DATABASE.raw());
+    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE);
+    assert_eq!(records[1].id(), record_ids::SOFT_DELETE_DATABASE);
 
     let soft = SoftDeleteDatabase::decode(&records[1].data).expect("decode SoftDeleteDatabase");
     assert_eq!(soft.database_id, 20);
@@ -522,9 +522,9 @@ fn database_with_triggers_emits_create_trigger_per_trigger() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 3);
-    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE.raw());
-    assert_eq!(records[1].id(), record_ids::CREATE_TRIGGER.raw());
-    assert_eq!(records[2].id(), record_ids::CREATE_TRIGGER.raw());
+    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE);
+    assert_eq!(records[1].id(), record_ids::CREATE_TRIGGER);
+    assert_eq!(records[2].id(), record_ids::CREATE_TRIGGER);
 
     let names: Vec<String> = records[1..]
         .iter()
@@ -587,8 +587,8 @@ fn empty_database_emits_no_table_records() {
         .insert(DbId::new(1), database(1, "db", None));
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
-    assert_eq!(ids, vec![record_ids::CREATE_DATABASE.raw()]);
+    let ids: Vec<RecordId> = batch.as_slice().iter().map(|r| r.id()).collect();
+    assert_eq!(ids, [record_ids::CREATE_DATABASE]);
 }
 
 #[test]
@@ -607,9 +607,9 @@ fn table_emits_create_then_add_columns() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 3);
-    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE.raw());
-    assert_eq!(records[1].id(), record_ids::CREATE_TABLE.raw());
-    assert_eq!(records[2].id(), record_ids::ADD_COLUMNS.raw());
+    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE);
+    assert_eq!(records[1].id(), record_ids::CREATE_TABLE);
+    assert_eq!(records[2].id(), record_ids::ADD_COLUMNS);
 
     let create = CreateTable::decode(&records[1].data).expect("decode CreateTable");
     assert_eq!(create.table_id, 100);
@@ -722,13 +722,13 @@ fn table_without_timestamp_column_gets_one_synthesized() {
     snap.databases.repo.insert(DbId::new(1), db);
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
+    let ids: Vec<RecordId> = batch.as_slice().iter().map(|r| r.id()).collect();
     assert_eq!(
         ids,
-        vec![
-            record_ids::CREATE_DATABASE.raw(),
-            record_ids::CREATE_TABLE.raw(),
-            record_ids::ADD_COLUMNS.raw(),
+        [
+            record_ids::CREATE_DATABASE,
+            record_ids::CREATE_TABLE,
+            record_ids::ADD_COLUMNS,
         ]
     );
 
@@ -762,13 +762,13 @@ fn table_with_max_legacy_columns_but_no_time_gets_none_column_id_for_time() {
     snap.databases.repo.insert(DbId::new(1), db);
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
+    let ids: Vec<RecordId> = batch.as_slice().iter().map(|r| r.id()).collect();
     assert_eq!(
         ids,
-        vec![
-            record_ids::CREATE_DATABASE.raw(),
-            record_ids::CREATE_TABLE.raw(),
-            record_ids::ADD_COLUMNS.raw(),
+        [
+            record_ids::CREATE_DATABASE,
+            record_ids::CREATE_TABLE,
+            record_ids::ADD_COLUMNS,
         ]
     );
     let add = AddColumns::decode(&batch.as_slice()[2].data).expect("decode AddColumns");
@@ -847,10 +847,10 @@ fn soft_deleted_table_emits_soft_delete_with_recovered_deletion_timestamp() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 4);
-    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE.raw());
-    assert_eq!(records[1].id(), record_ids::CREATE_TABLE.raw());
-    assert_eq!(records[2].id(), record_ids::ADD_COLUMNS.raw());
-    assert_eq!(records[3].id(), record_ids::SOFT_DELETE_TABLE.raw());
+    assert_eq!(records[0].id(), record_ids::CREATE_DATABASE);
+    assert_eq!(records[1].id(), record_ids::CREATE_TABLE);
+    assert_eq!(records[2].id(), record_ids::ADD_COLUMNS);
+    assert_eq!(records[3].id(), record_ids::SOFT_DELETE_TABLE);
 
     let create = CreateTable::decode(&records[1].data).expect("decode CreateTable");
     assert_eq!(create.table_name, "metrics");
@@ -949,14 +949,14 @@ fn last_cache_synthesized_per_table_cache() {
     snap.databases.repo.insert(DbId::new(1), db);
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
+    let ids: Vec<_> = batch.as_slice().iter().map(|r| r.id()).collect();
     assert_eq!(
         ids,
-        vec![
-            record_ids::CREATE_DATABASE.raw(),
-            record_ids::CREATE_TABLE.raw(),
-            record_ids::ADD_COLUMNS.raw(),
-            record_ids::CREATE_LAST_CACHE.raw(),
+        [
+            record_ids::CREATE_DATABASE,
+            record_ids::CREATE_TABLE,
+            record_ids::ADD_COLUMNS,
+            record_ids::CREATE_LAST_CACHE,
         ]
     );
 
@@ -1007,14 +1007,14 @@ fn distinct_cache_synthesized_per_table_cache() {
     snap.databases.repo.insert(DbId::new(1), db);
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
+    let ids: Vec<_> = batch.as_slice().iter().map(|r| r.id()).collect();
     assert_eq!(
         ids,
-        vec![
-            record_ids::CREATE_DATABASE.raw(),
-            record_ids::CREATE_TABLE.raw(),
-            record_ids::ADD_COLUMNS.raw(),
-            record_ids::CREATE_DISTINCT_CACHE.raw(),
+        [
+            record_ids::CREATE_DATABASE,
+            record_ids::CREATE_TABLE,
+            record_ids::ADD_COLUMNS,
+            record_ids::CREATE_DISTINCT_CACHE,
         ]
     );
 
@@ -1073,16 +1073,16 @@ fn caches_emitted_between_add_columns_and_soft_delete() {
     snap.databases.repo.insert(DbId::new(1), db);
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
+    let ids: Vec<_> = batch.as_slice().iter().map(|r| r.id()).collect();
     assert_eq!(
         ids,
-        vec![
-            record_ids::CREATE_DATABASE.raw(),
-            record_ids::CREATE_TABLE.raw(),
-            record_ids::ADD_COLUMNS.raw(),
-            record_ids::CREATE_LAST_CACHE.raw(),
-            record_ids::CREATE_DISTINCT_CACHE.raw(),
-            record_ids::SOFT_DELETE_TABLE.raw(),
+        [
+            record_ids::CREATE_DATABASE,
+            record_ids::CREATE_TABLE,
+            record_ids::ADD_COLUMNS,
+            record_ids::CREATE_LAST_CACHE,
+            record_ids::CREATE_DISTINCT_CACHE,
+            record_ids::SOFT_DELETE_TABLE,
         ]
     );
 }
@@ -1136,15 +1136,15 @@ fn tables_emitted_before_triggers_and_soft_delete() {
     snap.databases.repo.insert(DbId::new(1), db);
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
+    let ids: Vec<_> = batch.as_slice().iter().map(|r| r.id()).collect();
     assert_eq!(
         ids,
-        vec![
-            record_ids::CREATE_DATABASE.raw(),
-            record_ids::CREATE_TABLE.raw(),
-            record_ids::ADD_COLUMNS.raw(),
-            record_ids::CREATE_TRIGGER.raw(),
-            record_ids::SOFT_DELETE_DATABASE.raw(),
+        [
+            record_ids::CREATE_DATABASE,
+            record_ids::CREATE_TABLE,
+            record_ids::ADD_COLUMNS,
+            record_ids::CREATE_TRIGGER,
+            record_ids::SOFT_DELETE_DATABASE,
         ]
     );
 }
@@ -1159,7 +1159,7 @@ fn admin_token_emits_create_admin_token() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].id(), record_ids::CREATE_ADMIN_TOKEN.raw());
+    assert_eq!(records[0].id(), record_ids::CREATE_ADMIN_TOKEN);
 
     let token = CreateAdminToken::decode(&records[0].data).expect("decode CreateAdminToken");
     assert_eq!(token.token_id, 1);
@@ -1229,10 +1229,7 @@ fn resource_scoped_token_emits_create_resource_scoped_token() {
     let batch = synthesize_records(&snap);
     let records = batch.as_slice();
     assert_eq!(records.len(), 1);
-    assert_eq!(
-        records[0].id(),
-        record_ids::CREATE_RESOURCE_SCOPED_TOKEN.raw()
-    );
+    assert_eq!(records[0].id(), record_ids::CREATE_RESOURCE_SCOPED_TOKEN);
 
     let token = CreateResourceScopedToken::decode(&records[0].data)
         .expect("decode CreateResourceScopedToken");
@@ -1368,13 +1365,10 @@ fn tokens_emitted_after_databases() {
         .insert(TokenId::from(1), admin_token(1, "admin"));
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
+    let ids: Vec<_> = batch.as_slice().iter().map(|r| r.id()).collect();
     assert_eq!(
         ids,
-        vec![
-            record_ids::CREATE_DATABASE.raw(),
-            record_ids::CREATE_ADMIN_TOKEN.raw(),
-        ]
+        [record_ids::CREATE_DATABASE, record_ids::CREATE_ADMIN_TOKEN,]
     );
 }
 
@@ -1390,7 +1384,7 @@ fn no_set_next_id_when_repo_next_matches_max_plus_one() {
     let has_set_next = batch
         .as_slice()
         .iter()
-        .any(|r| r.id() == record_ids::SET_NEXT_ID.raw());
+        .any(|r| r.id() == record_ids::SET_NEXT_ID);
     assert!(!has_set_next);
 }
 
@@ -1408,7 +1402,7 @@ fn set_next_id_for_databases_when_top_db_was_hard_deleted() {
     let records = batch.as_slice();
     let set_next = records
         .iter()
-        .find(|r| r.id() == record_ids::SET_NEXT_ID.raw())
+        .find(|r| r.id() == record_ids::SET_NEXT_ID)
         .expect("SetNextId emitted");
     let s = SetNextId::decode(&set_next.data).expect("decode SetNextId");
     assert!(matches!(s.scope, NextIdScope::Databases));
@@ -1594,7 +1588,7 @@ fn decode_set_next_id(
     batch
         .as_slice()
         .iter()
-        .filter(|r| r.id() == record_ids::SET_NEXT_ID.raw())
+        .filter(|r| r.id() == record_ids::SET_NEXT_ID)
         .filter_map(|r| SetNextId::decode(&r.data).ok())
         .find(|s| std::mem::discriminant(&s.scope) == std::mem::discriminant(&expected_scope))
 }
@@ -1611,13 +1605,13 @@ fn triggers_emitted_between_create_database_and_soft_delete() {
     snap.databases.repo.insert(DbId::new(43), db);
 
     let batch = synthesize_records(&snap);
-    let ids: Vec<u16> = batch.as_slice().iter().map(|r| r.id()).collect();
+    let ids: Vec<_> = batch.as_slice().iter().map(|r| r.id()).collect();
     assert_eq!(
         ids,
-        vec![
-            record_ids::CREATE_DATABASE.raw(),
-            record_ids::CREATE_TRIGGER.raw(),
-            record_ids::SOFT_DELETE_DATABASE.raw(),
+        [
+            record_ids::CREATE_DATABASE,
+            record_ids::CREATE_TRIGGER,
+            record_ids::SOFT_DELETE_DATABASE,
         ]
     );
 }
@@ -1686,7 +1680,7 @@ mod runner {
             Arc::clone(&store),
             V3StorageMode::default(),
         );
-        let v3_inner = crate::catalog::versions::v3::inner::InnerCatalog::new(
+        let mut v3_inner = crate::catalog::versions::v3::inner::InnerCatalog::new(
             Arc::clone(&prefix),
             Uuid::nil(),
         );

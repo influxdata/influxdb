@@ -69,7 +69,7 @@ fn restore_user_roundtrip() {
     assert_roundtrip!(
         RestoreUser {
             user_id: 1,
-            display_name: Some("Restored User".to_string()),
+            display_name: Some(Arc::from("Restored User")),
             restored_at: 1234567890,
         },
         "0601010d526573746f726564205573657202d2029649"

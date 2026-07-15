@@ -7,7 +7,8 @@ use anyhow::Context;
 use futures::future::try_join_all;
 use hashbrown::HashMap;
 use influxdb3_id::{
-    DbId, DistinctCacheId, LastCacheId, NodeId, RoleId, TableId, TokenId, TriggerId, UserId,
+    DbId, DistinctCacheId, LastCacheId, NodeId, QueryGroupId, RoleId, TableId, TokenId, TriggerId,
+    UserId,
 };
 use thiserror::Error;
 use tokio::sync::{Notify, mpsc, oneshot};
@@ -27,11 +28,7 @@ pub struct SubscriptionError(#[from] anyhow::Error);
 const CATALOG_SUBSCRIPTION_BUFFER_SIZE: usize = 1;
 
 /// A domain event describing a catalog state change.
-///
-/// `#[non_exhaustive]`: subscribers in other crates must include a wildcard
-/// arm, so adding a variant here cannot silently bypass their handling.
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum CatalogEvent {
     // Cluster feature level has advanced
     FeatureLevelAdvanced {
@@ -199,6 +196,17 @@ pub enum CatalogEvent {
     UserRolesUpdated {
         user_id: UserId,
         role_ids: Vec<RoleId>,
+    },
+
+    // Query group
+    QueryGroupCreated {
+        query_group_id: QueryGroupId,
+    },
+    QueryGroupUpdated {
+        query_group_id: QueryGroupId,
+    },
+    QueryGroupDeleted {
+        query_group_id: QueryGroupId,
     },
 
     // Role

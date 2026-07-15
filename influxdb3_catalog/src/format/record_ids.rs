@@ -112,3 +112,8 @@ pub(crate) const DELETE_LOGIN_IDENTITY_OAUTH: RecordId = RecordId::enterprise(5)
 
 // Restore (replaces catalog state from a backup)
 pub(crate) const RESTORE_CATALOG: RecordId = RecordId::enterprise(6);
+
+// Query groups
+pub(crate) const CREATE_QUERY_GROUP: RecordId = RecordId::enterprise(7);
+pub(crate) const UPDATE_QUERY_GROUP: RecordId = RecordId::enterprise(8);
+pub(crate) const DELETE_QUERY_GROUP: RecordId = RecordId::enterprise(9);

@@ -171,7 +171,7 @@ impl CatalogOp for DeleteUserOp {
 #[derive(Debug)]
 pub(crate) struct RestoreUserArgs {
     pub user_id: UserId,
-    pub display_name: Option<String>,
+    pub display_name: Option<Arc<str>>,
     pub restored_at: i64,
 }
 

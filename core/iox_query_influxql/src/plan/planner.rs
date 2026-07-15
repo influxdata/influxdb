@@ -574,8 +574,10 @@ impl<'a> Context<'a> {
         self.fill
     }
 
-    /// Apply a projection to the input plan to ensure
-    /// that the time column is in the correct timezone.
+    /// Apply a projection to the input plan to ensure that the time column is
+    /// in the correct timezone. Skips the wrap when it would be equivalent
+    /// (no instant shift), preserving parquet pruning on `time`. See
+    /// <https://github.com/influxdata/EAR/issues/6957>.
     fn project_timezone(&self, builder: LogicalPlanBuilder) -> Result<LogicalPlanBuilder> {
         let Some(otz) = &self.tz else {
             return Ok(builder);
@@ -588,7 +590,7 @@ impl<'a> Context<'a> {
             .map(
                 |column| match schema.field_from_column(&column).unwrap().data_type() {
                     DataType::Timestamp(_, itz) => {
-                        if itz.as_ref().is_some_and(|itz| itz == otz) {
+                        if tz_is_equivalent(itz.as_deref(), otz) {
                             Expr::Column(column)
                         } else {
                             let name = column.name().to_string();
@@ -619,6 +621,16 @@ impl<'a> Context<'a> {
             ),
             None,
         )
+    }
+}
+
+/// Whether `tz(col, otz)` would be the identity on instants for a column whose
+/// stored timezone is `itz`. The UDF retags timezone metadata only, and treats
+/// a `None` storage tz as UTC.
+fn tz_is_equivalent(itz: Option<&str>, otz: &str) -> bool {
+    match itz {
+        Some(itz) => itz == otz,
+        None => otz.eq_ignore_ascii_case("UTC"),
     }
 }
 
@@ -4669,6 +4681,24 @@ mod tests {
             Ok(res) => res.display_indent_schema().to_string(),
             Err(err) => err.to_string(),
         }
+    }
+
+    #[test]
+    fn test_tz_is_equivalent() {
+        // EAR #6957: storage tz unset, target UTC.
+        assert!(tz_is_equivalent(None, "UTC"));
+
+        // Identical zones (canonical names from `chrono_tz::Tz::name()`).
+        assert!(tz_is_equivalent(Some("UTC"), "UTC"));
+        assert!(tz_is_equivalent(
+            Some("America/Los_Angeles"),
+            "America/Los_Angeles"
+        ));
+
+        // Different zones: not equivalent — the projection's display zone changes.
+        assert!(!tz_is_equivalent(Some("America/Los_Angeles"), "UTC"));
+        assert!(!tz_is_equivalent(Some("UTC"), "America/Los_Angeles"));
+        assert!(!tz_is_equivalent(None, "America/Los_Angeles"));
     }
 
     #[test]

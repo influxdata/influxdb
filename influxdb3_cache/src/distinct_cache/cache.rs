@@ -86,7 +86,10 @@ impl DistinctCache {
             return Err(CacheError::EmptyColumnSet);
         }
         let table_def = legacy::TableDefinition::new(Arc::clone(&table_def));
-        let column_ids = table_def.ids_to_column_ids(&column_ids).copied().collect();
+        // Annotated because on macOS objc2's recursive `IntoIterator for
+        // &Retained<T>` impl overflows inference (E0275) when the loop below
+        // sees an unresolved collect target.
+        let column_ids: Vec<ColumnId> = table_def.ids_to_column_ids(&column_ids).copied().collect();
         let mut builder = SchemaBuilder::new();
         for id in &column_ids {
             let col = table_def.columns.get_by_id(id).with_context(|| {

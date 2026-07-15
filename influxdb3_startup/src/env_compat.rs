@@ -41,10 +41,6 @@ pub const ENV_ALIASES: &[(&str, &str)] = &[
         "OBJECT_STORE_RETRY_TIMEOUT",
     ),
     (
-        "INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT",
-        "OBJECT_STORE_CACHE_ENDPOINT",
-    ),
-    (
         "INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE",
         "OBJECT_STORE_TLS_ALLOW_INSECURE",
     ),
@@ -82,6 +78,16 @@ pub const ENV_ALIASES: &[(&str, &str)] = &[
     (
         "INFLUXDB3_TRACES_JAEGER_MAX_MSGS_PER_SECOND",
         "TRACES_JAEGER_MAX_MSGS_PER_SECOND",
+    ),
+    // Tokio Console
+    ("INFLUXDB3_TOKIO_CONSOLE_ENABLED", "TOKIO_CONSOLE_ENABLED"),
+    (
+        "INFLUXDB3_TOKIO_CONSOLE_CLIENT_BUFFER_CAPACITY",
+        "TOKIO_CONSOLE_CLIENT_BUFFER_CAPACITY",
+    ),
+    (
+        "INFLUXDB3_TOKIO_CONSOLE_EVENT_BUFFER_CAPACITY",
+        "TOKIO_CONSOLE_EVENT_BUFFER_CAPACITY",
     ),
 ];
 
@@ -146,8 +152,8 @@ mod tests {
 
     #[test]
     fn test_shared_aliases_count() {
-        // 9 object store generic + 3 logging + 8 tracing = 20
-        assert_eq!(ENV_ALIASES.len(), 20);
+        // 8 object store generic + 3 logging + 8 tracing + 3 tokio console = 22
+        assert_eq!(ENV_ALIASES.len(), 22);
     }
 
     #[test]

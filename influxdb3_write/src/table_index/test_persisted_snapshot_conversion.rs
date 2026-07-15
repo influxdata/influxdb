@@ -106,7 +106,9 @@ fn create_persisted_snapshot(args: CreateTestPersistedSnapshotArgs) -> Persisted
     }
 
     PersistedSnapshot {
-        node_id: args.node_id.unwrap_or_else(|| "test_host".to_string()),
+        node_id: args
+            .node_id
+            .map_or_else(|| Arc::from("test_host"), Arc::from),
         next_file_id: ParquetFileId::from(args.sequence_number),
         snapshot_sequence_number: SnapshotSequenceNumber::new(args.sequence_number),
         wal_file_sequence_number: WalFileSequenceNumber::new(args.sequence_number),
@@ -636,7 +638,7 @@ fn validate(#[case] tc: TestCase) {
         // Verify common fields
         assert_eq!(
             table_snapshot.id.node_id(),
-            snapshot.node_id,
+            &snapshot.node_id,
             "node_id mismatch",
         );
         assert_eq!(

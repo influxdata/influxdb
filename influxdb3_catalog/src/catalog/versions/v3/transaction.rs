@@ -24,10 +24,9 @@ use crate::catalog::versions::v3::schema::column::{
 use crate::catalog::versions::v3::schema::database::DatabaseSchema;
 use crate::catalog::versions::v3::schema::storage::StorageMode;
 use crate::catalog::versions::v3::schema::table::TableDefinition;
-use crate::catalog::versions::v3::{
-    NUM_FIELD_FAMILIES_LIMIT, NUM_FIELDS_PER_FAMILY_LIMIT, NUM_TAG_COLUMNS_LIMIT,
-};
+use crate::catalog::versions::v3::{NUM_FIELD_FAMILIES_LIMIT, NUM_FIELDS_PER_FAMILY_LIMIT};
 use crate::catalog::{CatalogSequenceNumber, CreateTableOptions, RetentionPeriod};
+use crate::error::TruncatedTableName;
 use crate::format::records::types::{
     ColumnDefinition as WireColumnDef, FieldColumn as WireFieldColumn,
     FieldDataType as WireFieldDataType, FieldFamilyDefinition as WireFieldFamilyDef,
@@ -121,6 +120,7 @@ pub struct DatabaseCatalogTransaction {
     current_table_count: usize,
     table_limit: usize,
     columns_per_table_limit: usize,
+    tag_columns_per_table_limit: usize,
     /// Determines how the legacy `ColumnId` is managed.
     storage_mode: StorageMode,
 }
@@ -141,6 +141,7 @@ impl DatabaseCatalogTransaction {
         current_table_count: usize,
         table_limit: usize,
         columns_per_table_limit: usize,
+        tag_columns_per_table_limit: usize,
         storage_mode: StorageMode,
     ) -> Self {
         Self {
@@ -151,6 +152,7 @@ impl DatabaseCatalogTransaction {
             current_table_count,
             table_limit,
             columns_per_table_limit,
+            tag_columns_per_table_limit,
             storage_mode,
         }
     }
@@ -236,6 +238,7 @@ impl DatabaseCatalogTransaction {
                 new_columns: Vec::new(),
                 new_field_families: Vec::new(),
                 column_limit: self.columns_per_table_limit,
+                tag_column_limit: self.tag_columns_per_table_limit,
                 storage_mode: self.storage_mode,
                 retention_period,
             },
@@ -345,6 +348,65 @@ impl DatabaseCatalogTransaction {
         self.inner
     }
 
+    /// Check that adding the incoming write columns won't exceed column limits.
+    ///
+    /// Computes projected counts for the full write by counting only columns
+    /// that do not already exist in the table schema. Write validation calls
+    /// this after a per-column limit breach to rewrite the error with the
+    /// final projected count instead of "current + 1"; enforcement itself
+    /// stays with the per-column checks so the success path pays nothing.
+    pub fn check_write_column_limits(
+        &mut self,
+        table_name: &str,
+        incoming_tags: &[&str],
+        incoming_fields: &[&str],
+    ) -> Result<()> {
+        let column_limit = self.columns_per_table_limit;
+        let tag_column_limit = self.tag_columns_per_table_limit;
+        let Some(table_id) = self.table_id_by_name(table_name) else {
+            return Ok(());
+        };
+        let table_tx = self
+            .tables
+            .get(&table_id)
+            .expect("table transaction should exist after table_id_by_name");
+
+        // Collect into sets so duplicate keys within a single line count once.
+        let new_tags = incoming_tags
+            .iter()
+            .filter(|t| table_tx.table.column_definition(t).is_none())
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+        let new_fields = incoming_fields
+            .iter()
+            .filter(|f| table_tx.table.column_definition(f).is_none())
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+
+        let projected_tag_count = table_tx.table.num_tag_columns() + new_tags;
+        let projected_total = table_tx.table.num_tag_columns()
+            + table_tx.table.num_field_columns()
+            + new_tags
+            + new_fields;
+
+        if projected_tag_count > tag_column_limit {
+            return Err(CatalogError::TooManyTagColumns {
+                table_name: TruncatedTableName::new(Arc::clone(&table_tx.table.table_name)),
+                attempted: projected_tag_count,
+                limit: tag_column_limit,
+            });
+        }
+        if projected_total > column_limit {
+            return Err(CatalogError::TooManyColumns {
+                table_name: TruncatedTableName::new(Arc::clone(&table_tx.table.table_name)),
+                attempted: projected_total,
+                limit: column_limit,
+            });
+        }
+
+        Ok(())
+    }
+
     fn table_id_by_name(&mut self, table_name: &str) -> Option<TableId> {
         for (id, tx) in &self.tables {
             if tx.table.table_name.as_ref() == table_name {
@@ -358,6 +420,7 @@ impl DatabaseCatalogTransaction {
                 TableTransaction::from_existing(
                     table_def.as_ref().clone(),
                     self.columns_per_table_limit,
+                    self.tag_columns_per_table_limit,
                     self.storage_mode,
                 )
             });
@@ -383,6 +446,7 @@ pub struct TableTransaction {
     new_columns: Vec<WireColumnDef>,
     new_field_families: Vec<WireFieldFamilyDef>,
     column_limit: usize,
+    tag_column_limit: usize,
     storage_mode: StorageMode,
     retention_period: WireRetentionPeriod,
 }
@@ -391,6 +455,7 @@ impl TableTransaction {
     fn from_existing(
         table: TableDefinition,
         column_limit: usize,
+        tag_column_limit: usize,
         storage_mode: StorageMode,
     ) -> Self {
         Self {
@@ -404,6 +469,7 @@ impl TableTransaction {
             new_columns: Vec::new(),
             new_field_families: Vec::new(),
             column_limit,
+            tag_column_limit,
             storage_mode,
         }
     }
@@ -429,8 +495,13 @@ impl TableTransaction {
             limit = self.column_limit,
             "check column limit",
         );
-        if self.table.num_tag_columns() + self.table.num_field_columns() >= self.column_limit {
-            Err(CatalogError::TooManyColumns(self.column_limit))
+        let current = self.table.num_tag_columns() + self.table.num_field_columns();
+        if current >= self.column_limit {
+            Err(CatalogError::TooManyColumns {
+                table_name: TruncatedTableName::new(Arc::clone(&self.table.table_name)),
+                attempted: current + 1,
+                limit: self.column_limit,
+            })
         } else {
             Ok(())
         }
@@ -551,8 +622,12 @@ impl TableTransaction {
 
     fn add_tag(&mut self, name: &str) -> Result<ColumnDefinition> {
         self.table.check_name(name)?;
-        if self.table.tag_columns.len() >= NUM_TAG_COLUMNS_LIMIT {
-            return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
+        if self.table.tag_columns.len() >= self.tag_column_limit {
+            return Err(CatalogError::TooManyTagColumns {
+                table_name: TruncatedTableName::new(Arc::clone(&self.table.table_name)),
+                attempted: self.table.tag_columns.len() + 1,
+                limit: self.tag_column_limit,
+            });
         }
         self.check_columns_limit()?;
         let col_id = self.next_legacy_column_id()?;

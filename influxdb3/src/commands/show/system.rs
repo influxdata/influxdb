@@ -17,6 +17,9 @@ pub(crate) enum Error {
 
     #[error("system table '{0}' not found: {1}")]
     SystemTableNotFound(String, SystemTableNotFound),
+
+    #[error("parquet format is not supported for this command")]
+    ParquetFormatNotSupported,
 }
 
 pub(super) type Result<T> = std::result::Result<T, Error>;
@@ -43,6 +46,15 @@ pub(super) enum SubCommand {
 }
 
 pub(super) async fn command(config: SystemConfig) -> Result<()> {
+    let output_format = match &config.subcommand {
+        SubCommand::TableList(cfg) => cfg.output_format,
+        SubCommand::Table(cfg) => cfg.output_format,
+        SubCommand::Summary(cfg) => cfg.output_format,
+    };
+    if output_format.is_parquet() {
+        return Err(Error::ParquetFormatNotSupported);
+    }
+
     let (ca_cert, tls_no_verify) = match &config.subcommand {
         SubCommand::TableList(TableListConfig {
             ca_cert,

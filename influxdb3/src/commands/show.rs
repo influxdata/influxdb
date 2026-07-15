@@ -34,7 +34,7 @@ pub enum SubCommand {
 
 #[derive(Debug, Parser)]
 pub struct ShowTokensConfig {
-    /// The host URL of the running InfluxDB 3 Enterprise server
+    /// The host URL of the running InfluxDB 3 Core server
     #[clap(
         short = 'H',
         long = "host",
@@ -43,7 +43,7 @@ pub struct ShowTokensConfig {
     )]
     host_url: Url,
 
-    /// The token for authentication with the InfluxDB 3 Enterprise server
+    /// The token for authentication with the InfluxDB 3 Core server
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN", hide_env_values = true)]
     auth_token: Option<Secret<String>>,
 

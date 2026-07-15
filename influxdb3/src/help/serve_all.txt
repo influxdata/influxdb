@@ -134,8 +134,6 @@ Examples:
                                                  [env: INFLUXDB3_OBJECT_STORE_MAX_RETRIES=]
   --object-store-retry-timeout <TIMEOUT>       Max retry timeout
                                                  [env: INFLUXDB3_OBJECT_STORE_RETRY_TIMEOUT=]
-  --object-store-cache-endpoint <ENDPOINT>     S3 compatible cache endpoint
-                                                 [env: INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT=]
   --object-store-tls-allow-insecure            Skip TLS certificate verification for object storage.
                                                WARNING: This is insecure and should only be used for testing
                                                  [env: INFLUXDB3_OBJECT_STORE_TLS_ALLOW_INSECURE=]
@@ -169,9 +167,6 @@ Examples:
   --retention-check-interval <INTERVAL>        The interval at which retention policies are checked and enforced.
                                                Enter as a human-readable time, e.g., '30m', '1h', etc. [default: 30m]
                                                  [env: INFLUXDB3_RETENTION_CHECK_INTERVAL=]
-  --hard-delete-default-duration <DURATION>    The duration from when a database or table is soft-deleted until
-                                               the data is scheduled to be hard deleted [default: 72h]
-                                                 [env: INFLUXDB3_HARD_DELETE_DEFAULT_DURATION=]
 
 {}
   --wal-flush-interval <INTERVAL>                Interval to flush data to WAL file [default: 1s]

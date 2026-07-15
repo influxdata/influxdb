@@ -4,7 +4,7 @@
 //! that can vary by current usage (e.g. per-tier caps). [`CatalogLimits`] is
 //! the default concrete implementation with per-field overrides.
 
-use super::catalog::Catalog;
+use super::{NUM_TAG_COLUMNS_LIMIT, catalog::Catalog};
 
 /// Point-in-time counts read from [`InnerCatalog`] on `update` or
 /// transaction begin. Passed to [`CatalogLimiter`] so implementations can
@@ -51,6 +51,7 @@ pub trait CatalogLimiter: Send + Sync + 'static {
     fn database_count_limit(&self, current: &CurrentCatalogUsage) -> usize;
     fn table_count_limit(&self, current: &CurrentCatalogUsage) -> usize;
     fn column_per_table_limit(&self, current: &CurrentCatalogUsage) -> usize;
+    fn tag_column_per_table_limit(&self, current: &CurrentCatalogUsage) -> usize;
 }
 
 /// Default [`CatalogLimiter`] with static per-field values.
@@ -59,6 +60,7 @@ pub struct CatalogLimits {
     num_dbs: usize,
     num_tables: usize,
     num_columns_per_table: usize,
+    num_tag_columns_per_table: usize,
 }
 
 impl CatalogLimits {
@@ -67,7 +69,13 @@ impl CatalogLimits {
             num_dbs,
             num_tables,
             num_columns_per_table,
+            num_tag_columns_per_table: NUM_TAG_COLUMNS_LIMIT,
         }
+    }
+
+    pub fn with_tag_columns_per_table_limit(mut self, num_tag_columns_per_table: usize) -> Self {
+        self.num_tag_columns_per_table = num_tag_columns_per_table;
+        self
     }
 
     /// Limits high enough to be effectively unenforced.
@@ -93,6 +101,10 @@ impl CatalogLimiter for CatalogLimits {
 
     fn column_per_table_limit(&self, _current: &CurrentCatalogUsage) -> usize {
         self.num_columns_per_table
+    }
+
+    fn tag_column_per_table_limit(&self, _current: &CurrentCatalogUsage) -> usize {
+        self.num_tag_columns_per_table
     }
 }
 
@@ -145,6 +157,10 @@ impl CatalogLimiter for MaximumColumnCountLimiter {
 
     fn column_per_table_limit(&self, current: &CurrentCatalogUsage) -> usize {
         (self.max_total_columns as usize).saturating_sub(current.total_column_count())
+    }
+
+    fn tag_column_per_table_limit(&self, _current: &CurrentCatalogUsage) -> usize {
+        NUM_TAG_COLUMNS_LIMIT
     }
 }
 

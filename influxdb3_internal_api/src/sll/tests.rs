@@ -71,6 +71,7 @@ fn noop_sink_accepts_any_event() {
     sink.emit(SystemEvent::CompactionPlannedSuccess {
         database_id: 1,
         groups_planned: 1,
+        plans_skipped_file_limit: 0,
         files_to_compact: 1,
     });
     sink.emit(SystemEvent::CompactionCompletedSuccess {

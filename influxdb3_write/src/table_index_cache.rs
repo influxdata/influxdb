@@ -231,7 +231,7 @@ struct CachedTableIndexInner {
 // those differences we use to make LRU cache eviction decisions.
 static TABLE_INDEX_CACHE_START_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
 
-type NodeId = String;
+type NodeId = Arc<str>;
 type TableIndicesInner = HashMap<TableId, CachedTableIndex>;
 type DbIndicesInner = HashMap<(NodeId, DbId), TableIndicesInner>;
 
@@ -260,7 +260,7 @@ pub struct TableIndexCache {
 
 #[derive(Debug)]
 struct TableIndexCacheInner {
-    node_identifier_prefix: String,
+    node_identifier_prefix: Arc<str>,
     indices: RwLock<DbIndicesInner>,
     config: TableIndexCacheConfig,
     object_store: Arc<dyn ObjectStore>,
@@ -276,12 +276,14 @@ struct TableIndexConversionCompleted {
 impl TableIndexCache {
     /// Create a new TableIndexCache with the given configuration
     pub fn new(
-        node_identifier_prefix: String,
+        node_identifier_prefix: impl Into<Arc<str>>,
         config: TableIndexCacheConfig,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
         // initialize table index cache start time
         let _ = *TABLE_INDEX_CACHE_START_TIME;
+
+        let node_identifier_prefix = node_identifier_prefix.into();
 
         Self {
             inner: Arc::new(TableIndexCacheInner {
@@ -333,7 +335,7 @@ impl TableIndexCache {
         let start_time = std::time::Instant::now();
         info!("creating table indices from split snapshots");
         let conversion_complet_path =
-            TableIndexConversionCompletedPath::new(self.inner.node_identifier_prefix.as_str());
+            TableIndexConversionCompletedPath::new(&self.inner.node_identifier_prefix);
         let snapshot_info_prefix = SnapshotInfoFilePath::dir(&self.inner.node_identifier_prefix);
 
         let last_conversion_completed: Option<TableIndexConversionCompleted> = match self
@@ -550,7 +552,7 @@ impl TableIndexCache {
         // First check if we have a cached entry (read lock)
         {
             let indices = self.inner.indices.read().await;
-            if let Some(db_map) = indices.get(&(table_id.node_id().to_string(), table_id.db_id()))
+            if let Some(db_map) = indices.get(&(Arc::clone(table_id.node_id()), table_id.db_id()))
                 && let Some(cached) = db_map.get(&table_id.table_id())
             {
                 debug!(table_id = %table_id, "Cache hit for table index");
@@ -588,7 +590,7 @@ impl TableIndexCache {
 
         let mut indices = self.inner.indices.write().await;
         indices
-            .entry((table_id.node_id().to_string(), table_id.db_id()))
+            .entry((Arc::clone(table_id.node_id()), table_id.db_id()))
             .or_insert_with(HashMap::new)
             .insert(table_id.table_id(), cached_entry);
         let new_size = Self::total_entries_count(&indices);
@@ -613,12 +615,12 @@ impl TableIndexCache {
     async fn invalidate(&self, table_id: &TableIndexId) -> Option<CachedTableIndex> {
         let mut indices = self.inner.indices.write().await;
         let removed = if let Some(db_map) =
-            indices.get_mut(&(table_id.node_id().to_string(), table_id.db_id()))
+            indices.get_mut(&(Arc::clone(table_id.node_id()), table_id.db_id()))
         {
             let removed = db_map.remove(&table_id.table_id());
             // Clean up empty database entries
             if db_map.is_empty() {
-                indices.remove(&(table_id.node_id().to_string(), table_id.db_id()));
+                indices.remove(&(Arc::clone(table_id.node_id()), table_id.db_id()));
             }
             removed
         } else {
@@ -656,8 +658,11 @@ impl TableIndexCache {
             .await?;
 
         // Create TableIndexId for the current node
-        let table_index_id =
-            TableIndexId::new(&self.inner.node_identifier_prefix, *db_id, *table_id);
+        let table_index_id = TableIndexId::new(
+            Arc::clone(&self.inner.node_identifier_prefix),
+            *db_id,
+            *table_id,
+        );
 
         // Update the table index from object store to ensure we have the latest state
         // It's okay if this fails with NotFound - the table might not exist
@@ -808,7 +813,8 @@ impl TableIndexCache {
         let mut tables_to_remove = Vec::new();
         {
             let indices = self.inner.indices.read().await;
-            if let Some(db_map) = indices.get(&(self.inner.node_identifier_prefix.clone(), *db_id))
+            if let Some(db_map) =
+                indices.get(&(Arc::clone(&self.inner.node_identifier_prefix), *db_id))
             {
                 for table_id in db_map.keys() {
                     tables_to_remove.push(*table_id);
@@ -826,7 +832,7 @@ impl TableIndexCache {
             );
             // Invalidate will remove from cache
             self.invalidate(&TableIndexId::new(
-                &self.inner.node_identifier_prefix,
+                Arc::clone(&self.inner.node_identifier_prefix),
                 *db_id,
                 table_id,
             ))
@@ -840,12 +846,12 @@ impl TableIndexCache {
     /// This method selectively deletes only files where max_time < cutoff_time_ns.
     pub async fn purge_expired(
         &self,
-        node_id: &str,
+        node_id: Arc<str>,
         db_id: DbId,
         table_id: TableId,
         cutoff_time_ns: i64,
     ) -> Result<()> {
-        let table_index_id = TableIndexId::new(node_id, db_id, table_id);
+        let table_index_id = TableIndexId::new(Arc::clone(&node_id), db_id, table_id);
 
         // First, split new persisted snapshots to ensure we have the latest data
         self.split_persisted_snapshots_to_table_index_snapshots()
@@ -942,7 +948,7 @@ impl TableIndexCache {
         let new_cached = CachedTableIndex::new(updated_index);
         {
             let mut indices = self.inner.indices.write().await;
-            let db_map = indices.entry((node_id.to_string(), db_id)).or_default();
+            let db_map = indices.entry((node_id, db_id)).or_default();
             db_map.insert(table_id, new_cached);
         }
 
@@ -963,7 +969,7 @@ impl TableIndexCache {
         // Check if the entry is in cache
         let cached_index: Option<CachedTableIndex> = {
             let indices = self.inner.indices.read().await;
-            if let Some(db_map) = indices.get(&(table_id.node_id().to_string(), table_id.db_id())) {
+            if let Some(db_map) = indices.get(&(Arc::clone(table_id.node_id()), table_id.db_id())) {
                 if let Some(cached) = db_map.get(&table_id.table_id()) {
                     // Touch and get a clone of the index
                     cached.touch().await;
@@ -1012,7 +1018,7 @@ impl TableIndexCache {
 
             let mut indices = self.inner.indices.write().await;
             indices
-                .entry((table_id.node_id().to_string(), table_id.db_id()))
+                .entry((Arc::clone(table_id.node_id()), table_id.db_id()))
                 .or_insert_with(HashMap::new)
                 .insert(table_id.table_id(), cached_index.clone());
 
@@ -1059,7 +1065,7 @@ impl TableIndexCache {
             for (table_id, cached) in db_map.iter() {
                 // sorts in ascending order of youngest entries to oldest
                 let stale_duration_ns = cached.stale_duration_ns().await;
-                let full_id = TableIndexId::new(node_id.clone(), *db_id, *table_id);
+                let full_id = TableIndexId::new(Arc::clone(node_id), *db_id, *table_id);
                 entries.push((full_id, stale_duration_ns));
             }
         }
@@ -1096,12 +1102,12 @@ impl TableIndexCache {
         let mut indices = self.inner.indices.write().await;
         for table_id in &to_remove {
             if let Some(db_map) =
-                indices.get_mut(&(table_id.node_id().to_string(), table_id.db_id()))
+                indices.get_mut(&(Arc::clone(table_id.node_id()), table_id.db_id()))
             {
                 db_map.remove(&table_id.table_id());
                 // Clean up empty database entries
                 if db_map.is_empty() {
-                    indices.remove(&(table_id.node_id().to_string(), table_id.db_id()));
+                    indices.remove(&(Arc::clone(table_id.node_id()), table_id.db_id()));
                 }
             }
         }

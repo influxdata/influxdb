@@ -2113,7 +2113,8 @@ async fn apply_catalog_batch_fails_for_add_fields_past_tag_limit() {
     assert_contains!(
         err.to_string(),
         format!(
-            "Update to schema would exceed number of tag columns per table limit of {NUM_TAG_COLUMNS_LIMIT} columns"
+            "would exceed the tag column limit: proposed schema would have {} tag columns, but the limit is {NUM_TAG_COLUMNS_LIMIT}",
+            NUM_TAG_COLUMNS_LIMIT + 1
         )
     );
 }
@@ -2132,7 +2133,8 @@ async fn apply_catalog_batch_fails_to_create_table_with_too_many_tags() {
     assert_contains!(
         err.unwrap_err().to_string(),
         format!(
-            "Update to schema would exceed number of tag columns per table limit of {NUM_TAG_COLUMNS_LIMIT} columns"
+            "would exceed the tag column limit: proposed schema would have {} tag columns, but the limit is {NUM_TAG_COLUMNS_LIMIT}",
+            NUM_TAG_COLUMNS_LIMIT + 1
         )
     );
 }

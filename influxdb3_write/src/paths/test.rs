@@ -298,7 +298,7 @@ fn test_table_index_snapshot_path_extract_ids(#[case] db_id: u32, #[case] table_
 
     // Extract IDs and verify they match
     let id = path.full_table_id();
-    assert_eq!(id.node_id(), "test-prefix");
+    assert_eq!(&**id.node_id(), "test-prefix");
     assert_eq!(id.db_id(), DbId::from(db_id));
     assert_eq!(id.table_id(), TableId::from(table_id));
 
@@ -309,7 +309,7 @@ fn test_table_index_snapshot_path_extract_ids(#[case] db_id: u32, #[case] table_
         TableIndexSnapshotPath::from_path(ObjPath::from(path_str)).expect("path should be valid");
 
     let parsed_id = parsed_path.full_table_id();
-    assert_eq!(parsed_id.node_id(), "test-prefix");
+    assert_eq!(&**parsed_id.node_id(), "test-prefix");
     assert_eq!(parsed_id.db_id(), DbId::from(db_id));
     assert_eq!(parsed_id.table_id(), TableId::from(table_id));
 }

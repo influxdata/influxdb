@@ -856,3 +856,105 @@ fn user_describe_grant_confers_database_visibility_but_not_read() {
         DatabaseActions::from(DatabaseActions::READ),
     ));
 }
+
+#[test]
+fn user_system_all_read_grant_allows_specific_resources() {
+    use crate::role::{
+        Permission, Permissions, ResourceIdentifier, SystemAction,
+        role_permissions::SystemPermission,
+    };
+    use crate::{SystemActions, SystemResourceIdentifier};
+
+    let perms = Permissions::new(vec![Permission::System(SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::All,
+    ))]);
+
+    for resource in [
+        SystemResourceIdentifier::HEALTH,
+        SystemResourceIdentifier::METRICS,
+        SystemResourceIdentifier::PING,
+        SystemResourceIdentifier::READY,
+    ] {
+        assert!(super::check_user_system_access(
+            &perms,
+            SystemResourceIdentifier::from(resource),
+            SystemActions::from(SystemActions::READ),
+        ));
+    }
+}
+
+#[test]
+fn user_system_specific_grant_only_allows_that_resource() {
+    use crate::role::{
+        Permission, Permissions, ResourceIdentifier, SystemAction, SystemResource,
+        role_permissions::SystemPermission,
+    };
+    use crate::{SystemActions, SystemResourceIdentifier};
+
+    let perms = Permissions::new(vec![Permission::System(SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::Identifier(SystemResource::Health),
+    ))]);
+
+    assert!(super::check_user_system_access(
+        &perms,
+        SystemResourceIdentifier::from(SystemResourceIdentifier::HEALTH),
+        SystemActions::from(SystemActions::READ),
+    ));
+    assert!(!super::check_user_system_access(
+        &perms,
+        SystemResourceIdentifier::from(SystemResourceIdentifier::METRICS),
+        SystemActions::from(SystemActions::READ),
+    ));
+}
+
+#[test]
+fn user_without_system_grant_denied() {
+    use crate::role::{Permissions, UserAction, role_permissions::UserPermission};
+    use crate::{SystemActions, SystemResourceIdentifier};
+
+    let perms = Permissions::new(vec![crate::role::Permission::User(UserPermission::new(
+        UserAction::Read,
+    ))]);
+
+    assert!(!super::check_user_system_access(
+        &perms,
+        SystemResourceIdentifier::from(SystemResourceIdentifier::HEALTH),
+        SystemActions::from(SystemActions::READ),
+    ));
+}
+
+#[test]
+fn user_system_unknown_resource_id_denied() {
+    use crate::role::{
+        Permission, Permissions, ResourceIdentifier, SystemAction,
+        role_permissions::SystemPermission,
+    };
+    use crate::{SystemActions, SystemResourceIdentifier};
+
+    let perms = Permissions::new(vec![Permission::System(SystemPermission::new(
+        SystemAction::Read,
+        ResourceIdentifier::All,
+    ))]);
+
+    assert!(!super::check_user_system_access(
+        &perms,
+        SystemResourceIdentifier::from(u16::MAX),
+        SystemActions::from(SystemActions::READ),
+    ));
+}
+
+#[test]
+fn user_system_admin_all_covers_system_access() {
+    use crate::role::{Permission, Permissions};
+    use crate::{SystemActions, SystemResourceIdentifier};
+
+    let perms = Permissions::new(vec![Permission::AccountAdminAll]);
+
+    assert!(super::check_user_system_access(
+        &perms,
+        SystemResourceIdentifier::from(SystemResourceIdentifier::HEALTH),
+        SystemActions::from(SystemActions::READ),
+    ));
+}

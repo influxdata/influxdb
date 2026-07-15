@@ -32,7 +32,7 @@ async fn test_retention_handler_no_policies() {
         Arc::clone(&catalog),
         Arc::clone(&time_provider) as _,
         Duration::from_secs(30),
-        "test_host".to_string(),
+        Arc::from("test_host"),
     ));
 
     // Check retention with no policies configured
@@ -67,7 +67,7 @@ async fn test_retention_handler_shutdown() {
         Arc::clone(&catalog),
         Arc::clone(&time_provider) as _,
         Duration::from_millis(100), // Short interval for testing
-        "test_host".to_string(),
+        Arc::from("test_host"),
     ));
 
     let shutdown_manager = ShutdownManager::new_testing();

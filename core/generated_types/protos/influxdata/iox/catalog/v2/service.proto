@@ -92,6 +92,7 @@ service CatalogService {
   rpc PartitionRetentionInvalidateByNamespaceId(PartitionRetentionInvalidateByNamespaceIdRequest) returns (PartitionRetentionInvalidateByNamespaceIdResponse);
 
   rpc ParquetFileFlagForDeleteByRetention(ParquetFileFlagForDeleteByRetentionRequest) returns (stream ParquetFileFlagForDeleteByRetentionResponse);
+  rpc ParquetFileFlagForDeleteByRetentionPartitionBatch(ParquetFileFlagForDeleteByRetentionPartitionBatchRequest) returns (stream ParquetFileFlagForDeleteByRetentionPartitionBatchResponse);
   rpc ParquetFileDeleteOldIdsOnly(ParquetFileDeleteOldIdsOnlyRequest) returns (stream ParquetFileDeleteOldIdsOnlyResponse);
   rpc ParquetFileDeleteOldIdsCount(ParquetFileDeleteOldIdsCountRequest) returns (ParquetFileDeleteOldIdsCountResponse);
   rpc ParquetFileListByPartitionNotToDeleteBatch(ParquetFileListByPartitionNotToDeleteBatchRequest) returns (stream ParquetFileListByPartitionNotToDeleteBatchResponse);
@@ -663,6 +664,15 @@ message PartitionGetNamespaceIdsInRangeResponse {
 message ParquetFileFlagForDeleteByRetentionRequest {}
 
 message ParquetFileFlagForDeleteByRetentionResponse {
+  ObjectStoreId object_store_id = 1;
+  int64 partition_id = 2;
+}
+
+message ParquetFileFlagForDeleteByRetentionPartitionBatchRequest {
+  repeated int64 partition_ids = 1;
+}
+
+message ParquetFileFlagForDeleteByRetentionPartitionBatchResponse {
   ObjectStoreId object_store_id = 1;
   int64 partition_id = 2;
 }

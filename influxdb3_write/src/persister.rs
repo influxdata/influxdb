@@ -120,7 +120,7 @@ pub struct Persister {
     /// The interface to the object store being used
     object_store: Arc<dyn ObjectStore>,
     /// Prefix used for all paths in the object store for this persister
-    node_identifier_prefix: String,
+    node_identifier_prefix: Arc<str>,
     /// time provider
     time_provider: Arc<dyn TimeProvider>,
     pub(crate) mem_pool: Arc<dyn MemoryPool>,
@@ -142,15 +142,16 @@ impl Persister {
     /// * `checkpoint_interval` - Optional interval between checkpoint creation. None disables checkpointing.
     pub fn new(
         object_store: Arc<dyn ObjectStore>,
-        node_identifier_prefix: impl Into<String>,
+        node_identifier_prefix: impl Into<Arc<str>>,
         time_provider: Arc<dyn TimeProvider>,
         checkpoint_interval: Option<Duration>,
     ) -> Self {
-        let nip = node_identifier_prefix.into();
+        let node_identifier_prefix = node_identifier_prefix.into();
+
         Self {
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             object_store: Arc::clone(&object_store),
-            node_identifier_prefix: nip.clone(),
+            node_identifier_prefix,
             time_provider,
             mem_pool: Arc::new(UnboundedMemoryPool::default()),
             checkpoint_interval,
@@ -172,7 +173,7 @@ impl Persister {
     }
 
     /// Get the host identifier prefix
-    pub fn node_identifier_prefix(&self) -> &str {
+    pub fn node_identifier_prefix(&self) -> &Arc<str> {
         &self.node_identifier_prefix
     }
 
@@ -312,15 +313,50 @@ impl Persister {
     ) -> Result<()> {
         let PersistedSnapshotVersion::V1(snapshot) = persisted_snapshot;
         let seq = snapshot.snapshot_sequence_number;
-        let snapshot_file_path =
-            SnapshotInfoFilePath::new(self.node_identifier_prefix.as_str(), seq);
+        let snapshot_file_path = SnapshotInfoFilePath::new(&self.node_identifier_prefix, seq);
         let json = serde_json::to_vec_pretty(persisted_snapshot)?;
+        let manifest_bytes = json.len();
+
+        // A healthy snapshot manifest is small (KB to a few MB). A large one
+        // indicates a pathological number of files and risks exceeding object
+        // store limits, so warn with a breakdown (added vs removed files and
+        // the worst offending table) to identify the cause. The breakdown is
+        // only computed above the threshold to keep the common path cheap.
+        const LARGE_SNAPSHOT_MANIFEST_BYTES: usize = 1024 * 1024 * 1024; // 1 GiB
+        if manifest_bytes >= LARGE_SNAPSHOT_MANIFEST_BYTES {
+            let (added_dbs, added_tables, added_files) = snapshot.db_table_and_file_count();
+            let (removed_dbs, removed_tables, removed_files) =
+                snapshot.removed_db_table_and_file_count();
+            warn!(
+                snapshot_sequence_number = seq.as_u64(),
+                manifest_bytes,
+                added_dbs,
+                added_tables,
+                added_files,
+                removed_dbs,
+                removed_tables,
+                removed_files,
+                parquet_size_bytes = snapshot.parquet_size_bytes,
+                row_count = snapshot.row_count,
+                time_span_ns = snapshot.max_time.saturating_sub(snapshot.min_time),
+                gen1_buckets = snapshot.distinct_chunk_time_count(),
+                worst_table = ?snapshot.largest_table_by_file_count(),
+                "persisting unusually large snapshot manifest"
+            );
+        }
+
+        // Use an adaptive put: snapshot manifests are usually small, but with
+        // very large numbers of files they can exceed the object store's
+        // single-PUT limit (e.g. Azure's 5 GiB cap), which fails the snapshot
+        // and stalls the WAL. put_adaptive routes oversized payloads through a
+        // multipart upload instead of a single PUT.
         self.object_store
-            .put(snapshot_file_path.as_ref(), json.into())
+            .put_adaptive(snapshot_file_path.as_ref(), json.into())
             .await?;
 
         debug!(
             snapshot_sequence_number = seq.as_u64(),
+            manifest_bytes,
             path = %snapshot_file_path.as_ref(),
             "persist_snapshot: completed"
         );
@@ -381,7 +417,7 @@ impl Persister {
         previous_checkpoint: PersistedSnapshotCheckpoint,
     ) {
         let object_store = Arc::clone(&self.object_store);
-        let node_id = self.node_identifier_prefix.clone();
+        let node_id = Arc::clone(&self.node_identifier_prefix);
 
         tokio::spawn(async move {
             let year_month = previous_checkpoint.year_month;
@@ -474,7 +510,7 @@ impl Persister {
                     "update_cached_checkpoint: creating new checkpoint for month"
                 );
                 let new_checkpoint = PersistedSnapshotCheckpoint::new(
-                    self.node_identifier_prefix.clone(),
+                    Arc::clone(&self.node_identifier_prefix),
                     current_month,
                 );
                 if let Some(old_checkpoint) = cache.replace(CachedCheckpoint {
@@ -679,14 +715,13 @@ impl Persister {
         );
 
         // Clean up old checkpoints for this month, keeping only the most recent ones
-        let node_id_prefix = self.node_identifier_prefix.clone();
+        let node_id_prefix = Arc::clone(&self.node_identifier_prefix);
         let object_store = Arc::clone(&self.object_store);
         let year_month = *year_month;
-        tokio::spawn(Self::cleanup_old_checkpoints_for_month(
-            node_id_prefix,
-            object_store,
-            year_month,
-        ));
+        tokio::spawn(async move {
+            Self::cleanup_old_checkpoints_for_month(&node_id_prefix, object_store, year_month)
+                .await;
+        });
 
         Ok(())
     }
@@ -742,7 +777,7 @@ impl Persister {
             let month_snapshots = snapshots_by_month.remove(&month).unwrap();
 
             let mut checkpoint =
-                PersistedSnapshotCheckpoint::new(self.node_identifier_prefix.clone(), month);
+                PersistedSnapshotCheckpoint::new(Arc::clone(&self.node_identifier_prefix), month);
             let mut file_index: FileIndex = HashMap::new();
             for snapshot in month_snapshots.into_iter().rev() {
                 checkpoint.update_from_snapshot(snapshot);
@@ -785,11 +820,11 @@ impl Persister {
     /// unbounded accumulation of checkpoint files. We keep 2 checkpoints (latest +
     /// previous) as a safety buffer in case the latest is corrupted.
     async fn cleanup_old_checkpoints_for_month(
-        node_identifier_prefix: String,
+        node_identifier_prefix: &str,
         object_store: Arc<dyn ObjectStore>,
         year_month: YearMonth,
     ) {
-        let month_dir = SnapshotCheckpointPath::month_dir(&node_identifier_prefix, &year_month);
+        let month_dir = SnapshotCheckpointPath::month_dir(node_identifier_prefix, &year_month);
 
         // List all checkpoints for this month
         let mut checkpoints: Vec<_> = match object_store

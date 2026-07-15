@@ -874,12 +874,20 @@ impl DatabaseCatalogTransaction {
             }),
             None => {
                 if table_def.num_columns() >= self.columns_per_table_limit {
-                    return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
+                    return Err(CatalogError::too_many_columns(
+                        table_name,
+                        table_def.num_columns() + 1,
+                        self.columns_per_table_limit,
+                    ));
                 }
                 if matches!(column_type, FieldDataType::Tag)
                     && table_def.num_tag_columns() >= NUM_TAG_COLUMNS_LIMIT
                 {
-                    return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
+                    return Err(CatalogError::too_many_tag_columns(
+                        table_name,
+                        table_def.num_tag_columns() + 1,
+                        NUM_TAG_COLUMNS_LIMIT,
+                    ));
                 }
                 let database_id = self.database_schema.id;
                 let database_name = Arc::clone(&self.database_schema.name);
@@ -929,10 +937,18 @@ impl DatabaseCatalogTransaction {
             });
         }
         if tags.len() > NUM_TAG_COLUMNS_LIMIT {
-            return Err(CatalogError::TooManyTagColumns(NUM_TAG_COLUMNS_LIMIT));
+            return Err(CatalogError::too_many_tag_columns(
+                table_name,
+                tags.len(),
+                NUM_TAG_COLUMNS_LIMIT,
+            ));
         }
         if tags.len() + fields.len() > self.columns_per_table_limit - 1 {
-            return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
+            return Err(CatalogError::too_many_columns(
+                table_name,
+                tags.len() + fields.len() + 1,
+                self.columns_per_table_limit,
+            ));
         }
 
         // Validate tag and field names using the same rules as the line protocol parser

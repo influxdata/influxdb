@@ -1,11 +1,35 @@
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
 use anyhow::anyhow;
 use enterprise::EnterpriseCatalogError;
 use humantime::Duration;
+use influxdb3_id::QueryGroupId;
 use schema::InfluxColumnType;
 
 pub(crate) mod enterprise;
+
+const MAX_TABLE_NAME_ERROR_LEN: usize = 256;
+
+/// New type to keep long table names from making catalog error messages too large.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TruncatedTableName(Arc<str>);
+
+impl TruncatedTableName {
+    pub fn new(s: impl Into<Arc<str>>) -> Self {
+        let s: Arc<str> = s.into();
+        Self(s[..s.floor_char_boundary(MAX_TABLE_NAME_ERROR_LEN)].into())
+    }
+
+    pub fn inner(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl Display for TruncatedTableName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner())
+    }
+}
 
 use crate::{
     channel::SubscriptionError, format::FeatureLevel, format::FormatError,
@@ -82,11 +106,25 @@ pub enum CatalogError {
     #[error("invalid node spec: {0}")]
     InvalidNodeSpec(#[source] anyhow::Error),
 
-    #[error("Update to schema would exceed number of columns per table limit of {0} columns")]
-    TooManyColumns(usize),
+    #[error(
+        "Schema update for table '{table_name}' would exceed the column limit: \
+        proposed schema update would have {attempted} columns, but the limit is {limit}"
+    )]
+    TooManyColumns {
+        table_name: TruncatedTableName,
+        attempted: usize,
+        limit: usize,
+    },
 
-    #[error("Update to schema would exceed number of tag columns per table limit of {0} columns")]
-    TooManyTagColumns(usize),
+    #[error(
+        "Schema update for table '{table_name}' would exceed the tag column limit: \
+        proposed schema would have {attempted} tag columns, but the limit is {limit}"
+    )]
+    TooManyTagColumns {
+        table_name: TruncatedTableName,
+        attempted: usize,
+        limit: usize,
+    },
 
     #[error(
         "Update to schema would exceed number of tables limit: attempted to create table but already have {current} table(s) (limit: {limit})"
@@ -305,6 +343,15 @@ pub enum CatalogError {
 
     #[error("missing object store for restore operation")]
     MissingObjectStoreForRestore,
+
+    #[error(
+        "cannot remove node '{node_id}' because it is a member of query group '{query_group_name}' (id {query_group_id})"
+    )]
+    NodeInQueryGroup {
+        node_id: Arc<str>,
+        query_group_name: Arc<str>,
+        query_group_id: QueryGroupId,
+    },
 }
 
 impl CatalogError {
@@ -316,5 +363,43 @@ impl CatalogError {
 
     pub fn unexpected(message: impl Into<String>) -> Self {
         Self::Other(anyhow!(message.into()))
+    }
+
+    pub(crate) fn too_many_columns(
+        table_name: impl Into<Arc<str>>,
+        attempted: usize,
+        limit: usize,
+    ) -> Self {
+        Self::TooManyColumns {
+            table_name: TruncatedTableName::new(table_name),
+            attempted,
+            limit,
+        }
+    }
+
+    pub(crate) fn too_many_tag_columns(
+        table_name: impl Into<Arc<str>>,
+        attempted: usize,
+        limit: usize,
+    ) -> Self {
+        Self::TooManyTagColumns {
+            table_name: TruncatedTableName::new(table_name),
+            attempted,
+            limit,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CatalogError, MAX_TABLE_NAME_ERROR_LEN};
+
+    #[test]
+    fn column_limit_error_truncates_table_name() {
+        let table_name = format!("{}suffix", "a".repeat(MAX_TABLE_NAME_ERROR_LEN));
+        let err = CatalogError::too_many_columns(table_name, 11, 10).to_string();
+
+        assert!(err.contains(&"a".repeat(MAX_TABLE_NAME_ERROR_LEN)));
+        assert!(!err.contains("suffix"));
     }
 }

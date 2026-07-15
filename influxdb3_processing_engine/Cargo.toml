@@ -18,6 +18,7 @@ hyper.workspace = true
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_internal_api = { path = "../influxdb3_internal_api" }
+influxdb3_processing_engine_telemetry = { path = "../influxdb3_processing_engine_telemetry" }
 influxdb3_py_api = { path = "../influxdb3_py_api" }
 influxdb3_sys_events.workspace = true
 influxdb3_types = { path = "../influxdb3_types" }
@@ -32,11 +33,13 @@ reqwest.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 walkdir.workspace = true
 
 [dev-dependencies]
 datafusion_util.workspace = true
 influxdb3_cache = { path = "../influxdb3_cache" }
+influxdb3_write = { path = "../influxdb3_write", features = [ "test_helpers" ] }
 influxdb3_shutdown.workspace = true
 iox_query.workspace = true
 metric.workspace = true

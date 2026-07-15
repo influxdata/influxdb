@@ -1,23 +1,26 @@
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::TriggerSpecificationDefinition;
+use influxdb3_telemetry::{PluginTriggerInvocation, PluginTriggerInvocationMetrics};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
 // Keep each telemetry payload small even when an instance has many triggers.
 // We send the 255 most-run plugin triggers for the interval and drop the rest.
+// This is enough to show the plugins doing meaningful work without sending a
+// large list of rarely-run triggers.
 pub const MAX_PLUGIN_TRIGGER_INVOCATION_TELEMETRY_ENTRIES: usize = 255;
 
 const UNKNOWN_PLUGIN_NAME: &str = "unknown";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub(crate) enum PluginTriggerEntrypoint {
+pub enum PluginTriggerEntrypoint {
     Writes,
     Request,
     ScheduledCall,
 }
 
 impl PluginTriggerEntrypoint {
-    pub(crate) fn from_spec(spec: &TriggerSpecificationDefinition) -> Self {
+    pub fn from_spec(spec: &TriggerSpecificationDefinition) -> Self {
         match spec {
             TriggerSpecificationDefinition::AllTablesWalWrite
             | TriggerSpecificationDefinition::SingleTableWalWrite { .. } => Self::Writes,
@@ -46,7 +49,7 @@ pub struct PluginTriggerInvocationSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PluginTriggerInvocationKey {
+pub struct PluginTriggerInvocationKey {
     pub(crate) database_name: Arc<str>,
     pub(crate) trigger_name: Arc<str>,
     pub(crate) plugin_name: Arc<str>,
@@ -54,7 +57,7 @@ pub(crate) struct PluginTriggerInvocationKey {
 }
 
 impl PluginTriggerInvocationKey {
-    pub(crate) fn new(
+    pub fn new(
         database_name: Arc<str>,
         trigger_name: Arc<str>,
         raw_plugin_filename: &str,
@@ -75,7 +78,7 @@ pub struct PluginTriggerInvocationRegistry {
 }
 
 impl PluginTriggerInvocationRegistry {
-    pub(crate) fn record_invocation(&self, key: &PluginTriggerInvocationKey) {
+    pub fn record_invocation(&self, key: &PluginTriggerInvocationKey) {
         let mut counters = self.counters.lock();
         if let Some(invocation_count) = counters.get_mut(key) {
             *invocation_count += 1;
@@ -135,6 +138,41 @@ fn normalize_plugin_name(raw_plugin_filename: &str) -> Arc<str> {
     } else {
         Arc::from(plugin_name)
     }
+}
+
+#[derive(Debug)]
+struct PluginTriggerInvocationTelemetryImpl {
+    registry: Arc<PluginTriggerInvocationRegistry>,
+}
+
+impl PluginTriggerInvocationMetrics for PluginTriggerInvocationTelemetryImpl {
+    fn plugin_trigger_invocations(&self) -> Vec<PluginTriggerInvocation> {
+        self.registry
+            .snapshot()
+            .into_iter()
+            .map(|entry| PluginTriggerInvocation {
+                database_name: entry.database_name,
+                trigger_name: entry.trigger_name,
+                plugin_name: entry.plugin_name,
+                trigger_type: entry.trigger_type.to_owned(),
+                invocation_count: entry.invocation_count,
+            })
+            .collect()
+    }
+
+    fn reset_plugin_trigger_invocations(&self) {
+        self.registry.reset();
+    }
+}
+
+pub fn setup_plugin_trigger_invocation_registry() -> Arc<PluginTriggerInvocationRegistry> {
+    Arc::new(PluginTriggerInvocationRegistry::default())
+}
+
+pub fn setup_plugin_trigger_invocation_telemetry(
+    registry: Arc<PluginTriggerInvocationRegistry>,
+) -> Arc<dyn PluginTriggerInvocationMetrics> {
+    Arc::new(PluginTriggerInvocationTelemetryImpl { registry })
 }
 
 #[cfg(test)]

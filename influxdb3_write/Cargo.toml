@@ -7,6 +7,7 @@ license.workspace = true
 
 [features]
 large-strings = ["influxdb-line-protocol/large-strings", "influxdb3_wal/large-strings"]
+test_helpers = []
 
 [lints]
 workspace = true
@@ -78,6 +79,7 @@ regex.workspace = true
 arrow_util = { path = "../core/arrow_util" }
 query_functions = { path = "../core/query_functions" }
 test_helpers = { path = "../core/test_helpers" }
+influxdb3_id = { path = "../influxdb3_id", features = [ "test_helpers" ] }
 
 # crates.io deps
 arrow-schema.workspace = true

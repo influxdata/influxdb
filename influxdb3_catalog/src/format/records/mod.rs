@@ -29,6 +29,7 @@
 //! - **Table retention (e2-e3)**: SetTableRetentionPeriod, ClearTableRetentionPeriod
 //! - **OAuth login identity (e4-e5)**: CreateLoginIdentityOAuth, DeleteLoginIdentityOAuth
 //! - **Restore (e6)**: RestoreCatalog
+//! - **Query group (e7-e9)**: CreateQueryGroup, UpdateQueryGroup, DeleteQueryGroup
 
 pub mod types;
 
@@ -38,6 +39,7 @@ mod database;
 mod feature_level;
 mod generation;
 mod node;
+mod query_group;
 mod repository;
 mod restore;
 mod retention;
@@ -53,6 +55,7 @@ pub use database::*;
 pub use feature_level::AdvanceFeatureLevel;
 pub use generation::{SetGenerationDuration, SetStorageMode};
 pub use node::{AckStopNode, RegisterNode, RemoveNode, RequestStopNode, StopNode, UnregisterNode};
+pub use query_group::{CreateQueryGroup, DeleteQueryGroup, UpdateQueryGroup};
 pub use repository::{NextIdScope, SetNextId};
 pub use restore::RestoreCatalog;
 pub use retention::{ClearDbRetentionPeriod, SetDbRetentionPeriod};

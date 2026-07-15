@@ -11,8 +11,6 @@ use tempfile::TempDir;
 /// The current object store store configurations.
 enum StoreConfigs {
     Base(ObjectStoreConfig),
-    Source(SourceObjectStoreConfig),
-    Sink(SinkObjectStoreConfig),
 }
 
 fn tls_env_lock() -> &'static Mutex<()> {
@@ -28,27 +26,15 @@ impl StoreConfigs {
     fn object_store_inner(&self) -> Result<Arc<dyn ObjectStore>, ParseError> {
         match self {
             Self::Base(o) => o.make_object_store(),
-            Self::Source(o) => o.make_object_store(),
-            Self::Sink(o) => o.make_object_store(),
         }
     }
 }
 
 #[test]
 fn explicitly_set_object_store_to_memory() {
-    let configs = vec![
-        StoreConfigs::Base(
-            ObjectStoreConfig::try_parse_from(["server", "--object-store", "memory"]).unwrap(),
-        ),
-        StoreConfigs::Source(
-            SourceObjectStoreConfig::try_parse_from(["server", "--source-object-store", "memory"])
-                .unwrap(),
-        ),
-        StoreConfigs::Sink(
-            SinkObjectStoreConfig::try_parse_from(["server", "--sink-object-store", "memory"])
-                .unwrap(),
-        ),
-    ];
+    let configs = vec![StoreConfigs::Base(
+        ObjectStoreConfig::try_parse_from(["server", "--object-store", "memory"]).unwrap(),
+    )];
     for config in configs {
         let object_store = config.make_object_store().unwrap();
         assert_eq!(&object_store.to_string(), "InMemory")
@@ -56,60 +42,22 @@ fn explicitly_set_object_store_to_memory() {
 }
 
 #[test]
-fn default_url_signer_is_none() {
-    let config = ObjectStoreConfig::try_parse_from(["server", "--object-store", "memory"]).unwrap();
-
-    let signer = make_presigned_url_signer(&config).unwrap();
-    assert!(signer.is_none(), "Expected None, got {signer:?}");
-}
-
-#[test]
 #[cfg(feature = "aws")]
 fn valid_s3_config() {
-    let configs = vec![
-        StoreConfigs::Base(
-            ObjectStoreConfig::try_parse_from([
-                "server",
-                "--object-store",
-                "s3",
-                "--bucket",
-                "mybucket",
-                "--aws-access-key-id",
-                "NotARealAWSAccessKey",
-                "--aws-secret-access-key",
-                "NotARealAWSSecretAccessKey",
-            ])
-            .unwrap(),
-        ),
-        StoreConfigs::Source(
-            SourceObjectStoreConfig::try_parse_from([
-                "server",
-                "--source-object-store",
-                "s3",
-                "--source-bucket",
-                "mybucket",
-                "--source-aws-access-key-id",
-                "NotARealAWSAccessKey",
-                "--source-aws-secret-access-key",
-                "NotARealAWSSecretAccessKey",
-            ])
-            .unwrap(),
-        ),
-        StoreConfigs::Sink(
-            SinkObjectStoreConfig::try_parse_from([
-                "server",
-                "--sink-object-store",
-                "s3",
-                "--sink-bucket",
-                "mybucket",
-                "--sink-aws-access-key-id",
-                "NotARealAWSAccessKey",
-                "--sink-aws-secret-access-key",
-                "NotARealAWSSecretAccessKey",
-            ])
-            .unwrap(),
-        ),
-    ];
+    let configs = vec![StoreConfigs::Base(
+        ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "s3",
+            "--bucket",
+            "mybucket",
+            "--aws-access-key-id",
+            "NotARealAWSAccessKey",
+            "--aws-secret-access-key",
+            "NotARealAWSSecretAccessKey",
+        ])
+        .unwrap(),
+    )];
 
     for config in configs {
         let object_store = config.make_object_store().unwrap();
@@ -138,15 +86,6 @@ fn valid_s3_endpoint_url() {
 fn invalid_s3_endpoint_url_fails_clap_parsing() {
     let result = ObjectStoreConfig::try_parse_from(["server", "--aws-endpoint", "whatever.com"]);
     assert!(result.is_err(), "{result:?}");
-    let result = SourceObjectStoreConfig::try_parse_from([
-        "server",
-        "--source-aws-endpoint",
-        "whatever.com",
-    ]);
-    assert!(result.is_err(), "{result:?}");
-    let result =
-        SinkObjectStoreConfig::try_parse_from(["server", "--sink-aws-endpoint", "whatever.com"]);
-    assert!(result.is_err(), "{result:?}");
 }
 
 #[test]
@@ -166,48 +105,6 @@ fn s3_config_missing_params() {
 }
 
 #[test]
-#[cfg(feature = "aws")]
-fn valid_s3_url_signer() {
-    let config = ObjectStoreConfig::try_parse_from([
-        "server",
-        "--object-store",
-        "s3",
-        "--bucket",
-        "mybucket",
-        "--aws-access-key-id",
-        "NotARealAWSAccessKey",
-        "--aws-secret-access-key",
-        "NotARealAWSSecretAccessKey",
-    ])
-    .unwrap();
-
-    assert!(make_presigned_url_signer(&config).unwrap().is_some());
-
-    // Even with the aws feature on, object stores (other than local files) shouldn't create a
-    // signer.
-    let config = ObjectStoreConfig::try_parse_from(["server", "--object-store", "memory"]).unwrap();
-
-    let signer = make_presigned_url_signer(&config).unwrap();
-    assert!(signer.is_none(), "Expected None, got {signer:?}");
-}
-
-#[test]
-#[cfg(feature = "aws")]
-fn s3_url_signer_config_missing_params() {
-    let mut config = ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
-
-    // clean out eventual leaks via env variables
-    config.bucket = None;
-
-    let err = make_presigned_url_signer(&config).unwrap_err().to_string();
-
-    assert_eq!(
-        err,
-        "Error configuring Amazon S3: Generic S3 error: Missing bucket name"
-    );
-}
-
-#[test]
 #[cfg(feature = "gcp")]
 fn valid_google_config() {
     use std::io::Write;
@@ -218,44 +115,18 @@ fn valid_google_config() {
     writeln!(file, "{FAKE_KEY}").unwrap();
     let path = file.path().to_str().expect("file path should exist");
 
-    let configs = vec![
-        StoreConfigs::Base(
-            ObjectStoreConfig::try_parse_from([
-                "server",
-                "--object-store",
-                "google",
-                "--bucket",
-                "mybucket",
-                "--google-service-account",
-                path,
-            ])
-            .unwrap(),
-        ),
-        StoreConfigs::Source(
-            SourceObjectStoreConfig::try_parse_from([
-                "server",
-                "--source-object-store",
-                "google",
-                "--source-bucket",
-                "mybucket",
-                "--source-google-service-account",
-                path,
-            ])
-            .unwrap(),
-        ),
-        StoreConfigs::Sink(
-            SinkObjectStoreConfig::try_parse_from([
-                "server",
-                "--sink-object-store",
-                "google",
-                "--sink-bucket",
-                "mybucket",
-                "--sink-google-service-account",
-                path,
-            ])
-            .unwrap(),
-        ),
-    ];
+    let configs = vec![StoreConfigs::Base(
+        ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "google",
+            "--bucket",
+            "mybucket",
+            "--google-service-account",
+            path,
+        ])
+        .unwrap(),
+    )];
 
     for config in configs {
         let object_store = config.make_object_store().unwrap();
@@ -343,47 +214,6 @@ fn valid_file_config() {
         "{}",
         object_store
     )
-}
-
-#[tokio::test]
-async fn local_url_signer() {
-    let root = TempDir::new().unwrap();
-    let root_path = root.path().to_str().unwrap();
-    let parquet_file_path = "1/2/something.parquet";
-
-    let signer = make_presigned_url_signer(
-        &ObjectStoreConfig::try_parse_from([
-            "server",
-            "--object-store",
-            "file",
-            "--data-dir",
-            root_path,
-        ])
-        .unwrap(),
-    )
-    .unwrap()
-    .unwrap();
-
-    let object_store_parquet_file_path = Path::parse(parquet_file_path).unwrap();
-    let upload_url = signer
-        .signed_url(
-            http::Method::PUT,
-            &object_store_parquet_file_path,
-            Duration::from_secs(100),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(
-        upload_url.as_str(),
-        &format!(
-            "file://{}",
-            std::fs::canonicalize(root.path())
-                .unwrap()
-                .join(parquet_file_path)
-                .display()
-        )
-    );
 }
 
 #[test]

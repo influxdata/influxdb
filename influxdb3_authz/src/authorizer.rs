@@ -1,8 +1,8 @@
 use std::{fmt::Debug, sync::Arc};
 
 use crate::role::{
-    self, ResourceIdentifier as RoleResourceIdentifier, RoleAction,
-    role_permissions::DatabasePermission,
+    self, ResourceIdentifier as RoleResourceIdentifier, RoleAction, SystemAction, SystemResource,
+    role_permissions::{DatabasePermission, SystemPermission},
 };
 use async_trait::async_trait;
 use authz::{
@@ -14,7 +14,7 @@ use observability_deps::tracing::{error, trace};
 
 use crate::{
     AccessRequest, AuthProvider, AuthenticatorError, DatabaseActions, ResourceAuthorizationError,
-    Subject,
+    Subject, SystemActions, SystemResourceIdentifier,
 };
 
 pub const _INTERNAL_DB_ID: u32 = 0;
@@ -145,11 +145,8 @@ impl AuthProvider for TokenAuthenticatorAndAuthorizer {
                         let required = role::role_permissions::TokenPermission::new(action);
                         permissions.has_permission(&required)
                     }
-                    AccessRequest::System(_resource_id, _actions) => {
-                        // System resources -- check for admin for now
-                        permissions
-                            .as_slice()
-                            .contains(&role::role_permissions::Permission::AccountAdminAll)
+                    AccessRequest::System(resource_id, actions) => {
+                        check_user_system_access(permissions, resource_id, actions)
                     }
                     AccessRequest::AnyDatabase(actions) => {
                         check_user_database_access(permissions, None, actions)
@@ -287,6 +284,28 @@ fn check_user_database_access(
         .to_database_actions()
         .iter()
         .all(|action| permissions.has_permission(&DatabasePermission::new(*action, resource)))
+}
+
+fn check_user_system_access(
+    permissions: &role::Permissions,
+    resource_id: SystemResourceIdentifier,
+    actions: SystemActions,
+) -> bool {
+    let Ok(resource) = SystemResource::try_from(resource_id) else {
+        return false;
+    };
+
+    let requested_actions = SystemAction::from_bitmap(actions);
+    if requested_actions.is_empty() {
+        return false;
+    }
+
+    requested_actions.into_iter().all(|action| {
+        permissions.has_permission(&SystemPermission::new(
+            action,
+            RoleResourceIdentifier::Identifier(resource),
+        ))
+    })
 }
 
 #[cfg(test)]

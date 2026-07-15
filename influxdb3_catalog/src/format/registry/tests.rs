@@ -38,7 +38,7 @@ fn decode_apply_and_event_round_trip() {
     record.encode(&mut buf);
 
     // Look up in registry
-    let entry = REGISTRY.get(record_ids::REGISTER_NODE.raw()).unwrap();
+    let entry = REGISTRY.get(record_ids::REGISTER_NODE).unwrap();
 
     // Decode, apply, and get event via function pointer
     let mut catalog = InnerCatalog::new(Arc::from("test"), Uuid::nil());
@@ -50,13 +50,13 @@ fn decode_apply_and_event_round_trip() {
 
 #[test]
 fn unknown_upgrade_safe_returns_false() {
-    let result = validate_record_flags(9999, RecordFlags::upgrade_safe());
+    let result = validate_record_flags(RecordId::from_raw(9999), RecordFlags::upgrade_safe());
     assert!(!result.unwrap());
 }
 
 #[test]
 fn unknown_non_upgrade_safe_returns_error() {
-    let result = validate_record_flags(9999, RecordFlags::none());
+    let result = validate_record_flags(RecordId::from_raw(9999), RecordFlags::none());
     assert!(matches!(
         result,
         Err(FormatError::UnknownNonUpgradeSafeRecord { record_id: 9999 })
@@ -74,7 +74,7 @@ fn decode_to_value_round_trips_create_database() {
     record.encode(&mut buf);
 
     let entry = REGISTRY
-        .get(<CreateDatabase as CatalogRecord>::ID.raw())
+        .get(<CreateDatabase as CatalogRecord>::ID)
         .expect("CreateDatabase registered");
     let value = (entry.decode_to_value)(&buf).expect("decode to value");
 

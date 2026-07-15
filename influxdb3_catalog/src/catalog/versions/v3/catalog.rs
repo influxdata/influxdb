@@ -17,7 +17,7 @@ use influxdb3_authz::permissions::{
 };
 use influxdb3_authz::role::Role;
 use influxdb3_authz::{Actions, ResourceIdentifier, ResourceType, TokenInfo};
-use influxdb3_id::{DbId, NodeId, RoleId, TableId, TagId, TriggerId, UserId};
+use influxdb3_id::{DbId, NodeId, QueryGroupId, RoleId, TableId, TagId, TriggerId, UserId};
 use influxdb3_process::ProcessUuidGetter;
 use influxdb3_shutdown::ShutdownToken;
 use influxdb3_wal::SnapshotSequenceNumber;
@@ -56,6 +56,11 @@ use crate::catalog::versions::v3::ops::node::{
     AckStopNodeArgs, AckStopNodeOp, RegisterNodeArgs, RegisterNodeOp, RemoveNodeArgs, RemoveNodeOp,
     RequestStopNodeArgs, RequestStopNodeOp, StopNodeArgs, StopNodeOp, UnregisterNodeArgs,
     UnregisterNodeOp,
+};
+use crate::catalog::versions::v3::ops::query_group::{
+    CreateQueryGroupArgs, CreateQueryGroupOp, DeleteQueryGroupArgs, DeleteQueryGroupOp,
+    QueryGroupMemberMutation, UpdateQueryGroupArgs, UpdateQueryGroupMembersArgs,
+    UpdateQueryGroupMembersOp, UpdateQueryGroupOp,
 };
 pub use crate::catalog::versions::v3::ops::restore::RestoreReport;
 use crate::catalog::versions::v3::ops::restore::{RestoreOp, RestoreOpArgs};
@@ -98,6 +103,9 @@ use crate::catalog::versions::v3::schema::cache::{
 use crate::catalog::versions::v3::schema::column::{FieldDataType, FieldFamilyMode};
 use crate::catalog::versions::v3::schema::database::DatabaseSchema;
 use crate::catalog::versions::v3::schema::node::{NodeDefinition, NodeMode, NodeModes, NodeSpec};
+use crate::catalog::versions::v3::schema::query_group::{
+    QueryGroupDefinition, QueryGroupInsertPosition, QueryGroupUpdate,
+};
 use crate::catalog::versions::v3::schema::storage::{GenerationConfig, StorageMode};
 use crate::catalog::versions::v3::schema::table::TableDefinition;
 use crate::catalog::versions::v3::schema::tokens::create_token_and_hash;
@@ -114,7 +122,6 @@ use crate::catalog::{
 use crate::format::FeatureLevel;
 use crate::format::Record;
 use crate::format::RecordBatch;
-use crate::format::RecordId;
 use crate::format::apply::{
     RestorePreload, apply_catalog_file, apply_records, preload_restore_for_file,
     preload_restore_for_records, serialize_log_file, serialize_snapshot_file,
@@ -206,6 +213,7 @@ impl Default for CatalogArgs {
 /// # Note
 ///
 /// This is meant for testing; see also: [`Catalog::builder_testing`]
+#[cfg(any(test, feature = "test_helpers"))]
 #[derive(Default)]
 pub struct CatalogBuilder {
     catalog_id: Arc<str>,
@@ -214,6 +222,7 @@ pub struct CatalogBuilder {
     metric_registry: Option<Arc<Registry>>,
 }
 
+#[cfg(any(test, feature = "test_helpers"))]
 impl std::fmt::Debug for CatalogBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CatalogBuilder")
@@ -222,6 +231,7 @@ impl std::fmt::Debug for CatalogBuilder {
     }
 }
 
+#[cfg(any(test, feature = "test_helpers"))]
 impl CatalogBuilder {
     pub fn catalog_id(mut self, catalog_id: impl Into<Arc<str>>) -> Self {
         self.catalog_id = catalog_id.into();
@@ -472,6 +482,7 @@ impl Catalog {
         limits: CatalogLimits,
     ) -> Result<Arc<Self>> {
         let node_id = node_id.into();
+
         let catalog = Self::new_with_args(
             Arc::clone(&node_id),
             store,
@@ -521,6 +532,7 @@ impl Catalog {
     /// # Implementation Note
     ///
     /// This is intended for tests.
+    #[cfg(any(test, feature = "test_helpers"))]
     pub fn builder_testing(catalog_id: impl Into<Arc<str>>) -> CatalogBuilder {
         CatalogBuilder::default().catalog_id(catalog_id)
     }
@@ -531,6 +543,7 @@ impl Catalog {
     /// # Implementation Note
     ///
     /// This is intended for tests.
+    #[cfg(any(test, feature = "test_helpers"))]
     pub async fn new_in_memory(catalog_id: impl Into<Arc<str>>) -> Result<Arc<Self>> {
         use iox_time::MockProvider;
         use object_store::memory::InMemory;
@@ -541,6 +554,7 @@ impl Catalog {
         Self::new(catalog_id, store, time_provider, metric_registry).await
     }
 
+    #[cfg(any(test, feature = "test_helpers"))]
     pub async fn new_in_memory_with_limits(
         catalog_id: impl Into<Arc<str>>,
         limits: CatalogLimits,
@@ -557,6 +571,7 @@ impl Catalog {
         .await
     }
 
+    #[cfg(any(test, feature = "test_helpers"))]
     pub async fn new_in_memory_with_args(
         catalog_id: impl Into<Arc<str>>,
         time_provider: Arc<dyn TimeProvider>,
@@ -566,6 +581,7 @@ impl Catalog {
             .await
     }
 
+    #[cfg(any(test, feature = "test_helpers"))]
     pub async fn new_in_memory_with_args_limits(
         catalog_id: impl Into<Arc<str>>,
         time_provider: Arc<dyn TimeProvider>,
@@ -585,6 +601,60 @@ impl Catalog {
             limits,
         )
         .await
+    }
+
+    /// Register `count` number of query nodes and
+    /// return their catalog-assigned node IDs.
+    ///
+    /// Nodes are named `query-node-0`, `query-node-1`, … and assigned instance
+    /// IDs `inst-query-0`, `inst-query-1`, … with 4 cores each in `Query` mode.
+    ///
+    /// This is intended for tests.
+    #[cfg(any(test, feature = "test_helpers"))]
+    pub async fn register_query_nodes(&self, count: usize) -> Vec<influxdb3_id::NodeId> {
+        use influxdb3_process::ProcessUuidWrapper;
+
+        let mut ids = Vec::with_capacity(count);
+        for i in 0..count {
+            let node = self
+                .register_node(
+                    &format!("query-node-{i}"),
+                    4,
+                    vec![NodeMode::Query],
+                    Arc::new(ProcessUuidWrapper::new()),
+                    Arc::from(format!("inst-query-{i}")),
+                    None,
+                    None,
+                    0,
+                )
+                .await
+                .expect("register node");
+            ids.push(node.node_catalog_id());
+        }
+        ids
+    }
+
+    /// Register a single ingester node.
+    ///
+    /// This is intended for tests.
+    #[cfg(any(test, feature = "test_helpers"))]
+    pub async fn register_ingester_node(
+        &self,
+    ) -> Arc<crate::catalog::versions::v3::schema::node::NodeDefinition> {
+        use influxdb3_process::ProcessUuidWrapper;
+
+        self.register_node(
+            "ingest-node",
+            4,
+            vec![NodeMode::Ingest],
+            Arc::new(ProcessUuidWrapper::new()),
+            Arc::from("inst-ingest"),
+            None,
+            None,
+            0,
+        )
+        .await
+        .expect("register ingest node")
     }
 
     pub async fn new_with_store(
@@ -778,6 +848,7 @@ impl Catalog {
     ) -> Result<Arc<Self>> {
         let current_node_id: Arc<str> = current_node_id.into();
         let catalog_id: Arc<str> = catalog_id.into();
+
         promote_core_catalog_to_cluster_prefix(
             Arc::clone(&current_node_id),
             Arc::clone(&catalog_id),
@@ -1196,6 +1267,180 @@ impl Catalog {
             .filter(|node| node.is_running() && current_id != Some(node.node_catalog_id()))
             .map(|node| node.core_count())
             .sum()
+    }
+
+    // =========================================
+    // Query group interfaces
+    // =========================================
+
+    /// Create a new query group.
+    ///
+    /// The members are kept in the order given. The replication factor sets
+    /// how many copies of the data the group keeps.
+    ///
+    /// This API does not validate member-list policy, such as non-empty
+    /// membership, uniqueness, node existence, or whether members are
+    /// query-capable. Callers that accept user input should validate those
+    /// invariants before calling into the catalog.
+    ///
+    /// Returns an error when:
+    /// - The name is already in use.
+    pub async fn create_query_group(
+        &self,
+        name: impl Into<Arc<str>>,
+        members: Vec<NodeId>,
+        replication_factor: std::num::NonZeroUsize,
+    ) -> Result<Arc<QueryGroupDefinition>> {
+        let name: Arc<str> = name.into();
+        info!(
+            name = %name,
+            n_members = members.len(),
+            replication_factor = replication_factor.get(),
+            "create query group"
+        );
+        self.update::<CreateQueryGroupOp>(CreateQueryGroupArgs {
+            name,
+            members,
+            replication_factor,
+        })
+        .await
+    }
+
+    /// Look up a query group by its operator-facing name.
+    pub fn query_group_by_name(&self, name: &str) -> Option<Arc<QueryGroupDefinition>> {
+        self.inner.read().query_groups.get_by_name(name)
+    }
+
+    /// Look up a query group by its catalog ID.
+    pub fn query_group_by_id(&self, id: &QueryGroupId) -> Option<Arc<QueryGroupDefinition>> {
+        self.inner.read().query_groups.get_by_id(id)
+    }
+
+    /// Return all query groups in insertion order.
+    pub fn list_query_groups(&self) -> Vec<Arc<QueryGroupDefinition>> {
+        self.inner
+            .read()
+            .query_groups
+            .resource_iter()
+            .cloned()
+            .collect()
+    }
+
+    /// Update a query group's durable catalog definition.
+    ///
+    /// Only the fields set in `update` are changed. Any field left as `None`
+    /// keeps its current value. Internally this writes a full-state record, so
+    /// the stored group is always complete after each update.
+    ///
+    /// This API does not validate member-list policy, such as non-empty
+    /// membership, uniqueness, node existence, or whether members are
+    /// query-capable. Callers that accept user input should validate those
+    /// invariants before calling into the catalog.
+    pub async fn update_query_group(
+        &self,
+        id: &QueryGroupId,
+        update: QueryGroupUpdate,
+    ) -> Result<Arc<QueryGroupDefinition>> {
+        info!(
+            %id,
+            rename = update.name.is_some(),
+            update_members = update.members.is_some(),
+            update_replication_factor = update.replication_factor.is_some(),
+            "update query group"
+        );
+        self.update::<UpdateQueryGroupOp>(UpdateQueryGroupArgs { id: *id, update })
+            .await
+    }
+
+    /// Add a member to a query group at the requested position.
+    ///
+    /// This API does not validate member-list policy, such as uniqueness, node
+    /// existence, or whether the member is query-capable. Callers that accept
+    /// user input should validate those invariants before calling into the
+    /// catalog.
+    pub async fn add_query_group_member(
+        &self,
+        id: &QueryGroupId,
+        member: NodeId,
+        position: QueryGroupInsertPosition,
+    ) -> Result<Arc<QueryGroupDefinition>> {
+        info!(%id, %member, ?position, "add query group member");
+        self.update::<UpdateQueryGroupMembersOp>(UpdateQueryGroupMembersArgs {
+            id: *id,
+            mutation: QueryGroupMemberMutation::Add { member, position },
+        })
+        .await
+    }
+
+    /// Remove a member from a query group.
+    ///
+    /// This API does not validate member-list policy, such as non-empty
+    /// membership after removal. Callers that accept user input should validate
+    /// those invariants before calling into the catalog.
+    pub async fn remove_query_group_member(
+        &self,
+        id: &QueryGroupId,
+        member: NodeId,
+    ) -> Result<Arc<QueryGroupDefinition>> {
+        info!(%id, %member, "remove query group member");
+        self.update::<UpdateQueryGroupMembersOp>(UpdateQueryGroupMembersArgs {
+            id: *id,
+            mutation: QueryGroupMemberMutation::Remove { member },
+        })
+        .await
+    }
+
+    /// Replace a query group's complete member list.
+    ///
+    /// This API does not validate member-list policy, such as non-empty
+    /// membership, uniqueness, node existence, or whether members are
+    /// query-capable. Callers that accept user input should validate those
+    /// invariants before calling into the catalog.
+    pub async fn replace_query_group_members(
+        &self,
+        id: &QueryGroupId,
+        members: Vec<NodeId>,
+    ) -> Result<Arc<QueryGroupDefinition>> {
+        info!(%id, n_members = members.len(), "replace query group members");
+        self.update::<UpdateQueryGroupOp>(UpdateQueryGroupArgs {
+            id: *id,
+            update: QueryGroupUpdate {
+                members: Some(members),
+                ..Default::default()
+            },
+        })
+        .await
+    }
+
+    /// Update a query group's replication factor.
+    pub async fn update_query_group_replication_factor(
+        &self,
+        id: &QueryGroupId,
+        replication_factor: std::num::NonZeroUsize,
+    ) -> Result<Arc<QueryGroupDefinition>> {
+        info!(
+            %id,
+            replication_factor = replication_factor.get(),
+            "update query group replication factor"
+        );
+        self.update::<UpdateQueryGroupOp>(UpdateQueryGroupArgs {
+            id: *id,
+            update: QueryGroupUpdate {
+                replication_factor: Some(replication_factor),
+                ..Default::default()
+            },
+        })
+        .await
+    }
+
+    /// Remove a query group by ID.
+    ///
+    /// Returns the removed group definition so callers can inspect which
+    /// members were affected (for example, node stop/remove safety checks).
+    pub async fn delete_query_group(&self, id: &QueryGroupId) -> Result<Arc<QueryGroupDefinition>> {
+        info!(%id, "delete query group");
+        self.update::<DeleteQueryGroupOp>(DeleteQueryGroupArgs { id: *id })
+            .await
     }
 
     pub fn next_db_id(&self) -> DbId {
@@ -2528,7 +2773,7 @@ impl Catalog {
 
     /// Execute an op and return just its output. See [`Self::update_committed`].
     pub(crate) async fn update<Op: CatalogOp>(&self, args: Op::Input) -> Result<Op::Output> {
-        Ok(self.update_committed::<Op>(args).await?.output)
+        self.update_committed::<Op>(args).await.map(|c| c.output)
     }
 
     /// Execute an op: prepare → persist → apply → broadcast, returning its
@@ -2671,6 +2916,7 @@ impl Catalog {
             usage.total_table_count(),
             self.limits.table_count_limit(&usage),
             self.limits.column_per_table_limit(&usage),
+            self.limits.tag_column_per_table_limit(&usage),
             storage_mode,
         ))
     }
@@ -3048,10 +3294,10 @@ fn check_batch_against_committed(records: &[Record], committed: FeatureLevel) ->
         if record.flags().is_upgrade_safe() {
             continue;
         }
-        let id = RecordId::from_raw(record.id());
+        let id = record.id();
         if !committed.allows(id) {
             return Err(CatalogError::RecordExceedsCommittedFeatureLevel {
-                record_id: record.id(),
+                record_id: id.raw(),
                 committed,
             });
         }
@@ -3155,7 +3401,7 @@ impl Catalog {
         info!(%user_id, "restore user");
         self.update::<RestoreUserOp>(RestoreUserArgs {
             user_id,
-            display_name: display_name.map(|d| d.to_string()),
+            display_name,
             restored_at: self.time_provider.now().timestamp_millis(),
         })
         .await

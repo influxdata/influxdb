@@ -1,10 +1,9 @@
 //! Format-agnostic descriptors for the catalog backup/restore flow.
 //!
 //! These mirror the v2 backup types but are defined natively for v3 so the
-//! active catalog does not depend on v2, which is slated for deletion. Each
-//! type is just an object-store [`Path`] plus a [`CatalogSequenceNumber`], so
-//! they carry no v3-specific framing details.
+//! active catalog does not depend on v2, which is slated for deletion.
 
+use bytes::Bytes;
 use object_store::path::Path;
 
 use crate::catalog::CatalogSequenceNumber;
@@ -45,6 +44,12 @@ pub struct CatalogCheckpointForBackup {
     pub sequence: CatalogSequenceNumber,
     /// The path to the checkpoint's most recent snapshot.
     pub path: Path,
+    /// The exact checkpoint payload loaded from `path`.
+    ///
+    /// The live checkpoint path is overwritten by later checkpoints, so backup
+    /// callers must copy these bytes rather than fetch the path again after
+    /// selecting the log replay window.
+    pub bytes: Bytes,
 }
 
 /// The log file information needed for backup, including the sequence number of

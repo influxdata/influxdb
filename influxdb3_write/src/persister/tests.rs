@@ -43,7 +43,7 @@ fn create_test_persister(
 /// Create a test checkpoint with minimal data
 fn create_test_checkpoint(year_month: YearMonth, seq: u64) -> PersistedSnapshotCheckpoint {
     PersistedSnapshotCheckpoint {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         year_month,
         last_snapshot_sequence_number: SnapshotSequenceNumber::new(seq),
         next_file_id: Some(ParquetFileId::new()),
@@ -61,7 +61,7 @@ fn create_test_checkpoint(year_month: YearMonth, seq: u64) -> PersistedSnapshotC
 /// Create a test snapshot with minimal data
 fn create_test_snapshot(seq: u64) -> PersistedSnapshot {
     PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::new(),
         snapshot_sequence_number: SnapshotSequenceNumber::new(seq),
         wal_file_sequence_number: WalFileSequenceNumber::new(seq),
@@ -86,7 +86,7 @@ async fn persist_snapshot_info_file() {
     let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
     let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider, None);
     let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::from(0),
         snapshot_sequence_number: SnapshotSequenceNumber::new(0),
         wal_file_sequence_number: WalFileSequenceNumber::new(0),
@@ -109,7 +109,7 @@ async fn persist_and_load_snapshot_info_files() {
     let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider, None);
     let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::from(0),
         snapshot_sequence_number: SnapshotSequenceNumber::new(0),
         wal_file_sequence_number: WalFileSequenceNumber::new(0),
@@ -123,7 +123,7 @@ async fn persist_and_load_snapshot_info_files() {
         persisted_at: None,
     });
     let info_file_2 = PersistedSnapshotVersion::V1(PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::from(1),
         snapshot_sequence_number: SnapshotSequenceNumber::new(1),
         wal_file_sequence_number: WalFileSequenceNumber::new(1),
@@ -137,7 +137,7 @@ async fn persist_and_load_snapshot_info_files() {
         persisted_at: None,
     });
     let info_file_3 = PersistedSnapshotVersion::V1(PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::from(2),
         snapshot_sequence_number: SnapshotSequenceNumber::new(2),
         wal_file_sequence_number: WalFileSequenceNumber::new(2),
@@ -172,7 +172,7 @@ async fn persist_and_load_snapshot_info_files_with_fewer_than_requested() {
     let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider, None);
     let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::from(0),
         snapshot_sequence_number: SnapshotSequenceNumber::new(0),
         wal_file_sequence_number: WalFileSequenceNumber::new(0),
@@ -200,7 +200,7 @@ async fn persist_and_load_over_1000_snapshot_info_files() {
     let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider, None);
     for id in 0..1001 {
         let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
-            node_id: "test_host".to_string(),
+            node_id: Arc::from("test_host"),
             next_file_id: ParquetFileId::from(id),
             snapshot_sequence_number: SnapshotSequenceNumber::new(id),
             wal_file_sequence_number: WalFileSequenceNumber::new(id),
@@ -238,7 +238,7 @@ async fn persist_add_parquet_file_and_load_snapshot() {
     let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider, None);
     let mut info_file = PersistedSnapshot::new(
-        "test_host".to_string(),
+        Arc::from("test_host"),
         SnapshotSequenceNumber::new(0),
         WalFileSequenceNumber::new(0),
         CatalogSequenceNumber::new(0),
@@ -350,7 +350,7 @@ fn persisted_snapshot_structure() {
         ),
     ]);
     let snapshot = PersistedSnapshotVersion::V1(PersistedSnapshot {
-        node_id: "host".to_string(),
+        node_id: Arc::from("host"),
         next_file_id: ParquetFileId::new(),
         snapshot_sequence_number: SnapshotSequenceNumber::new(0),
         wal_file_sequence_number: WalFileSequenceNumber::new(0),
@@ -691,7 +691,7 @@ async fn test_checkpoint_disabled_no_cache_updates() {
 /// Create a test snapshot with a specific max_time for month grouping tests
 fn create_snapshot_with_max_time(seq: u64, max_time_ms: i64) -> PersistedSnapshot {
     PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::new(),
         snapshot_sequence_number: SnapshotSequenceNumber::new(seq),
         wal_file_sequence_number: WalFileSequenceNumber::new(seq),
@@ -725,7 +725,7 @@ fn create_snapshot_with_files(
     databases.insert(db_id, db_tables);
 
     PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::new(),
         snapshot_sequence_number: SnapshotSequenceNumber::new(seq),
         wal_file_sequence_number: WalFileSequenceNumber::new(seq),
@@ -920,7 +920,7 @@ async fn test_build_checkpoints_from_snapshots_skips_empty_snapshots() {
 
     // Include a snapshot with max_time = i64::MIN (empty, no data)
     let empty_snapshot = PersistedSnapshot {
-        node_id: "test_host".to_string(),
+        node_id: Arc::from("test_host"),
         next_file_id: ParquetFileId::new(),
         snapshot_sequence_number: SnapshotSequenceNumber::new(2),
         wal_file_sequence_number: WalFileSequenceNumber::new(2),
@@ -1044,7 +1044,7 @@ async fn test_checkpoint_cleanup_keeps_two_most_recent() {
 
     // Trigger cleanup
     Persister::cleanup_old_checkpoints_for_month(
-        persister.node_identifier_prefix.clone(),
+        &persister.node_identifier_prefix,
         Arc::clone(&persister.object_store),
         jan_2025,
     )
@@ -1083,7 +1083,7 @@ async fn test_checkpoint_cleanup_no_deletion_when_two_or_fewer() {
 
     // Trigger cleanup - should not delete anything
     Persister::cleanup_old_checkpoints_for_month(
-        persister.node_identifier_prefix.clone(),
+        &persister.node_identifier_prefix,
         Arc::clone(&persister.object_store),
         jan_2025,
     )
@@ -1105,7 +1105,7 @@ async fn test_checkpoint_cleanup_handles_empty_month() {
 
     // No checkpoints exist - cleanup should not error
     Persister::cleanup_old_checkpoints_for_month(
-        persister.node_identifier_prefix.clone(),
+        &persister.node_identifier_prefix,
         Arc::clone(&persister.object_store),
         jan_2025,
     )
@@ -1211,7 +1211,7 @@ async fn test_checkpoint_cleanup_only_affects_specified_month() {
 
     // Cleanup January only
     Persister::cleanup_old_checkpoints_for_month(
-        persister.node_identifier_prefix.clone(),
+        &persister.node_identifier_prefix,
         Arc::clone(&persister.object_store),
         jan_2025,
     )
@@ -1223,7 +1223,7 @@ async fn test_checkpoint_cleanup_only_affects_specified_month() {
 
     // Cleanup February
     Persister::cleanup_old_checkpoints_for_month(
-        persister.node_identifier_prefix.clone(),
+        &persister.node_identifier_prefix,
         Arc::clone(&persister.object_store),
         feb_2025,
     )

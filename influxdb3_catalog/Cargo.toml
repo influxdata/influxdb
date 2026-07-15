@@ -59,6 +59,9 @@ uuid.workspace = true
 [features]
 test_helpers = []
 
+# enable true deletion of catalog records (including within snapshots)
+true_deletion = []
+
 [dev-dependencies]
 # core deps
 test_helpers = { path = "../core/test_helpers" }
@@ -72,6 +75,7 @@ insta.workspace = true
 pretty_assertions.workspace = true
 rstest.workspace = true
 test-log.workspace = true
+tokio = { version = "1", features = [ "test-util" ] }
 
 [[bench]]
 name = "column_or_create"

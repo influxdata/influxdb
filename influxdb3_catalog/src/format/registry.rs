@@ -153,14 +153,14 @@ inventory::collect!(RegisteredRecord);
 /// Registry of all known record types, indexed by raw ID.
 #[derive(Debug)]
 pub struct RecordRegistry {
-    ops: BTreeMap<u16, &'static RegisteredRecord>,
+    ops: BTreeMap<RecordId, &'static RegisteredRecord>,
 }
 
 impl RecordRegistry {
     fn new() -> Self {
         let mut ops = BTreeMap::new();
         for op in inventory::iter::<RegisteredRecord> {
-            let raw = op.id.raw();
+            let raw = op.id;
             if ops.insert(raw, op).is_some() {
                 panic!("duplicate record id: {} ({})", raw, op.name);
             }
@@ -169,12 +169,12 @@ impl RecordRegistry {
     }
 
     /// Look up a registered record by raw ID.
-    pub fn get(&self, record_id: u16) -> Option<&'static RegisteredRecord> {
+    pub fn get(&self, record_id: RecordId) -> Option<&'static RegisteredRecord> {
         self.ops.get(&record_id).copied()
     }
 
     /// Check if a record ID is registered.
-    pub fn contains(&self, record_id: u16) -> bool {
+    pub fn contains(&self, record_id: RecordId) -> bool {
         self.ops.contains_key(&record_id)
     }
 
@@ -205,13 +205,15 @@ pub static REGISTRY: LazyLock<RecordRegistry> = LazyLock::new(RecordRegistry::ne
 ///
 /// Returns `Ok(true)` if the record should be processed (known record).
 /// Returns `Ok(false)` if the record should be skipped (unknown but upgrade-safe).
-pub fn validate_record_flags(record_id: u16, flags: RecordFlags) -> Result<bool, FormatError> {
+pub fn validate_record_flags(record_id: RecordId, flags: RecordFlags) -> Result<bool, FormatError> {
     if REGISTRY.contains(record_id) {
         Ok(true)
     } else if flags.is_upgrade_safe() {
         Ok(false)
     } else {
-        Err(FormatError::UnknownNonUpgradeSafeRecord { record_id })
+        Err(FormatError::UnknownNonUpgradeSafeRecord {
+            record_id: record_id.raw(),
+        })
     }
 }
 

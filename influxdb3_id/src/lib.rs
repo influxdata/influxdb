@@ -5,7 +5,10 @@ use std::fmt::Display;
 use std::hash::Hash;
 use std::num::ParseIntError;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
 mod serialize;
 pub use serialize::{SerdeVecMap, SerdeVecSet};
@@ -147,23 +150,33 @@ impl Default for ParquetFileId {
 /// Used for addressing into `TableIndex`-related collections.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TableIndexId {
-    node_id: String,
+    node_id: Arc<str>,
     db_id: DbId,
     table_id: TableId,
 }
 
 impl TableIndexId {
     /// Create a new FullTableId
-    pub fn new(node_id: impl Into<String>, db_id: DbId, table_id: TableId) -> Self {
+    pub fn new(
+        node_id: cfg_select! {
+            any(test, feature = "test_helpers") => { impl Into<Arc<str>> },
+            _ => { Arc<str> }
+        },
+        db_id: DbId,
+        table_id: TableId,
+    ) -> Self {
+        #[cfg(any(test, feature = "test_helpers"))]
+        let node_id = node_id.into();
+
         Self {
-            node_id: node_id.into(),
+            node_id,
             db_id,
             table_id,
         }
     }
 
     /// Get the node_id
-    pub fn node_id(&self) -> &str {
+    pub fn node_id(&self) -> &Arc<str> {
         &self.node_id
     }
 

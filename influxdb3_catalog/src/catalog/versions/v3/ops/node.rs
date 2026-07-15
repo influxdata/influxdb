@@ -16,6 +16,7 @@ use crate::format::records::{
     UnregisterNode,
 };
 use crate::format::{RecordBatch, derive_feature_level};
+use crate::resource::CatalogResource;
 
 // ---------------------------------------------------------------------------
 // RegisterNode
@@ -303,6 +304,19 @@ impl CatalogOp for RemoveNodeOp {
                     current_state: other.as_str(),
                 });
             }
+        }
+
+        if let Some(group) = catalog
+            .query_groups
+            .resource_iter()
+            .find(|g| g.members().contains(&node.node_catalog_id()))
+        {
+            // The node is still a member of a query group, so it cannot be removed.
+            return Err(CatalogError::NodeInQueryGroup {
+                node_id: Arc::clone(&args.node_id),
+                query_group_name: group.name(),
+                query_group_id: group.id(),
+            });
         }
 
         records.push(&RemoveNode {

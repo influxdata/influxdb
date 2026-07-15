@@ -111,7 +111,7 @@ impl From<PersistedSnapshotVersion> for Vec<TableIndexSnapshot> {
 
 impl From<PersistedSnapshot> for Vec<TableIndexSnapshot> {
     fn from(ps: PersistedSnapshot) -> Vec<TableIndexSnapshot> {
-        let node_id = ps.node_id.clone();
+        let node_id = &ps.node_id;
         let snapshot_sequence_number = ps.snapshot_sequence_number;
 
         let mut table_index_snapshots: HashMap<(DbId, TableId), TableIndexSnapshot> =
@@ -119,7 +119,7 @@ impl From<PersistedSnapshot> for Vec<TableIndexSnapshot> {
 
         let new_tis_fn = |(db_id, table_id): &(DbId, TableId)| -> TableIndexSnapshot {
             TableIndexSnapshot {
-                id: TableIndexId::new(node_id.clone(), *db_id, *table_id),
+                id: TableIndexId::new(Arc::clone(node_id), *db_id, *table_id),
                 snapshot_sequence_number,
                 files: Default::default(),
                 removed_files: Default::default(),

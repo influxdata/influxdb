@@ -24,7 +24,7 @@ fn table_tx(next_column_id: Option<ColumnId>, storage_mode: StorageMode) -> Tabl
     let mut table =
         TableDefinition::new_empty(TableId::new(1), Arc::from("t"), FieldFamilyMode::Auto);
     table.columns.next_id = next_column_id;
-    TableTransaction::from_existing(table, 1_000_000, storage_mode)
+    TableTransaction::from_existing(table, 1_000_000, 1_000_000, storage_mode)
 }
 
 #[test]

@@ -125,17 +125,18 @@ pub fn maybe_start_logging() {
 /// Is a macro so test error
 /// messages are on the same line as the failure;
 ///
-/// Both arguments must be convertable into `String`s (`Into<String>`)
+/// Both arguments must be convertable into `&str`s (`AsRef<str>`)
 macro_rules! assert_contains {
     ($ACTUAL: expr, $EXPECTED: expr) => {
-        let actual_value: String = $ACTUAL.into();
-        let expected_value: String = $EXPECTED.into();
-        assert!(
-            actual_value.contains(&expected_value),
-            "Can not find expected in actual.\n\nExpected:\n{}\n\nActual:\n{}",
-            expected_value,
-            actual_value
-        );
+        match ($ACTUAL, $EXPECTED) {
+            (actual_value, expected_value) => assert!(
+                AsRef::<str>::as_ref(&actual_value)
+                    .contains(&AsRef::<str>::as_ref(&expected_value)),
+                "Can not find expected in actual.\n\nExpected:\n{}\n\nActual:\n{}",
+                expected_value,
+                actual_value
+            ),
+        }
     };
 }
 
@@ -147,14 +148,15 @@ macro_rules! assert_contains {
 /// Both arguments must be convertable into `String`s (`Into<String>`)
 macro_rules! assert_not_contains {
     ($ACTUAL: expr, $UNEXPECTED: expr) => {
-        let actual_value: String = $ACTUAL.into();
-        let unexpected_value: String = $UNEXPECTED.into();
-        assert!(
-            !actual_value.contains(&unexpected_value),
-            "Found unexpected value in actual.\n\nUnexpected:\n{}\n\nActual:\n{}",
-            unexpected_value,
-            actual_value
-        );
+        match ($ACTUAL, $UNEXPECTED) {
+            (actual_value, unexpected_value) => assert!(
+                !AsRef::<str>::as_ref(&actual_value)
+                    .contains(&AsRef::<str>::as_ref(&unexpected_value)),
+                "Found unexpected value in actual.\n\nUnexpected:\n{}\n\nActual:\n{}",
+                unexpected_value,
+                actual_value
+            ),
+        }
     };
 }
 
@@ -179,21 +181,16 @@ macro_rules! assert_error {
 ///
 /// Usage: `assert_close!(actual, expected, epsilon);`
 macro_rules! assert_close {
-    ($ACTUAL:expr, $EXPECTED:expr, $EPSILON:expr) => {{
-        {
-            let actual = $ACTUAL;
-            let expected = $EXPECTED;
-            let epsilon = $EPSILON;
-            // determine how far apart they actually are
-            let delta = actual.abs_diff(expected);
-            assert!(
-                delta <= epsilon,
-                "{} and {} differ by {}, which is more than allowed {}",
-                actual,
-                expected,
-                delta,
-                epsilon
-            )
+    ($ACTUAL:expr, $EXPECTED:expr, $EPSILON:expr) => {
+        match ($ACTUAL, $EXPECTED, $EPSILON) {
+            (actual, expected, epsilon) => {
+                // determine how far apart they actually are
+                let delta = actual.abs_diff(expected);
+                assert!(
+                    delta <= epsilon,
+                    "{actual} and {expected} differ by {delta}, which is more than allowed {epsilon}",
+                )
+            }
         }
-    }};
+    };
 }

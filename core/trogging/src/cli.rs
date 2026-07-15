@@ -11,7 +11,7 @@ pub struct TokioConsoleConfig {
     /// When this channel is at capacity, additional events will be dropped.
     #[clap(
         long = "tokio-console-event-buffer-capacity",
-        env = "TOKIO_CONSOLE_EVENT_BUFFER_CAPACITY",
+        env = "INFLUXDB3_TOKIO_CONSOLE_EVENT_BUFFER_CAPACITY",
         action
     )]
     pub event_buffer_capacity: Option<usize>,
@@ -21,7 +21,7 @@ pub struct TokioConsoleConfig {
     /// When this channel is at capacity, the client may be disconnected.
     #[clap(
         long = "tokio-console-client-buffer-capacity",
-        env = "TOKIO_CONSOLE_CLIENT_BUFFER_CAPACITY",
+        env = "INFLUXDB3_TOKIO_CONSOLE_CLIENT_BUFFER_CAPACITY",
         action
     )]
     pub client_buffer_capacity: Option<usize>,
@@ -31,8 +31,8 @@ pub struct TokioConsoleConfig {
     /// This comes with a certain runtime overhead.
     #[clap(
         long = "tokio-console-enabled",
-        env = "TOKIO_CONSOLE_ENABLED",
-        default_value = "false",
+        env = "INFLUXDB3_TOKIO_CONSOLE_ENABLED",
+        default_value_t = false,
         action
     )]
     pub enabled: bool,

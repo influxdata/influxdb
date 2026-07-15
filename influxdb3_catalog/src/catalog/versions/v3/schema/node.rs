@@ -111,6 +111,12 @@ impl NodeDefinition {
             .any(|mode| matches!(mode, NodeMode::All | NodeMode::Ingest))
     }
 
+    pub fn is_query(&self) -> bool {
+        self.mode
+            .iter()
+            .any(|mode| matches!(mode, NodeMode::All | NodeMode::Query))
+    }
+
     pub fn conn_info(&self) -> Option<Arc<str>> {
         self.conn_info.clone()
     }
@@ -275,13 +281,6 @@ impl NodeSpec {
         match self {
             Self::All => true,
             Self::Nodes(v) => v.contains(&node.node_catalog_id()),
-        }
-    }
-
-    pub fn matches_node_id(&self, node_catalog_id: NodeId) -> bool {
-        match self {
-            Self::All => true,
-            Self::Nodes(v) => v.contains(&node_catalog_id),
         }
     }
 }

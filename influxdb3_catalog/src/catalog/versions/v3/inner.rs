@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use influxdb3_authz::permissions::TokenPermissions;
-use influxdb3_id::{DbId, NodeId};
+use influxdb3_id::{DbId, NodeId, QueryGroupId};
 use uuid::Uuid;
 
 use bytes::Bytes;
@@ -18,6 +18,7 @@ use crate::format::apply::serialize_snapshot_file;
 use super::schema::{
     database::DatabaseSchema,
     node::NodeDefinition,
+    query_group::QueryGroupDefinition,
     role::RoleRepository,
     storage::{GenerationConfig, StorageMode},
     tokens::TokenRepository,
@@ -57,8 +58,18 @@ pub struct InnerCatalog {
     pub(crate) users: UserRepository,
     /// Access control roles.
     pub(crate) roles: RoleRepository,
+    /// Operator-defined query groups.
+    pub(crate) query_groups: Repository<QueryGroupId, QueryGroupDefinition>,
     /// Records applied to the catalog, in application order. Used as the
     /// payload when writing a snapshot.
+    ///
+    /// The function responsible for appending records and making sure that they're all validated
+    /// and such is [`apply_records`]. That function replaces hard-delete records with their
+    /// respective [`SetNextId`] records and ensures that no records referencing hard-deleted
+    /// resources exist in this Vec.
+    ///
+    /// [`apply_records`]: crate::format::apply::apply_records
+    /// [`SetNextId`]: crate::format::records::SetNextId
     pub(crate) ordered_records: Vec<Record>,
 }
 
@@ -78,6 +89,7 @@ impl InnerCatalog {
             token_permissions: TokenPermissions::default(),
             users: UserRepository::default(),
             roles: RoleRepository::default(),
+            query_groups: Repository::default(),
             ordered_records: Vec::new(),
         }
     }
@@ -87,7 +99,20 @@ impl InnerCatalog {
         self.sequence
     }
 
-    pub fn create_snapshot(&self) -> Bytes {
+    pub fn create_snapshot(&mut self) -> Bytes {
+        #[cfg(feature = "true_deletion")]
+        {
+            use crate::format::record_ids;
+
+            // These records were pushed into ordered_records so that they could then be processed and
+            // cause the rest of the system to delete these databases and tables, but we don't actually
+            // need them anymore 'cause we should've already replaced their creation events with
+            // `SetNextId` records. So we can remove them here so we don't have to worry about them anymore.
+            self.ordered_records.retain(|rec| {
+                ![record_ids::DELETE_DATABASE, record_ids::DELETE_TABLE].contains(&rec.id())
+            });
+        }
+
         serialize_snapshot_file(
             self.catalog_uuid,
             self.sequence.get(),

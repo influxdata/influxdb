@@ -1,6 +1,3 @@
-use crate::plugin_telemetry::{
-    PluginTriggerEntrypoint, PluginTriggerInvocationKey, PluginTriggerInvocationRegistry,
-};
 use crate::{
     PluginCode, ProcessingEngineManagerImpl, RequestEvent, ScheduleEvent, WalEvent,
     environment::PythonEnvironmentManager,
@@ -16,6 +13,9 @@ use influxdb3_catalog::catalog::{
 };
 use influxdb3_id::DbId;
 use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_processing_engine_telemetry::{
+    PluginTriggerEntrypoint, PluginTriggerInvocationKey, PluginTriggerInvocationRegistry,
+};
 use influxdb3_py_api::{
     cache::{CacheStore, PyCache},
     logging::{LogLevel, PluginLogger, ProcessingEngineLogger},
@@ -32,13 +32,30 @@ use influxdb3_wal::{WalContents, WalOp};
 use influxdb3_write::{Precision, write_buffer};
 use iox_http_util::{ResponseBuilder, bytes_to_response_body};
 use iox_time::{Time, TimeProvider};
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use std::{fmt::Debug, path::PathBuf, str::FromStr, sync::Arc, time::SystemTime};
 use tokio::sync::mpsc::{self, Receiver};
+use tokio_util::sync::CancellationToken;
 
 use anyhow::{Context, anyhow};
 use parking_lot::Mutex;
 use thiserror::Error;
+
+/// Await a spawned blocking plugin run, returning `None` if `cancel` fires
+/// first. On cancellation we stop awaiting the `JoinHandle` and drop it: the
+/// blocking task is *not* interrupted — it keeps running to completion and its
+/// result is discarded — but the caller no longer waits on it, so a stuck or
+/// slow run cannot delay trigger shutdown. (Core's plugin execution is not
+/// cancellation-aware, so detaching is the only lever available here.)
+async fn run_until_cancelled<T>(
+    join: tokio::task::JoinHandle<T>,
+    cancel: &CancellationToken,
+) -> Option<Result<T, tokio::task::JoinError>> {
+    tokio::select! {
+        joined = join => Some(joined),
+        _ = cancel.cancelled() => None,
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum PluginError {
@@ -201,6 +218,9 @@ pub(crate) struct PluginContext {
     pub(crate) sys_event_store: Arc<SysEventStore>,
     // plugin invocation telemetry, when enabled by serve
     pub(crate) plugin_trigger_invocation_registry: Option<Arc<PluginTriggerInvocationRegistry>>,
+    // per-trigger cancellation token; cancelled when the trigger is stopped, to
+    // interrupt an in-flight scheduled run (see run_at_time).
+    pub(crate) cancel: CancellationToken,
 }
 
 #[derive(Debug, Clone)]
@@ -215,6 +235,9 @@ struct TriggerPlugin {
     logger: ProcessingEngineLogger,
     plugin_trigger_invocation_registry: Option<Arc<PluginTriggerInvocationRegistry>>,
     plugin_trigger_invocation_key: PluginTriggerInvocationKey,
+    /// Cancelled when this trigger is stopped (disable/force-delete), to
+    /// interrupt an in-flight scheduled run so shutdown isn't blocked.
+    cancel: CancellationToken,
 }
 
 impl TriggerPlugin {
@@ -246,6 +269,7 @@ impl TriggerPlugin {
             logger,
             plugin_trigger_invocation_registry: context.plugin_trigger_invocation_registry,
             plugin_trigger_invocation_key,
+            cancel: context.cancel,
         }
     }
 
@@ -927,7 +951,7 @@ impl ScheduleTriggerRunner {
             let plugin_code_str = plugin.plugin_code.code();
             let plugin_root = plugin.plugin_code.plugin_root().cloned();
             let write_endpoint = Arc::clone(&plugin.write_endpoint);
-            let result = tokio::task::spawn_blocking(move || {
+            let join = tokio::task::spawn_blocking(move || {
                 execute_schedule_trigger(
                     plugin_code_str.as_ref(),
                     trigger_time,
@@ -939,8 +963,23 @@ impl ScheduleTriggerRunner {
                     py_cache,
                     plugin_root.as_deref(),
                 )
-            })
-            .await?;
+            });
+            // Race the in-flight run against cancellation. If the trigger is
+            // disabled/force-deleted while a run_async=false run is in flight,
+            // return promptly so the schedule loop can service the shutdown event
+            // instead of blocking on the run — otherwise the run blocks the
+            // trigger's shutdown ACK and wedges all trigger management on the node
+            // (the disable/`delete --force` hang). This does not interrupt the
+            // run: the detached spawn_blocking task keeps executing to completion
+            // and its result is dropped; we simply stop awaiting it.
+            let Some(joined) = run_until_cancelled(join, &plugin.cancel).await else {
+                debug!(
+                    trigger_name = %plugin.trigger_definition.trigger_name,
+                    "scheduled plugin run cancelled before completion"
+                );
+                return Ok(PluginNextState::SuccessfulRun);
+            };
+            let result = joined?;
             match plugin
                 .handle_trigger_result(result, "schedule plugin")
                 .await

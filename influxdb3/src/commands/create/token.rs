@@ -243,7 +243,7 @@ pub struct CreateAdminTokenConfig {
     #[clap(long)]
     pub format: Option<TokenOutputFormat>,
 
-    /// Generate token without connecting to server (enterprise feature)
+    /// Generate token without connecting to server
     #[clap(long, requires = "output_file")]
     pub offline: bool,
 

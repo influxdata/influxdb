@@ -688,8 +688,8 @@ fn test_merge_validation(
         );
         match result.unwrap_err() {
             TableIndexError::MergeMismatch { expected, actual } => {
-                assert_eq!(expected.node_id(), node1);
-                assert_eq!(actual.node_id(), node2);
+                assert_eq!(&**expected.node_id(), node1);
+                assert_eq!(&**actual.node_id(), node2);
                 assert_eq!(expected.db_id(), db1);
                 assert_eq!(actual.db_id(), db2);
                 assert_eq!(expected.table_id(), table1);

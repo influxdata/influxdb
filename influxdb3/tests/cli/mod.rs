@@ -2030,6 +2030,33 @@ async fn test_show_system() {
         "iox_schema_table_name_exists,_but_should_error_because_we're_concerned_here_with_system_tables",
         format!("{}", result.unwrap_err())
     );
+
+    // 4. `--format parquet` must be rejected (binary format, no `--output` plumbing
+    //    in `show system`) on all three subcommands. Pre-fix this panicked in
+    //    `String::from_utf8(...).unwrap()`.
+    for result in [
+        server
+            .show_system(db_name)
+            .with_format("parquet")
+            .summary()
+            .run(),
+        server
+            .show_system(db_name)
+            .with_format("parquet")
+            .table("queries")
+            .run(),
+        server
+            .show_system(db_name)
+            .with_format("parquet")
+            .table_list()
+            .run(),
+    ] {
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("parquet format is not supported for this command"),
+            "expected parquet-rejection error, got: {err}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -2435,6 +2462,71 @@ foo,tag1=bar,tag2=mloem val1=5,val2=199"#,
         .collect();
     assert_eq!(result["errors"], json!([]));
     assert_eq!(log_lines, vec!["INFO: successfully queried"]);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_schedule_plugin_cross_db_query() {
+    use crate::server::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    // Create plugin file that queries a different database via `database=`
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
+        r#"
+def process_scheduled_call(influxdb3_local, time, args=None):
+    results = influxdb3_local.query("SELECT count(val1) as n FROM bar", database="other_db")
+    influxdb3_local.info(f"other_db row count: {results[0]['n']}")
+    influxdb3_local.info("successfully queried other_db")"#,
+    );
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+
+    // Write some test data
+    server
+        .write_lp_to_db("foo", "cpu,host=A usage=0.5 100", Precision::Second)
+        .await
+        .unwrap();
+    server
+        .write_lp_to_db(
+            "other_db",
+            "bar,tag1=x val1=5 100\nbar,tag1=x val1=10 200",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    let result = server
+        .test_schedule_plugin(db_name, plugin_name, "*/5 * * * * *")
+        .run()
+        .expect("Failed to run schedule plugin test");
+
+    debug!(result = ?result, "test schedule plugin");
+
+    // Filter out framework start/finish messages (timing varies per run)
+    let log_lines: Vec<_> = result["log_lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| {
+            !s.starts_with("INFO: starting execution") && !s.starts_with("INFO: finished execution")
+        })
+        .collect();
+    assert_eq!(result["errors"], json!([]));
+    assert_eq!(
+        log_lines,
+        vec![
+            "INFO: other_db row count: 2",
+            "INFO: successfully queried other_db"
+        ]
+    );
 }
 
 #[test_log::test(tokio::test)]

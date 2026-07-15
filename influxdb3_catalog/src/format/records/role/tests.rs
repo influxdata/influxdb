@@ -8,6 +8,7 @@ use crate::format::CatalogRecord;
 use crate::format::records::assert_roundtrip;
 use crate::format::records::types::{
     RoleDatabaseAction, RoleDatabasePermission, RoleDatabaseResource, RolePermissionGrant,
+    RoleSystemAction, RoleSystemPermission, RoleSystemResource,
 };
 
 use super::*;
@@ -66,6 +67,79 @@ fn create_role_database_permission_roundtrip() {
         },
         "06030964622d7772697465720001010201042a0002d2029649"
     );
+}
+
+#[test]
+fn create_role_system_permission_all_roundtrip() {
+    assert_roundtrip!(
+        CreateRole {
+            role_id: 4,
+            name: "monitor".to_string(),
+            description: None,
+            permissions: vec![RolePermissionGrant::System(RoleSystemPermission {
+                action: RoleSystemAction::Read,
+                resource: RoleSystemResource::All,
+            })],
+            is_required_role: false,
+            created_at: 1234567890,
+        },
+        "0604076d6f6e69746f72000106000002d2029649"
+    );
+}
+
+#[test]
+fn create_role_system_permission_specific_roundtrip() {
+    assert_roundtrip!(
+        CreateRole {
+            role_id: 5,
+            name: "health-only".to_string(),
+            description: None,
+            permissions: vec![RolePermissionGrant::System(RoleSystemPermission {
+                action: RoleSystemAction::Read,
+                resource: RoleSystemResource::Health,
+            })],
+            is_required_role: false,
+            created_at: 1234567890,
+        },
+        "06050b6865616c74682d6f6e6c79000106010002d2029649"
+    );
+}
+
+#[test]
+fn permission_system_authz_wire_roundtrip() {
+    use influxdb3_authz::role::{
+        Permission, ResourceIdentifier, SystemAction, SystemResource,
+        role_permissions::SystemPermission,
+    };
+
+    let cases = [
+        Permission::System(SystemPermission::new(
+            SystemAction::Read,
+            ResourceIdentifier::All,
+        )),
+        Permission::System(SystemPermission::new(
+            SystemAction::Read,
+            ResourceIdentifier::Identifier(SystemResource::Health),
+        )),
+        Permission::System(SystemPermission::new(
+            SystemAction::Read,
+            ResourceIdentifier::Identifier(SystemResource::Metrics),
+        )),
+        Permission::System(SystemPermission::new(
+            SystemAction::Read,
+            ResourceIdentifier::Identifier(SystemResource::Ping),
+        )),
+        Permission::System(SystemPermission::new(
+            SystemAction::Read,
+            ResourceIdentifier::Identifier(SystemResource::Ready),
+        )),
+    ];
+
+    for original in cases {
+        let wire: RolePermissionGrant = RolePermissionGrant::from(&original);
+        let back = Permission::from(&wire);
+        assert_eq!(original, back, "system permission wire roundtrip");
+    }
 }
 
 #[test]

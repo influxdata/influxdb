@@ -113,6 +113,9 @@ impl CatalogOp for HardDeleteTableOp {
                     table_name: Arc::from(format!("table_id={}", args.table_id).as_str()),
                 })?;
 
+        // We still need to push the HardDelete here because that's how the catalog is told that it
+        // needs to remove this database from its internal state. But this `HardDelete` record should
+        // be deleted down the line - specifically, within InnerCatalog::create_snapshot
         records.push(&HardDeleteTable {
             db_id: args.db_id.get(),
             table_id: args.table_id.get(),

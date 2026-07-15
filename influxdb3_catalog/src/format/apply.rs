@@ -31,19 +31,22 @@
 //! record) returns [`FormatError::RestoreRequiresStore`] if a restore record
 //! is nonetheless encountered.
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use bytes::Bytes;
-use influxdb3_id::CatalogId;
+use influxdb3_id::{CatalogId, DbId, TableId};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::catalog::CatalogSequenceNumber;
-use crate::catalog::versions::v3::events::CatalogEvent;
-use crate::catalog::versions::v3::inner::InnerCatalog;
-use crate::format::records::RestoreCatalog;
-use crate::object_store::versions::v3::ObjectStoreCatalog;
-use crate::repository::RepositoryError;
+use crate::{
+    catalog::{
+        CatalogSequenceNumber,
+        versions::v3::{events::CatalogEvent, inner::InnerCatalog},
+    },
+    format::records::{HardDeleteDatabase, HardDeleteTable, RestoreCatalog},
+    object_store::versions::v3::ObjectStoreCatalog,
+    repository::RepositoryError,
+};
 
 use super::reader::LEGACY_GROUP_INDEX_ENTRY_SIZE;
 use super::{
@@ -213,7 +216,7 @@ pub(crate) async fn preload_restore_for_records(
 ) -> Result<RestorePreload, FormatError> {
     let mut found: Option<&Record> = None;
     for r in records {
-        if r.id() == record_ids::RESTORE_CATALOG.raw() {
+        if r.id() == record_ids::RESTORE_CATALOG {
             if found.is_some() {
                 return Err(FormatError::RestoreLoadFailed(
                     "batch contains more than one RestoreCatalog record".to_string(),
@@ -304,16 +307,35 @@ async fn load_restore_state(
 ///
 /// # Restore records
 ///
-/// If the batch contains a
-/// [`RestoreCatalog`] record, the
-/// caller must pre-load its backup state via `preload_restore_for_records`
-/// and pass it in `preload`. The sync apply path replaces `*catalog` with
-/// the pre-loaded state when the restore record is encountered. The restore
-/// record is **not** retained in `ordered_records` — the next snapshot
-/// captures the restored state without the meta-record.
+/// If the batch contains a [`RestoreCatalog`] record, the caller must pre-load
+/// its backup state via `preload_restore_for_records` and pass it in `preload`.
+/// The sync apply path replaces `*catalog` with the pre-loaded state when the
+/// restore record is encountered. The restore record is **not** retained in
+/// `ordered_records` — the next snapshot captures the restored state without
+/// the meta-record.
 ///
 /// Encountering a restore record with no pre-loaded state returns
 /// [`FormatError::RestoreRequiresStore`].
+#[cfg_attr(
+    feature = "true_deletion",
+    doc = "
+# Hard deletes
+
+When the records being applied contain ids of [`record_ids::DELETE_TABLE`] or
+[`record_ids::DELETE_DATABASE`], this function goes through all currently-stored records and
+removes all that contain data exclusive to the database or table referenced by the delete
+record(s).
+
+This record removal described above is best-effort. We will go through all records and if we
+can't decode one of them, we simply store that error and move to the next record to continue the
+process. The removal function ([`hard_delete_records_for`]) will return an error if any of the
+records fail to decode, but that error is not bubbled up out of this function - it's simply
+logged. This is because a failure out of this function would imply that record application
+failed, when a failure out of the removal function doesn't mean the same thing.
+
+[`hard_delete_records_for`]: crate::format::records::hard_delete_records_for
+"
+)]
 pub fn apply_records(
     records: &[Record],
     catalog: &mut InnerCatalog,
@@ -321,30 +343,46 @@ pub fn apply_records(
     preload: &mut RestorePreload,
 ) -> Result<Vec<CatalogEvent>, FormatError> {
     let mut events = Vec::with_capacity(records.len());
+    let mut table_ids_to_clear = BTreeSet::<TableId>::new();
+    let mut db_ids_to_clear = BTreeSet::<DbId>::new();
+
     for record in records {
-        if record.id() == record_ids::RESTORE_CATALOG.raw() {
-            let restore = RestoreCatalog::decode(&record.data)?;
-            let loaded = preload.take().ok_or(FormatError::RestoreRequiresStore)?;
-            // Preserve the live cluster's catalog identity across the swap. The
-            // backup snapshot carries its own `catalog_uuid`, but the outer
-            // `Catalog.catalog_uuid` used for every subsequent `serialize_log_file`
-            // is fixed at construction and never reassigned. Adopting the backup's
-            // uuid here would split identity between the post-restore snapshot
-            // (stamped from `inner.catalog_uuid`) and the live logs, which the
-            // cold-start load applies without ever reconciling. A restore replaces
-            // the catalog's *data*, not the cluster's identity — which also feeds
-            // licensing — so keep the live uuid.
-            let live_uuid = catalog.catalog_uuid;
-            *catalog = loaded;
-            catalog.catalog_uuid = live_uuid;
-            events.push(CatalogEvent::CatalogFullyRestored {
-                restore_id: Arc::from(restore.restore_id.as_str()),
-            });
-            // Skip the `ordered_records.push` below — the restore record is
-            // replaced by the loaded state and should not survive into the
-            // next snapshot.
-            continue;
-        }
+        match record.id() {
+            record_ids::RESTORE_CATALOG => {
+                let restore = RestoreCatalog::decode(&record.data)?;
+                let loaded = preload.take().ok_or(FormatError::RestoreRequiresStore)?;
+                // Preserve the live cluster's catalog identity across the swap. The
+                // backup snapshot carries its own `catalog_uuid`, but the outer
+                // `Catalog.catalog_uuid` used for every subsequent `serialize_log_file`
+                // is fixed at construction and never reassigned. Adopting the backup's
+                // uuid here would split identity between the post-restore snapshot
+                // (stamped from `inner.catalog_uuid`) and the live logs, which the
+                // cold-start load applies without ever reconciling. A restore replaces
+                // the catalog's *data*, not the cluster's identity — which also feeds
+                // licensing — so keep the live uuid.
+                let live_uuid = catalog.catalog_uuid;
+                *catalog = loaded;
+                catalog.catalog_uuid = live_uuid;
+                events.push(CatalogEvent::CatalogFullyRestored {
+                    restore_id: Arc::from(restore.restore_id.as_str()),
+                });
+                // Skip the `ordered_records.push` below — the restore record is
+                // replaced by the loaded state and should not survive into the
+                // next snapshot.
+                continue;
+            }
+            // we don't check for SetNextId here 'cause we transform them so that the HardDelete
+            // ones are never persisted after we start clearing the obsolete records
+            record_ids::DELETE_TABLE => {
+                let hard_delete = HardDeleteTable::decode(&record.data)?;
+                table_ids_to_clear.insert(TableId::new(hard_delete.table_id));
+            }
+            record_ids::DELETE_DATABASE => {
+                let hard_delete = HardDeleteDatabase::decode(&record.data)?;
+                db_ids_to_clear.insert(DbId::new(hard_delete.db_id));
+            }
+            _ => (),
+        };
         if validate_record_flags(record.id(), record.header.flags)? {
             let entry = REGISTRY.get(record.id()).unwrap();
             events.push((entry.decode_apply_and_event)(&record.data, catalog)?);
@@ -356,6 +394,27 @@ pub fn apply_records(
         // short-circuited above and are not retained.
         catalog.ordered_records.push(record.clone());
     }
+
+    #[cfg(feature = "true_deletion")]
+    {
+        if !db_ids_to_clear.is_empty() || !table_ids_to_clear.is_empty() {
+            // We're not failing here because that would imply that applying the records failed. It
+            // didn't; we just failed to clean up artifacts that should be gone now. So we warn it to
+            // let us know, but we don't want to stop this whole process, since the record application
+            // actually did happen and they're in `catalog.ordered_records` now.
+            let res = crate::format::record::hard_delete_records_for(
+                &mut catalog.ordered_records,
+                &db_ids_to_clear,
+                &table_ids_to_clear,
+            );
+            if let Err(e) = res {
+                observability_deps::tracing::warn!(
+                    "Couldn't fully apply hard delete due to decoding error: {e}"
+                );
+            }
+        }
+    }
+
     catalog.sequence = sequence;
     Ok(events)
 }

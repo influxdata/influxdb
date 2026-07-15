@@ -816,7 +816,7 @@ async fn new_snapshots_use_correct_sequence() {
     ParquetFileId::from(500).set_next_id();
     let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
     let prev_snapshot = PersistedSnapshot::new(
-        "test_host".to_string(),
+        Arc::from("test_host"),
         prev_snapshot_seq,
         WalFileSequenceNumber::new(0),
         CatalogSequenceNumber::new(0),
@@ -924,7 +924,7 @@ async fn next_id_is_correct_number() {
 
     let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
     let mut prev_snapshot = PersistedSnapshot::new(
-        "test_host".to_string(),
+        Arc::from("test_host"),
         prev_snapshot_seq,
         WalFileSequenceNumber::new(0),
         CatalogSequenceNumber::new(0),

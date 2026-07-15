@@ -6,9 +6,11 @@ pub use ::schema::{InfluxColumnType, InfluxFieldType};
 pub use versions::v3::backup::{
     CatalogBackupView, CatalogCheckpointForBackup, CatalogLogFileForBackup, CatalogRestoreSource,
 };
+#[cfg(any(test, feature = "test_helpers"))]
+pub use versions::v3::catalog::CatalogBuilder;
 pub use versions::v3::catalog::{
-    ApiNodeSpec, Catalog, CatalogArgs, CatalogBuilder, Committed, CreateDatabaseOptions,
-    CreateTableOptions, HardDeletionTime,
+    ApiNodeSpec, Catalog, CatalogArgs, Committed, CreateDatabaseOptions, CreateTableOptions,
+    HardDeletionTime,
 };
 pub use versions::v3::deletes::DeletionScope;
 pub use versions::v3::events::{
@@ -26,6 +28,9 @@ pub use versions::v3::schema::column::{
 };
 pub use versions::v3::schema::database::DatabaseSchema;
 pub use versions::v3::schema::node::{NodeDefinition, NodeMode, NodeModes, NodeSpec, NodeState};
+pub use versions::v3::schema::query_group::{
+    QueryGroupDefinition, QueryGroupInsertPosition, QueryGroupUpdate,
+};
 pub use versions::v3::schema::retention::RetentionPeriod;
 pub use versions::v3::schema::storage::{GenerationConfig, StorageMode};
 pub use versions::v3::schema::table::TableDefinition;

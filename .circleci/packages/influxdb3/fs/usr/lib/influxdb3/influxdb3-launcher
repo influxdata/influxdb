@@ -70,7 +70,6 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         # Google Cloud (GOOGLE_ prefix, not INFLUXDB3_)
         "google-service-account": "GOOGLE_SERVICE_ACCOUNT",
         # Object store
-        "object-store-cache-endpoint": "INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT",
         "object-store-connection-limit": "INFLUXDB3_OBJECT_STORE_CONNECTION_LIMIT",
         "object-store-http2-only": "INFLUXDB3_OBJECT_STORE_HTTP2_ONLY",
         "object-store-http2-max-frame-size": "INFLUXDB3_OBJECT_STORE_HTTP2_MAX_FRAME_SIZE",
@@ -83,10 +82,10 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "virtual-env-location": "VIRTUAL_ENV",
         # WAL
         "snapshotted-wal-files-to-keep": "INFLUXDB3_NUM_WAL_FILES_TO_KEEP",
-        # Tokio console (TOKIO_CONSOLE_ prefix, not INFLUXDB3_)
-        "tokio-console-enabled": "TOKIO_CONSOLE_ENABLED",
-        "tokio-console-client-buffer-capacity": "TOKIO_CONSOLE_CLIENT_BUFFER_CAPACITY",
-        "tokio-console-event-buffer-capacity": "TOKIO_CONSOLE_EVENT_BUFFER_CAPACITY",
+        # Tokio console
+        "tokio-console-enabled": "INFLUXDB3_TOKIO_CONSOLE_ENABLED",
+        "tokio-console-client-buffer-capacity": "INFLUXDB3_TOKIO_CONSOLE_CLIENT_BUFFER_CAPACITY",
+        "tokio-console-event-buffer-capacity": "INFLUXDB3_TOKIO_CONSOLE_EVENT_BUFFER_CAPACITY",
         # Tracing
         "traces-exporter": "INFLUXDB3_TRACES_EXPORTER",
         "traces-exporter-jaeger-agent-host": "INFLUXDB3_TRACES_EXPORTER_JAEGER_AGENT_HOST",
@@ -114,7 +113,6 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "compaction-max-num-files-per-plan": "INFLUXDB3_ENTERPRISE_COMPACTION_MAX_NUM_FILES_PER_PLAN",
         "compaction-multipliers": "INFLUXDB3_ENTERPRISE_COMPACTION_MULTIPLIERS",
         "compaction-row-limit": "INFLUXDB3_ENTERPRISE_COMPACTION_ROW_LIMIT",
-        "max-compact-destination": "INFLUXDB3_ENTERPRISE_MAX_COMPACT_DESTINATION",
         # Last Value & Distinct Value Caches
         "preemptive-cache-age": "INFLUXDB3_ENTERPRISE_PREEMPTIVE_CACHE_AGE",
         # Licensing
@@ -123,13 +121,11 @@ TOML_KEY_ENVVAR: Dict[str, Dict[str, str]] = {
         "license-type": "INFLUXDB3_ENTERPRISE_LICENSE_TYPE",
         # Resource limits
         "catalog-sync-interval": "INFLUXDB3_ENTERPRISE_CATALOG_SYNC_INTERVAL",
-        "database-split-level": "INFLUXDB3_ENTERPRISE_DATABASE_SPLIT_LEVEL",
         "max-columns": "INFLUXDB3_ENTERPRISE_PACHA_TREE_MAX_COLUMNS",
         "num-database-limit": "INFLUXDB3_ENTERPRISE_NUM_DATABASE_LIMIT",
         "num-table-limit": "INFLUXDB3_ENTERPRISE_NUM_TABLE_LIMIT",
         "num-total-columns-per-table-limit": "INFLUXDB3_ENTERPRISE_NUM_TOTAL_COLUMNS_PER_TABLE_LIMIT",
         "replication-interval": "INFLUXDB3_ENTERPRISE_REPLICATION_INTERVAL",
-        "table-split-level": "INFLUXDB3_ENTERPRISE_TABLE_SPLIT_LEVEL",
     },
 }
 

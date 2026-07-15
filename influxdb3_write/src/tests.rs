@@ -51,7 +51,7 @@ fn test_overall_counts() {
 
     // add dbs_1 to snapshot
     let persisted_snapshot_1 = PersistedSnapshot {
-        node_id: host.to_string(),
+        node_id: Arc::from(host),
         next_file_id: ParquetFileId::from(0),
         snapshot_sequence_number: SnapshotSequenceNumber::new(124),
         wal_file_sequence_number: WalFileSequenceNumber::new(100),
@@ -95,7 +95,7 @@ fn test_overall_counts() {
 
     // add dbs_2 to snapshot
     let persisted_snapshot_2 = PersistedSnapshot {
-        node_id: host.to_string(),
+        node_id: Arc::from(host),
         next_file_id: ParquetFileId::from(5),
         snapshot_sequence_number: SnapshotSequenceNumber::new(124),
         wal_file_sequence_number: WalFileSequenceNumber::new(100),

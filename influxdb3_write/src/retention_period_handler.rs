@@ -16,7 +16,7 @@ pub struct RetentionPeriodHandler {
     catalog: Arc<Catalog>,
     time_provider: Arc<dyn TimeProvider>,
     check_interval: Duration,
-    node_id: String,
+    node_id: Arc<str>,
 }
 
 impl RetentionPeriodHandler {
@@ -26,7 +26,7 @@ impl RetentionPeriodHandler {
         catalog: Arc<Catalog>,
         time_provider: Arc<dyn TimeProvider>,
         check_interval: Duration,
-        node_id: String,
+        node_id: Arc<str>,
     ) -> Self {
         Self {
             table_index_cache,
@@ -99,7 +99,7 @@ impl RetentionPeriodHandler {
 
         match self
             .table_index_cache
-            .purge_expired(&self.node_id, db_id, table_id, cutoff_time_ns)
+            .purge_expired(Arc::clone(&self.node_id), db_id, table_id, cutoff_time_ns)
             .await
         {
             Ok(()) => {

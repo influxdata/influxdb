@@ -4,6 +4,7 @@ use crate::{Precision, WriteLineError, write_buffer::Result};
 use data_types::Timestamp;
 use hashbrown::HashSet;
 use indexmap::IndexMap;
+use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::{
     Catalog, CatalogSequenceNumber, DatabaseCatalogTransaction, Prompt,
 };
@@ -212,18 +213,31 @@ fn validate_and_qualify_v1_line(
 
     if let Some(tag_set) = &line.series.tag_set {
         for (tag_key, tag_val) in tag_set {
-            let col = txn
+            let col_id = txn
                 .column_or_create(table_name, tag_key.as_str(), InfluxColumnType::Tag)
                 .map_err(|error| WriteLineError {
                     original_line: line.to_string(),
                     line_number: line_number + 1,
-                    error_message: error.to_string(),
-                })?;
-            fields.push(Field::new(
-                col.ord_id()
-                    .expect("parquet write paths require legacy column ids"),
-                FieldData::Tag(tag_val.to_string()),
-            ));
+                    error_message: project_column_limit_error(txn, table_name, &line, error)
+                        .to_string(),
+                })?
+                .ord_id()
+                .expect("parquet write paths require legacy column ids");
+            // Reject a point that repeats a tag key. Without this a duplicate tag
+            // produces two columns with the same id, which desyncs the table buffer
+            // and later panics when building the record batch (all columns must have
+            // the same length). Mirrors the duplicate-field check below.
+            if !column_ids.insert(col_id) {
+                return Err(WriteLineError {
+                    original_line: line.to_string(),
+                    line_number: line_number + 1,
+                    error_message: format!(
+                        "invalid line protocol - multiple instances of '{}' tag found",
+                        tag_key.as_str()
+                    ),
+                });
+            }
+            fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
             index_count += 1;
         }
     }
@@ -244,7 +258,8 @@ fn validate_and_qualify_v1_line(
             .map_err(|error| WriteLineError {
                 original_line: line.to_string(),
                 line_number: line_number + 1,
-                error_message: error.to_string(),
+                error_message: project_column_limit_error(txn, table_name, &line, error)
+                    .to_string(),
             })?
             .ord_id()
             .expect("parquet write paths require legacy column ids");
@@ -266,7 +281,7 @@ fn validate_and_qualify_v1_line(
         .map_err(|error| WriteLineError {
             original_line: line.to_string(),
             line_number: line_number + 1,
-            error_message: error.to_string(),
+            error_message: project_column_limit_error(txn, table_name, &line, error).to_string(),
         })?
         .ord_id()
         .expect("parquet write paths require legacy column ids");
@@ -289,6 +304,35 @@ fn validate_and_qualify_v1_line(
         index_count,
         field_count,
     })
+}
+
+/// If `error` is a column or tag column limit breach, recompute it against the
+/// full set of columns in the line so it reports the projected total for the
+/// whole write rather than "current + 1". Runs only on the error path, so
+/// successful writes pay nothing for the richer message. Falls back to the
+/// original error if the recomputation does not reproduce a breach.
+fn project_column_limit_error(
+    txn: &mut DatabaseCatalogTransaction,
+    table_name: &str,
+    line: &ParsedLine<'_>,
+    error: CatalogError,
+) -> CatalogError {
+    if !matches!(
+        error,
+        CatalogError::TooManyColumns { .. } | CatalogError::TooManyTagColumns { .. }
+    ) {
+        return error;
+    }
+    let incoming_tags: Vec<&str> = line
+        .series
+        .tag_set
+        .as_ref()
+        .map(|ts| ts.iter().map(|(k, _)| k.as_str()).collect())
+        .unwrap_or_default();
+    let incoming_fields: Vec<&str> = line.field_set.iter().map(|(k, _)| k.as_str()).collect();
+    txn.check_write_column_limits(table_name, &incoming_tags, &incoming_fields)
+        .err()
+        .unwrap_or(error)
 }
 
 impl WriteValidator<LinesParsed> {

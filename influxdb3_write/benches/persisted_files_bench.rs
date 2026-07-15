@@ -75,7 +75,7 @@ fn create_snapshot_with_files(
     }
 
     PersistedSnapshot {
-        node_id: "bench-host".to_owned(),
+        node_id: Arc::from("bench-host"),
         next_file_id: ParquetFileId::next_id(),
         snapshot_sequence_number: SnapshotSequenceNumber::new(1),
         wal_file_sequence_number: influxdb3_wal::WalFileSequenceNumber::new(1),
@@ -116,7 +116,7 @@ fn create_persisted_files(file_count: usize) -> (PersistedFiles, DbId, TableId) 
     let max_time = parquet_files.iter().map(|f| f.max_time).max().unwrap_or(0);
 
     let snapshot = PersistedSnapshot {
-        node_id: "bench-host".to_owned(),
+        node_id: Arc::from("bench-host"),
         next_file_id: ParquetFileId::next_id(),
         snapshot_sequence_number: SnapshotSequenceNumber::new(1),
         wal_file_sequence_number: influxdb3_wal::WalFileSequenceNumber::new(1),

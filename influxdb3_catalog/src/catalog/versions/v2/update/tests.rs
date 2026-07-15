@@ -273,7 +273,10 @@ mod create_table {
             "field2",
             InfluxColumnType::Field(InfluxFieldType::Integer),
         );
-        assert!(matches!(result, Err(CatalogError::TooManyColumns(3))));
+        assert!(matches!(
+            result,
+            Err(CatalogError::TooManyColumns { limit: 3, .. })
+        ));
     }
 
     #[tokio::test]
@@ -1307,7 +1310,10 @@ mod update_table {
             "field2",
             InfluxColumnType::Field(InfluxFieldType::Integer),
         );
-        assert!(matches!(result, Err(CatalogError::TooManyColumns(3))));
+        assert!(matches!(
+            result,
+            Err(CatalogError::TooManyColumns { limit: 3, .. })
+        ));
     }
 }
 

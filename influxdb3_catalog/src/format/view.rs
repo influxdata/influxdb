@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 
-use crate::format::{CatalogFile, Header, REGISTRY, Record};
+use crate::format::{CatalogFile, Header, REGISTRY, Record, RecordId};
 
 /// View of a file header.
 #[derive(Debug, Clone, Serialize)]
@@ -33,7 +33,7 @@ impl From<&Header> for HeaderView {
 /// View of a record header (no decoded body).
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct RecordHeaderView {
-    pub id: u16,
+    pub id: RecordId,
     pub name: Option<&'static str>,
     pub upgrade_safe: bool,
     pub sequence: u64,
@@ -98,7 +98,7 @@ impl RecordView {
 /// Count of records of a given type.
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct RecordTypeCount {
-    pub id: u16,
+    pub id: RecordId,
     pub name: Option<&'static str>,
     pub count: u64,
 }
@@ -133,7 +133,7 @@ pub fn record_views(file: &CatalogFile) -> Vec<RecordView> {
 /// Histogram of record types over a set of records, sorted by id.
 pub fn histogram(records: &[&Record]) -> Vec<RecordTypeCount> {
     use std::collections::BTreeMap;
-    let mut counts: BTreeMap<u16, u64> = BTreeMap::new();
+    let mut counts: BTreeMap<RecordId, u64> = BTreeMap::new();
     for r in records {
         *counts.entry(r.id()).or_default() += 1;
     }

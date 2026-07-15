@@ -444,7 +444,7 @@ dependencies = [
 
 [[package]]
 name = "arrow_util"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "ahash 0.8.12",
  "arrow",
@@ -541,7 +541,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "authz"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -655,7 +655,7 @@ dependencies = [
 
 [[package]]
 name = "backoff"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "rand 0.9.4",
  "snafu 0.9.0",
@@ -686,7 +686,7 @@ dependencies = [
  "miniz_oxide",
  "object",
  "rustc-demangle",
- "windows-link 0.2.1",
+ "windows-link",
 ]
 
 [[package]]
@@ -1078,7 +1078,7 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "catalog_cache"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "bytes",
  "criterion 0.8.2",
@@ -1140,7 +1140,7 @@ dependencies = [
  "num-traits",
  "serde",
  "wasm-bindgen",
- "windows-link 0.2.1",
+ "windows-link",
 ]
 
 [[package]]
@@ -1222,14 +1222,14 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cli_types"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "tokio",
 ]
 
 [[package]]
 name = "client_util"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "http 1.4.0",
  "iox_http_util",
@@ -1691,9 +1691,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-epoch"
-version = "0.9.18"
+version = "0.9.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+checksum = "2d6914041f254d6e9176c01941b21115dcfb7089e55135a35411081bd106ef3f"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -1832,7 +1832,7 @@ dependencies = [
 
 [[package]]
 name = "data_types"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -2566,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion_util"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -2649,6 +2649,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dispatch2"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e0e367e4e7da84520dedcac1901e4da967309406d1e51017ae1abfb97adbd38"
+dependencies = [
+ "bitflags 2.11.1",
+ "objc2",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2661,7 +2671,7 @@ dependencies = [
 
 [[package]]
 name = "dml"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow_util",
  "data_types",
@@ -2773,7 +2783,7 @@ dependencies = [
 
 [[package]]
 name = "error_reporting"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "datafusion",
  "snafu 0.9.0",
@@ -2803,7 +2813,7 @@ dependencies = [
 
 [[package]]
 name = "executor"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "futures",
  "metric",
@@ -2884,7 +2894,7 @@ dependencies = [
 
 [[package]]
 name = "flightsql"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -3091,7 +3101,7 @@ dependencies = [
 
 [[package]]
 name = "futures_test_utils"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "clap",
  "futures",
@@ -3102,7 +3112,7 @@ dependencies = [
 
 [[package]]
 name = "generated_types"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "bytes",
  "pbjson",
@@ -3372,7 +3382,7 @@ checksum = "617aaa3557aef3810a6369d0a99fac8a080891b68bd9f9812a1eeda0c0730cbd"
 dependencies = [
  "cfg-if",
  "libc",
- "windows-link 0.2.1",
+ "windows-link",
 ]
 
 [[package]]
@@ -3590,7 +3600,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core",
 ]
 
 [[package]]
@@ -3756,7 +3766,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb2_client"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "bytes",
  "futures",
@@ -3775,7 +3785,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3807,6 +3817,7 @@ dependencies = [
  "influxdb3_commands",
  "influxdb3_process",
  "influxdb3_processing_engine",
+ "influxdb3_processing_engine_telemetry",
  "influxdb3_query_executor",
  "influxdb3_server",
  "influxdb3_shutdown",
@@ -3859,6 +3870,7 @@ dependencies = [
  "trace",
  "trace_exporters",
  "trace_http",
+ "tracing-subscriber",
  "trogging",
  "url",
  "uuid",
@@ -3867,7 +3879,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_authz"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "authz",
@@ -3885,7 +3897,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_cache"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3920,7 +3932,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_catalog"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "ahash 0.8.12",
  "anyhow",
@@ -3977,7 +3989,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_clap_blocks"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4001,7 +4013,7 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu 0.8.9",
- "sysinfo 0.37.2",
+ "sysinfo 0.39.5",
  "tempfile",
  "test-log",
  "test_helpers",
@@ -4014,7 +4026,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_client"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "bytes",
  "flate2",
@@ -4035,7 +4047,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_commands"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "bytes",
@@ -4063,7 +4075,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_id"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "criterion 0.5.1",
  "indexmap 2.14.0",
@@ -4075,7 +4087,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_internal_api"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4096,7 +4108,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_load_generator"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "bytes",
@@ -4117,7 +4129,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
- "sysinfo 0.37.2",
+ "sysinfo 0.39.5",
  "thiserror 1.0.69",
  "tokio",
  "trogging",
@@ -4126,7 +4138,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_process"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "iox_time",
  "uuid",
@@ -4134,7 +4146,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_processing_engine"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4150,6 +4162,7 @@ dependencies = [
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_internal_api",
+ "influxdb3_processing_engine_telemetry",
  "influxdb3_py_api",
  "influxdb3_shutdown",
  "influxdb3_sys_events",
@@ -4172,12 +4185,23 @@ dependencies = [
  "test-log",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-util",
  "walkdir",
 ]
 
 [[package]]
+name = "influxdb3_processing_engine_telemetry"
+version = "3.11.0-nightly"
+dependencies = [
+ "hashbrown 0.14.5",
+ "influxdb3_catalog",
+ "influxdb3_telemetry",
+ "parking_lot",
+]
+
+[[package]]
 name = "influxdb3_py_api"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -4205,7 +4229,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_query_executor"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4256,7 +4280,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_server"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4343,7 +4367,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_shutdown"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "futures",
  "futures-util",
@@ -4358,14 +4382,14 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_startup"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "chrono",
 ]
 
 [[package]]
 name = "influxdb3_sys_events"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4384,7 +4408,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_system_tables"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4416,7 +4440,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_telemetry"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "futures",
  "futures-util",
@@ -4429,7 +4453,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "sysinfo 0.37.2",
+ "sysinfo 0.39.5",
  "test-log",
  "thiserror 1.0.69",
  "tokio",
@@ -4437,7 +4461,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_test_helpers"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4450,7 +4474,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_types"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4470,7 +4494,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_wal"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "bitcode",
@@ -4499,7 +4523,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_write"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4569,7 +4593,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb_influxql_parser"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "assert_matches",
  "chrono",
@@ -4586,7 +4610,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb_iox_client"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -4615,7 +4639,7 @@ dependencies = [
 
 [[package]]
 name = "ingester_query_grpc"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "base64 0.22.1",
  "data_types",
@@ -4681,7 +4705,7 @@ checksum = "06432fb54d3be7964ecd3649233cddf80db2832f47fec34c01f65b3d9d774983"
 
 [[package]]
 name = "iox_http"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -4701,7 +4725,7 @@ dependencies = [
 
 [[package]]
 name = "iox_http_util"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "futures",
  "http 1.4.0",
@@ -4712,7 +4736,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -4761,7 +4785,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -4788,7 +4812,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql_rewrite"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "influxdb_influxql_parser",
  "thiserror 2.0.18",
@@ -4796,7 +4820,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_params"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -4810,7 +4834,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_udf"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "datafusion-udf-wasm-host",
  "datafusion-udf-wasm-query",
@@ -4821,7 +4845,7 @@ dependencies = [
 
 [[package]]
 name = "iox_system_tables"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "async-trait",
@@ -4831,7 +4855,7 @@ dependencies = [
 
 [[package]]
 name = "iox_time"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -4840,7 +4864,7 @@ dependencies = [
 
 [[package]]
 name = "iox_v1_query_api"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4954,7 +4978,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jemalloc_pprof_http"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "http-body-util",
  "hyper 1.9.0",
@@ -4967,7 +4991,7 @@ dependencies = [
 
 [[package]]
 name = "jemalloc_stats"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "futures",
  "snafu 0.9.0",
@@ -5160,7 +5184,7 @@ dependencies = [
 
 [[package]]
 name = "linear_buffer"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 
 [[package]]
 name = "linux-raw-sys"
@@ -5204,7 +5228,7 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "logfmt"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "humantime",
  "parking_lot",
@@ -5303,14 +5327,14 @@ dependencies = [
 
 [[package]]
 name = "metric"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "parking_lot",
 ]
 
 [[package]]
 name = "metric_exporters"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "metric",
  "mockito",
@@ -5435,7 +5459,7 @@ checksum = "9252111cf132ba0929b6f8e030cac2a24b507f3a4d6db6fb2896f27b354c714b"
 
 [[package]]
 name = "mutable_batch"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -5453,7 +5477,7 @@ dependencies = [
 
 [[package]]
 name = "mutable_batch_lp"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow_util",
  "assert_matches",
@@ -5469,7 +5493,7 @@ dependencies = [
 
 [[package]]
 name = "mutable_batch_pb"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow_util",
  "criterion 0.8.2",
@@ -5637,12 +5661,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a12a8ed07aefc768292f076dc3ac8c48f3781c8f2d5851dd3d98950e8c5a89f"
+dependencies = [
+ "objc2-encode",
+]
+
+[[package]]
 name = "objc2-core-foundation"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
 dependencies = [
  "bitflags 2.11.1",
+ "dispatch2",
+ "objc2",
+]
+
+[[package]]
+name = "objc2-encode"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef25abbcd74fb2609453eb695bd2f860d389e457f67dc17cafc8b8cbc89d0c33"
+
+[[package]]
+name = "objc2-foundation"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3e0adef53c21f888deb4fa59fc59f7eb17404926ee8a6f59f5df0fd7f9f3272"
+dependencies = [
+ "bitflags 2.11.1",
+ "objc2",
 ]
 
 [[package]]
@@ -5653,6 +5704,17 @@ checksum = "33fafba39597d6dc1fb709123dfa8289d39406734be322956a69f0931c73bb15"
 dependencies = [
  "libc",
  "objc2-core-foundation",
+]
+
+[[package]]
+name = "objc2-open-directory"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb82bed227edf5201dfedf072bba4015a33d3d4a98519837295a90f0a23f676d"
+dependencies = [
+ "objc2",
+ "objc2-core-foundation",
+ "objc2-foundation",
 ]
 
 [[package]]
@@ -5707,7 +5769,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_limit"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5719,7 +5781,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_mem_cache"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "bincode",
@@ -5747,7 +5809,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_metrics"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "bloom2",
@@ -5772,7 +5834,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_mock"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5786,7 +5848,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_size_hinting"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "chrono",
  "http 1.4.0",
@@ -5796,7 +5858,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_utils"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "backon",
@@ -5810,7 +5872,7 @@ dependencies = [
 
 [[package]]
 name = "observability_deps"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "tracing",
 ]
@@ -5875,7 +5937,7 @@ dependencies = [
 
 [[package]]
 name = "panic_logging"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "metric",
  "test_helpers",
@@ -5908,7 +5970,7 @@ dependencies = [
  "libc",
  "redox_syscall 0.5.18",
  "smallvec",
- "windows-link 0.2.1",
+ "windows-link",
 ]
 
 [[package]]
@@ -5950,7 +6012,7 @@ dependencies = [
 
 [[package]]
 name = "parquet_file"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -5981,7 +6043,7 @@ dependencies = [
 
 [[package]]
 name = "partition"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "assert_matches",
@@ -6278,7 +6340,7 @@ dependencies = [
 
 [[package]]
 name = "predicate"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "async-trait",
@@ -6622,7 +6684,7 @@ dependencies = [
 
 [[package]]
 name = "query_functions"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "chrono",
@@ -7332,7 +7394,7 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "base64 0.22.1",
@@ -7515,7 +7577,7 @@ dependencies = [
 
 [[package]]
 name = "service_common"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -7529,7 +7591,7 @@ dependencies = [
 
 [[package]]
 name = "service_grpc_flight"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -7605,7 +7667,7 @@ dependencies = [
 
 [[package]]
 name = "sharder"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "criterion 0.8.2",
  "data_types",
@@ -7752,9 +7814,9 @@ dependencies = [
 
 [[package]]
 name = "spin"
-version = "0.9.8"
+version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 dependencies = [
  "lock_api",
 ]
@@ -8083,20 +8145,6 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.37.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16607d5caffd1c07ce073528f9ed972d88db15dd44023fa57142963be3feb11f"
-dependencies = [
- "libc",
- "memchr",
- "ntapi",
- "objc2-core-foundation",
- "objc2-io-kit",
- "windows 0.61.3",
-]
-
-[[package]]
-name = "sysinfo"
 version = "0.38.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92ab6a2f8bfe508deb3c6406578252e491d299cbbf3bc0529ecc3313aee4a52f"
@@ -8106,7 +8154,22 @@ dependencies = [
  "ntapi",
  "objc2-core-foundation",
  "objc2-io-kit",
- "windows 0.62.2",
+ "windows",
+]
+
+[[package]]
+name = "sysinfo"
+version = "0.39.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c8bd2130a9b60bee2581bf82cfe89ee836424d1f37dcfa4ce21509611684673"
+dependencies = [
+ "libc",
+ "memchr",
+ "ntapi",
+ "objc2-core-foundation",
+ "objc2-io-kit",
+ "objc2-open-directory",
+ "windows",
 ]
 
 [[package]]
@@ -8127,7 +8190,7 @@ dependencies = [
 
 [[package]]
 name = "table_batch"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "arrow_util",
  "bitvec",
@@ -8223,7 +8286,7 @@ dependencies = [
 
 [[package]]
 name = "test_helpers"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "dotenvy",
@@ -8242,7 +8305,7 @@ dependencies = [
 
 [[package]]
 name = "test_helpers_authz"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "futures",
  "generated_types",
@@ -8515,7 +8578,7 @@ dependencies = [
 
 [[package]]
 name = "tokio_metrics_bridge"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "metric",
  "parking_lot",
@@ -8524,7 +8587,7 @@ dependencies = [
 
 [[package]]
 name = "tokio_watchdog"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "metric",
  "test_helpers",
@@ -8747,7 +8810,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tower_trailer"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "futures",
  "http 1.4.0",
@@ -8759,7 +8822,7 @@ dependencies = [
 
 [[package]]
 name = "trace"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -8769,7 +8832,7 @@ dependencies = [
 
 [[package]]
 name = "trace_exporters"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "async-trait",
  "chrono",
@@ -8786,7 +8849,7 @@ dependencies = [
 
 [[package]]
 name = "trace_http"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "bytes",
  "futures",
@@ -8881,7 +8944,7 @@ dependencies = [
 
 [[package]]
 name = "tracker"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "futures",
  "hashbrown 0.14.5",
@@ -8901,7 +8964,7 @@ dependencies = [
 
 [[package]]
 name = "trogging"
-version = "3.10.0-nightly"
+version = "3.11.0-nightly"
 dependencies = [
  "clap",
  "logfmt",
@@ -9705,36 +9768,14 @@ dependencies = [
 
 [[package]]
 name = "windows"
-version = "0.61.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9babd3a767a4c1aef6900409f85f5d53ce2544ccdfaa86dad48c91782c6d6893"
-dependencies = [
- "windows-collections 0.2.0",
- "windows-core 0.61.2",
- "windows-future 0.2.1",
- "windows-link 0.1.3",
- "windows-numerics 0.2.0",
-]
-
-[[package]]
-name = "windows"
 version = "0.62.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "527fadee13e0c05939a6a05d5bd6eec6cd2e3dbd648b9f8e447c6518133d8580"
 dependencies = [
- "windows-collections 0.3.2",
- "windows-core 0.62.2",
- "windows-future 0.3.2",
- "windows-numerics 0.3.1",
-]
-
-[[package]]
-name = "windows-collections"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3beeceb5e5cfd9eb1d76b381630e82c4241ccd0d27f1a39ed41b2760b255c5e8"
-dependencies = [
- "windows-core 0.61.2",
+ "windows-collections",
+ "windows-core",
+ "windows-future",
+ "windows-numerics",
 ]
 
 [[package]]
@@ -9743,20 +9784,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b2d95af1a8a14a3c7367e1ed4fc9c20e0a26e79551b1454d72583c97cc6610"
 dependencies = [
- "windows-core 0.62.2",
-]
-
-[[package]]
-name = "windows-core"
-version = "0.61.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3"
-dependencies = [
- "windows-implement",
- "windows-interface",
- "windows-link 0.1.3",
- "windows-result 0.3.4",
- "windows-strings 0.4.2",
+ "windows-core",
 ]
 
 [[package]]
@@ -9767,20 +9795,9 @@ checksum = "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb"
 dependencies = [
  "windows-implement",
  "windows-interface",
- "windows-link 0.2.1",
- "windows-result 0.4.1",
- "windows-strings 0.5.1",
-]
-
-[[package]]
-name = "windows-future"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
-dependencies = [
- "windows-core 0.61.2",
- "windows-link 0.1.3",
- "windows-threading 0.1.0",
+ "windows-link",
+ "windows-result",
+ "windows-strings",
 ]
 
 [[package]]
@@ -9789,9 +9806,9 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1d6f90251fe18a279739e78025bd6ddc52a7e22f921070ccdc67dde84c605cb"
 dependencies = [
- "windows-core 0.62.2",
- "windows-link 0.2.1",
- "windows-threading 0.2.1",
+ "windows-core",
+ "windows-link",
+ "windows-threading",
 ]
 
 [[package]]
@@ -9818,25 +9835,9 @@ dependencies = [
 
 [[package]]
 name = "windows-link"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a"
-
-[[package]]
-name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
-
-[[package]]
-name = "windows-numerics"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
-dependencies = [
- "windows-core 0.61.2",
- "windows-link 0.1.3",
-]
 
 [[package]]
 name = "windows-numerics"
@@ -9844,17 +9845,8 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e2e40844ac143cdb44aead537bbf727de9b044e107a0f1220392177d15b0f26"
 dependencies = [
- "windows-core 0.62.2",
- "windows-link 0.2.1",
-]
-
-[[package]]
-name = "windows-result"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
-dependencies = [
- "windows-link 0.1.3",
+ "windows-core",
+ "windows-link",
 ]
 
 [[package]]
@@ -9863,16 +9855,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5"
 dependencies = [
- "windows-link 0.2.1",
-]
-
-[[package]]
-name = "windows-strings"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
-dependencies = [
- "windows-link 0.1.3",
+ "windows-link",
 ]
 
 [[package]]
@@ -9881,7 +9864,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7837d08f69c77cf6b07689544538e017c1bfcf57e34b4c0ff58e6c2cd3b37091"
 dependencies = [
- "windows-link 0.2.1",
+ "windows-link",
 ]
 
 [[package]]
@@ -9935,7 +9918,7 @@ version = "0.61.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
- "windows-link 0.2.1",
+ "windows-link",
 ]
 
 [[package]]
@@ -9990,7 +9973,7 @@ version = "0.53.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3"
 dependencies = [
- "windows-link 0.2.1",
+ "windows-link",
  "windows_aarch64_gnullvm 0.53.1",
  "windows_aarch64_msvc 0.53.1",
  "windows_i686_gnu 0.53.1",
@@ -10003,20 +9986,11 @@ dependencies = [
 
 [[package]]
 name = "windows-threading"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b66463ad2e0ea3bbf808b7f1d371311c80e115c0b71d60efc142cafbcfb057a6"
-dependencies = [
- "windows-link 0.1.3",
-]
-
-[[package]]
-name = "windows-threading"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3949bd5b99cafdf1c7ca86b43ca564028dfe27d66958f2470940f73d86d75b37"
 dependencies = [
- "windows-link 0.2.1",
+ "windows-link",
 ]
 
 [[package]]

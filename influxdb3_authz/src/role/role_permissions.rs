@@ -3,7 +3,8 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::role::actions::{
-    AdminTokenAction, DatabaseAction, ResourceIdentifier, RoleAction, TokenAction, UserAction,
+    AdminTokenAction, DatabaseAction, ResourceIdentifier, RoleAction, SystemAction, SystemResource,
+    TokenAction, UserAction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -14,6 +15,7 @@ pub enum Permission {
     User(UserPermission),
     Role(RolePermission),
     AdminToken(AdminTokenPermission),
+    System(SystemPermission),
 }
 
 impl Permission {
@@ -102,6 +104,26 @@ impl AdminTokenPermission {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SystemPermission {
+    action: SystemAction,
+    resource: ResourceIdentifier<SystemResource>,
+}
+
+impl SystemPermission {
+    pub fn new(action: SystemAction, resource: ResourceIdentifier<SystemResource>) -> Self {
+        Self { action, resource }
+    }
+
+    pub fn action(&self) -> SystemAction {
+        self.action
+    }
+
+    pub fn resource(&self) -> ResourceIdentifier<SystemResource> {
+        self.resource
+    }
+}
+
 pub trait PermissionType: Sized {
     fn covers(perm: &Permission, required: &Self) -> bool;
 }
@@ -148,6 +170,10 @@ impl PermissionType for RolePermission {
 
 impl PermissionType for AdminTokenPermission {
     permission_covers!(AdminToken, action);
+}
+
+impl PermissionType for SystemPermission {
+    permission_covers!(System, action, resource);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

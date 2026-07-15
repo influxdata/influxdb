@@ -715,16 +715,6 @@ macro_rules! object_store_config_inner {
                 )]
                 pub retry_timeout: Option<Duration>,
 
-
-                /// Endpoint of an S3 compatible, HTTP/2 enabled object store cache.
-                #[clap(
-                    id = gen_name!($prefix, "object-store-cache-endpoint"),
-                    long = gen_name!($prefix, "object-store-cache-endpoint"),
-                    env = gen_env!($prefix, "INFLUXDB3_OBJECT_STORE_CACHE_ENDPOINT"),
-                    action
-                )]
-                pub cache_endpoint: Option<Endpoint>,
-
                 /// Allow invalid TLS certificates when connecting to object storage.
                 /// WARNING: This disables TLS certificate verification and should only be used for testing.
                 #[clap(
@@ -784,7 +774,6 @@ macro_rules! object_store_config_inner {
                         http2_max_frame_size: Default::default(),
                         max_retries: Default::default(),
                         retry_timeout: Default::default(),
-                        cache_endpoint: Default::default(),
                         tls_allow_insecure: Default::default(),
                         tls_ca_path: Default::default(),
                     }
@@ -1014,49 +1003,6 @@ macro_rules! object_store_config_inner {
                     panic!("Azure blob storage support not enabled, recompile with the azure feature enabled")
                 }
 
-                /// Build cache store.
-                #[cfg(feature = "aws")]
-                pub fn make_cache_store(
-                    &self
-                ) -> Result<Option<Arc<DynObjectStore>>, ParseError> {
-                    let Some(endpoint) = &self.cache_endpoint else {
-                        return Ok(None);
-                    };
-
-                    let store = Arc::new(object_store::aws::AmazonS3Builder::from_env()
-                        // bucket name is ignored by our cache server
-                        .with_bucket_name(self.bucket.as_deref().unwrap_or("placeholder"))
-                        .with_client_options(
-                            object_store::ClientOptions::new()
-                                .with_allow_http(true)
-                                .with_http2_only()
-                                // this is the maximum that is allowed by the HTTP/2 standard and is meant to lower the overhead of
-                                // submitting TCP packages to the kernel
-                                .with_http2_max_frame_size(16777215),
-                        )
-                        .with_endpoint(endpoint.clone())
-                        .with_retry(object_store::RetryConfig {
-                            max_retries: 3,
-                            ..Default::default()
-                        })
-                        .with_skip_signature(true)
-                        .build()
-                        .context(InvalidS3ConfigSnafu)?);
-
-                    Ok(Some(store))
-                }
-
-                /// Build cache store.
-                #[cfg(not(feature = "aws"))]
-                pub fn make_cache_store(
-                    &self
-                ) -> Result<Option<Arc<DynObjectStore>>, ParseError> {
-                    match &self.cache_endpoint {
-                        Some(_) => panic!("Cache support not enabled, recompile with the aws feature enabled"),
-                        None => Ok(None),
-                    }
-                }
-
                 /// Create config-dependant object store.
                 ///
                 /// Semaphore metrics are not registered with any metric registry.
@@ -1153,8 +1099,6 @@ macro_rules! object_store_config_inner {
     };
 }
 
-object_store_config!("source"); // SourceObjectStoreConfig
-object_store_config!("sink"); // SinkObjectStoreConfig
 object_store_config!(); // ObjectStoreConfig
 
 /// Object-store type.
@@ -1190,51 +1134,6 @@ impl ObjectStoreType {
             Self::Google => "google",
             Self::Azure => "azure",
         }
-    }
-}
-
-/// The `object_store::signer::Signer` trait is implemented for AWS and local file systems, so when
-/// the AWS feature is enabled and the configured object store is S3 or the local file system,
-/// return a signer.
-#[cfg(feature = "aws")]
-pub fn make_presigned_url_signer(
-    config: &ObjectStoreConfig,
-) -> Result<Option<Arc<dyn object_store::signer::Signer>>, ParseError> {
-    match &config.object_store {
-        ObjectStoreType::S3 => Ok(Some(Arc::new(config.build_s3_signer()?))),
-        ObjectStoreType::File => Ok(Some(Arc::new(LocalUploadSigner::new(config)?))),
-        _ => Ok(None),
-    }
-}
-
-/// The `object_store::signer::Signer` trait is implemented for AWS and local file systems, so if
-/// the AWS feature isn't enabled, only return a signer for local file systems.
-#[cfg(not(feature = "aws"))]
-pub fn make_presigned_url_signer(
-    config: &ObjectStoreConfig,
-) -> Result<Option<Arc<dyn object_store::signer::Signer>>, ParseError> {
-    match &config.object_store {
-        ObjectStoreType::File => Ok(Some(Arc::new(LocalUploadSigner::new(config)?))),
-        _ => Ok(None),
-    }
-}
-
-/// An implementation of `object_store::signer::Signer` suitable for local testing.
-/// Does NOT actually create presigned URLs; only returns the given path resolved to an absolute `file://`
-/// URL that the bulk ingester can write directly to only if the bulk ingester is running on the
-/// same system.
-///
-/// Again, will not work and not intended to work in production, but is useful in local testing.
-#[derive(Debug)]
-pub struct LocalUploadSigner {
-    inner: Arc<LocalFileSystemWithSortedListOp>,
-}
-
-impl LocalUploadSigner {
-    fn new(config: &ObjectStoreConfig) -> Result<Self, ParseError> {
-        Ok(Self {
-            inner: config.new_local_file_system()?,
-        })
     }
 }
 
@@ -1525,22 +1424,6 @@ impl object_store::ObjectStore for ReauthingObjectStore {
                 .put_opts(location, payload.clone(), options.clone())
                 .await
         )
-    }
-}
-
-#[async_trait]
-impl object_store::signer::Signer for LocalUploadSigner {
-    async fn signed_url(
-        &self,
-        _method: http::Method,
-        path: &Path,
-        _expires_in: Duration,
-    ) -> Result<Url, object_store::Error> {
-        self.inner.inner.path_to_filesystem(path).and_then(|path| {
-            Url::from_file_path(&path).map_err(|_| object_store::Error::InvalidPath {
-                source: object_store::path::Error::InvalidPath { path },
-            })
-        })
     }
 }
 

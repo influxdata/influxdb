@@ -17,6 +17,14 @@ ignore = [
     # there are multiple replacements at this time but there isn't
     # yet a clear choice
     "RUSTSEC-2025-0141",
+    # quick-xml < 0.41.0 two DoS advisories: unbounded namespace-declaration
+    # allocation in NsReader (0195) and quadratic-time attribute duplicate check
+    # (0194). Pulled in transitively at two versions with no upgrade path yet:
+    # object_store (latest 0.14.0) pins quick-xml ^0.40.1 and inferno (latest
+    # 0.12.6, via pprof) pins ^0.39 — neither reaches the patched 0.41.0. Remove
+    # once object_store and pprof/inferno move to quick-xml >= 0.41.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
     # rustls-webpki 0.102.8 CRL distribution point matching bug; low impact
     # (requires CA compromise). Stuck on 0.102.x via wasmtime's rustls 0.22.x
     # dep in datafusion-udf-wasm. Upstream also ignores this advisory.
@@ -76,7 +84,15 @@ ignore = [
     # Another wasmtime advisory:
     "RUSTSEC-2026-0182",
     #
-    # TODO: update wasmtime via datafusion-udf-wasm to a patched version (>=43.0.2 <44.0.0 or >=44.0.1)
+    # wasmtime-wasi 41.0.4 WASI hard links and renames bypass FilePerms for the
+    # destination (https://rustsec.org/advisories/RUSTSEC-2026-0188). Same transitive
+    # path via datafusion-udf-wasm; only reachable if a Wasm UDF is loaded with WASI
+    # filesystem preopens granted, and UDFs are disabled by default
+    # (udfs_enabled = false). Fix requires wasmtime-wasi >=45.0.3, which needs an
+    # upstream datafusion-udf-wasm bump.
+    "RUSTSEC-2026-0188",
+    #
+    # TODO: update wasmtime-wasi via datafusion-udf-wasm to a patched version (>=45.0.3; >=46.0.1 is also fixed)
     #
     # pyo3 0.24-0.28 out-of-bounds read in Iterator::nth/nth_back on
     # PyList/PyTuple iterators; fix is only in pyo3 0.29 (API-breaking bump,

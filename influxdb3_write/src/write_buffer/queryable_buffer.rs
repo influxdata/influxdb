@@ -287,7 +287,7 @@ impl QueryableBuffer {
                 wal_file_number.as_u64(),
             );
             let mut snapshot = PersistedSnapshot::new(
-                persister.node_identifier_prefix().to_string(),
+                Arc::clone(persister.node_identifier_prefix()),
                 snapshot_details.snapshot_sequence_number,
                 snapshot_details.last_wal_sequence_number,
                 catalog.sequence_number(),
