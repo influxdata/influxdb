@@ -89,6 +89,27 @@ ignore = [
     # to PyCFunction::new_closure, or PyCFunction::new_closure_bound.
     # Neither of these methods are used in this code.
     "RUSTSEC-2026-0177",
+    #
+    # wasmtime-wasi 41.0.4: WASI hard links and renames bypass FilePerms for the
+    # destination. Only reachable if a Wasm UDF is loaded with WASI filesystem
+    # preopens granted; UDFs are disabled by default. Remove when wasmtime-wasi
+    # updates via datafusion-udf-wasm.
+    "RUSTSEC-2026-0188",
+    #
+    # quick-xml < 0.41 DoS advisories: quadratic time checking duplicate attribute
+    # names (RUSTSEC-2026-0194) and unbounded namespace-declaration allocation in
+    # NsReader (RUSTSEC-2026-0195). Our affected copy (0.38.4) is pinned transitively
+    # by object_store, which only parses XML from the configured object store's own
+    # API responses (S3/Azure) -- not attacker-supplied documents -- so exposure is
+    # low. Remove both when object_store updates to quick-xml >=0.41.0.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+    #
+    # crossbeam-epoch: invalid pointer dereference in the `fmt::Pointer` impl for
+    # `Atomic`/`Shared` when the underlying pointer is invalid. Only reachable by
+    # formatting a dangling `Atomic`/`Shared` with `{:p}`, which this code does not
+    # do. Remove when the transitive crossbeam-epoch dependency updates.
+    "RUSTSEC-2026-0204",
 ]
 git-fetch-with-cli = true
 
